@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-22.md`
-- **Total Sessions**: 435
+- **Total Sessions**: 436
 - **Last Active**: 2026-06-04
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-22.md` | ~608 | Active |
+| `journal-22.md` | ~641 | Active |
 | `journal-21.md` | ~1978 | Archived |
 | `journal-20.md` | ~1977 | Archived |
 | `journal-19.md` | ~1996 | Archived |
@@ -50,6 +50,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 436 | 2026-06-04 | Stage2 RVV runtime-scalar splat-store runtime AVL/VL contract migration | included-in-this-commit | `main` |
 | 435 | 2026-06-04 | Stage2 RVV conversion runtime AVL/VL contract | `02945a1c` | `main` |
 | 434 | 2026-06-04 | Stage2 RVV widening-dot runtime AVL/VL contract migration | included-in-this-commit | `main` |
 | 433 | 2026-06-04 | Stage2 RVV MAcc runtime AVL/VL contract migration | included-in-this-commit | `main` |

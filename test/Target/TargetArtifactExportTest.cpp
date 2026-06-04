@@ -4415,6 +4415,60 @@ bool expectRVVTargetArtifactExporterShape(
                     "statement-plan facts\n";
     return false;
   }
+  const tianchenrv::plugin::rvv::
+      RVVRuntimeAVLVLSelectedBoundaryContract &runtimeSplatAVLVLContract =
+          runtimeSplatContract->runtimeAVLVLContract;
+  if (runtimeSplatAVLVLContract.consumerLabel.empty() ||
+      runtimeSplatAVLVLContract.sew != runtimeSplatDescription.sew ||
+      runtimeSplatAVLVLContract.lmul != runtimeSplatDescription.lmul ||
+      runtimeSplatAVLVLContract.tailPolicy !=
+          runtimeSplatDescription.tailPolicy ||
+      runtimeSplatAVLVLContract.maskPolicy !=
+          runtimeSplatDescription.maskPolicy ||
+      runtimeSplatAVLVLContract.configContractID !=
+          runtimeSplatDescription.configContractID ||
+      runtimeSplatAVLVLContract.runtimeControlPlanID !=
+          runtimeSplatDescription.runtimeControlPlanID ||
+      runtimeSplatAVLVLContract.runtimeVLContractID !=
+          runtimeSplatDescription.runtimeVLContractID ||
+      runtimeSplatAVLVLContract.runtimeAVLASource !=
+          runtimeSplatDescription.runtimeAVLASource ||
+      runtimeSplatAVLVLContract.runtimeABIOrder !=
+          runtimeSplatDescription.runtimeABIOrder ||
+      runtimeSplatAVLVLContract.selectedBoundaryOpName !=
+          runtimeSplatDescription.boundaryOpName ||
+      runtimeSplatAVLVLContract.selectedBodyProvenance.empty() ||
+      runtimeSplatAVLVLContract.vlDefOpName !=
+          runtimeSplatDescription.vlDefOpName ||
+      runtimeSplatAVLVLContract.vlScopeOpName !=
+          runtimeSplatDescription.vlScopeOpName ||
+      runtimeSplatAVLVLContract.vlUses != runtimeSplatDescription.vlUses ||
+      runtimeSplatAVLVLContract.setVLIntrinsic !=
+          runtimeSplatDescription.setVLIntrinsic ||
+      runtimeSplatAVLVLContract.vlCType != runtimeSplatDescription.vlCType ||
+      runtimeSplatAVLVLContract.emitCLoopKind !=
+          runtimeSplatDescription.emitCLoopKind ||
+      runtimeSplatAVLVLContract.emitCLoopInductionName !=
+          runtimeSplatDescription.emitCLoopInductionName ||
+      runtimeSplatAVLVLContract.emitCFullChunkVLName !=
+          runtimeSplatDescription.emitCFullChunkVLName ||
+      runtimeSplatAVLVLContract.emitCLoopVLName !=
+          runtimeSplatDescription.emitCLoopVLName ||
+      runtimeSplatAVLVLContract.remainingAVLMetadata !=
+          runtimeSplatDescription.remainingAVLMetadata ||
+      runtimeSplatAVLVLContract.pointerAdvanceMetadata !=
+          runtimeSplatDescription.pointerAdvanceMetadata ||
+      runtimeSplatAVLVLContract.boundedSlice !=
+          runtimeSplatDescription.boundedSlice ||
+      runtimeSplatAVLVLContract.multiVL != runtimeSplatDescription.multiVL ||
+      runtimeSplatAVLVLContract.runtimeAVLParameter.cName != "n" ||
+      runtimeSplatAVLVLContract.runtimeAVLParameter.role !=
+          RuntimeABIParameterRole::RuntimeElementCount) {
+    llvm::errs() << "runtime-scalar splat-store embedded runtime AVL/VL "
+                    "selected-boundary contract did not mirror rebuilt route "
+                    "facts\n";
+    return false;
+  }
 
   RVVRouteValidationContext runtimeSplatContext{
       runtimeSplatFixture.candidate, runtimeSplatRoute,
@@ -4500,6 +4554,122 @@ bool expectRVVTargetArtifactExporterShape(
           "runtime-scalar splat-store registry rejects stale runtime ABI "
           "order",
           {"runtime ABI order", "rhs_scalar,out,n", "rhs_scalar,n,out"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeSplatAVLASource =
+      runtimeSplatDescription;
+  staleRuntimeSplatAVLASource.runtimeAVLASource =
+      "metadata-derived-runtime-avl";
+  if (!expectRuntimeSplatProviderFailure(
+          staleRuntimeSplatAVLASource,
+          "runtime-scalar splat-store registry rejects stale runtime AVL "
+          "source",
+          {"runtime AVL source", runtimeSplatDescription.runtimeAVLASource,
+           "metadata-derived-runtime-avl"}))
+    return false;
+
+  RVVRouteDescription missingRuntimeSplatVLContract =
+      runtimeSplatDescription;
+  missingRuntimeSplatVLContract.runtimeVLContractID = "";
+  if (!expectRuntimeSplatProviderFailure(
+          missingRuntimeSplatVLContract,
+          "runtime-scalar splat-store registry rejects missing runtime VL "
+          "contract",
+          {"runtime VL contract", runtimeSplatDescription.runtimeVLContractID,
+           "artifact export"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeSplatVLScope =
+      runtimeSplatDescription;
+  staleRuntimeSplatVLScope.vlScopeOpName = "metadata_vl_scope";
+  if (!expectRuntimeSplatProviderFailure(
+          staleRuntimeSplatVLScope,
+          "runtime-scalar splat-store registry rejects stale with_vl scope",
+          {"runtime AVL/VL selected-boundary VL scope op",
+           "metadata_vl_scope"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeSplatSetVL =
+      runtimeSplatDescription;
+  staleRuntimeSplatSetVL.setVLIntrinsic = "metadata_setvl";
+  if (!expectRuntimeSplatProviderFailure(
+          staleRuntimeSplatSetVL,
+          "runtime-scalar splat-store registry rejects stale setvl callee",
+          {"runtime AVL/VL selected-boundary setvl callee",
+           "metadata_setvl"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeSplatVLCType =
+      runtimeSplatDescription;
+  staleRuntimeSplatVLCType.vlCType = "metadata_size_t";
+  if (!expectRuntimeSplatProviderFailure(
+          staleRuntimeSplatVLCType,
+          "runtime-scalar splat-store registry rejects stale VL C type",
+          {"runtime AVL/VL selected-boundary VL C type",
+           "metadata_size_t"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeSplatFullChunkVL =
+      runtimeSplatDescription;
+  staleRuntimeSplatFullChunkVL.emitCFullChunkVLName = "metadata_full_vl";
+  if (!expectRuntimeSplatProviderFailure(
+          staleRuntimeSplatFullChunkVL,
+          "runtime-scalar splat-store registry rejects stale full-chunk VL",
+          {"runtime AVL/VL selected-boundary EmitC full-chunk VL",
+           "metadata_full_vl"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeSplatLoopVL =
+      runtimeSplatDescription;
+  staleRuntimeSplatLoopVL.emitCLoopVLName = "metadata_loop_vl";
+  if (!expectRuntimeSplatProviderFailure(
+          staleRuntimeSplatLoopVL,
+          "runtime-scalar splat-store registry rejects stale loop VL",
+          {"runtime AVL/VL selected-boundary EmitC loop VL",
+           "metadata_loop_vl"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeSplatLoopInduction =
+      runtimeSplatDescription;
+  staleRuntimeSplatLoopInduction.emitCLoopInductionName = "metadata_i";
+  if (!expectRuntimeSplatProviderFailure(
+          staleRuntimeSplatLoopInduction,
+          "runtime-scalar splat-store registry rejects stale loop induction",
+          {"runtime AVL/VL selected-boundary EmitC loop induction",
+           "metadata_i"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeSplatRuntimeNRole =
+      runtimeSplatDescription;
+  staleRuntimeSplatRuntimeNRole.runtimeABIParameters[2].role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (!expectRuntimeSplatProviderFailure(
+          staleRuntimeSplatRuntimeNRole,
+          "runtime-scalar splat-store registry rejects stale runtime n ABI "
+          "role",
+          {"runtime n/AVL ABI parameter", "artifact export"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeSplatRemainingAVL =
+      runtimeSplatDescription;
+  staleRuntimeSplatRemainingAVL.remainingAVLMetadata = "metadata_remaining";
+  if (!expectRuntimeSplatProviderFailure(
+          staleRuntimeSplatRemainingAVL,
+          "runtime-scalar splat-store registry rejects stale remaining AVL",
+          {"runtime AVL/VL selected-boundary remaining AVL metadata",
+           "metadata_remaining"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeSplatPointerAdvance =
+      runtimeSplatDescription;
+  staleRuntimeSplatPointerAdvance.pointerAdvanceMetadata =
+      "metadata_pointer_advance";
+  if (!expectRuntimeSplatProviderFailure(
+          staleRuntimeSplatPointerAdvance,
+          "runtime-scalar splat-store registry rejects stale pointer "
+          "advancement",
+          {"runtime AVL/VL selected-boundary pointer advancement metadata",
+           "metadata_pointer_advance"}))
     return false;
 
   RVVRouteDescription staleRuntimeSplatBinding =

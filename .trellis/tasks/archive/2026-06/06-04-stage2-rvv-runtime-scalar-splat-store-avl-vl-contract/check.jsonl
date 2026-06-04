@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Confirm final diff preserves RVV-first authority and common EmitC neutrality."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check runtime-scalar splat-store remains RVV plugin-owned and selected-body typed."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check embedded runtime AVL/VL selected-boundary fields, target consumer order, and test expectations."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Verify runtime-scalar splat-store contract embeds RVVRuntimeAVLVLSelectedBoundaryContract without weakening existing fields."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Verify provider builder derives runtimeAVLVLContract from provider-owned config/runtime ABI facts."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Verify target consumer validates embedded runtimeAVLVLContract before route payload, ABI, statements, and mirrors."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Verify positive and fail-closed target coverage for stale/missing runtime AVL/VL facts."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Focused target artifact export C++ regression must pass."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Focused RVV provider C++ regression must pass."}

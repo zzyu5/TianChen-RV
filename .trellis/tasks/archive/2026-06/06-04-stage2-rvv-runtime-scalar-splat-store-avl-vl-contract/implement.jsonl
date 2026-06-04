@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Project boundary, RVV-first authority chain, and prohibition on route-id/metadata/descriptor authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed selected-body runtime value consumption, and runtime-scalar splat-store route boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "RVVRuntimeAVLVLSelectedBoundaryContract shape and runtime-scalar splat-store route validation contract rules."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-runtime-avl-vl-selected-boundary-contract/prd.md", "reason": "Original runtime AVL/VL selected-boundary promotion and target-consumer pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-conversion-dtype-policy-runtime-avl-vl-contract/prd.md", "reason": "Nearest completed migration before this task, including no-runtime-change evidence pattern."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h", "reason": "Provider-facing runtime AVL/VL selected-boundary contract API."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Runtime-scalar splat-store route validation contract type to embed runtimeAVLVLContract."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Runtime-scalar splat-store provider contract builder and route-family preflight facts."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target artifact provider-fact and statement-plan consumer to rewire onto embedded runtime AVLVL contract."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused target positive and fail-closed coverage for runtime-scalar splat-store contract consumption."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-splat-store-dry-run.test", "reason": "Focused generated-bundle dry-run coverage for unchanged runtime-scalar splat-store artifacts."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-splat-store.mlir", "reason": "Focused target artifact fixture for pre-realized runtime-scalar splat-store."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-splat-store.mlir", "reason": "Focused target artifact fixture for explicit runtime-scalar splat-store."}

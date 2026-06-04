@@ -792,6 +792,8 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRouteStatementPlan(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVRuntimeScalarSplatStoreRouteValidationContract
         &contract) {
+  const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+      contract.runtimeAVLVLContract;
   if (contract.runtimeABIParameters.size() != 3 ||
       contract.logicalOperands.size() != 3)
     return makeRVVTargetRouteError(
@@ -801,7 +803,7 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRouteStatementPlan(
       contract.runtimeABIParameters[0];
   const support::RuntimeABIParameter &out = contract.runtimeABIParameters[1];
   const support::RuntimeABIParameter &runtimeN =
-      contract.runtimeABIParameters[2];
+      runtimeContract.runtimeAVLParameter;
 
   if (contract.expectedPreLoopStepCount != 1 ||
       contract.expectedLoopBodyStepCount != 3)
@@ -817,12 +819,12 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRouteStatementPlan(
         " before artifact export");
   const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
       route.getCallOpaqueSteps().front();
-  if (preLoopSetVL.callee != contract.setVLIntrinsic ||
+  if (preLoopSetVL.callee != runtimeContract.setVLIntrinsic ||
       preLoopSetVL.operands.size() != 1 ||
       preLoopSetVL.operands.front().expression != runtimeN.cName ||
       preLoopSetVL.operands.front().cType != runtimeN.cType ||
-      !stepHasResult(preLoopSetVL, contract.emitCFullChunkVLName,
-                     contract.vlCType))
+      !stepHasResult(preLoopSetVL, runtimeContract.emitCFullChunkVLName,
+                     runtimeContract.vlCType))
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires rebuilt provider route pre-loop setvl statement to use "
@@ -837,13 +839,13 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRouteStatementPlan(
         llvm::Twine(contract.consumerLabel) + " requires exactly "
         "one provider-built runtime AVL/VL loop before artifact export");
   const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
-  if (loop.inductionVarName != contract.emitCLoopInductionName ||
+  if (loop.inductionVarName != runtimeContract.emitCLoopInductionName ||
       loop.lowerBound.expression != "0" ||
-      loop.lowerBound.cType != contract.vlCType ||
+      loop.lowerBound.cType != runtimeContract.vlCType ||
       loop.upperBound.expression != runtimeN.cName ||
       loop.upperBound.cType != runtimeN.cType ||
-      loop.step.expression != contract.emitCFullChunkVLName ||
-      loop.step.cType != contract.vlCType)
+      loop.step.expression != runtimeContract.emitCFullChunkVLName ||
+      loop.step.cType != runtimeContract.vlCType)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) + " requires "
         "provider-built loop bounds and step to mirror runtime n/AVL/VL facts");
@@ -858,13 +860,14 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRouteStatementPlan(
       loop.bodySteps[0];
   const std::string expectedRemainingAVL =
       (llvm::StringRef(runtimeN.cName) + " - " +
-       contract.emitCLoopInductionName)
+       runtimeContract.emitCLoopInductionName)
           .str();
-  if (loopSetVL.callee != contract.setVLIntrinsic ||
+  if (loopSetVL.callee != runtimeContract.setVLIntrinsic ||
       loopSetVL.operands.size() != 1 ||
       loopSetVL.operands.front().expression != expectedRemainingAVL ||
-      loopSetVL.operands.front().cType != contract.vlCType ||
-      !stepHasResult(loopSetVL, contract.emitCLoopVLName, contract.vlCType))
+      loopSetVL.operands.front().cType != runtimeContract.vlCType ||
+      !stepHasResult(loopSetVL, runtimeContract.emitCLoopVLName,
+                     runtimeContract.vlCType))
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) + " requires "
         "provider-built loop setvl to derive per-iteration VL from remaining "
@@ -875,8 +878,8 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRouteStatementPlan(
       splat.operands.size() != 2 ||
       splat.operands[0].expression != rhsScalar.cName ||
       splat.operands[0].cType != rhsScalar.cType ||
-      splat.operands[1].expression != contract.emitCLoopVLName ||
-      splat.operands[1].cType != contract.vlCType ||
+      splat.operands[1].expression != runtimeContract.emitCLoopVLName ||
+      splat.operands[1].cType != runtimeContract.vlCType ||
       !stepHasResult(splat, contract.resultName, contract.vectorCType))
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) + " requires "
@@ -886,7 +889,7 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRouteStatementPlan(
   const conversion::emitc::TCRVEmitCCallOpaqueStep &store = loop.bodySteps[2];
   const std::string expectedOutPointer =
       (llvm::StringRef(out.cName) + " + " +
-       contract.emitCLoopInductionName)
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (store.callee != contract.storeIntrinsic ||
       store.operands.size() != 3 ||
@@ -894,8 +897,8 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRouteStatementPlan(
       store.operands[0].cType != out.cType ||
       store.operands[1].expression != contract.resultName ||
       store.operands[1].cType != contract.vectorCType ||
-      store.operands[2].expression != contract.emitCLoopVLName ||
-      store.operands[2].cType != contract.vlCType)
+      store.operands[2].expression != runtimeContract.emitCLoopVLName ||
+      store.operands[2].cType != runtimeContract.vlCType)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) + " requires "
         "provider-built store statement to consume out+offset, splat vector, "
@@ -1044,6 +1047,10 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRoutePayloadFacts(
         plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
             description.memoryForm) +
         "'");
+
+  if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
+          description, contract.runtimeAVLVLContract))
+    return error;
 
   if (llvm::Error error = requireRVVRuntimeScalarSplatStoreProviderField(
           "typed compute op", description.typedComputeOpName,

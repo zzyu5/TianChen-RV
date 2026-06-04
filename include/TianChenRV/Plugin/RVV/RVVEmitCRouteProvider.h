@@ -1244,6 +1244,7 @@ struct RVVRuntimeScalarSplatStoreRouteValidationContract {
   std::string routeOperandBindingSummary;
   std::string typedComputeOpName;
   std::string runtimeScalarSplatStoreRouteFamilyPlanID;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
 
   std::string sourceMemoryForm;
   std::string destinationMemoryForm;

@@ -4975,6 +4975,14 @@ buildRVVRuntimeScalarSplatStoreRouteValidationContract(
   for (const support::RuntimeABIParameter &parameter :
        contract.runtimeABIParameters)
     contract.runtimeABIParameterRoles.push_back(parameter.role);
+  if (std::optional<RVVRuntimeAVLVLSelectedBoundaryContract> runtimeContract =
+          getRVVRuntimeAVLVLSelectedBoundaryContract(
+              contract.sew, contract.lmul, contract.tailPolicy,
+              contract.maskPolicy, contract.configContractID,
+              contract.setVLIntrinsic, contract.vlCType,
+              contract.runtimeABIOrder, contract.runtimeABIParameters,
+              contract.consumerLabel))
+    contract.runtimeAVLVLContract = std::move(*runtimeContract);
 
   appendRuntimeScalarSplatStoreValidationHeaders(
       contract, contract.requiredHeaderDeclarations);

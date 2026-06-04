@@ -3102,6 +3102,7 @@ struct RVVRuntimeScalarSplatStoreRouteValidationContract {
   std::string routeOperandBindingSummary;
   std::string typedComputeOpName;
   std::string runtimeScalarSplatStoreRouteFamilyPlanID;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
   std::string sourceMemoryForm;
   std::string destinationMemoryForm;
   std::string scalarCType;
@@ -3138,6 +3139,10 @@ getRVVRuntimeScalarSplatStoreRouteValidationContract(
   facts for the current typed SEW32 LMUL m1 runtime-scalar splat-store surface:
   ABI order `rhs_scalar,out,n`, typed compute op `tcrv_rvv.splat`, memory form
   `runtime-scalar-splat-store`, and the canonical route-family plan id.
+- The contract must embed `RVVRuntimeAVLVLSelectedBoundaryContract`. Target
+  validation consumes that embedded contract before accepting local runtime
+  ABI, setvl/pre-loop/loop, scalar ABI, vector/type, splat/store intrinsic,
+  header/type, route operand binding, statement-plan, or metadata mirror facts.
 - Target artifact validation is a consume-only client. It compares rebuilt
   route id, provider-supported mirror, route-family plan id, runtime control
   plan, ABI order, runtime ABI parameters/roles, operand-binding summary,
@@ -3151,10 +3156,17 @@ getRVVRuntimeScalarSplatStoreRouteValidationContract(
 #### 4. Validation & Error Matrix
 
 - Missing validation contract -> fail before target artifact acceptance.
+- Missing or incomplete embedded runtime AVL/VL selected-boundary contract ->
+  fail before route payload, statement-plan, or mirror acceptance.
 - Route id, operation, memory form, typed compute op, provider mirror,
   route-family plan, runtime control plan, runtime ABI order, dtype/config,
   header/type summary, splat/store/result leaf, EmitC AVL/VL name, or
   statement-plan count differs from the contract -> fail before artifact export.
+- Runtime AVL source, runtime VL contract id, selected `with_vl` scope, setvl
+  callee, VL C type, full-chunk VL, loop VL, loop induction, runtime `n` ABI
+  role/order/ownership, remaining AVL metadata, or pointer advancement
+  metadata differs from the embedded runtime contract -> fail before artifact
+  export.
 - Description runtime ABI parameters or route ABI mappings do not match
   `rhs_scalar`, `out`, and `n` in provider order -> fail before statement
   validation.
@@ -3204,6 +3216,7 @@ Correct:
 ```text
 typed runtime-scalar splat-store body/config/runtime facts
   -> RVV provider builds RVVRuntimeScalarSplatStoreRouteValidationContract
+     with embedded RVVRuntimeAVLVLSelectedBoundaryContract
   -> target validator consumes contract for route payload and statements
   -> candidate metadata mirrors are checked only as mirrors
 ```
