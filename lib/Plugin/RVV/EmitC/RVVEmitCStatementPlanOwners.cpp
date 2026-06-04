@@ -653,6 +653,8 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
   const bool isWideningProduct = providerPlan.plansWideningProduct;
   const bool isProductReductionChain =
       providerPlan.plansProductReductionChain;
+  const bool isProductReductionDequantization =
+      providerPlan.plansProductReductionDequantization;
   const bool isDotReduction = providerPlan.plansDotReduction;
   const bool isComputedMask = providerPlan.plansComputedMask;
   const bool isStridedInput = providerPlan.plansStridedInput;
@@ -666,6 +668,8 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
       providerPlan.dotRHSABI;
   const support::RuntimeABIParameter *boundAccumulatorABI =
       providerPlan.accumulatorABI;
+  const support::RuntimeABIParameter *boundDequantScaleABI =
+      providerPlan.dequantScaleABI;
   const support::RuntimeABIParameter *boundOutABI = providerPlan.outABI;
   const support::RuntimeABIParameter *boundRuntimeElementCountABI =
       providerPlan.runtimeElementCountABI;
@@ -677,6 +681,8 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
   RVVSelectedBodyRouteSlice &slice = analysis.slice;
   const llvm::StringRef vlCType = providerPlan.vlCType;
   const llvm::StringRef resultVectorCType = providerPlan.resultVectorCType;
+  const llvm::StringRef dequantResultVectorCType =
+      providerPlan.dequantResultVectorCType;
   const llvm::StringRef sourceVectorCType = providerPlan.sourceVectorCType;
   const llvm::StringRef productVectorCType = providerPlan.productVectorCType;
   const llvm::StringRef maskCType = providerPlan.maskCType;
@@ -689,6 +695,8 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
   plan.plansWideningMAcc = isWideningMAcc;
   plan.plansWideningProduct = isWideningProduct;
   plan.plansProductReductionChain = isProductReductionChain;
+  plan.plansProductReductionDequantization =
+      isProductReductionDequantization;
   plan.plansDotReduction = isDotReduction;
   plan.plansComputedMask = isComputedMask;
   plan.plansStridedInput = isStridedInput;
@@ -715,15 +723,53 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
             TCRVEmitCCallOpaqueResult{"dot_initial_acc_vec",
                                       resultVectorCType.str()}))
       return error;
-    if (llvm::Error error = addRVVDirectContractionStatementOwnerPreLoopStep(
-            plan, slice.storeOperation, "store", providerFacts.storeLeaf,
-            {TCRVEmitCCallOpaqueOperand{boundOutABI->cName,
-                                        boundOutABI->cType},
-             TCRVEmitCCallOpaqueOperand{"dot_initial_acc_vec",
-                                        resultVectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
-                                        vlCType.str()}},
-            description, context))
+    if (isProductReductionDequantization) {
+      if (llvm::Error error = addRVVDirectContractionStatementOwnerPreLoopStep(
+              plan, slice.dequantizeOp.getOperation(), "compute",
+              providerFacts.dequantizeConvertLeaf,
+              {TCRVEmitCCallOpaqueOperand{"dot_initial_acc_vec",
+                                          resultVectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                          vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{"dot_initial_f32_vec",
+                                        dequantResultVectorCType.str()}))
+        return error;
+      if (llvm::Error error = addRVVDirectContractionStatementOwnerPreLoopStep(
+              plan, slice.dequantizeOp.getOperation(), "compute",
+              providerFacts.dequantizeScaleLeaf,
+              {TCRVEmitCCallOpaqueOperand{"dot_initial_f32_vec",
+                                          dequantResultVectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{boundDequantScaleABI->cName,
+                                          boundDequantScaleABI->cType},
+               TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                          vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{"dot_initial_dequantized_vec",
+                                        dequantResultVectorCType.str()}))
+        return error;
+      if (llvm::Error error = addRVVDirectContractionStatementOwnerPreLoopStep(
+              plan, slice.storeOperation, "store", providerFacts.storeLeaf,
+              {TCRVEmitCCallOpaqueOperand{boundOutABI->cName,
+                                          boundOutABI->cType},
+               TCRVEmitCCallOpaqueOperand{"dot_initial_dequantized_vec",
+                                          dequantResultVectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                          vlCType.str()}},
+              description, context))
+        return error;
+    } else if (llvm::Error error =
+                   addRVVDirectContractionStatementOwnerPreLoopStep(
+                       plan, slice.storeOperation, "store",
+                       providerFacts.storeLeaf,
+                       {TCRVEmitCCallOpaqueOperand{boundOutABI->cName,
+                                                   boundOutABI->cType},
+                        TCRVEmitCCallOpaqueOperand{"dot_initial_acc_vec",
+                                                   resultVectorCType.str()},
+                        TCRVEmitCCallOpaqueOperand{
+                            description.reductionStoreVL.str(),
+                            vlCType.str()}},
+                       description, context))
       return error;
   }
 
@@ -960,7 +1006,7 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
             plan, slice.arithmeticOp, "compute",
             providerFacts.scalarSeedSplatLeaf,
             {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(boundOutABI->cName) + "[0]").str(),
+                 (llvm::StringRef(boundAccumulatorABI->cName) + "[0]").str(),
                  "int32_t"},
              TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
                                         vlCType.str()}},
@@ -969,7 +1015,7 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
                                       resultVectorCType.str()}))
       return error;
     if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
-            plan, slice.arithmeticOp, "compute",
+            plan, slice.standaloneReduceOp.getOperation(), "compute",
             providerFacts.contractionComputeLeaf,
             {TCRVEmitCCallOpaqueOperand{"product_vec",
                                         productVectorCType.str()},
@@ -977,14 +1023,49 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
                                         resultVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
             description, context,
-            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+            TCRVEmitCCallOpaqueResult{"reduced_i32_vec",
                                       resultVectorCType.str()}))
       return error;
+    if (isProductReductionDequantization) {
+      if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+              plan, slice.dequantizeOp.getOperation(), "compute",
+              providerFacts.dequantizeConvertLeaf,
+              {TCRVEmitCCallOpaqueOperand{"reduced_i32_vec",
+                                          resultVectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{"converted_f32_vec",
+                                        dequantResultVectorCType.str()}))
+        return error;
+      if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+              plan, slice.dequantizeOp.getOperation(), "compute",
+              providerFacts.dequantizeScaleLeaf,
+              {TCRVEmitCCallOpaqueOperand{"converted_f32_vec",
+                                          dequantResultVectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{boundDequantScaleABI->cName,
+                                          boundDequantScaleABI->cType},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                        dequantResultVectorCType.str()}))
+        return error;
+      if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+              plan, slice.storeOperation, "store", providerFacts.storeLeaf,
+              {TCRVEmitCCallOpaqueOperand{boundOutABI->cName,
+                                          boundOutABI->cType},
+               TCRVEmitCCallOpaqueOperand{description.resultName.str(),
+                                          dequantResultVectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                          vlCType.str()}},
+              description, context))
+        return error;
+      return llvm::Error::success();
+    }
     if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
             plan, slice.storeOperation, "store", providerFacts.storeLeaf,
             {TCRVEmitCCallOpaqueOperand{boundOutABI->cName,
                                         boundOutABI->cType},
-             TCRVEmitCCallOpaqueOperand{description.resultName.str(),
+             TCRVEmitCCallOpaqueOperand{"reduced_i32_vec",
                                         resultVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
                                         vlCType.str()}},

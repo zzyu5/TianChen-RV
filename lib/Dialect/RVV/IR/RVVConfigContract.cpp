@@ -757,6 +757,28 @@ getRVVSelectedBodyWideningProductReductionRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 6>
+getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int8_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs", "const int8_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "acc", "const int32_t *",
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "scale", "float", support::RuntimeABIParameterRole::DequantScaleValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "float *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 5>
 getRVVSelectedBodyMAccRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
@@ -1665,6 +1687,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
                                          wideningProductReductionExpected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 6>
+      wideningProductReductionDequantizationExpected =
+          getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(
+          parameters, wideningProductReductionDequantizationExpected))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 4>
       standaloneReductionExpected =
           getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
@@ -1729,7 +1758,9 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "int32_t scalar-broadcast route; lhs, out, n for the bounded i32-to-i64 "
       "or i16-to-i32 widening conversion routes; lhs, rhs, acc, out, n for "
       "the bounded i32 multiply-add accumulator, i16 widening "
-      "multiply-accumulate, or unit-stride dot-reduction route; lhs, "
+      "multiply-accumulate, or unit-stride dot-reduction route; lhs, rhs, "
+      "acc, scale, out, n for the bounded low-precision product-reduction "
+      "dequantization route; lhs, "
       "rhs_scalar, acc, out, n for the bounded scalar-broadcast "
       "multiply-add accumulator composition route; lhs, acc, "
       "out, n for the bounded standalone i32 scalar "

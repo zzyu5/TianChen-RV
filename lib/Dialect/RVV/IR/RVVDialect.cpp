@@ -10236,18 +10236,48 @@ mlir::LogicalResult DequantizeOp::verify() {
     return mlir::failure();
 
   auto sourceLoad = getSource().getDefiningOp<LoadOp>();
-  if (!sourceLoad)
+  auto sourceReduction = getSource().getDefiningOp<StandaloneReduceOp>();
+  if (!sourceLoad && !sourceReduction)
     return emitOpError()
-           << "requires source vector to be produced by tcrv_rvv.load inside "
-              "the selected RVV typed body";
-  if (sourceLoad.getVl() != getVl())
-    return emitOpError()
-           << "requires source-producing tcrv_rvv.load to consume the same "
-              "!tcrv_rvv.vl token as tcrv_rvv.dequantize";
-  if (sourceLoad->getParentOp() != op->getParentOp())
-    return emitOpError()
-           << "requires source-producing tcrv_rvv.load to be in the same "
-              "tcrv_rvv.with_vl body as tcrv_rvv.dequantize";
+           << "requires source vector to be produced by tcrv_rvv.load or by "
+              "a bounded tcrv_rvv.widening_product -> "
+              "tcrv_rvv.standalone_reduce chain inside the selected RVV "
+              "typed body";
+  if (sourceLoad) {
+    if (sourceLoad.getVl() != getVl())
+      return emitOpError()
+             << "requires source-producing tcrv_rvv.load to consume the same "
+                "!tcrv_rvv.vl token as tcrv_rvv.dequantize";
+    if (sourceLoad->getParentOp() != op->getParentOp())
+      return emitOpError()
+             << "requires source-producing tcrv_rvv.load to be in the same "
+                "tcrv_rvv.with_vl body as tcrv_rvv.dequantize";
+  }
+  if (sourceReduction) {
+    auto product =
+        sourceReduction.getInput().getDefiningOp<WideningProductOp>();
+    if (!product)
+      return emitOpError()
+             << "requires source-producing tcrv_rvv.standalone_reduce to "
+                "consume a bounded tcrv_rvv.widening_product result for the "
+                "low-precision product-reduction dequantization route";
+    if (sourceReduction.getKind() != "signed_widening_reduce_add" ||
+        product.getKind() != "signed_widening_product")
+      return emitOpError()
+             << "requires source-producing product-reduction chain to use "
+                "signed_widening_product followed by "
+                "signed_widening_reduce_add";
+    if (sourceReduction.getVl() != getVl() || product.getVl() != getVl())
+      return emitOpError()
+             << "requires source-producing tcrv_rvv.widening_product and "
+                "tcrv_rvv.standalone_reduce to consume the same "
+                "!tcrv_rvv.vl token as tcrv_rvv.dequantize";
+    if (sourceReduction->getParentOp() != op->getParentOp() ||
+        product->getParentOp() != op->getParentOp())
+      return emitOpError()
+             << "requires source-producing product-reduction chain to be in "
+                "the same tcrv_rvv.with_vl body as tcrv_rvv.dequantize";
+  }
 
   if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getSource(),
                                                     "source")))

@@ -647,7 +647,11 @@ Extracted provider-owned vector-reduction route validation contract for ReduceAd
 
 ### Main Changes
 
-(Add details)
+- Added a production selected-body route specialization for `widening_product_reduce_dequantize_f32` with ordered ABI `lhs, rhs, acc, scale, out, n`.
+- Extended typed RVV config/runtime ABI contracts, `tcrv_rvv.dequantize` verification, selected-body route slicing, construction protocol metadata, provider planning, statement planning, and target artifact validation for the composed chain.
+- Materialized provider-derived facts for signed i8 source operands, i16 product, i32 reduction/accumulator boundary, runtime f32 scale, f32 result vector/store, and stale mirror rejection.
+- Added a focused target artifact lit fixture with positive route materialization/header export and negative missing-scale, dtype-chain mismatch, missing accumulator boundary, unsupported config, stale product/dequant metadata, stale runtime ABI, and route-string-authority checks.
+- Did not claim ssh rvv executable correctness evidence; this round stops at route-supported plus target artifact validation.
 
 ### Git Commits
 
@@ -657,7 +661,16 @@ Extracted provider-owned vector-reduction route validation contract for ReduceAd
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `rtk cmake --build build --target tianchenrv-construction-protocol-common-test -j2`
+- [OK] `rtk build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `cd build/test && rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter explicit-selected-body-artifact-widening-product-reduce-dequantize-f32`
+- [OK] `cd build/test && rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'explicit-selected-body-artifact-(widening-product-reduce-add|dequantize-i32-to-f32)'`
+- [OK] `cd build/test && rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'generic-(widening-product-reduction-chain-dataflow|i32-to-f32-dequantization-dataflow)'`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] bounded old-authority/q-name scan over touched source/test files
+- [OK] `rtk git diff --check`
+- [OK] `rtk git diff --cached --check`
 
 ### Status
 
@@ -1685,6 +1698,39 @@ Implemented a route-supported typed RVV i32-to-f32 runtime-scale dequantization 
 - Checks run this session: focused `tcrv-opt` verifier/materialization/export paths, `tianchenrv-rvv-extension-plugin-test`, `tianchenrv-target-artifact-export-test`, `tianchenrv-construction-protocol-common-test`, full `check-tianchenrv`, and diff whitespace checks.
 - No ssh rvv executable correctness claim was made for this route-supported foundation.
 
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 454: Stage2 RVV low-precision contraction-to-dequant f32 chain
+
+**Date**: 2026-06-05
+**Task**: Stage2 RVV low-precision contraction-to-dequant f32 chain
+**Branch**: `main`
+
+### Summary
+
+Implemented a route-supported selected-body low-precision widening product-reduction plus runtime-scale i32-to-f32 dequantization chain with provider-owned planning, target artifact validation, focused positive/negative tests, and no ssh rvv executable claim.
+
+### Main Changes
+
+(Add details)
 
 ### Git Commits
 

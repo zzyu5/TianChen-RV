@@ -71,6 +71,8 @@ llvm::StringRef getComputedMaskMemoryProducerSource(
 bool isRVVSelectedBodyContractionDotReduction(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
+         op ==
+             RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
          op == RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
          op == RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd ||
          op == RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd ||
@@ -165,12 +167,16 @@ static llvm::Error verifyRVVSelectedBodyTypedConfigFactsMirror(
   const bool isDequantizationRoute =
       description.operation == RVVSelectedBodyOperationKind::DequantizeI32ToF32 ||
       description.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideDequantization;
-  if (!description.vectorTypeName.empty() && !isDequantizationRoute)
+  const bool hasDequantizedF32ResultVector =
+      isDequantizationRoute ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32;
+  if (!description.vectorTypeName.empty() && !hasDequantizedF32ResultVector)
     if (llvm::Error error =
             requireMatch("vector type", facts.vectorTypeName,
                          description.vectorTypeName))
       return error;
-  if (!description.vectorCType.empty() && !isDequantizationRoute)
+  if (!description.vectorCType.empty() && !hasDequantizedF32ResultVector)
     if (llvm::Error error = requireMatch("vector C type", facts.vectorCType,
                                          description.vectorCType))
       return error;
@@ -352,6 +358,7 @@ static bool isRVVSelectedBodyContractionRouteControlConsumer(
   case RVVSelectedBodyOperationKind::WideningMAccAdd:
   case RVVSelectedBodyOperationKind::WideningProduct:
   case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
+  case RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32:
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -1315,7 +1322,12 @@ static llvm::Error buildContractionRouteControlProviderPlan(
       description.operation == RVVSelectedBodyOperationKind::WideningProduct;
   const bool isProductReductionChain =
       description.operation ==
-      RVVSelectedBodyOperationKind::WideningProductReduceAdd;
+          RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32;
+  const bool isProductReductionDequantization =
+      description.operation ==
+      RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32;
   const bool isDotReduction =
       isRVVSelectedBodyContractionDotReduction(description.operation);
   const bool isComputedMask =
@@ -1327,6 +1339,8 @@ static llvm::Error buildContractionRouteControlProviderPlan(
       contractionPlan.usesWideningMAcc != isWideningMAcc ||
       contractionPlan.usesWideningProduct != isWideningProduct ||
       contractionPlan.usesProductReductionChain != isProductReductionChain ||
+      contractionPlan.usesProductReductionDequantization !=
+          isProductReductionDequantization ||
       contractionPlan.usesDotReduction != isDotReduction ||
       contractionPlan.usesComputedMask != isComputedMask ||
       contractionPlan.usesStridedInputs != isStridedInput ||
@@ -1386,7 +1400,25 @@ static llvm::Error buildContractionRouteControlProviderPlan(
             description.wideningProductIntrinsic ||
         contractionPlan.scalarSeedSplatIntrinsic !=
             description.scalarSeedSplatIntrinsic ||
-        contractionPlan.reductionStoreVL != description.reductionStoreVL)
+        contractionPlan.reductionStoreVL != description.reductionStoreVL ||
+        (isProductReductionDequantization &&
+         (contractionPlan.dequantizationRelation !=
+              description.dequantizationRelation ||
+          contractionPlan.dequantizeConvertIntrinsic !=
+              description.dequantizeConvertIntrinsic ||
+          contractionPlan.dequantizeScaleIntrinsic !=
+              description.dequantizeScaleIntrinsic ||
+          contractionPlan.dequantScaleRole != description.dequantScaleRole ||
+          contractionPlan.dequantScaleCType !=
+              description.dequantScaleCType ||
+          contractionPlan.dequantScaleName != description.dequantScaleName)) ||
+        (!isProductReductionDequantization &&
+         (!contractionPlan.dequantizationRelation.empty() ||
+          !contractionPlan.dequantizeConvertIntrinsic.empty() ||
+          !contractionPlan.dequantizeScaleIntrinsic.empty() ||
+          !contractionPlan.dequantScaleRole.empty() ||
+          !contractionPlan.dequantScaleCType.empty() ||
+          !contractionPlan.dequantScaleName.empty())))
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " route-control provider plan requires low-precision "
@@ -1540,6 +1572,11 @@ static llvm::Error buildContractionRouteControlProviderPlan(
           contractionPlan.wideningProductIntrinsic ||
       materializationFacts.maskedWideningProductLeaf !=
           contractionPlan.maskedWideningProductIntrinsic ||
+      (isProductReductionDequantization &&
+       (materializationFacts.dequantizeConvertLeaf !=
+            contractionPlan.dequantizeConvertIntrinsic ||
+        materializationFacts.dequantizeScaleLeaf !=
+            contractionPlan.dequantizeScaleIntrinsic)) ||
       materializationFacts.scalarSeedSplatLeaf !=
           contractionPlan.scalarSeedSplatIntrinsic ||
       materializationFacts.compareLeaf != contractionPlan.compareIntrinsic ||

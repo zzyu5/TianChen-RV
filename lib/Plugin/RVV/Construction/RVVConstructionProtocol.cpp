@@ -530,6 +530,13 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-widening-product-reduce-add-emitc-route",
      "rvv-generic-widening-product-reduce-add-callable-c-abi.v1",
      "rvv-generic-widening-product-reduce-add-callable-c-abi"},
+    {"widening_product_reduce_dequantize_f32",
+     "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
+     "tcrv_rvv.dequantize",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-widening-product-reduce-dequantize-f32-emitc-route",
+     "rvv-generic-widening-product-reduce-dequantize-f32-callable-c-abi.v1",
+     "rvv-generic-widening-product-reduce-dequantize-f32-callable-c-abi"},
     {"widening_dot_reduce_add",
      "tcrv_rvv.widening_dot_reduce",
      "rvv.role.compute.generic_vector",
@@ -844,7 +851,7 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 58)
+          .size() != 59)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
         "cmp_select, computed_mask_select, runtime_scalar_cmp_select, "
@@ -864,6 +871,7 @@ llvm::Error verifySelectedBodyRoutes() {
         "macc_add, scalar_broadcast_macc_add, computed_masked_macc_add, "
         "runtime_scalar_cmp_masked_macc_add, widening_macc_add, "
         "widening_product, widening_product_reduce_add, "
+        "widening_product_reduce_dequantize_f32, "
         "widening_dot_reduce_add, "
         "strided_input_widening_dot_reduce_add, "
         "computed_masked_widening_dot_reduce_add, "
@@ -1024,6 +1032,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
       route->operationMnemonic == "widening_product";
   const bool isWideningProductReduceAdd =
       route->operationMnemonic == "widening_product_reduce_add";
+  const bool isWideningProductReduceDequantizeF32 =
+      route->operationMnemonic == "widening_product_reduce_dequantize_f32";
   const bool isWideningDotReduceAdd =
       route->operationMnemonic == "widening_dot_reduce_add";
   const bool isStridedInputWideningDotReduceAdd =
@@ -1161,6 +1171,14 @@ buildRVVSelectedBodyExecutableRoleSteps(
         "RVV low-precision widening product-reduction construction requires "
         "generic tcrv_rvv.widening_product followed by "
         "tcrv_rvv.standalone_reduce");
+  if (isWideningProductReduceDequantizeF32 &&
+      typedComputeOpName != "tcrv_rvv.widening_product+"
+                            "tcrv_rvv.standalone_reduce+"
+                            "tcrv_rvv.dequantize")
+    return makeRVVConstructionError(
+        "RVV low-precision widening product-reduction dequantization "
+        "construction requires generic tcrv_rvv.widening_product followed by "
+        "tcrv_rvv.standalone_reduce and tcrv_rvv.dequantize");
   if ((isWideningDotReduceAdd || isStridedInputWideningDotReduceAdd) &&
       typedComputeOpName != "tcrv_rvv.widening_dot_reduce")
     return makeRVVConstructionError(
@@ -1273,6 +1291,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isWideningMAccAdd &&
       !isWideningProduct &&
       !isWideningProductReduceAdd &&
+      !isWideningProductReduceDequantizeF32 &&
       !isWideningDotReduceAdd &&
       !isStridedInputWideningDotReduceAdd &&
       !isComputedMaskWideningDotReduceAdd &&
@@ -2398,6 +2417,55 @@ buildRVVSelectedBodyExecutableRoleSteps(
     steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
                      "store", 11});
+    return steps;
+  }
+  if (isWideningProductReduceDequantizeF32) {
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "rhs", 1});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "acc", 2});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "scale", 3});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "out", 4});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "n", 5});
+    steps.push_back({"configure", "tcrv_rvv.setvl",
+                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+                     6});
+    steps.push_back({"scope", "tcrv_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "lhs_load", 8});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "rhs_load", 9});
+    steps.push_back({"compute", "tcrv_rvv.widening_product",
+                     route->typedRoleID, "TCRVComputeOpInterface",
+                     "TCRVEmitCLowerableInterface", "widening_product", 10});
+    steps.push_back({"compute", "tcrv_rvv.standalone_reduce",
+                     route->typedRoleID, "TCRVComputeOpInterface",
+                     "TCRVEmitCLowerableInterface",
+                     "widening_product_reduce", 11});
+    steps.push_back({"compute", "tcrv_rvv.dequantize", route->typedRoleID,
+                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     route->operationMnemonic, 12});
+    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "store", 13});
     return steps;
   }
   if (isWideningProductReduceAdd) {
@@ -3967,6 +4035,15 @@ llvm::Error verifyRVVConstructionProtocolReady() {
                   getRVVSelectedBodyWideningProductReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(productReductionParameters.begin(),
                                        productReductionParameters.end());
+    } else if (route.operationMnemonic ==
+               "widening_product_reduce_dequantize_f32") {
+      llvm::SmallVector<support::RuntimeABIParameter, 6>
+          productReductionDequantizationParameters =
+              tcrv::rvv::
+                  getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters();
+      routeRuntimeABIParameters.append(
+          productReductionDequantizationParameters.begin(),
+          productReductionDequantizationParameters.end());
     } else if (route.operationMnemonic == "widening_product") {
       llvm::SmallVector<support::RuntimeABIParameter, 4>
           wideningProductParameters =
@@ -4197,6 +4274,12 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         " low-precision widening product-reduction chain cannot use generic "
         "tcrv_rvv.binary");
   if (usesGenericBinary &&
+      route->operationMnemonic == "widening_product_reduce_dequantize_f32")
+    return makeRVVConstructionError(
+        llvm::Twine(context) +
+        " low-precision widening product-reduction dequantization chain "
+        "cannot use generic tcrv_rvv.binary");
+  if (usesGenericBinary &&
       route->operationMnemonic == "widening_dot_reduce_add")
     return makeRVVConstructionError(
         llvm::Twine(context) +
@@ -4344,6 +4427,8 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                      "runtime_scalar_cmp_masked_macc_add" ||
                  route->operationMnemonic == "widening_macc_add" ||
                  route->operationMnemonic == "widening_product_reduce_add" ||
+                 route->operationMnemonic ==
+                     "widening_product_reduce_dequantize_f32" ||
                  route->operationMnemonic == "widening_dot_reduce_add" ||
                  route->operationMnemonic ==
                      "strided_input_widening_dot_reduce_add" ||
@@ -4636,6 +4721,15 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
     expectedParameters.append(productReductionParameters.begin(),
                               productReductionParameters.end());
   } else if (route->operationMnemonic ==
+             "widening_product_reduce_dequantize_f32") {
+    llvm::SmallVector<support::RuntimeABIParameter, 6>
+        productReductionDequantizationParameters =
+            tcrv::rvv::
+                getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters();
+    expectedParameters.append(
+        productReductionDequantizationParameters.begin(),
+        productReductionDequantizationParameters.end());
+  } else if (route->operationMnemonic ==
              "strided_input_widening_dot_reduce_add") {
     llvm::SmallVector<support::RuntimeABIParameter, 7> stridedDotParameters =
         tcrv::rvv::
@@ -4747,6 +4841,15 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                   getRVVSelectedBodyWideningProductReductionRuntimeABIParameters();
       acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
           facts.runtimeABIParameters, productReductionParameters);
+    } else if (route->operationMnemonic ==
+               "widening_product_reduce_dequantize_f32") {
+      llvm::SmallVector<support::RuntimeABIParameter, 6>
+          productReductionDequantizationParameters =
+              tcrv::rvv::
+                  getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters();
+      acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
+          facts.runtimeABIParameters,
+          productReductionDequantizationParameters);
     } else if (route->operationMnemonic == "widening_product") {
       llvm::SmallVector<support::RuntimeABIParameter, 4>
           wideningProductParameters =
@@ -5100,6 +5203,11 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
         "selected-body low-precision widening product-reduction chain cannot "
         "use generic tcrv_rvv.binary");
   if (usesGenericBinary &&
+      expected.operationMnemonic == "widening_product_reduce_dequantize_f32")
+    return makeRVVConstructionError(
+        "selected-body low-precision widening product-reduction "
+        "dequantization chain cannot use generic tcrv_rvv.binary");
+  if (usesGenericBinary &&
       expected.operationMnemonic == "widening_dot_reduce_add")
     return makeRVVConstructionError(
         "selected-body widening dot-product reduction cannot use generic "
@@ -5231,6 +5339,8 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
                      "runtime_scalar_cmp_masked_macc_add" ||
                  expected.operationMnemonic == "widening_macc_add" ||
                  expected.operationMnemonic == "widening_product_reduce_add" ||
+                 expected.operationMnemonic ==
+                     "widening_product_reduce_dequantize_f32" ||
                  expected.operationMnemonic == "widening_dot_reduce_add" ||
                  expected.operationMnemonic ==
                      "computed_masked_widening_dot_reduce_add" ||

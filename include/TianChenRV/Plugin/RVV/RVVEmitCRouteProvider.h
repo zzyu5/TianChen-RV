@@ -81,6 +81,7 @@ enum class RVVSelectedBodyOperationKind {
   WideningMAccAdd,
   WideningProduct,
   WideningProductReduceAdd,
+  WideningProductReduceDequantizeF32,
   WideningDotReduceAdd,
   StridedInputWideningDotReduceAdd,
   ComputedMaskWideningDotReduceAdd,
@@ -2471,6 +2472,12 @@ struct RVVWideningDotReduceRouteFacts {
   llvm::StringRef productReductionChainRelation;
   llvm::StringRef wideningProductIntrinsic;
   llvm::StringRef maskedWideningProductIntrinsic;
+  llvm::StringRef dequantizeConvertIntrinsic;
+  llvm::StringRef dequantizeScaleIntrinsic;
+  llvm::StringRef dequantizationRelation;
+  llvm::StringRef dequantScaleRole;
+  llvm::StringRef dequantScaleCType;
+  llvm::StringRef dequantScaleName;
   llvm::StringRef scalarSeedSplatIntrinsic;
   llvm::StringRef stridedLoadIntrinsic;
   llvm::StringRef sourceVectorLoadIntrinsic;
@@ -2503,6 +2510,7 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation);
 enum class RVVWideningDotReduceRouteValidationKind {
   Plain,
   ProductReductionChain,
+  ProductReductionDequantization,
   StridedInput,
   ComputedMask,
   ComputedMaskStridedInput,
@@ -2561,6 +2569,12 @@ struct RVVWideningDotReduceRouteValidationContract {
   std::string productReductionChainRelation;
   std::string wideningProductIntrinsic;
   std::string maskedWideningProductIntrinsic;
+  std::string dequantizeConvertIntrinsic;
+  std::string dequantizeScaleIntrinsic;
+  std::string dequantizationRelation;
+  std::string dequantScaleRole;
+  std::string dequantScaleCType;
+  std::string dequantScaleName;
   std::string scalarSeedSplatIntrinsic;
   std::string stridedLoadIntrinsic;
   std::string sourceVectorLoadIntrinsic;

@@ -325,6 +325,8 @@ bool isRVVWideningDotReductionRouteFamilyOperation(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   switch (operation) {
   case plugin::rvv::RVVSelectedBodyOperationKind::WideningProductReduceAdd:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      WideningProductReduceDequantizeF32:
   case plugin::rvv::RVVSelectedBodyOperationKind::WideningDotReduceAdd:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       StridedInputWideningDotReduceAdd:
@@ -351,6 +353,8 @@ bool isRVVNonComputedMaskWideningDotReductionRouteFamilyOperation(
   return operation ==
              plugin::rvv::RVVSelectedBodyOperationKind::
                  WideningProductReduceAdd ||
+         operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                          WideningProductReduceDequantizeF32 ||
          operation ==
              plugin::rvv::RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
          operation == plugin::rvv::RVVSelectedBodyOperationKind::
@@ -3388,6 +3392,13 @@ llvm::Error requireRVVWideningDotContractIntField(
 llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
+  const bool isProductReductionDequantization =
+      contract.kind == plugin::rvv::RVVWideningDotReduceRouteValidationKind::
+                           ProductReductionDequantization;
+  const bool isProductReductionChain =
+      contract.kind == plugin::rvv::RVVWideningDotReduceRouteValidationKind::
+                           ProductReductionChain ||
+      isProductReductionDequantization;
   if (description.memoryForm != contract.memoryForm)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
@@ -3406,9 +3417,7 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
           contract.consumerLabel, "source LMUL", description.sourceLMUL,
           contract.sourceLMUL))
     return error;
-  if (contract.kind ==
-      plugin::rvv::RVVWideningDotReduceRouteValidationKind::
-          ProductReductionChain) {
+  if (isProductReductionChain) {
     if (llvm::Error error = requireRVVWideningDotContractIntField(
             contract.consumerLabel, "product SEW", description.productSEW,
             contract.productSEW))
@@ -3552,9 +3561,7 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
           contract.consumerLabel, "rhs stride source",
           description.rhsStrideSource, contract.rhsStrideSource))
     return error;
-  if (contract.kind ==
-      plugin::rvv::RVVWideningDotReduceRouteValidationKind::
-          ProductReductionChain) {
+  if (isProductReductionChain) {
     if (llvm::Error error = requireRVVWideningDotContractStringField(
             contract.consumerLabel, "product-reduction accumulator layout",
             description.reductionAccumulatorLayout,
@@ -3596,6 +3603,32 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
           contract.consumerLabel, "widening product intrinsic",
           description.wideningProductIntrinsic,
           contract.wideningProductIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "dequantization relation",
+          description.dequantizationRelation, contract.dequantizationRelation))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "dequantize convert intrinsic",
+          description.dequantizeConvertIntrinsic,
+          contract.dequantizeConvertIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "dequantize scale intrinsic",
+          description.dequantizeScaleIntrinsic,
+          contract.dequantizeScaleIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "dequant scale role",
+          description.dequantScaleRole, contract.dequantScaleRole))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "dequant scale C type",
+          description.dequantScaleCType, contract.dequantScaleCType))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "dequant scale name",
+          description.dequantScaleName, contract.dequantScaleName))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "masked widening product intrinsic",
@@ -3661,9 +3694,7 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
           contract.consumerLabel, "source vector C type",
           description.sourceVectorCType, contract.sourceVectorCType))
     return error;
-  if (contract.kind ==
-      plugin::rvv::RVVWideningDotReduceRouteValidationKind::
-          ProductReductionChain) {
+  if (isProductReductionChain) {
     if (llvm::Error error = requireRVVWideningDotContractStringField(
             contract.consumerLabel, "product vector type",
             description.productVectorTypeName, contract.productVectorTypeName))
@@ -3833,7 +3864,12 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
                                ComputedMaskStridedInput;
   const bool isProductReductionChain =
       contract.kind == plugin::rvv::RVVWideningDotReduceRouteValidationKind::
-                           ProductReductionChain;
+                           ProductReductionChain ||
+      contract.kind == plugin::rvv::RVVWideningDotReduceRouteValidationKind::
+                           ProductReductionDequantization;
+  const bool isProductReductionDequantization =
+      contract.kind == plugin::rvv::RVVWideningDotReduceRouteValidationKind::
+                           ProductReductionDequantization;
   const bool isStrided =
       contract.kind ==
           plugin::rvv::RVVWideningDotReduceRouteValidationKind::StridedInput ||
@@ -3847,12 +3883,16 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
         "validating route statements");
   if (description.resultName.empty() || description.sourceVectorCType.empty() ||
       description.vectorCType.empty() || runtimeContract.vlCType.empty() ||
-      (isProductReductionChain && description.productVectorCType.empty()))
+      (isProductReductionChain && description.productVectorCType.empty()) ||
+      (isProductReductionDequantization &&
+       (description.dequantizeConvertIntrinsic.empty() ||
+        description.dequantizeScaleIntrinsic.empty() ||
+        description.dequantScaleName.empty())))
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
         " requires provider-derived result, source/result vector C type, "
-        "optional product vector C type, and VL C type facts before "
-        "validating route statements");
+        "optional product vector C type, optional dequant scale facts, and "
+        "VL C type facts before validating route statements");
   if (isComputedMask &&
       (description.maskName.empty() || description.maskCType.empty()))
     return makeRVVTargetRouteError(
@@ -3867,6 +3907,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
   const support::RuntimeABIParameter *dotLHSABI = nullptr;
   const support::RuntimeABIParameter *dotRHSABI = nullptr;
   const support::RuntimeABIParameter *accumulatorABI = nullptr;
+  const support::RuntimeABIParameter *dequantScaleABI = nullptr;
   const support::RuntimeABIParameter *outABI = nullptr;
   const support::RuntimeABIParameter *runtimeNABI = nullptr;
   const support::RuntimeABIParameter *lhsStrideABI = nullptr;
@@ -3888,8 +3929,14 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
     lhsABI = &description.runtimeABIParameters[0];
     rhsABI = &description.runtimeABIParameters[1];
     accumulatorABI = &description.runtimeABIParameters[2];
-    outABI = &description.runtimeABIParameters[3];
-    runtimeNABI = &description.runtimeABIParameters[4];
+    if (isProductReductionDequantization) {
+      dequantScaleABI = &description.runtimeABIParameters[3];
+      outABI = &description.runtimeABIParameters[4];
+      runtimeNABI = &description.runtimeABIParameters[5];
+    } else {
+      outABI = &description.runtimeABIParameters[3];
+      runtimeNABI = &description.runtimeABIParameters[4];
+    }
     if (isStrided) {
       lhsStrideABI = &description.runtimeABIParameters[5];
       rhsStrideABI = &description.runtimeABIParameters[6];
@@ -3913,6 +3960,12 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
         "ABI order before validating route statements");
 
   const llvm::StringRef scalarI32CType = "int32_t";
+  const llvm::StringRef accumulatorVectorCType =
+      isProductReductionDequantization ? llvm::StringRef("vint32m1_t")
+                                       : description.vectorCType;
+  const llvm::StringRef finalResultVectorCType =
+      isProductReductionDequantization ? description.resultVectorCType
+                                       : description.vectorCType;
   if (route.getCallOpaqueSteps().size() != contract.expectedPreLoopStepCount)
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
@@ -3939,18 +3992,49 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           description.scalarSeedSplatIntrinsic,
           {{expectedInitialAccumulatorLane, scalarI32CType},
            {description.reductionStoreVL, runtimeContract.vlCType}},
-          "dot_initial_acc_vec", description.vectorCType))
+          "dot_initial_acc_vec", accumulatorVectorCType))
     return error;
 
-  const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopStore =
-      route.getCallOpaqueSteps()[2];
-  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-          preLoopStore, consumerLabel, "pre-loop initial output store",
-          description.storeIntrinsic,
-          {{outABI->cName, outABI->cType},
-           {"dot_initial_acc_vec", description.vectorCType},
-           {description.reductionStoreVL, runtimeContract.vlCType}}))
-    return error;
+  if (isProductReductionDequantization) {
+    if (!dequantScaleABI)
+      return makeRVVTargetRouteError(
+          llvm::Twine(consumerLabel) +
+          " requires dequant scale ABI before validating pre-loop dequant "
+          "statements");
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            route.getCallOpaqueSteps()[2], consumerLabel,
+            "pre-loop i32-to-f32 dequant convert",
+            description.dequantizeConvertIntrinsic,
+            {{"dot_initial_acc_vec", accumulatorVectorCType},
+             {description.reductionStoreVL, runtimeContract.vlCType}},
+            "dot_initial_f32_vec", finalResultVectorCType))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            route.getCallOpaqueSteps()[3], consumerLabel,
+            "pre-loop f32 scale", description.dequantizeScaleIntrinsic,
+            {{"dot_initial_f32_vec", finalResultVectorCType},
+             {dequantScaleABI->cName, dequantScaleABI->cType},
+             {description.reductionStoreVL, runtimeContract.vlCType}},
+            "dot_initial_dequantized_vec", finalResultVectorCType))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            route.getCallOpaqueSteps()[4], consumerLabel,
+            "pre-loop initial f32 output store", description.storeIntrinsic,
+            {{outABI->cName, outABI->cType},
+             {"dot_initial_dequantized_vec", finalResultVectorCType},
+             {description.reductionStoreVL, runtimeContract.vlCType}}))
+      return error;
+  } else {
+    const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopStore =
+        route.getCallOpaqueSteps()[2];
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            preLoopStore, consumerLabel, "pre-loop initial output store",
+            description.storeIntrinsic,
+            {{outABI->cName, outABI->cType},
+             {"dot_initial_acc_vec", description.vectorCType},
+             {description.reductionStoreVL, runtimeContract.vlCType}}))
+      return error;
+  }
 
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        route.getCallOpaqueSteps())
@@ -4140,35 +4224,72 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
 
   const std::size_t seedIndex = isComputedMask ? 9 : 4;
   const std::size_t reductionIndex = isComputedMask ? 10 : 5;
-  const std::size_t storeIndex = isComputedMask ? 11 : 6;
+  const std::size_t storeIndex = isComputedMask ? 11
+                               : isProductReductionDequantization ? 8
+                                                                  : 6;
   const llvm::StringRef reductionInputName =
       isProductReductionChain ? "product_vec" : "dot_product_vec";
   const llvm::StringRef reductionInputCType =
       isProductReductionChain ? description.productVectorCType
                               : description.vectorCType;
+  const llvm::StringRef reductionResultName =
+      isProductReductionChain ? llvm::StringRef("reduced_i32_vec")
+                              : description.resultName;
+  const support::RuntimeABIParameter *seedABI =
+      isProductReductionChain ? accumulatorABI : outABI;
   const std::string expectedOutLane =
-      (llvm::StringRef(outABI->cName) + "[0]").str();
+      (llvm::StringRef(seedABI->cName) + "[0]").str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[seedIndex], consumerLabel, "loop scalar seed splat",
           description.scalarSeedSplatIntrinsic,
           {{expectedOutLane, scalarI32CType},
            {description.reductionStoreVL, runtimeContract.vlCType}},
-          "dot_acc_vec", description.vectorCType))
+          "dot_acc_vec", accumulatorVectorCType))
     return error;
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[reductionIndex], consumerLabel,
           "widening dot reduction", description.intrinsic,
           {{reductionInputName, reductionInputCType},
-           {"dot_acc_vec", description.vectorCType},
+           {"dot_acc_vec", accumulatorVectorCType},
            {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
-          description.resultName, description.vectorCType))
+          reductionResultName, accumulatorVectorCType))
     return error;
-  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-          loop.bodySteps[storeIndex], consumerLabel, "output store",
-          description.storeIntrinsic,
-          {{outABI->cName, outABI->cType},
-           {description.resultName, description.vectorCType},
-           {description.reductionStoreVL, runtimeContract.vlCType}}))
+  if (isProductReductionDequantization) {
+    if (!dequantScaleABI)
+      return makeRVVTargetRouteError(
+          llvm::Twine(consumerLabel) +
+          " requires dequant scale ABI before validating loop dequant "
+          "statements");
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[6], consumerLabel, "i32-to-f32 dequant convert",
+            description.dequantizeConvertIntrinsic,
+            {{reductionResultName, accumulatorVectorCType},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+            "converted_f32_vec", finalResultVectorCType))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[7], consumerLabel, "f32 scale",
+            description.dequantizeScaleIntrinsic,
+            {{"converted_f32_vec", finalResultVectorCType},
+             {dequantScaleABI->cName, dequantScaleABI->cType},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+            description.resultName, finalResultVectorCType))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[storeIndex], consumerLabel, "output f32 store",
+            description.storeIntrinsic,
+            {{outABI->cName, outABI->cType},
+             {description.resultName, finalResultVectorCType},
+             {description.reductionStoreVL, runtimeContract.vlCType}}))
+      return error;
+  } else if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+                 loop.bodySteps[storeIndex], consumerLabel, "output store",
+                 description.storeIntrinsic,
+                 {{outABI->cName, outABI->cType},
+                  {isProductReductionChain ? reductionResultName
+                                           : description.resultName,
+                   accumulatorVectorCType},
+                  {description.reductionStoreVL, runtimeContract.vlCType}}))
     return error;
 
   return llvm::Error::success();
@@ -4245,9 +4366,13 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
         "provider-owned route validation contract before validating candidate "
         "mirrors");
   const std::string sourceSEW = llvm::Twine(contract->sourceSEW).str();
+  const bool isProductReductionDequantization =
+      contract->kind == plugin::rvv::RVVWideningDotReduceRouteValidationKind::
+                            ProductReductionDequantization;
   const bool isProductReductionChain =
       contract->kind == plugin::rvv::RVVWideningDotReduceRouteValidationKind::
-                            ProductReductionChain;
+                            ProductReductionChain ||
+      isProductReductionDequantization;
   const std::string productSEW = llvm::Twine(contract->productSEW).str();
   const std::string accumulatorSEW =
       llvm::Twine(contract->accumulatorSEW).str();
@@ -4396,6 +4521,65 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
             "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1",
             "selected typed RVV product-reduction scalar result boundary"))
       return error;
+    if (isProductReductionDequantization) {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.dequantization_relation",
+              contract->dequantizationRelation,
+              "selected typed RVV product-reduction dequantization relation"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.dequantize_convert_intrinsic",
+              contract->dequantizeConvertIntrinsic,
+              "selected typed RVV product-reduction dequantize convert "
+              "intrinsic"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.dequantize_scale_intrinsic",
+              contract->dequantizeScaleIntrinsic,
+              "selected typed RVV product-reduction dequantize scale "
+              "intrinsic"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.dequant_scale_role",
+              contract->dequantScaleRole,
+              "selected typed RVV product-reduction dequant scale role"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.dequant_scale_c_type",
+              contract->dequantScaleCType,
+              "selected typed RVV product-reduction dequant scale C type"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.dequant_scale_name",
+              contract->dequantScaleName,
+              "selected typed RVV product-reduction dequant scale name"))
+        return error;
+    } else {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.dequantization_relation", "",
+              "selected typed RVV product-reduction without dequant relation"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.dequantize_convert_intrinsic", "",
+              "selected typed RVV product-reduction without dequant convert"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.dequantize_scale_intrinsic", "",
+              "selected typed RVV product-reduction without dequant scale"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.dequant_scale_role", "",
+              "selected typed RVV product-reduction without dequant scale role"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.dequant_scale_c_type", "",
+              "selected typed RVV product-reduction without dequant scale type"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.dequant_scale_name", "",
+              "selected typed RVV product-reduction without dequant scale name"))
+        return error;
+    }
   } else {
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.widening_dot_accumulator_layout",

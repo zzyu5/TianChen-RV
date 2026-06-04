@@ -1653,6 +1653,8 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "widening_product";
     const bool isWideningProductReductionRoute =
         route.operationMnemonic == "widening_product_reduce_add";
+    const bool isWideningProductReductionDequantizationRoute =
+        route.operationMnemonic == "widening_product_reduce_dequantize_f32";
     const bool isWideningDotReduceRoute =
         route.operationMnemonic == "widening_dot_reduce_add";
     const bool isStandaloneReduceRoute =
@@ -1715,6 +1717,10 @@ int runRVVCommonValidationTest() {
     else if (isWideningProductReductionRoute)
       executableComputeOp =
           "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce";
+    else if (isWideningProductReductionDequantizationRoute)
+      executableComputeOp = "tcrv_rvv.widening_product+"
+                            "tcrv_rvv.standalone_reduce+"
+                            "tcrv_rvv.dequantize";
     else if (isWideningDotReduceRoute || isStridedInputWideningDotReduceRoute)
       executableComputeOp = "tcrv_rvv.widening_dot_reduce";
     else if (isComputedMaskWideningDotReduceRoute ||
@@ -1871,6 +1877,8 @@ int runRVVCommonValidationTest() {
     const bool hasDequantization = isDequantizationRoute;
     const bool hasWideningMAcc = isWideningMAccRoute;
     const bool hasWideningProductReduction = isWideningProductReductionRoute;
+    const bool hasWideningProductReductionDequantization =
+        isWideningProductReductionDequantizationRoute;
     const bool hasWideningDotReduce = isWideningDotReduceRoute;
     const bool hasStridedInputWideningDotReduce =
         isStridedInputWideningDotReduceRoute;
@@ -1907,6 +1915,7 @@ int runRVVCommonValidationTest() {
         : isStandaloneReduceRoute                ? 9u
         : hasWideningMAcc                       ? 12u
         : hasWideningProductReduction           ? 12u
+        : hasWideningProductReductionDequantization ? 14u
         : hasWideningDotReduce                  ? 11u
         : hasStridedInputWideningDotReduce      ? 13u
         : hasComputedMaskWideningDotReduce       ? 16u
@@ -2145,6 +2154,13 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyWideningProductReductionRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
+               "widening_product_reduce_dequantize_f32") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
