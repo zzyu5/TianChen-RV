@@ -59,6 +59,58 @@ Extracted a provider-owned runtime-scalar splat-store route validation contract,
 - None - task complete
 
 
+## Session 441: Stage2 RVV scalar and elementwise runtime AVL/VL sole-authority cleanup
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV scalar and elementwise runtime AVL/VL sole-authority cleanup
+**Branch**: `main`
+
+### Summary
+
+Made RVV runtime scalar splat-store and elementwise arithmetic target
+validation consume `RVVRuntimeAVLVLSelectedBoundaryContract` as the sole
+runtime n / AVL / VL authority before checking retained route-local runtime
+mirrors; added focused provider-contract mirror assertions and archived the
+Trellis task.
+
+### Main Changes
+
+- Documented scalar splat-store and elementwise validation contract
+  runtime/control copies as target-side consistency mirrors.
+- Rewired scalar splat-store and elementwise target validation to use the
+  shared route-local runtime AVL/VL mirror helper after selected-boundary
+  validation.
+- Added target C++ assertions that scalar splat-store plus representative
+  plain, masked, and scalar-broadcast elementwise retained mirrors match the
+  embedded selected-boundary contract.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j 16`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] focused elementwise selected-body artifact lit filter
+- [OK] focused runtime-scalar-splat-store lit filter
+- [OK] focused elementwise generated-bundle dry-run filter
+- [OK] added-line old-authority scan
+- [OK] `rtk git diff --check`
+- [OK] Trellis task validation
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 440: Stage2 RVV computed-mask strided runtime AVL/VL contract
 
 **Date**: 2026-06-04

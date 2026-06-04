@@ -1,0 +1,13 @@
+{"path":".trellis/spec/index.md","description":"Global TianChen-RV authority chain, RVV Stage constraints, and metadata/mirror source-of-truth rules."}
+{"path":".trellis/spec/extension-plugins/rvv-plugin.md","description":"RVV plugin authority placement, target artifact route-family validator boundary, and mirror-only artifact rules."}
+{"path":".trellis/spec/lowering-runtime/emitc-route.md","description":"Runtime AVL/VL selected-boundary contract plus runtime scalar splat-store and elementwise arithmetic route validation contracts."}
+{"path":".trellis/tasks/06-04-stage2-rvv-scalar-elementwise-runtime-avl-vl-sole-authority/prd.md","description":"Current task PRD, boundaries, acceptance criteria, and evidence plan."}
+{"path":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-runtime-scalar-splat-store-avl-vl-contract/prd.md","description":"Archived scalar splat-store runtime AVL/VL embedding migration and tests."}
+{"path":".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-elementwise-arithmetic-runtime-avl-vl-contract/prd.md","description":"Archived elementwise arithmetic runtime AVL/VL embedding migration and tests."}
+{"path":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-memory-runtime-avl-vl-sole-authority/prd.md","description":"Archived memory-family sole-authority cleanup pattern and evidence."}
+{"path":"include/TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h","description":"Runtime AVL/VL selected-boundary contract API."}
+{"path":"include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h","description":"Scalar splat-store and elementwise validation contract fields and mirror comments."}
+{"path":"lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp","description":"Scalar splat-store validation contract builder and canonical runtime contract population."}
+{"path":"lib/Plugin/RVV/EmitC/RVVEmitCElementwiseRouteFamilyPlanOwners.cpp","description":"Elementwise validation contract builder and canonical runtime contract population."}
+{"path":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","description":"Target artifact route-family validators and shared route-local runtime AVL/VL mirror helper."}
+{"path":"test/Target/TargetArtifactExportTest.cpp","description":"Focused target artifact validation C++ coverage for scalar splat-store and elementwise routes."}

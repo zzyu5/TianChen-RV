@@ -1059,7 +1059,6 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRoutePayloadFacts(
       contract.routeOperandBindingPlanID.empty() ||
       contract.routeOperandBindingSummary.empty() ||
       contract.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||
-      contract.runtimeControlPlanID.empty() || contract.runtimeABIOrder.empty() ||
       contract.elementTypeName.empty() || contract.sew == 0 ||
       contract.lmul.empty() || contract.tailPolicy.empty() ||
       contract.maskPolicy.empty() || contract.configContractID.empty() ||
@@ -1067,13 +1066,10 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRoutePayloadFacts(
       contract.cTypeMappingSummary.empty() ||
       contract.typedComputeOpName.empty() || contract.sourceMemoryForm.empty() ||
       contract.destinationMemoryForm.empty() || contract.scalarCType.empty() ||
-      contract.vlCType.empty() || contract.vectorTypeName.empty() ||
-      contract.vectorCType.empty() || contract.setVLIntrinsic.empty() ||
+      contract.vectorTypeName.empty() ||
+      contract.vectorCType.empty() ||
       contract.rhsScalarSplatIntrinsic.empty() ||
       contract.storeIntrinsic.empty() || contract.resultName.empty() ||
-      contract.emitCFullChunkVLName.empty() ||
-      contract.emitCLoopVLName.empty() ||
-      contract.emitCLoopInductionName.empty() ||
       contract.runtimeABIParameters.size() != 3 ||
       contract.runtimeABIParameterRoles.size() != 3 ||
       contract.logicalOperands.size() != 3)
@@ -1114,6 +1110,13 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRoutePayloadFacts(
   if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
           description, contract.runtimeAVLVLContract))
     return error;
+  if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
+          contract.consumerLabel, contract.runtimeAVLVLContract,
+          contract.runtimeControlPlanID, contract.runtimeABIOrder,
+          contract.setVLIntrinsic, contract.vlCType,
+          contract.emitCFullChunkVLName, contract.emitCLoopVLName,
+          contract.emitCLoopInductionName))
+    return error;
 
   if (llvm::Error error = requireRVVRuntimeScalarSplatStoreProviderField(
           "typed compute op", description.typedComputeOpName,
@@ -1127,14 +1130,6 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRoutePayloadFacts(
           "runtime-scalar splat-store route-family plan",
           description.runtimeScalarSplatStoreRouteFamilyPlanID,
           contract.runtimeScalarSplatStoreRouteFamilyPlanID))
-    return error;
-  if (llvm::Error error = requireRVVRuntimeScalarSplatStoreProviderField(
-          "runtime AVL/VL control plan", description.runtimeControlPlanID,
-          contract.runtimeControlPlanID))
-    return error;
-  if (llvm::Error error = requireRVVRuntimeScalarSplatStoreProviderField(
-          "runtime ABI order", description.runtimeABIOrder,
-          contract.runtimeABIOrder))
     return error;
   if (description.elementTypeName != contract.elementTypeName ||
       description.sew != contract.sew)
@@ -1171,9 +1166,6 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRoutePayloadFacts(
           contract.cTypeMappingSummary))
     return error;
   if (llvm::Error error = requireRVVRuntimeScalarSplatStoreProviderField(
-          "VL C type", description.vlCType, contract.vlCType))
-    return error;
-  if (llvm::Error error = requireRVVRuntimeScalarSplatStoreProviderField(
           "scalar C type", contract.runtimeABIParameters[0].cType,
           contract.scalarCType))
     return error;
@@ -1182,10 +1174,6 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRoutePayloadFacts(
     return error;
   if (llvm::Error error = requireRVVRuntimeScalarSplatStoreProviderField(
           "vector C type", description.vectorCType, contract.vectorCType))
-    return error;
-  if (llvm::Error error = requireRVVRuntimeScalarSplatStoreProviderField(
-          "setvl intrinsic", description.setVLIntrinsic,
-          contract.setVLIntrinsic))
     return error;
   if (llvm::Error error = requireRVVRuntimeScalarSplatStoreProviderField(
           "runtime scalar splat intrinsic",
@@ -1199,13 +1187,6 @@ llvm::Error validateRVVRuntimeScalarSplatStoreRoutePayloadFacts(
   if (llvm::Error error = requireRVVRuntimeScalarSplatStoreProviderField(
           "result", description.resultName, contract.resultName))
     return error;
-  if (description.emitCFullChunkVLName != contract.emitCFullChunkVLName ||
-      description.emitCLoopVLName != contract.emitCLoopVLName ||
-      description.emitCLoopInductionName != contract.emitCLoopInductionName)
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract.consumerLabel) +
-        " requires provider-owned EmitC runtime AVL/VL statement names before "
-        "artifact export");
   if (!description.sourceMemoryForm.empty() &&
       description.sourceMemoryForm != contract.sourceMemoryForm)
     return makeRVVTargetRouteError(
@@ -11194,16 +11175,6 @@ llvm::Error validateRVVElementwiseArithmeticDescriptionAgainstContract(
         ", LMUL '" + description.lmul + "', tail '" +
         description.tailPolicy + "', mask '" + description.maskPolicy +
         "', config '" + description.configContractID + "'");
-  if (description.runtimeControlPlanID != contract.runtimeControlPlanID ||
-      description.runtimeABIOrder != contract.runtimeABIOrder)
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract.consumerLabel) +
-        " requires provider-owned runtime control plan '" +
-        contract.runtimeControlPlanID + "' and ABI order '" +
-        contract.runtimeABIOrder + "' but description carried runtime control "
-        "'" +
-        description.runtimeControlPlanID + "' and ABI order '" +
-        description.runtimeABIOrder + "'");
   if (description.runtimeABIParameters.size() !=
       contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
@@ -11270,12 +11241,10 @@ llvm::Error validateRVVElementwiseArithmeticDescriptionAgainstContract(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-owned mask, inactive-lane, and passthrough facts "
         "before artifact export");
-  if (description.vlCType != contract.vlCType ||
-      description.vectorTypeName != contract.vectorTypeName ||
+  if (description.vectorTypeName != contract.vectorTypeName ||
       description.vectorCType != contract.vectorCType ||
       description.maskTypeName != contract.maskTypeName ||
       description.maskCType != contract.maskCType ||
-      description.setVLIntrinsic != contract.setVLIntrinsic ||
       description.vectorLoadIntrinsic != contract.vectorLoadIntrinsic ||
       description.stridedLoadIntrinsic != contract.stridedLoadIntrinsic ||
       description.rhsBroadcastIntrinsic != contract.rhsBroadcastIntrinsic ||
@@ -11290,13 +11259,6 @@ llvm::Error validateRVVElementwiseArithmeticDescriptionAgainstContract(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-owned type, intrinsic, result, and mask leaf facts "
         "before artifact export");
-  if (description.emitCFullChunkVLName != contract.emitCFullChunkVLName ||
-      description.emitCLoopVLName != contract.emitCLoopVLName ||
-      description.emitCLoopInductionName != contract.emitCLoopInductionName)
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract.consumerLabel) +
-        " requires provider-owned EmitC runtime AVL/VL statement names before "
-        "artifact export");
   return llvm::Error::success();
 }
 
@@ -11322,11 +11284,10 @@ llvm::Error validateRVVElementwiseArithmeticRoutePayloadFacts(
   const bool isRHSBroadcastLoad =
       contract.memoryForm ==
       plugin::rvv::RVVSelectedBodyMemoryForm::RHSBroadcastLoad;
-  if (contract.runtimeControlPlanID.empty() ||
-      contract.runtimeABIOrder.empty() || contract.elementTypeName.empty() ||
+  if (contract.elementTypeName.empty() ||
       contract.sew == 0 || contract.lmul.empty() ||
       contract.tailPolicy.empty() || contract.maskPolicy.empty() ||
-      contract.configContractID.empty() || contract.setVLIntrinsic.empty() ||
+      contract.configContractID.empty() ||
       contract.intrinsic.empty() || contract.storeIntrinsic.empty() ||
       contract.resultName.empty())
     return makeRVVTargetRouteError(
@@ -11335,6 +11296,13 @@ llvm::Error validateRVVElementwiseArithmeticRoutePayloadFacts(
         "config, intrinsic, and result facts before artifact export");
   if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
           description, contract.runtimeAVLVLContract))
+    return error;
+  if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
+          contract.consumerLabel, contract.runtimeAVLVLContract,
+          contract.runtimeControlPlanID, contract.runtimeABIOrder,
+          contract.setVLIntrinsic, contract.vlCType,
+          contract.emitCFullChunkVLName, contract.emitCLoopVLName,
+          contract.emitCLoopInductionName))
     return error;
   if (route.getRouteID() != contract.emitCRouteID)
     return makeRVVTargetRouteError(

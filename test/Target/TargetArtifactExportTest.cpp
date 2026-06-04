@@ -62,6 +62,28 @@ using tianchenrv::support::RuntimeABIParameter;
 using tianchenrv::support::RuntimeABIParameterOwnership;
 using tianchenrv::support::RuntimeABIParameterRole;
 
+bool expectRVVProviderRouteLocalRuntimeAVLVLMirrors(
+    llvm::StringRef fixtureContext, llvm::StringRef runtimeControlPlanID,
+    llvm::StringRef runtimeABIOrder, llvm::StringRef setVLIntrinsic,
+    llvm::StringRef vlCType, llvm::StringRef emitCFullChunkVLName,
+    llvm::StringRef emitCLoopVLName, llvm::StringRef emitCLoopInductionName,
+    const tianchenrv::plugin::rvv::
+        RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract) {
+  if (runtimeControlPlanID != runtimeContract.runtimeControlPlanID ||
+      runtimeABIOrder != runtimeContract.runtimeABIOrder ||
+      setVLIntrinsic != runtimeContract.setVLIntrinsic ||
+      vlCType != runtimeContract.vlCType ||
+      emitCFullChunkVLName != runtimeContract.emitCFullChunkVLName ||
+      emitCLoopVLName != runtimeContract.emitCLoopVLName ||
+      emitCLoopInductionName != runtimeContract.emitCLoopInductionName) {
+    llvm::errs() << fixtureContext
+                 << ": route-local runtime AVL/VL mirrors did not match the "
+                    "embedded selected-boundary contract\n";
+    return false;
+  }
+  return true;
+}
+
 const FiniteBinaryRuntimeABIContract &getPluginI32RuntimeABIContract() {
   static const FiniteBinaryRuntimeABIContract contract(
       FiniteBinaryRuntimeABIContractSpec{"plugin-owned-i32-binary",
@@ -3857,6 +3879,13 @@ bool expectRVVTargetArtifactExporterShape(
                       "boundary contract\n";
       return false;
     }
+    if (!expectRVVProviderRouteLocalRuntimeAVLVLMirrors(
+            fixtureContext, contract->runtimeControlPlanID,
+            contract->runtimeABIOrder, contract->setVLIntrinsic,
+            contract->vlCType, contract->emitCFullChunkVLName,
+            contract->emitCLoopVLName, contract->emitCLoopInductionName,
+            runtimeContract))
+      return false;
     for (std::size_t index = 0,
                      count = contract->runtimeABIParameters.size();
          index < count; ++index)
@@ -4743,6 +4772,17 @@ bool expectRVVTargetArtifactExporterShape(
                     "facts\n";
     return false;
   }
+  if (!expectRVVProviderRouteLocalRuntimeAVLVLMirrors(
+          "runtime-scalar splat-store provider contract",
+          runtimeSplatContract->runtimeControlPlanID,
+          runtimeSplatContract->runtimeABIOrder,
+          runtimeSplatContract->setVLIntrinsic,
+          runtimeSplatContract->vlCType,
+          runtimeSplatContract->emitCFullChunkVLName,
+          runtimeSplatContract->emitCLoopVLName,
+          runtimeSplatContract->emitCLoopInductionName,
+          runtimeSplatAVLVLContract))
+    return false;
 
   RVVRouteValidationContext runtimeSplatContext{
       runtimeSplatFixture.candidate, runtimeSplatRoute,
