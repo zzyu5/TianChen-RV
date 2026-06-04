@@ -70,7 +70,8 @@ llvm::StringRef getComputedMaskMemoryProducerSource(
 
 bool isRVVSelectedBodyContractionDotReduction(
     RVVSelectedBodyOperationKind op) {
-  return op == RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
+  return op == RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
+         op == RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
          op == RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd ||
          op == RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd ||
          op == RVVSelectedBodyOperationKind::
@@ -339,6 +340,7 @@ static bool isRVVSelectedBodyContractionRouteControlConsumer(
   switch (description.operation) {
   case RVVSelectedBodyOperationKind::WideningMAccAdd:
   case RVVSelectedBodyOperationKind::WideningProduct:
+  case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -1212,6 +1214,9 @@ static llvm::Error buildContractionRouteControlProviderPlan(
       description.operation == RVVSelectedBodyOperationKind::WideningMAccAdd;
   const bool isWideningProduct =
       description.operation == RVVSelectedBodyOperationKind::WideningProduct;
+  const bool isProductReductionChain =
+      description.operation ==
+      RVVSelectedBodyOperationKind::WideningProductReduceAdd;
   const bool isDotReduction =
       isRVVSelectedBodyContractionDotReduction(description.operation);
   const bool isComputedMask =
@@ -1222,6 +1227,7 @@ static llvm::Error buildContractionRouteControlProviderPlan(
       contractionPlan.memoryForm != description.memoryForm ||
       contractionPlan.usesWideningMAcc != isWideningMAcc ||
       contractionPlan.usesWideningProduct != isWideningProduct ||
+      contractionPlan.usesProductReductionChain != isProductReductionChain ||
       contractionPlan.usesDotReduction != isDotReduction ||
       contractionPlan.usesComputedMask != isComputedMask ||
       contractionPlan.usesStridedInputs != isStridedInput ||
@@ -1267,6 +1273,27 @@ static llvm::Error buildContractionRouteControlProviderPlan(
           "widening-product relation and compute facts from the verified "
           "route-family plan before provider route construction for "
           "operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  } else if (isProductReductionChain) {
+    if (contractionPlan.accumulatorLayout !=
+            description.reductionAccumulatorLayout ||
+        contractionPlan.resultLayout != description.reductionResultLayout ||
+        contractionPlan.wideningProductRelation !=
+            description.wideningProductRelation ||
+        contractionPlan.productReductionChainRelation !=
+            description.productReductionChainRelation ||
+        contractionPlan.contractionComputeIntrinsic != description.intrinsic ||
+        contractionPlan.wideningProductIntrinsic !=
+            description.wideningProductIntrinsic ||
+        contractionPlan.scalarSeedSplatIntrinsic !=
+            description.scalarSeedSplatIntrinsic ||
+        contractionPlan.reductionStoreVL != description.reductionStoreVL)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires low-precision "
+          "product-reduction source, product, reduction, seed, and result "
+          "facts from the verified route-family plan before provider route "
+          "construction for operation '" +
           stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
   } else if (contractionPlan.accumulatorLayout !=
                  description.wideningDotProductAccumulatorLayout ||
@@ -1362,6 +1389,21 @@ static llvm::Error buildContractionRouteControlProviderPlan(
           "route-family plan and no strided-input layout or stride-source "
           "facts before provider route construction for operation '" +
           stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  } else if (isProductReductionChain) {
+    if (!description.stridedMemoryLayout.empty() ||
+        !description.lhsStrideSource.empty() ||
+        !description.rhsStrideSource.empty() ||
+        contractionPlan.sourceMemoryForm != description.sourceMemoryForm ||
+        contractionPlan.destinationMemoryForm !=
+            description.destinationMemoryForm)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires low-precision "
+          "product-reduction source/destination memory facts from the "
+          "verified route-family plan and no strided-input layout or "
+          "stride-source facts before provider route construction for "
+          "operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
   } else if (!description.stridedMemoryLayout.empty() ||
              !description.lhsStrideSource.empty() ||
              !description.rhsStrideSource.empty() ||
@@ -1384,6 +1426,11 @@ static llvm::Error buildContractionRouteControlProviderPlan(
           contractionPlan.sourceVectorTypeName ||
       materializationFacts.sourceVectorCType !=
           contractionPlan.sourceVectorCType ||
+      (isProductReductionChain &&
+       (materializationFacts.productVectorTypeName !=
+            contractionPlan.productVectorTypeName ||
+        materializationFacts.productVectorCType !=
+            contractionPlan.productVectorCType)) ||
       materializationFacts.setVLLeaf != contractionPlan.setVLIntrinsic ||
       materializationFacts.sourceLoadLeaf !=
           contractionPlan.sourceVectorLoadIntrinsic ||

@@ -539,6 +539,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     if (!sourceVectorTypeName.empty() &&
         sourceVectorTypeName != resultVectorTypeName)
       route.addTypeMapping(sourceVectorTypeName, sourceVectorCType);
+    if (!description.productVectorTypeName.empty())
+      route.addTypeMapping(description.productVectorTypeName,
+                           description.productVectorCType);
     if (!maskTypeName.empty())
       route.addTypeMapping(maskTypeName, maskCType);
     for (const support::RuntimeABIParameter &parameter :

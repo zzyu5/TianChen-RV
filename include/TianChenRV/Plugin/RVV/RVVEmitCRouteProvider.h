@@ -79,6 +79,7 @@ enum class RVVSelectedBodyOperationKind {
   WidenI16ToI32,
   WideningMAccAdd,
   WideningProduct,
+  WideningProductReduceAdd,
   WideningDotReduceAdd,
   StridedInputWideningDotReduceAdd,
   ComputedMaskWideningDotReduceAdd,
@@ -245,10 +246,16 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef wideningDotProductAccumulatorLayout;
   llvm::StringRef wideningDotProductResultLayout;
   llvm::StringRef wideningDotProductRelation;
+  llvm::StringRef productReductionChainRelation;
   llvm::StringRef wideningProductRelation;
   llvm::StringRef wideningProductIntrinsic;
   llvm::StringRef maskedWideningProductIntrinsic;
   llvm::StringRef scalarSeedSplatIntrinsic;
+  llvm::StringRef productElementTypeName;
+  std::int64_t productSEW = 0;
+  llvm::StringRef productLMUL;
+  llvm::StringRef productVectorTypeName;
+  llvm::StringRef productVectorCType;
   llvm::StringRef inactiveLaneZeroingRequirement;
   llvm::StringRef stridedMemoryLayout;
   llvm::StringRef indexedMemoryLayout;
@@ -2191,6 +2198,8 @@ struct RVVWideningMAccRouteFacts {
   llvm::StringRef runtimeCountRole;
   std::int64_t sourceSEW = 0;
   llvm::StringRef sourceLMUL;
+  std::int64_t productSEW = 0;
+  llvm::StringRef productLMUL;
   std::int64_t accumulatorSEW = 0;
   llvm::StringRef accumulatorLMUL;
   std::int64_t resultSEW = 0;
@@ -2381,6 +2390,8 @@ struct RVVWideningDotReduceRouteFacts {
   llvm::StringRef rhsStrideRole;
   std::int64_t sourceSEW = 0;
   llvm::StringRef sourceLMUL;
+  std::int64_t productSEW = 0;
+  llvm::StringRef productLMUL;
   std::int64_t accumulatorSEW = 0;
   llvm::StringRef accumulatorLMUL;
   std::int64_t resultSEW = 0;
@@ -2393,6 +2404,7 @@ struct RVVWideningDotReduceRouteFacts {
   llvm::StringRef wideningDotProductAccumulatorLayout;
   llvm::StringRef wideningDotProductResultLayout;
   llvm::StringRef wideningDotProductRelation;
+  llvm::StringRef productReductionChainRelation;
   llvm::StringRef wideningProductIntrinsic;
   llvm::StringRef maskedWideningProductIntrinsic;
   llvm::StringRef scalarSeedSplatIntrinsic;
@@ -2409,6 +2421,8 @@ struct RVVWideningDotReduceRouteFacts {
   llvm::StringRef vlCType;
   llvm::StringRef sourceVectorTypeName;
   llvm::StringRef sourceVectorCType;
+  llvm::StringRef productVectorTypeName;
+  llvm::StringRef productVectorCType;
   llvm::StringRef resultVectorTypeName;
   llvm::StringRef resultVectorCType;
   llvm::StringRef maskTypeName;
@@ -2424,6 +2438,7 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation);
 
 enum class RVVWideningDotReduceRouteValidationKind {
   Plain,
+  ProductReductionChain,
   StridedInput,
   ComputedMask,
   ComputedMaskStridedInput,
@@ -2445,6 +2460,8 @@ struct RVVWideningDotReduceRouteValidationContract {
       RVVSelectedBodyMemoryForm::VectorRHSLoad;
   std::int64_t sourceSEW = 0;
   std::string sourceLMUL;
+  std::int64_t productSEW = 0;
+  std::string productLMUL;
   std::int64_t accumulatorSEW = 0;
   std::string accumulatorLMUL;
   std::int64_t resultSEW = 0;
@@ -2477,6 +2494,7 @@ struct RVVWideningDotReduceRouteValidationContract {
   std::string wideningDotProductAccumulatorLayout;
   std::string wideningDotProductResultLayout;
   std::string wideningDotProductRelation;
+  std::string productReductionChainRelation;
   std::string wideningProductIntrinsic;
   std::string maskedWideningProductIntrinsic;
   std::string scalarSeedSplatIntrinsic;
@@ -2496,6 +2514,8 @@ struct RVVWideningDotReduceRouteValidationContract {
   std::string vlCType;
   std::string sourceVectorTypeName;
   std::string sourceVectorCType;
+  std::string productVectorTypeName;
+  std::string productVectorCType;
   std::string resultVectorTypeName;
   std::string resultVectorCType;
   std::string vectorTypeName;

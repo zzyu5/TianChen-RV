@@ -17,6 +17,9 @@ constexpr llvm::StringLiteral kRVVWideningMAccOperandBindingPlanID(
     "rvv-route-operand-binding:widening_macc_add.v1");
 constexpr llvm::StringLiteral kRVVWideningProductOperandBindingPlanID(
     "rvv-route-operand-binding:widening_product_i8_i16.v1");
+constexpr llvm::StringLiteral
+    kRVVWideningProductReductionChainOperandBindingPlanID(
+        "rvv-route-operand-binding:widening_product_reduce_i8_i16_i32.v1");
 constexpr llvm::StringLiteral kRVVWideningDotReduceOperandBindingPlanID(
     "rvv-route-operand-binding:widening_dot_reduce.v1");
 constexpr llvm::StringLiteral
@@ -37,6 +40,8 @@ constexpr llvm::StringLiteral kRVVWideningDotProductAccumulatorLayout(
     "scalar-i32-seed-lane0-from-accumulator-input");
 constexpr llvm::StringLiteral kRVVWideningDotProductResultLayout(
     "store-dot-reduction-lane0-to-output-scalar");
+constexpr llvm::StringLiteral kRVVProductReductionResultLayout(
+    "store-standalone-reduction-lane0-to-output-scalar");
 constexpr llvm::StringLiteral kRVVWideningDotProductStoreVL("1");
 constexpr llvm::StringLiteral kRVVContractionRouteFamilyPlanID(
     "rvv-contraction-route-family-plan.v1");
@@ -70,6 +75,8 @@ constexpr llvm::StringLiteral kRVVWideningMAccRuntimeABIOrder(
     "lhs,rhs,acc,out,n");
 constexpr llvm::StringLiteral kRVVWideningProductRuntimeABIOrder(
     "lhs,rhs,out,n");
+constexpr llvm::StringLiteral kRVVWideningProductReductionChainRuntimeABIOrder(
+    "lhs,rhs,acc,out,n");
 constexpr llvm::StringLiteral kRVVWideningDotProductRuntimeABIOrder(
     "lhs,rhs,acc,out,n");
 constexpr llvm::StringLiteral
@@ -297,6 +304,25 @@ llvm::StringRef getContractionCTypeMappingSummary(
           .str());
 }
 
+llvm::StringRef getContractionProductReductionChainCTypeMappingSummary(
+    std::int64_t sourceSEW, llvm::StringRef sourceLMUL,
+    std::int64_t productSEW, llvm::StringRef productLMUL,
+    std::int64_t resultSEW, llvm::StringRef resultLMUL) {
+  if (sourceSEW != tcrv::rvv::getRVVSEW8Bits() ||
+      sourceLMUL != tcrv::rvv::getRVVLMULMF4() ||
+      productSEW != tcrv::rvv::getRVVSEW16Bits() ||
+      productLMUL != tcrv::rvv::getRVVLMULMF2() ||
+      resultSEW != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      resultLMUL != tcrv::rvv::getRVVLMULM1())
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("vl:size_t,source:signed-e") + llvm::Twine(sourceSEW) +
+       sourceLMUL + ",product:signed-e" + llvm::Twine(productSEW) +
+       productLMUL + ",seed:signed-i" + llvm::Twine(resultSEW) +
+       ",result:signed-e" + llvm::Twine(resultSEW) + resultLMUL)
+          .str());
+}
+
 llvm::StringRef getContractionWideningMAccRelation(
     std::int64_t sourceSEW, llvm::StringRef sourceLMUL,
     std::int64_t resultSEW, llvm::StringRef resultLMUL) {
@@ -349,6 +375,25 @@ llvm::StringRef getContractionWideningProductRelation(
       (llvm::Twine("signed-i") + llvm::Twine(sourceSEW) + sourceLMUL + "xi" +
        llvm::Twine(sourceSEW) + sourceLMUL + "-to-i" +
        llvm::Twine(resultSEW) + resultLMUL)
+          .str());
+}
+
+llvm::StringRef getContractionProductReductionChainRelation(
+    std::int64_t sourceSEW, llvm::StringRef sourceLMUL,
+    std::int64_t productSEW, llvm::StringRef productLMUL,
+    std::int64_t resultSEW, llvm::StringRef resultLMUL) {
+  if (sourceSEW != tcrv::rvv::getRVVSEW8Bits() ||
+      sourceLMUL != tcrv::rvv::getRVVLMULMF4() ||
+      productSEW != tcrv::rvv::getRVVSEW16Bits() ||
+      productLMUL != tcrv::rvv::getRVVLMULMF2() ||
+      resultSEW != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      resultLMUL != tcrv::rvv::getRVVLMULM1())
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("signed-i") + llvm::Twine(sourceSEW) + sourceLMUL + "xi" +
+       llvm::Twine(sourceSEW) + sourceLMUL + "-to-i" +
+       llvm::Twine(productSEW) + productLMUL + "-reduce-plus-i" +
+       llvm::Twine(resultSEW) + "-scalar-to-i" + llvm::Twine(resultSEW))
           .str());
 }
 
@@ -498,6 +543,7 @@ llvm::Error requireContractionSelectedVariantRequires(
 
 bool isContractionDotReductionOperation(RVVSelectedBodyOperationKind op) {
   switch (op) {
+  case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
@@ -516,6 +562,8 @@ llvm::StringRef getContractionRuntimeABIOrder(
     return kRVVWideningMAccRuntimeABIOrder;
   case RVVSelectedBodyOperationKind::WideningProduct:
     return kRVVWideningProductRuntimeABIOrder;
+  case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
+    return kRVVWideningProductReductionChainRuntimeABIOrder;
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return kRVVWideningDotProductRuntimeABIOrder;
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -587,6 +635,22 @@ llvm::StringRef getContractionReductionIntrinsic(std::int64_t sew,
   return internContractionDerivedText(
       (llvm::Twine("__riscv_vredsum_vs_i") + llvm::Twine(sew) + lmul + "_i" +
        llvm::Twine(sew) + tcrv::rvv::getRVVLMULM1())
+          .str());
+}
+
+llvm::StringRef getContractionWideningReductionIntrinsic(
+    std::int64_t sourceSEW, llvm::StringRef sourceLMUL,
+    std::int64_t resultSEW, llvm::StringRef resultLMUL,
+    llvm::StringRef relation) {
+  llvm::StringRef expectedRelation = getContractionProductReductionChainRelation(
+      tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(), sourceSEW,
+      sourceLMUL, resultSEW, resultLMUL);
+  if (expectedRelation.empty() || relation != expectedRelation)
+    return {};
+  return internContractionDerivedText(
+      (llvm::Twine("__riscv_vwredsum_vs_i") + llvm::Twine(resultSEW) +
+       resultLMUL + "_i" + llvm::Twine(sourceSEW) + sourceLMUL + "_i" +
+       llvm::Twine(resultSEW) + resultLMUL)
           .str());
 }
 
@@ -851,6 +915,8 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
   if (wideningDotFacts) {
     const RVVSelectedBodyEmitCRouteDescription &description =
         analysis.description;
+    const bool isProductReductionChain =
+        operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd;
     auto requireStringFact =
         [&](llvm::StringRef field, llvm::StringRef actual,
             llvm::StringRef expected) -> llvm::Error {
@@ -945,6 +1011,13 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
         "source SEW", description.sourceSEW, wideningDotFacts->sourceSEW);
     TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
         "source LMUL", description.sourceLMUL, wideningDotFacts->sourceLMUL);
+    if (isProductReductionChain) {
+      TCRV_REQUIRE_WIDENING_DOT_INTEGER_FACT(
+          "product SEW", description.productSEW, wideningDotFacts->productSEW);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "product LMUL", description.productLMUL,
+          wideningDotFacts->productLMUL);
+    }
     TCRV_REQUIRE_WIDENING_DOT_INTEGER_FACT(
         "result SEW", description.sew, wideningDotFacts->resultSEW);
     TCRV_REQUIRE_WIDENING_DOT_STRING_FACT("result LMUL", description.lmul,
@@ -964,17 +1037,32 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
     TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
         "rhs stride source", description.rhsStrideSource,
         wideningDotFacts->rhsStrideSource);
-    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
-        "widening dot accumulator layout",
-        description.wideningDotProductAccumulatorLayout,
-        wideningDotFacts->wideningDotProductAccumulatorLayout);
-    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
-        "widening dot result layout",
-        description.wideningDotProductResultLayout,
-        wideningDotFacts->wideningDotProductResultLayout);
-    TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
-        "widening dot relation", description.wideningDotProductRelation,
-        wideningDotFacts->wideningDotProductRelation);
+    if (isProductReductionChain) {
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "product-reduction accumulator layout",
+          description.reductionAccumulatorLayout,
+          wideningDotFacts->wideningDotProductAccumulatorLayout);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "product-reduction result layout",
+          description.reductionResultLayout,
+          wideningDotFacts->wideningDotProductResultLayout);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "product-reduction relation",
+          description.productReductionChainRelation,
+          wideningDotFacts->productReductionChainRelation);
+    } else {
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "widening dot accumulator layout",
+          description.wideningDotProductAccumulatorLayout,
+          wideningDotFacts->wideningDotProductAccumulatorLayout);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "widening dot result layout",
+          description.wideningDotProductResultLayout,
+          wideningDotFacts->wideningDotProductResultLayout);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "widening dot relation", description.wideningDotProductRelation,
+          wideningDotFacts->wideningDotProductRelation);
+    }
     TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
         "widening product intrinsic", description.wideningProductIntrinsic,
         wideningDotFacts->wideningProductIntrinsic);
@@ -1025,6 +1113,14 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
     TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
         "source vector C type", description.sourceVectorCType,
         wideningDotFacts->sourceVectorCType);
+    if (isProductReductionChain) {
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "product vector type", description.productVectorTypeName,
+          wideningDotFacts->productVectorTypeName);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "product vector C type", description.productVectorCType,
+          wideningDotFacts->productVectorCType);
+    }
     TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
         "result vector type", description.vectorTypeName,
         wideningDotFacts->resultVectorTypeName);
@@ -1074,6 +1170,37 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " low-precision widening-product contraction mirrors must come "
+          "from the validated family plan");
+  } else if (plan.usesProductReductionChain) {
+    if (analysis.description.sourceMemoryForm != plan.sourceMemoryForm ||
+        analysis.description.destinationMemoryForm !=
+            plan.destinationMemoryForm ||
+        analysis.description.productSEW != plan.productSEW ||
+        analysis.description.productLMUL != plan.productLMUL ||
+        analysis.description.productVectorTypeName !=
+            plan.productVectorTypeName ||
+        analysis.description.productVectorCType != plan.productVectorCType ||
+        analysis.description.reductionAccumulatorLayout !=
+            plan.accumulatorLayout ||
+        analysis.description.reductionResultLayout != plan.resultLayout ||
+        analysis.description.wideningProductRelation !=
+            plan.wideningProductRelation ||
+        analysis.description.productReductionChainRelation !=
+            plan.productReductionChainRelation ||
+        analysis.description.intrinsic != plan.contractionComputeIntrinsic ||
+        analysis.description.wideningProductIntrinsic !=
+            plan.wideningProductIntrinsic ||
+        analysis.description.scalarSeedSplatIntrinsic !=
+            plan.scalarSeedSplatIntrinsic ||
+        analysis.description.reductionStoreVL != plan.reductionStoreVL ||
+        analysis.description.standaloneReductionScalarResultRuntimeBoundary !=
+            "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1" ||
+        !analysis.description.maskedWideningProductIntrinsic.empty() ||
+        !analysis.description.compareIntrinsic.empty() ||
+        !analysis.description.maskedMergeIntrinsic.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " low-precision product-reduction contraction mirrors must come "
           "from the validated family plan");
   } else if (analysis.description.wideningDotProductAccumulatorLayout !=
                  plan.accumulatorLayout ||
@@ -1469,12 +1596,31 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
   if (!isContractionDotReductionOperation(operation))
     return std::nullopt;
 
-  constexpr std::int64_t kSourceSEW = 16;
+  const bool isProductReductionChain =
+      operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd;
+  constexpr std::int64_t kProductSourceSEW = 8;
+  constexpr llvm::StringLiteral kProductSourceLMUL("mf4");
+  constexpr std::int64_t kProductSEW = 16;
+  constexpr llvm::StringLiteral kProductLMUL("mf2");
+  constexpr std::int64_t kDotSourceSEW = 16;
+  constexpr llvm::StringLiteral kDotSourceLMUL("mf2");
   constexpr std::int64_t kResultSEW = 32;
-  constexpr llvm::StringLiteral kSourceLMUL("mf2");
   constexpr llvm::StringLiteral kResultLMUL("m1");
-  const llvm::StringRef relation = getContractionWideningDotProductRelation(
+  const std::int64_t kSourceSEW =
+      isProductReductionChain ? kProductSourceSEW : kDotSourceSEW;
+  const llvm::StringRef kSourceLMUL =
+      isProductReductionChain ? llvm::StringRef(kProductSourceLMUL)
+                              : llvm::StringRef(kDotSourceLMUL);
+  const llvm::StringRef dotRelation = getContractionWideningDotProductRelation(
       kSourceSEW, kSourceLMUL, kResultSEW, kResultLMUL);
+  const llvm::StringRef productRelation = getContractionWideningProductRelation(
+      kProductSourceSEW, kProductSourceLMUL, kProductSEW, kProductLMUL);
+  const llvm::StringRef chainRelation =
+      getContractionProductReductionChainRelation(
+          kProductSourceSEW, kProductSourceLMUL, kProductSEW, kProductLMUL,
+          kResultSEW, kResultLMUL);
+  const llvm::StringRef relation =
+      isProductReductionChain ? chainRelation : dotRelation;
 
   const bool isComputedMask = isRVVSelectedBodyContractionComputedMask(operation);
   const bool isStrided = isRVVSelectedBodyContractionStridedInputs(operation);
@@ -1503,14 +1649,27 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
   facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
   facts.runtimeABIOrder = getContractionRuntimeABIOrder(operation);
   facts.targetLeafProfile =
-      getContractionTargetLeafProfile(kSourceSEW, kSourceLMUL, kResultSEW,
-                                      kResultLMUL);
+      isProductReductionChain
+          ? internContractionDerivedText(
+                (llvm::Twine("rvv-v1-i8mf4-i16mf2-i32m1-product-reduction-"
+                             "contraction-leaf-profile.v1"))
+                    .str())
+          : getContractionTargetLeafProfile(kSourceSEW, kSourceLMUL,
+                                            kResultSEW, kResultLMUL);
   facts.providerSupportedMirror = kRVVContractionProviderSupportedMirror;
   facts.requiredHeaderDeclarations = kRVVContractionRequiredHeaderDeclarations;
   facts.cTypeMappingSummary =
-      getContractionCTypeMappingSummary(kSourceSEW, kSourceLMUL, kResultSEW,
-                                        kResultLMUL);
+      isProductReductionChain
+          ? getContractionProductReductionChainCTypeMappingSummary(
+                kProductSourceSEW, kProductSourceLMUL, kProductSEW,
+                kProductLMUL, kResultSEW, kResultLMUL)
+          : getContractionCTypeMappingSummary(kSourceSEW, kSourceLMUL,
+                                              kResultSEW, kResultLMUL);
   switch (operation) {
+  case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
+    facts.routeOperandBindingPlanID =
+        kRVVWideningProductReductionChainOperandBindingPlanID;
+    break;
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     facts.routeOperandBindingPlanID = kRVVWideningDotReduceOperandBindingPlanID;
     break;
@@ -1531,9 +1690,11 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
     return std::nullopt;
   }
   facts.contractionRouteFamilyPlanID = kRVVContractionRouteFamilyPlanID;
-  facts.typedComputeOpName = isComputedMask
-                                  ? "tcrv_rvv.masked_widening_dot_reduce"
-                                  : "tcrv_rvv.widening_dot_reduce";
+  facts.typedComputeOpName =
+      isProductReductionChain
+          ? "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce"
+      : isComputedMask ? "tcrv_rvv.masked_widening_dot_reduce"
+                       : "tcrv_rvv.widening_dot_reduce";
   if (isComputedMask) {
     facts.comparePredicateKind = kRVVPreRealizedPredicateKind;
     facts.maskRole = kRVVMaskedPredicateMaskRole;
@@ -1551,11 +1712,18 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
   facts.rhsStrideRole = "rhs-input-stride";
   facts.sourceSEW = kSourceSEW;
   facts.sourceLMUL = kSourceLMUL;
+  if (isProductReductionChain) {
+    facts.productSEW = kProductSEW;
+    facts.productLMUL = kProductLMUL;
+  }
   facts.accumulatorSEW = kResultSEW;
   facts.accumulatorLMUL = kResultLMUL;
   facts.resultSEW = kResultSEW;
   facts.resultLMUL = kResultLMUL;
-  if (isStrided) {
+  if (isProductReductionChain) {
+    facts.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
+    facts.destinationMemoryForm = kRVVDestinationMemoryForm;
+  } else if (isStrided) {
     facts.sourceMemoryForm = kRVVStridedInputDotSourceMemoryForm;
     facts.destinationMemoryForm = kRVVDestinationMemoryForm;
     facts.stridedMemoryLayout =
@@ -1566,10 +1734,19 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
   }
   facts.wideningDotProductAccumulatorLayout =
       kRVVWideningDotProductAccumulatorLayout;
-  facts.wideningDotProductResultLayout = kRVVWideningDotProductResultLayout;
-  facts.wideningDotProductRelation = relation;
-  facts.wideningProductIntrinsic = getContractionWideningProductIntrinsic(
-      kSourceSEW, kSourceLMUL, kResultSEW, kResultLMUL, relation);
+  facts.wideningDotProductResultLayout =
+      isProductReductionChain ? kRVVProductReductionResultLayout
+                              : kRVVWideningDotProductResultLayout;
+  if (isProductReductionChain) {
+    facts.productReductionChainRelation = relation;
+    facts.wideningProductIntrinsic = getContractionWideningProductIntrinsic(
+        kProductSourceSEW, kProductSourceLMUL, kProductSEW, kProductLMUL,
+        productRelation);
+  } else {
+    facts.wideningDotProductRelation = relation;
+    facts.wideningProductIntrinsic = getContractionWideningProductIntrinsic(
+        kSourceSEW, kSourceLMUL, kResultSEW, kResultLMUL, relation);
+  }
   if (isComputedMask)
     facts.maskedWideningProductIntrinsic =
         getContractionMaskedWideningProductIntrinsic(
@@ -1584,7 +1761,11 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
   facts.compareVectorLoadIntrinsic =
       getContractionVectorLoadIntrinsic(kResultSEW, kResultLMUL);
   facts.reductionIntrinsic =
-      getContractionReductionIntrinsic(kResultSEW, kResultLMUL);
+      isProductReductionChain
+          ? getContractionWideningReductionIntrinsic(kProductSEW, kProductLMUL,
+                                                     kResultSEW, kResultLMUL,
+                                                     relation)
+          : getContractionReductionIntrinsic(kResultSEW, kResultLMUL);
   facts.storeIntrinsic = getContractionStoreIntrinsic(kResultSEW, kResultLMUL);
   facts.setVLIntrinsic = getContractionSetVLIntrinsic(kResultSEW, kResultLMUL);
   if (isComputedMask) {
@@ -1602,6 +1783,12 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
       getContractionVectorTypeName(kSourceSEW, kSourceLMUL);
   facts.sourceVectorCType =
       getContractionSignedVectorCType(kSourceSEW, kSourceLMUL);
+  if (isProductReductionChain) {
+    facts.productVectorTypeName =
+        getContractionVectorTypeName(kProductSEW, kProductLMUL);
+    facts.productVectorCType =
+        getContractionSignedVectorCType(kProductSEW, kProductLMUL);
+  }
   facts.resultVectorTypeName =
       getContractionVectorTypeName(kResultSEW, kResultLMUL);
   facts.resultVectorCType =
@@ -1621,7 +1808,17 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
         cName, cType, role,
         support::RuntimeABIParameterOwnership::TargetExportABIOwned));
   };
-  if (isComputedMask) {
+  if (isProductReductionChain) {
+    facts.logicalOperands.push_back("lhs");
+    facts.logicalOperands.push_back("rhs");
+    facts.logicalOperands.push_back("acc");
+    facts.logicalOperands.push_back("out");
+    facts.logicalOperands.push_back("n");
+    addRuntimeABI("lhs", kRVVContractionI8PointerCType,
+                  support::RuntimeABIParameterRole::LHSInputBuffer);
+    addRuntimeABI("rhs", kRVVContractionI8PointerCType,
+                  support::RuntimeABIParameterRole::RHSInputBuffer);
+  } else if (isComputedMask) {
     facts.logicalOperands.push_back("cmp_lhs");
     facts.logicalOperands.push_back("cmp_rhs");
     facts.logicalOperands.push_back("dot_lhs");
@@ -1663,7 +1860,16 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
                   support::RuntimeABIParameterRole::RHSInputStride);
   }
 
-  if (isComputedMask && isStrided) {
+  if (isProductReductionChain) {
+    facts.routeOperandBindingSummary =
+        (llvm::Twine(facts.routeOperandBindingPlanID) +
+         ";lhs=lhs-input-buffer:lhs:abi|src-load|wprod-lhs|src-i8mf4|hdr;"
+         "rhs=rhs-input-buffer:rhs:abi|src-load|wprod-rhs|src-i8mf4|hdr;"
+         "acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;"
+         "out=output-buffer:out:abi|acc-state|store|res-i32m1|hdr;"
+         "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
+            .str();
+  } else if (isComputedMask && isStrided) {
     facts.routeOperandBindingSummary =
         (llvm::Twine(facts.routeOperandBindingPlanID) +
          ";cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask|hdr;"
@@ -1741,6 +1947,8 @@ static void populateRVVWideningDotDynamicDescriptionPayload(
 static RVVWideningDotReduceRouteValidationKind
 getRVVWideningDotValidationKind(RVVSelectedBodyOperationKind operation) {
   switch (operation) {
+  case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
+    return RVVWideningDotReduceRouteValidationKind::ProductReductionChain;
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return RVVWideningDotReduceRouteValidationKind::Plain;
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -1758,6 +1966,8 @@ getRVVWideningDotValidationKind(RVVSelectedBodyOperationKind operation) {
 static llvm::StringRef getRVVWideningDotValidationConsumerLabel(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {
+  case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
+    return "widening product-reduction contraction target artifact consumer";
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return "widening dot-reduction target artifact consumer";
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -1787,6 +1997,8 @@ static void populateRVVWideningDotValidationContract(
   contract.memoryForm = facts.memoryForm;
   contract.sourceSEW = facts.sourceSEW;
   contract.sourceLMUL = facts.sourceLMUL.str();
+  contract.productSEW = facts.productSEW;
+  contract.productLMUL = facts.productLMUL.str();
   contract.accumulatorSEW = facts.accumulatorSEW;
   contract.accumulatorLMUL = facts.accumulatorLMUL.str();
   contract.resultSEW = facts.resultSEW;
@@ -1822,6 +2034,8 @@ static void populateRVVWideningDotValidationContract(
       facts.wideningDotProductResultLayout.str();
   contract.wideningDotProductRelation =
       facts.wideningDotProductRelation.str();
+  contract.productReductionChainRelation =
+      facts.productReductionChainRelation.str();
   contract.wideningProductIntrinsic = facts.wideningProductIntrinsic.str();
   contract.maskedWideningProductIntrinsic =
       facts.maskedWideningProductIntrinsic.str();
@@ -1846,6 +2060,8 @@ static void populateRVVWideningDotValidationContract(
   contract.vlCType = facts.vlCType.str();
   contract.sourceVectorTypeName = facts.sourceVectorTypeName.str();
   contract.sourceVectorCType = facts.sourceVectorCType.str();
+  contract.productVectorTypeName = facts.productVectorTypeName.str();
+  contract.productVectorCType = facts.productVectorCType.str();
   contract.resultVectorTypeName = facts.resultVectorTypeName.str();
   contract.resultVectorCType = facts.resultVectorCType.str();
   contract.vectorTypeName = facts.resultVectorTypeName.str();
@@ -1873,10 +2089,14 @@ static void populateRVVWideningDotValidationContract(
       "selected typed RVV widening dot VL type");
   appendRVVWideningDotValidationTypeMapping(
       contract, facts.resultVectorTypeName, facts.resultVectorCType,
-      "selected typed RVV widening dot result vector type");
+      "selected typed RVV widening dot/result vector type");
   appendRVVWideningDotValidationTypeMapping(
       contract, facts.sourceVectorTypeName, facts.sourceVectorCType,
-      "selected typed RVV widening dot source vector type");
+      "selected typed RVV widening dot/source vector type");
+  if (facts.operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd)
+    appendRVVWideningDotValidationTypeMapping(
+        contract, facts.productVectorTypeName, facts.productVectorCType,
+        "selected typed RVV widening product intermediate vector type");
   if (isComputedMask)
     appendRVVWideningDotValidationTypeMapping(
         contract, facts.maskTypeName, facts.maskCType,
@@ -1901,6 +2121,7 @@ bool isRVVSelectedBodyContractionRouteOperation(
   switch (operation) {
   case RVVSelectedBodyOperationKind::WideningMAccAdd:
   case RVVSelectedBodyOperationKind::WideningProduct:
+  case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
   case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
@@ -1914,7 +2135,8 @@ bool isRVVSelectedBodyContractionRouteOperation(
 
 bool isRVVSelectedBodyContractionDotReduction(
     RVVSelectedBodyOperationKind operation) {
-  return operation == RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
+  return operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
+         operation == RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
          operation ==
              RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd ||
          operation ==
@@ -2826,6 +3048,8 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       plan.operation == RVVSelectedBodyOperationKind::WideningMAccAdd;
   const bool isWideningProduct =
       plan.operation == RVVSelectedBodyOperationKind::WideningProduct;
+  const bool isProductReductionChain =
+      plan.operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd;
   const bool isDotReduction =
       isRVVSelectedBodyContractionDotReduction(plan.operation);
   const bool isComputedMask =
@@ -2834,8 +3058,9 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       isRVVSelectedBodyContractionStridedInputs(plan.operation);
   const RVVSelectedBodyMemoryForm expectedMemoryForm =
       isWideningMAcc
-          ? RVVSelectedBodyMemoryForm::VectorRHSLoad
+      ? RVVSelectedBodyMemoryForm::VectorRHSLoad
       : isWideningProduct ? RVVSelectedBodyMemoryForm::VectorRHSLoad
+      : isProductReductionChain ? RVVSelectedBodyMemoryForm::VectorRHSLoad
       : plan.operation == RVVSelectedBodyOperationKind::WideningDotReduceAdd
           ? RVVSelectedBodyMemoryForm::VectorRHSLoad
       : plan.operation ==
@@ -2849,6 +3074,7 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
                 ComputedMaskStridedInputWideningDotReduce;
   if (plan.usesWideningMAcc != isWideningMAcc ||
       plan.usesWideningProduct != isWideningProduct ||
+      plan.usesProductReductionChain != isProductReductionChain ||
       plan.usesDotReduction != isDotReduction ||
       plan.usesComputedMask != isComputedMask ||
       plan.usesStridedInputs != isStridedInput ||
@@ -2889,8 +3115,24 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "contraction route-family source typed snapshot requires source "
         "element bit width to match source SEW");
-  if (!isSupportedContractionSourceResultConfig(
-          plan.sourceSEW, plan.sourceLMUL, plan.sew, plan.lmul))
+  const bool supportsProductReductionChain =
+      plan.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
+      plan.sourceLMUL == tcrv::rvv::getRVVLMULMF4() &&
+      plan.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      plan.productLMUL == tcrv::rvv::getRVVLMULMF2() &&
+      plan.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      plan.lmul == tcrv::rvv::getRVVLMULM1();
+  if (isProductReductionChain && !supportsProductReductionChain)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("contraction route-family plan does not support "
+                    "product-reduction source/product/result SEW/LMUL chain '") +
+        llvm::Twine(plan.sourceSEW) + "/" + plan.sourceLMUL + " -> " +
+        llvm::Twine(plan.productSEW) + "/" + plan.productLMUL + " -> " +
+        llvm::Twine(plan.sew) + "/" + plan.lmul + "'");
+  if (!isProductReductionChain &&
+      !isSupportedContractionSourceResultConfig(plan.sourceSEW,
+                                                plan.sourceLMUL, plan.sew,
+                                                plan.lmul))
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("contraction route-family plan does not support source "
                     "SEW/LMUL '") +
@@ -2912,8 +3154,13 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "target leaf profile", plan.targetLeafProfile,
-          getContractionTargetLeafProfile(plan.sourceSEW, plan.sourceLMUL,
-                                          plan.sew, plan.lmul)))
+          isProductReductionChain
+              ? llvm::StringRef(
+                    "rvv-v1-i8mf4-i16mf2-i32m1-product-reduction-"
+                    "contraction-leaf-profile.v1")
+              : getContractionTargetLeafProfile(plan.sourceSEW,
+                                                plan.sourceLMUL, plan.sew,
+                                                plan.lmul)))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "provider_supported_mirror", plan.providerSupportedMirror,
@@ -2925,8 +3172,13 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "C type mapping summary", plan.cTypeMappingSummary,
-          getContractionCTypeMappingSummary(plan.sourceSEW, plan.sourceLMUL,
-                                            plan.sew, plan.lmul)))
+          isProductReductionChain
+              ? getContractionProductReductionChainCTypeMappingSummary(
+                    plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
+                    plan.productLMUL, plan.sew, plan.lmul)
+              : getContractionCTypeMappingSummary(plan.sourceSEW,
+                                                  plan.sourceLMUL, plan.sew,
+                                                  plan.lmul)))
     return error;
   if (plan.requiredHeaders.size() != 3 ||
       plan.requiredHeaders[0] != "stddef.h" ||
@@ -2957,6 +3209,25 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
           plan, "source vector-load leaf", plan.sourceVectorLoadIntrinsic,
           getContractionVectorLoadIntrinsic(plan.sourceSEW, plan.sourceLMUL)))
     return error;
+  if (isProductReductionChain) {
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "product element type", plan.productElementTypeName,
+            getContractionIntegerElementTypeName(plan.productSEW)))
+      return error;
+    if (plan.productElementBitWidth != plan.productSEW)
+      return makeRVVEmitCRouteProviderError(
+          "product-reduction contraction plan requires product element bit "
+          "width to match product SEW");
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "product vector type", plan.productVectorTypeName,
+            getContractionVectorTypeName(plan.productSEW, plan.productLMUL)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "product vector C type", plan.productVectorCType,
+            getContractionSignedVectorCType(plan.productSEW,
+                                            plan.productLMUL)))
+      return error;
+  }
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
           plan, "store leaf", plan.storeIntrinsic,
           getContractionStoreIntrinsic(plan.sew, plan.lmul)))
@@ -2995,7 +3266,8 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
                      plan, "strided source-load leaf",
                      plan.stridedLoadIntrinsic, ""))
     return error;
-  if (plan.usesWideningMAcc || plan.usesWideningProduct) {
+  if (plan.usesWideningMAcc || plan.usesWideningProduct ||
+      plan.usesProductReductionChain) {
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "source memory form", plan.sourceMemoryForm,
             kRVVUnitStrideSourceMemoryForm))
@@ -3006,7 +3278,7 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       return error;
   }
   if (!plan.usesStridedInputs && !plan.usesWideningMAcc &&
-      !plan.usesWideningProduct) {
+      !plan.usesWideningProduct && !plan.usesProductReductionChain) {
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "strided memory layout", plan.stridedMemoryLayout, ""))
       return error;
@@ -3092,6 +3364,48 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "reduction store VL", plan.reductionStoreVL, ""))
+      return error;
+  } else if (plan.usesProductReductionChain) {
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "accumulator layout", plan.accumulatorLayout,
+            kRVVWideningDotProductAccumulatorLayout))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "result layout", plan.resultLayout,
+            kRVVProductReductionResultLayout))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "widening product relation mirror",
+            plan.wideningProductRelation,
+            getContractionWideningProductRelation(
+                plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
+                plan.productLMUL)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "product-reduction relation", plan.productReductionChainRelation,
+            getContractionProductReductionChainRelation(
+                plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
+                plan.productLMUL, plan.sew, plan.lmul)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "product-reduction relation mirror", plan.relation,
+            plan.productReductionChainRelation))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDerivedLeaf(
+            plan, "widening product leaf", plan.wideningProductIntrinsic,
+            plan.typedConfigFactsID))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDerivedLeaf(
+            plan, "widening reduction leaf", plan.contractionComputeIntrinsic,
+            plan.typedConfigFactsID))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDerivedLeaf(
+            plan, "scalar seed splat leaf", plan.scalarSeedSplatIntrinsic,
+            plan.typedConfigFactsID))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "reduction store VL", plan.reductionStoreVL,
+            kRVVWideningDotProductStoreVL))
       return error;
   } else {
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
@@ -3246,6 +3560,8 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
 
   const RVVSelectedBodyTypedConfigFacts &typedConfig =
       analysis.typedConfigFacts;
+  const bool isProductReductionChain =
+      operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd;
   llvm::Expected<RVVContractionVectorFacts> lhsSourceFacts =
       deriveContractionVectorFacts(
           analysis.slice.arithmeticLhs, "lhs", "contraction route-family plan");
@@ -3259,6 +3575,22 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   if (llvm::Error error = requireMatchingContractionSourceFacts(
           *lhsSourceFacts, *rhsSourceFacts, "contraction route-family plan"))
     return std::move(error);
+  std::optional<RVVContractionVectorFacts> productFacts;
+  if (isProductReductionChain) {
+    if (analysis.slice.standaloneReduceOp.getInput() !=
+        analysis.slice.wideningProductOp.getResult())
+      return makeRVVEmitCRouteProviderError(
+          "product-reduction contraction route-family plan requires "
+          "tcrv_rvv.standalone_reduce input to consume the selected "
+          "tcrv_rvv.widening_product result");
+    llvm::Expected<RVVContractionVectorFacts> derivedProductFacts =
+        deriveContractionVectorFacts(analysis.slice.wideningProductOp.getResult(),
+                                     "product intermediate",
+                                     "contraction route-family plan");
+    if (!derivedProductFacts)
+      return derivedProductFacts.takeError();
+    productFacts = std::move(*derivedProductFacts);
+  }
 
   RVVSelectedBodyContractionRouteFamilyPlan plan;
   plan.operation = operation;
@@ -3267,6 +3599,7 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
       operation == RVVSelectedBodyOperationKind::WideningMAccAdd;
   plan.usesWideningProduct =
       operation == RVVSelectedBodyOperationKind::WideningProduct;
+  plan.usesProductReductionChain = isProductReductionChain;
   plan.usesDotReduction =
       isRVVSelectedBodyContractionDotReduction(operation);
   plan.usesComputedMask =
@@ -3286,17 +3619,27 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   plan.configContractID = typedConfig.configContractID;
   plan.familyPlanID = kRVVContractionRouteFamilyPlanID;
   plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
-  plan.targetLeafProfile = getContractionTargetLeafProfile(
-      lhsSourceFacts->sew, lhsSourceFacts->lmul, typedConfig.sew,
-      typedConfig.lmul);
+  plan.targetLeafProfile =
+      isProductReductionChain
+          ? "rvv-v1-i8mf4-i16mf2-i32m1-product-reduction-contraction-leaf-profile.v1"
+          : getContractionTargetLeafProfile(lhsSourceFacts->sew,
+                                            lhsSourceFacts->lmul,
+                                            typedConfig.sew,
+                                            typedConfig.lmul);
   plan.providerSupportedMirror = kRVVContractionProviderSupportedMirror;
   plan.requiredHeaders.push_back("stddef.h");
   plan.requiredHeaders.push_back("stdint.h");
   plan.requiredHeaders.push_back("riscv_vector.h");
   plan.requiredHeaderDeclarations = kRVVContractionRequiredHeaderDeclarations;
-  plan.cTypeMappingSummary = getContractionCTypeMappingSummary(
-      lhsSourceFacts->sew, lhsSourceFacts->lmul, typedConfig.sew,
-      typedConfig.lmul);
+  plan.cTypeMappingSummary =
+      isProductReductionChain && productFacts
+          ? getContractionProductReductionChainCTypeMappingSummary(
+                lhsSourceFacts->sew, lhsSourceFacts->lmul, productFacts->sew,
+                productFacts->lmul, typedConfig.sew, typedConfig.lmul)
+          : getContractionCTypeMappingSummary(lhsSourceFacts->sew,
+                                              lhsSourceFacts->lmul,
+                                              typedConfig.sew,
+                                              typedConfig.lmul);
   plan.vlCType = typedConfig.vlCType;
   plan.resultVectorTypeName = typedConfig.vectorTypeName;
   plan.resultVectorCType = typedConfig.vectorCType;
@@ -3310,6 +3653,14 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   plan.sourceVectorTypeName = lhsSourceFacts->vectorTypeName;
   plan.sourceVectorCType = lhsSourceFacts->vectorCType;
   plan.sourceVectorLoadIntrinsic = lhsSourceFacts->vectorLoadIntrinsic;
+  if (productFacts) {
+    plan.productElementTypeName = productFacts->elementTypeName;
+    plan.productElementBitWidth = productFacts->elementBitWidth;
+    plan.productSEW = productFacts->sew;
+    plan.productLMUL = productFacts->lmul;
+    plan.productVectorTypeName = productFacts->vectorTypeName;
+    plan.productVectorCType = productFacts->vectorCType;
+  }
   if (plan.usesStridedInputs)
     plan.stridedLoadIntrinsic = lhsSourceFacts->stridedLoadIntrinsic;
   plan.storeIntrinsic = typedConfig.storeIntrinsic;
@@ -3353,6 +3704,31 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
         getContractionWideningProductIntrinsic(
             plan.sourceSEW, plan.sourceLMUL, typedConfig.sew,
             typedConfig.lmul, plan.relation);
+  } else if (plan.usesProductReductionChain) {
+    plan.accumulatorLayout =
+        analysis.slice.standaloneReduceOp.getAccumulatorLayout();
+    plan.resultLayout = analysis.slice.standaloneReduceOp.getResultLayout();
+    plan.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
+    plan.destinationMemoryForm = kRVVDestinationMemoryForm;
+    plan.wideningProductRelation =
+        analysis.slice.wideningProductOp.getProductRelation();
+    plan.productReductionChainRelation =
+        getContractionProductReductionChainRelation(
+            plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
+            plan.productLMUL, typedConfig.sew, typedConfig.lmul);
+    plan.relation = plan.productReductionChainRelation;
+    plan.wideningProductIntrinsic =
+        getContractionWideningProductIntrinsic(
+            plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
+            plan.productLMUL, plan.wideningProductRelation);
+    plan.contractionComputeIntrinsic =
+        getContractionWideningReductionIntrinsic(
+            plan.productSEW, plan.productLMUL, typedConfig.sew,
+            typedConfig.lmul, plan.productReductionChainRelation);
+    plan.scalarSeedSplatIntrinsic =
+        getContractionScalarSeedSplatIntrinsic(typedConfig.sew,
+                                               typedConfig.lmul);
+    plan.reductionStoreVL = kRVVWideningDotProductStoreVL;
   } else {
     if (plan.usesComputedMask) {
       plan.accumulatorLayout =
@@ -3469,6 +3845,28 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
     return;
   }
 
+  if (plan.usesProductReductionChain) {
+    description.sourceMemoryForm = plan.sourceMemoryForm;
+    description.destinationMemoryForm = plan.destinationMemoryForm;
+    description.productElementTypeName = plan.productElementTypeName;
+    description.productSEW = plan.productSEW;
+    description.productLMUL = plan.productLMUL;
+    description.productVectorTypeName = plan.productVectorTypeName;
+    description.productVectorCType = plan.productVectorCType;
+    description.reductionAccumulatorLayout = plan.accumulatorLayout;
+    description.reductionResultLayout = plan.resultLayout;
+    description.wideningProductRelation = plan.wideningProductRelation;
+    description.productReductionChainRelation =
+        plan.productReductionChainRelation;
+    description.intrinsic = plan.contractionComputeIntrinsic;
+    description.wideningProductIntrinsic = plan.wideningProductIntrinsic;
+    description.scalarSeedSplatIntrinsic = plan.scalarSeedSplatIntrinsic;
+    description.reductionStoreVL = plan.reductionStoreVL;
+    description.standaloneReductionScalarResultRuntimeBoundary =
+        "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1";
+    return;
+  }
+
   description.wideningDotProductAccumulatorLayout = plan.accumulatorLayout;
   description.wideningDotProductResultLayout = plan.resultLayout;
   description.wideningDotProductRelation = plan.relation;
@@ -3520,6 +3918,9 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
       description.operation == RVVSelectedBodyOperationKind::WideningMAccAdd;
   const bool usesWideningProduct =
       description.operation == RVVSelectedBodyOperationKind::WideningProduct;
+  const bool usesProductReductionChain =
+      description.operation ==
+      RVVSelectedBodyOperationKind::WideningProductReduceAdd;
   const bool usesDotReduction =
       isRVVSelectedBodyContractionDotReduction(description.operation);
   const bool usesComputedMask =
@@ -3535,19 +3936,37 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
           context, "runtime ABI order", description.runtimeABIOrder,
           getRVVSelectedBodyContractionRuntimeABIOrder(description.operation)))
     return error;
-  if (!isSupportedContractionSourceResultConfig(
-          description.sourceSEW, description.sourceLMUL, description.sew,
-          description.lmul))
+  const bool supportsProductReductionChain =
+      description.sourceSEW == tcrv::rvv::getRVVSEW8Bits() &&
+      description.sourceLMUL == tcrv::rvv::getRVVLMULMF4() &&
+      description.productSEW == tcrv::rvv::getRVVSEW16Bits() &&
+      description.productLMUL == tcrv::rvv::getRVVLMULMF2() &&
+      description.sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+      description.lmul == tcrv::rvv::getRVVLMULM1();
+  if (usesProductReductionChain && !supportsProductReductionChain)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " product-reduction contraction route description requires "
+        "provider-derived i8mf4 -> i16mf2 -> i32m1 SEW/LMUL facts");
+  if (!usesProductReductionChain &&
+      !isSupportedContractionSourceResultConfig(description.sourceSEW,
+                                                description.sourceLMUL,
+                                                description.sew,
+                                                description.lmul))
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " contraction route description requires supported provider-derived "
         "source/result SEW/LMUL facts");
   if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
           context, "target leaf profile", description.targetLeafProfile,
-          getContractionTargetLeafProfile(description.sourceSEW,
-                                          description.sourceLMUL,
-                                          description.sew,
-                                          description.lmul)))
+          usesProductReductionChain
+              ? llvm::StringRef(
+                    "rvv-v1-i8mf4-i16mf2-i32m1-product-reduction-"
+                    "contraction-leaf-profile.v1")
+              : getContractionTargetLeafProfile(description.sourceSEW,
+                                                description.sourceLMUL,
+                                                description.sew,
+                                                description.lmul)))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
           context, "provider_supported_mirror",
@@ -3561,10 +3980,15 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
           context, "C type mapping summary", description.cTypeMappingSummary,
-          getContractionCTypeMappingSummary(description.sourceSEW,
-                                            description.sourceLMUL,
-                                            description.sew,
-                                            description.lmul)))
+          usesProductReductionChain
+              ? getContractionProductReductionChainCTypeMappingSummary(
+                    description.sourceSEW, description.sourceLMUL,
+                    description.productSEW, description.productLMUL,
+                    description.sew, description.lmul)
+              : getContractionCTypeMappingSummary(description.sourceSEW,
+                                                  description.sourceLMUL,
+                                                  description.sew,
+                                                  description.lmul)))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
           context, "source vector type", description.sourceVectorTypeName,
@@ -3582,6 +4006,22 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
           getContractionVectorLoadIntrinsic(description.sourceSEW,
                                             description.sourceLMUL)))
     return error;
+  if (usesProductReductionChain) {
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "product element type", description.productElementTypeName,
+            getContractionIntegerElementTypeName(description.productSEW)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "product vector type", description.productVectorTypeName,
+            getContractionVectorTypeName(description.productSEW,
+                                         description.productLMUL)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "product vector C type", description.productVectorCType,
+            getContractionSignedVectorCType(description.productSEW,
+                                            description.productLMUL)))
+      return error;
+  }
 
   if (usesWideningMAcc) {
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
@@ -3651,6 +4091,73 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
             context, "compute intrinsic", description.intrinsic,
             description.wideningProductIntrinsic))
       return error;
+  }
+
+  if (usesProductReductionChain) {
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "source memory form", description.sourceMemoryForm,
+            kRVVUnitStrideSourceMemoryForm))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "destination memory form",
+            description.destinationMemoryForm, kRVVDestinationMemoryForm))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "reduction accumulator layout",
+            description.reductionAccumulatorLayout,
+            kRVVWideningDotProductAccumulatorLayout))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "reduction result layout",
+            description.reductionResultLayout,
+            kRVVProductReductionResultLayout))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "widening product relation",
+            description.wideningProductRelation,
+            getContractionWideningProductRelation(
+                description.sourceSEW, description.sourceLMUL,
+                description.productSEW, description.productLMUL)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "product-reduction relation",
+            description.productReductionChainRelation,
+            getContractionProductReductionChainRelation(
+                description.sourceSEW, description.sourceLMUL,
+                description.productSEW, description.productLMUL,
+                description.sew, description.lmul)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "widening product intrinsic",
+            description.wideningProductIntrinsic,
+            getContractionWideningProductIntrinsic(
+                description.sourceSEW, description.sourceLMUL,
+                description.productSEW, description.productLMUL,
+                description.wideningProductRelation)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "widening reduction intrinsic", description.intrinsic,
+            getContractionWideningReductionIntrinsic(
+                description.productSEW, description.productLMUL,
+                description.sew, description.lmul,
+                description.productReductionChainRelation)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "scalar seed splat intrinsic",
+            description.scalarSeedSplatIntrinsic,
+            getContractionScalarSeedSplatIntrinsic(description.sew,
+                                                   description.lmul)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "reduction store VL", description.reductionStoreVL,
+            kRVVWideningDotProductStoreVL))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "scalar result runtime boundary",
+            description.standaloneReductionScalarResultRuntimeBoundary,
+            "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"))
+      return error;
+    return llvm::Error::success();
   }
 
   if (usesDotReduction) {
@@ -3776,6 +4283,8 @@ getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID(
     return kRVVWideningMAccOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::WideningProduct:
     return kRVVWideningProductOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
+    return kRVVWideningProductReductionChainOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return kRVVWideningDotReduceOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -3805,6 +4314,7 @@ getExpectedRVVSelectedBodyContractionRouteOperandBindingRole(
       return RuntimeABIParameterRole::RuntimeElementCount;
   }
   if (planID == kRVVWideningMAccOperandBindingPlanID ||
+      planID == kRVVWideningProductReductionChainOperandBindingPlanID ||
       planID == kRVVWideningDotReduceOperandBindingPlanID ||
       planID == kRVVStridedInputWideningDotReduceOperandBindingPlanID) {
     if (logicalOperand == "lhs")
@@ -3908,6 +4418,23 @@ deriveRVVSelectedBodyContractionRouteOperandBindingPlan(
         {"abi", "src-load", "wprod-rhs", "src-i8mf4", "hdr"});
     addContractionRouteOperandBinding(
         plan, "out", slice.outABI, {"abi", "res-store", "res-i16mf2", "hdr"});
+    addContractionRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"abi", "setvl-avl", "loop", "hdr"});
+    break;
+  case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
+    context = "widening_product_reduce_add route";
+    addContractionRouteOperandBinding(
+        plan, "lhs", slice.lhsABI,
+        {"abi", "src-load", "wprod-lhs", "src-i8mf4", "hdr"});
+    addContractionRouteOperandBinding(
+        plan, "rhs", slice.rhsABI,
+        {"abi", "src-load", "wprod-rhs", "src-i8mf4", "hdr"});
+    addContractionRouteOperandBinding(
+        plan, "acc", slice.accumulatorABI, {"abi", "seed", "wred", "i32", "hdr"});
+    addContractionRouteOperandBinding(plan, "out", slice.outABI,
+                                      {"abi", "acc-state", "store",
+                                       "res-i32m1", "hdr"});
     addContractionRouteOperandBinding(
         plan, "n", slice.runtimeElementCountABI,
         {"abi", "setvl-avl", "loop", "hdr"});

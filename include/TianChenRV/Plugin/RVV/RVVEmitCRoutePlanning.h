@@ -259,6 +259,7 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   RVVSelectedBodyMemoryForm memoryForm;
   bool usesWideningMAcc = false;
   bool usesWideningProduct = false;
+  bool usesProductReductionChain = false;
   bool usesDotReduction = false;
   bool usesComputedMask = false;
   bool usesStridedInputs = false;
@@ -293,11 +294,18 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   llvm::StringRef sourceVectorTypeName;
   llvm::StringRef sourceVectorCType;
   llvm::StringRef sourceVectorLoadIntrinsic;
+  llvm::StringRef productElementTypeName;
+  std::int64_t productElementBitWidth = 0;
+  std::int64_t productSEW = 0;
+  llvm::StringRef productLMUL;
+  llvm::StringRef productVectorTypeName;
+  llvm::StringRef productVectorCType;
   llvm::StringRef stridedLoadIntrinsic;
   llvm::StringRef storeIntrinsic;
   llvm::StringRef accumulatorLayout;
   llvm::StringRef resultLayout;
   llvm::StringRef relation;
+  llvm::StringRef productReductionChainRelation;
   llvm::StringRef wideningProductRelation;
   llvm::StringRef wideningMAccArithmeticKind;
   llvm::StringRef contractionComputeIntrinsic;
@@ -970,6 +978,7 @@ struct RVVSelectedBodyRouteMaterializationFacts {
 
   bool emitsContractionDotReduction = false;
   bool emitsContractionWideningProduct = false;
+  bool emitsContractionProductReductionChain = false;
   bool emitsContractionWideningMAcc = false;
   bool emitsComputedMaskContraction = false;
   bool emitsStridedInputContraction = false;
@@ -986,6 +995,8 @@ struct RVVSelectedBodyRouteMaterializationFacts {
   llvm::StringRef resultVectorCType;
   llvm::StringRef sourceVectorTypeName;
   llvm::StringRef sourceVectorCType;
+  llvm::StringRef productVectorTypeName;
+  llvm::StringRef productVectorCType;
   llvm::StringRef maskTypeName;
   llvm::StringRef maskCType;
   llvm::StringRef setVLLeaf;
@@ -1129,6 +1140,7 @@ struct RVVSelectedBodyMathRouteOperandBindingFacts {
   bool bindsRuntimeScalarComputedMaskStandaloneReduction = false;
   bool bindsWideningMAcc = false;
   bool bindsWideningProduct = false;
+  bool bindsWideningProductReductionChain = false;
   bool bindsWideningConversion = false;
   bool bindsWideningDotReduction = false;
   bool bindsStridedInputWideningDotReduction = false;
@@ -1423,6 +1435,7 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
   bool plansDirectContractionRoute = false;
   bool plansWideningMAcc = false;
   bool plansWideningProduct = false;
+  bool plansProductReductionChain = false;
   bool plansDotReduction = false;
   bool plansComputedMask = false;
   bool plansStridedInput = false;
@@ -1440,6 +1453,7 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
   llvm::StringRef vlCType;
   llvm::StringRef resultVectorCType;
   llvm::StringRef sourceVectorCType;
+  llvm::StringRef productVectorCType;
   llvm::StringRef maskCType;
 
   llvm::StringRef setVLLeaf;
@@ -1461,6 +1475,7 @@ struct RVVSelectedBodyDirectContractionRouteStatementPlan {
   bool plansDirectContractionRoute = false;
   bool plansWideningMAcc = false;
   bool plansWideningProduct = false;
+  bool plansProductReductionChain = false;
   bool plansDotReduction = false;
   bool plansComputedMask = false;
   bool plansStridedInput = false;

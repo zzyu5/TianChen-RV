@@ -517,6 +517,8 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     return "tcrv_rvv.widening_macc";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningProduct:
     return "tcrv_rvv.widening_product";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningProductReduceAdd:
+    return "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return "tcrv_rvv.widening_dot_reduce";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -615,6 +617,8 @@ llvm::StringRef getRVVTestBinaryKind(
     return "widening_macc_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningProduct:
     return "widening_product";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningProductReduceAdd:
+    return "widening_product_reduce_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return "widening_dot_reduce_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -712,6 +716,9 @@ std::string getRVVTestVariantSymbol(
   if (op ==
       tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningProduct)
     return "rvv_low_precision_widening_product";
+  if (op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
+                WideningProductReduceAdd)
+    return "rvv_low_precision_widening_product_reduce_add";
   if (op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
                 WideningStandaloneReduceAdd)
     return "rvv_low_precision_widening_standalone_reduce_add";
@@ -1592,6 +1599,34 @@ module {
         %rhs_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "mf4">
         %product = tcrv_rvv.widening_product %lhs_vec, %rhs_vec, %vl {kind = "signed_widening_product", product_relation = "signed-i8mf4xi8mf4-to-i16mf2"} : !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
         tcrv_rvv.store %out, %product, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
+  if (op == OperationKind::WideningProductReduceAdd) {
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_low_precision_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-product-reduce-add:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-product-reduce-add:rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-product-reduce-add:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-product-reduce-add:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-product-reduce-add:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+       << variant << R"mlir(, sew = 32 : i64, source_kernel = "rvv_low_precision_body_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "mf4">
+        %rhs_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "mf4">
+        %product = tcrv_rvv.widening_product %lhs_vec, %rhs_vec, %vl {kind = "signed_widening_product", product_relation = "signed-i8mf4xi8mf4-to-i16mf2"} : !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        %reduced = tcrv_rvv.standalone_reduce %product, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "signed_widening_reduce_add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %reduced, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -11882,6 +11917,17 @@ bool expectRVVTargetArtifactExporterShape(
                                  wideningDotDescription))
     return false;
 
+  RVVTargetArtifactCandidateFixture productReductionFixture(
+      OperationKind::WideningProductReduceAdd);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      productReductionRoute;
+  RVVRouteDescription productReductionDescription;
+  if (!expectWideningDotPositive("low-precision product-reduction chain",
+                                 productReductionFixture,
+                                 productReductionRoute,
+                                 productReductionDescription))
+    return false;
+
   RVVTargetArtifactCandidateFixture stridedWideningDotFixture(
       OperationKind::StridedInputWideningDotReduceAdd);
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
@@ -12113,6 +12159,64 @@ bool expectRVVTargetArtifactExporterShape(
                                        wideningDotDescription,
                                        "plain widening dot-reduce"))
     return false;
+  std::optional<tianchenrv::plugin::rvv::RVVWideningDotReduceRouteFacts>
+      productReductionFacts =
+          tianchenrv::plugin::rvv::getRVVWideningDotReduceRouteFacts(
+              OperationKind::WideningProductReduceAdd);
+  std::optional<tianchenrv::plugin::rvv::
+                    RVVWideningDotReduceRouteValidationContract>
+      productReductionContract =
+          tianchenrv::plugin::rvv::
+              getRVVWideningDotReduceRouteValidationContract(
+                  productReductionDescription);
+  if (!productReductionFacts || !productReductionContract ||
+      productReductionDescription.sourceSEW != productReductionFacts->sourceSEW ||
+      productReductionDescription.sourceLMUL !=
+          productReductionFacts->sourceLMUL ||
+      productReductionDescription.productSEW !=
+          productReductionFacts->productSEW ||
+      productReductionDescription.productLMUL !=
+          productReductionFacts->productLMUL ||
+      productReductionDescription.productVectorTypeName !=
+          productReductionFacts->productVectorTypeName ||
+      productReductionDescription.productVectorCType !=
+          productReductionFacts->productVectorCType ||
+      productReductionDescription.sew != productReductionFacts->resultSEW ||
+      productReductionDescription.lmul != productReductionFacts->resultLMUL ||
+      productReductionDescription.wideningProductRelation !=
+          "signed-i8mf4xi8mf4-to-i16mf2" ||
+      productReductionDescription.productReductionChainRelation !=
+          productReductionFacts->productReductionChainRelation ||
+      productReductionDescription.wideningProductIntrinsic !=
+          "__riscv_vwmul_vv_i16mf2" ||
+      productReductionDescription.intrinsic !=
+          "__riscv_vwredsum_vs_i32m1_i16mf2_i32m1" ||
+      productReductionDescription.scalarSeedSplatIntrinsic !=
+          "__riscv_vmv_v_x_i32m1" ||
+      productReductionDescription.routeOperandBindingPlanID !=
+          productReductionFacts->routeOperandBindingPlanID ||
+      productReductionDescription.routeOperandBindingSummary !=
+          productReductionFacts->routeOperandBindingSummary ||
+      !tianchenrv::support::runtimeABIParametersEqual(
+          productReductionDescription.runtimeABIParameters,
+          productReductionFacts->runtimeABIParameters) ||
+      productReductionContract->kind !=
+          tianchenrv::plugin::rvv::
+              RVVWideningDotReduceRouteValidationKind::ProductReductionChain ||
+      productReductionContract->productSEW != productReductionFacts->productSEW ||
+      productReductionContract->productLMUL !=
+          productReductionFacts->productLMUL ||
+      productReductionContract->productReductionChainRelation !=
+          productReductionFacts->productReductionChainRelation ||
+      productReductionContract->expectedPreLoopStepCount != 3 ||
+      productReductionContract->expectedLoopBodyStepCount != 7 ||
+      productReductionContract->runtimeABIParameters.size() != 5 ||
+      productReductionContract->typeMappings.size() != 4) {
+    llvm::errs()
+        << "low-precision product-reduction fixture did not mirror provider "
+           "canonical route facts\n";
+    return false;
+  }
   if (!expectWideningDotCanonicalFacts(
           OperationKind::StridedInputWideningDotReduceAdd,
           stridedWideningDotDescription,
@@ -12167,6 +12271,28 @@ bool expectRVVTargetArtifactExporterShape(
             validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
         mutationContext, fragments);
   };
+
+  RVVRouteDescription staleProductReductionProductLMUL =
+      productReductionDescription;
+  staleProductReductionProductLMUL.productLMUL = "m1";
+  if (!expectWideningDotProviderFailure(
+          productReductionFixture.candidate, productReductionRoute,
+          staleProductReductionProductLMUL,
+          "product-reduction registry rejects stale product LMUL",
+          {"product LMUL", "mf2", "m1"}))
+    return false;
+
+  TargetArtifactCandidate staleProductReductionProductLMULMirror =
+      productReductionFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleProductReductionProductLMULMirror,
+                                    "tcrv_rvv.product_lmul", "m1"))
+    return false;
+  if (!expectWideningDotCandidateFailure(
+          staleProductReductionProductLMULMirror, productReductionRoute,
+          productReductionDescription,
+          "product-reduction registry rejects stale product LMUL metadata",
+          {"tcrv_rvv.product_lmul", "mf2", "m1"}))
+    return false;
 
   RVVRouteDescription staleWideningDotRuntimeAVLSource =
       wideningDotDescription;

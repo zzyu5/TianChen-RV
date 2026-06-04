@@ -59,6 +59,50 @@ Extracted a provider-owned runtime-scalar splat-store route validation contract,
 - None - task complete
 
 
+## Session 453: Stage2 RVV low-precision product-plus-reduction contraction chain
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV low-precision product-plus-reduction contraction chain
+**Branch**: `main`
+
+### Summary
+
+Implemented a production route-supported selected-body RVV low-precision contraction chain: signed i8 unit-load operands, typed `tcrv_rvv.widening_product` to i16/mf2, typed `tcrv_rvv.standalone_reduce` widening reduction to i32/m1, provider-derived EmitC route facts, and target artifact validation.
+
+### Main Changes
+
+- Added `WideningProductReduceAdd` as a selected-body operation and construction route using combined typed compute op `tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce`.
+- Added product/intermediate vector facts, runtime ABI contract, route operand binding facts, provider metadata mirrors, and target validation for the i8mf4 -> i16mf2 -> i32m1 chain.
+- Updated RVV dialect verifier to allow i8mf4 loads and i16mf2 widening products under SEW32/m1 only when they structurally feed the bounded i16-to-i32 standalone widening reduction chain.
+- Added product vector type mapping to materialized RVV EmitC routes so target artifact validation can prove the intermediate `!tcrv_rvv.vector<i16, "mf2"> -> vint16mf2_t` mapping.
+- Added focused positive and fail-closed tests for dialect dataflow, provider route planning, target artifact metadata mirrors, stale metadata, and dtype-chain mismatch.
+- Updated `.trellis/spec/lowering-runtime/emitc-route.md` with the executable RVV product-reduction chain route contract.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `rtk ./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk ninja -C build tcrv-opt`
+- [OK] `rtk ./build/bin/tcrv-opt test/Dialect/RVV/generic-widening-product-reduction-chain-dataflow.mlir --split-input-file --verify-diagnostics`
+- [OK] `rtk git diff --check`
+- [OK] bounded diff-level old-authority/q-name scan over touched files; new exact RVV intrinsics are provider-derived product-reduction facts, with no q8/q4/llama/RVVI32M1/rvv-i32m1 or new `tcrv_rvv.i32_*` route authority.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- ssh rvv correctness evidence remains a later continuation only if executable/runtime behavior is claimed.
+
+
 ## Session 451: Stage2 RVV low-precision widening-product route foundation
 
 **Date**: 2026-06-04

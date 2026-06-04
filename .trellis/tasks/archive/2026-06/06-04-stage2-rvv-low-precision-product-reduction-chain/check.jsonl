@@ -1,0 +1,22 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global authority chain and RVV stage boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider ownership, typed-body authority, and Stage 2 route-supported boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC neutrality, runtime AVL/VL contracts, and provider/target mirror validation."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused positive/negative tests and evidence claims."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review capability/config/dtype authority placement."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin-locality and absence of core extension branches."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review low-level RVV execution scope and no high-level compute drift."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-low-precision-product-reduction-chain/prd.md", "reason": "Check implementation against this round's accepted scope and acceptance criteria."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Review typed operation surface changes if any."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVConfigContract.h", "reason": "Review config/runtime contract declarations if touched."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Review verifier behavior for product/reduction chain expression if touched."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Review route analysis/materialization fact surfaces."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Review provider-built route API surface."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Review provider-owned product/contraction facts and fail-closed diagnostics."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCReductionAccumulationStatementPlanOwners.cpp", "reason": "Review provider-owned reduction statement facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Review route plan derivation, description validation, and provider payloads."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "Review statement plan validation."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Review target fail-closed validation and metadata mirror checks."}
+{"file": "test/Dialect/RVV/generic-widening-product-dataflow.mlir", "reason": "Review product lit coverage remains coherent."}
+{"file": "test/Dialect/RVV/generic-widening-standalone-reduction-dataflow.mlir", "reason": "Review reduction lit coverage remains coherent."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-widening-standalone-reduce-add.mlir", "reason": "Review selected-body target fixture and generated artifact chain coverage."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Review positive and fail-closed target validation coverage."}

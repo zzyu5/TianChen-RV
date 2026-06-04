@@ -637,6 +637,8 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
 
   const bool isWideningMAcc = providerPlan.plansWideningMAcc;
   const bool isWideningProduct = providerPlan.plansWideningProduct;
+  const bool isProductReductionChain =
+      providerPlan.plansProductReductionChain;
   const bool isDotReduction = providerPlan.plansDotReduction;
   const bool isComputedMask = providerPlan.plansComputedMask;
   const bool isStridedInput = providerPlan.plansStridedInput;
@@ -662,6 +664,7 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
   const llvm::StringRef vlCType = providerPlan.vlCType;
   const llvm::StringRef resultVectorCType = providerPlan.resultVectorCType;
   const llvm::StringRef sourceVectorCType = providerPlan.sourceVectorCType;
+  const llvm::StringRef productVectorCType = providerPlan.productVectorCType;
   const llvm::StringRef maskCType = providerPlan.maskCType;
   const llvm::StringRef inductionName = description.emitCLoopInductionName;
   const llvm::StringRef fullChunkVLName = description.emitCFullChunkVLName;
@@ -671,6 +674,7 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
   plan.plansDirectContractionRoute = true;
   plan.plansWideningMAcc = isWideningMAcc;
   plan.plansWideningProduct = isWideningProduct;
+  plan.plansProductReductionChain = isProductReductionChain;
   plan.plansDotReduction = isDotReduction;
   plan.plansComputedMask = isComputedMask;
   plan.plansStridedInput = isStridedInput;
@@ -922,6 +926,54 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
              TCRVEmitCCallOpaqueOperand{description.resultName.str(),
                                         resultVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            description, context))
+      return error;
+    return llvm::Error::success();
+  }
+
+  if (isProductReductionChain) {
+    if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+            plan, slice.wideningProductOp.getOperation(), "compute",
+            providerFacts.wideningProductLeaf,
+            {TCRVEmitCCallOpaqueOperand{"lhs_vec", sourceVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"rhs_vec", sourceVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{"product_vec",
+                                      productVectorCType.str()}))
+      return error;
+    if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+            plan, slice.arithmeticOp, "compute",
+            providerFacts.scalarSeedSplatLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(boundOutABI->cName) + "[0]").str(),
+                 "int32_t"},
+             TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                        vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{"dot_acc_vec",
+                                      resultVectorCType.str()}))
+      return error;
+    if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+            plan, slice.arithmeticOp, "compute",
+            providerFacts.contractionComputeLeaf,
+            {TCRVEmitCCallOpaqueOperand{"product_vec",
+                                        productVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"dot_acc_vec",
+                                        resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                      resultVectorCType.str()}))
+      return error;
+    if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+            plan, slice.storeOperation, "store", providerFacts.storeLeaf,
+            {TCRVEmitCCallOpaqueOperand{boundOutABI->cName,
+                                        boundOutABI->cType},
+             TCRVEmitCCallOpaqueOperand{description.resultName.str(),
+                                        resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                        vlCType.str()}},
             description, context))
       return error;
     return llvm::Error::success();

@@ -4391,6 +4391,127 @@ artifact metadata says riscv-elf-relocatable-object
   -> export succeeds without provider-built route and materialized EmitC
 ```
 
+## RVV Product-Reduction Chain Route Contract
+
+### 1. Scope / Trigger
+
+Use this contract when an RVV selected body represents the bounded
+low-precision contraction chain:
+
+```text
+i8mf4 lhs/rhs unit loads
+  -> tcrv_rvv.widening_product
+  -> i16mf2 product value
+  -> tcrv_rvv.standalone_reduce {kind = signed_widening_reduce_add}
+  -> i32m1 scalar result boundary
+```
+
+The selected-body operation is `widening_product_reduce_add`. It is a
+route-supported Stage 2 contraction-like chain, not a q8/q4/llama benchmark
+route and not a widening-dot route.
+
+### 2. Signatures
+
+The construction route signature is:
+
+```text
+operationMnemonic = widening_product_reduce_add
+typedComputeOpName = tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce
+emitCRouteID = rvv-generic-widening-product-reduce-add-emitc-route
+runtimeABI = lhs, rhs, acc, out, n
+```
+
+The runtime ABI parameter types are:
+
+```text
+lhs: const int8_t *
+rhs: const int8_t *
+acc: const int32_t *
+out: int32_t *
+n: size_t
+```
+
+### 3. Contracts
+
+- The provider must derive source/product/result dtype and config from the
+  typed `tcrv_rvv` body: source `i8/mf4`, product `i16/mf2`, result `i32/m1`,
+  enclosing SEW32 LMUL m1, and agnostic policy.
+- The combined typed compute op string is a construction contract only; the
+  body still contains two concrete compute ops in order:
+  `tcrv_rvv.widening_product` followed by `tcrv_rvv.standalone_reduce`.
+- The product intermediate must be carried in route facts and materialized
+  route type mappings as
+  `!tcrv_rvv.vector<i16, "mf2"> -> vint16mf2_t`.
+- The result boundary uses standalone-reduction layout facts:
+  `scalar-i32-seed-lane0-from-accumulator-input` and
+  `store-standalone-reduction-lane0-to-output-scalar`.
+- The target metadata mirrors must include product facts such as
+  `tcrv_rvv.product_sew`, `tcrv_rvv.product_lmul`,
+  `tcrv_rvv.product_vector_type`, `tcrv_rvv.product_vector_c_type`,
+  `tcrv_rvv.product_reduction_chain_relation`, source/destination memory form,
+  widening product intrinsic, widening reduction intrinsic, scalar seed splat,
+  reduction store VL, and scalar result runtime boundary.
+- The provider operand-binding summary must bind `lhs`/`rhs` as `src-i8mf4`
+  product inputs, `acc` as the i32 scalar seed for widening reduction, `out` as
+  `res-i32m1`, and `n` as the runtime AVL/VL input.
+
+### 4. Validation & Error Matrix
+
+- `widening_product_reduce_add` with typed compute op
+  `tcrv_rvv.widening_product` only -> fail before route construction.
+- Product result not consumed by the selected standalone widening reduction ->
+  fail in dialect verifier or provider route analysis.
+- Product vector type/C type missing from the materialized route -> fail target
+  artifact validation before candidate acceptance.
+- Product/reduction dtype mismatch, unsupported SEW/LMUL, or missing
+  accumulator/result boundary -> fail closed in provider/target validation.
+- Product-reduction carrying stale widening-dot accumulator/result layout
+  mirrors -> fail target artifact validation.
+- Candidate metadata omitting product source/destination memory form mirrors or
+  carrying stale strided widening-dot memory mirrors -> fail target validation.
+
+### 5. Good/Base/Bad Cases
+
+- Good: i8mf4 loads feed one signed widening product; that product feeds one
+  signed i16-to-i32 standalone widening reduction; provider emits product and
+  reduction intrinsics and the target validates all mirrors.
+- Base: standalone `widening_product` remains a separate i8mf4-to-i16mf2 route
+  under SEW16 LMUL mf2.
+- Bad: using q8/q4/llama names, route ids, artifact names, or exact intrinsic
+  spellings to choose the product/reduction semantics.
+- Bad: treating the chain as a widening-dot route and reusing
+  `store-dot-reduction-lane0-to-output-scalar` for the result layout.
+
+### 6. Tests Required
+
+- A dialect lit test must prove the positive i8mf4 -> i16mf2 -> i32m1 chain and
+  at least one fail-closed structural mismatch.
+- Provider/unit tests must prove route facts, construction metadata,
+  operand-binding summary, product vector type mapping, and statement sequence.
+- Target artifact tests must prove the positive generated artifact candidate
+  and negative stale metadata/dtype-chain cases.
+- Runtime `ssh rvv` evidence is required only when claiming executable
+  correctness or performance.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+operation = widening_product_reduce_add
+typed_compute_op = tcrv_rvv.widening_product
+result_layout = store-dot-reduction-lane0-to-output-scalar
+```
+
+Correct:
+
+```text
+operation = widening_product_reduce_add
+typed_compute_op = tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce
+product_vector = !tcrv_rvv.vector<i16, "mf2"> -> vint16mf2_t
+result_layout = store-standalone-reduction-lane0-to-output-scalar
+```
+
 ## Review Checklist
 
 - [ ] Does the route provider, not common EmitC, own extension-specific mapping?

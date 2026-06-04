@@ -2606,6 +2606,79 @@ bool isBoundedWideningProductSourceLoad(LoadOp load, WithVLOp withVL) {
   return hasWideningProductUse;
 }
 
+bool isBoundedWideningProductReductionChainProduct(WideningProductOp product,
+                                                   WithVLOp withVL) {
+  if (!product || !withVL)
+    return false;
+  auto sew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto lmul = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!sew || !lmul || !policy || !isRVVAgnosticPolicy(policy))
+    return false;
+  if (!isRVVSelectedBodyM1Config(sew.getInt(), lmul.getValue()))
+    return false;
+  if (product->getParentOp() != withVL.getOperation())
+    return false;
+  if (product.getVl() != withVL.getVl())
+    return false;
+  if (product.getKind() != "signed_widening_product" ||
+      product.getProductRelation() != "signed-i8mf4xi8mf4-to-i16mf2")
+    return false;
+  if (!isGenericRVVVectorI8MF4(product.getLhs().getType()) ||
+      !isGenericRVVVectorI8MF4(product.getRhs().getType()) ||
+      !isGenericRVVVectorI16MF2(product.getResult().getType()))
+    return false;
+
+  bool hasWideningReductionUse = false;
+  for (mlir::Operation *user : product.getResult().getUsers()) {
+    auto reduce = llvm::dyn_cast<StandaloneReduceOp>(user);
+    if (!reduce || reduce->getParentOp() != withVL.getOperation() ||
+        reduce.getInput() != product.getResult() ||
+        reduce.getVl() != product.getVl())
+      return false;
+    if (reduce.getKind() != "signed_widening_reduce_add")
+      return false;
+    if (reduce.getAccumulatorLayout() !=
+            "scalar-i32-seed-lane0-from-accumulator-input" ||
+        reduce.getResultLayout() !=
+            "store-standalone-reduction-lane0-to-output-scalar")
+      return false;
+    if (!isGenericRVVVectorI32M1(reduce.getResult().getType()))
+      return false;
+    hasWideningReductionUse = true;
+  }
+  return hasWideningReductionUse;
+}
+
+bool isBoundedWideningProductReductionChainSourceLoad(LoadOp load,
+                                                      WithVLOp withVL) {
+  if (!load || !withVL)
+    return false;
+  auto sew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto lmul = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!sew || !lmul || !policy || !isRVVAgnosticPolicy(policy))
+    return false;
+  if (!isRVVSelectedBodyM1Config(sew.getInt(), lmul.getValue()))
+    return false;
+  if (!isGenericRVVVectorI8MF4(load.getLoaded().getType()))
+    return false;
+
+  bool hasProductReductionUse = false;
+  for (mlir::Operation *user : load.getLoaded().getUsers()) {
+    auto product = llvm::dyn_cast<WideningProductOp>(user);
+    if (!product || product->getParentOp() != withVL.getOperation() ||
+        product.getVl() != load.getVl() ||
+        (product.getLhs() != load.getLoaded() &&
+         product.getRhs() != load.getLoaded()))
+      return false;
+    if (!isBoundedWideningProductReductionChainProduct(product, withVL))
+      return false;
+    hasProductReductionUse = true;
+  }
+  return hasProductReductionUse;
+}
+
 bool isBoundedWideningDotReduceSourceStridedLoad(StridedLoadOp load,
                                                  WithVLOp withVL) {
   if (!load || !withVL)
@@ -7714,7 +7787,8 @@ mlir::LogicalResult LoadOp::verify() {
         isBoundedWideningMAccSourceLoad(*this, withVL) ||
         isBoundedWideningDotReduceSourceLoad(*this, withVL) ||
         isBoundedWideningStandaloneReduceSourceLoad(*this, withVL) ||
-        isBoundedWideningProductSourceLoad(*this, withVL))
+        isBoundedWideningProductSourceLoad(*this, withVL) ||
+        isBoundedWideningProductReductionChainSourceLoad(*this, withVL))
       return mlir::success();
   return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
 }
@@ -9717,12 +9791,18 @@ mlir::LogicalResult WideningProductOp::verify() {
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit result "
               "SEW/LMUL metadata for widening product";
-  if (expectedSEW.getInt() != getRVVSEW16Bits() ||
-      expectedLMUL.getValue() != getRVVLMULMF2())
+  const bool isStandaloneProductConfig =
+      expectedSEW.getInt() == getRVVSEW16Bits() &&
+      expectedLMUL.getValue() == getRVVLMULMF2();
+  const bool isProductReductionChainConfig =
+      isBoundedWideningProductReductionChainProduct(*this, *withVL);
+  if (!isStandaloneProductConfig && !isProductReductionChainConfig)
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl result config to be "
               "SEW16 LMUL mf2 for the bounded signed low-precision "
-              "widening-product route";
+              "widening-product route, or SEW32 LMUL m1 when the i16 product "
+              "feeds the bounded i16-to-i32 standalone widening reduction "
+              "chain";
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "

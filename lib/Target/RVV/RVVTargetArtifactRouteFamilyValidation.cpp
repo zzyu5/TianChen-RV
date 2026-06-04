@@ -324,6 +324,7 @@ llvm::Error requireRVVProviderCanonicalField(llvm::StringRef consumerLabel,
 bool isRVVWideningDotReductionRouteFamilyOperation(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   switch (operation) {
+  case plugin::rvv::RVVSelectedBodyOperationKind::WideningProductReduceAdd:
   case plugin::rvv::RVVSelectedBodyOperationKind::WideningDotReduceAdd:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       StridedInputWideningDotReduceAdd:
@@ -348,6 +349,9 @@ bool isRVVComputedMaskWideningDotReductionRouteFamilyOperation(
 bool isRVVNonComputedMaskWideningDotReductionRouteFamilyOperation(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
   return operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 WideningProductReduceAdd ||
+         operation ==
              plugin::rvv::RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
          operation == plugin::rvv::RVVSelectedBodyOperationKind::
                           StridedInputWideningDotReduceAdd;
@@ -3400,6 +3404,18 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
           contract.consumerLabel, "source LMUL", description.sourceLMUL,
           contract.sourceLMUL))
     return error;
+  if (contract.kind ==
+      plugin::rvv::RVVWideningDotReduceRouteValidationKind::
+          ProductReductionChain) {
+    if (llvm::Error error = requireRVVWideningDotContractIntField(
+            contract.consumerLabel, "product SEW", description.productSEW,
+            contract.productSEW))
+      return error;
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "product LMUL", description.productLMUL,
+            contract.productLMUL))
+      return error;
+  }
   if (llvm::Error error = requireRVVWideningDotContractIntField(
           contract.consumerLabel, "accumulator SEW", description.sew,
           contract.accumulatorSEW))
@@ -3534,21 +3550,46 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
           contract.consumerLabel, "rhs stride source",
           description.rhsStrideSource, contract.rhsStrideSource))
     return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "widening dot accumulator layout",
-          description.wideningDotProductAccumulatorLayout,
-          contract.wideningDotProductAccumulatorLayout))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "widening dot result layout",
-          description.wideningDotProductResultLayout,
-          contract.wideningDotProductResultLayout))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "widening dot relation",
-          description.wideningDotProductRelation,
-          contract.wideningDotProductRelation))
-    return error;
+  if (contract.kind ==
+      plugin::rvv::RVVWideningDotReduceRouteValidationKind::
+          ProductReductionChain) {
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "product-reduction accumulator layout",
+            description.reductionAccumulatorLayout,
+            contract.wideningDotProductAccumulatorLayout))
+      return error;
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "product-reduction result layout",
+            description.reductionResultLayout,
+            contract.wideningDotProductResultLayout))
+      return error;
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "product-reduction relation",
+            description.productReductionChainRelation,
+            contract.productReductionChainRelation))
+      return error;
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "scalar result runtime boundary",
+            description.standaloneReductionScalarResultRuntimeBoundary,
+            "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1"))
+      return error;
+  } else {
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "widening dot accumulator layout",
+            description.wideningDotProductAccumulatorLayout,
+            contract.wideningDotProductAccumulatorLayout))
+      return error;
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "widening dot result layout",
+            description.wideningDotProductResultLayout,
+            contract.wideningDotProductResultLayout))
+      return error;
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "widening dot relation",
+            description.wideningDotProductRelation,
+            contract.wideningDotProductRelation))
+      return error;
+  }
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "widening product intrinsic",
           description.wideningProductIntrinsic,
@@ -3618,6 +3659,18 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
           contract.consumerLabel, "source vector C type",
           description.sourceVectorCType, contract.sourceVectorCType))
     return error;
+  if (contract.kind ==
+      plugin::rvv::RVVWideningDotReduceRouteValidationKind::
+          ProductReductionChain) {
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "product vector type",
+            description.productVectorTypeName, contract.productVectorTypeName))
+      return error;
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "product vector C type",
+            description.productVectorCType, contract.productVectorCType))
+      return error;
+  }
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "result vector type",
           description.vectorTypeName, contract.resultVectorTypeName))
@@ -3776,6 +3829,9 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
       contract.kind == plugin::rvv::
                            RVVWideningDotReduceRouteValidationKind::
                                ComputedMaskStridedInput;
+  const bool isProductReductionChain =
+      contract.kind == plugin::rvv::RVVWideningDotReduceRouteValidationKind::
+                           ProductReductionChain;
   const bool isStrided =
       contract.kind ==
           plugin::rvv::RVVWideningDotReduceRouteValidationKind::StridedInput ||
@@ -3788,11 +3844,13 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
         " requires provider-derived widening dot ABI parameters before "
         "validating route statements");
   if (description.resultName.empty() || description.sourceVectorCType.empty() ||
-      description.vectorCType.empty() || runtimeContract.vlCType.empty())
+      description.vectorCType.empty() || runtimeContract.vlCType.empty() ||
+      (isProductReductionChain && description.productVectorCType.empty()))
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
-        " requires provider-derived result, source/result vector C type, and "
-        "VL C type facts before validating route statements");
+        " requires provider-derived result, source/result vector C type, "
+        "optional product vector C type, and VL C type facts before "
+        "validating route statements");
   if (isComputedMask &&
       (description.maskName.empty() || description.maskCType.empty()))
     return makeRVVTargetRouteError(
@@ -4063,19 +4121,29 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
             validateDotSourceLoad(loop.bodySteps[2], *rhsABI, rhsStrideABI,
                                   "rhs_vec", "rhs source load"))
       return error;
+    const llvm::StringRef productResultName =
+        isProductReductionChain ? "product_vec" : "dot_product_vec";
+    const llvm::StringRef productResultCType =
+        isProductReductionChain ? description.productVectorCType
+                                : description.vectorCType;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[3], consumerLabel, "widening product",
             description.wideningProductIntrinsic,
             {{"lhs_vec", description.sourceVectorCType},
              {"rhs_vec", description.sourceVectorCType},
              {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
-            "dot_product_vec", description.vectorCType))
+            productResultName, productResultCType))
       return error;
   }
 
   const std::size_t seedIndex = isComputedMask ? 9 : 4;
   const std::size_t reductionIndex = isComputedMask ? 10 : 5;
   const std::size_t storeIndex = isComputedMask ? 11 : 6;
+  const llvm::StringRef reductionInputName =
+      isProductReductionChain ? "product_vec" : "dot_product_vec";
+  const llvm::StringRef reductionInputCType =
+      isProductReductionChain ? description.productVectorCType
+                              : description.vectorCType;
   const std::string expectedOutLane =
       (llvm::StringRef(outABI->cName) + "[0]").str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -4088,7 +4156,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[reductionIndex], consumerLabel,
           "widening dot reduction", description.intrinsic,
-          {{"dot_product_vec", description.vectorCType},
+          {{reductionInputName, reductionInputCType},
            {"dot_acc_vec", description.vectorCType},
            {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           description.resultName, description.vectorCType))
@@ -4175,6 +4243,10 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
         "provider-owned route validation contract before validating candidate "
         "mirrors");
   const std::string sourceSEW = llvm::Twine(contract->sourceSEW).str();
+  const bool isProductReductionChain =
+      contract->kind == plugin::rvv::RVVWideningDotReduceRouteValidationKind::
+                            ProductReductionChain;
+  const std::string productSEW = llvm::Twine(contract->productSEW).str();
   const std::string accumulatorSEW =
       llvm::Twine(contract->accumulatorSEW).str();
   const std::string resultSEW = llvm::Twine(contract->resultSEW).str();
@@ -4237,6 +4309,26 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
           candidate, "tcrv_rvv.source_lmul", contract->sourceLMUL,
           "selected typed RVV widening dot source LMUL"))
     return error;
+  if (isProductReductionChain) {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.product_sew", productSEW,
+            "selected typed RVV product-reduction intermediate SEW"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.product_lmul", contract->productLMUL,
+            "selected typed RVV product-reduction intermediate LMUL"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.product_vector_type",
+            contract->productVectorTypeName,
+            "selected typed RVV product-reduction intermediate vector type"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.product_vector_c_type",
+            contract->productVectorCType,
+            "selected typed RVV product-reduction intermediate vector C type"))
+      return error;
+  }
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.accumulator_sew", accumulatorSEW,
           "selected typed RVV widening dot accumulator SEW"))
@@ -4254,26 +4346,76 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
           candidate, "tcrv_rvv.result_lmul", contract->resultLMUL,
           "selected typed RVV widening dot result LMUL"))
     return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.widening_dot_accumulator_layout",
-          contract->wideningDotProductAccumulatorLayout,
-          "selected typed RVV widening dot accumulator layout"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.widening_dot_result_layout",
-          contract->wideningDotProductResultLayout,
-          "selected typed RVV widening dot result layout"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.widening_dot_relation",
-          contract->wideningDotProductRelation,
-          "selected typed RVV widening dot relation"))
-    return error;
-  if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, "tcrv_rvv.widening_dot_reduction_store_vl",
-          contract->reductionStoreVL,
-          "selected typed RVV widening dot reduction store VL"))
-    return error;
+  if (isProductReductionChain) {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.reduction_accumulator_layout",
+            contract->wideningDotProductAccumulatorLayout,
+            "selected typed RVV product-reduction accumulator layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.reduction_result_layout",
+            contract->wideningDotProductResultLayout,
+            "selected typed RVV product-reduction result layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.product_reduction_chain_relation",
+            contract->productReductionChainRelation,
+            "selected typed RVV product-reduction chain relation"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.widening_dot_accumulator_layout", "",
+            "selected typed RVV product-reduction route without dot layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.widening_dot_result_layout", "",
+            "selected typed RVV product-reduction route without dot layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.widening_dot_relation", "",
+            "selected typed RVV product-reduction route without dot relation"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.widening_reduction_intrinsic",
+            contract->intrinsic,
+            "selected typed RVV product-reduction widening reduction intrinsic"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.scalar_seed_splat_intrinsic",
+            contract->scalarSeedSplatIntrinsic,
+            "selected typed RVV product-reduction scalar seed splat intrinsic"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.reduction_store_vl",
+            contract->reductionStoreVL,
+            "selected typed RVV product-reduction reduction store VL"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.scalar_result_runtime_boundary",
+            "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1",
+            "selected typed RVV product-reduction scalar result boundary"))
+      return error;
+  } else {
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.widening_dot_accumulator_layout",
+            contract->wideningDotProductAccumulatorLayout,
+            "selected typed RVV widening dot accumulator layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.widening_dot_result_layout",
+            contract->wideningDotProductResultLayout,
+            "selected typed RVV widening dot result layout"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.widening_dot_relation",
+            contract->wideningDotProductRelation,
+            "selected typed RVV widening dot relation"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.widening_dot_reduction_store_vl",
+            contract->reductionStoreVL,
+            "selected typed RVV widening dot reduction store VL"))
+      return error;
+  }
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.widening_product_intrinsic",
           contract->wideningProductIntrinsic,
@@ -4382,14 +4524,27 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
             candidate, "tcrv_rvv.rhs_stride_source", "",
             "selected typed RVV strided widening dot rhs stride source"))
       return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.source_memory_form", "",
-            "selected typed RVV strided widening dot source memory form"))
-      return error;
-    if (llvm::Error error = requireCandidateMetadataMirror(
-            candidate, "tcrv_rvv.destination_memory_form", "",
-            "selected typed RVV strided widening dot destination memory form"))
-      return error;
+    if (isProductReductionChain) {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.source_memory_form",
+              contract->sourceMemoryForm,
+              "selected typed RVV product-reduction source memory form"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.destination_memory_form",
+              contract->destinationMemoryForm,
+              "selected typed RVV product-reduction destination memory form"))
+        return error;
+    } else {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.source_memory_form", "",
+              "selected typed RVV strided widening dot source memory form"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.destination_memory_form", "",
+              "selected typed RVV strided widening dot destination memory form"))
+        return error;
+    }
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.strided_load_intrinsic", "",
             "selected typed RVV strided widening dot source load intrinsic"))

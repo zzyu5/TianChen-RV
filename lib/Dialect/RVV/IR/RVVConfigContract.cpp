@@ -722,6 +722,26 @@ getRVVSelectedBodyWideningProductRuntimeABIParameters() {
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 5>
+getRVVSelectedBodyWideningProductReductionRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int8_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs", "const int8_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "acc", "const int32_t *",
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 5>
 getRVVSelectedBodyMAccRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
   parameters.push_back(support::makeTargetExportABIParameter(
@@ -1615,6 +1635,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       wideningProductExpected =
           getRVVSelectedBodyWideningProductRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, wideningProductExpected))
+    return llvm::Error::success();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 5>
+      wideningProductReductionExpected =
+          getRVVSelectedBodyWideningProductReductionRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters,
+                                         wideningProductReductionExpected))
     return llvm::Error::success();
 
   llvm::SmallVector<support::RuntimeABIParameter, 4>
