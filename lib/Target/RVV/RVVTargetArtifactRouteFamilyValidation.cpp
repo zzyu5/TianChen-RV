@@ -42,6 +42,69 @@ llvm::Error validateRVVRuntimeAVLVLSelectedBoundaryContract(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &contract);
 
+llvm::Error requireRVVRouteLocalRuntimeAVLVLMirror(
+    llvm::StringRef consumerLabel, llvm::StringRef label,
+    llvm::StringRef mirror,
+    llvm::StringRef selectedBoundaryAuthority) {
+  if (mirror == selectedBoundaryAuthority)
+    return llvm::Error::success();
+  if (selectedBoundaryAuthority.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires provider-owned runtime AVL/VL selected-boundary " + label +
+        " before checking route-local mirrors");
+  if (mirror.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires route-local runtime AVL/VL mirror " + label + " '" +
+        selectedBoundaryAuthority +
+        "' after selected-boundary validation");
+  return makeRVVTargetRouteError(
+      llvm::Twine(consumerLabel) +
+      " rejects stale route-local runtime AVL/VL mirror " + label + " '" +
+      mirror + "'; selected-boundary contract requires '" +
+      selectedBoundaryAuthority + "'");
+}
+
+llvm::Error validateRVVRouteLocalRuntimeAVLVLMirrors(
+    llvm::StringRef consumerLabel,
+    const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &authority,
+    llvm::StringRef runtimeControlPlanIDMirror,
+    llvm::StringRef runtimeABIOrderMirror,
+    llvm::StringRef setVLIntrinsicMirror, llvm::StringRef vlCTypeMirror,
+    llvm::StringRef emitCFullChunkVLNameMirror,
+    llvm::StringRef emitCLoopVLNameMirror,
+    llvm::StringRef emitCLoopInductionNameMirror) {
+  if (llvm::Error error = requireRVVRouteLocalRuntimeAVLVLMirror(
+          consumerLabel, "runtime control plan", runtimeControlPlanIDMirror,
+          authority.runtimeControlPlanID))
+    return error;
+  if (llvm::Error error = requireRVVRouteLocalRuntimeAVLVLMirror(
+          consumerLabel, "runtime ABI order", runtimeABIOrderMirror,
+          authority.runtimeABIOrder))
+    return error;
+  if (llvm::Error error = requireRVVRouteLocalRuntimeAVLVLMirror(
+          consumerLabel, "setvl callee", setVLIntrinsicMirror,
+          authority.setVLIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVRouteLocalRuntimeAVLVLMirror(
+          consumerLabel, "VL C type", vlCTypeMirror, authority.vlCType))
+    return error;
+  if (llvm::Error error = requireRVVRouteLocalRuntimeAVLVLMirror(
+          consumerLabel, "EmitC full-chunk VL", emitCFullChunkVLNameMirror,
+          authority.emitCFullChunkVLName))
+    return error;
+  if (llvm::Error error = requireRVVRouteLocalRuntimeAVLVLMirror(
+          consumerLabel, "EmitC loop VL", emitCLoopVLNameMirror,
+          authority.emitCLoopVLName))
+    return error;
+  if (llvm::Error error = requireRVVRouteLocalRuntimeAVLVLMirror(
+          consumerLabel, "EmitC loop induction",
+          emitCLoopInductionNameMirror, authority.emitCLoopInductionName))
+    return error;
+  return llvm::Error::success();
+}
+
 llvm::Error requireCandidateMetadataMirror(
     const TargetArtifactCandidate &candidate, llvm::StringRef key,
     llvm::StringRef expected, llvm::StringRef label) {
@@ -2359,23 +2422,27 @@ llvm::Error validateRVVBaseMemoryMovementRoutePayloadFacts(
       contract->routeOperandBindingPlanID.empty() ||
       contract->routeOperandBindingSummary.empty() ||
       contract->baseMemoryMovementRouteFamilyPlanID.empty() ||
-      contract->runtimeControlPlanID.empty() ||
-      contract->runtimeABIOrder.empty() ||
       contract->elementTypeName.empty() || contract->sew == 0 ||
       contract->lmul.empty() || contract->tailPolicy.empty() ||
       contract->maskPolicy.empty() || contract->configContractID.empty() ||
       contract->requiredHeaderDeclarations.empty() ||
       contract->cTypeMappingSummary.empty() ||
-      contract->setVLIntrinsic.empty() || contract->vectorCType.empty() ||
-      contract->vlCType.empty() || contract->resultName.empty())
+      contract->vectorCType.empty() || contract->resultName.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(contract->consumerLabel) +
         " requires complete provider-owned route payload, dtype/config, "
-        "runtime, binding, header/type, intrinsic, and result contract facts "
+        "binding, header/type, intrinsic, and result contract facts "
         "before artifact export");
 
   if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
           description, contract->runtimeAVLVLContract))
+    return error;
+  if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
+          contract->consumerLabel, contract->runtimeAVLVLContract,
+          contract->runtimeControlPlanID, contract->runtimeABIOrder,
+          contract->setVLIntrinsic, contract->vlCType,
+          contract->emitCFullChunkVLName, contract->emitCLoopVLName,
+          contract->emitCLoopInductionName))
     return error;
 
   if (route.getRouteID() != contract->emitCRouteID)
@@ -2450,17 +2517,6 @@ llvm::Error validateRVVBaseMemoryMovementRoutePayloadFacts(
         " requires provider route operand binding summary '" +
         contract->routeOperandBindingSummary + "' but was '" +
         description.routeOperandBindingSummary + "'");
-  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
-          "runtime AVL/VL control plan", description.runtimeControlPlanID,
-          contract->runtimeControlPlanID))
-    return error;
-
-  if (description.runtimeABIOrder != contract->runtimeABIOrder)
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract->consumerLabel) +
-        " requires provider-derived runtime ABI order '" +
-        contract->runtimeABIOrder + "' but was '" +
-        description.runtimeABIOrder + "'");
   if (description.elementTypeName != contract->elementTypeName ||
       description.sew != contract->sew)
     return makeRVVTargetRouteError(
@@ -2486,9 +2542,6 @@ llvm::Error validateRVVBaseMemoryMovementRoutePayloadFacts(
         contract->configContractID + "' but description carried '" +
         description.configContractID + "'");
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
-          "VL C type", description.vlCType, contract->vlCType))
-    return error;
-  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "vector type", description.vectorTypeName, contract->vectorTypeName))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
@@ -2507,10 +2560,6 @@ llvm::Error validateRVVBaseMemoryMovementRoutePayloadFacts(
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "mask C type", description.maskCType, contract->maskCType))
-    return error;
-  if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
-          "setvl callee", description.setVLIntrinsic,
-          contract->setVLIntrinsic))
     return error;
   if (llvm::Error error = requireRVVBaseMemoryMovementProviderField(
           "vector load callee", description.vectorLoadIntrinsic,
@@ -2582,13 +2631,6 @@ llvm::Error validateRVVBaseMemoryMovementRoutePayloadFacts(
           "C type mapping", description.cTypeMappingSummary,
           contract->cTypeMappingSummary))
     return error;
-  if (description.emitCFullChunkVLName != contract->emitCFullChunkVLName ||
-      description.emitCLoopVLName != contract->emitCLoopVLName ||
-      description.emitCLoopInductionName != contract->emitCLoopInductionName)
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract->consumerLabel) +
-        " requires provider-owned EmitC runtime AVL/VL statement names before "
-        "artifact export");
   if (!description.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||
       !description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
       !description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
@@ -6487,14 +6529,12 @@ llvm::Error validateRVVComputedMaskIndexedMemoryDescriptionAgainstContract(
   if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
           description, contract.runtimeAVLVLContract))
     return error;
-  if (llvm::Error error =
-          require("runtime AVL/VL control plan",
-                  description.runtimeControlPlanID,
-                  contract.runtimeControlPlanID))
-    return error;
-  if (llvm::Error error =
-          require("runtime ABI order", description.runtimeABIOrder,
-                  contract.runtimeABIOrder))
+  if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
+          contract.consumerLabel, contract.runtimeAVLVLContract,
+          contract.runtimeControlPlanID, contract.runtimeABIOrder,
+          contract.setVLIntrinsic, contract.vlCType,
+          contract.emitCFullChunkVLName, contract.emitCLoopVLName,
+          contract.emitCLoopInductionName))
     return error;
   if (llvm::Error error =
           require("provider_supported_mirror",
@@ -6529,9 +6569,6 @@ llvm::Error validateRVVComputedMaskIndexedMemoryDescriptionAgainstContract(
                                   contract.typedComputeOpName))
     return error;
   if (llvm::Error error =
-          require("VL C type", description.vlCType, contract.vlCType))
-    return error;
-  if (llvm::Error error =
           require("vector type", description.vectorTypeName,
                   contract.vectorTypeName))
     return error;
@@ -6553,10 +6590,6 @@ llvm::Error validateRVVComputedMaskIndexedMemoryDescriptionAgainstContract(
     return error;
   if (llvm::Error error =
           require("mask C type", description.maskCType, contract.maskCType))
-    return error;
-  if (llvm::Error error =
-          require("setvl callee", description.setVLIntrinsic,
-                  contract.setVLIntrinsic))
     return error;
   if (llvm::Error error =
           require("vector load callee", description.vectorLoadIntrinsic,
@@ -6907,14 +6940,12 @@ llvm::Error validateRVVComputedMaskStridedMemoryDescriptionAgainstContract(
   if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
           description, contract.runtimeAVLVLContract))
     return error;
-  if (llvm::Error error =
-          require("runtime AVL/VL control plan",
-                  description.runtimeControlPlanID,
-                  contract.runtimeControlPlanID))
-    return error;
-  if (llvm::Error error =
-          require("runtime ABI order", description.runtimeABIOrder,
-                  contract.runtimeABIOrder))
+  if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
+          contract.consumerLabel, contract.runtimeAVLVLContract,
+          contract.runtimeControlPlanID, contract.runtimeABIOrder,
+          contract.setVLIntrinsic, contract.vlCType,
+          contract.emitCFullChunkVLName, contract.emitCLoopVLName,
+          contract.emitCLoopInductionName))
     return error;
   if (llvm::Error error =
           require("provider_supported_mirror",
@@ -6949,9 +6980,6 @@ llvm::Error validateRVVComputedMaskStridedMemoryDescriptionAgainstContract(
                                   contract.typedComputeOpName))
     return error;
   if (llvm::Error error =
-          require("VL C type", description.vlCType, contract.vlCType))
-    return error;
-  if (llvm::Error error =
           require("vector type", description.vectorTypeName,
                   contract.vectorTypeName))
     return error;
@@ -6965,10 +6993,6 @@ llvm::Error validateRVVComputedMaskStridedMemoryDescriptionAgainstContract(
     return error;
   if (llvm::Error error =
           require("mask C type", description.maskCType, contract.maskCType))
-    return error;
-  if (llvm::Error error =
-          require("setvl callee", description.setVLIntrinsic,
-                  contract.setVLIntrinsic))
     return error;
   if (llvm::Error error =
           require("vector load callee", description.vectorLoadIntrinsic,
@@ -7305,14 +7329,12 @@ llvm::Error validateRVVUnitStrideMaskedMemoryDescriptionAgainstContract(
   if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
           description, contract.runtimeAVLVLContract))
     return error;
-  if (llvm::Error error =
-          require("runtime AVL/VL control plan",
-                  description.runtimeControlPlanID,
-                  contract.runtimeControlPlanID))
-    return error;
-  if (llvm::Error error =
-          require("runtime ABI order", description.runtimeABIOrder,
-                  contract.runtimeABIOrder))
+  if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
+          contract.consumerLabel, contract.runtimeAVLVLContract,
+          contract.runtimeControlPlanID, contract.runtimeABIOrder,
+          contract.setVLIntrinsic, contract.vlCType,
+          contract.emitCFullChunkVLName, contract.emitCLoopVLName,
+          contract.emitCLoopInductionName))
     return error;
   if (llvm::Error error =
           require("provider_supported_mirror",
@@ -7347,9 +7369,6 @@ llvm::Error validateRVVUnitStrideMaskedMemoryDescriptionAgainstContract(
                                   contract.typedComputeOpName))
     return error;
   if (llvm::Error error =
-          require("VL C type", description.vlCType, contract.vlCType))
-    return error;
-  if (llvm::Error error =
           require("vector type", description.vectorTypeName,
                   contract.vectorTypeName))
     return error;
@@ -7363,10 +7382,6 @@ llvm::Error validateRVVUnitStrideMaskedMemoryDescriptionAgainstContract(
     return error;
   if (llvm::Error error =
           require("mask C type", description.maskCType, contract.maskCType))
-    return error;
-  if (llvm::Error error =
-          require("setvl callee", description.setVLIntrinsic,
-                  contract.setVLIntrinsic))
     return error;
   if (llvm::Error error =
           require("vector load callee", description.vectorLoadIntrinsic,
@@ -9877,10 +9892,6 @@ llvm::Error validateRVVSegment2MemoryProviderFactsFromContract(
         " requires provider-owned config contract '" +
         contract.configContractID + "' but description carried '" +
         description.configContractID + "'");
-  if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
-          description, contract.runtimeAVLVLContract))
-    return error;
-
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "LMUL", description.lmul, contract.lmul))
     return error;
@@ -9891,16 +9902,8 @@ llvm::Error validateRVVSegment2MemoryProviderFactsFromContract(
           "mask policy", description.maskPolicy, contract.maskPolicy))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
-          "runtime AVL/VL control plan", description.runtimeControlPlanID,
-          contract.runtimeControlPlanID))
-    return error;
-  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "typed compute op", description.typedComputeOpName,
           contract.typedComputeOpName))
-    return error;
-  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
-          "runtime ABI order", description.runtimeABIOrder,
-          contract.runtimeABIOrder))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "route operand binding plan", description.routeOperandBindingPlanID,
@@ -10006,17 +10009,10 @@ llvm::Error validateRVVSegment2MemoryProviderFactsFromContract(
     return error;
 
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
-          "VL C type", description.vlCType, contract.vlCType))
-    return error;
-  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "vector type", description.vectorTypeName, contract.vectorTypeName))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "vector C type", description.vectorCType, contract.vectorCType))
-    return error;
-  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
-          "setvl callee", description.setVLIntrinsic,
-          contract.setVLIntrinsic))
     return error;
   if (llvm::Error error = requireRVVSegment2MemoryProviderField(
           "vector load callee", description.vectorLoadIntrinsic,
@@ -10121,31 +10117,12 @@ llvm::Error validateRVVSegment2MemoryProviderFactsFromContract(
           contract.segment2UpdateArithmeticIntrinsic))
     return error;
 
-  if (description.emitCFullChunkVLName != contract.emitCFullChunkVLName ||
-      description.emitCLoopVLName != contract.emitCLoopVLName ||
-      description.emitCLoopInductionName != contract.emitCLoopInductionName)
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract.consumerLabel) +
-        " requires provider-owned EmitC runtime AVL/VL statement names before "
-        "artifact export");
-
   return llvm::Error::success();
 }
 
 llvm::Error validateRVVSegment2MemoryRuntimeABIFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVSegment2MemoryRouteValidationContract &contract) {
-  llvm::StringRef expectedOrder = contract.runtimeABIOrder;
-  if (expectedOrder.empty())
-    return makeRVVTargetRouteError(
-        "segment2-memory target artifact consumer requires a segment2 runtime "
-        "ABI order owner before artifact export");
-  if (description.runtimeABIOrder != expectedOrder)
-    return makeRVVTargetRouteError(
-        llvm::Twine("segment2-memory target artifact consumer requires "
-                    "provider-derived runtime ABI order '") +
-        expectedOrder + "' but was '" + description.runtimeABIOrder + "'");
-
   if (description.runtimeABIParameters.size() !=
       contract.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
@@ -10598,8 +10575,6 @@ llvm::Error validateRVVSegment2MemoryRoutePayloadFacts(
   if (contract->providerSupportedMirror.empty() ||
       contract->routeOperandBindingPlanID.empty() ||
       contract->routeOperandBindingSummary.empty() ||
-      contract->runtimeControlPlanID.empty() ||
-      contract->runtimeABIOrder.empty() ||
       contract->elementTypeName.empty() || contract->sew == 0 ||
       contract->lmul.empty() || contract->tailPolicy.empty() ||
       contract->maskPolicy.empty() || contract->configContractID.empty() ||
@@ -10608,15 +10583,22 @@ llvm::Error validateRVVSegment2MemoryRoutePayloadFacts(
       contract->segmentMemoryLayout.empty() ||
       contract->sourceMemoryForm.empty() ||
       contract->destinationMemoryForm.empty() ||
-      contract->segmentCount != 2 || contract->setVLIntrinsic.empty() ||
-      contract->vectorCType.empty() || contract->vlCType.empty())
+      contract->segmentCount != 2 || contract->vectorCType.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(contract->consumerLabel) +
         " requires complete provider-owned route payload, dtype/config, "
-        "runtime, binding, header/type, intrinsic, and segment layout contract "
+        "binding, header/type, intrinsic, and segment layout contract "
         "facts before artifact export");
-  if (llvm::Error error =
-          validateRVVSegment2MemoryRuntimeABIFacts(description, *contract))
+
+  if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
+          description, contract->runtimeAVLVLContract))
+    return error;
+  if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
+          contract->consumerLabel, contract->runtimeAVLVLContract,
+          contract->runtimeControlPlanID, contract->runtimeABIOrder,
+          contract->setVLIntrinsic, contract->vlCType,
+          contract->emitCFullChunkVLName, contract->emitCLoopVLName,
+          contract->emitCLoopInductionName))
     return error;
 
   if (contract->usesComputedMaskSegment2) {
@@ -10647,6 +10629,9 @@ llvm::Error validateRVVSegment2MemoryRoutePayloadFacts(
   if (llvm::Error error =
           validateRVVSegment2MemoryProviderFactsFromContract(description,
                                                             *contract))
+    return error;
+  if (llvm::Error error =
+          validateRVVSegment2MemoryRuntimeABIFacts(description, *contract))
     return error;
 
   if (!description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||

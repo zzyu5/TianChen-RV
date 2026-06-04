@@ -12626,6 +12626,29 @@ bool expectRVVTargetArtifactExporterShape(
            "selected typed RVV non-widening-dot route-family mirror"}))
     return false;
 
+  auto expectRouteLocalRuntimeAVLVLMirrors =
+      [](llvm::StringRef fixtureContext, llvm::StringRef runtimeControlPlanID,
+         llvm::StringRef runtimeABIOrder, llvm::StringRef setVLIntrinsic,
+         llvm::StringRef vlCType, llvm::StringRef emitCFullChunkVLName,
+         llvm::StringRef emitCLoopVLName,
+         llvm::StringRef emitCLoopInductionName,
+         const tianchenrv::plugin::rvv::
+             RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract) -> bool {
+    if (runtimeControlPlanID != runtimeContract.runtimeControlPlanID ||
+        runtimeABIOrder != runtimeContract.runtimeABIOrder ||
+        setVLIntrinsic != runtimeContract.setVLIntrinsic ||
+        vlCType != runtimeContract.vlCType ||
+        emitCFullChunkVLName != runtimeContract.emitCFullChunkVLName ||
+        emitCLoopVLName != runtimeContract.emitCLoopVLName ||
+        emitCLoopInductionName != runtimeContract.emitCLoopInductionName) {
+      llvm::errs() << fixtureContext
+                   << ": route-local runtime AVL/VL mirrors did not match the "
+                      "embedded selected-boundary contract\n";
+      return false;
+    }
+    return true;
+  };
+
   auto expectSegment2MemoryPositive =
       [&](llvm::StringRef fixtureContext,
           const RVVTargetArtifactCandidateFixture &fixture,
@@ -12728,7 +12751,7 @@ bool expectRVVTargetArtifactExporterShape(
     return false;
 
   auto expectSegment2RouteValidationContractMatch =
-      [](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+      [&](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
          const RVVRouteDescription &description,
          llvm::StringRef context) -> bool {
     std::optional<
@@ -12778,6 +12801,13 @@ bool expectRVVTargetArtifactExporterShape(
     const tianchenrv::plugin::rvv::
         RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
             contract->runtimeAVLVLContract;
+    if (!expectRouteLocalRuntimeAVLVLMirrors(
+            context, contract->runtimeControlPlanID,
+            contract->runtimeABIOrder, contract->setVLIntrinsic,
+            contract->vlCType, contract->emitCFullChunkVLName,
+            contract->emitCLoopVLName, contract->emitCLoopInductionName,
+            runtimeContract))
+      return false;
     if (runtimeContract.runtimeControlPlanID !=
             description.runtimeControlPlanID ||
         runtimeContract.runtimeVLContractID !=
@@ -15496,6 +15526,13 @@ bool expectRVVTargetArtifactExporterShape(
     const tianchenrv::plugin::rvv::
         RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
             contract->runtimeAVLVLContract;
+    if (!expectRouteLocalRuntimeAVLVLMirrors(
+            fixtureContext, contract->runtimeControlPlanID,
+            contract->runtimeABIOrder, contract->setVLIntrinsic,
+            contract->vlCType, contract->emitCFullChunkVLName,
+            contract->emitCLoopVLName, contract->emitCLoopInductionName,
+            runtimeContract))
+      return false;
     if (runtimeContract.consumerLabel.empty() ||
         runtimeContract.sew != description.sew ||
         runtimeContract.lmul != description.lmul ||
@@ -15627,6 +15664,13 @@ bool expectRVVTargetArtifactExporterShape(
     const tianchenrv::plugin::rvv::
         RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
             contract->runtimeAVLVLContract;
+    if (!expectRouteLocalRuntimeAVLVLMirrors(
+            fixtureContext, contract->runtimeControlPlanID,
+            contract->runtimeABIOrder, contract->setVLIntrinsic,
+            contract->vlCType, contract->emitCFullChunkVLName,
+            contract->emitCLoopVLName, contract->emitCLoopInductionName,
+            runtimeContract))
+      return false;
     if (runtimeContract.consumerLabel.empty() ||
         runtimeContract.sew != description.sew ||
         runtimeContract.lmul != description.lmul ||
@@ -17614,6 +17658,13 @@ bool expectRVVTargetArtifactExporterShape(
     const tianchenrv::plugin::rvv::
         RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
             contract->runtimeAVLVLContract;
+    if (!expectRouteLocalRuntimeAVLVLMirrors(
+            fixtureContext, contract->runtimeControlPlanID,
+            contract->runtimeABIOrder, contract->setVLIntrinsic,
+            contract->vlCType, contract->emitCFullChunkVLName,
+            contract->emitCLoopVLName, contract->emitCLoopInductionName,
+            runtimeContract))
+      return false;
     if (runtimeContract.consumerLabel.empty() ||
         runtimeContract.sew != manualDescription.sew ||
         runtimeContract.lmul != manualDescription.lmul ||
@@ -17740,6 +17791,13 @@ bool expectRVVTargetArtifactExporterShape(
     const tianchenrv::plugin::rvv::
         RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
             contract->runtimeAVLVLContract;
+    if (!expectRouteLocalRuntimeAVLVLMirrors(
+            fixtureContext, contract->runtimeControlPlanID,
+            contract->runtimeABIOrder, contract->setVLIntrinsic,
+            contract->vlCType, contract->emitCFullChunkVLName,
+            contract->emitCLoopVLName, contract->emitCLoopInductionName,
+            runtimeContract))
+      return false;
     if (runtimeContract.consumerLabel.empty() ||
         runtimeContract.sew != manualDescription.sew ||
         runtimeContract.lmul != manualDescription.lmul ||

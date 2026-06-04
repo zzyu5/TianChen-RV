@@ -1,0 +1,19 @@
+{"path":".trellis/spec/index.md","description":"Global TianChen-RV authority chain and RVV stage constraints."}
+{"path":".trellis/spec/extension-plugins/rvv-plugin.md","description":"RVV plugin authority placement, route-control provider plan, memory operand-binding facts, and selected-boundary route provider rules."}
+{"path":".trellis/spec/lowering-runtime/emitc-route.md","description":"EmitC route runtime AVL/VL selected-boundary contract and memory-family validation/mirror contracts."}
+{"path":".trellis/tasks/06-04-stage2-rvv-memory-runtime-avl-vl-sole-authority/prd.md","description":"Current task PRD and acceptance criteria."}
+{"path":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-base-memory-runtime-avl-vl-contract/prd.md","description":"Archived base-memory runtime AVL/VL migration evidence and continuation context."}
+{"path":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-unit-stride-masked-memory-runtime-avl-vl-contract/prd.md","description":"Archived unit-stride masked-memory runtime AVL/VL migration evidence."}
+{"path":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-computed-mask-indexed-memory-runtime-avl-vl-contract/prd.md","description":"Archived computed-mask indexed memory runtime AVL/VL migration evidence."}
+{"path":".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-computed-mask-strided-memory-runtime-avl-vl-contract/prd.md","description":"Archived computed-mask strided memory runtime AVL/VL migration evidence."}
+{"path":".trellis/tasks/archive/2026-06/06-04-stage2-rvv-runtime-avl-vl-selected-boundary-contract/prd.md","description":"Archived runtime AVL/VL selected-boundary contract promotion and segment2 embedding evidence."}
+{"path":".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-segment2-memory-target-contract-closeout/prd.md","description":"Archived segment2 target consume-only closeout and direct raw fact scan."}
+{"path":"include/TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h","description":"Runtime AVL/VL selected-boundary contract API."}
+{"path":"include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h","description":"RVV memory-family route facts and validation contracts."}
+{"path":"lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp","description":"RVV memory-family route contract builders."}
+{"path":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","description":"Target artifact memory-family route validation consumers."}
+{"path":"test/Target/TargetArtifactExportTest.cpp","description":"Focused target artifact validation C++ coverage."}
+{"path":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","description":"Added shared route-local runtime AVL/VL mirror helper; base, unit-stride masked, computed-mask indexed, computed-mask strided, and segment2 validators now validate runtimeAVLVLContract first and compare retained route-local runtime/control copies only as mirrors."}
+{"path":"include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h","description":"Documented memory-family validation contract runtime/control copies as target-side consistency mirrors whose authority is runtimeAVLVLContract."}
+{"path":"test/Target/TargetArtifactExportTest.cpp","description":"Added memory-family provider-contract assertions that route-local runtime/control copies match the embedded runtime AVL/VL selected-boundary contract for base, unit-stride masked, computed-mask indexed, computed-mask strided, and segment2 memory."}
+{"path":".trellis/spec/lowering-runtime/emitc-route.md","description":"Recorded the promoted memory-family rule: target validators accept runtime AVL/VL through embedded runtimeAVLVLContract before checking retained route-local mirrors."}

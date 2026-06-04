@@ -332,6 +332,13 @@ code.
 - Target artifact validation consumes the contract before route payload,
   header/type, ABI mapping, statement-plan, or candidate metadata mirror
   acceptance.
+- Promoted memory-family validation contracts may retain route-local
+  runtime/control copies only as target-side consistency mirrors. Target
+  validation must first accept the embedded `runtimeAVLVLContract`, then compare
+  any retained local runtime control plan, runtime ABI order, `setvl` callee,
+  VL C type, and EmitC AVL/VL statement-name copies against that embedded
+  contract. Stale or missing route-local mirrors fail closed and must not become
+  acceptance authority.
 - Route-family contract builders must pass provider-derived canonical runtime
   facts into the runtime AVL/VL contract. For standalone reduction and similar
   families, `configContractID`, `setVLIntrinsic`, and `vlCType` must come from

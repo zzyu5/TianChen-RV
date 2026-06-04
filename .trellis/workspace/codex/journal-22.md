@@ -785,3 +785,36 @@ Promoted computed-mask indexed memory target validation to consume the embedded 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 440: Stage2 RVV memory-family runtime AVL/VL sole-authority cleanup
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV memory-family runtime AVL/VL sole-authority cleanup
+**Branch**: `main`
+
+### Summary
+
+Made promoted memory-family target validation consume RVVRuntimeAVLVLSelectedBoundaryContract as sole runtime n / AVL / VL authority before route-local mirror checks; added focused C++ mirror assertions, spec note, memory-family lit evidence, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -1,0 +1,16 @@
+{"path":".trellis/tasks/06-04-stage2-rvv-memory-runtime-avl-vl-sole-authority/prd.md","description":"Acceptance criteria and evidence plan for this cleanup."}
+{"path":".trellis/spec/index.md","description":"Global invariants to verify against."}
+{"path":".trellis/spec/extension-plugins/rvv-plugin.md","description":"RVV plugin authority and memory target validation constraints."}
+{"path":".trellis/spec/lowering-runtime/emitc-route.md","description":"Runtime AVL/VL selected-boundary and memory mirror contract specs."}
+{"path":"include/TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h","description":"Runtime AVL/VL contract API to verify unchanged authority."}
+{"path":"include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h","description":"Provider validation contract fields and mirror naming."}
+{"path":"lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp","description":"Provider contract builders and mirror population."}
+{"path":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","description":"Target validator ordering and mirror-only checks."}
+{"path":"test/Target/TargetArtifactExportTest.cpp","description":"Target fail-closed C++ coverage."}
+{"command":"rtk cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j 16","result":"passed","description":"Focused provider/target build after memory-family runtime mirror cleanup. Existing unused-function and enum switch warnings remain unrelated."}
+{"command":"rtk build/bin/tianchenrv-target-artifact-export-test","result":"passed","description":"Target artifact validation C++ coverage, including memory-family route-local runtime AVL/VL mirror assertions and existing fail-closed stale runtime selected-boundary cases."}
+{"command":"rtk build/bin/tianchenrv-rvv-extension-plugin-test","result":"passed","description":"RVV extension plugin smoke test."}
+{"command":"rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter '(base-memory|strided-load-unit-store|unit-load-strided-store|indexed-gather-unit-store|indexed-scatter-unit-load|masked-unit|computed-masked-indexed|computed-masked-strided|segment2|interleave|deinterleave|runtime-scalar-cmp-masked)'","workdir":"build/test","result":"passed","description":"Focused memory-family lit/generated-bundle dry-run filter: 123 selected tests passed, 354 excluded, 477 discovered."}
+{"command":"rtk proxy bash -lc 'git diff -U0 -- include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp test/Target/TargetArtifactExportTest.cpp .trellis/spec/lowering-runtime/emitc-route.md | rg -n \"^\\+.*(RVVI32M1|rvv-i32m1|tcrv_rvv\\.i32_|!tcrv_rvv\\.i32m|descriptor|source-front-door|__riscv_.*_i32m1)\"'","result":"passed","description":"Added-line old-authority scan over touched production/spec/test files found no new legacy i32m1, descriptor, source-front-door, or exact-i32m1 intrinsic authority."}
+{"command":"rtk git diff --check","result":"passed","description":"Whitespace and patch-format check."}
+{"command":"ssh rvv","result":"not run","description":"No emitted C/C++, runtime ABI order/counts, statement ordering, memory behavior, correctness behavior, or performance behavior changed; this was provider/target validation and test/spec cleanup only."}
