@@ -1295,3 +1295,42 @@ Closed the runtime_scalar_cmp_masked_macc_add executable evidence task: generate
 ### Next Steps
 
 - None - task complete
+
+
+## Session 448: Stage2 RVV computed-mask widening dot-reduction executable artifact
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV computed-mask widening dot-reduction executable artifact
+**Branch**: `main`
+
+### Summary
+
+Closed the representative pre-realized computed_masked_widening_dot_reduce_add path with generated artifact, external ABI harness, and real ssh rvv correctness evidence. No production code change was needed; existing RVV provider/target path already executed end to end.
+
+### Main Changes
+
+- Created and archived Trellis task `06-04-06-04-stage2-rvv-computed-mask-widening-dot-reduction-executable-artifact`.
+- Recorded PRD evidence for selected variant `pre_realized_body_rvv_masked_widening_dot_reduce_add` and external ABI function `tcrv_emitc_pre_realized_body_masked_widening_dot_reduce_add_kernel_pre_realized_body_rvv_masked_widening_dot_reduce_add`.
+- Generated dry-run artifact/evidence at `artifacts/tmp/stage2-rvv-computed-mask-widening-dot-reduction-dry-run/computed-masked-widening-dot-reduce-add-dry-run`.
+- Generated non-dry-run artifact/evidence at `artifacts/tmp/stage2-rvv-computed-mask-widening-dot-reduction-executable-artifact/computed-masked-widening-dot-reduce-add-ssh-rvv`.
+- `ssh rvv` compile/run passed for runtime counts `0,1,7,16,23,257` with `PASS op=computed_masked_widening_dot_reduce_add counts=0,1,7,16,23,257`.
+- Focused lit passed via `cd build/test && /usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter pre-realized-selected-body-artifact-computed-masked-widening-dot-reduce-add`.
+- `git diff --check` and Trellis task context validation passed.
+- Spec update review found no new `.trellis/spec/` contract needed; existing specs already cover provider facts, target validation, evidence boundary, and ssh rvv requirements.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final result preserves the RVV authority chain and Stage2 boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check computed-mask widening dot-reduction realization/provider ownership stays RVV plugin-local and stale facts fail closed."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check executable artifact evidence follows provider-built route, common EmitC neutrality, runtime AVL/VL, and target mirror contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check ssh rvv correctness evidence, dry-run/runtime evidence separation, active/inactive mask lanes, signed products, seed, scalar result, and tail checks."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected-body realization precedes provider route construction and metadata remains mirror-only."}
