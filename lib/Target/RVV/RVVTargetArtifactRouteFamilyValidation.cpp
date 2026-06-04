@@ -2688,6 +2688,643 @@ getRVVWideningDotReductionTargetRouteValidationContract(
       description);
 }
 
+std::optional<plugin::rvv::RVVWideningProductRouteValidationContract>
+getRVVWideningProductTargetRouteValidationContract(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return plugin::rvv::getRVVWideningProductRouteValidationContract(
+      description);
+}
+
+llvm::Error validateRVVWideningProductNoStaleNonFamilyProviderFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  if (!description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
+      !description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
+      !description.runtimeScalarSplatStoreRouteFamilyPlanID.empty() ||
+      !description.wideningConversionRouteFamilyPlanID.empty() ||
+      !description.plainMAccRouteFamilyPlanID.empty() ||
+      !description.scalarBroadcastMAccRouteFamilyPlanID.empty() ||
+      !description.accumulationRouteFamilyPlanID.empty() ||
+      !description.standaloneReductionRouteFamilyPlanID.empty() ||
+      !description.plainCompareSelectRouteFamilyPlanID.empty() ||
+      !description.computedMaskSelectRouteFamilyPlanID.empty() ||
+      !description.computedMaskMemoryRouteFamilyPlanID.empty() ||
+      !description.segment2MemoryRouteFamilyPlanID.empty() ||
+      !description.baseMemoryMovementRouteFamilyPlanID.empty() ||
+      !description.maccAccumulatorLayout.empty() ||
+      !description.maccResultLayout.empty() ||
+      !description.wideningMAccAccumulatorLayout.empty() ||
+      !description.wideningMAccResultLayout.empty() ||
+      !description.wideningMAccRelation.empty() ||
+      !description.wideningDotProductAccumulatorLayout.empty() ||
+      !description.wideningDotProductResultLayout.empty() ||
+      !description.wideningDotProductRelation.empty() ||
+      !description.scalarSeedSplatIntrinsic.empty() ||
+      !description.reductionStoreVL.empty() ||
+      !description.maskedWideningProductIntrinsic.empty())
+    return makeRVVTargetRouteError(
+        "low-precision widening-product target artifact consumer rejects "
+        "stale non-product route-family facts");
+  return llvm::Error::success();
+}
+
+llvm::Error requireRVVWideningProductContractStringField(
+    llvm::StringRef consumerLabel, llvm::StringRef fieldLabel,
+    llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  if (expected.empty())
+    return makeRVVTargetRouteError(llvm::Twine(consumerLabel) +
+                                   " rejects stale " + fieldLabel +
+                                   " facts before artifact export");
+  return makeRVVTargetRouteError(llvm::Twine(consumerLabel) +
+                                 " requires provider-derived " + fieldLabel +
+                                 " '" + expected + "' but was '" + actual +
+                                 "'");
+}
+
+llvm::Error requireRVVWideningProductContractIntField(
+    llvm::StringRef consumerLabel, llvm::StringRef fieldLabel,
+    std::int64_t actual, std::int64_t expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVTargetRouteError(llvm::Twine(consumerLabel) +
+                                 " requires provider-derived " + fieldLabel +
+                                 " " + llvm::Twine(expected) + " but was " +
+                                 llvm::Twine(actual));
+}
+
+llvm::Error validateRVVWideningProductDescriptionAgainstContract(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVWideningProductRouteValidationContract &contract) {
+  if (description.memoryForm != contract.memoryForm)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires selected typed RVV memory form '" +
+        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(contract.memoryForm) +
+        "' but was '" +
+        plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+            description.memoryForm) +
+        "'");
+
+  if (llvm::Error error = requireRVVWideningProductContractIntField(
+          contract.consumerLabel, "source SEW", description.sourceSEW,
+          contract.sourceSEW))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "source LMUL", description.sourceLMUL,
+          contract.sourceLMUL))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractIntField(
+          contract.consumerLabel, "result SEW", description.sew,
+          contract.resultSEW))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "result LMUL", description.lmul,
+          contract.resultLMUL))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "tail policy", description.tailPolicy,
+          contract.tailPolicy))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "mask policy", description.maskPolicy,
+          contract.maskPolicy))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "config contract",
+          description.configContractID, contract.configContractID))
+    return error;
+  if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
+          description, contract.runtimeAVLVLContract))
+    return error;
+  if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
+          contract.consumerLabel, contract.runtimeAVLVLContract,
+          contract.runtimeControlPlanID, contract.runtimeABIOrder,
+          contract.setVLIntrinsic, contract.vlCType,
+          contract.emitCFullChunkVLName, contract.emitCLoopVLName,
+          contract.emitCLoopInductionName))
+    return error;
+  if (description.runtimeABIParameters.size() !=
+      contract.runtimeABIParameters.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned runtime ABI parameter count " +
+        llvm::Twine(contract.runtimeABIParameters.size()) +
+        " before artifact export");
+  for (std::size_t index = 0; index < contract.runtimeABIParameters.size();
+       ++index) {
+    const support::RuntimeABIParameter &actual =
+        description.runtimeABIParameters[index];
+    const support::RuntimeABIParameter &expected =
+        contract.runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(actual, expected))
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires provider-derived runtime ABI parameter " +
+          std::to_string(index) + " to mirror provider-owned parameter '" +
+          expected.cName + "' as " +
+          support::stringifyRuntimeABIParameterRole(expected.role) +
+          " with C type '" + expected.cType + "' before artifact export");
+  }
+
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "route operand binding plan",
+          description.routeOperandBindingPlanID,
+          contract.routeOperandBindingPlanID))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "route operand binding facts",
+          description.routeOperandBindingSummary,
+          contract.routeOperandBindingSummary))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "contraction route-family plan",
+          description.contractionRouteFamilyPlanID,
+          contract.contractionRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "target leaf profile",
+          description.targetLeafProfile, contract.targetLeafProfile))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "provider-supported mirror",
+          description.providerSupportedMirror, contract.providerSupportedMirror))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "required header declarations",
+          description.requiredHeaderDeclarations,
+          contract.requiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "C type mapping summary",
+          description.cTypeMappingSummary, contract.cTypeMappingSummary))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "typed compute op",
+          description.typedComputeOpName, contract.typedComputeOpName))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "source memory form",
+          description.sourceMemoryForm, contract.sourceMemoryForm))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "destination memory form",
+          description.destinationMemoryForm, contract.destinationMemoryForm))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "widening product relation",
+          description.wideningProductRelation,
+          contract.wideningProductRelation))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "source vector load intrinsic",
+          description.sourceVectorLoadIntrinsic,
+          contract.sourceVectorLoadIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "widening product intrinsic",
+          description.wideningProductIntrinsic,
+          contract.wideningProductIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "compute intrinsic", description.intrinsic,
+          contract.intrinsic))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "store intrinsic",
+          description.storeIntrinsic, contract.storeIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "setvl intrinsic",
+          description.setVLIntrinsic, contract.setVLIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "VL C type", description.vlCType,
+          contract.vlCType))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "source vector type",
+          description.sourceVectorTypeName, contract.sourceVectorTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "source vector C type",
+          description.sourceVectorCType, contract.sourceVectorCType))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "result vector type",
+          description.vectorTypeName, contract.resultVectorTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "result vector C type",
+          description.vectorCType, contract.resultVectorCType))
+    return error;
+
+  return validateRVVWideningProductNoStaleNonFamilyProviderFacts(description);
+}
+
+llvm::Error validateRVVWideningProductRouteHeaders(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVWideningProductRouteValidationContract &contract) {
+  if (contract.requiredHeaderDeclarations.empty() ||
+      contract.requiredHeaders.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived required_header_declarations before "
+        "accepting the route artifact");
+  for (llvm::StringRef header : contract.requiredHeaders) {
+    if (header.empty())
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " saw an empty provider route header declaration");
+    if (!routeHasHeader(route, header))
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route header '" + header +
+          "' before artifact export");
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVWideningProductRouteTypeMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVWideningProductRouteValidationContract &contract) {
+  if (contract.cTypeMappingSummary.empty() || contract.typeMappings.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived route type mapping facts before artifact "
+        "export");
+  for (const plugin::rvv::RVVWideningProductRouteTypeMappingContract &mapping :
+       contract.typeMappings) {
+    if (mapping.sourceType.empty() || mapping.cType.empty())
+      return makeRVVTargetRouteError(llvm::Twine(contract.consumerLabel) +
+                                     " requires provider-derived " +
+                                     mapping.label +
+                                     " facts before artifact export");
+    if (!routeHasTypeMapping(route, mapping.sourceType, mapping.cType))
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route type mapping '" +
+          mapping.sourceType + "' -> '" + mapping.cType + "'");
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVWideningProductRouteABIMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVWideningProductRouteValidationContract &contract) {
+  if (contract.runtimeABIOrder.empty() || contract.runtimeABIParameters.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived runtime ABI order and ABI parameters "
+        "before artifact export");
+  if (route.getABIMappings().size() != contract.runtimeABIParameters.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires rebuilt provider route ABI mapping count " +
+        llvm::Twine(contract.runtimeABIParameters.size()) + " but route has " +
+        llvm::Twine(route.getABIMappings().size()));
+  for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
+    const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
+        route.getABIMappings()[index];
+    const support::RuntimeABIParameter &expected =
+        contract.runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(mapping.parameter, expected))
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route ABI mapping[" +
+          llvm::Twine(index) + "] to mirror provider runtime ABI parameter '" +
+          expected.cName + "'");
+    if (mapping.valueName != expected.cName)
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route ABI mapping[" +
+          llvm::Twine(index) +
+          "] value name to use provider runtime ABI parameter '" +
+          expected.cName + "' but was '" + mapping.valueName + "'");
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVWideningProductRouteStatementPlan(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVWideningProductRouteValidationContract &contract) {
+  const auto &description = contract;
+  const llvm::StringRef consumerLabel = contract.consumerLabel;
+  const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+      contract.runtimeAVLVLContract;
+  if (description.runtimeABIParameters.size() != 4)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires provider-derived widening-product ABI parameters before "
+        "validating route statements");
+  if (description.resultName.empty() || description.sourceVectorCType.empty() ||
+      description.vectorCType.empty() || runtimeContract.vlCType.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires provider-derived result, source/result vector C type, and "
+        "VL C type facts before validating route statements");
+
+  const support::RuntimeABIParameter &lhsABI =
+      description.runtimeABIParameters[0];
+  const support::RuntimeABIParameter &rhsABI =
+      description.runtimeABIParameters[1];
+  const support::RuntimeABIParameter &outABI =
+      description.runtimeABIParameters[2];
+  const support::RuntimeABIParameter &runtimeNABI =
+      description.runtimeABIParameters[3];
+  if (!runtimeABIParameterEquals(runtimeNABI,
+                                 runtimeContract.runtimeAVLParameter))
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires runtime n/AVL ABI role to match the selected widening "
+        "product ABI order before validating route statements");
+
+  if (route.getCallOpaqueSteps().size() != contract.expectedPreLoopStepCount)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires exact provider-built pre-loop statement count " +
+        llvm::Twine(contract.expectedPreLoopStepCount) +
+        " before artifact export");
+  const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSetVL =
+      route.getCallOpaqueSteps()[0];
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          preLoopSetVL, consumerLabel, "pre-loop setvl",
+          runtimeContract.setVLIntrinsic,
+          {{runtimeContract.runtimeAVLParameter.cName,
+            runtimeContract.runtimeAVLParameter.cType}},
+          runtimeContract.emitCFullChunkVLName, runtimeContract.vlCType))
+    return error;
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+       route.getCallOpaqueSteps())
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "low-precision widening-product target artifact consumer requires "
+          "pre-loop statements to carry selected typed RVV source provenance");
+
+  if (route.getForLoops().size() != 1)
+    return makeRVVTargetRouteError(
+        "low-precision widening-product target artifact consumer requires "
+        "exactly one provider-built runtime AVL/VL loop before artifact "
+        "export");
+  const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
+  if (loop.inductionVarName != runtimeContract.emitCLoopInductionName ||
+      loop.lowerBound.expression != "0" ||
+      loop.lowerBound.cType != runtimeContract.vlCType ||
+      loop.upperBound.expression != runtimeContract.runtimeAVLParameter.cName ||
+      loop.upperBound.cType != runtimeContract.runtimeAVLParameter.cType ||
+      loop.step.expression != runtimeContract.emitCFullChunkVLName ||
+      loop.step.cType != runtimeContract.vlCType)
+    return makeRVVTargetRouteError(
+        "low-precision widening-product target artifact consumer requires "
+        "provider-built loop bounds and step to mirror runtime AVL/VL route "
+        "facts");
+  if (loop.bodySteps.size() != contract.expectedLoopBodyStepCount)
+    return makeRVVTargetRouteError(
+        llvm::Twine(consumerLabel) +
+        " requires exact provider-built widening-product loop statement "
+        "count " +
+        llvm::Twine(contract.expectedLoopBodyStepCount) +
+        " before artifact export");
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
+    if (!routeStepSourceIsSelectedRVVBody(step))
+      return makeRVVTargetRouteError(
+          "low-precision widening-product target artifact consumer requires "
+          "loop statements to carry selected typed RVV source provenance");
+
+  const std::string expectedRemainingAVL =
+      (llvm::StringRef(runtimeContract.runtimeAVLParameter.cName) + " - " +
+       runtimeContract.emitCLoopInductionName)
+          .str();
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[0], consumerLabel, "loop setvl",
+          runtimeContract.setVLIntrinsic,
+          {{expectedRemainingAVL, runtimeContract.vlCType}},
+          runtimeContract.emitCLoopVLName, runtimeContract.vlCType))
+    return error;
+  auto validateUnitSourceLoad =
+      [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
+          const support::RuntimeABIParameter &abi, llvm::StringRef resultName,
+          llvm::StringRef stepLabel) -> llvm::Error {
+    const std::string expectedPointer =
+        (llvm::StringRef(abi.cName) + " + " +
+         runtimeContract.emitCLoopInductionName)
+            .str();
+    return validateRVVProviderBuiltRouteStep(
+        step, consumerLabel, stepLabel, description.sourceVectorLoadIntrinsic,
+        {{expectedPointer, abi.cType},
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+        resultName, description.sourceVectorCType);
+  };
+  if (llvm::Error error =
+          validateUnitSourceLoad(loop.bodySteps[1], lhsABI, "lhs_vec",
+                                 "lhs source load"))
+    return error;
+  if (llvm::Error error =
+          validateUnitSourceLoad(loop.bodySteps[2], rhsABI, "rhs_vec",
+                                 "rhs source load"))
+    return error;
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[3], consumerLabel, "widening product",
+          description.wideningProductIntrinsic,
+          {{"lhs_vec", description.sourceVectorCType},
+           {"rhs_vec", description.sourceVectorCType},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+          description.resultName, description.vectorCType))
+    return error;
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[4], consumerLabel, "output store",
+          description.storeIntrinsic,
+          {{(llvm::StringRef(outABI.cName) + " + " +
+             runtimeContract.emitCLoopInductionName)
+                .str(),
+            outABI.cType},
+           {description.resultName, description.vectorCType},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}}))
+    return error;
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVWideningProductRoutePayloadFacts(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  const std::optional<
+      plugin::rvv::RVVWideningProductRouteValidationContract>
+      contract = getRVVWideningProductTargetRouteValidationContract(
+          description);
+  if (!contract)
+    return makeRVVTargetRouteError(
+        "low-precision widening-product target artifact consumer requires "
+        "provider-owned route validation contract before artifact export");
+  if (route.getRouteID() != contract->emitCRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract->consumerLabel) +
+        " requires rebuilt provider route id '" + contract->emitCRouteID +
+        "' but route carried '" + route.getRouteID() + "'");
+  if (llvm::Error error =
+          validateRVVWideningProductDescriptionAgainstContract(description,
+                                                               *contract))
+    return error;
+  if (llvm::Error error =
+          validateRVVWideningProductRouteHeaders(route, *contract))
+    return error;
+  if (llvm::Error error =
+          validateRVVWideningProductRouteTypeMappings(route, *contract))
+    return error;
+  if (llvm::Error error =
+          validateRVVWideningProductRouteABIMappings(route, *contract))
+    return error;
+  return validateRVVWideningProductRouteStatementPlan(route, *contract);
+}
+
+llvm::Error validateRVVWideningProductTargetArtifactProviderFacts(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  return validateRVVWideningProductRoutePayloadFacts(context.route,
+                                                     context.description);
+}
+
+llvm::Error requireEmptyWideningProductStaleMirror(
+    const TargetArtifactCandidate &candidate, llvm::StringRef key,
+    llvm::StringRef label) {
+  return requireCandidateMetadataMirror(candidate, key, "", label);
+}
+
+llvm::Error validateRVVWideningProductTargetArtifactCandidateMirrors(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  const TargetArtifactCandidate &candidate = context.candidate;
+  const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description =
+      context.description;
+  const std::optional<
+      plugin::rvv::RVVWideningProductRouteValidationContract>
+      contract = getRVVWideningProductTargetRouteValidationContract(
+          description);
+  if (!contract)
+    return makeRVVTargetRouteError(
+        "low-precision widening-product target artifact consumer requires "
+        "provider-owned route validation contract before validating candidate "
+        "mirrors");
+  const std::string sourceSEW = llvm::Twine(contract->sourceSEW).str();
+  const std::string resultSEW = llvm::Twine(contract->resultSEW).str();
+
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.route_operand_binding_plan",
+          contract->routeOperandBindingPlanID,
+          "selected typed RVV widening product binding plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.route_operand_binding_operands",
+          contract->routeOperandBindingSummary,
+          "selected typed RVV widening product binding summary"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.provider_supported_mirror",
+          contract->providerSupportedMirror,
+          "selected typed RVV widening product provider support"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.contraction_route_family_plan",
+          contract->contractionRouteFamilyPlanID,
+          "selected typed RVV widening product contraction route-family plan"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.memory_form",
+          plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
+              contract->memoryForm),
+          "selected typed RVV widening product memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.runtime_control_plan",
+          contract->runtimeControlPlanID,
+          "route-local runtime AVL/VL control plan mirror"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.runtime_abi_order", contract->runtimeABIOrder,
+          "route-local runtime AVL/VL ABI order mirror"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.required_header_declarations",
+          contract->requiredHeaderDeclarations,
+          "selected typed RVV widening product route header requirements"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.c_type_mapping",
+          contract->cTypeMappingSummary,
+          "selected typed RVV widening product route type mapping summary"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.target_leaf_profile",
+          contract->targetLeafProfile,
+          "selected typed RVV widening product target leaf profile"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.source_sew", sourceSEW,
+          "selected typed RVV widening product i8 source SEW"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.source_lmul", contract->sourceLMUL,
+          "selected typed RVV widening product source LMUL"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.result_sew", resultSEW,
+          "selected typed RVV widening product i16 result SEW"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.result_lmul", contract->resultLMUL,
+          "selected typed RVV widening product result LMUL"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.source_memory_form",
+          contract->sourceMemoryForm,
+          "selected typed RVV widening product source memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.destination_memory_form",
+          contract->destinationMemoryForm,
+          "selected typed RVV widening product destination memory form"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.widening_product_relation",
+          contract->wideningProductRelation,
+          "selected typed RVV widening product relation"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.widening_product_intrinsic",
+          contract->wideningProductIntrinsic,
+          "selected typed RVV widening product intrinsic"))
+    return error;
+
+  constexpr llvm::StringLiteral staleRouteFamilyMirrors[] = {
+      "tcrv_rvv.elementwise_arithmetic_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_elementwise_route_family_plan",
+      "tcrv_rvv.runtime_scalar_splat_store_route_family_plan",
+      "tcrv_rvv.widening_conversion_route_family_plan",
+      "tcrv_rvv.plain_compare_select_route_family_plan",
+      "tcrv_rvv.computed_mask_select_route_family_plan",
+      "tcrv_rvv.computed_mask_memory_route_family_plan",
+      "tcrv_rvv.segment2_memory_route_family_plan",
+      "tcrv_rvv.plain_macc_route_family_plan",
+      "tcrv_rvv.scalar_broadcast_macc_route_family_plan",
+      "tcrv_rvv.accumulation_route_family_plan",
+      "tcrv_rvv.standalone_reduction_route_family_plan",
+      "tcrv_rvv.base_memory_movement_route_family_plan",
+      "tcrv_rvv.mask_tail_policy_route_family_plan",
+      "tcrv_rvv.mask_tail_policy_owner",
+      "tcrv_rvv.accumulator_sew",
+      "tcrv_rvv.accumulator_lmul",
+      "tcrv_rvv.widening_macc_relation",
+      "tcrv_rvv.widening_dot_accumulator_layout",
+      "tcrv_rvv.widening_dot_result_layout",
+      "tcrv_rvv.widening_dot_relation",
+      "tcrv_rvv.widening_dot_reduction_store_vl",
+      "tcrv_rvv.masked_widening_product_intrinsic"};
+  for (llvm::StringRef key : staleRouteFamilyMirrors)
+    if (llvm::Error error = requireEmptyWideningProductStaleMirror(
+            candidate, key,
+            "selected typed RVV non-widening-product route-family mirror"))
+      return error;
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVWideningDotReductionNoStaleNonFamilyProviderFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   if (!description.elementwiseArithmeticRouteFamilyPlanID.empty() ||
@@ -12206,6 +12843,12 @@ bool isRVVWideningDotReductionTargetArtifactRouteFamilyConsumer(
   return isRVVWideningDotReductionRouteFamilyOperation(description.operation);
 }
 
+bool isRVVWideningProductTargetArtifactRouteFamilyConsumer(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return description.operation ==
+         plugin::rvv::RVVSelectedBodyOperationKind::WideningProduct;
+}
+
 bool isRVVMAccTargetArtifactRouteFamilyConsumer(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVMAccRouteFamilyOperation(description.operation);
@@ -12295,6 +12938,10 @@ getRVVTargetArtifactRouteFamilyValidators() {
        isRVVWideningMAccContractionTargetArtifactRouteFamilyConsumer,
        validateRVVWideningMAccContractionTargetArtifactProviderFacts,
        validateRVVWideningMAccContractionTargetArtifactCandidateMirrors},
+      {llvm::StringLiteral("low-precision-widening-product"),
+       isRVVWideningProductTargetArtifactRouteFamilyConsumer,
+       validateRVVWideningProductTargetArtifactProviderFacts,
+       validateRVVWideningProductTargetArtifactCandidateMirrors},
       {llvm::StringLiteral("widening-dot-reduction"),
        isRVVWideningDotReductionTargetArtifactRouteFamilyConsumer,
        validateRVVWideningDotReductionTargetArtifactProviderFacts,

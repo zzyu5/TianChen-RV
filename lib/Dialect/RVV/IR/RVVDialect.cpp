@@ -90,6 +90,7 @@ constexpr llvm::StringLiteral kResultLMULAttrName("result_lmul");
 constexpr llvm::StringLiteral kMAccRelationAttrName("macc_relation");
 constexpr llvm::StringLiteral kDotProductRelationAttrName(
     "dot_product_relation");
+constexpr llvm::StringLiteral kProductRelationAttrName("product_relation");
 constexpr llvm::StringLiteral kStrideUnitAttrName("stride_unit");
 constexpr llvm::StringLiteral kIndexEEWAttrName("index_eew");
 constexpr llvm::StringLiteral kOffsetUnitAttrName("offset_unit");
@@ -612,6 +613,10 @@ bool isAllowedWideningMAccAttr(llvm::StringRef name) {
 bool isAllowedWideningDotReduceAttr(llvm::StringRef name) {
   return name == "kind" || name == kAccumulatorLayoutAttrName ||
          name == kResultLayoutAttrName || name == kDotProductRelationAttrName;
+}
+
+bool isAllowedWideningProductAttr(llvm::StringRef name) {
+  return name == "kind" || name == kProductRelationAttrName;
 }
 
 bool isAllowedMaskedWideningDotReduceAttr(llvm::StringRef name) {
@@ -1502,6 +1507,10 @@ bool isSupportedGenericWideningDotReduceKind(llvm::StringRef kind) {
   return kind == "signed_widening_dot_reduce_add";
 }
 
+bool isSupportedGenericWideningProductKind(llvm::StringRef kind) {
+  return kind == "signed_widening_product";
+}
+
 bool isSupportedGenericMaskedWideningDotReduceKind(llvm::StringRef kind) {
   return kind == "signed_masked_widening_dot_reduce_add";
 }
@@ -1530,6 +1539,10 @@ bool isSupportedGenericWideningMAccRelation(llvm::StringRef relation) {
 
 bool isSupportedGenericWideningDotProductRelation(llvm::StringRef relation) {
   return relation == "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32";
+}
+
+bool isSupportedGenericWideningProductRelation(llvm::StringRef relation) {
+  return relation == "signed-i8mf4xi8mf4-to-i16mf2";
 }
 
 bool isSupportedGenericWideningConvertKind(llvm::StringRef kind) {
@@ -1640,6 +1653,8 @@ bool isSupportedBoundedRuntimeABIValueCType(
   switch (role) {
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
+    return cType == "const int8_t *" || cType == "const int16_t *" ||
+           cType == "const int32_t *" || cType == "const int64_t *";
   case Role::SourceInputBuffer:
   case Role::TrueValueInputBuffer:
   case Role::FalseValueInputBuffer:
@@ -1658,6 +1673,8 @@ bool isSupportedBoundedRuntimeABIValueCType(
   case Role::RHSSecondaryScalarValue:
     return cType == "int32_t" || cType == "int64_t";
   case Role::OutputBuffer:
+    return cType == "int16_t *" || cType == "int32_t *" ||
+           cType == "int64_t *";
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
   case Role::SegmentInterleavedOutputBuffer:
@@ -1681,6 +1698,8 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   switch (role) {
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
+    return "'const int8_t *', 'const int16_t *', 'const int32_t *', "
+           "or 'const int64_t *'";
   case Role::SourceInputBuffer:
   case Role::TrueValueInputBuffer:
   case Role::FalseValueInputBuffer:
@@ -1698,6 +1717,7 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::RHSSecondaryScalarValue:
     return "'int32_t' or 'int64_t'";
   case Role::OutputBuffer:
+    return "'int16_t *', 'int32_t *', or 'int64_t *'";
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
   case Role::SegmentInterleavedOutputBuffer:
@@ -2139,6 +2159,10 @@ bool isGenericRVVVectorI32M1(mlir::Type type) {
                                 getRVVLMULM1());
 }
 
+bool isGenericRVVVectorI8MF4(mlir::Type type) {
+  return isGenericRVVVectorType(type, getRVVSEW8Bits(), getRVVLMULMF4());
+}
+
 bool isGenericRVVVectorI16MF2(mlir::Type type) {
   return isGenericRVVVectorType(type, getRVVSEW16Bits(), getRVVLMULMF2());
 }
@@ -2522,6 +2546,35 @@ bool isBoundedWideningDotReduceSourceLoad(LoadOp load, WithVLOp withVL) {
     return false;
   }
   return hasWideningDotReduceUse;
+}
+
+bool isBoundedWideningProductSourceLoad(LoadOp load, WithVLOp withVL) {
+  if (!load || !withVL)
+    return false;
+  auto sew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto lmul = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!sew || !lmul || !policy || !isRVVAgnosticPolicy(policy))
+    return false;
+  if (sew.getInt() != getRVVSEW16Bits() ||
+      lmul.getValue() != getRVVLMULMF2())
+    return false;
+  if (!isGenericRVVVectorI8MF4(load.getLoaded().getType()))
+    return false;
+
+  bool hasWideningProductUse = false;
+  for (mlir::Operation *user : load.getLoaded().getUsers()) {
+    auto product = llvm::dyn_cast<WideningProductOp>(user);
+    if (!product || product->getParentOp() != withVL.getOperation() ||
+        product.getVl() != load.getVl() ||
+        (product.getLhs() != load.getLoaded() &&
+         product.getRhs() != load.getLoaded()))
+      return false;
+    if (product.getKind() != "signed_widening_product")
+      return false;
+    hasWideningProductUse = true;
+  }
+  return hasWideningProductUse;
 }
 
 bool isBoundedWideningDotReduceSourceStridedLoad(StridedLoadOp load,
@@ -7630,7 +7683,8 @@ mlir::LogicalResult LoadOp::verify() {
   if (auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp()))
     if (isBoundedWideningConversionSourceLoad(*this, withVL) ||
         isBoundedWideningMAccSourceLoad(*this, withVL) ||
-        isBoundedWideningDotReduceSourceLoad(*this, withVL))
+        isBoundedWideningDotReduceSourceLoad(*this, withVL) ||
+        isBoundedWideningProductSourceLoad(*this, withVL))
       return mlir::success();
   return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
 }
@@ -9547,6 +9601,82 @@ mlir::LogicalResult WideningDotReduceOp::verify() {
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
               "metadata for widening dot-product reduction";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult WideningProductOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.widening_product keeps source/result "
+                "SEW/LMUL/policy on typed vector values and setvl/with_vl, "
+                "runtime n/AVL/VL in the surrounding control-plane IR, and "
+                "rejects deleted local element_count metadata";
+
+    if (!isAllowedWideningProductAttr(attrName))
+      return emitOpError()
+             << "only accepts generic widening product attributes 'kind' and "
+                "'product_relation'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!isSupportedGenericWideningProductKind(getKind()))
+    return emitOpError()
+           << "currently supports only kind \"signed_widening_product\" for "
+              "the bounded Stage 2 low-precision widening-product route";
+  if (!isSupportedGenericWideningProductRelation(getProductRelation()))
+    return emitOpError()
+           << "currently supports only product_relation "
+              "\"signed-i8mf4xi8mf4-to-i16mf2\" for the bounded Stage 2 "
+              "low-precision widening-product route";
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires lhs and rhs i8 generic RVV vector operands, one "
+              "!tcrv_rvv.vl operand, and one i16 generic RVV vector result";
+  if (!isGenericRVVVectorI8MF4(getLhs().getType()) ||
+      !isGenericRVVVectorI8MF4(getRhs().getType()))
+    return emitOpError()
+           << "requires lhs and rhs source vectors to have type "
+              "!tcrv_rvv.vector<i8, \"mf4\"> for the bounded signed "
+              "low-precision widening-product route";
+  if (!isGenericRVVVectorI16MF2(getResult().getType()))
+    return emitOpError()
+           << "requires result vector to have type "
+              "!tcrv_rvv.vector<i16, \"mf2\"> for the bounded signed "
+              "low-precision widening-product route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError() << "requires runtime VL operand to have "
+                            "!tcrv_rvv.vl type";
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto expectedSEW =
+      (*withVL)->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto expectedLMUL =
+      (*withVL)->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  if (!expectedSEW || !expectedLMUL)
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit result "
+              "SEW/LMUL metadata for widening product";
+  if (expectedSEW.getInt() != getRVVSEW16Bits() ||
+      expectedLMUL.getValue() != getRVVLMULMF2())
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl result config to be "
+              "SEW16 LMUL mf2 for the bounded signed low-precision "
+              "widening-product route";
+  if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for widening product";
 
   return mlir::success();
 }

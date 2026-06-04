@@ -510,6 +510,8 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     return "tcrv_rvv.masked_macc";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningMAccAdd:
     return "tcrv_rvv.widening_macc";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningProduct:
+    return "tcrv_rvv.widening_product";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return "tcrv_rvv.widening_dot_reduce";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -598,6 +600,8 @@ llvm::StringRef getRVVTestBinaryKind(
     return "runtime_scalar_cmp_masked_macc_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningMAccAdd:
     return "widening_macc_add";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningProduct:
+    return "widening_product";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return "widening_dot_reduce_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -692,6 +696,9 @@ bool isRVVTestScalarBroadcastElementwiseOperation(
 
 std::string getRVVTestVariantSymbol(
     tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op) {
+  if (op ==
+      tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningProduct)
+    return "rvv_low_precision_widening_product";
   return (llvm::Twine("rvv_i32_") +
           tianchenrv::plugin::rvv::stringifyRVVSelectedBodyOperationKind(op))
       .str();
@@ -1530,6 +1537,32 @@ module {
         %acc_vec = tcrv_rvv.load %acc, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
         %result = tcrv_rvv.widening_macc %lhs_vec, %rhs_vec, %acc_vec, %vl {accumulator_layout = "separate-i32-vector-accumulator-input", kind = "signed_widening_macc_add", macc_relation = "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1", result_layout = "store-widening-multiply-accumulate-result-to-output-buffer"} : !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
         tcrv_rvv.store %out, %result, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
+  if (op == OperationKind::WideningProduct) {
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_low_precision_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-product:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-product:rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int16_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-product:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-widening-product:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "mf2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 16 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "mf2", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+       << variant << R"mlir(, sew = 16 : i64, source_kernel = "rvv_low_precision_body_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "mf4">
+        %rhs_vec = tcrv_rvv.load %rhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i8, "mf4">
+        %product = tcrv_rvv.widening_product %lhs_vec, %rhs_vec, %vl {kind = "signed_widening_product", product_relation = "signed-i8mf4xi8mf4-to-i16mf2"} : !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+        tcrv_rvv.store %out, %product, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -9845,6 +9878,236 @@ bool expectRVVTargetArtifactExporterShape(
           "candidate route-family mirror",
           {"must not carry",
            "selected typed RVV non-conversion route-family mirror"}))
+    return false;
+
+  RVVTargetArtifactCandidateFixture wideningProductFixture(
+      OperationKind::WideningProduct);
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          wideningProductFixture,
+          "build valid RVV low-precision widening-product selected-body "
+          "candidate fixture"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         wideningProductFixture.candidate, *exporter),
+                     "validate RVV low-precision widening-product target "
+                     "artifact candidate through exporter"))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute wideningProductRoute;
+  RVVRouteDescription wideningProductDescription;
+  if (!buildRVVRouteValidationInputs(
+          wideningProductFixture, wideningProductRoute,
+          wideningProductDescription,
+          "rebuild RVV low-precision widening-product route validator inputs"))
+    return false;
+  RVVRouteValidationContext wideningProductContext{
+      wideningProductFixture.candidate, wideningProductRoute,
+      wideningProductDescription};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  wideningProductContext),
+          "low-precision widening-product registry accepts provider facts"))
+    return false;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  wideningProductContext),
+          "low-precision widening-product registry accepts candidate mirrors"))
+    return false;
+
+  std::optional<tianchenrv::plugin::rvv::RVVWideningProductRouteFacts>
+      wideningProductFacts =
+          tianchenrv::plugin::rvv::getRVVWideningProductRouteFacts(
+              OperationKind::WideningProduct);
+  if (!wideningProductFacts) {
+    llvm::errs() << "low-precision widening-product positive fixture requires "
+                    "canonical provider-owned route facts\n";
+    return false;
+  }
+  if (wideningProductDescription.operation != wideningProductFacts->operation ||
+      wideningProductDescription.memoryForm !=
+          wideningProductFacts->memoryForm ||
+      wideningProductDescription.sourceSEW !=
+          wideningProductFacts->sourceSEW ||
+      wideningProductDescription.sourceLMUL !=
+          wideningProductFacts->sourceLMUL ||
+      wideningProductDescription.sew != wideningProductFacts->resultSEW ||
+      wideningProductDescription.lmul != wideningProductFacts->resultLMUL ||
+      wideningProductDescription.runtimeABIOrder !=
+          wideningProductFacts->runtimeABIOrder ||
+      wideningProductDescription.routeOperandBindingPlanID !=
+          wideningProductFacts->routeOperandBindingPlanID ||
+      wideningProductDescription.routeOperandBindingSummary !=
+          wideningProductFacts->routeOperandBindingSummary ||
+      wideningProductDescription.contractionRouteFamilyPlanID !=
+          wideningProductFacts->contractionRouteFamilyPlanID ||
+      wideningProductDescription.typedComputeOpName !=
+          wideningProductFacts->typedComputeOpName ||
+      wideningProductDescription.wideningProductRelation !=
+          wideningProductFacts->wideningProductRelation ||
+      wideningProductDescription.wideningProductIntrinsic !=
+          wideningProductFacts->wideningProductIntrinsic ||
+      wideningProductDescription.sourceVectorLoadIntrinsic !=
+          wideningProductFacts->sourceVectorLoadIntrinsic ||
+      wideningProductDescription.storeIntrinsic !=
+          wideningProductFacts->storeIntrinsic ||
+      !tianchenrv::support::runtimeABIParametersEqual(
+          wideningProductDescription.runtimeABIParameters,
+          wideningProductFacts->runtimeABIParameters)) {
+    llvm::errs() << "low-precision widening-product route description did "
+                    "not mirror provider-owned facts\n";
+    return false;
+  }
+
+  auto expectWideningProductProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        wideningProductFixture.candidate, wideningProductRoute, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectWideningProductRouteFailure =
+      [&](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &mutatedRoute,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        wideningProductFixture.candidate, mutatedRoute,
+        wideningProductDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectWideningProductCandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{
+        mutated, wideningProductRoute, wideningProductDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+
+  RVVRouteDescription staleWideningProductProviderSupport =
+      wideningProductDescription;
+  staleWideningProductProviderSupport.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only-widening-product";
+  if (!expectWideningProductProviderFailure(
+          staleWideningProductProviderSupport,
+          "low-precision widening-product registry rejects metadata-only "
+          "provider support",
+          {"provider-supported mirror",
+           "metadata-only-widening-product"}))
+    return false;
+
+  RVVRouteDescription staleWideningProductSourceSEW =
+      wideningProductDescription;
+  staleWideningProductSourceSEW.sourceSEW = 16;
+  if (!expectWideningProductProviderFailure(
+          staleWideningProductSourceSEW,
+          "low-precision widening-product registry rejects stale i8 source "
+          "SEW",
+          {"source SEW", "8", "16"}))
+    return false;
+
+  RVVRouteDescription staleWideningProductLHSCType =
+      wideningProductDescription;
+  staleWideningProductLHSCType.runtimeABIParameters[0].cType =
+      "const int16_t *";
+  if (!expectWideningProductProviderFailure(
+          staleWideningProductLHSCType,
+          "low-precision widening-product registry rejects stale lhs ABI C "
+          "type",
+          {"runtime ABI parameter 0", "lhs", "const int8_t *"}))
+    return false;
+
+  RVVRouteDescription staleWideningProductRelation =
+      wideningProductDescription;
+  staleWideningProductRelation.wideningProductRelation =
+      "metadata-derived-widening-product-relation";
+  if (!expectWideningProductProviderFailure(
+          staleWideningProductRelation,
+          "low-precision widening-product registry rejects stale product "
+          "relation",
+          {"widening product relation",
+           "signed-i8mf4xi8mf4-to-i16mf2",
+           "metadata-derived-widening-product-relation"}))
+    return false;
+
+  RVVRouteDescription staleWideningProductIntrinsic =
+      wideningProductDescription;
+  staleWideningProductIntrinsic.wideningProductIntrinsic =
+      "metadata_derived_widening_product";
+  if (!expectWideningProductProviderFailure(
+          staleWideningProductIntrinsic,
+          "low-precision widening-product registry rejects stale product "
+          "intrinsic",
+          {"widening product intrinsic", "__riscv_vwmul_vv_i16mf2",
+           "metadata_derived_widening_product"}))
+    return false;
+
+  if (!expectWideningProductRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              wideningProductRoute, /*loopIndex=*/0, /*stepIndex=*/3,
+              /*operandIndex=*/0, "rhs_vec"),
+          "low-precision widening-product registry rejects stale product "
+          "operand",
+          {"widening product operand[0]", "lhs_vec", "rhs_vec"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningProductSourceSEWMirror =
+      wideningProductFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleWideningProductSourceSEWMirror,
+                                    "tcrv_rvv.source_sew", "16")) {
+    llvm::errs() << "test fixture did not contain widening-product source "
+                    "SEW metadata\n";
+    return false;
+  }
+  if (!expectWideningProductCandidateFailure(
+          staleWideningProductSourceSEWMirror,
+          "low-precision widening-product registry rejects stale source SEW "
+          "mirror",
+          {"tcrv_rvv.source_sew", "8", "16"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningProductRelationMirror =
+      wideningProductFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleWideningProductRelationMirror,
+          "tcrv_rvv.widening_product_relation",
+          "metadata-derived-widening-product-relation")) {
+    llvm::errs() << "test fixture did not contain widening-product relation "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectWideningProductCandidateFailure(
+          staleWideningProductRelationMirror,
+          "low-precision widening-product registry rejects stale product "
+          "relation mirror",
+          {"tcrv_rvv.widening_product_relation",
+           "signed-i8mf4xi8mf4-to-i16mf2",
+           "metadata-derived-widening-product-relation"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningProductMaskedIntrinsicMirror =
+      wideningProductFixture.candidate;
+  staleWideningProductMaskedIntrinsicMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.masked_widening_product_intrinsic",
+          "metadata_derived_masked_widening_product"));
+  if (!expectWideningProductCandidateFailure(
+          staleWideningProductMaskedIntrinsicMirror,
+          "low-precision widening-product registry rejects stale masked "
+          "product mirror",
+          {"must not carry", "tcrv_rvv.masked_widening_product_intrinsic",
+           "selected typed RVV non-widening-product route-family mirror"}))
     return false;
 
   RVVTargetArtifactCandidateFixture wideningMAccFixture(

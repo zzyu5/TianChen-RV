@@ -59,6 +59,65 @@ Extracted a provider-owned runtime-scalar splat-store route validation contract,
 - None - task complete
 
 
+## Session 451: Stage2 RVV low-precision widening-product route foundation
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV low-precision widening-product route foundation
+**Branch**: `main`
+
+### Summary
+
+Implemented the bounded production route-supported low-precision RVV widening
+product foundation: typed signed i8mf4 source loads plus i8 x i8 widening
+product to i16mf2, with RVV plugin-owned route facts, direct contraction
+provider planning, construction protocol support, common EmitC statement
+materialization, and target artifact fail-closed validation. This is not a
+q8/q4 benchmark route and does not claim runtime correctness or performance.
+
+### Main Changes
+
+- Added `tcrv_rvv.widening_product` and verifier rules for
+  `signed_widening_product`, source `!tcrv_rvv.vector<i8, "mf4">`, result
+  `!tcrv_rvv.vector<i16, "mf2">`, selected SEW16/LMUL mf2 config, and matching
+  VL.
+- Added RVV config/runtime ABI contracts for SEW8 source facts, SEW16/MF2
+  result facts, and `lhs,rhs,out,n` ABI with `const int8_t *` inputs and
+  `int16_t *` output.
+- Added product-aware RVV construction route mapping, route-control provider
+  plan, math operand-binding facts, contraction family plan/facts, statement
+  plan, and materialization metadata.
+- Added target validation for `low-precision-widening-product`, including
+  fail-closed stale provider fact, route payload, and candidate mirror checks.
+- Added focused dialect and target/plugin/common tests for positive route
+  support and negative mismatches.
+
+### Git Commits
+
+Final source/task/journal commit is created after this journal entry.
+
+### Testing
+
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk build/bin/tianchenrv-construction-protocol-common-test`
+- [OK] `rtk bash -lc 'build/bin/tcrv-opt test/Dialect/RVV/generic-widening-product-dataflow.mlir --split-input-file --verify-diagnostics | /usr/lib/llvm-20/bin/FileCheck test/Dialect/RVV/generic-widening-product-dataflow.mlir'`
+- [OK] `rtk bash -lc 'cd build/test && /usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter generic-widening-product-dataflow'`
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-04-stage2-rvv-low-precision-widening-product-route`
+- [OK] `rtk git diff --check`
+- [OK] bounded old-authority/name-authority scan over current diff found only
+  the PRD non-goal `q8/q4 names` wording and no new positive authority.
+
+### Status
+
+[OK] Completed as route-supported and target-validated. Archive and commit
+follow this journal entry.
+
+### Next Steps
+
+- Continue later with i16-to-i32 widening reduction, dequantization, or full
+  low-precision contraction closure when a separate task asks for it.
+
+
 ## Session 447: Stage2 RVV compare/select executable artifact closure on ssh rvv
 
 **Date**: 2026-06-04

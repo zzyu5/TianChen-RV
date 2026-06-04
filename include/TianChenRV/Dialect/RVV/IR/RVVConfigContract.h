@@ -53,11 +53,15 @@ struct RVVConfigContractDiagnostic {
 };
 
 std::int64_t getRVVFirstSliceSEWBits();
+std::int64_t getRVVSEW8Bits();
 std::int64_t getRVVSEW16Bits();
 std::int64_t getRVVSEW64Bits();
+llvm::StringRef getRVVLMULMF4();
 llvm::StringRef getRVVLMULMF2();
 llvm::StringRef getRVVLMULM1();
 llvm::StringRef getRVVLMULM2();
+const RVVSelectedBodyConfigVLContract &
+getRVVSelectedBodyI16MF2ConfigVLContract();
 const RVVSelectedBodyConfigVLContract &
 getRVVSelectedBodyM1ConfigVLContract();
 const RVVSelectedBodyConfigVLContract &
@@ -124,6 +128,8 @@ llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 3>
 getRVVSelectedBodyWideningConversionRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 3>
 getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+getRVVSelectedBodyWideningProductRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
 getRVVSelectedBodyMAccRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 7>

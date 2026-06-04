@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global authority chain and stage ordering for final review."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider ownership, typed-body authority, and Stage 2 boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC neutrality and provider/target mirror validation."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check required focused positive/negative tests and evidence claims."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review capability/config/dtype authority placement."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin-locality and absence of core extension branches."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review low-level RVV execution scope and no high-level compute drift."}

@@ -1646,6 +1646,8 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "widen_i16_to_i32";
     const bool isWideningMAccRoute =
         route.operationMnemonic == "widening_macc_add";
+    const bool isWideningProductRoute =
+        route.operationMnemonic == "widening_product";
     const bool isWideningDotReduceRoute =
         route.operationMnemonic == "widening_dot_reduce_add";
     const bool isStandaloneReduceRoute =
@@ -1703,6 +1705,8 @@ int runRVVCommonValidationTest() {
       executableComputeOp = "tcrv_rvv.masked_macc";
     else if (isWideningMAccRoute)
       executableComputeOp = "tcrv_rvv.widening_macc";
+    else if (isWideningProductRoute)
+      executableComputeOp = "tcrv_rvv.widening_product";
     else if (isWideningDotReduceRoute || isStridedInputWideningDotReduceRoute)
       executableComputeOp = "tcrv_rvv.widening_dot_reduce";
     else if (isComputedMaskWideningDotReduceRoute ||

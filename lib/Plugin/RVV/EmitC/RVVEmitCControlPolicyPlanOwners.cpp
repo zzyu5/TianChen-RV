@@ -328,6 +328,7 @@ static bool isRVVSelectedBodyContractionRouteControlConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   switch (description.operation) {
   case RVVSelectedBodyOperationKind::WideningMAccAdd:
+  case RVVSelectedBodyOperationKind::WideningProduct:
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -1199,6 +1200,8 @@ static llvm::Error buildContractionRouteControlProviderPlan(
       *materializationFacts.contractionPlan;
   const bool isWideningMAcc =
       description.operation == RVVSelectedBodyOperationKind::WideningMAccAdd;
+  const bool isWideningProduct =
+      description.operation == RVVSelectedBodyOperationKind::WideningProduct;
   const bool isDotReduction =
       isRVVSelectedBodyContractionDotReduction(description.operation);
   const bool isComputedMask =
@@ -1208,6 +1211,7 @@ static llvm::Error buildContractionRouteControlProviderPlan(
   if (contractionPlan.operation != description.operation ||
       contractionPlan.memoryForm != description.memoryForm ||
       contractionPlan.usesWideningMAcc != isWideningMAcc ||
+      contractionPlan.usesWideningProduct != isWideningProduct ||
       contractionPlan.usesDotReduction != isDotReduction ||
       contractionPlan.usesComputedMask != isComputedMask ||
       contractionPlan.usesStridedInputs != isStridedInput ||
@@ -1233,6 +1237,26 @@ static llvm::Error buildContractionRouteControlProviderPlan(
           "accumulator, result, relation, and compute facts from the "
           "verified route-family plan before provider route construction "
           "for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  } else if (isWideningProduct) {
+    if (!contractionPlan.accumulatorLayout.empty() ||
+        !contractionPlan.resultLayout.empty() ||
+        contractionPlan.relation != description.wideningProductRelation ||
+        contractionPlan.wideningProductRelation !=
+            description.wideningProductRelation ||
+        !contractionPlan.contractionComputeIntrinsic.empty() ||
+        contractionPlan.wideningProductIntrinsic !=
+            description.wideningProductIntrinsic ||
+        description.intrinsic != description.wideningProductIntrinsic ||
+        !contractionPlan.maskedWideningProductIntrinsic.empty() ||
+        !contractionPlan.scalarSeedSplatIntrinsic.empty() ||
+        !contractionPlan.reductionStoreVL.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires low-precision "
+          "widening-product relation and compute facts from the verified "
+          "route-family plan before provider route construction for "
+          "operation '" +
           stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
   } else if (contractionPlan.accumulatorLayout !=
                  description.wideningDotProductAccumulatorLayout ||
@@ -1313,6 +1337,20 @@ static llvm::Error buildContractionRouteControlProviderPlan(
           "source/destination memory facts from the verified route-family plan "
           "and no strided-input layout or stride-source facts before provider "
           "route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  } else if (isWideningProduct) {
+    if (!description.stridedMemoryLayout.empty() ||
+        !description.lhsStrideSource.empty() ||
+        !description.rhsStrideSource.empty() ||
+        contractionPlan.sourceMemoryForm != description.sourceMemoryForm ||
+        contractionPlan.destinationMemoryForm !=
+            description.destinationMemoryForm)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires low-precision "
+          "widening-product source/destination memory facts from the verified "
+          "route-family plan and no strided-input layout or stride-source "
+          "facts before provider route construction for operation '" +
           stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
   } else if (!description.stridedMemoryLayout.empty() ||
              !description.lhsStrideSource.empty() ||

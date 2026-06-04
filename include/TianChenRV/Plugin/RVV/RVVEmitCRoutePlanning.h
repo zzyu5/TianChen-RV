@@ -74,6 +74,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::MAccOp maccOp;
   tcrv::rvv::MaskedMAccOp maskedMAccOp;
   tcrv::rvv::WideningMAccOp wideningMAccOp;
+  tcrv::rvv::WideningProductOp wideningProductOp;
   tcrv::rvv::WideningDotReduceOp wideningDotReduceOp;
   tcrv::rvv::MaskedWideningDotReduceOp maskedWideningDotReduceOp;
   tcrv::rvv::WideningConvertOp wideningConvertOp;
@@ -102,7 +103,7 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value conversionSource;
   mlir::Value dotLHSValue;
   mlir::Value dotRHSValue;
-  RVVSelectedBodyOperationKind arithmeticKind;
+  RVVSelectedBodyOperationKind arithmeticKind = RVVSelectedBodyOperationKind::Add;
   RVVSelectedBodyMemoryForm memoryForm =
       RVVSelectedBodyMemoryForm::VectorRHSLoad;
   tcrv::rvv::StoreOp genericStore;
@@ -257,6 +258,7 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
   bool usesWideningMAcc = false;
+  bool usesWideningProduct = false;
   bool usesDotReduction = false;
   bool usesComputedMask = false;
   bool usesStridedInputs = false;
@@ -296,6 +298,7 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   llvm::StringRef accumulatorLayout;
   llvm::StringRef resultLayout;
   llvm::StringRef relation;
+  llvm::StringRef wideningProductRelation;
   llvm::StringRef wideningMAccArithmeticKind;
   llvm::StringRef contractionComputeIntrinsic;
   llvm::StringRef compareIntrinsic;
@@ -966,6 +969,7 @@ struct RVVSelectedBodyRouteMaterializationFacts {
       *standaloneReductionPlan = nullptr;
 
   bool emitsContractionDotReduction = false;
+  bool emitsContractionWideningProduct = false;
   bool emitsContractionWideningMAcc = false;
   bool emitsComputedMaskContraction = false;
   bool emitsStridedInputContraction = false;
@@ -1124,6 +1128,7 @@ struct RVVSelectedBodyMathRouteOperandBindingFacts {
   bool bindsComputedMaskStandaloneReduction = false;
   bool bindsRuntimeScalarComputedMaskStandaloneReduction = false;
   bool bindsWideningMAcc = false;
+  bool bindsWideningProduct = false;
   bool bindsWideningConversion = false;
   bool bindsWideningDotReduction = false;
   bool bindsStridedInputWideningDotReduction = false;
@@ -1417,6 +1422,7 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
 
   bool plansDirectContractionRoute = false;
   bool plansWideningMAcc = false;
+  bool plansWideningProduct = false;
   bool plansDotReduction = false;
   bool plansComputedMask = false;
   bool plansStridedInput = false;
@@ -1454,6 +1460,7 @@ struct RVVSelectedBodyDirectContractionRouteStatementPlan {
 
   bool plansDirectContractionRoute = false;
   bool plansWideningMAcc = false;
+  bool plansWideningProduct = false;
   bool plansDotReduction = false;
   bool plansComputedMask = false;
   bool plansStridedInput = false;
