@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage2 typed RVV realization boundary, and ssh rvv evidence requirement."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV compare/select selected-body realization and provider-owned route construction contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Compare/select route validation contract, runtime AVL/VL selected-boundary contract, and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle evidence, compare/select correctness oracle, and runtime ssh rvv evidence rules."}

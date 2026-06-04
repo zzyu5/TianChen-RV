@@ -59,6 +59,54 @@ Extracted a provider-owned runtime-scalar splat-store route validation contract,
 - None - task complete
 
 
+## Session 447: Stage2 RVV compare/select executable artifact closure on ssh rvv
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV compare/select executable artifact closure on ssh rvv
+**Branch**: `main`
+
+### Summary
+
+Closed the representative compare/select executable evidence gap with a real
+`ssh rvv` run for the pre-realized selected-body `cmp_select_sle` path. The
+existing production route/emission/harness path generated a target object,
+header, and external C ABI harness, then compiled and ran on the RVV target
+with predicate true/false lane correctness across runtime counts
+`0,1,7,16,23,257`.
+
+### Main Changes
+
+- Created the Trellis task and PRD for the bounded executable-evidence round.
+- Recorded `cmp_select_sle` as the chosen representative compare/select
+  submodule.
+- No provider, target validation, plugin, common EmitC, generated C/C++, ABI,
+  or harness-generation code changed; live evidence showed the existing path
+  already executed correctly.
+
+### Evidence
+
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --artifact-root artifacts/tmp/stage2-rvv-compare-select-executable-ssh-rvv --run-id cmp-select-sle-ssh-rvv --overwrite --op-kind cmp_select_sle --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj --ssh-target rvv`
+- [OK] Remote compile: `remote_arch=riscv64`, `clang_path=/usr/bin/clang`,
+  `clang_version=Ubuntu clang version 18.1.3 (1ubuntu1)`.
+- [OK] Remote run pass marker:
+  `tcrv_rvv_generated_bundle_abi_cmp_select_sle_ok counts=0,1,7,16,23,257`
+  and `PASS op=cmp_select_sle counts=0,1,7,16,23,257`.
+- [OK] Predicate lane coverage includes both true and false lanes for
+  `n=7`, `n=16`, `n=23`, and `n=257`.
+- [OK] Focused lit from `build/test`:
+  `pre-realized-cmp-select-dry-run` passed 1 / excluded 476.
+- [OK] `rtk git diff --check`
+- [OK] Trellis task context validation.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Finish/archive the task and commit the Trellis task record.
+
+
 ## Session 444: Stage2 RVV memory-family runtime AVL/VL mirror closure
 
 **Date**: 2026-06-04

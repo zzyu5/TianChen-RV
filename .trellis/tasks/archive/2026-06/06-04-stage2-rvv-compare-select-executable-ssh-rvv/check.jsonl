@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the final result preserves the RVV authority chain and Stage2 boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check compare/select realization/provider ownership stays RVV plugin-local."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check executable artifact evidence follows provider-built route and embedded runtime AVL/VL contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check ssh rvv correctness evidence and dry-run/runtime evidence claims are properly separated."}
