@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check whether promoted computed-mask strided runtime AVL/VL contract rules and tests are recorded."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Verify computed-mask strided validation contract embeds RVVRuntimeAVLVLSelectedBoundaryContract."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Verify provider builder derives runtimeAVLVLContract from provider-owned config/runtime ABI facts."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Verify target consumer validates embedded runtimeAVLVLContract before route-local payload, ABI, statements, and mirrors."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Verify focused positive and negative coverage for computed-mask strided runtime AVL/VL contract facts."}

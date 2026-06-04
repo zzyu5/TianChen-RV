@@ -59,6 +59,57 @@ Extracted a provider-owned runtime-scalar splat-store route validation contract,
 - None - task complete
 
 
+## Session 440: Stage2 RVV computed-mask strided runtime AVL/VL contract
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV computed-mask strided memory runtime AVL/VL contract migration
+**Branch**: `main`
+
+### Summary
+
+Promoted computed-mask strided memory target validation to consume the embedded
+RVV runtime AVL/VL selected-boundary contract; aligned manual strided fixtures
+with canonical selected-boundary loop facts; added focused fail-closed target
+coverage, dry-run evidence, and EmitC route spec notes.
+
+### Main Changes
+
+- Embedded `runtimeAVLVLContract` in
+  `RVVComputedMaskStridedMemoryRouteValidationContract`.
+- Populated the contract from provider-owned SEW/LMUL/policy/config/runtime
+  ABI facts and made target validation consume it before route-local checks.
+- Added positive and negative target coverage for stale runtime AVL source,
+  runtime VL contract, selected `with_vl` scope, setvl, loop VL/induction,
+  runtime n ABI role, and pointer advancement metadata.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending` | rvv: consume runtime AVL VL contract for computed strided memory |
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tianchenrv-target-artifact-export-test -j 16`
+- [OK] `rtk ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk cmake --build build --target tianchenrv-rvv-extension-plugin-test -j 16`
+- [OK] `rtk ./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused computed-mask strided lit filter: 5 passed, 472 excluded
+- [OK] Direct pre-realized generated-bundle dry-runs for
+  `computed_masked_strided_store` and
+  `computed_masked_strided_load_unit_store`
+- [OK] `rtk git diff --check`
+- [OK] Added-line old-authority scan returned no matches
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Archive task and commit this session.
+
+
 ## Session 427: Stage2 RVV compare/select target consume-only closeout
 
 **Date**: 2026-06-04

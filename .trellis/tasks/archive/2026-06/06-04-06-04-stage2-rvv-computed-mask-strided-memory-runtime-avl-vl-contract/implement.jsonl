@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority and compiler stack constraints for this migration."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected typed body authority, and runtime evidence boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Runtime AVL/VL selected-boundary contract and route validation consumer order."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-runtime-avl-vl-selected-boundary-contract/prd.md", "reason": "Original runtime AVL/VL selected-boundary contract promotion pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-computed-mask-indexed-memory-runtime-avl-vl-contract/prd.md", "reason": "Immediate predecessor using the same runtime AVL/VL migration pattern for computed-mask indexed memory."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-06-04-stage2-rvv-computed-mask-strided-memory-provider-contract/prd.md", "reason": "Prior provider validation contract extraction for computed-mask strided memory."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h", "reason": "Provider-facing runtime AVL/VL selected-boundary contract API."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Computed-mask strided memory route validation contract to embed runtimeAVLVLContract."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Provider builder that must populate the embedded runtime AVL/VL contract."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target artifact consumer that must validate the embedded runtime contract before route-local acceptance."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused target coverage for positive embedded contract population and stale runtime fact rejection."}

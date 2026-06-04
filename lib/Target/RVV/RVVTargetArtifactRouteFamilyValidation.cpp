@@ -6904,6 +6904,9 @@ llvm::Error validateRVVComputedMaskStridedMemoryDescriptionAgainstContract(
         " requires provider-owned config contract '" +
         contract.configContractID + "' but description carried '" +
         description.configContractID + "'");
+  if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
+          description, contract.runtimeAVLVLContract))
+    return error;
   if (llvm::Error error =
           require("runtime AVL/VL control plan",
                   description.runtimeControlPlanID,
@@ -8380,7 +8383,9 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
             validateRVVComputedMaskStridedMemoryRouteStatementPlanShape(
                 route, *contract))
       return error;
-    return validateRVVCompareSelectMaskRouteStatementPlan(route, description);
+    return validateRVVCompareSelectMaskRouteStatementPlan(
+        route, description, contract->expectedPreLoopStepCount,
+        contract->expectedLoopBodyStepCount, &contract->runtimeAVLVLContract);
   }
 
   if (route.getRouteID() != description.emitCRouteID)

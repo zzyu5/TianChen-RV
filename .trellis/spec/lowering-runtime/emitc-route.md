@@ -383,6 +383,15 @@ code.
   role/order, remaining AVL, and pointer advancement before accepting
   computed-mask producer facts, index load/scale facts, indexed gather/scatter
   statement-plan facts, header/type facts, ABI mappings, or mirrors.
+- Good: computed-mask strided memory route facts build
+  `RVVComputedMaskStridedMemoryRouteValidationContract` with an embedded
+  `RVVRuntimeAVLVLSelectedBoundaryContract`; target validation checks runtime
+  AVL source `runtime_abi:n`, runtime VL contract, selected `with_vl` scope,
+  setvl callee/type, full-chunk VL, loop VL, loop induction, runtime `n` ABI
+  role/order, remaining AVL, and pointer advancement before accepting
+  computed-mask producer facts, strided load/store facts, byte-stride source
+  and unit facts, statement-plan facts, header/type facts, ABI mappings, or
+  mirrors.
 - Base: a route family not yet promoted may keep its existing runtime checks
   until a bounded task embeds the shared runtime AVL/VL contract.
 - Bad: target validation accepts a route because generated statements happen
@@ -412,6 +421,13 @@ code.
   source, runtime VL contract, selected `with_vl` scope, setvl callee, loop VL
   or loop induction, and runtime `n` ABI role before indexed memory-form or
   mirror checks can accept the artifact.
+- Promoted computed-mask strided memory consumers must have positive target
+  coverage proving the embedded runtime contract is populated for both strided
+  store and strided-load/unit-store variants, and negative target coverage for
+  stale runtime AVL source, runtime VL contract, selected `with_vl` scope,
+  setvl callee, loop VL or loop induction, runtime `n` ABI role, and pointer
+  advancement metadata before strided memory-form, byte-stride, statement-plan,
+  or mirror checks can accept the artifact.
 - Focused lit/generated-bundle dry-run tests for the promoted route family
   must remain green.
 - Real `ssh rvv` is required only when emitted C/C++, runtime ABI order,
