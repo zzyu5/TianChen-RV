@@ -587,6 +587,9 @@ constexpr llvm::StringLiteral kRVVStandaloneReductionMinOperandBindingPlanID(
 constexpr llvm::StringLiteral kRVVStandaloneReductionMaxOperandBindingPlanID(
     "rvv-route-operand-binding:standalone_reduce_max.v1");
 constexpr llvm::StringLiteral
+    kRVVWideningStandaloneReductionOperandBindingPlanID(
+        "rvv-route-operand-binding:widening_standalone_reduce_add.v1");
+constexpr llvm::StringLiteral
     kRVVComputedMaskStandaloneReductionOperandBindingPlanID(
         "rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1");
 constexpr llvm::StringLiteral
@@ -634,6 +637,8 @@ getRVVStandaloneReductionRouteOperandBindingPlanID(
     return kRVVStandaloneReductionMinOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::StandaloneReduceMax:
     return kRVVStandaloneReductionMaxOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd:
+    return kRVVWideningStandaloneReductionOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
     return kRVVComputedMaskStandaloneReductionOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
@@ -670,6 +675,7 @@ bool isRVVPlainStandaloneReductionRouteFactsOperation(
   case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
   case RVVSelectedBodyOperationKind::StandaloneReduceMin:
   case RVVSelectedBodyOperationKind::StandaloneReduceMax:
+  case RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd:
     return true;
   default:
     return false;
@@ -712,7 +718,11 @@ getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation,
       getRVVStandaloneReductionRouteOperandBindingPlanID(operation);
   if (!planID)
     return std::nullopt;
-  if (sew != 0 && sew != 32 && sew != 64)
+  const bool isWideningStandalone =
+      operation == RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
+  if (isWideningStandalone && sew != 0 && sew != 32)
+    return std::nullopt;
+  if (!isWideningStandalone && sew != 0 && sew != 32 && sew != 64)
     return std::nullopt;
 
   const bool isPlain =
@@ -761,7 +771,10 @@ getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation,
       : isVectorComputedMask ? llvm::StringRef("cmp_lhs,cmp_rhs,src,acc,out,n")
                              : llvm::StringRef("lhs,acc,out,n");
   facts.targetLeafProfile =
-      isRuntimeScalarComputedMask
+      isWideningStandalone
+          ? llvm::StringRef(
+                "rvv-v1-typed-i16-to-i32-widening-standalone-reduction-leaf-profile.v1")
+      : isRuntimeScalarComputedMask
           ? llvm::StringRef(
                 "rvv-v1-typed-runtime-scalar-cmp-masked-standalone-reduction-leaf-profile.v1")
       : isVectorComputedMask
@@ -769,7 +782,10 @@ getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation,
                 "rvv-v1-typed-computed-mask-standalone-reduction-leaf-profile.v1")
           : llvm::StringRef("rvv-v1-typed-standalone-reduction-leaf-profile.v1");
   facts.providerSupportedMirror =
-      isRuntimeScalarComputedMask
+      isWideningStandalone
+          ? llvm::StringRef(
+                "provider_supported_mirror:rvv-i16-to-i32-widening-standalone-reduction-plan-validated")
+      : isRuntimeScalarComputedMask
           ? llvm::StringRef(
                 "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-standalone-reduction-plan-validated")
       : isVectorComputedMask
@@ -779,7 +795,10 @@ getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation,
                 "provider_supported_mirror:rvv-standalone-reduction-plan-validated");
   facts.requiredHeaderDeclarations = "stddef.h,stdint.h,riscv_vector.h";
   facts.cTypeMappingSummary =
-      isRuntimeScalarComputedMask
+      isWideningStandalone
+          ? llvm::StringRef(
+                "vl:size_t,input:signed-e16mf2,seed:signed-i32,result:signed-e32m1")
+      : isRuntimeScalarComputedMask
           ? llvm::StringRef(
                 "vl:size_t,cmp_lhs/source:typed-source-vector,rhs_scalar:typed-scalar,mask:typed-mask,seed:typed-scalar,result:typed-scalar-reduction-vector")
       : isVectorComputedMask
@@ -842,13 +861,22 @@ getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation,
   facts.scalarResultRuntimeBoundary =
       "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1";
   if (isPlain) {
-    facts.routeOperandBindingSummary =
-        (llvm::Twine(*planID) +
-         ";lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;"
-         "acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;"
-         "out=output-buffer:out:abi|acc-state|store|hdr;"
-         "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
-            .str();
+    if (isWideningStandalone)
+      facts.routeOperandBindingSummary =
+          (llvm::Twine(*planID) +
+           ";lhs=lhs-input-buffer:lhs:abi|load|reduce-input|src-i16mf2|hdr;"
+           "acc=accumulator-input-buffer:acc:abi|seed|acc-state|acc-i32|hdr;"
+           "out=output-buffer:out:abi|acc-state|store|res-i32m1|hdr;"
+           "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
+              .str();
+    else
+      facts.routeOperandBindingSummary =
+          (llvm::Twine(*planID) +
+           ";lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;"
+           "acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;"
+           "out=output-buffer:out:abi|acc-state|store|hdr;"
+           "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
+              .str();
   } else if (isVectorComputedMask) {
     facts.routeOperandBindingSummary =
         (llvm::Twine(*planID) +
@@ -878,8 +906,12 @@ getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation,
   if (sew != 0) {
     const llvm::StringRef scalarCType = sew == 64 ? llvm::StringRef("int64_t")
                                                   : llvm::StringRef("int32_t");
+    const llvm::StringRef sourceScalarCType =
+        isWideningStandalone ? llvm::StringRef("int16_t") : scalarCType;
     const std::string constScalarPointer =
         (llvm::Twine("const ") + scalarCType + " *").str();
+    const std::string constSourcePointer =
+        (llvm::Twine("const ") + sourceScalarCType + " *").str();
     const std::string mutableScalarPointer =
         (llvm::Twine(scalarCType) + " *").str();
     using support::RuntimeABIParameter;
@@ -892,7 +924,8 @@ getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation,
           RuntimeABIParameterOwnership::TargetExportABIOwned));
     };
     if (isPlain) {
-      addParameter("lhs", constScalarPointer, RuntimeABIParameterRole::LHSInputBuffer);
+      addParameter("lhs", constSourcePointer,
+                   RuntimeABIParameterRole::LHSInputBuffer);
     } else {
       addParameter("cmp_lhs", constScalarPointer,
                    RuntimeABIParameterRole::LHSInputBuffer);
@@ -1087,7 +1120,8 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
   }
   if (planID == kRVVStandaloneReductionOperandBindingPlanID ||
       planID == kRVVStandaloneReductionMinOperandBindingPlanID ||
-      planID == kRVVStandaloneReductionMaxOperandBindingPlanID) {
+      planID == kRVVStandaloneReductionMaxOperandBindingPlanID ||
+      planID == kRVVWideningStandaloneReductionOperandBindingPlanID) {
     if (logicalOperand == "lhs")
       return RuntimeABIParameterRole::LHSInputBuffer;
     if (logicalOperand == "acc")
@@ -3460,6 +3494,7 @@ constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::StandaloneReduceAdd,
     RVVSelectedBodyOperationKind::StandaloneReduceMin,
     RVVSelectedBodyOperationKind::StandaloneReduceMax,
+    RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd,
     RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd,
     RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin,
     RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax,
@@ -3627,6 +3662,16 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
   static const RVVSelectedBodyOperationProfile kStandaloneReduceMax = {
       RVVSelectedBodyOperationKind::StandaloneReduceMax,
       "standalone_reduce_max", "standalone_reduced_max_vec", "",
+      /*isCompareSelect=*/false, /*isReduction=*/true,
+      /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
+      /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
+      /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+      /*isSegmentedMemoryMovement=*/false,
+      /*isWideningConversion=*/false};
+  static const RVVSelectedBodyOperationProfile kWideningStandaloneReduceAdd = {
+      RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd,
+      "widening_standalone_reduce_add",
+      "widening_standalone_reduced_vec", "",
       /*isCompareSelect=*/false, /*isReduction=*/true,
       /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
       /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
@@ -4089,6 +4134,8 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
     return kStandaloneReduceMin;
   case RVVSelectedBodyOperationKind::StandaloneReduceMax:
     return kStandaloneReduceMax;
+  case RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd:
+    return kWideningStandaloneReduceAdd;
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
     return kComputedMaskStandaloneReduceAdd;
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
@@ -4343,6 +4390,7 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
   case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
   case RVVSelectedBodyOperationKind::StandaloneReduceMin:
   case RVVSelectedBodyOperationKind::StandaloneReduceMax:
+  case RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd:
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
@@ -4474,6 +4522,12 @@ getRVVSelectedBodyReductionIntrinsic(
 llvm::StringRef getRVVSelectedBodyStandaloneReductionIntrinsic(
     RVVSelectedBodyOperationKind operation, std::int64_t sew,
     llvm::StringRef lmul) {
+  if (operation == RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd) {
+    if (sew != tcrv::rvv::getRVVFirstSliceSEWBits() ||
+        lmul != tcrv::rvv::getRVVLMULM1())
+      return {};
+    return "__riscv_vwredsum_vs_i32m1_i16mf2_i32m1";
+  }
   llvm::StringRef mnemonic;
   switch (operation) {
   case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
@@ -4503,6 +4557,9 @@ llvm::StringRef getRVVSelectedBodyStandaloneReductionIntrinsic(
   if (operation ==
       RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStandaloneReduceAdd)
     return getRVVSelectedBodyReductionIntrinsic(config);
+  if (operation == RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd)
+    return getRVVSelectedBodyStandaloneReductionIntrinsic(
+        operation, config.sew, config.lmul);
   if (operation == RVVSelectedBodyOperationKind::
                        RuntimeScalarComputedMaskStandaloneReduceMin ||
       operation == RVVSelectedBodyOperationKind::
@@ -4600,7 +4657,8 @@ bool isRVVSelectedBodyPlainStandaloneReductionRouteOperation(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::StandaloneReduceAdd ||
          op == RVVSelectedBodyOperationKind::StandaloneReduceMin ||
-         op == RVVSelectedBodyOperationKind::StandaloneReduceMax;
+         op == RVVSelectedBodyOperationKind::StandaloneReduceMax ||
+         op == RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
 }
 
 bool isRVVSelectedBodyComputedMaskStandaloneReductionRouteOperation(
@@ -8589,8 +8647,14 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionScalarResultRuntimeABI(
       plan.runtimeControlPlan.sew == tcrv::rvv::getRVVSEW64Bits()
           ? "int64_t"
           : "int32_t";
+  llvm::StringRef expectedSourceScalarCType =
+      plan.operation == RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd
+          ? llvm::StringRef("int16_t")
+          : expectedScalarCType;
   std::string expectedConstPointer =
       (llvm::Twine("const ") + expectedScalarCType + " *").str();
+  std::string expectedSourceConstPointer =
+      (llvm::Twine("const ") + expectedSourceScalarCType + " *").str();
   std::string expectedMutablePointer =
       (llvm::Twine(expectedScalarCType) + " *").str();
 
@@ -8630,7 +8694,7 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionScalarResultRuntimeABI(
   } else {
     if (llvm::Error error =
             requireRVVSelectedBodyStandaloneReductionRuntimeABIParameter(
-                plan, 0, "source input", "lhs", expectedConstPointer,
+                plan, 0, "source input", "lhs", expectedSourceConstPointer,
                 support::RuntimeABIParameterRole::LHSInputBuffer,
                 support::RuntimeABIParameterOwnership::TargetExportABIOwned))
       return error;
@@ -8675,6 +8739,8 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   const bool isRuntimeScalarComputedMask =
       isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRouteOperation(
           plan.operation);
+  const bool isWideningStandalone =
+      plan.operation == RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
   std::optional<RVVStandaloneReductionRouteFacts> routeFacts =
       getRVVStandaloneReductionRouteFacts(plan.operation,
                                           plan.runtimeControlPlan.sew);
@@ -8706,6 +8772,18 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   llvm::StringRef expectedReductionIntrinsic =
       getRVVSelectedBodyStandaloneReductionIntrinsic(
           plan.operation, *expectedConfig);
+  llvm::StringRef expectedSourceVectorType = expectedConfig->vectorTypeName;
+  llvm::StringRef expectedSourceVectorCType = expectedConfig->vectorCType;
+  llvm::StringRef expectedVectorLoadIntrinsic =
+      expectedConfig->vectorLoadIntrinsic;
+  if (isWideningStandalone) {
+    expectedSourceVectorType = getRVVSelectedBodyVectorTypeName(
+        tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2());
+    expectedSourceVectorCType = getRVVSelectedBodySignedVectorCType(
+        tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2());
+    expectedVectorLoadIntrinsic = getRVVSelectedBodyVectorLoadIntrinsic(
+        tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2());
+  }
   llvm::StringRef expectedCompareIntrinsic =
       isComputedMask ? getRVVSelectedBodyCompareIntrinsic("sle",
                                                           *expectedConfig)
@@ -8783,11 +8861,11 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "source vector type", plan.sourceVectorTypeName,
-          expectedConfig->vectorTypeName))
+          expectedSourceVectorType))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "source vector C type", plan.sourceVectorCType,
-          expectedConfig->vectorCType))
+          expectedSourceVectorCType))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "scalar C type", plan.scalarCType,
@@ -8826,7 +8904,7 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "vector-load leaf", plan.vectorLoadIntrinsic,
-          expectedConfig->vectorLoadIntrinsic))
+          expectedVectorLoadIntrinsic))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyStandaloneReductionPlanField(
           plan, "source splat leaf", plan.sourceSplatIntrinsic,
@@ -8951,6 +9029,9 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   const bool isRuntimeScalarComputedMask =
       isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRouteOperation(
           analysis.slice.arithmeticKind);
+  const bool isWideningStandalone =
+      analysis.slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
   std::optional<RVVStandaloneReductionRouteFacts> routeFacts =
       getRVVStandaloneReductionRouteFacts(analysis.slice.arithmeticKind,
                                           configProfile.sew);
@@ -8976,7 +9057,15 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
     return makeRVVEmitCRouteProviderError(
         "standalone reduction route-family plan requires explicit typed input "
         "load(s), reduction compute, and scalar-output store body structure");
-  if (isRuntimeScalarComputedMask) {
+  if (isWideningStandalone) {
+    if (!isRVVSelectedBodyStandaloneReductionScalarChannelConfig(
+            configProfile.sew, configProfile.lmul) ||
+        configProfile.lmul != tcrv::rvv::getRVVLMULM1())
+      return makeRVVEmitCRouteProviderError(
+          "standalone reduction route-family plan requires widening "
+          "standalone reduction result config to be SEW32 LMUL m1 with an "
+          "explicit i32 scalar accumulator/result channel");
+  } else if (isRuntimeScalarComputedMask) {
     if (!isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionConfig(
             configProfile.sew, configProfile.lmul))
       return makeRVVEmitCRouteProviderError(
@@ -8994,19 +9083,43 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   mlir::Value reductionResult =
       isComputedMask ? analysis.slice.maskedStandaloneReduceOp.getResult()
                      : analysis.slice.standaloneReduceOp.getResult();
+  mlir::Value reductionInput =
+      isComputedMask ? analysis.slice.maskedStandaloneReduceOp.getInput()
+                     : analysis.slice.standaloneReduceOp.getInput();
   auto resultVector =
       llvm::dyn_cast<tcrv::rvv::VectorType>(reductionResult.getType());
   auto resultElementType =
       resultVector ? llvm::dyn_cast<mlir::IntegerType>(
                          resultVector.getElementType())
                    : mlir::IntegerType();
+  auto inputVector =
+      llvm::dyn_cast<tcrv::rvv::VectorType>(reductionInput.getType());
+  auto inputElementType =
+      inputVector ? llvm::dyn_cast<mlir::IntegerType>(
+                        inputVector.getElementType())
+                  : mlir::IntegerType();
   if (!resultVector || !resultElementType ||
       resultElementType.getWidth() != configProfile.sew ||
       resultVector.getLmul() != tcrv::rvv::getRVVLMULM1())
     return makeRVVEmitCRouteProviderError(
         "standalone reduction route-family plan requires the typed body to "
-        "carry a scalar accumulator/result channel with the same SEW as the "
-        "source vector and LMUL m1 result layout");
+        "carry a scalar accumulator/result channel with the selected result "
+        "SEW and LMUL m1 result layout");
+  if (isWideningStandalone) {
+    if (!inputVector || !inputElementType ||
+        inputElementType.getWidth() != tcrv::rvv::getRVVSEW16Bits() ||
+        inputVector.getLmul() != tcrv::rvv::getRVVLMULMF2())
+      return makeRVVEmitCRouteProviderError(
+          "standalone reduction route-family plan requires widening "
+          "standalone reduction source input to be !tcrv_rvv.vector<i16, "
+          "\"mf2\">");
+  } else if (!inputVector || !inputElementType ||
+             inputElementType.getWidth() != configProfile.sew ||
+             inputVector.getLmul() != configProfile.lmul) {
+    return makeRVVEmitCRouteProviderError(
+        "standalone reduction route-family plan requires non-widening source "
+        "input vector to mirror the selected source/work SEW and LMUL");
+  }
   if (analysis.slice.lhsABI.role !=
           support::RuntimeABIParameterRole::LHSInputBuffer ||
       (isRuntimeScalarComputedMask
@@ -9056,8 +9169,16 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   plan.vlCType = configProfile.vlCType;
   plan.vectorTypeName = configProfile.vectorTypeName;
   plan.vectorCType = configProfile.vectorCType;
-  plan.sourceVectorTypeName = configProfile.vectorTypeName;
-  plan.sourceVectorCType = configProfile.vectorCType;
+  plan.sourceVectorTypeName =
+      isWideningStandalone
+          ? getRVVSelectedBodyVectorTypeName(tcrv::rvv::getRVVSEW16Bits(),
+                                             tcrv::rvv::getRVVLMULMF2())
+          : configProfile.vectorTypeName;
+  plan.sourceVectorCType =
+      isWideningStandalone
+          ? getRVVSelectedBodySignedVectorCType(
+                tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2())
+          : configProfile.vectorCType;
   plan.scalarCType = configProfile.scalarCType;
   plan.scalarResultVectorTypeName =
       getRVVStandaloneReductionScalarResultVectorTypeName(configProfile.sew,
@@ -9066,7 +9187,11 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
       getRVVStandaloneReductionScalarResultVectorCType(configProfile.sew,
                                                        configProfile.lmul);
   plan.setVLIntrinsic = configProfile.setVLIntrinsic;
-  plan.vectorLoadIntrinsic = configProfile.vectorLoadIntrinsic;
+  plan.vectorLoadIntrinsic =
+      isWideningStandalone
+          ? getRVVSelectedBodyVectorLoadIntrinsic(
+                tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2())
+          : configProfile.vectorLoadIntrinsic;
   plan.sourceSplatIntrinsic = configProfile.rhsBroadcastIntrinsic;
   plan.rhsScalarSplatIntrinsic =
       isRuntimeScalarComputedMask ? targetLeaves.rhsBroadcastIntrinsic : "";
@@ -9925,11 +10050,21 @@ llvm::Error verifyRVVSelectedBodyTypedConfigFactsMirror(
             requireMatch("setvl intrinsic", facts.setVLIntrinsic,
                          description.setVLIntrinsic))
       return error;
-  if (!description.vectorLoadIntrinsic.empty())
-    if (llvm::Error error =
-            requireMatch("vector-load intrinsic", facts.vectorLoadIntrinsic,
-                         description.vectorLoadIntrinsic))
+  if (!description.vectorLoadIntrinsic.empty()) {
+    const bool vectorLoadIsSourceConfig =
+        description.operation ==
+        RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
+    if (vectorLoadIsSourceConfig) {
+      if (llvm::Error error =
+              requireText("vector-load intrinsic", facts.vectorLoadIntrinsic))
+        return error;
+    } else if (llvm::Error error =
+                   requireMatch("vector-load intrinsic",
+                                facts.vectorLoadIntrinsic,
+                                description.vectorLoadIntrinsic)) {
       return error;
+    }
+  }
   if (!description.rhsBroadcastIntrinsic.empty())
     if (llvm::Error error =
             requireMatch("scalar-splat intrinsic", facts.scalarSplatIntrinsic,
@@ -10741,9 +10876,22 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
               "standalone reduction predicate mask", config))
         return error;
     } else {
-      if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
-              slice.lhsValue, "standalone reduction input vector", config))
+      if (slice.arithmeticKind ==
+          RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd) {
+        tcrv::rvv::RVVCompileTimeConfig sourceConfig;
+        sourceConfig.sew = tcrv::rvv::getRVVSEW16Bits();
+        sourceConfig.lmul = tcrv::rvv::getRVVLMULMF2();
+        sourceConfig.policy = config.policy;
+        if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+                slice.lhsValue,
+                "widening standalone reduction source vector", sourceConfig))
+          return error;
+      } else if (llvm::Error error =
+                     validateRVVSelectedBodyVectorTypeAgainstConfig(
+                         slice.lhsValue,
+                         "standalone reduction input vector", config)) {
         return error;
+      }
     }
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.arithmeticResult,
@@ -13053,15 +13201,27 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
         (stringifyRVVSelectedBodyOperationKind(slice.arithmeticKind) + " route")
             .str();
     context = dynamicContext;
-    addRouteOperandBinding(
-        plan, "lhs", slice.lhsABI,
-        {"abi", "load", "reduce-input", "hdr"});
-    addRouteOperandBinding(
-        plan, "acc", slice.accumulatorABI,
-        {"abi", "seed", "acc-state", "hdr"});
-    addRouteOperandBinding(
-        plan, "out", slice.outABI,
-        {"abi", "acc-state", "store", "hdr"});
+    const bool isWideningStandalone =
+        slice.arithmeticKind ==
+        RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
+    llvm::SmallVector<llvm::StringRef, 5> lhsUses = {"abi", "load",
+                                                     "reduce-input"};
+    if (isWideningStandalone)
+      lhsUses.push_back("src-i16mf2");
+    lhsUses.push_back("hdr");
+    addRouteOperandBinding(plan, "lhs", slice.lhsABI, lhsUses);
+    llvm::SmallVector<llvm::StringRef, 5> accUses = {"abi", "seed",
+                                                     "acc-state"};
+    if (isWideningStandalone)
+      accUses.push_back("acc-i32");
+    accUses.push_back("hdr");
+    addRouteOperandBinding(plan, "acc", slice.accumulatorABI, accUses);
+    llvm::SmallVector<llvm::StringRef, 5> outUses = {"abi", "acc-state",
+                                                     "store"};
+    if (isWideningStandalone)
+      outUses.push_back("res-i32m1");
+    outUses.push_back("hdr");
+    addRouteOperandBinding(plan, "out", slice.outABI, outUses);
     addRouteOperandBinding(
         plan, "n", slice.runtimeElementCountABI,
         {"abi", "setvl-avl", "loop", "hdr"});
@@ -13354,6 +13514,8 @@ parseRVVSelectedBodyStandaloneReductionKind(llvm::StringRef kind) {
     return RVVSelectedBodyOperationKind::StandaloneReduceMin;
   if (kind == "max")
     return RVVSelectedBodyOperationKind::StandaloneReduceMax;
+  if (kind == "signed_widening_reduce_add")
+    return RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
   return makeRVVEmitCRouteProviderError(
       llvm::Twine("unsupported generic tcrv_rvv.standalone_reduce kind '") +
       kind + "' for bounded RVV standalone reduction route");
@@ -24143,6 +24305,7 @@ bool isRVVSelectedBodyPlainStandaloneReductionRouteFamilyConsumer(
   case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
   case RVVSelectedBodyOperationKind::StandaloneReduceMin:
   case RVVSelectedBodyOperationKind::StandaloneReduceMax:
+  case RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd:
     return true;
   default:
     return false;
@@ -24862,7 +25025,10 @@ getRVVSelectedBodyRouteMaterializationFacts(
   if (llvm::Error error = requireTypedEmissionMatch(
           "VL C type", facts.vlCType, typedConfigFacts.vlCType))
     return std::move(error);
-  if (facts.standaloneReductionPlan) {
+  const bool wideningStandaloneReductionConsumer =
+      description.operation ==
+      RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
+  if (facts.standaloneReductionPlan && !wideningStandaloneReductionConsumer) {
     if (llvm::Error error = requireTypedEmissionMatch(
             "source vector type", facts.sourceVectorTypeName,
             typedConfigFacts.vectorTypeName))
@@ -25960,6 +26126,8 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
   const bool isRuntimeScalarComputedMaskStandalone =
       isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRouteOperation(
           operation);
+  const bool isWideningStandalone =
+      operation == RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
   const bool isComputedMaskFamily =
       isComputedMaskStandalone || isRuntimeScalarComputedMaskStandalone;
   const RVVSelectedBodyStandaloneReductionRouteFamilyPlan &plan =
@@ -26023,10 +26191,11 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
       typedFacts.configContractID !=
           plan.runtimeControlPlan.configContractID ||
       typedFacts.vlCType != plan.vlCType ||
-      typedFacts.vectorTypeName != plan.sourceVectorTypeName ||
-      typedFacts.vectorCType != plan.sourceVectorCType ||
+      typedFacts.vectorTypeName != plan.vectorTypeName ||
+      typedFacts.vectorCType != plan.vectorCType ||
       typedFacts.setVLIntrinsic != plan.setVLIntrinsic ||
-      typedFacts.vectorLoadIntrinsic != plan.vectorLoadIntrinsic ||
+      (!isWideningStandalone &&
+       typedFacts.vectorLoadIntrinsic != plan.vectorLoadIntrinsic) ||
       (isComputedMaskFamily &&
        (typedFacts.maskTypeName != materializationFacts.maskTypeName ||
         typedFacts.maskCType != materializationFacts.maskCType)))
@@ -26223,7 +26392,9 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
       statementPlan.plansRuntimeScalarComputedMaskStandaloneReductionRoute !=
           isRuntimeScalarComputedMaskStandalone ||
       statementPlan.plansStandaloneReduceAdd !=
-          (operation == RVVSelectedBodyOperationKind::StandaloneReduceAdd) ||
+          (operation == RVVSelectedBodyOperationKind::StandaloneReduceAdd ||
+           operation ==
+               RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd) ||
       statementPlan.plansComputedMaskStandaloneReduceAdd !=
           (operation ==
            RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd) ||
@@ -30045,6 +30216,7 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
   case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
   case RVVSelectedBodyOperationKind::StandaloneReduceMin:
   case RVVSelectedBodyOperationKind::StandaloneReduceMax:
+  case RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd:
     if (llvm::Error error = requireFamilyPlan(
             analysis.standaloneReductionRouteFamilyPlan.has_value(),
             "standalone reduction"))
@@ -30058,6 +30230,13 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
             requireOperandUse("lhs", "reduce-input",
                               "standalone reduction input compute operand"))
       return std::move(error);
+    if (description.operation ==
+        RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd)
+      if (llvm::Error error =
+              requireOperandUse("lhs", "src-i16mf2",
+                                "widening standalone reduction i16 source "
+                                "width mirror"))
+        return std::move(error);
     if (llvm::Error error =
             requireOperandUse("lhs", "hdr",
                               "standalone reduction input header mirror"))
@@ -30071,6 +30250,13 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
             requireOperandUse("acc", "acc-state",
                               "standalone reduction accumulator state"))
       return std::move(error);
+    if (description.operation ==
+        RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd)
+      if (llvm::Error error =
+              requireOperandUse("acc", "acc-i32",
+                                "widening standalone reduction i32 "
+                                "accumulator mirror"))
+        return std::move(error);
     if (llvm::Error error =
             requireOperandUse("acc", "hdr",
                               "standalone reduction accumulator header mirror"))
@@ -30084,6 +30270,13 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
             requireOperandUse("out", "store",
                               "standalone reduction output store operand"))
       return std::move(error);
+    if (description.operation ==
+        RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd)
+      if (llvm::Error error =
+              requireOperandUse("out", "res-i32m1",
+                                "widening standalone reduction i32 result "
+                                "mirror"))
+        return std::move(error);
     if (llvm::Error error =
             requireOperandUse("out", "hdr",
                               "standalone reduction output header mirror"))
@@ -33515,9 +33708,15 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           context, "setvl intrinsic", description.setVLIntrinsic,
           configProfile.setVLIntrinsic))
     return error;
+  llvm::StringRef expectedDescriptionVectorLoadIntrinsic =
+      operationProfile.operation ==
+              RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd
+          ? getRVVSelectedBodyVectorLoadIntrinsic(
+                tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2())
+          : configProfile.vectorLoadIntrinsic;
   if (llvm::Error error = requireRouteDescriptionField(
           context, "vector-load intrinsic", description.vectorLoadIntrinsic,
-          configProfile.vectorLoadIntrinsic))
+          expectedDescriptionVectorLoadIntrinsic))
     return error;
   if (operationProfile.isIndexedMemoryMovement) {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -34070,6 +34269,17 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
                                                          description.lmul);
     llvm::StringRef expectedScalarCType =
         getRVVSelectedBodySignedScalarCType(description.sew);
+    llvm::StringRef expectedStandaloneSourceVectorType =
+        description.vectorTypeName;
+    llvm::StringRef expectedStandaloneSourceVectorCType =
+        description.vectorCType;
+    if (operationProfile.operation ==
+        RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd) {
+      expectedStandaloneSourceVectorType = getRVVSelectedBodyVectorTypeName(
+          tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2());
+      expectedStandaloneSourceVectorCType = getRVVSelectedBodySignedVectorCType(
+          tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2());
+    }
     if (expectedAccumulatorLayout.empty())
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
@@ -34084,12 +34294,12 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "standalone reduction source vector type",
             description.standaloneReductionSourceVectorTypeName,
-            description.vectorTypeName))
+            expectedStandaloneSourceVectorType))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "standalone reduction source vector C type",
             description.standaloneReductionSourceVectorCType,
-            description.vectorCType))
+            expectedStandaloneSourceVectorCType))
       return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "standalone reduction scalar C type",

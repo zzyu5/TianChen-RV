@@ -197,11 +197,21 @@ static llvm::Error verifyRVVSelectedBodyTypedConfigFactsMirror(
             requireMatch("setvl intrinsic", facts.setVLIntrinsic,
                          description.setVLIntrinsic))
       return error;
-  if (!description.vectorLoadIntrinsic.empty())
-    if (llvm::Error error =
-            requireMatch("vector-load intrinsic", facts.vectorLoadIntrinsic,
-                         description.vectorLoadIntrinsic))
+  if (!description.vectorLoadIntrinsic.empty()) {
+    const bool vectorLoadIsSourceConfig =
+        description.operation ==
+        RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
+    if (vectorLoadIsSourceConfig) {
+      if (llvm::Error error =
+              requireText("vector-load intrinsic", facts.vectorLoadIntrinsic))
+        return error;
+    } else if (llvm::Error error =
+                   requireMatch("vector-load intrinsic",
+                                facts.vectorLoadIntrinsic,
+                                description.vectorLoadIntrinsic)) {
       return error;
+    }
+  }
   return llvm::Error::success();
 }
 

@@ -1,0 +1,29 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain and RVV stage ordering."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body, plugin-owned route, Stage 2 coverage, and realization boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, runtime AVL/VL contract, and target mirror validation contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/runtime evidence policy for corrected typed RVV routes."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-low-precision-widening-product-route/prd.md", "reason": "Previous low-precision widening-product scope and explicit continuation boundary."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Typed RVV operation surface for widening reduction if an op update is required."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVConfigContract.h", "reason": "RVV config/runtime contract declarations for selected SEW/LMUL/runtime facts."}
+{"file": "lib/Dialect/RVV/IR/RVVConfigContract.cpp", "reason": "RVV config/runtime contract implementations for selected SEW/LMUL/runtime facts."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Route analysis/materialization facts and description surfaces."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Provider API surface for route construction."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h", "reason": "Contraction/reduction route-family fact owner declarations."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Provider-owned low-precision and reduction fact surfaces."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Provider route analysis, plan validation, and route description construction."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "TCRVEmitCLowerableRoute construction for RVV route families."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "Statement plan facts and validation for generated route payloads."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target fail-closed route-family validation and mirror checks."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Target artifact support bundle route-family wiring if needed."}
+{"file": "test/Dialect/RVV/generic-widening-product-dataflow.mlir", "reason": "Prior low-precision widening-product lit structure reference."}
+{"file": "test/Dialect/RVV/standalone-reduction-dataflow.mlir", "reason": "Existing standalone reduction typed-body lit reference."}
+{"file": "test/Dialect/RVV/generic-widening-product-dataflow.mlir", "reason": "Existing low-precision widening-product typed-body lit reference."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-standalone-reduce-add.mlir", "reason": "Existing explicit selected-body standalone reduction target fixture."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-widening-dot-reduce-add.mlir", "reason": "Existing widening dot-reduction target fixture reference."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Implemented typed verifier support for signed_widening_reduce_add: i16/mf2 source load, i32/m1 accumulator/result, and SEW32/LMUL m1 policy gate."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Implemented provider-derived widening standalone reduction route facts, operand bindings, source/result type split, vwredsum intrinsic, runtime ABI, materialization facts, and fail-closed validation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCControlPolicyPlanOwners.cpp", "reason": "Aligned control-policy typed-config mirror for widening standalone reduction so i16 source-load facts remain separate from i32 result config facts."}
+{"file": "lib/Plugin/RVV/Construction/RVVConstructionProtocol.cpp", "reason": "Registered generic widening_standalone_reduce_add construction specialization and widening runtime ABI parameters."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Extended target route-family validation to accept the provider-owned widening standalone reduction route family and stale metadata checks."}
+{"file": "test/Dialect/RVV/generic-widening-standalone-reduction-dataflow.mlir", "reason": "Added focused positive and negative dialect coverage for typed i16-to-i32 widening standalone reduction."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-widening-standalone-reduce-add.mlir", "reason": "Added positive plan/header and stale provider/binding/type metadata negative target artifact coverage for the route-supported slice."}

@@ -1465,7 +1465,8 @@ bool isSupportedGenericReduceResultLayout(llvm::StringRef layout) {
 }
 
 bool isSupportedGenericStandaloneReduceKind(llvm::StringRef kind) {
-  return kind == "add" || kind == "min" || kind == "max";
+  return kind == "add" || kind == "min" || kind == "max" ||
+         kind == "signed_widening_reduce_add";
 }
 
 bool isSupportedGenericMaskedStandaloneReduceKind(llvm::StringRef kind) {
@@ -2546,6 +2547,34 @@ bool isBoundedWideningDotReduceSourceLoad(LoadOp load, WithVLOp withVL) {
     return false;
   }
   return hasWideningDotReduceUse;
+}
+
+bool isBoundedWideningStandaloneReduceSourceLoad(LoadOp load,
+                                                 WithVLOp withVL) {
+  if (!load || !withVL)
+    return false;
+  auto sew = withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  auto lmul = withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  auto policy = withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName);
+  if (!sew || !lmul || !policy || !isRVVAgnosticPolicy(policy))
+    return false;
+  if (!isRVVSelectedBodyM1Config(sew.getInt(), lmul.getValue()))
+    return false;
+  if (!isGenericRVVVectorI16MF2(load.getLoaded().getType()))
+    return false;
+
+  bool hasWideningStandaloneReduceUse = false;
+  for (mlir::Operation *user : load.getLoaded().getUsers()) {
+    auto reduce = llvm::dyn_cast<StandaloneReduceOp>(user);
+    if (!reduce || reduce->getParentOp() != withVL.getOperation() ||
+        reduce.getVl() != load.getVl() ||
+        reduce.getInput() != load.getLoaded())
+      return false;
+    if (reduce.getKind() != "signed_widening_reduce_add")
+      return false;
+    hasWideningStandaloneReduceUse = true;
+  }
+  return hasWideningStandaloneReduceUse;
 }
 
 bool isBoundedWideningProductSourceLoad(LoadOp load, WithVLOp withVL) {
@@ -7684,6 +7713,7 @@ mlir::LogicalResult LoadOp::verify() {
     if (isBoundedWideningConversionSourceLoad(*this, withVL) ||
         isBoundedWideningMAccSourceLoad(*this, withVL) ||
         isBoundedWideningDotReduceSourceLoad(*this, withVL) ||
+        isBoundedWideningStandaloneReduceSourceLoad(*this, withVL) ||
         isBoundedWideningProductSourceLoad(*this, withVL))
       return mlir::success();
   return verifyGenericVectorTypeForWithVL(op, getLoaded(), "result");
@@ -8977,8 +9007,9 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
 
   if (!isSupportedGenericStandaloneReduceKind(getKind()))
     return emitOpError()
-           << "currently supports only kind \"add\", \"min\", or \"max\" for "
-              "the bounded Stage 2 standalone reduction route";
+           << "currently supports only kind \"add\", \"min\", \"max\", or "
+              "\"signed_widening_reduce_add\" for the bounded Stage 2 "
+              "standalone reduction route";
   if (!isSupportedGenericStandaloneReduceAccumulatorLayout(
           getAccumulatorLayout()))
     return emitOpError()
@@ -9019,8 +9050,20 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
-  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getInput(), "input")))
+  const bool isWideningReduce = getKind() == "signed_widening_reduce_add";
+  if (isWideningReduce) {
+    if (!isGenericRVVVectorI16MF2(getInput().getType()))
+      return emitOpError()
+             << "requires widening standalone reduction source vector to "
+                "have type !tcrv_rvv.vector<i16, \"mf2\">";
+    if (!isGenericRVVVectorI32M1(getResult().getType()))
+      return emitOpError()
+             << "requires widening standalone reduction result vector to "
+                "have type !tcrv_rvv.vector<i32, \"m1\">";
+  } else if (mlir::failed(
+                 verifyGenericVectorTypeForWithVL(op, getInput(), "input"))) {
     return mlir::failure();
+  }
 
   auto expectedSEW =
       (*withVL)->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
@@ -9031,13 +9074,20 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
            << "requires enclosing tcrv_rvv.with_vl to carry explicit source "
               "SEW/LMUL metadata for standalone reduction";
   std::int64_t sew = static_cast<std::int64_t>(expectedSEW.getInt());
-  if (!isSupportedTypedStandaloneReductionPreRealizedConfig(
-          sew, expectedLMUL.getValue()))
+  if (isWideningReduce) {
+    if (!isRVVSelectedBodyM1Config(sew, expectedLMUL.getValue()))
+      return emitOpError()
+             << "requires enclosing tcrv_rvv.with_vl accumulator/result "
+                "config to be SEW32 LMUL m1 for the bounded i16-to-i32 "
+                "widening standalone reduction route";
+  } else if (!isSupportedTypedStandaloneReductionPreRealizedConfig(
+                 sew, expectedLMUL.getValue())) {
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl source/work config to be "
               "SEW32 LMUL m1 or SEW32 LMUL m2 for the bounded standalone "
               "reduction route with a separate LMUL m1 scalar reduction "
               "accumulator/result channel";
+  }
   if (!(*withVL)->getAttrOfType<PolicyAttr>(kPolicyAttrName))
     return emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "

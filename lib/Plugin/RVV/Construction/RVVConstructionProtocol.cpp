@@ -97,7 +97,8 @@ constexpr llvm::StringLiteral kSourceRoles(
 bool isStandaloneReduceOperationMnemonic(llvm::StringRef mnemonic) {
   return mnemonic == "standalone_reduce_add" ||
          mnemonic == "standalone_reduce_min" ||
-         mnemonic == "standalone_reduce_max";
+         mnemonic == "standalone_reduce_max" ||
+         mnemonic == "widening_standalone_reduce_add";
 }
 
 bool isComputedMaskStandaloneReduceOperationMnemonic(llvm::StringRef mnemonic) {
@@ -427,6 +428,12 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-standalone-reduce-max-emitc-route",
      "rvv-generic-standalone-reduce-max-callable-c-abi.v1",
      "rvv-generic-standalone-reduce-max-callable-c-abi"},
+    {"widening_standalone_reduce_add",
+     "tcrv_rvv.standalone_reduce",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-widening-standalone-reduce-add-emitc-route",
+     "rvv-generic-widening-standalone-reduce-add-callable-c-abi.v1",
+     "rvv-generic-widening-standalone-reduce-add-callable-c-abi"},
     {"computed_mask_standalone_reduce_add",
      "tcrv_rvv.masked_standalone_reduce",
      "rvv.role.compute.generic_vector",
@@ -818,7 +825,7 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 55)
+          .size() != 56)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
         "cmp_select, computed_mask_select, runtime_scalar_cmp_select, "
@@ -827,6 +834,7 @@ llvm::Error verifySelectedBodyRoutes() {
         "runtime_scalar_cmp_masked_load_store, "
         "reduce_add, "
         "standalone_reduce_add, standalone_reduce_min, standalone_reduce_max, "
+        "widening_standalone_reduce_add, "
         "computed_mask_standalone_reduce_add, "
         "computed_mask_standalone_reduce_min, "
         "computed_mask_standalone_reduce_max, "
@@ -3749,6 +3757,13 @@ llvm::Error verifyRVVConstructionProtocolReady() {
           tcrv::rvv::getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
       routeRuntimeABIParameters.append(scalarParameters.begin(),
                                        scalarParameters.end());
+    } else if (route.operationMnemonic ==
+               "widening_standalone_reduce_add") {
+      llvm::SmallVector<support::RuntimeABIParameter, 4> reductionParameters =
+          tcrv::rvv::
+              getRVVSelectedBodyWideningStandaloneReductionRuntimeABIParameters();
+      routeRuntimeABIParameters.append(reductionParameters.begin(),
+                                       reductionParameters.end());
     } else if (isStandaloneReduceOperationMnemonic(route.operationMnemonic)) {
       llvm::SmallVector<support::RuntimeABIParameter, 4> reductionParameters =
           tcrv::rvv::getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
@@ -4392,6 +4407,12 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         tcrv::rvv::getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
     expectedParameters.append(scalarParameters.begin(),
                               scalarParameters.end());
+  } else if (route->operationMnemonic == "widening_standalone_reduce_add") {
+    llvm::SmallVector<support::RuntimeABIParameter, 4> reductionParameters =
+        tcrv::rvv::
+            getRVVSelectedBodyWideningStandaloneReductionRuntimeABIParameters();
+    expectedParameters.append(reductionParameters.begin(),
+                              reductionParameters.end());
   } else if (isStandaloneReduceOperationMnemonic(route->operationMnemonic)) {
     llvm::SmallVector<support::RuntimeABIParameter, 4> reductionParameters =
         tcrv::rvv::getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();

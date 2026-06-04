@@ -373,6 +373,7 @@ bool isRVVStandaloneReductionAccumulationRouteFamilyOperation(
   case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceAdd:
   case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMin:
   case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMax:
+  case plugin::rvv::RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd:
   case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
   case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
   case plugin::rvv::RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
@@ -439,6 +440,7 @@ bool isRVVPlainStandaloneReductionRouteFamilyOperation(
   case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceAdd:
   case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMin:
   case plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMax:
+  case plugin::rvv::RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd:
     return true;
   default:
     return false;

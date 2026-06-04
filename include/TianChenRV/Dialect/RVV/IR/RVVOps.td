@@ -2729,13 +2729,16 @@ def StandaloneReduceOp : TCRVRVV_Op<"standalone_reduce",
     explicit reduction kind plus accumulator/result layout facts, and produces
     one typed !tcrv_rvv.vector token whose lane 0 is the scalar output boundary.
 
-    For the current bounded Stage 2 slice, kind is limited to signed add/min/max,
-    representing acc_seed + sum(input), min(acc_seed, input), or
-    max(acc_seed, input) over runtime n. Input dtype/config, accumulator seed
-    boundary, scalar output layout, VL, policy, and runtime n facts are
-    structural in the selected RVV body. Route ids, helper names, ABI strings,
-    artifact names, status fields, exact intrinsic spellings, and common
-    EmitC/export code must not infer or choose standalone reduction semantics.
+    For the current bounded Stage 2 slice, kind is limited to signed
+    add/min/max plus signed_widening_reduce_add. The non-widening forms
+    represent acc_seed + sum(input), min(acc_seed, input), or
+    max(acc_seed, input) over runtime n. The widening form represents a typed
+    i16 source vector reduced into an i32 scalar accumulator/result boundary.
+    Input dtype/config, accumulator seed boundary, scalar output layout, VL,
+    policy, and runtime n facts are structural in the selected RVV body. Route
+    ids, helper names, ABI strings, artifact names, status fields, exact
+    intrinsic spellings, and common EmitC/export code must not infer or choose
+    standalone reduction semantics.
   }];
 
   let arguments = (ins

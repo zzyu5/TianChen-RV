@@ -101,7 +101,8 @@ namespace {
 bool isStandaloneReduceOperationMnemonic(llvm::StringRef mnemonic) {
   return mnemonic == "standalone_reduce_add" ||
          mnemonic == "standalone_reduce_min" ||
-         mnemonic == "standalone_reduce_max";
+         mnemonic == "standalone_reduce_max" ||
+         mnemonic == "widening_standalone_reduce_add";
 }
 
 bool isComputedMaskStandaloneReduceOperationMnemonic(llvm::StringRef mnemonic) {
@@ -2051,6 +2052,13 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
+               "widening_standalone_reduce_add") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyWideningStandaloneReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (isStandaloneReduceOperationMnemonic(route.operationMnemonic)) {

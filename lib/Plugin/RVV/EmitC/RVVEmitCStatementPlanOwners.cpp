@@ -216,6 +216,7 @@ bool isRVVSelectedBodyStandaloneReductionStatementPlanConsumer(
   case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
   case RVVSelectedBodyOperationKind::StandaloneReduceMin:
   case RVVSelectedBodyOperationKind::StandaloneReduceMax:
+  case RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd:
     return description.memoryForm ==
            RVVSelectedBodyMemoryForm::UnitStrideStandaloneReduction;
   case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:

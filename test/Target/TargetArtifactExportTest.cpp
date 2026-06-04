@@ -494,6 +494,11 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     return "tcrv_rvv.select";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ReduceAdd:
     return "tcrv_rvv.reduce";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceAdd:
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMin:
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMax:
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd:
+    return "tcrv_rvv.standalone_reduce";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedAdd:
     return "tcrv_rvv.masked_binary";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedSub:
@@ -584,6 +589,14 @@ llvm::StringRef getRVVTestBinaryKind(
     return "runtime_scalar_cmp_select";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::ReduceAdd:
     return "reduce_add";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceAdd:
+    return "standalone_reduce_add";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMin:
+    return "standalone_reduce_min";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::StandaloneReduceMax:
+    return "standalone_reduce_max";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd:
+    return "widening_standalone_reduce_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedAdd:
     return "masked_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::MaskedSub:
@@ -699,6 +712,9 @@ std::string getRVVTestVariantSymbol(
   if (op ==
       tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningProduct)
     return "rvv_low_precision_widening_product";
+  if (op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
+                WideningStandaloneReduceAdd)
+    return "rvv_low_precision_widening_standalone_reduce_add";
   return (llvm::Twine("rvv_i32_") +
           tianchenrv::plugin::rvv::stringifyRVVSelectedBodyOperationKind(op))
       .str();
@@ -708,6 +724,7 @@ bool isRVVTestStandaloneReductionOperation(
     tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind op) {
   using OperationKind = tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   return op == OperationKind::StandaloneReduceAdd ||
+         op == OperationKind::WideningStandaloneReduceAdd ||
          op == OperationKind::StandaloneReduceMin ||
          op == OperationKind::StandaloneReduceMax;
 }
@@ -718,6 +735,8 @@ llvm::StringRef getRVVTestStandaloneReductionKind(
   switch (op) {
   case OperationKind::StandaloneReduceAdd:
     return "add";
+  case OperationKind::WideningStandaloneReduceAdd:
+    return "signed_widening_reduce_add";
   case OperationKind::StandaloneReduceMin:
     return "min";
   case OperationKind::StandaloneReduceMax:
@@ -853,11 +872,19 @@ module {
     return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
   }
   if (isRVVTestStandaloneReductionOperation(op)) {
+    const bool isWideningStandalone =
+        op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
+                  WideningStandaloneReduceAdd;
     std::string vectorType =
-        (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
+        isWideningStandalone
+            ? "!tcrv_rvv.vector<i16, \"mf2\">"
+        : (lmul == tianchenrv::tcrv::rvv::getRVVLMULM2())
             ? "!tcrv_rvv.vector<i32, \"m2\">"
             : "!tcrv_rvv.vector<i32, \"m1\">";
     std::string scalarResultVectorType = "!tcrv_rvv.vector<i32, \"m1\">";
+    llvm::StringRef sourceCType =
+        isWideningStandalone ? llvm::StringRef("const int16_t *")
+                             : llvm::StringRef("const int32_t *");
     llvm::StringRef reduceKind = getRVVTestStandaloneReductionKind(op);
     os << R"mlir(
 module {
@@ -865,7 +892,9 @@ module {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     tcrv.exec.variant @)mlir"
        << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
-      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-standalone-reduction:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = ")mlir"
+       << sourceCType
+       << R"mlir(", ownership = "target-export-abi-owned", purpose = "target-artifact-test-standalone-reduction:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-standalone-reduction:seed", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-standalone-reduction:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-standalone-reduction:n", role = "runtime-element-count"} : index

@@ -19,7 +19,8 @@ bool isRVVSelectedBodyPlainStandaloneReductionRouteOperation(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::StandaloneReduceAdd ||
          op == RVVSelectedBodyOperationKind::StandaloneReduceMin ||
-         op == RVVSelectedBodyOperationKind::StandaloneReduceMax;
+         op == RVVSelectedBodyOperationKind::StandaloneReduceMax ||
+         op == RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
 }
 
 bool isRVVSelectedBodyComputedMaskStandaloneReductionRouteOperation(
@@ -882,7 +883,9 @@ getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
   plan.plansRuntimeScalarComputedMaskStandaloneReductionRoute =
       isRuntimeScalarComputedMaskStandalone;
   plan.plansStandaloneReduceAdd =
-      description.operation == RVVSelectedBodyOperationKind::StandaloneReduceAdd;
+      description.operation == RVVSelectedBodyOperationKind::StandaloneReduceAdd ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
   plan.plansComputedMaskStandaloneReduceAdd =
       description.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd;
