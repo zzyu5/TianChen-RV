@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final work preserves RVV-first typed-body route authority and Stage2 boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV runtime/correctness evidence claims and plugin-local ownership."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route contracts, mirror-only metadata, and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check dry-run, py_compile/self-test, focused lit/C++ checks, and ssh rvv evidence sufficiency."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Verify dequant evidence script behavior and self-tests."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-dequantize-i32-to-f32.mlir", "reason": "Verify artifact fixture remains aligned with generated dequant bundle evidence."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/dequant-e2e-dry/evidence.json", "reason": "Dry-run generated-bundle closure evidence for the dequant route."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/dequant-e2e-ssh/evidence.json", "reason": "ssh rvv compile/run correctness evidence for generated dequant object/header bundle and external ABI harness."}

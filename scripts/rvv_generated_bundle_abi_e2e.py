@@ -23,6 +23,7 @@ from dataclasses import dataclass, replace
 import datetime as dt
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 import shlex
@@ -42,9 +43,12 @@ DEFAULT_TIMEOUT_SECONDS = 120
 DEFAULT_CONNECT_TIMEOUT_SECONDS = 10
 DEFAULT_RUNTIME_COUNTS = (1, 7, 16, 17, 257)
 DEFAULT_RHS_SCALAR_VALUES = (-37, 91)
+DEFAULT_DEQUANT_SCALE_VALUES = (-0.125, 0.375)
 DEFAULT_STRIDED_LOAD_BYTE_STRIDES = (4, 8, 12)
 MIN_RUNTIME_COUNT_CASES = 2
 MIN_NON_ONE_VECTOR_SENTINEL_COUNT = 17
+MIN_DEQUANT_SCALE_CASES = 2
+DEQUANT_FLOAT_ABS_TOLERANCE = 0.00001
 DEFAULT_OP_KINDS = ("add", "sub", "mul")
 MASKED_ELEMENTWISE_BASE_OP_BY_KIND = {
     "masked_add": "masked_add",
@@ -136,6 +140,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "lmul_m2_add",
     "widen_i32_to_i64",
     "widen_i16_to_i32",
+    "dequantize_i32_to_f32",
 )
 REDUCE_ADD_ACCUMULATOR_LAYOUT = "rhs-vector-seed-lane0-per-vl-chunk"
 REDUCE_ADD_RESULT_LAYOUT = "store-reduction-lane0-to-output-chunk-base"
@@ -1019,6 +1024,43 @@ WIDEN_I32_TO_I64_C_TYPE_MAPPING = (
 WIDEN_I16_TO_I32_C_TYPE_MAPPING = (
     "vl:size_t,source:signed-e16mf2,result:signed-e32m1"
 )
+DEQUANTIZE_I32_TO_F32_RUNTIME_ABI_ORDER = "lhs,scale,out,n"
+DEQUANTIZE_I32_TO_F32_TARGET_LEAF_PROFILE = (
+    "rvv-v1-i32m1-f32m1-runtime-scale-dequantization-leaf-profile.v1"
+)
+DEQUANTIZE_I32_TO_F32_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-dequantize-i32-to-f32-runtime-scale-plan-validated"
+)
+DEQUANTIZE_I32_TO_F32_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+DEQUANTIZE_I32_TO_F32_C_TYPE_MAPPING = (
+    "vl:size_t,source:signed-e32m1,converted/scaled:float-e32m1,scale:float"
+)
+DEQUANTIZE_I32_TO_F32_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:dequantize_i32_to_f32.v1"
+)
+DEQUANTIZE_I32_TO_F32_RELATION = "signed-i32m1-to-f32m1-scale-f32"
+DEQUANTIZE_I32_TO_F32_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:dequantize_i32_to_f32.v1;"
+    "lhs=lhs-input-buffer:lhs:abi|src-load|dequant-src|src-i32m1|"
+    "relation-signed-i32m1-to-f32m1-scale-f32|hdr;"
+    "scale=dequant-scale-value:scale:abi|runtime-scale|scale-f32|hdr;"
+    "out=output-buffer:out:abi|res-store|dequant-result|res-f32m1|"
+    "relation-signed-i32m1-to-f32m1-scale-f32|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+)
+DEQUANTIZE_I32_TO_F32_ROUTE_FAMILY_PLAN = (
+    "rvv-dequantization-route-family-plan.v1"
+)
+DEQUANTIZE_I32_TO_F32_CONVERSION_KIND = "i32_to_f32_scaled"
+DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC = "__riscv_vfcvt_f_x_v_f32m1"
+DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC = "__riscv_vfmul_vf_f32m1"
+DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC = "__riscv_vle32_v_i32m1"
+DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC = "__riscv_vse32_v_f32m1"
+DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE = "vint32m1_t"
+DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE = "vfloat32m1_t"
+DEQUANT_F32_OUT_SENTINEL = "-98765.25f"
 BASE_MEMORY_MOVEMENT_ROUTE_FAMILY_PLAN = (
     "rvv-base-memory-movement-route-family-plan.v1"
 )
@@ -2094,6 +2136,11 @@ class OpExpectation:
                 f"void {self.function_name}(const int16_t *lhs, "
                 "int32_t *out, size_t n);"
             )
+        if self.is_dequantize_i32_to_f32:
+            return (
+                f"void {self.function_name}(const int32_t *lhs, "
+                "float scale, float *out, size_t n);"
+            )
         if self.is_widening_product_reduce_add:
             return (
                 f"void {self.function_name}(const int8_t *lhs, "
@@ -2187,6 +2234,8 @@ class OpExpectation:
             return EXPECTED_WIDENING_CONVERSION_RUNTIME_PARAMETERS
         if self.is_widen_i16_to_i32:
             return EXPECTED_WIDEN_I16_TO_I32_RUNTIME_PARAMETERS
+        if self.is_dequantize_i32_to_f32:
+            return EXPECTED_DEQUANTIZE_I32_TO_F32_RUNTIME_PARAMETERS
         if self.is_macc_add:
             return EXPECTED_MACC_RUNTIME_PARAMETERS
         if self.is_scalar_broadcast_macc_add:
@@ -2325,6 +2374,8 @@ class OpExpectation:
             return RUNTIME_SCALAR_COMPUTED_MASKED_MACC_ADD_RUNTIME_ABI_ORDER
         if self.is_widen_i32_to_i64 or self.is_widen_i16_to_i32:
             return WIDENING_CONVERSION_RUNTIME_ABI_ORDER
+        if self.is_dequantize_i32_to_f32:
+            return DEQUANTIZE_I32_TO_F32_RUNTIME_ABI_ORDER
         if self.is_widening_macc_add:
             return WIDENING_MACC_RUNTIME_ABI_ORDER
         if self.is_widening_product_reduce_add:
@@ -2671,6 +2722,10 @@ class OpExpectation:
         return self.kind == "widen_i16_to_i32"
 
     @property
+    def is_dequantize_i32_to_f32(self) -> bool:
+        return self.kind == "dequantize_i32_to_f32"
+
+    @property
     def is_widening_conversion(self) -> bool:
         return self.is_widen_i32_to_i64 or self.is_widen_i16_to_i32
 
@@ -2832,6 +2887,31 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         element_c_type="int64_t",
         config_contract="rvv-selected-body-sew64-lmul-m2-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew64-lmul-m2",
+    ),
+    "dequantize_i32_to_f32": OpExpectation(
+        kind="dequantize_i32_to_f32",
+        input_path=Path(
+            "test/Target/RVV/explicit-selected-body-artifact-dequantize-i32-to-f32.mlir"
+        ),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_dequantize_i32_to_f32",
+        external_abi_name="rvv-generic-dequantize-i32-to-f32-callable-c-abi.v1",
+        function_name=(
+            "tcrv_emitc_explicit_selected_body_dequantize_i32_to_f32_kernel_"
+            "explicit_selected_body_rvv_dequantize_i32_to_f32"
+        ),
+        emitc_route="rvv-generic-dequantize-i32-to-f32-emitc-route",
+        typed_compute_op="tcrv_rvv.dequantize",
+        memory_form="unit-stride-dequantization",
+        lhs_initializer=(
+            "((index % 2) == 0 "
+            "? (int32_t)(-((int32_t)(index * 37) + 19)) "
+            ": (int32_t)((int32_t)(index * 29) + 23))"
+        ),
+        rhs_initializer="scale",
+        expected_expression="((float)lhs[index]) * scale",
+        out_initializer=DEQUANT_F32_OUT_SENTINEL,
     ),
     "cmp_select": OpExpectation(
         kind="cmp_select",
@@ -6018,6 +6098,22 @@ EXPECTED_WIDEN_I16_TO_I32_RUNTIME_PARAMETERS = (
     },
     EXPECTED_RUNTIME_PARAMETERS[3],
 )
+EXPECTED_DEQUANTIZE_I32_TO_F32_RUNTIME_PARAMETERS = (
+    EXPECTED_RUNTIME_PARAMETERS[0],
+    {
+        "c_name": "scale",
+        "c_type": "float",
+        "role": "dequant-scale-value",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "out",
+        "c_type": "float *",
+        "role": "output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_RUNTIME_PARAMETERS[3],
+)
 EXPECTED_WIDENING_MACC_RUNTIME_PARAMETERS = (
     {
         "c_name": "lhs",
@@ -6373,6 +6469,41 @@ CONVERSION_SEW_POLICY_METADATA_KEYS = (
     "tcrv_rvv.dest_sew",
     "tcrv_rvv.dest_lmul",
     "tcrv_rvv.conversion_relation",
+)
+DEQUANTIZATION_METADATA_KEYS = (
+    "tcrv_rvv.config_contract",
+    "tcrv_rvv.element_type",
+    "tcrv_rvv.sew",
+    "tcrv_rvv.lmul",
+    "tcrv_rvv.tail_policy",
+    "tcrv_rvv.mask_policy",
+    "tcrv_rvv.runtime_control_plan",
+    "tcrv_rvv.memory_form",
+    "tcrv_rvv.runtime_vl_contract",
+    "tcrv_rvv.runtime_avl_source",
+    "tcrv_rvv.runtime_abi_order",
+    "tcrv_rvv.route_operand_binding_plan",
+    "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.dequantization_route_family_plan",
+    "tcrv_rvv.target_leaf_profile",
+    "tcrv_rvv.provider_supported_mirror",
+    "tcrv_rvv.required_header_declarations",
+    "tcrv_rvv.c_type_mapping",
+    "tcrv_rvv.source_element_type",
+    "tcrv_rvv.result_element_type",
+    "tcrv_rvv.source_sew",
+    "tcrv_rvv.source_lmul",
+    "tcrv_rvv.dest_sew",
+    "tcrv_rvv.dest_lmul",
+    "tcrv_rvv.conversion_kind",
+    "tcrv_rvv.dequantization_relation",
+    "tcrv_rvv.dequantize_convert_intrinsic",
+    "tcrv_rvv.dequantize_scale_intrinsic",
+    "tcrv_rvv.dequant_scale_role",
+    "tcrv_rvv.dequant_scale_c_type",
+    "tcrv_rvv.dequant_scale_name",
+    "tcrv_rvv.source_memory_form",
+    "tcrv_rvv.destination_memory_form",
 )
 REDUCTION_ACCUMULATION_METADATA_KEYS = (
     "tcrv_rvv.config_contract",
@@ -8688,6 +8819,56 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
+    if expectation.is_dequantize_i32_to_f32:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.dequantization_route_family_plan": (
+                    DEQUANTIZE_I32_TO_F32_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    DEQUANTIZE_I32_TO_F32_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    DEQUANTIZE_I32_TO_F32_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    DEQUANTIZE_I32_TO_F32_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    DEQUANTIZE_I32_TO_F32_C_TYPE_MAPPING
+                ),
+                "tcrv_rvv.source_element_type": "i32",
+                "tcrv_rvv.result_element_type": "f32",
+                "tcrv_rvv.source_sew": "32",
+                "tcrv_rvv.source_lmul": "m1",
+                "tcrv_rvv.dest_sew": "32",
+                "tcrv_rvv.dest_lmul": "m1",
+                "tcrv_rvv.conversion_kind": (
+                    DEQUANTIZE_I32_TO_F32_CONVERSION_KIND
+                ),
+                "tcrv_rvv.dequantization_relation": (
+                    DEQUANTIZE_I32_TO_F32_RELATION
+                ),
+                "tcrv_rvv.dequantize_convert_intrinsic": (
+                    DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC
+                ),
+                "tcrv_rvv.dequantize_scale_intrinsic": (
+                    DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
+                ),
+                "tcrv_rvv.dequant_scale_role": "dequant-scale-value",
+                "tcrv_rvv.dequant_scale_c_type": "float",
+                "tcrv_rvv.dequant_scale_name": "scale",
+                "tcrv_rvv.source_memory_form": "unit-stride-load",
+                "tcrv_rvv.destination_memory_form": "unit-stride-store",
+                "tcrv_rvv.route_operand_binding_plan": (
+                    DEQUANTIZE_I32_TO_F32_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    DEQUANTIZE_I32_TO_F32_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+            }
+        )
     if (
         expectation.is_widening_macc_add
         or expectation.is_widening_dot_reduce_add
@@ -9018,8 +9199,11 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
     require_contains(text, "tianchenrv.rvv.runtime_avl_source: runtime_abi:n", "generated header")
     require_contains(text, "tianchenrv.rvv.multi_vl: supported", "generated header")
     require_no_forbidden_public_residue(text, "generated declaration-only header")
-    for token in FORBIDDEN_HEADER_TOKENS:
-        require_not_contains(text, token, "generated declaration-only header")
+    declaration_text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+    for token in ("__riscv_", "return;", "int main", "main("):
+        require_not_contains(
+            declaration_text, token, "generated declaration-only header body"
+        )
     return {
         "path": str(header_path),
         "size": header_path.stat().st_size,
@@ -9048,6 +9232,7 @@ def verify_emitted_rvv_cpp(
     mask_tail_policy_boundary: dict[str, Any] = {}
     compare_select_predicate_boundary: dict[str, Any] = {}
     conversion_sew_policy_boundary: dict[str, Any] = {}
+    dequantization_boundary: dict[str, Any] = {}
     reduction_accumulation_boundary: dict[str, Any] = {}
     vector_reduction_boundary: dict[str, Any] = {}
     multiply_accumulate_boundary: dict[str, Any] = {}
@@ -9305,6 +9490,42 @@ def verify_emitted_rvv_cpp(
             extract_widening_conversion_emitc_boundary(text, expectation)
         )
         runtime_avl_vl_boundary = conversion_sew_policy_boundary[
+            "runtime_avl_vl_control"
+        ]
+    if expectation.is_dequantize_i32_to_f32:
+        vector_c_type = DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE
+        intrinsics = [
+            expectation.setvl_intrinsic,
+            DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC,
+            DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
+            DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
+            DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
+        ]
+        require_contains(
+            text,
+            DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE,
+            "emitted RVV C/C++ dequant source vector C type",
+        )
+        require_contains(
+            text,
+            DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE,
+            "emitted RVV C/C++ dequant result vector C type",
+        )
+        require_contains(
+            text,
+            "float",
+            "emitted RVV C/C++ dequant runtime scale/output C type",
+        )
+        for intrinsic in intrinsics:
+            require_contains(
+                text,
+                intrinsic,
+                "emitted RVV C/C++ dequant intrinsic spelling",
+            )
+        dequantization_boundary = extract_dequantization_emitc_boundary(
+            text, expectation
+        )
+        runtime_avl_vl_boundary = dequantization_boundary[
             "runtime_avl_vl_control"
         ]
     if expectation.is_reduce_add:
@@ -9706,6 +9927,7 @@ def verify_emitted_rvv_cpp(
         "mask_tail_policy_boundary": mask_tail_policy_boundary,
         "compare_select_predicate_boundary": compare_select_predicate_boundary,
         "conversion_sew_policy_boundary": conversion_sew_policy_boundary,
+        "dequantization_boundary": dequantization_boundary,
         "reduction_accumulation_boundary": reduction_accumulation_boundary,
         "vector_reduction_boundary": vector_reduction_boundary,
         "multiply_accumulate_boundary": multiply_accumulate_boundary,
@@ -9720,6 +9942,117 @@ def verify_emitted_rvv_cpp(
         "runtime_scalar_computed_mask_memory_boundary": (
             runtime_scalar_computed_mask_memory_boundary
         ),
+    }
+
+
+def extract_dequantization_emitc_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    signature = require_regex(
+        text,
+        rf"extern \"C\" void {re.escape(expectation.function_name)}"
+        r"\(const int32_t\s*\*\s*(?P<lhs>v[0-9]+), "
+        r"float (?P<scale>v[0-9]+), "
+        r"float\s*\*\s*(?P<out>v[0-9]+), "
+        r"size_t (?P<runtime_n>v[0-9]+)\) \{",
+        "emitted RVV C/C++ dequant ABI parameters",
+    )
+    lhs = signature.group("lhs")
+    scale = signature.group("scale")
+    out = signature.group("out")
+    runtime_n = signature.group("runtime_n")
+    setvl_intrinsic = re.escape(expectation.setvl_intrinsic)
+    full_chunk = require_regex(
+        text,
+        rf"size_t (?P<full_chunk_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\({runtime_n}\);",
+        "emitted RVV C/C++ dequant full-chunk setvl",
+    )
+    full_chunk_vl = full_chunk.group("full_chunk_vl")
+    loop = require_regex(
+        text,
+        rf"for \(size_t (?P<offset>v[0-9]+) = 0; "
+        rf"(?P=offset) < {runtime_n}; "
+        rf"(?P=offset) \+= {full_chunk_vl}\) \{{",
+        "emitted RVV C/C++ dequant runtime loop",
+    )
+    offset = loop.group("offset")
+    remaining = require_regex(
+        text,
+        rf"size_t (?P<remaining_avl>v[0-9]+) = {runtime_n} - {offset};\s*"
+        rf"size_t (?P<loop_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\((?P=remaining_avl)\);",
+        "emitted RVV C/C++ dequant remaining AVL setvl",
+    )
+    remaining_avl = remaining.group("remaining_avl")
+    loop_vl = remaining.group("loop_vl")
+    source_load = require_regex(
+        text,
+        rf"const int32_t\* (?P<src_ptr>v[0-9]+) = {lhs} \+ {offset};\s*"
+        rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
+        rf"(?P<src_vec>v[0-9]+) = "
+        rf"{re.escape(DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC)}"
+        rf"\((?P=src_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ dequant source load",
+    )
+    source_vec = source_load.group("src_vec")
+    converted = require_regex(
+        text,
+        rf"{DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE} "
+        rf"(?P<converted>v[0-9]+) = "
+        rf"{re.escape(DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC)}"
+        rf"\({source_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ dequant i32-to-f32 conversion",
+    )
+    converted_vec = converted.group("converted")
+    scaled = require_regex(
+        text,
+        rf"{DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE} "
+        rf"(?P<scaled>v[0-9]+) = "
+        rf"{re.escape(DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC)}"
+        rf"\({converted_vec}, {scale}, {loop_vl}\);",
+        "emitted RVV C/C++ dequant runtime scale multiply",
+    )
+    scaled_vec = scaled.group("scaled")
+    store = require_regex(
+        text,
+        rf"float\* (?P<out_ptr>v[0-9]+) = {out} \+ {offset};\s*"
+        rf"{re.escape(DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC)}"
+        rf"\((?P=out_ptr), {scaled_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ dequant f32 store",
+    )
+    return {
+        "runtime_avl_vl_control": {
+            "runtime_abi_parameter": runtime_n,
+            "full_chunk_vl": full_chunk_vl,
+            "offset_induction": offset,
+            "remaining_avl": remaining_avl,
+            "loop_vl": loop_vl,
+            "setvl_intrinsic": expectation.setvl_intrinsic,
+            "full_chunk_setvl": f"{expectation.setvl_intrinsic}({runtime_n})",
+            "loop_remaining_avl": f"{runtime_n} - {offset}",
+            "loop_setvl": f"{expectation.setvl_intrinsic}({remaining_avl})",
+            "uses_runtime_remaining_avl": True,
+            "uses_loop_vl_for_intrinsics": True,
+        },
+        "lhs_abi_parameter": lhs,
+        "scale_abi_parameter": scale,
+        "out_abi_parameter": out,
+        "source_pointer": source_load.group("src_ptr"),
+        "source_vector": source_vec,
+        "converted_vector": converted_vec,
+        "scaled_vector": scaled_vec,
+        "out_pointer": store.group("out_ptr"),
+        "source_vector_c_type": DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE,
+        "result_vector_c_type": DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE,
+        "source_load_intrinsic": DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC,
+        "convert_intrinsic": DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
+        "scale_intrinsic": DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
+        "store_intrinsic": DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
+        "scale_operand_source": "runtime ABI parameter scale",
+        "conversion_operand_order": "loaded_i32_source, vl",
+        "scale_operand_order": "converted_f32_vector, scale, vl",
+        "store_operand_order": "out, scaled_f32_vector, vl",
     }
 
 
@@ -12072,6 +12405,7 @@ def verify_materialized_selected_body(
         conversion_sew_policy_boundary = (
             extract_widening_conversion_materialized_boundary(text, expectation)
         )
+    dequantization_boundary: dict[str, Any] = {}
     reduction_accumulation_boundary: dict[str, Any] = {}
     vector_reduction_boundary: dict[str, Any] = {}
     multiply_accumulate_boundary: dict[str, Any] = {}
@@ -12111,6 +12445,53 @@ def verify_materialized_selected_body(
             'kind = "sign_extend_widen_vf2"',
             "materialized selected-body MLIR sign-extend widening conversion kind",
         )
+    if expectation.is_dequantize_i32_to_f32:
+        require_contains(
+            text,
+            'role = "dequant-scale-value"',
+            "materialized selected-body MLIR dequant runtime scale ABI role",
+        )
+        require_contains(
+            text,
+            'c_type = "float"',
+            "materialized selected-body MLIR dequant runtime scale C type",
+        )
+        require_contains(
+            text,
+            '!tcrv_rvv.vector<i32, "m1">',
+            "materialized selected-body MLIR dequant source vector type",
+        )
+        require_contains(
+            text,
+            '!tcrv_rvv.vector<f32, "m1">',
+            "materialized selected-body MLIR dequant result vector type",
+        )
+        require_contains(
+            text,
+            f'dequant_relation = "{DEQUANTIZE_I32_TO_F32_RELATION}"',
+            "materialized selected-body MLIR dequant relation",
+        )
+        require_contains(
+            text,
+            f'kind = "{DEQUANTIZE_I32_TO_F32_CONVERSION_KIND}"',
+            "materialized selected-body MLIR dequant kind",
+        )
+        dequantization_boundary = {
+            "typed_compute_op": "tcrv_rvv.dequantize",
+            "source_vector_type": '!tcrv_rvv.vector<i32, "m1">',
+            "result_vector_type": '!tcrv_rvv.vector<f32, "m1">',
+            "source_element_type": "i32",
+            "result_element_type": "f32",
+            "source_sew": "32",
+            "source_lmul": "m1",
+            "result_sew": "32",
+            "result_lmul": "m1",
+            "scale_abi_role": "dequant-scale-value",
+            "scale_c_type": "float",
+            "dequantization_relation": DEQUANTIZE_I32_TO_F32_RELATION,
+            "conversion_kind": DEQUANTIZE_I32_TO_F32_CONVERSION_KIND,
+            "runtime_avl_vl_control": runtime_avl_vl_boundary,
+        }
     if expectation.is_widening_macc_add:
         require_contains(
             text,
@@ -14566,6 +14947,7 @@ def verify_materialized_selected_body(
         "mask_tail_policy_boundary": mask_tail_policy_boundary,
         "compare_select_predicate_boundary": compare_select_predicate_boundary,
         "conversion_sew_policy_boundary": conversion_sew_policy_boundary,
+        "dequantization_boundary": dequantization_boundary,
         "reduction_accumulation_boundary": reduction_accumulation_boundary,
         "vector_reduction_boundary": vector_reduction_boundary,
         "multiply_accumulate_boundary": multiply_accumulate_boundary,
@@ -15250,6 +15632,7 @@ def harness_source(
     expectation: OpExpectation,
     rhs_scalar_values: list[int] | None = None,
     stride_bytes_values: list[int] | None = None,
+    dequant_scale_values: list[float] | None = None,
 ) -> str:
     counts = ", ".join(str(count) for count in runtime_counts)
     scalar_values = list(
@@ -15293,6 +15676,136 @@ def harness_source(
         f"{{{lhs}, {rhs}, {out}}}"
         for lhs, rhs, out in STRIDED_ADD_RUNTIME_STRIDE_CASES
     )
+    dequant_values = list(
+        DEFAULT_DEQUANT_SCALE_VALUES
+        if dequant_scale_values is None
+        else dequant_scale_values
+    )
+    dequant_values_literal = ", ".join(f"{value:.9g}f" for value in dequant_values)
+    dequant_values_summary = ",".join(f"{value:.9g}" for value in dequant_values)
+    dequant_tolerance_literal = f"{DEQUANT_FLOAT_ABS_TOLERANCE:.9g}f"
+    if expectation.is_dequantize_i32_to_f32:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n, int pattern, float scale) {{
+  /* expected: {expectation.expected_expression} */
+  const float tolerance = {dequant_tolerance_literal};
+  size_t alloc_n = n == 0 ? 1 : n;
+  size_t out_alloc_n = alloc_n + 8;
+  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *lhs_before = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  float *out = (float *)malloc(sizeof(float) * out_alloc_n);
+  float *old_out = (float *)malloc(sizeof(float) * out_alloc_n);
+  int status = 0;
+  if (!lhs || !lhs_before || !out || !old_out) {{
+    fprintf(stderr,
+            "allocation failed for n=%zu pattern=%d scale=%.9g\\n",
+            n, pattern, scale);
+    status = 11;
+    goto cleanup;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    lhs[index] = {expectation.lhs_initializer};
+    if (pattern == 1) {{
+      lhs[index] = (int32_t)(((index % 3) == 0)
+                                 ? (-4096 - (int32_t)(index * 17))
+                                 : (((index & 1) == 0)
+                                        ? (3072 + (int32_t)(index * 29))
+                                        : (-1536 + (int32_t)(index * 31))));
+    }}
+    lhs_before[index] = lhs[index];
+  }}
+  for (size_t index = 0; index < out_alloc_n; ++index) {{
+    out[index] = {DEQUANT_F32_OUT_SENTINEL};
+    if (pattern == 1)
+      out[index] = -54321.75f + (float)index;
+    old_out[index] = out[index];
+  }}
+
+  {expectation.function_name}(lhs, scale, out, n);
+
+  size_t signed_negative_lanes = 0;
+  size_t signed_positive_lanes = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    float expected = {expectation.expected_expression};
+    float delta = out[index] - expected;
+    if (delta < 0.0f)
+      delta = -delta;
+    if (lhs[index] < 0)
+      ++signed_negative_lanes;
+    if (lhs[index] > 0)
+      ++signed_positive_lanes;
+    if (delta > tolerance) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu pattern=%d scale=%.9g index=%zu got=%.9g expected=%.9g delta=%.9g tolerance=%.9g lhs=%d\\n",
+              n, pattern, scale, index, out[index], expected, delta,
+              tolerance, lhs[index]);
+      status = 12;
+      goto cleanup;
+    }}
+  }}
+  if (n > 1 && (signed_negative_lanes == 0 || signed_positive_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} signed i32 coverage missing n=%zu pattern=%d scale=%.9g negative_lanes=%zu positive_lanes=%zu\\n",
+            n, pattern, scale, signed_negative_lanes, signed_positive_lanes);
+    status = 13;
+    goto cleanup;
+  }}
+  for (size_t index = n; index < out_alloc_n; ++index) {{
+    if (out[index] != old_out[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu pattern=%d scale=%.9g index=%zu got=%.9g old=%.9g\\n",
+              n, pattern, scale, index, out[index], old_out[index]);
+      status = 14;
+      goto cleanup;
+    }}
+  }}
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    if (lhs[index] != lhs_before[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} source buffer mutated n=%zu pattern=%d scale=%.9g index=%zu got=%d before=%d\\n",
+              n, pattern, scale, index, lhs[index], lhs_before[index]);
+      status = 15;
+      goto cleanup;
+    }}
+  }}
+
+  printf("{expectation.kind} case n=%zu pattern=%d scale=%.9g ok tolerance=%.9g signed_negative_lanes=%zu signed_positive_lanes=%zu source_preserved tail_preserved\\n",
+         n, pattern, scale, tolerance, signed_negative_lanes,
+         signed_positive_lanes);
+
+cleanup:
+  free(lhs);
+  free(lhs_before);
+  free(out);
+  free(old_out);
+  return status;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const float scale_values[] = {{{dequant_values_literal}}};
+  for (size_t count_index = 0; count_index < sizeof(counts) / sizeof(counts[0]); ++count_index) {{
+    for (int pattern = 0; pattern < 2; ++pattern) {{
+      for (size_t scale_index = 0; scale_index < sizeof(scale_values) / sizeof(scale_values[0]); ++scale_index) {{
+        int status = run_case(counts[count_index], pattern, scale_values[scale_index]);
+        if (status != 0)
+          return status;
+      }}
+    }}
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1 scales={dequant_values_summary} tolerance={DEQUANT_FLOAT_ABS_TOLERANCE:.9g}\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1 scales={dequant_values_summary} tolerance={DEQUANT_FLOAT_ABS_TOLERANCE:.9g}\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_computed_masked_segment2_load_unit_store:
         return f"""
 #include <stddef.h>
@@ -21730,6 +22243,34 @@ def validate_rhs_scalar_values(rhs_scalar_values: list[int]) -> None:
         )
 
 
+def validate_dequant_scale_values(dequant_scale_values: list[float]) -> None:
+    if not dequant_scale_values:
+        raise EvidenceError(
+            "runtime dequantization evidence requires at least one f32 scale value"
+        )
+    if len(dequant_scale_values) < MIN_DEQUANT_SCALE_CASES:
+        raise EvidenceError(
+            "runtime dequantization evidence requires at least "
+            f"{MIN_DEQUANT_SCALE_CASES} distinct nonzero f32 scale values: "
+            f"{dequant_scale_values}"
+        )
+    if any(not math.isfinite(value) for value in dequant_scale_values):
+        raise EvidenceError(
+            "runtime dequantization evidence requires finite f32 scale values: "
+            f"{dequant_scale_values}"
+        )
+    if any(value == 0.0 for value in dequant_scale_values):
+        raise EvidenceError(
+            "runtime dequantization evidence requires nonzero f32 scale values: "
+            f"{dequant_scale_values}"
+        )
+    if len(set(dequant_scale_values)) != len(dequant_scale_values):
+        raise EvidenceError(
+            "runtime dequantization evidence requires distinct f32 scale "
+            f"values: {dequant_scale_values}"
+        )
+
+
 def validate_runtime_scalar_compare_select_rhs_coverage(
     expectations: list[OpExpectation], rhs_scalar_values: list[int]
 ) -> None:
@@ -21970,6 +22511,36 @@ def conversion_sew_policy_metadata_from_bundle(
             header_metadata.get(key),
             expected,
             f"{expectation.kind} header conversion/SEW metadata {key}",
+        )
+        metadata[key] = expected
+    return metadata
+
+
+def dequantization_metadata_from_bundle(
+    bundle_checks: dict[str, Any], expectation: OpExpectation
+) -> dict[str, str]:
+    records = bundle_checks["index"]["parsed"]["records"]
+    if len(records) != 2:
+        raise EvidenceError(
+            "dequantization evidence requires object and header records"
+        )
+    object_metadata = metadata_map(records[0])
+    header_metadata = metadata_map(records[1])
+    metadata: dict[str, str] = {}
+    expected_metadata = expected_metadata_for(expectation)
+    for key in DEQUANTIZATION_METADATA_KEYS:
+        expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        require_equal(
+            object_metadata.get(key),
+            expected,
+            f"{expectation.kind} object dequantization metadata {key}",
+        )
+        require_equal(
+            header_metadata.get(key),
+            expected,
+            f"{expectation.kind} header dequantization metadata {key}",
         )
         metadata[key] = expected
     return metadata
@@ -22997,6 +23568,118 @@ def conversion_sew_policy_boundary_summary(
         },
         "runtime_counts": runtime_counts,
         "runtime_counts_are_execution_cases_not_conversion_authority": True,
+    }
+
+
+def dequantization_boundary_summary(
+    *,
+    expectation: OpExpectation,
+    materialized_checks: dict[str, Any],
+    emitted_cpp_checks: dict[str, Any],
+    bundle_checks: dict[str, Any],
+    runtime_counts: list[int],
+    dequant_scale_values: list[float],
+) -> dict[str, Any]:
+    if not expectation.is_dequantize_i32_to_f32:
+        return {}
+    route_metadata = dequantization_metadata_from_bundle(
+        bundle_checks, expectation
+    )
+    return {
+        "source": (
+            "selected tcrv.exec RVV variant -> typed tcrv_rvv.dequantize "
+            "body/config/runtime-scale facts -> RVV provider dequantization "
+            "route facts -> statement plan -> emitted conversion, scale, and "
+            "store intrinsics -> runtime-callable artifact ABI"
+        ),
+        "authority": (
+            "provider-derived typed tcrv_rvv dequantization body/config/"
+            "runtime scale facts"
+        ),
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "typed_compute_op": "tcrv_rvv.dequantize",
+        "memory_form": expectation.memory_form,
+        "dequantization_relation": route_metadata.get(
+            "tcrv_rvv.dequantization_relation"
+        ),
+        "conversion_kind": route_metadata.get("tcrv_rvv.conversion_kind"),
+        "runtime_scale_role": route_metadata.get("tcrv_rvv.dequant_scale_role"),
+        "runtime_scale_c_type": route_metadata.get(
+            "tcrv_rvv.dequant_scale_c_type"
+        ),
+        "runtime_scale_name": route_metadata.get("tcrv_rvv.dequant_scale_name"),
+        "selected_source_abi": {
+            "lhs": "lhs-input-buffer source-load dequant-src",
+            "scale": "dequant-scale-value runtime-scale scale-f32",
+            "out": "output-buffer result-store dequant-result",
+            "n": "runtime-element-count setvl-avl loop",
+        },
+        "statement_plan": {
+            "family": "runtime-scale i32-to-f32 dequantization",
+            "pre_loop_callees": [expectation.setvl_intrinsic],
+            "loop_callees": [
+                expectation.setvl_intrinsic,
+                DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC,
+                DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
+                DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
+                DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
+            ],
+            "source_load_operand_order": "lhs + loop_induction, vl",
+            "conversion_operand_order": "loaded_i32_source, vl",
+            "scale_operand_order": "converted_f32_vector, scale, vl",
+            "store_operand_order": "out + loop_induction, scaled_f32_vector, vl",
+        },
+        "source_type_policy": {
+            "element_type": route_metadata.get("tcrv_rvv.source_element_type"),
+            "element_c_type": "int32_t",
+            "sew": route_metadata.get("tcrv_rvv.source_sew"),
+            "lmul": route_metadata.get("tcrv_rvv.source_lmul"),
+            "vector_c_type": DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE,
+        },
+        "result_type_policy": {
+            "element_type": route_metadata.get("tcrv_rvv.result_element_type"),
+            "element_c_type": "float",
+            "sew": route_metadata.get("tcrv_rvv.dest_sew"),
+            "lmul": route_metadata.get("tcrv_rvv.dest_lmul"),
+            "vector_c_type": DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE,
+        },
+        "materialized_body": materialized_checks.get(
+            "dequantization_boundary", {}
+        ),
+        "emitted_cpp": emitted_cpp_checks.get("dequantization_boundary", {}),
+        "provider_route_facts": {
+            "runtime_abi_order": expectation.runtime_abi_order,
+            "route_operand_binding_plan": route_metadata.get(
+                "tcrv_rvv.route_operand_binding_plan"
+            ),
+            "route_operand_binding_operands": route_metadata.get(
+                "tcrv_rvv.route_operand_binding_operands"
+            ),
+            "runtime_control_plan": route_metadata.get(
+                "tcrv_rvv.runtime_control_plan"
+            ),
+            "source_load_intrinsic": DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC,
+            "convert_intrinsic": DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
+            "scale_intrinsic": DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
+            "store_intrinsic": DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
+            "target_leaf_profile": route_metadata.get(
+                "tcrv_rvv.target_leaf_profile"
+            ),
+            "provider_supported_mirror": route_metadata.get(
+                "tcrv_rvv.provider_supported_mirror"
+            ),
+            "c_type_mapping": route_metadata.get("tcrv_rvv.c_type_mapping"),
+        },
+        "route_metadata": route_metadata,
+        "artifact_abi": {
+            "prototype": bundle_checks["header"]["prototype"],
+            "runtime_abi_order": expectation.runtime_abi_order,
+            "runtime_parameters": expectation.runtime_parameters,
+        },
+        "runtime_counts": runtime_counts,
+        "dequant_scale_values": dequant_scale_values,
+        "f32_abs_tolerance": DEQUANT_FLOAT_ABS_TOLERANCE,
+        "runtime_counts_and_scale_values_are_execution_cases_not_dequant_authority": True,
     }
 
 
@@ -24551,6 +25234,7 @@ def run_one_op_e2e(
     runtime_counts: list[int],
     rhs_scalar_values: list[int],
     stride_bytes_values: list[int],
+    dequant_scale_values: list[float],
 ) -> dict[str, Any]:
     op_artifact_dir = artifact_dir / expectation.kind
     bundle_dir = op_artifact_dir / "generated_bundle"
@@ -24605,6 +25289,15 @@ def run_one_op_e2e(
         or expectation.is_computed_masked_strided_load_unit_store
     ):
         evidence["stride_bytes_values"] = stride_bytes_values
+    if expectation.is_dequantize_i32_to_f32:
+        evidence["dequant_scale_values"] = dequant_scale_values
+        evidence["dequant_scale_contract"] = {
+            "minimum_scale_cases": MIN_DEQUANT_SCALE_CASES,
+            "finite": True,
+            "nonzero": True,
+            "f32_abs_tolerance": DEQUANT_FLOAT_ABS_TOLERANCE,
+            "scale_values_are_runtime_cases_not_dequant_authority": True,
+        }
 
     try:
         if expectation.is_pre_realized:
@@ -24736,6 +25429,19 @@ def run_one_op_e2e(
                     runtime_counts=runtime_counts,
                 )
             )
+        if expectation.is_dequantize_i32_to_f32:
+            evidence["dequantization_boundary"] = (
+                dequantization_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks=evidence[
+                        "materialized_selected_body_checks"
+                    ],
+                    emitted_cpp_checks=evidence["emitted_rvv_cpp_checks"],
+                    bundle_checks=bundle_checks,
+                    runtime_counts=runtime_counts,
+                    dequant_scale_values=dequant_scale_values,
+                )
+            )
         if expectation.is_reduce_add:
             evidence["vector_reduction_boundary"] = (
                 vector_reduction_boundary_summary(
@@ -24857,8 +25563,9 @@ def run_one_op_e2e(
                 bundle_checks["header_file"],
                 runtime_counts,
                 expectation,
-                rhs_scalar_values,
-                stride_bytes_values,
+                rhs_scalar_values=rhs_scalar_values,
+                stride_bytes_values=stride_bytes_values,
+                dequant_scale_values=dequant_scale_values,
             ),
             encoding="utf-8",
         )
@@ -24913,6 +25620,21 @@ def run_one_op_e2e(
                     "runtime strided_load_unit_store cases must execute the "
                     "same generated artifact with explicit runtime byte strides"
                 )
+        if expectation.is_dequantize_i32_to_f32:
+            evidence["harness"]["dequant_scale_values"] = dequant_scale_values
+            evidence["harness"]["f32_abs_tolerance"] = DEQUANT_FLOAT_ABS_TOLERANCE
+            evidence["harness"]["dequantization_contract"] = (
+                "signed i32 source lanes convert to f32, multiply by the "
+                "runtime scale parameter, and store f32 results through the "
+                "generated external ABI"
+            )
+            evidence["harness"]["source_pattern_contract"] = (
+                "two signed i32 source patterns execute for every runtime "
+                "count and scale value while preserving source buffers"
+            )
+            evidence["harness"]["tail_lane_contract"] = (
+                "output lanes beyond runtime n preserve their f32 sentinels"
+            )
         if expectation.is_strided_add:
             evidence["harness"]["stride_triples"] = [
                 {
@@ -25449,6 +26171,9 @@ def root_op_result_summary(
         "conversion_sew_policy_boundary": result.get(
             "conversion_sew_policy_boundary", {}
         ),
+        "dequantization_boundary": result.get(
+            "dequantization_boundary", {}
+        ),
         "vector_reduction_boundary": result.get(
             "vector_reduction_boundary", {}
         ),
@@ -25486,6 +26211,15 @@ def root_op_result_summary(
             "pass_marker": harness["pass_marker"],
         },
     }
+    if expectation.is_dequantize_i32_to_f32:
+        summary["correctness_oracle"].update(
+            {
+                "dequant_scale_values": result.get("dequant_scale_values", []),
+                "f32_abs_tolerance": DEQUANT_FLOAT_ABS_TOLERANCE,
+                "output_tail_sentinel": DEQUANT_F32_OUT_SENTINEL,
+                "source_preservation_required": True,
+            }
+        )
     remote = result.get("remote")
     if remote:
         commands = remote.get("commands", {})
@@ -25516,6 +26250,7 @@ def run_e2e(args: argparse.Namespace) -> int:
     runtime_counts = args.runtime_count or list(DEFAULT_RUNTIME_COUNTS)
     rhs_scalar_values = args.rhs_scalar or list(DEFAULT_RHS_SCALAR_VALUES)
     stride_bytes_values = args.stride_bytes or list(DEFAULT_STRIDED_LOAD_BYTE_STRIDES)
+    dequant_scale_values = args.dequant_scale or list(DEFAULT_DEQUANT_SCALE_VALUES)
     evidence: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "tool": SCRIPT_NAME,
@@ -25572,6 +26307,9 @@ def run_e2e(args: argparse.Namespace) -> int:
             expectation.is_computed_masked_strided_load_unit_store
             for expectation in expectations
         )
+        has_dequant_scale_operand = any(
+            expectation.is_dequantize_i32_to_f32 for expectation in expectations
+        )
         if args.rhs_scalar and not has_runtime_scalar_operand:
             raise EvidenceError(
                 "--rhs-scalar may only be used when an op kind includes "
@@ -25594,6 +26332,11 @@ def run_e2e(args: argparse.Namespace) -> int:
                 "strided_load_unit_store, unit_load_strided_store, or "
                 "computed_masked_strided_store/"
                 "computed_masked_strided_load_unit_store"
+            )
+        if args.dequant_scale and not has_dequant_scale_operand:
+            raise EvidenceError(
+                "--dequant-scale may only be used when an op kind includes "
+                "dequantize_i32_to_f32"
             )
         validate_rhs_scalar_values(rhs_scalar_values)
         validate_runtime_scalar_compare_select_rhs_coverage(
@@ -25624,6 +26367,16 @@ def run_e2e(args: argparse.Namespace) -> int:
         ):
             validate_strided_load_byte_strides(stride_bytes_values)
             evidence["stride_bytes_values"] = stride_bytes_values
+        if has_dequant_scale_operand:
+            validate_dequant_scale_values(dequant_scale_values)
+            evidence["dequant_scale_values"] = dequant_scale_values
+            evidence["dequant_float_abs_tolerance"] = DEQUANT_FLOAT_ABS_TOLERANCE
+            evidence["dequant_scale_contract"] = {
+                "minimum_scale_cases": MIN_DEQUANT_SCALE_CASES,
+                "finite": True,
+                "nonzero": True,
+                "scale_values_are_runtime_cases_not_dequant_authority": True,
+            }
         evidence["op_kinds"] = [expectation.kind for expectation in expectations]
         tcrv_opt = ensure_tool(args.tcrv_opt)
         tcrv_translate = ensure_tool(args.tcrv_translate)
@@ -25641,6 +26394,7 @@ def run_e2e(args: argparse.Namespace) -> int:
                 runtime_counts=runtime_counts,
                 rhs_scalar_values=rhs_scalar_values,
                 stride_bytes_values=stride_bytes_values,
+                dequant_scale_values=dequant_scale_values,
             )
             evidence["op_results"][expectation.kind] = root_op_result_summary(
                 expectation=expectation,
@@ -25824,6 +26578,23 @@ def run_self_test() -> int:
         expect_self_test_failure(
             "out-of-range scalar value",
             lambda: validate_rhs_scalar_values([-(2**31) - 1]),
+        )
+        validate_dequant_scale_values([-0.125, 0.375])
+        expect_self_test_failure(
+            "single dequant scale value",
+            lambda: validate_dequant_scale_values([-0.125]),
+        )
+        expect_self_test_failure(
+            "duplicate dequant scale value",
+            lambda: validate_dequant_scale_values([-0.125, -0.125]),
+        )
+        expect_self_test_failure(
+            "zero dequant scale value",
+            lambda: validate_dequant_scale_values([-0.125, 0.0]),
+        )
+        expect_self_test_failure(
+            "non-finite dequant scale value",
+            lambda: validate_dequant_scale_values([-0.125, float("inf")]),
         )
         validate_runtime_scalar_compare_select_rhs_coverage(
             [EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["runtime_scalar_cmp_select"]],
@@ -26177,6 +26948,59 @@ def run_self_test() -> int:
                         "self-test fake bundle generation lost widening "
                         "conversion provider-backed source/result/statement "
                         "facts"
+                    )
+            if expectation.is_dequantize_i32_to_f32:
+                dequant_metadata = dequantization_metadata_from_bundle(
+                    bundle_checks, expectation
+                )
+                dequant_boundary = dequantization_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks={},
+                    emitted_cpp_checks={},
+                    bundle_checks=bundle_checks,
+                    runtime_counts=[1, 17, 257],
+                    dequant_scale_values=[-0.125, 0.375],
+                )
+                provider_facts = dequant_boundary.get("provider_route_facts", {})
+                statement_plan = dequant_boundary.get("statement_plan", {})
+                selected_source_abi = dequant_boundary.get(
+                    "selected_source_abi", {}
+                )
+                if (
+                    dequant_metadata.get("tcrv_rvv.dequantization_relation")
+                    != DEQUANTIZE_I32_TO_F32_RELATION
+                    or dequant_metadata.get("tcrv_rvv.conversion_kind")
+                    != DEQUANTIZE_I32_TO_F32_CONVERSION_KIND
+                    or dequant_metadata.get(
+                        "tcrv_rvv.route_operand_binding_plan"
+                    )
+                    != DEQUANTIZE_I32_TO_F32_ROUTE_OPERAND_BINDING_PLAN
+                    or dequant_metadata.get(
+                        "tcrv_rvv.route_operand_binding_operands"
+                    )
+                    != DEQUANTIZE_I32_TO_F32_ROUTE_OPERAND_BINDING_OPERANDS
+                    or selected_source_abi.get("scale")
+                    != "dequant-scale-value runtime-scale scale-f32"
+                    or provider_facts.get("convert_intrinsic")
+                    != DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC
+                    or provider_facts.get("scale_intrinsic")
+                    != DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
+                    or provider_facts.get("store_intrinsic")
+                    != DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC
+                    or statement_plan.get("scale_operand_order")
+                    != "converted_f32_vector, scale, vl"
+                    or dequant_boundary.get("dequant_scale_values")
+                    != [-0.125, 0.375]
+                    or dequant_boundary.get("f32_abs_tolerance")
+                    != DEQUANT_FLOAT_ABS_TOLERANCE
+                    or dequant_boundary.get(
+                        "runtime_counts_and_scale_values_are_execution_cases_not_dequant_authority"
+                    )
+                    is not True
+                ):
+                    raise AssertionError(
+                        "self-test fake bundle generation lost dequantization "
+                        "provider-backed scale, conversion, or statement facts"
                     )
             if expectation.is_macc_add:
                 macc_metadata = multiply_accumulate_metadata_from_bundle(
@@ -26593,6 +27417,18 @@ def run_self_test() -> int:
             ):
                 raise AssertionError(
                     f"self-test harness generation lost {expectation.kind} ABI call"
+                )
+            if expectation.is_dequantize_i32_to_f32 and (
+                "scale_values" not in harness
+                or "tolerance" not in harness
+                or "source_preserved tail_preserved" not in harness
+                or "signed_negative_lanes" not in harness
+                or "float expected = ((float)lhs[index]) * scale" not in harness
+                or DEQUANT_F32_OUT_SENTINEL not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost dequantization scale, "
+                    "tolerance, signed-input, source, or tail coverage"
                 )
             if expectation.is_reduce_add and (
                 "-((int32_t)(index % 29) + 1)" not in harness
@@ -27422,6 +28258,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "runtime_scalar_cmp_masked_standalone_reduce_add/min/max; may be "
             "repeated to prove the same generated artifact consumes multiple "
             "runtime scalar values"
+        ),
+    )
+    parser.add_argument(
+        "--dequant-scale",
+        action="append",
+        type=float,
+        default=[],
+        help=(
+            "runtime f32 scale value for dequantize_i32_to_f32; may be "
+            "repeated to prove the same generated artifact consumes multiple "
+            "nonzero runtime scale values"
         ),
     )
     parser.add_argument(

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first typed-body route authority, Stage2 executable evidence boundary, and source-of-truth rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership for typed body, runtime ABI value use, provider-derived route facts, and ssh rvv evidence requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality, provider operand binding/header/type mirror contracts, and runtime AVL/VL selected-boundary contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused testing and real RVV runtime/correctness evidence policy."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-stage2-rvv-i32-to-f32-dequant-route-foundation/prd.md", "reason": "Previous route-supported dequant task scope and explicit executable-evidence gap."}
+{"file": "test/Dialect/RVV/generic-i32-to-f32-dequantization-dataflow.mlir", "reason": "Existing typed dequant dialect/dataflow fixture and verifier coverage."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-dequantize-i32-to-f32.mlir", "reason": "Representative selected-body dequant artifact fixture for generated-bundle evidence."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated object/header bundle dry-run, external ABI harness, and ssh rvv evidence script to extend for dequant."}

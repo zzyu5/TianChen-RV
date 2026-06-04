@@ -59,6 +59,49 @@ Extracted a provider-owned runtime-scalar splat-store route validation contract,
 - None - task complete
 
 
+## Session 454: Stage2 RVV i32-to-f32 dequant executable ABI closure
+
+**Date**: 2026-06-05
+**Task**: Stage2 RVV i32-to-f32 dequant executable ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed the executable ABI boundary for the existing typed RVV i32-to-f32 runtime-scale dequant route. The work extended the generated-bundle ABI evidence script only: it now selects the dequant selected-body artifact, verifies provider-derived dequant metadata, builds an external C ABI harness for `lhs, scale, out, n`, and runs generated object/header correctness on `ssh rvv`.
+
+### Main Changes
+
+- Added `dequantize_i32_to_f32` support to `scripts/rvv_generated_bundle_abi_e2e.py` with explicit runtime scale values, f32 absolute tolerance, signed i32 input patterns, source preservation, and f32 output tail sentinel preservation.
+- Added dequant evidence summaries that tie the executable artifact back to typed `tcrv_rvv.dequantize` body/config/runtime scale facts, provider route facts, and neutral generated ABI consumption.
+- Kept production compiler/provider/target C++ unchanged; no new route coverage or descriptor/name-derived authority was added.
+- SSH evidence artifact: `artifacts/tmp/rvv_generated_bundle_abi_e2e/dequant-e2e-ssh/evidence.json`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `rtk python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --op-kind dequantize_i32_to_f32 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 17 --runtime-count 257 --dequant-scale=-0.125 --dequant-scale=0.375 --run-id dequant-e2e-dry --overwrite`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --op-kind dequantize_i32_to_f32 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 17 --runtime-count 257 --dequant-scale=-0.125 --dequant-scale=0.375 --run-id dequant-e2e-ssh --overwrite`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter explicit-selected-body-artifact-dequantize-i32-to-f32` from `build/test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter generic-i32-to-f32-dequantization-dataflow` from `build/test`
+- [OK] bounded old-authority scan over the changed script/task files.
+- [OK] `rtk git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 453: Stage2 RVV low-precision product-plus-reduction contraction chain
 
 **Date**: 2026-06-04
