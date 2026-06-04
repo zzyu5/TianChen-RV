@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-22.md`
-- **Total Sessions**: 452
-- **Last Active**: 2026-06-04
+- **Total Sessions**: 453
+- **Last Active**: 2026-06-05
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-22.md` | ~1512 | Active |
+| `journal-22.md` | ~1662 | Active |
 | `journal-21.md` | ~1978 | Archived |
 | `journal-20.md` | ~1977 | Archived |
 | `journal-19.md` | ~1996 | Archived |
@@ -50,6 +50,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 453 | 2026-06-05 | Stage2 RVV i32-to-f32 dequantization route foundation | pending-in-this-commit | `main` |
 | 452 | 2026-06-04 | Stage2 RVV i16-to-i32 widening reduction route | - | `main` |
 | 451 | 2026-06-04 | Stage2 RVV low-precision widening-product route foundation | included-in-this-commit | `main` |
 | 450 | 2026-06-04 | Stage2 RVV computed-mask segment2 update executable artifact | included-in-this-commit | `main` |

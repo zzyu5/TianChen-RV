@@ -162,12 +162,15 @@ static llvm::Error verifyRVVSelectedBodyTypedConfigFactsMirror(
           requireMatch("config contract", facts.configContractID,
                        description.configContractID))
     return error;
-  if (!description.vectorTypeName.empty())
+  const bool isDequantizationRoute =
+      description.operation == RVVSelectedBodyOperationKind::DequantizeI32ToF32 ||
+      description.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideDequantization;
+  if (!description.vectorTypeName.empty() && !isDequantizationRoute)
     if (llvm::Error error =
             requireMatch("vector type", facts.vectorTypeName,
                          description.vectorTypeName))
       return error;
-  if (!description.vectorCType.empty())
+  if (!description.vectorCType.empty() && !isDequantizationRoute)
     if (llvm::Error error = requireMatch("vector C type", facts.vectorCType,
                                          description.vectorCType))
       return error;
@@ -307,6 +310,14 @@ static bool isRVVSelectedBodyWideningConversionRouteControlConsumer(
          description.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideConversion;
 }
 
+static bool isRVVSelectedBodyDequantizationRouteControlConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVSelectedBodyDequantizationRouteFamilyConsumer(
+             description.operation) &&
+         description.memoryForm ==
+             RVVSelectedBodyMemoryForm::UnitStrideDequantization;
+}
+
 static bool isRVVSelectedBodyRuntimeScalarSplatStoreRouteControlConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyConsumer(
@@ -408,6 +419,12 @@ static llvm::Error buildWideningConversionRouteControlProviderPlan(
     RVVSelectedBodyRouteControlProviderPlan &plan,
     const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
     llvm::StringRef context);
+static llvm::Error buildDequantizationRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context);
 static llvm::Error buildRuntimeScalarSplatStoreRouteControlProviderPlan(
     const RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
@@ -472,6 +489,8 @@ getRVVSelectedBodyRouteControlProviderOwners() {
       {"widening conversion",
        isRVVSelectedBodyWideningConversionRouteControlConsumer,
        buildWideningConversionRouteControlProviderPlan},
+      {"dequantization", isRVVSelectedBodyDequantizationRouteControlConsumer,
+       buildDequantizationRouteControlProviderPlan},
       {"computed-mask memory",
        isRVVSelectedBodyComputedMaskMemoryRouteControlConsumer,
        buildComputedMaskMemoryRouteControlProviderPlan},
@@ -1037,6 +1056,86 @@ static llvm::Error buildWideningConversionRouteControlProviderPlan(
 
   runtimeControlPlan = &conversionPlan.runtimeControlPlan;
   plan.controlsWideningConversion = true;
+  return llvm::Error::success();
+}
+
+static llvm::Error buildDequantizationRouteControlProviderPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    RVVSelectedBodyRouteControlProviderPlan &plan,
+    const RVVRuntimeAVLVLControlPlan *&runtimeControlPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (!materializationFacts.dequantizationPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires the verified dequantization "
+        "route-family plan before provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!analysis.dequantizationRouteFamilyPlan ||
+      materializationFacts.dequantizationPlan !=
+          &*analysis.dequantizationRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires dequantization "
+        "materialization facts from the same selected route analysis before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const RVVSelectedBodyDequantizationRouteFamilyPlan &dequantPlan =
+      *materializationFacts.dequantizationPlan;
+  if (dequantPlan.operation != description.operation ||
+      dequantPlan.memoryForm != description.memoryForm ||
+      dequantPlan.sourceSEW != description.sourceSEW ||
+      dequantPlan.sourceLMUL != description.sourceLMUL ||
+      dequantPlan.sourceVectorTypeName != description.sourceVectorTypeName ||
+      dequantPlan.sourceVectorCType != description.sourceVectorCType ||
+      dequantPlan.sourceVectorLoadIntrinsic !=
+          description.sourceVectorLoadIntrinsic ||
+      dequantPlan.resultSEW != description.sew ||
+      dequantPlan.resultLMUL != description.lmul ||
+      dequantPlan.resultVectorTypeName != description.vectorTypeName ||
+      dequantPlan.resultVectorCType != description.vectorCType ||
+      dequantPlan.setVLIntrinsic != description.setVLIntrinsic ||
+      dequantPlan.dequantizationKind != description.conversionKind ||
+      dequantPlan.dequantizationRelation !=
+          description.dequantizationRelation ||
+      dequantPlan.convertIntrinsic != description.dequantizeConvertIntrinsic ||
+      dequantPlan.scaleIntrinsic != description.dequantizeScaleIntrinsic ||
+      dequantPlan.storeIntrinsic != description.storeIntrinsic ||
+      dequantPlan.scaleRole != description.dequantScaleRole ||
+      dequantPlan.scaleCType != description.dequantScaleCType ||
+      dequantPlan.scaleName != description.dequantScaleName)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires dequantization source/result "
+        "type, runtime-scale, and intrinsic facts from the verified "
+        "route-family plan before provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  if (materializationFacts.sourceVectorTypeName !=
+          dequantPlan.sourceVectorTypeName ||
+      materializationFacts.sourceVectorCType != dequantPlan.sourceVectorCType ||
+      materializationFacts.resultVectorTypeName !=
+          dequantPlan.resultVectorTypeName ||
+      materializationFacts.resultVectorCType != dequantPlan.resultVectorCType ||
+      materializationFacts.setVLLeaf != dequantPlan.setVLIntrinsic ||
+      materializationFacts.sourceLoadLeaf !=
+          dequantPlan.sourceVectorLoadIntrinsic ||
+      materializationFacts.dequantizeConvertLeaf !=
+          dequantPlan.convertIntrinsic ||
+      materializationFacts.dequantizeScaleLeaf != dequantPlan.scaleIntrinsic ||
+      materializationFacts.storeLeaf != dequantPlan.storeIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " route-control provider plan requires dequantization "
+        "materialization facts to mirror the verified family plan before "
+        "provider route construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  runtimeControlPlan = &dequantPlan.runtimeControlPlan;
+  plan.controlsDequantization = true;
   return llvm::Error::success();
 }
 

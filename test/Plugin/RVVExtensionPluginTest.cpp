@@ -11601,16 +11601,19 @@ int runConversionDtypePolicyRouteFamilyOwnerRegistryTest() {
                      RVVSelectedBodyConversionDtypePolicyRouteFamilyOwner>
       owners = getRVVSelectedBodyConversionDtypePolicyRouteFamilyOwners();
   if (int result = expect(
-          owners.size() == 2,
+          owners.size() == 3,
           "conversion dtype-policy route-family owner registry has exactly "
-          "two active owner entries"))
+          "three active owner entries"))
     return result;
   if (int result = expect(
           owners[0].familyName == "widening conversion dtype policy" &&
               owners[1].familyName ==
+                  "dequantization dtype policy" &&
+              owners[2].familyName ==
                   "scalar-broadcast elementwise dtype policy",
           "conversion dtype-policy route-family owner registry preserves the "
-          "primary widening and adjacent scalar-broadcast boundaries"))
+          "primary widening, dequantization, and adjacent scalar-broadcast "
+          "boundaries"))
     return result;
   for (const auto &owner : owners) {
     if (int result = expect(
@@ -11633,14 +11636,26 @@ int runConversionDtypePolicyRouteFamilyOwnerRegistryTest() {
     return result;
   if (int result = expect(
           owners[1].isConsumer(
-              RVVSelectedBodyOperationKind::ScalarBroadcastAdd) &&
-              owners[1].isConsumer(
-                  RVVSelectedBodyOperationKind::ScalarBroadcastSub) &&
-              owners[1].isConsumer(
-                  RVVSelectedBodyOperationKind::ScalarBroadcastMul) &&
+              RVVSelectedBodyOperationKind::DequantizeI32ToF32) &&
               !owners[1].isConsumer(
                   RVVSelectedBodyOperationKind::WidenI32ToI64) &&
+              !owners[1].isConsumer(
+                  RVVSelectedBodyOperationKind::ScalarBroadcastAdd) &&
               !owners[1].isConsumer(RVVSelectedBodyOperationKind::Add),
+          "dequantization dtype-policy owner covers i32-to-f32 dequantization "
+          "and excludes widening, scalar-broadcast, and plain elementwise "
+          "routes"))
+    return result;
+  if (int result = expect(
+          owners[2].isConsumer(
+              RVVSelectedBodyOperationKind::ScalarBroadcastAdd) &&
+              owners[2].isConsumer(
+                  RVVSelectedBodyOperationKind::ScalarBroadcastSub) &&
+              owners[2].isConsumer(
+                  RVVSelectedBodyOperationKind::ScalarBroadcastMul) &&
+              !owners[2].isConsumer(
+                  RVVSelectedBodyOperationKind::WidenI32ToI64) &&
+              !owners[2].isConsumer(RVVSelectedBodyOperationKind::Add),
           "scalar-broadcast dtype-policy owner covers vector-scalar "
           "elementwise routes and excludes widening/plain elementwise routes"))
     return result;
@@ -11648,12 +11663,14 @@ int runConversionDtypePolicyRouteFamilyOwnerRegistryTest() {
   for (RVVSelectedBodyOperationKind op :
        {RVVSelectedBodyOperationKind::WidenI32ToI64,
         RVVSelectedBodyOperationKind::WidenI16ToI32,
+        RVVSelectedBodyOperationKind::DequantizeI32ToF32,
         RVVSelectedBodyOperationKind::ScalarBroadcastAdd,
         RVVSelectedBodyOperationKind::ScalarBroadcastSub}) {
     if (int result = expect(
             isRVVSelectedBodyConversionDtypePolicyRouteFamilyConsumer(op),
             "aggregate conversion dtype-policy owner consumer predicate is "
-            "registry backed across widening and scalar-broadcast consumers"))
+            "registry backed across widening, dequantization, and "
+            "scalar-broadcast consumers"))
       return result;
   }
   if (int result = expect(
@@ -11687,6 +11704,17 @@ int runConversionDtypePolicyRouteFamilyOwnerRegistryTest() {
               "conversion dtype-policy owner registry unit test"),
           {"requires the scalar-broadcast elementwise route-family plan",
            "scalar_broadcast_add"}))
+    return result;
+
+  RVVSelectedBodyRouteAnalysis missingDequantizationPlan;
+  missingDequantizationPlan.description.operation =
+      RVVSelectedBodyOperationKind::DequantizeI32ToF32;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyConversionDtypePolicyRouteFamilyProviderPlans(
+              missingDequantizationPlan,
+              "conversion dtype-policy owner registry unit test"),
+          {"requires the dequantization route-family plan",
+           "dequantize_i32_to_f32"}))
     return result;
 
   RVVSelectedBodyRouteAnalysis nonConversionDtypePolicyAnalysis;
@@ -12138,8 +12166,8 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
                      RVVSelectedBodyRouteFamilyProviderOwner>
       owners = getRVVSelectedBodyRouteFamilyProviderOwners();
   if (int result = expect(
-          owners.size() == 5,
-          "top-level route-family provider owner registry has exactly five "
+          owners.size() == 6,
+          "top-level route-family provider owner registry has exactly six "
           "active owner entries"))
     return result;
   if (int result = expect(
@@ -12148,7 +12176,8 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
                   "reduction/accumulation/contraction" &&
               owners[2].familyName == "elementwise/select" &&
               owners[3].familyName == "runtime scalar splat-store" &&
-              owners[4].familyName == "widening conversion",
+              owners[4].familyName == "widening conversion" &&
+              owners[5].familyName == "dequantization",
           "top-level route-family provider owner registry preserves explicit "
           "provider verifier ownership"))
     return result;
@@ -12196,6 +12225,12 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
           "top-level widening conversion owner classification remains "
           "isolated"))
     return result;
+  if (int result = expect(
+          owners[5].isConsumer(
+              RVVSelectedBodyOperationKind::DequantizeI32ToF32) &&
+              !owners[5].isConsumer(RVVSelectedBodyOperationKind::WidenI32ToI64),
+          "top-level dequantization owner classification remains isolated"))
+    return result;
 
   for (RVVSelectedBodyOperationKind op :
        {RVVSelectedBodyOperationKind::StridedLoadUnitStore,
@@ -12204,7 +12239,8 @@ int runTopLevelRouteFamilyProviderOwnerRegistryTest() {
         RVVSelectedBodyOperationKind::ScalarBroadcastMAccAdd,
         RVVSelectedBodyOperationKind::Add,
         RVVSelectedBodyOperationKind::RuntimeScalarSplatStore,
-        RVVSelectedBodyOperationKind::WidenI32ToI64}) {
+        RVVSelectedBodyOperationKind::WidenI32ToI64,
+        RVVSelectedBodyOperationKind::DequantizeI32ToF32}) {
     if (int result = expect(
             isRVVSelectedBodyRouteFamilyProviderConsumer(op),
             "top-level route-family provider consumer predicate is registry "
@@ -12320,8 +12356,8 @@ int runRouteControlProviderOwnerRegistryTest() {
                      RVVSelectedBodyRouteControlProviderOwner>
       owners = getRVVSelectedBodyRouteControlProviderOwners();
   if (int result =
-          expect(owners.size() == 15,
-                 "route-control provider owner registry has exactly fifteen "
+          expect(owners.size() == 16,
+                 "route-control provider owner registry has exactly sixteen "
                  "active adopted family entries"))
     return result;
 
@@ -12332,6 +12368,7 @@ int runRouteControlProviderOwnerRegistryTest() {
       "plain compare-select",
       "computed-mask select",
       "widening conversion",
+      "dequantization",
       "computed-mask memory",
       "segment2 memory",
       "base memory movement",
@@ -12375,6 +12412,8 @@ int runRouteControlProviderOwnerRegistryTest() {
        RVVSelectedBodyMemoryForm::VectorRHSLoad, "computed-mask select"},
       {RVVSelectedBodyOperationKind::WidenI32ToI64,
        RVVSelectedBodyMemoryForm::UnitStrideConversion, "widening conversion"},
+      {RVVSelectedBodyOperationKind::DequantizeI32ToF32,
+       RVVSelectedBodyMemoryForm::UnitStrideDequantization, "dequantization"},
       {RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore,
        RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore,
        "computed-mask memory"},
@@ -12662,9 +12701,9 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
                      RVVSelectedBodyMigratedRouteStatementPlanOwner>
       owners = getRVVSelectedBodyMigratedRouteStatementPlanOwners();
   if (int result =
-          expect(owners.size() == 11,
+          expect(owners.size() == 12,
                  "migrated route statement-plan owner registry has exactly "
-                 "eleven active family entries"))
+                 "twelve active family entries"))
     return result;
 
   struct ExpectedOwner {
@@ -12678,6 +12717,8 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
        RVVSelectedBodyMigratedRouteStatementPlanFamily::CompareSelect},
       {"widening conversion",
        RVVSelectedBodyMigratedRouteStatementPlanFamily::WideningConversion},
+      {"dequantization",
+       RVVSelectedBodyMigratedRouteStatementPlanFamily::Dequantization},
       {"runtime scalar splat-store",
        RVVSelectedBodyMigratedRouteStatementPlanFamily::
            RuntimeScalarSplatStore},
@@ -12722,6 +12763,8 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
        RVVSelectedBodyMemoryForm::VectorRHSLoad, "compare/select"},
       {RVVSelectedBodyOperationKind::WidenI32ToI64,
        RVVSelectedBodyMemoryForm::UnitStrideConversion, "widening conversion"},
+      {RVVSelectedBodyOperationKind::DequantizeI32ToF32,
+       RVVSelectedBodyMemoryForm::UnitStrideDequantization, "dequantization"},
       {RVVSelectedBodyOperationKind::RuntimeScalarSplatStore,
        RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore,
        "runtime scalar splat-store"},

@@ -77,6 +77,7 @@ enum class RVVSelectedBodyOperationKind {
   RuntimeScalarSplatStore,
   WidenI32ToI64,
   WidenI16ToI32,
+  DequantizeI32ToF32,
   WideningMAccAdd,
   WideningProduct,
   WideningProductReduceAdd,
@@ -116,6 +117,7 @@ enum class RVVSelectedBodyMemoryForm {
   Segment2LoadUnitStore,
   UnitLoadSegment2Store,
   UnitStrideConversion,
+  UnitStrideDequantization,
   ComputedMaskUnitStrideWideningDotReduce,
   StridedInputWideningDotReduce,
   ComputedMaskStridedInputWideningDotReduce,
@@ -204,6 +206,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef maskComposition;
   llvm::StringRef selectLayout;
   llvm::StringRef scalarBroadcastElementwiseRouteFamilyPlanID;
+  llvm::StringRef dequantizationRouteFamilyPlanID;
   llvm::StringRef plainMAccRouteFamilyPlanID;
   llvm::StringRef scalarBroadcastMAccRouteFamilyPlanID;
   llvm::StringRef elementwiseArithmeticRouteFamilyPlanID;
@@ -250,6 +253,12 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef wideningProductRelation;
   llvm::StringRef wideningProductIntrinsic;
   llvm::StringRef maskedWideningProductIntrinsic;
+  llvm::StringRef dequantizeConvertIntrinsic;
+  llvm::StringRef dequantizeScaleIntrinsic;
+  llvm::StringRef dequantizationRelation;
+  llvm::StringRef dequantScaleRole;
+  llvm::StringRef dequantScaleCType;
+  llvm::StringRef dequantScaleName;
   llvm::StringRef scalarSeedSplatIntrinsic;
   llvm::StringRef productElementTypeName;
   std::int64_t productSEW = 0;
@@ -1965,8 +1974,56 @@ struct RVVWideningConversionRouteFacts {
 std::optional<RVVWideningConversionRouteFacts>
 getRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation);
 
+struct RVVDequantizationRouteFacts {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  llvm::StringRef sourceElementTypeName;
+  llvm::StringRef resultElementTypeName;
+  llvm::StringRef scaleElementTypeName;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef routeFamilyPlanID;
+  llvm::StringRef typedComputeOpName;
+  std::int64_t sourceSEW = 0;
+  llvm::StringRef sourceLMUL;
+  std::int64_t resultSEW = 0;
+  llvm::StringRef resultLMUL;
+  llvm::StringRef dequantizationKind;
+  llvm::StringRef dequantizationRelation;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::StringRef sourceVectorLoadIntrinsic;
+  llvm::StringRef convertIntrinsic;
+  llvm::StringRef scaleIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef vlCType;
+  llvm::StringRef sourceVectorTypeName;
+  llvm::StringRef sourceVectorCType;
+  llvm::StringRef resultVectorTypeName;
+  llvm::StringRef resultVectorCType;
+  llvm::StringRef scaleCType;
+  llvm::StringRef scaleRole;
+  llvm::StringRef scaleName;
+  llvm::StringRef resultName;
+  std::string routeOperandBindingSummary;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
+      runtimeABIParameters;
+};
+
+std::optional<RVVDequantizationRouteFacts>
+getRVVDequantizationRouteFacts(RVVSelectedBodyOperationKind operation);
+
 enum class RVVConversionDtypePolicyRouteValidationKind {
   WideningConversion,
+  Dequantization,
 };
 
 struct RVVConversionDtypePolicyRouteTypeMappingContract {
@@ -2005,14 +2062,21 @@ struct RVVConversionDtypePolicyRouteValidationContract {
   std::string routeOperandBindingPlanID;
   std::string routeOperandBindingSummary;
   std::string wideningConversionRouteFamilyPlanID;
+  std::string dequantizationRouteFamilyPlanID;
   std::string typedComputeOpName;
 
   std::string conversionKind;
   std::string conversionRelation;
+  std::string dequantizationRelation;
   std::string sourceMemoryForm;
   std::string destinationMemoryForm;
   std::string sourceVectorLoadIntrinsic;
   std::string conversionIntrinsic;
+  std::string dequantizeConvertIntrinsic;
+  std::string dequantizeScaleIntrinsic;
+  std::string dequantScaleRole;
+  std::string dequantScaleCType;
+  std::string dequantScaleName;
   std::string intrinsic;
   std::string storeIntrinsic;
   std::string setVLIntrinsic;

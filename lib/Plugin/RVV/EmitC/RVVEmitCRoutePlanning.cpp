@@ -566,6 +566,8 @@ constexpr llvm::StringLiteral kRVVWidenI32ToI64OperandBindingPlanID(
     "rvv-route-operand-binding:widen_i32_to_i64.v1");
 constexpr llvm::StringLiteral kRVVWidenI16ToI32OperandBindingPlanID(
     "rvv-route-operand-binding:widen_i16_to_i32.v1");
+constexpr llvm::StringLiteral kRVVDequantizeI32ToF32OperandBindingPlanID(
+    "rvv-route-operand-binding:dequantize_i32_to_f32.v1");
 constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreOperandBindingPlanID(
     "rvv-route-operand-binding:runtime_scalar_splat_store.v1");
 constexpr llvm::StringLiteral
@@ -1018,6 +1020,8 @@ llvm::StringRef getExpectedRVVRouteOperandBindingPlanID(
     return kRVVWidenI32ToI64OperandBindingPlanID;
   case RVVSelectedBodyOperationKind::WidenI16ToI32:
     return kRVVWidenI16ToI32OperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::DequantizeI32ToF32:
+    return kRVVDequantizeI32ToF32OperandBindingPlanID;
   default:
     break;
   }
@@ -1059,6 +1063,16 @@ getExpectedRVVRouteOperandBindingRole(llvm::StringRef planID,
       planID == kRVVWidenI16ToI32OperandBindingPlanID) {
     if (logicalOperand == "lhs")
       return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "out")
+      return RuntimeABIParameterRole::OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVDequantizeI32ToF32OperandBindingPlanID) {
+    if (logicalOperand == "lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "scale")
+      return RuntimeABIParameterRole::DequantScaleValue;
     if (logicalOperand == "out")
       return RuntimeABIParameterRole::OutputBuffer;
     if (logicalOperand == "n")
@@ -2018,20 +2032,36 @@ constexpr llvm::StringLiteral kRVVRuntimeScalarSplatStoreRouteFamilyPlanID(
     "rvv-runtime-scalar-splat-store-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVWideningConversionRouteFamilyPlanID(
     "rvv-widening-conversion-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVDequantizationRouteFamilyPlanID(
+    "rvv-dequantization-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVWidenI32ToI64TargetLeafProfile(
     "rvv-v1-i32m1-i64m2-widening-conversion-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVWidenI16ToI32TargetLeafProfile(
     "rvv-v1-i16mf2-i32m1-widening-conversion-leaf-profile.v1");
+constexpr llvm::StringLiteral kRVVDequantizeI32ToF32TargetLeafProfile(
+    "rvv-v1-i32m1-f32m1-runtime-scale-dequantization-leaf-profile.v1");
 constexpr llvm::StringLiteral kRVVWidenI32ToI64ProviderSupportedMirror(
     "provider_supported_mirror:rvv-widen-i32-to-i64-plan-validated");
 constexpr llvm::StringLiteral kRVVWidenI16ToI32ProviderSupportedMirror(
     "provider_supported_mirror:rvv-widen-i16-to-i32-plan-validated");
+constexpr llvm::StringLiteral kRVVDequantizeI32ToF32ProviderSupportedMirror(
+    "provider_supported_mirror:rvv-dequantize-i32-to-f32-runtime-scale-plan-validated");
 constexpr llvm::StringLiteral kRVVWideningConversionRequiredHeaderDeclarations(
+    "stddef.h,stdint.h,riscv_vector.h");
+constexpr llvm::StringLiteral kRVVDequantizationRequiredHeaderDeclarations(
     "stddef.h,stdint.h,riscv_vector.h");
 constexpr llvm::StringLiteral kRVVWidenI32ToI64CTypeMappingSummary(
     "vl:size_t,source:signed-e32m1,result:signed-e64m2");
 constexpr llvm::StringLiteral kRVVWidenI16ToI32CTypeMappingSummary(
     "vl:size_t,source:signed-e16mf2,result:signed-e32m1");
+constexpr llvm::StringLiteral kRVVDequantizeI32ToF32CTypeMappingSummary(
+    "vl:size_t,source:signed-e32m1,converted/scaled:float-e32m1,scale:float");
+constexpr llvm::StringLiteral kRVVDequantizeI32ToF32RuntimeABIOrder(
+    "lhs,scale,out,n");
+constexpr llvm::StringLiteral kRVVDequantizeI32ToF32Relation(
+    "signed-i32m1-to-f32m1-scale-f32");
+constexpr llvm::StringLiteral kRVVDequantizeI32ToF32Kind(
+    "i32_to_f32_scaled");
 constexpr llvm::StringLiteral kRVVRuntimeScalarCompareSelectRuntimeABIOrder(
     "lhs,rhs_scalar,true_value,false_value,out,n");
 constexpr llvm::StringLiteral
@@ -2967,6 +2997,18 @@ llvm::StringRef getRVVSelectedBodyOutputPointerCType(std::int64_t sew) {
       (llvm::Twine("int") + llvm::Twine(sew) + "_t *").str());
 }
 
+llvm::StringRef getRVVSelectedBodyFloatElementTypeName(std::int64_t sew) {
+  if (sew == tcrv::rvv::getRVVFirstSliceSEWBits())
+    return "f32";
+  return {};
+}
+
+llvm::StringRef getRVVSelectedBodyFloatOutputPointerCType(std::int64_t sew) {
+  if (getRVVSelectedBodyFloatElementTypeName(sew).empty())
+    return {};
+  return "float *";
+}
+
 llvm::StringRef getRVVSelectedBodyElementByteSize(std::int64_t sew) {
   if (sew <= 0 || sew % 8 != 0)
     return {};
@@ -2976,6 +3018,17 @@ llvm::StringRef getRVVSelectedBodyElementByteSize(std::int64_t sew) {
 llvm::StringRef getRVVSelectedBodyVectorTypeName(std::int64_t sew,
                                                  llvm::StringRef lmul) {
   llvm::StringRef elementType = getRVVSelectedBodyIntegerElementTypeName(sew);
+  if (elementType.empty() || lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("!tcrv_rvv.vector<") + elementType + ", \"" + lmul +
+       "\">")
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyFloatVectorTypeName(std::int64_t sew,
+                                                      llvm::StringRef lmul) {
+  llvm::StringRef elementType = getRVVSelectedBodyFloatElementTypeName(sew);
   if (elementType.empty() || lmul.empty())
     return {};
   return internRVVSelectedBodyDerivedText(
@@ -3000,6 +3053,14 @@ llvm::StringRef getRVVSelectedBodySignedVectorCType(std::int64_t sew,
     return {};
   return internRVVSelectedBodyDerivedText(
       (llvm::Twine("vint") + llvm::Twine(sew) + lmul + "_t").str());
+}
+
+llvm::StringRef getRVVSelectedBodyFloatVectorCType(std::int64_t sew,
+                                                   llvm::StringRef lmul) {
+  if (getRVVSelectedBodyFloatElementTypeName(sew).empty() || lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("vfloat") + llvm::Twine(sew) + lmul + "_t").str());
 }
 
 std::optional<std::int64_t>
@@ -3069,6 +3130,24 @@ llvm::StringRef getRVVSelectedBodyStoreIntrinsic(std::int64_t sew,
       (llvm::Twine("__riscv_vse") + llvm::Twine(sew) + "_v_i" +
        llvm::Twine(sew) + lmul)
           .str());
+}
+
+llvm::StringRef getRVVSelectedBodyFloatStoreIntrinsic(std::int64_t sew,
+                                                      llvm::StringRef lmul) {
+  if (getRVVSelectedBodyFloatElementTypeName(sew).empty() || lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vse") + llvm::Twine(sew) + "_v_f" +
+       llvm::Twine(sew) + lmul)
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyI32ToF32DequantConvertIntrinsic() {
+  return "__riscv_vfcvt_f_x_v_f32m1";
+}
+
+llvm::StringRef getRVVSelectedBodyF32ScalarScaleIntrinsic() {
+  return "__riscv_vfmul_vf_f32m1";
 }
 
 llvm::StringRef getRVVSelectedBodyStridedStoreIntrinsic(std::int64_t sew,
@@ -3531,6 +3610,7 @@ constexpr RVVSelectedBodyOperationKind kRVVSelectedBodyOperationKinds[] = {
     RVVSelectedBodyOperationKind::RuntimeScalarSplatStore,
     RVVSelectedBodyOperationKind::WidenI32ToI64,
     RVVSelectedBodyOperationKind::WidenI16ToI32,
+    RVVSelectedBodyOperationKind::DequantizeI32ToF32,
     RVVSelectedBodyOperationKind::WideningMAccAdd,
     RVVSelectedBodyOperationKind::WideningProduct,
     RVVSelectedBodyOperationKind::WideningProductReduceAdd,
@@ -4047,6 +4127,15 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
       /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
       /*isSegmentedMemoryMovement=*/false,
       /*isWideningConversion=*/true};
+  static const RVVSelectedBodyOperationProfile kDequantizeI32ToF32 = {
+      RVVSelectedBodyOperationKind::DequantizeI32ToF32,
+      "dequantize_i32_to_f32", "dequantized_vec", "",
+      /*isCompareSelect=*/false, /*isReduction=*/false,
+      /*isMaskedArithmetic=*/false, /*isMultiplyAccumulate=*/false,
+      /*isStridedMemory=*/false, /*isMemoryMovement=*/false,
+      /*isIndexedMemoryMovement=*/false, /*isMaskedMemoryMovement=*/false,
+      /*isSegmentedMemoryMovement=*/false,
+      /*isWideningConversion=*/false};
   static const RVVSelectedBodyOperationProfile kWideningMAccAdd = {
       RVVSelectedBodyOperationKind::WideningMAccAdd, "widening_macc_add",
       "widening_macc_sum_vec", "", /*isCompareSelect=*/false,
@@ -4221,6 +4310,8 @@ getRVVSelectedBodyOperationProfile(RVVSelectedBodyOperationKind op) {
     return kWidenI32ToI64;
   case RVVSelectedBodyOperationKind::WidenI16ToI32:
     return kWidenI16ToI32;
+  case RVVSelectedBodyOperationKind::DequantizeI32ToF32:
+    return kDequantizeI32ToF32;
   case RVVSelectedBodyOperationKind::WideningMAccAdd:
     return kWideningMAccAdd;
   case RVVSelectedBodyOperationKind::WideningProduct:
@@ -4458,6 +4549,8 @@ llvm::StringRef getRVVSelectedBodyArithmeticIntrinsic(
   case RVVSelectedBodyOperationKind::WidenI32ToI64:
   case RVVSelectedBodyOperationKind::WidenI16ToI32:
     llvm_unreachable("widening conversion uses dedicated conversion leaf");
+  case RVVSelectedBodyOperationKind::DequantizeI32ToF32:
+    llvm_unreachable("dequantization uses dedicated conversion and scale leaves");
   case RVVSelectedBodyOperationKind::WideningMAccAdd:
     llvm_unreachable("widening macc uses dedicated widening macc leaf");
   case RVVSelectedBodyOperationKind::WideningProduct:
@@ -6085,6 +6178,446 @@ void applyRVVSelectedBodyWideningConversionRouteFamilyPlan(
   description.storeIntrinsic = plan.storeIntrinsic;
   description.resultName = plan.resultName;
   description.conversionRelation = plan.conversionRelation;
+  description.sourceMemoryForm = plan.sourceMemoryForm;
+  description.destinationMemoryForm = plan.destinationMemoryForm;
+  description.runtimeABIParameters.clear();
+  description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
+                                          plan.runtimeABIParameters.end());
+}
+
+bool isRVVSelectedBodyDequantizationRouteOperation(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::DequantizeI32ToF32;
+}
+
+std::optional<RVVDequantizationRouteFacts>
+buildRVVDequantizationRouteFacts(RVVSelectedBodyOperationKind operation) {
+  if (!isRVVSelectedBodyDequantizationRouteOperation(operation))
+    return std::nullopt;
+
+  const std::int64_t sourceSEW = tcrv::rvv::getRVVFirstSliceSEWBits();
+  const llvm::StringRef sourceLMUL = tcrv::rvv::getRVVLMULM1();
+  const std::int64_t resultSEW = tcrv::rvv::getRVVFirstSliceSEWBits();
+  const llvm::StringRef resultLMUL = tcrv::rvv::getRVVLMULM1();
+
+  RVVDequantizationRouteFacts facts;
+  facts.operation = operation;
+  facts.memoryForm = RVVSelectedBodyMemoryForm::UnitStrideDequantization;
+  facts.sourceElementTypeName =
+      getRVVSelectedBodyIntegerElementTypeName(sourceSEW);
+  facts.resultElementTypeName =
+      getRVVSelectedBodyFloatElementTypeName(resultSEW);
+  facts.scaleElementTypeName = getRVVSelectedBodyFloatElementTypeName(resultSEW);
+  facts.tailPolicy = "agnostic";
+  facts.maskPolicy = "agnostic";
+  facts.runtimeControlPlanID = getRVVRuntimeAVLVLControlPlanID();
+  facts.runtimeABIOrder = kRVVDequantizeI32ToF32RuntimeABIOrder;
+  facts.targetLeafProfile = kRVVDequantizeI32ToF32TargetLeafProfile;
+  facts.providerSupportedMirror =
+      kRVVDequantizeI32ToF32ProviderSupportedMirror;
+  facts.requiredHeaderDeclarations = kRVVDequantizationRequiredHeaderDeclarations;
+  facts.cTypeMappingSummary = kRVVDequantizeI32ToF32CTypeMappingSummary;
+  facts.routeOperandBindingPlanID = kRVVDequantizeI32ToF32OperandBindingPlanID;
+  facts.routeFamilyPlanID = kRVVDequantizationRouteFamilyPlanID;
+  facts.typedComputeOpName = "tcrv_rvv.dequantize";
+  facts.sourceSEW = sourceSEW;
+  facts.sourceLMUL = sourceLMUL;
+  facts.resultSEW = resultSEW;
+  facts.resultLMUL = resultLMUL;
+  facts.dequantizationKind = kRVVDequantizeI32ToF32Kind;
+  facts.dequantizationRelation = kRVVDequantizeI32ToF32Relation;
+  facts.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
+  facts.destinationMemoryForm = kRVVDestinationMemoryForm;
+  facts.sourceVectorLoadIntrinsic =
+      getRVVSelectedBodyVectorLoadIntrinsic(sourceSEW, sourceLMUL);
+  facts.convertIntrinsic = getRVVSelectedBodyI32ToF32DequantConvertIntrinsic();
+  facts.scaleIntrinsic = getRVVSelectedBodyF32ScalarScaleIntrinsic();
+  facts.storeIntrinsic =
+      getRVVSelectedBodyFloatStoreIntrinsic(resultSEW, resultLMUL);
+  facts.setVLIntrinsic =
+      getRVVSelectedBodySetVLIntrinsic(resultSEW, resultLMUL);
+  facts.vlCType = "size_t";
+  facts.sourceVectorTypeName =
+      getRVVSelectedBodyVectorTypeName(sourceSEW, sourceLMUL);
+  facts.sourceVectorCType =
+      getRVVSelectedBodySignedVectorCType(sourceSEW, sourceLMUL);
+  facts.resultVectorTypeName =
+      getRVVSelectedBodyFloatVectorTypeName(resultSEW, resultLMUL);
+  facts.resultVectorCType =
+      getRVVSelectedBodyFloatVectorCType(resultSEW, resultLMUL);
+  facts.scaleCType = "float";
+  facts.scaleRole = "dequant-scale-value";
+  facts.scaleName = "scale";
+  facts.resultName = "dequantized_vec";
+  facts.routeOperandBindingSummary =
+      (llvm::Twine(kRVVDequantizeI32ToF32OperandBindingPlanID) +
+       ";lhs=lhs-input-buffer:lhs:abi|src-load|dequant-src|src-i32m1|"
+       "relation-signed-i32m1-to-f32m1-scale-f32|hdr;"
+       "scale=dequant-scale-value:scale:abi|runtime-scale|scale-f32|hdr;"
+       "out=output-buffer:out:abi|res-store|dequant-result|res-f32m1|"
+       "relation-signed-i32m1-to-f32m1-scale-f32|hdr;"
+       "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
+          .str();
+  facts.runtimeABIParameters.push_back(tianchenrv::support::RuntimeABIParameter(
+      "lhs", getRVVSelectedBodyConstInputPointerCType(sourceSEW),
+      tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer,
+      tianchenrv::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(tianchenrv::support::RuntimeABIParameter(
+      "scale", "float",
+      tianchenrv::support::RuntimeABIParameterRole::DequantScaleValue,
+      tianchenrv::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(tianchenrv::support::RuntimeABIParameter(
+      "out", getRVVSelectedBodyFloatOutputPointerCType(resultSEW),
+      tianchenrv::support::RuntimeABIParameterRole::OutputBuffer,
+      tianchenrv::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  facts.runtimeABIParameters.push_back(tianchenrv::support::RuntimeABIParameter(
+      "n", "size_t",
+      tianchenrv::support::RuntimeABIParameterRole::RuntimeElementCount,
+      tianchenrv::support::RuntimeABIParameterOwnership::TargetExportABIOwned));
+  return facts;
+}
+
+llvm::Error requireRVVSelectedBodyDequantizationPlanField(
+    const RVVSelectedBodyDequantizationRouteFamilyPlan &plan,
+    llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("dequantization route-family plan validation for operation '") +
+      stringifyRVVSelectedBodyOperationKind(plan.operation) + "' requires " +
+      field + " '" + expected + "' but found '" + actual + "'");
+}
+
+llvm::Error validateRVVSelectedBodyDequantizationRouteFamilyPlan(
+    const RVVSelectedBodyDequantizationRouteFamilyPlan &plan) {
+  if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
+          plan.runtimeControlPlan,
+          "dequantization route-family runtime AVL/VL control"))
+    return error;
+  if (!isRVVSelectedBodyDequantizationRouteOperation(plan.operation))
+    return makeRVVEmitCRouteProviderError(
+        "dequantization route-family plan supports only dequantize_i32_to_f32");
+  if (plan.memoryForm != RVVSelectedBodyMemoryForm::UnitStrideDequantization)
+    return makeRVVEmitCRouteProviderError(
+        "dequantization route-family plan requires unit-stride dequantization "
+        "typed body structure");
+  std::optional<RVVDequantizationRouteFacts> expectedFacts =
+      buildRVVDequantizationRouteFacts(plan.operation);
+  if (!expectedFacts)
+    return makeRVVEmitCRouteProviderError(
+        "dequantization route-family plan requires provider-owned facts before "
+        "validation");
+
+  auto requireField = [&](llvm::StringRef field, llvm::StringRef actual,
+                          llvm::StringRef expected) -> llvm::Error {
+    return requireRVVSelectedBodyDequantizationPlanField(plan, field, actual,
+                                                         expected);
+  };
+  if (llvm::Error error = requireField("runtime control plan",
+                                       plan.runtimeControlPlan.controlPlanID,
+                                       getRVVRuntimeAVLVLControlPlanID()))
+    return error;
+  if (llvm::Error error = requireField("runtime control plan mirror",
+                                       plan.runtimeControlPlanID,
+                                       expectedFacts->runtimeControlPlanID))
+    return error;
+  if (llvm::Error error = requireField("tail policy",
+                                       plan.runtimeControlPlan.tailPolicy,
+                                       expectedFacts->tailPolicy))
+    return error;
+  if (llvm::Error error = requireField("mask policy",
+                                       plan.runtimeControlPlan.maskPolicy,
+                                       expectedFacts->maskPolicy))
+    return error;
+  if (llvm::Error error =
+          requireField("family plan", plan.familyPlanID,
+                       expectedFacts->routeFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireField("runtime ABI order",
+                                       plan.runtimeABIOrder,
+                                       expectedFacts->runtimeABIOrder))
+    return error;
+  if (llvm::Error error = requireField("target leaf profile",
+                                       plan.targetLeafProfile,
+                                       expectedFacts->targetLeafProfile))
+    return error;
+  if (llvm::Error error = requireField("provider_supported_mirror",
+                                       plan.providerSupportedMirror,
+                                       expectedFacts->providerSupportedMirror))
+    return error;
+  if (llvm::Error error = requireField("header declarations",
+                                       plan.requiredHeaderDeclarations,
+                                       expectedFacts->requiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error = requireField("C type mapping summary",
+                                       plan.cTypeMappingSummary,
+                                       expectedFacts->cTypeMappingSummary))
+    return error;
+  if (plan.requiredHeaders.size() != 3 ||
+      plan.requiredHeaders[0] != "stddef.h" ||
+      plan.requiredHeaders[1] != "stdint.h" ||
+      plan.requiredHeaders[2] != "riscv_vector.h")
+    return makeRVVEmitCRouteProviderError(
+        "dequantization route-family plan requires provider-owned header "
+        "declarations 'stddef.h,stdint.h,riscv_vector.h'");
+
+  if (llvm::Error error = requireField("source element type",
+                                       plan.sourceElementTypeName,
+                                       expectedFacts->sourceElementTypeName))
+    return error;
+  if (plan.sourceSEW != expectedFacts->sourceSEW)
+    return makeRVVEmitCRouteProviderError(
+        "dequantization route-family plan source SEW must be derived from the "
+        "typed source vector");
+  if (llvm::Error error = requireField("source LMUL", plan.sourceLMUL,
+                                       expectedFacts->sourceLMUL))
+    return error;
+  if (llvm::Error error = requireField("source vector type",
+                                       plan.sourceVectorTypeName,
+                                       expectedFacts->sourceVectorTypeName))
+    return error;
+  if (llvm::Error error = requireField("source vector C type",
+                                       plan.sourceVectorCType,
+                                       expectedFacts->sourceVectorCType))
+    return error;
+  if (llvm::Error error = requireField("source vector-load leaf",
+                                       plan.sourceVectorLoadIntrinsic,
+                                       expectedFacts->sourceVectorLoadIntrinsic))
+    return error;
+  if (llvm::Error error = requireField("result element type",
+                                       plan.resultElementTypeName,
+                                       expectedFacts->resultElementTypeName))
+    return error;
+  if (plan.resultSEW != expectedFacts->resultSEW)
+    return makeRVVEmitCRouteProviderError(
+        "dequantization route-family plan result SEW must be derived from the "
+        "typed result vector");
+  if (llvm::Error error = requireField("result LMUL", plan.resultLMUL,
+                                       expectedFacts->resultLMUL))
+    return error;
+  if (llvm::Error error = requireField("result vector type",
+                                       plan.resultVectorTypeName,
+                                       expectedFacts->resultVectorTypeName))
+    return error;
+  if (llvm::Error error = requireField("result vector C type",
+                                       plan.resultVectorCType,
+                                       expectedFacts->resultVectorCType))
+    return error;
+  if (llvm::Error error = requireField("scale element type",
+                                       plan.scaleElementTypeName,
+                                       expectedFacts->scaleElementTypeName))
+    return error;
+  if (llvm::Error error = requireField("scale C type", plan.scaleCType,
+                                       expectedFacts->scaleCType))
+    return error;
+  if (llvm::Error error = requireField("scale role", plan.scaleRole,
+                                       expectedFacts->scaleRole))
+    return error;
+  if (llvm::Error error = requireField("scale name", plan.scaleName,
+                                       expectedFacts->scaleName))
+    return error;
+  if (llvm::Error error = requireField("setvl leaf", plan.setVLIntrinsic,
+                                       expectedFacts->setVLIntrinsic))
+    return error;
+  if (llvm::Error error = requireField("dequantization kind",
+                                       plan.dequantizationKind,
+                                       expectedFacts->dequantizationKind))
+    return error;
+  if (llvm::Error error = requireField("dequantization relation",
+                                       plan.dequantizationRelation,
+                                       expectedFacts->dequantizationRelation))
+    return error;
+  if (llvm::Error error = requireField("convert leaf", plan.convertIntrinsic,
+                                       expectedFacts->convertIntrinsic))
+    return error;
+  if (llvm::Error error = requireField("scale leaf", plan.scaleIntrinsic,
+                                       expectedFacts->scaleIntrinsic))
+    return error;
+  if (llvm::Error error = requireField("store leaf", plan.storeIntrinsic,
+                                       expectedFacts->storeIntrinsic))
+    return error;
+  if (llvm::Error error = requireField("result name", plan.resultName,
+                                       expectedFacts->resultName))
+    return error;
+  if (llvm::Error error = requireField("source memory form",
+                                       plan.sourceMemoryForm,
+                                       expectedFacts->sourceMemoryForm))
+    return error;
+  if (llvm::Error error = requireField("destination memory form",
+                                       plan.destinationMemoryForm,
+                                       expectedFacts->destinationMemoryForm))
+    return error;
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyConstructionRuntimeABIParameters(
+              plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
+  if (plan.runtimeABIParameters.size() !=
+      expectedFacts->runtimeABIParameters.size())
+    return makeRVVEmitCRouteProviderError(
+        "dequantization route-family plan requires provider-owned runtime ABI "
+        "parameters for lhs, scale, out, and n");
+  for (std::size_t index = 0, count = expectedFacts->runtimeABIParameters.size();
+       index < count; ++index) {
+    const support::RuntimeABIParameter &actual =
+        plan.runtimeABIParameters[index];
+    const support::RuntimeABIParameter &expected =
+        expectedFacts->runtimeABIParameters[index];
+    if (actual.cName != expected.cName || actual.cType != expected.cType ||
+        actual.role != expected.role || actual.ownership != expected.ownership)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine("dequantization route-family plan runtime ABI "
+                      "parameter[") +
+          llvm::Twine(index) +
+          "] must match provider-owned ABI role and C type for '" +
+          expected.cName + "'");
+  }
+  return llvm::Error::success();
+}
+
+llvm::Expected<RVVSelectedBodyDequantizationRouteFamilyPlan>
+deriveRVVSelectedBodyDequantizationRouteFamilyPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyConfigProfile &configProfile) {
+  const RVVSelectedBodyOperationKind operation = analysis.slice.arithmeticKind;
+  if (!isRVVSelectedBodyDequantizationRouteOperation(operation))
+    return makeRVVEmitCRouteProviderError(
+        "requested dequantization route-family plan for non-dequant RVV "
+        "operation");
+  if (analysis.slice.memoryForm !=
+      RVVSelectedBodyMemoryForm::UnitStrideDequantization)
+    return makeRVVEmitCRouteProviderError(
+        "dequantization route-family plan requires unit-stride "
+        "dequantization typed body structure");
+  if (!analysis.slice.lhsGenericLoad || !analysis.slice.genericStore ||
+      !analysis.slice.dequantizeOp || !analysis.slice.arithmeticOp ||
+      analysis.slice.rhsLoadOperation)
+    return makeRVVEmitCRouteProviderError(
+        "dequantization route-family plan requires exactly one i32 source "
+        "load, one tcrv_rvv.dequantize op, and one f32 result store body "
+        "structure");
+  if (analysis.slice.lhsABI.role !=
+          support::RuntimeABIParameterRole::LHSInputBuffer ||
+      analysis.slice.dequantScaleABI.role !=
+          support::RuntimeABIParameterRole::DequantScaleValue ||
+      analysis.slice.outABI.role !=
+          support::RuntimeABIParameterRole::OutputBuffer ||
+      analysis.slice.runtimeElementCountABI.role !=
+          support::RuntimeABIParameterRole::RuntimeElementCount)
+    return makeRVVEmitCRouteProviderError(
+        "dequantization route-family plan requires lhs source buffer, runtime "
+        "scale, output buffer, and runtime element-count ABI roles");
+
+  std::optional<RVVDequantizationRouteFacts> routeFacts =
+      buildRVVDequantizationRouteFacts(operation);
+  if (!routeFacts)
+    return makeRVVEmitCRouteProviderError(
+        "dequantization route-family plan requires provider-owned facts before "
+        "derivation");
+  if (configProfile.sew != routeFacts->resultSEW ||
+      configProfile.lmul != routeFacts->resultLMUL)
+    return makeRVVEmitCRouteProviderError(
+        "dequantization route-family plan requires SEW32/LMUL m1 runtime VL "
+        "configuration for the typed f32 result vector");
+
+  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+      deriveRVVRuntimeAVLVLControlPlanForRealizedBody(
+          analysis.slice.setvl->getParentOfType<tcrv::exec::VariantOp>(),
+          analysis.slice.setvl, analysis.slice.withVL,
+          kRVVDequantizeI32ToF32RuntimeABIOrder,
+          "dequantization route-family plan");
+  if (!runtimeControlPlan)
+    return runtimeControlPlan.takeError();
+
+  RVVSelectedBodyDequantizationRouteFamilyPlan plan;
+  plan.operation = operation;
+  plan.memoryForm = analysis.slice.memoryForm;
+  plan.runtimeControlPlan = std::move(*runtimeControlPlan);
+  plan.familyPlanID = routeFacts->routeFamilyPlanID;
+  plan.runtimeABIOrder = plan.runtimeControlPlan.runtimeABIOrder;
+  plan.targetLeafProfile = routeFacts->targetLeafProfile;
+  plan.providerSupportedMirror = routeFacts->providerSupportedMirror;
+  plan.requiredHeaders.push_back("stddef.h");
+  plan.requiredHeaders.push_back("stdint.h");
+  plan.requiredHeaders.push_back("riscv_vector.h");
+  plan.requiredHeaderDeclarations = routeFacts->requiredHeaderDeclarations;
+  plan.cTypeMappingSummary = routeFacts->cTypeMappingSummary;
+  plan.runtimeControlPlanID = routeFacts->runtimeControlPlanID;
+  plan.vlCType = configProfile.vlCType;
+  plan.sourceElementTypeName = routeFacts->sourceElementTypeName;
+  plan.sourceSEW = routeFacts->sourceSEW;
+  plan.sourceLMUL = routeFacts->sourceLMUL;
+  plan.sourceVectorTypeName = routeFacts->sourceVectorTypeName;
+  plan.sourceVectorCType = routeFacts->sourceVectorCType;
+  plan.sourceVectorLoadIntrinsic = routeFacts->sourceVectorLoadIntrinsic;
+  plan.resultElementTypeName = routeFacts->resultElementTypeName;
+  plan.resultSEW = routeFacts->resultSEW;
+  plan.resultLMUL = routeFacts->resultLMUL;
+  plan.resultVectorTypeName = routeFacts->resultVectorTypeName;
+  plan.resultVectorCType = routeFacts->resultVectorCType;
+  plan.scaleElementTypeName = routeFacts->scaleElementTypeName;
+  plan.scaleCType = routeFacts->scaleCType;
+  plan.scaleRole = routeFacts->scaleRole;
+  plan.scaleName = routeFacts->scaleName;
+  plan.setVLIntrinsic = configProfile.setVLIntrinsic;
+  plan.dequantizationKind = routeFacts->dequantizationKind;
+  plan.dequantizationRelation = routeFacts->dequantizationRelation;
+  plan.convertIntrinsic = routeFacts->convertIntrinsic;
+  plan.scaleIntrinsic = routeFacts->scaleIntrinsic;
+  plan.storeIntrinsic = routeFacts->storeIntrinsic;
+  plan.resultName = routeFacts->resultName;
+  plan.sourceMemoryForm = routeFacts->sourceMemoryForm;
+  plan.destinationMemoryForm = routeFacts->destinationMemoryForm;
+  plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.dequantScaleABI);
+  plan.runtimeABIParameters.push_back(analysis.slice.outABI);
+  plan.runtimeABIParameters.push_back(
+      plan.runtimeControlPlan.runtimeAVLParameter);
+
+  if (llvm::Error error =
+          validateRVVSelectedBodyDequantizationRouteFamilyPlan(plan))
+    return std::move(error);
+  return plan;
+}
+
+void applyRVVSelectedBodyDequantizationRouteFamilyPlan(
+    const RVVSelectedBodyDequantizationRouteFamilyPlan &plan,
+    RVVSelectedBodyEmitCRouteDescription &description) {
+  description.operation = plan.operation;
+  description.memoryForm = plan.memoryForm;
+  applyRVVRuntimeAVLVLControlPlanToDescription(plan.runtimeControlPlan,
+                                               description);
+  description.dequantizationRouteFamilyPlanID = plan.familyPlanID;
+  description.runtimeABIOrder = plan.runtimeABIOrder;
+  description.targetLeafProfile = plan.targetLeafProfile;
+  description.providerSupportedMirror = plan.providerSupportedMirror;
+  description.requiredHeaderDeclarations = plan.requiredHeaderDeclarations;
+  description.cTypeMappingSummary = plan.cTypeMappingSummary;
+  description.runtimeControlPlanID = plan.runtimeControlPlanID;
+  description.vlCType = plan.vlCType;
+  description.sourceElementTypeName = plan.sourceElementTypeName;
+  description.sourceSEW = plan.sourceSEW;
+  description.sourceLMUL = plan.sourceLMUL;
+  description.sourceVectorTypeName = plan.sourceVectorTypeName;
+  description.sourceVectorCType = plan.sourceVectorCType;
+  description.sourceVectorLoadIntrinsic = plan.sourceVectorLoadIntrinsic;
+  description.resultElementTypeName = plan.resultElementTypeName;
+  description.sew = plan.resultSEW;
+  description.lmul = plan.resultLMUL;
+  description.vectorTypeName = plan.resultVectorTypeName;
+  description.vectorCType = plan.resultVectorCType;
+  description.setVLIntrinsic = plan.setVLIntrinsic;
+  description.conversionKind = plan.dequantizationKind;
+  description.conversionRelation = "";
+  description.dequantizationRelation = plan.dequantizationRelation;
+  description.dequantizeConvertIntrinsic = plan.convertIntrinsic;
+  description.dequantizeScaleIntrinsic = plan.scaleIntrinsic;
+  description.intrinsic = plan.convertIntrinsic;
+  description.storeIntrinsic = plan.storeIntrinsic;
+  description.resultName = plan.resultName;
+  description.dequantScaleRole = plan.scaleRole;
+  description.dequantScaleCType = plan.scaleCType;
+  description.dequantScaleName = plan.scaleName;
   description.sourceMemoryForm = plan.sourceMemoryForm;
   description.destinationMemoryForm = plan.destinationMemoryForm;
   description.runtimeABIParameters.clear();
@@ -9384,6 +9917,17 @@ deriveRVVSelectedBodyTargetLeafProfile(
     return RVVSelectedBodyTargetLeafProfile{intrinsic, "", "", ""};
   }
 
+  if (isRVVSelectedBodyDequantizationRouteOperation(description.operation)) {
+    if (description.memoryForm !=
+        RVVSelectedBodyMemoryForm::UnitStrideDequantization)
+      return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+    llvm::StringRef intrinsic =
+        getRVVSelectedBodyI32ToF32DequantConvertIntrinsic();
+    if (intrinsic.empty())
+      return makeUnsupportedRVVSelectedBodyRouteProfileError(description);
+    return RVVSelectedBodyTargetLeafProfile{intrinsic, "", "", ""};
+  }
+
   if (operationProfile.isCompareSelect) {
     const bool isComputedMaskSelect =
         description.operation == RVVSelectedBodyOperationKind::ComputedMaskSelect;
@@ -9989,7 +10533,10 @@ llvm::Error verifyRVVSelectedBodyTypedConfigFactsMirror(
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) + " typed config facts " + field +
         " must mirror provider-derived route description value '" + expected +
-        "' but was '" + actual + "'");
+        "' but was '" + actual + "' for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) +
+        "', memory_form '" +
+        stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
   };
   auto requireIntMatch = [&](llvm::StringRef field, std::int64_t actual,
                              std::int64_t expected) -> llvm::Error {
@@ -10000,6 +10547,9 @@ llvm::Error verifyRVVSelectedBodyTypedConfigFactsMirror(
         " must mirror provider-derived route description value " +
         llvm::Twine(expected) + " but was " + llvm::Twine(actual));
   };
+  const bool isDequantizationRoute =
+      isRVVSelectedBodyDequantizationRouteOperation(description.operation) ||
+      description.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideDequantization;
 
   if (llvm::Error error = requireText("facts id", facts.factsID))
     return error;
@@ -10029,12 +10579,12 @@ llvm::Error verifyRVVSelectedBodyTypedConfigFactsMirror(
           requireMatch("config contract", facts.configContractID,
                        description.configContractID))
     return error;
-  if (!description.vectorTypeName.empty())
+  if (!description.vectorTypeName.empty() && !isDequantizationRoute)
     if (llvm::Error error =
             requireMatch("vector type", facts.vectorTypeName,
                          description.vectorTypeName))
       return error;
-  if (!description.vectorCType.empty())
+  if (!description.vectorCType.empty() && !isDequantizationRoute)
     if (llvm::Error error = requireMatch("vector C type", facts.vectorCType,
                                          description.vectorCType))
       return error;
@@ -10167,6 +10717,38 @@ llvm::Error validateRVVSelectedBodyVectorTypeAgainstConfig(
   return llvm::Error::success();
 }
 
+llvm::Error validateRVVSelectedBodyF32VectorTypeAgainstConfig(
+    mlir::Value value, llvm::StringRef role,
+    const tcrv::rvv::RVVCompileTimeConfig &config) {
+  if (!value)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("selected RVV typed config resolver requires ") + role +
+        " to be present before route construction");
+  auto vectorType = llvm::dyn_cast<tcrv::rvv::VectorType>(value.getType());
+  if (!vectorType)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("selected RVV typed config resolver requires ") + role +
+        " to be a generic !tcrv_rvv.vector value before route construction");
+
+  auto floatElementType =
+      llvm::dyn_cast<mlir::FloatType>(vectorType.getElementType());
+  if (!floatElementType || !floatElementType.isF32())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("selected RVV typed config resolver requires ") + role +
+        " element type to be f32");
+  if (config.sew != tcrv::rvv::getRVVFirstSliceSEWBits())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("selected RVV typed config resolver requires ") + role +
+        " selected config SEW32 for f32 dequantization vectors");
+  if (vectorType.getLmul() != config.lmul)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("selected RVV typed config resolver requires ") + role +
+        " LMUL '" + vectorType.getLmul() +
+        "' to match selected config LMUL '" + config.lmul + "'");
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVSelectedBodyMaskTypeAgainstConfig(
     mlir::Value value, llvm::StringRef role,
     const tcrv::rvv::RVVCompileTimeConfig &config) {
@@ -10260,6 +10842,20 @@ llvm::Error validateRVVSelectedBodyTypedConfigFacts(
       return error;
     if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
             slice.storeValue, "conversion stored vector", config))
+      return error;
+    return llvm::Error::success();
+  }
+
+  if (slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::DequantizeI32ToF32) {
+    if (llvm::Error error = validateRVVSelectedBodyVectorTypeAgainstConfig(
+            slice.lhsValue, "dequantization source vector", config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyF32VectorTypeAgainstConfig(
+            slice.arithmeticResult, "dequantization result vector", config))
+      return error;
+    if (llvm::Error error = validateRVVSelectedBodyF32VectorTypeAgainstConfig(
+            slice.storeValue, "dequantization stored vector", config))
       return error;
     return llvm::Error::success();
   }
@@ -12044,6 +12640,9 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
   const bool isRuntimeScalarCompareSelect =
       slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect;
+  const bool isDequantization =
+      slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::DequantizeI32ToF32;
 
   llvm::SmallVector<support::RuntimeABIParameter, 9> ordered;
   if (isRuntimeScalarSplatStore) {
@@ -12077,6 +12676,18 @@ llvm::Error validateRVVSelectedBodyRuntimeABIParameters(
     return llvm::Error::success();
   }
   ordered.push_back(slice.lhsABI);
+  if (isDequantization) {
+    ordered.push_back(slice.dequantScaleABI);
+    ordered.push_back(slice.outABI);
+    ordered.push_back(slice.runtimeElementCountABI);
+    if (llvm::Error error =
+            tcrv::rvv::verifyRVVSelectedBodyRuntimeABIParameters(
+                ordered,
+                "selected RVV EmitC route explicit i32-to-f32 "
+                "dequantization runtime ABI values"))
+      return makeRVVEmitCRouteProviderError(llvm::toString(std::move(error)));
+    return llvm::Error::success();
+  }
   if (isRuntimeScalarCompareSelect) {
     ordered.push_back(slice.rhsABI);
     ordered.push_back(slice.trueValueABI);
@@ -13085,6 +13696,24 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
     addRouteOperandBinding(
         plan, "n", slice.runtimeElementCountABI,
         {"abi", "setvl-avl", "loop", "hdr"});
+  } else if (slice.arithmeticKind ==
+             RVVSelectedBodyOperationKind::DequantizeI32ToF32) {
+    plan.planID = kRVVDequantizeI32ToF32OperandBindingPlanID.str();
+    expectedRuntimeABIOrder = kRVVDequantizeI32ToF32RuntimeABIOrder;
+    context = "dequantize_i32_to_f32 route";
+    addRouteOperandBinding(
+        plan, "lhs", slice.lhsABI,
+        {"abi", "src-load", "dequant-src", "src-i32m1",
+         "relation-signed-i32m1-to-f32m1-scale-f32", "hdr"});
+    addRouteOperandBinding(plan, "scale", slice.dequantScaleABI,
+                           {"abi", "runtime-scale", "scale-f32", "hdr"});
+    addRouteOperandBinding(
+        plan, "out", slice.outABI,
+        {"abi", "res-store", "dequant-result", "res-f32m1",
+         "relation-signed-i32m1-to-f32m1-scale-f32", "hdr"});
+    addRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"abi", "setvl-avl", "loop", "hdr"});
   } else if (slice.memoryForm ==
              RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore) {
     plan.planID = kRVVRuntimeScalarSplatStoreOperandBindingPlanID.str();
@@ -14007,6 +14636,42 @@ llvm::Error recordRVVSelectedBodyWideningConvert(
   return llvm::Error::success();
 }
 
+llvm::Error recordRVVSelectedBodyDequantize(
+    RVVSelectedBodyRouteSlice &slice, tcrv::rvv::DequantizeOp dequantize) {
+  if (slice.arithmeticOp)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route requires exactly one selected compute op");
+  if (dequantize.getKind() != kRVVDequantizeI32ToF32Kind)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.dequantize kind '") +
+        dequantize.getKind() +
+        "' for bounded RVV i32-to-f32 dequantization route");
+  if (dequantize.getDequantRelation() != kRVVDequantizeI32ToF32Relation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("unsupported generic tcrv_rvv.dequantize "
+                    "dequant_relation '") +
+        dequantize.getDequantRelation() +
+        "' for bounded RVV i32-to-f32 dequantization route");
+
+  llvm::Expected<support::RuntimeABIParameter> scaleABI =
+      getRuntimeABIParameterBindingFromValue(
+          dequantize.getScale(), "tcrv_rvv.dequantize runtime scale operand",
+          {support::RuntimeABIParameterRole::DequantScaleValue});
+  if (!scaleABI)
+    return scaleABI.takeError();
+
+  slice.dequantizeOp = dequantize;
+  slice.arithmeticOp = dequantize.getOperation();
+  slice.arithmeticKind = RVVSelectedBodyOperationKind::DequantizeI32ToF32;
+  slice.conversionSource = dequantize.getSource();
+  slice.arithmeticLhs = dequantize.getSource();
+  slice.dequantScale = dequantize.getScale();
+  slice.dequantScaleABI = *scaleABI;
+  slice.arithmeticResult = dequantize.getResult();
+  slice.memoryForm = RVVSelectedBodyMemoryForm::UnitStrideDequantization;
+  return llvm::Error::success();
+}
+
 llvm::Error recordRVVSelectedBodyMove(RVVSelectedBodyRouteSlice &slice,
                                       tcrv::rvv::MoveOp move) {
   if (auto segment2Load =
@@ -14758,6 +15423,12 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         return std::move(error);
       continue;
     }
+    if (auto dequantize = llvm::dyn_cast<tcrv::rvv::DequantizeOp>(op)) {
+      if (llvm::Error error =
+              recordRVVSelectedBodyDequantize(slice, dequantize))
+        return std::move(error);
+      continue;
+    }
     if (auto move = llvm::dyn_cast<tcrv::rvv::MoveOp>(op)) {
       if (llvm::Error error = recordRVVSelectedBodyMove(slice, move))
         return std::move(error);
@@ -15188,6 +15859,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       slice.arithmeticOp &&
       (slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI32ToI64 ||
        slice.arithmeticKind == RVVSelectedBodyOperationKind::WidenI16ToI32);
+  const bool isDequantization =
+      slice.arithmeticOp &&
+      slice.arithmeticKind == RVVSelectedBodyOperationKind::DequantizeI32ToF32;
   const bool isRuntimeScalarSplatStore =
       hasScalarBroadcast && !slice.arithmeticOp && genericLoads.empty() &&
       storeCount == 1 && stridedStoreCount == 0 && !hasStridedMemory &&
@@ -15271,10 +15945,10 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV strided route supports only add in this slice, "
         "not multiply-accumulate, widening product, or dot-product reduction");
-  if (hasStridedMemory && isWideningConversion)
+  if (hasStridedMemory && (isWideningConversion || isDequantization))
     return makeRVVEmitCRouteProviderError(
-        "bounded generic RVV widening conversion route requires unit-stride "
-        "source load and destination store");
+        "bounded generic RVV widening conversion/dequantization route "
+        "requires unit-stride source load and destination store");
   if (hasStridedMemory && !isStridedLoadUnitStore &&
       !isUnitLoadStridedStore &&
       !isComputedMaskStridedStore &&
@@ -15381,7 +16055,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       (isMAccAdd || isScalarBroadcastMAccAdd || isComputedMaskedMAccAdd ||
        isRuntimeScalarComputedMaskedMAccAdd || isWideningMAccAdd ||
        isWideningProduct || isWideningProductReduceAdd ||
-       isWideningConversion ||
+       isWideningConversion || isDequantization ||
        isWideningDotReduceAdd || isComputedMaskWideningDotReduceAdd ||
        isCompareSelect || isComputedMaskSelect || isMaskedArithmetic ||
        isReduction || isStandaloneReduction ||
@@ -15434,7 +16108,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        slice.wideningMAccOp ||
        slice.wideningProductOp ||
        slice.wideningDotReduceOp ||
-       isWideningConversion))
+       isWideningConversion || isDequantization))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV masked memory route supports only runtime-mask "
         "unit-stride mask_load/old-destination-load/masked_load/store, "
@@ -15462,7 +16136,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        slice.maskedStandaloneReduceOp || slice.maccOp ||
        slice.wideningMAccOp || slice.wideningDotReduceOp ||
        slice.wideningProductOp || slice.maskedWideningDotReduceOp ||
-       isWideningConversion))
+       isWideningConversion || isDequantization))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 load route supports only "
         "compare lhs/rhs loads, field0/field1 old passthrough loads, "
@@ -15480,7 +16154,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        slice.maskedStandaloneReduceOp || slice.maccOp ||
        slice.wideningMAccOp || slice.wideningDotReduceOp ||
        slice.wideningProductOp || slice.maskedWideningDotReduceOp ||
-       isWideningConversion))
+       isWideningConversion || isDequantization))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV computed-mask segment2 store/update route "
         "supports only compare lhs/rhs loads, field0/field1 payload loads, "
@@ -15496,7 +16170,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        slice.maccOp || slice.wideningMAccOp || slice.wideningDotReduceOp ||
        slice.wideningProductOp || slice.maskedWideningDotReduceOp ||
        slice.compareOp ||
-       isWideningConversion))
+       isWideningConversion || isDequantization))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 deinterleave route supports only "
         "segment2_load/field0 move/field1 move/field0 store/field1 store "
@@ -15511,7 +16185,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
        slice.maccOp || slice.wideningMAccOp || slice.wideningDotReduceOp ||
        slice.wideningProductOp || slice.maskedWideningDotReduceOp ||
        slice.compareOp ||
-       isWideningConversion))
+       isWideningConversion || isDequantization))
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV segment2 interleave route supports only "
         "field0 load/field1 load/segment2_store memory movement in this "
@@ -15886,6 +16560,10 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV widening conversion route does not consume an "
         "RHS broadcast or scalar splat");
+  if (isDequantization && hasRHSBroadcastLike)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV dequantization route does not consume an RHS "
+        "broadcast or scalar splat");
   if (isMAccAdd && genericLoads.size() != 3)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV multiply-accumulate route requires exactly three "
@@ -16027,6 +16705,10 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV widening conversion route requires exactly one "
         "tcrv_rvv.load source op");
+  if (isDequantization && genericLoads.size() != 1)
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV dequantization route requires exactly one "
+        "tcrv_rvv.load source op");
   if (isWideningConversion &&
       (slice.compareOp || slice.maskedBinaryOp || slice.selectOp ||
        slice.reduceOp || slice.maccOp || slice.wideningMAccOp ||
@@ -16034,6 +16716,14 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV widening conversion route cannot mix "
         "compare/select/masked/reduce/macc compute ops");
+  if (isDequantization &&
+      (slice.compareOp || slice.maskedBinaryOp || slice.selectOp ||
+       slice.reduceOp || slice.maccOp || slice.wideningMAccOp ||
+       slice.wideningProductOp || slice.wideningDotReduceOp ||
+       slice.maskedWideningDotReduceOp || slice.wideningConvertOp))
+    return makeRVVEmitCRouteProviderError(
+        "bounded generic RVV dequantization route cannot mix "
+        "compare/select/masked/reduce/macc/widening compute ops");
   if (!hasStridedMemory && !hasIndexedMemory && !hasSegmentedMemory &&
       !isMAccAdd &&
       !isScalarBroadcastMAccAdd &&
@@ -16061,6 +16751,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       !isComputedMaskIndexedScatterStoreUnitLoad &&
       !hasRHSBroadcastLike &&
       !isWideningConversion &&
+      !isDequantization &&
       genericLoads.size() != 2)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV vector-load route requires exactly two "
@@ -16090,6 +16781,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       !isComputedMaskStridedStore &&
       !isComputedMaskStridedLoadUnitStore &&
       !isComputedMaskIndexedScatterStoreUnitLoad &&
+      !isDequantization &&
       !genericBroadcastLoads.empty() && genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV broadcast route requires exactly one "
@@ -16119,6 +16811,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       !isComputedMaskStridedStore &&
       !isComputedMaskStridedLoadUnitStore &&
       !isComputedMaskIndexedScatterStoreUnitLoad &&
+      !isDequantization &&
       hasScalarBroadcast && !isRuntimeScalarSplatStore &&
       genericLoads.size() != 1)
     return makeRVVEmitCRouteProviderError(
@@ -16147,9 +16840,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "tcrv_rvv.widening_macc, "
         "tcrv_rvv.widening_product, tcrv_rvv.widening_dot_reduce, "
         "tcrv_rvv.masked_widening_dot_reduce, tcrv_rvv.widening_convert, "
-        "tcrv_rvv.move, tcrv_rvv.masked_move, tcrv_rvv.masked_load, "
-        "tcrv_rvv.masked_strided_load, tcrv_rvv.masked_indexed_load, "
-        "tcrv_rvv.masked_segment2_load, "
+        "tcrv_rvv.dequantize, tcrv_rvv.move, tcrv_rvv.masked_move, "
+        "tcrv_rvv.masked_load, tcrv_rvv.masked_strided_load, "
+        "tcrv_rvv.masked_indexed_load, tcrv_rvv.masked_segment2_load, "
         "tcrv_rvv.masked_segment2_store, tcrv_rvv.masked_store, or "
         "tcrv_rvv.masked_strided_store op");
   if (((!hasStridedMemory && !hasIndexedMemory && !hasSegmentedMemory &&
@@ -16251,6 +16944,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   const unsigned expectedRVVOps =
       isRuntimeScalarSplatStore
           ? 7
+      : isDequantization
+          ? 9
       : isWideningConversion
           ? 8
       : isRuntimeScalarComputedMaskStandaloneReduction
@@ -16330,7 +17025,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "index_load/indexed_load/mask_load/segment2_load/segment2_store/"
         "binary/compare/select/masked_binary/reduce/macc/masked_macc/"
         "standalone_reduce/masked_standalone_reduce/widening_product/"
-        "widening_dot_reduce/widening_convert/move/"
+        "widening_dot_reduce/widening_convert/dequantize/move/"
         "masked_move/masked_load/masked_strided_load/"
         "masked_indexed_load/masked_indexed_store/masked_store/"
         "masked_segment2_store/masked_strided_store/store/strided_store body "
@@ -16773,6 +17468,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   if ((!slice.lhsLoadOperation && !isRuntimeScalarSplatStore) ||
       (!isWideningConversion && !isStridedLoadUnitStore &&
        !isRuntimeScalarSplatStore &&
+       !isDequantization &&
        !isUnitLoadStridedStore &&
        !isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
        !isMaskedUnitLoadStore &&
@@ -18532,6 +19228,8 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       getRuntimeABI(slice.lhsBuffer);
   auto rhsABI =
       getRuntimeABI(slice.rhsBuffer);
+  auto dequantScaleABI =
+      getRuntimeABI(slice.dequantScale);
   auto secondaryCompareLhsABI =
       getRuntimeABI(slice.secondaryCompareLhsBuffer);
   auto secondaryCompareRhsScalarABI =
@@ -18636,6 +19334,8 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       slice.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
   const bool isConversion =
       slice.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideConversion;
+  const bool isDequantization =
+      slice.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideDequantization;
   const bool isRuntimeScalarSplatStore =
       slice.memoryForm == RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore;
   const bool isMAcc =
@@ -18694,6 +19394,25 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
     if (op == slice.storeOperation)
       return 6;
     return 7;
+  }
+  if (isDequantization) {
+    if (dequantScaleABI && op == dequantScaleABI.getOperation())
+      return 1;
+    if (outABI && op == outABI.getOperation())
+      return 2;
+    if (nABI && op == nABI.getOperation())
+      return 3;
+    if (op == slice.setvl.getOperation())
+      return 4;
+    if (op == slice.withVL.getOperation())
+      return 5;
+    if (op == slice.lhsLoadOperation)
+      return 6;
+    if (op == slice.arithmeticOp)
+      return 7;
+    if (op == slice.storeOperation)
+      return 8;
+    return 9;
   }
   if (isComputedMaskedMAcc) {
     if (rhsABI && op == rhsABI.getOperation())
@@ -19656,6 +20375,8 @@ llvm::Error verifySelectedRVVRoleSequence(
       getRuntimeABI(slice.lhsBuffer);
   auto rhsABI =
       getRuntimeABI(slice.rhsBuffer);
+  auto dequantScaleABI =
+      getRuntimeABI(slice.dequantScale);
   auto secondaryCompareLhsABI =
       getRuntimeABI(slice.secondaryCompareLhsBuffer);
   auto secondaryCompareRhsScalarABI =
@@ -19756,6 +20477,8 @@ llvm::Error verifySelectedRVVRoleSequence(
       slice.memoryForm == RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
   const bool isConversion =
       slice.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideConversion;
+  const bool isDequantization =
+      slice.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideDequantization;
   const bool isRuntimeScalarSplatStore =
       slice.memoryForm == RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore;
   const bool isMAcc =
@@ -19797,7 +20520,7 @@ llvm::Error verifySelectedRVVRoleSequence(
       isRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRouteOperation(
           slice.arithmeticKind);
   if ((!lhsABI && !isRuntimeScalarSplatStore) ||
-      (!isConversion && !isStridedLoadUnitStore &&
+      (!isConversion && !isDequantization && !isStridedLoadUnitStore &&
        !isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
        !isMaskedUnitLoadStore && !isMaskedUnitStore &&
        !isComputedMaskUnitLoadStore &&
@@ -19872,6 +20595,7 @@ llvm::Error verifySelectedRVVRoleSequence(
        (!rhsABI || !dotLHSABI || !dotRHSABI || !accumulatorABI ||
         !lhsStrideABI || !rhsStrideABI)) ||
       (isRuntimeScalarSplatStore && (!rhsABI || !outABI)) ||
+      (isDequantization && (!dequantScaleABI || !outABI)) ||
       (isSegment2DeinterleaveUnitStore && (!field0ABI || !field1ABI)) ||
       (isSegment2InterleaveUnitLoad && (!rhsABI || !outABI)))
     return makeRVVEmitCRouteProviderError(
@@ -20028,6 +20752,11 @@ getRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation) {
   return buildRVVWideningConversionRouteFacts(operation);
 }
 
+std::optional<RVVDequantizationRouteFacts>
+getRVVDequantizationRouteFacts(RVVSelectedBodyOperationKind operation) {
+  return buildRVVDequantizationRouteFacts(operation);
+}
+
 static void appendRVVConversionDtypePolicyValidationHeaders(
     RVVConversionDtypePolicyRouteValidationContract &contract,
     llvm::StringRef requiredHeaderDeclarations) {
@@ -20052,6 +20781,8 @@ static llvm::StringRef getRVVConversionDtypePolicyValidationConsumerLabel(
     return "widen_i16_to_i32 conversion dtype-policy target artifact consumer";
   case RVVSelectedBodyOperationKind::WidenI32ToI64:
     return "widen_i32_to_i64 conversion dtype-policy target artifact consumer";
+  case RVVSelectedBodyOperationKind::DequantizeI32ToF32:
+    return "dequantize_i32_to_f32 conversion dtype-policy target artifact consumer";
   default:
     return "conversion dtype-policy target artifact consumer";
   }
@@ -20142,17 +20873,114 @@ static void populateRVVConversionDtypePolicyValidationContract(
       "selected typed RVV conversion dtype-policy source vector type");
 }
 
+static void populateRVVConversionDtypePolicyValidationContract(
+    RVVConversionDtypePolicyRouteValidationContract &contract,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    const RVVDequantizationRouteFacts &facts) {
+  contract.kind = RVVConversionDtypePolicyRouteValidationKind::Dequantization;
+  contract.operation = facts.operation;
+  contract.consumerLabel =
+      getRVVConversionDtypePolicyValidationConsumerLabel(facts.operation);
+  contract.emitCRouteID =
+      getRVVSelectedBodyEmitCRouteID(facts.operation).str();
+  contract.memoryForm = facts.memoryForm;
+  contract.sourceElementTypeName = facts.sourceElementTypeName.str();
+  contract.resultElementTypeName = facts.resultElementTypeName.str();
+  contract.sourceSEW = facts.sourceSEW;
+  contract.sourceLMUL = facts.sourceLMUL.str();
+  contract.resultSEW = facts.resultSEW;
+  contract.resultLMUL = facts.resultLMUL.str();
+  contract.tailPolicy = facts.tailPolicy.str();
+  contract.maskPolicy = facts.maskPolicy.str();
+  contract.configContractID = description.configContractID.str();
+  contract.runtimeControlPlanID = facts.runtimeControlPlanID.str();
+  contract.runtimeABIOrder = facts.runtimeABIOrder.str();
+  contract.targetLeafProfile = facts.targetLeafProfile.str();
+  contract.providerSupportedMirror = facts.providerSupportedMirror.str();
+  contract.requiredHeaderDeclarations =
+      facts.requiredHeaderDeclarations.str();
+  contract.cTypeMappingSummary = facts.cTypeMappingSummary.str();
+  contract.routeOperandBindingPlanID =
+      facts.routeOperandBindingPlanID.str();
+  contract.routeOperandBindingSummary = facts.routeOperandBindingSummary;
+  contract.dequantizationRouteFamilyPlanID =
+      facts.routeFamilyPlanID.str();
+  contract.typedComputeOpName = facts.typedComputeOpName.str();
+
+  contract.conversionKind = facts.dequantizationKind.str();
+  contract.dequantizationRelation = facts.dequantizationRelation.str();
+  contract.sourceMemoryForm = facts.sourceMemoryForm.str();
+  contract.destinationMemoryForm = facts.destinationMemoryForm.str();
+  contract.sourceVectorLoadIntrinsic =
+      facts.sourceVectorLoadIntrinsic.str();
+  contract.dequantizeConvertIntrinsic = facts.convertIntrinsic.str();
+  contract.dequantizeScaleIntrinsic = facts.scaleIntrinsic.str();
+  contract.intrinsic = facts.convertIntrinsic.str();
+  contract.storeIntrinsic = facts.storeIntrinsic.str();
+  contract.setVLIntrinsic = facts.setVLIntrinsic.str();
+  contract.vlCType = facts.vlCType.str();
+  contract.sourceVectorTypeName = facts.sourceVectorTypeName.str();
+  contract.sourceVectorCType = facts.sourceVectorCType.str();
+  contract.resultVectorTypeName = facts.resultVectorTypeName.str();
+  contract.resultVectorCType = facts.resultVectorCType.str();
+  contract.vectorTypeName = facts.resultVectorTypeName.str();
+  contract.vectorCType = facts.resultVectorCType.str();
+  contract.dequantScaleRole = facts.scaleRole.str();
+  contract.dequantScaleCType = facts.scaleCType.str();
+  contract.dequantScaleName = facts.scaleName.str();
+  contract.resultName = facts.resultName.str();
+
+  contract.emitCFullChunkVLName =
+      description.emitCFullChunkVLName.str();
+  contract.emitCLoopVLName = description.emitCLoopVLName.str();
+  contract.emitCLoopInductionName =
+      description.emitCLoopInductionName.str();
+  contract.expectedPreLoopStepCount = 1;
+  contract.expectedLoopBodyStepCount = 5;
+  contract.runtimeABIParameters.append(facts.runtimeABIParameters.begin(),
+                                       facts.runtimeABIParameters.end());
+  if (std::optional<RVVRuntimeAVLVLSelectedBoundaryContract> runtimeContract =
+          getRVVRuntimeAVLVLSelectedBoundaryContract(
+              contract.resultSEW, contract.resultLMUL, contract.tailPolicy,
+              contract.maskPolicy, contract.configContractID,
+              contract.setVLIntrinsic, contract.vlCType,
+              contract.runtimeABIOrder, contract.runtimeABIParameters,
+              contract.consumerLabel))
+    contract.runtimeAVLVLContract = std::move(*runtimeContract);
+
+  appendRVVConversionDtypePolicyValidationHeaders(
+      contract, facts.requiredHeaderDeclarations);
+  appendRVVConversionDtypePolicyValidationTypeMapping(
+      contract, "!tcrv_rvv.vl", facts.vlCType,
+      "selected typed RVV dequantization dtype-policy VL type");
+  appendRVVConversionDtypePolicyValidationTypeMapping(
+      contract, facts.sourceVectorTypeName, facts.sourceVectorCType,
+      "selected typed RVV dequantization dtype-policy source vector type");
+  appendRVVConversionDtypePolicyValidationTypeMapping(
+      contract, facts.resultVectorTypeName, facts.resultVectorCType,
+      "selected typed RVV dequantization dtype-policy result vector type");
+}
+
 static std::optional<RVVConversionDtypePolicyRouteValidationContract>
 buildRVVConversionDtypePolicyRouteValidationContract(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   std::optional<RVVWideningConversionRouteFacts> routeFacts =
       getRVVWideningConversionRouteFacts(description.operation);
-  if (!routeFacts)
+  if (routeFacts) {
+    RVVConversionDtypePolicyRouteValidationContract contract;
+    populateRVVConversionDtypePolicyValidationContract(contract, description,
+                                                      *routeFacts);
+    return contract;
+  }
+
+  std::optional<RVVDequantizationRouteFacts> dequantFacts =
+      getRVVDequantizationRouteFacts(description.operation);
+  if (!dequantFacts)
     return std::nullopt;
 
   RVVConversionDtypePolicyRouteValidationContract contract;
   populateRVVConversionDtypePolicyValidationContract(contract, description,
-                                                    *routeFacts);
+                                                    *dequantFacts);
   return contract;
 }
 
@@ -20193,43 +21021,79 @@ buildRVVConversionDtypePolicyRouteMetadataMirrorContract(
   appendRVVConversionDtypePolicyMetadataMirror(
       contract, "tcrv_rvv.target_leaf_profile", facts.targetLeafProfile,
       "selected typed RVV conversion dtype-policy target leaf profile");
-  appendRVVConversionDtypePolicyMetadataMirror(
-      contract, "tcrv_rvv.widening_conversion_route_family_plan",
-      facts.wideningConversionRouteFamilyPlanID,
-      "selected typed RVV widening conversion route-family plan");
+  if (facts.kind ==
+      RVVConversionDtypePolicyRouteValidationKind::WideningConversion) {
+    appendRVVConversionDtypePolicyMetadataMirror(
+        contract, "tcrv_rvv.widening_conversion_route_family_plan",
+        facts.wideningConversionRouteFamilyPlanID,
+        "selected typed RVV widening conversion route-family plan");
+  } else {
+    appendRVVConversionDtypePolicyMetadataMirror(
+        contract, "tcrv_rvv.dequantization_route_family_plan",
+        facts.dequantizationRouteFamilyPlanID,
+        "selected typed RVV dequantization route-family plan");
+  }
   appendRVVConversionDtypePolicyMetadataMirror(
       contract, "tcrv_rvv.tail_policy", facts.tailPolicy,
-      "selected typed RVV widening conversion tail policy");
+      "selected typed RVV conversion dtype-policy tail policy");
   appendRVVConversionDtypePolicyMetadataMirror(
       contract, "tcrv_rvv.mask_policy", facts.maskPolicy,
-      "selected typed RVV widening conversion mask policy");
+      "selected typed RVV conversion dtype-policy mask policy");
   appendRVVConversionDtypePolicyMetadataMirror(
       contract, "tcrv_rvv.source_element_type",
       facts.sourceElementTypeName,
-      "selected typed RVV widening conversion source element type");
+      "selected typed RVV conversion dtype-policy source element type");
   appendRVVConversionDtypePolicyMetadataMirror(
       contract, "tcrv_rvv.result_element_type",
       facts.resultElementTypeName,
-      "selected typed RVV widening conversion result element type");
+      "selected typed RVV conversion dtype-policy result element type");
   appendRVVConversionDtypePolicyMetadataMirror(
       contract, "tcrv_rvv.source_sew", llvm::Twine(facts.sourceSEW).str(),
-      "selected typed RVV widening conversion source SEW");
+      "selected typed RVV conversion dtype-policy source SEW");
   appendRVVConversionDtypePolicyMetadataMirror(
       contract, "tcrv_rvv.source_lmul", facts.sourceLMUL,
-      "selected typed RVV widening conversion source LMUL");
+      "selected typed RVV conversion dtype-policy source LMUL");
   appendRVVConversionDtypePolicyMetadataMirror(
       contract, "tcrv_rvv.dest_sew", llvm::Twine(facts.resultSEW).str(),
-      "selected typed RVV widening conversion destination SEW");
+      "selected typed RVV conversion dtype-policy destination SEW");
   appendRVVConversionDtypePolicyMetadataMirror(
       contract, "tcrv_rvv.dest_lmul", facts.resultLMUL,
-      "selected typed RVV widening conversion destination LMUL");
+      "selected typed RVV conversion dtype-policy destination LMUL");
   appendRVVConversionDtypePolicyMetadataMirror(
       contract, "tcrv_rvv.conversion_kind", facts.conversionKind,
-      "selected typed RVV widening conversion kind");
-  appendRVVConversionDtypePolicyMetadataMirror(
-      contract, "tcrv_rvv.conversion_relation",
-      facts.conversionRelation,
-      "selected typed RVV widening conversion relation");
+      "selected typed RVV conversion dtype-policy kind");
+  if (facts.kind ==
+      RVVConversionDtypePolicyRouteValidationKind::WideningConversion) {
+    appendRVVConversionDtypePolicyMetadataMirror(
+        contract, "tcrv_rvv.conversion_relation",
+        facts.conversionRelation,
+        "selected typed RVV widening conversion relation");
+  } else {
+    appendRVVConversionDtypePolicyMetadataMirror(
+        contract, "tcrv_rvv.dequantization_relation",
+        facts.dequantizationRelation,
+        "selected typed RVV dequantization relation");
+    appendRVVConversionDtypePolicyMetadataMirror(
+        contract, "tcrv_rvv.dequantize_convert_intrinsic",
+        facts.dequantizeConvertIntrinsic,
+        "selected typed RVV dequantization convert intrinsic");
+    appendRVVConversionDtypePolicyMetadataMirror(
+        contract, "tcrv_rvv.dequantize_scale_intrinsic",
+        facts.dequantizeScaleIntrinsic,
+        "selected typed RVV dequantization scale intrinsic");
+    appendRVVConversionDtypePolicyMetadataMirror(
+        contract, "tcrv_rvv.dequant_scale_role",
+        facts.dequantScaleRole,
+        "selected typed RVV dequantization scale ABI role");
+    appendRVVConversionDtypePolicyMetadataMirror(
+        contract, "tcrv_rvv.dequant_scale_c_type",
+        facts.dequantScaleCType,
+        "selected typed RVV dequantization scale C type");
+    appendRVVConversionDtypePolicyMetadataMirror(
+        contract, "tcrv_rvv.dequant_scale_name",
+        facts.dequantScaleName,
+        "selected typed RVV dequantization scale ABI name");
+  }
   appendRVVConversionDtypePolicyMetadataMirror(
       contract, "tcrv_rvv.memory_form",
       stringifyRVVSelectedBodyMemoryForm(facts.memoryForm),
@@ -20274,6 +21138,23 @@ buildRVVConversionDtypePolicyRouteMetadataMirrorContract(
       "tcrv_rvv.widening_dot_relation"};
   for (llvm::StringRef key : staleMirrorKeys)
     contract.staleMirrorKeys.push_back(key);
+  if (facts.kind ==
+      RVVConversionDtypePolicyRouteValidationKind::WideningConversion) {
+    contract.staleMirrorKeys.push_back(
+        "tcrv_rvv.dequantization_route_family_plan");
+    contract.staleMirrorKeys.push_back("tcrv_rvv.dequantization_relation");
+    contract.staleMirrorKeys.push_back(
+        "tcrv_rvv.dequantize_convert_intrinsic");
+    contract.staleMirrorKeys.push_back(
+        "tcrv_rvv.dequantize_scale_intrinsic");
+    contract.staleMirrorKeys.push_back("tcrv_rvv.dequant_scale_role");
+    contract.staleMirrorKeys.push_back("tcrv_rvv.dequant_scale_c_type");
+    contract.staleMirrorKeys.push_back("tcrv_rvv.dequant_scale_name");
+  } else {
+    contract.staleMirrorKeys.push_back(
+        "tcrv_rvv.widening_conversion_route_family_plan");
+    contract.staleMirrorKeys.push_back("tcrv_rvv.conversion_relation");
+  }
   contract.staleMirrorLabel =
       "selected typed RVV non-conversion route-family mirror";
   return contract;
@@ -23852,6 +24733,140 @@ llvm::Error verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
   return llvm::Error::success();
 }
 
+bool isRVVSelectedBodyDequantizationRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return isRVVSelectedBodyDequantizationRouteOperation(operation);
+}
+
+llvm::Error verifyRVVSelectedBodyDequantizationRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyDequantizationRouteFamilyConsumer(operation);
+  if (isConsumer && !analysis.dequantizationRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires the dequantization route-family plan before provider "
+        "materialization for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!isConsumer && analysis.dequantizationRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " must not carry a dequantization route-family plan for "
+        "non-dequantization operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  if (!analysis.dequantizationRouteFamilyPlan)
+    return llvm::Error::success();
+
+  const RVVSelectedBodyDequantizationRouteFamilyPlan &plan =
+      *analysis.dequantizationRouteFamilyPlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodyDequantizationRouteFamilyPlan(plan))
+    return error;
+  if (plan.operation != operation)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route-family plan operation must match the selected "
+        "route description");
+  if (analysis.description.dequantizationRouteFamilyPlanID !=
+      plan.familyPlanID)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route-family plan mirror must match the validated "
+        "family plan");
+  if (analysis.description.memoryForm != plan.memoryForm ||
+      analysis.description.sew != plan.runtimeControlPlan.sew ||
+      analysis.description.lmul != plan.runtimeControlPlan.lmul ||
+      analysis.description.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      analysis.description.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      analysis.description.runtimeControlPlanID !=
+          plan.runtimeControlPlan.controlPlanID ||
+      analysis.description.configContractID !=
+          plan.runtimeControlPlan.configContractID ||
+      analysis.description.runtimeVLContractID !=
+          plan.runtimeControlPlan.runtimeVLContractID ||
+      analysis.description.runtimeAVLASource !=
+          plan.runtimeControlPlan.runtimeAVLASource ||
+      analysis.description.runtimeABIOrder != plan.runtimeABIOrder ||
+      analysis.description.vlDefOpName !=
+          plan.runtimeControlPlan.vlDefOpName ||
+      analysis.description.vlScopeOpName !=
+          plan.runtimeControlPlan.vlScopeOpName ||
+      analysis.description.vlUses != plan.runtimeControlPlan.vlUses ||
+      analysis.description.emitCLoopKind !=
+          plan.runtimeControlPlan.emitCLoopKind ||
+      analysis.description.emitCLoopInductionName !=
+          plan.runtimeControlPlan.emitCLoopInductionName ||
+      analysis.description.emitCFullChunkVLName !=
+          plan.runtimeControlPlan.emitCFullChunkVLName ||
+      analysis.description.emitCLoopVLName !=
+          plan.runtimeControlPlan.emitCLoopVLName ||
+      analysis.description.remainingAVLMetadata !=
+          plan.runtimeControlPlan.remainingAVLMetadata ||
+      analysis.description.pointerAdvanceMetadata !=
+          plan.runtimeControlPlan.pointerAdvanceMetadata ||
+      analysis.description.boundedSlice != plan.runtimeControlPlan.boundedSlice ||
+      analysis.description.multiVL != plan.runtimeControlPlan.multiVL ||
+      analysis.description.targetLeafProfile != plan.targetLeafProfile ||
+      analysis.description.providerSupportedMirror !=
+          plan.providerSupportedMirror ||
+      analysis.description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      analysis.description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      analysis.description.vlCType != plan.vlCType ||
+      analysis.description.sourceElementTypeName !=
+          plan.sourceElementTypeName ||
+      analysis.description.sourceSEW != plan.sourceSEW ||
+      analysis.description.sourceLMUL != plan.sourceLMUL ||
+      analysis.description.sourceVectorTypeName != plan.sourceVectorTypeName ||
+      analysis.description.sourceVectorCType != plan.sourceVectorCType ||
+      analysis.description.sourceVectorLoadIntrinsic !=
+          plan.sourceVectorLoadIntrinsic ||
+      analysis.description.resultElementTypeName !=
+          plan.resultElementTypeName ||
+      analysis.description.sew != plan.resultSEW ||
+      analysis.description.lmul != plan.resultLMUL ||
+      analysis.description.vectorTypeName != plan.resultVectorTypeName ||
+      analysis.description.vectorCType != plan.resultVectorCType ||
+      analysis.description.setVLIntrinsic != plan.setVLIntrinsic ||
+      analysis.description.conversionKind != plan.dequantizationKind ||
+      analysis.description.dequantizationRelation !=
+          plan.dequantizationRelation ||
+      analysis.description.dequantizeConvertIntrinsic !=
+          plan.convertIntrinsic ||
+      analysis.description.dequantizeScaleIntrinsic != plan.scaleIntrinsic ||
+      analysis.description.intrinsic != plan.convertIntrinsic ||
+      analysis.description.storeIntrinsic != plan.storeIntrinsic ||
+      analysis.description.resultName != plan.resultName ||
+      analysis.description.dequantScaleRole != plan.scaleRole ||
+      analysis.description.dequantScaleCType != plan.scaleCType ||
+      analysis.description.dequantScaleName != plan.scaleName ||
+      analysis.description.sourceMemoryForm != plan.sourceMemoryForm ||
+      analysis.description.destinationMemoryForm !=
+          plan.destinationMemoryForm)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route-family route, runtime, source/result dtype, "
+        "scale, intrinsic, and memory-boundary mirrors must be populated from "
+        "the validated family plan before provider materialization");
+  if (!support::runtimeABIParametersEqual(
+          analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route-family runtime ABI parameters must match the "
+        "validated family plan");
+  if (analysis.routeOperandBindingPlan.planID !=
+      getExpectedRVVRouteOperandBindingPlanID(operation))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization provider requires the route operand binding plan for "
+        "the selected operation");
+  if (llvm::Error error = verifyRVVRouteOperandBindingClosure(
+          analysis.routeOperandBindingPlan, analysis.description, context))
+    return error;
+  return llvm::Error::success();
+}
+
 bool isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation) {
   switch (operation) {
@@ -24251,6 +25266,11 @@ static bool isRVVSelectedBodyConversionDtypePolicyWideningConsumer(
   return isRVVSelectedBodyWideningConversionRouteFamilyConsumer(operation);
 }
 
+static bool isRVVSelectedBodyConversionDtypePolicyDequantizationConsumer(
+    RVVSelectedBodyOperationKind operation) {
+  return isRVVSelectedBodyDequantizationRouteFamilyConsumer(operation);
+}
+
 static llvm::Error verifyRVVSelectedBodyConversionDtypePolicyCommonFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context,
     llvm::StringRef ownerName, bool requiresWideningSourcePolicy,
@@ -24430,12 +25450,85 @@ verifyRVVSelectedBodyConversionDtypePolicyWideningProviderPlans(
       /*requiresScalarBroadcastPolicy=*/false);
 }
 
+static llvm::Error
+verifyRVVSelectedBodyConversionDtypePolicyDequantizationProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  if (!isRVVSelectedBodyConversionDtypePolicyDequantizationConsumer(operation))
+    return llvm::Error::success();
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyDequantizationRouteFamilyProviderPlans(
+              analysis, context))
+    return error;
+  if (!analysis.dequantizationRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " conversion dtype-policy dequantization owner requires the "
+        "dequantization route-family plan before provider materialization for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  const RVVSelectedBodyDequantizationRouteFamilyPlan &plan =
+      *analysis.dequantizationRouteFamilyPlan;
+  if (analysis.description.dequantizationRouteFamilyPlanID !=
+          plan.familyPlanID ||
+      analysis.description.sourceSEW != plan.sourceSEW ||
+      analysis.description.sourceLMUL != plan.sourceLMUL ||
+      analysis.description.sourceVectorTypeName !=
+          plan.sourceVectorTypeName ||
+      analysis.description.sourceVectorCType != plan.sourceVectorCType ||
+      analysis.description.sourceVectorLoadIntrinsic !=
+          plan.sourceVectorLoadIntrinsic ||
+      analysis.description.sew != plan.resultSEW ||
+      analysis.description.lmul != plan.resultLMUL ||
+      analysis.description.vectorTypeName != plan.resultVectorTypeName ||
+      analysis.description.vectorCType != plan.resultVectorCType ||
+      analysis.description.conversionKind != plan.dequantizationKind ||
+      analysis.description.dequantizationRelation !=
+          plan.dequantizationRelation ||
+      analysis.description.dequantizeConvertIntrinsic !=
+          plan.convertIntrinsic ||
+      analysis.description.dequantizeScaleIntrinsic != plan.scaleIntrinsic ||
+      analysis.description.intrinsic != plan.convertIntrinsic ||
+      analysis.description.storeIntrinsic != plan.storeIntrinsic ||
+      analysis.description.dequantScaleRole != plan.scaleRole ||
+      analysis.description.dequantScaleCType != plan.scaleCType ||
+      analysis.description.dequantScaleName != plan.scaleName)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " conversion dtype-policy dequantization owner requires "
+        "source/result dtype, route type, runtime-scale, intrinsic, and "
+        "relation facts to come from the validated dequantization plan");
+  if (!analysis.description.conversionRelation.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " conversion dtype-policy dequantization owner must not use widening "
+        "conversion relation mirrors as route authority");
+  if (!analysis.description.wideningConversionRouteFamilyPlanID.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " conversion dtype-policy dequantization owner must not carry stale "
+        "widening conversion route-family mirrors");
+  if (!analysis.description.scalarBroadcastElementwiseRouteFamilyPlanID.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " conversion dtype-policy dequantization owner must not carry stale "
+        "scalar-broadcast route-family mirrors");
+  return verifyRVVSelectedBodyConversionDtypePolicyCommonFacts(
+      analysis, context, "dequantization dtype policy",
+      /*requiresWideningSourcePolicy=*/false,
+      /*requiresScalarBroadcastPolicy=*/false);
+}
+
 llvm::ArrayRef<RVVSelectedBodyConversionDtypePolicyRouteFamilyOwner>
 getRVVSelectedBodyConversionDtypePolicyRouteFamilyOwners() {
   static const RVVSelectedBodyConversionDtypePolicyRouteFamilyOwner owners[] = {
       {"widening conversion dtype policy",
        isRVVSelectedBodyConversionDtypePolicyWideningConsumer,
        verifyRVVSelectedBodyConversionDtypePolicyWideningProviderPlans},
+      {"dequantization dtype policy",
+       isRVVSelectedBodyConversionDtypePolicyDequantizationConsumer,
+       verifyRVVSelectedBodyConversionDtypePolicyDequantizationProviderPlans},
       {"scalar-broadcast elementwise dtype policy",
        isRVVSelectedBodyConversionDtypePolicyScalarBroadcastConsumer,
        verifyRVVSelectedBodyConversionDtypePolicyScalarBroadcastProviderPlans},
@@ -24785,6 +25878,8 @@ getRVVSelectedBodyRouteFamilyProviderOwners() {
       {"widening conversion",
        isRVVSelectedBodyWideningConversionRouteFamilyConsumer,
        verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans},
+      {"dequantization", isRVVSelectedBodyDequantizationRouteFamilyConsumer,
+       verifyRVVSelectedBodyDequantizationRouteFamilyProviderPlans},
   };
   return owners;
 }
@@ -24860,6 +25955,9 @@ getRVVSelectedBodyRouteMaterializationFacts(
       analysis.wideningConversionRouteFamilyPlan
           ? &*analysis.wideningConversionRouteFamilyPlan
           : nullptr;
+  facts.dequantizationPlan = analysis.dequantizationRouteFamilyPlan
+                                 ? &*analysis.dequantizationRouteFamilyPlan
+                                 : nullptr;
   facts.baseMemoryMovementPlan =
       analysis.baseMemoryMovementRouteFamilyPlan
           ? &*analysis.baseMemoryMovementRouteFamilyPlan
@@ -24905,6 +26003,7 @@ getRVVSelectedBodyRouteMaterializationFacts(
       facts.standaloneReductionPlan &&
       facts.standaloneReductionPlan->usesRuntimeScalarThreshold;
   facts.emitsWideningConversion = facts.wideningConversionPlan != nullptr;
+  facts.emitsDequantization = facts.dequantizationPlan != nullptr;
   facts.emitsPlainStandaloneReduction =
       facts.standaloneReductionPlan &&
       !facts.standaloneReductionPlan->usesComputedMask;
@@ -24928,6 +26027,7 @@ getRVVSelectedBodyRouteMaterializationFacts(
       : facts.scalarBroadcastMAccPlan ? facts.scalarBroadcastMAccPlan->vlCType
       : facts.plainCompareSelectPlan ? facts.plainCompareSelectPlan->vlCType
       : facts.computedMaskSelectPlan ? facts.computedMaskSelectPlan->vlCType
+      : facts.dequantizationPlan ? facts.dequantizationPlan->vlCType
       : facts.wideningConversionPlan ? facts.wideningConversionPlan->vlCType
       : facts.baseMemoryMovementPlan ? facts.baseMemoryMovementPlan->vlCType
       : facts.contractionPlan ? facts.contractionPlan->vlCType
@@ -24946,6 +26046,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
           ? facts.plainCompareSelectPlan->vectorTypeName
       : facts.computedMaskSelectPlan
           ? facts.computedMaskSelectPlan->vectorTypeName
+      : facts.dequantizationPlan
+          ? facts.dequantizationPlan->resultVectorTypeName
       : facts.wideningConversionPlan
           ? facts.wideningConversionPlan->resultVectorTypeName
       : facts.baseMemoryMovementPlan
@@ -24963,6 +26065,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
       : facts.plainCompareSelectPlan ? facts.plainCompareSelectPlan->vectorCType
       : facts.computedMaskSelectPlan
           ? facts.computedMaskSelectPlan->vectorCType
+      : facts.dequantizationPlan
+          ? facts.dequantizationPlan->resultVectorCType
       : facts.wideningConversionPlan
           ? facts.wideningConversionPlan->resultVectorCType
       : facts.baseMemoryMovementPlan
@@ -24970,14 +26074,18 @@ getRVVSelectedBodyRouteMaterializationFacts(
       : facts.contractionPlan ? facts.contractionPlan->resultVectorCType
           : typedConfigFacts.vectorCType;
   facts.sourceVectorTypeName =
-      facts.wideningConversionPlan
+      facts.dequantizationPlan
+          ? facts.dequantizationPlan->sourceVectorTypeName
+      : facts.wideningConversionPlan
           ? facts.wideningConversionPlan->sourceVectorTypeName
       : facts.contractionPlan ? facts.contractionPlan->sourceVectorTypeName
       : facts.standaloneReductionPlan
           ? facts.standaloneReductionPlan->sourceVectorTypeName
                               : description.sourceVectorTypeName;
   facts.sourceVectorCType =
-      facts.wideningConversionPlan
+      facts.dequantizationPlan
+          ? facts.dequantizationPlan->sourceVectorCType
+      : facts.wideningConversionPlan
           ? facts.wideningConversionPlan->sourceVectorCType
       : facts.contractionPlan ? facts.contractionPlan->sourceVectorCType
       : facts.standaloneReductionPlan
@@ -25026,6 +26134,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
     facts.setVLLeaf = facts.scalarBroadcastPlan->setVLIntrinsic;
   else if (facts.runtimeScalarSplatStorePlan)
     facts.setVLLeaf = facts.runtimeScalarSplatStorePlan->setVLIntrinsic;
+  else if (facts.dequantizationPlan)
+    facts.setVLLeaf = facts.dequantizationPlan->setVLIntrinsic;
   else if (facts.wideningConversionPlan)
     facts.setVLLeaf = facts.wideningConversionPlan->setVLIntrinsic;
   else if (facts.baseMemoryMovementPlan)
@@ -25051,6 +26161,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
     facts.sourceLoadLeaf = facts.contractionPlan->sourceVectorLoadIntrinsic;
   else if (facts.scalarBroadcastPlan)
     facts.sourceLoadLeaf = facts.scalarBroadcastPlan->vectorLoadIntrinsic;
+  else if (facts.dequantizationPlan)
+    facts.sourceLoadLeaf = facts.dequantizationPlan->sourceVectorLoadIntrinsic;
   else if (facts.wideningConversionPlan)
     facts.sourceLoadLeaf =
         facts.wideningConversionPlan->sourceVectorLoadIntrinsic;
@@ -25074,6 +26186,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
           ? facts.computedMaskSelectPlan->vectorLoadIntrinsic
       : facts.scalarBroadcastPlan
           ? facts.scalarBroadcastPlan->vectorLoadIntrinsic
+      : facts.dequantizationPlan
+          ? facts.dequantizationPlan->sourceVectorLoadIntrinsic
       : facts.wideningConversionPlan
           ? facts.wideningConversionPlan->sourceVectorLoadIntrinsic
       : facts.baseMemoryMovementPlan
@@ -25107,6 +26221,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
     facts.storeLeaf = facts.scalarBroadcastPlan->storeIntrinsic;
   else if (facts.runtimeScalarSplatStorePlan)
     facts.storeLeaf = facts.runtimeScalarSplatStorePlan->storeIntrinsic;
+  else if (facts.dequantizationPlan)
+    facts.storeLeaf = facts.dequantizationPlan->storeIntrinsic;
   else if (facts.wideningConversionPlan)
     facts.storeLeaf = facts.wideningConversionPlan->storeIntrinsic;
   else if (facts.baseMemoryMovementPlan)
@@ -25127,7 +26243,9 @@ getRVVSelectedBodyRouteMaterializationFacts(
           ? facts.standaloneReductionPlan->reductionIntrinsic
           : description.intrinsic;
   facts.elementwiseComputeLeaf =
-      facts.wideningConversionPlan
+      facts.dequantizationPlan
+          ? facts.dequantizationPlan->convertIntrinsic
+      : facts.wideningConversionPlan
           ? facts.wideningConversionPlan->conversionIntrinsic
       : facts.plainMAccPlan ? facts.plainMAccPlan->maccIntrinsic
       : facts.scalarBroadcastMAccPlan
@@ -25179,6 +26297,12 @@ getRVVSelectedBodyRouteMaterializationFacts(
       : facts.emitsComputedMaskStandaloneReduction
           ? facts.standaloneReductionPlan->maskedMergeIntrinsic
           : description.maskedMergeIntrinsic;
+  facts.dequantizeConvertLeaf =
+      facts.dequantizationPlan ? facts.dequantizationPlan->convertIntrinsic
+                               : description.dequantizeConvertIntrinsic;
+  facts.dequantizeScaleLeaf =
+      facts.dequantizationPlan ? facts.dequantizationPlan->scaleIntrinsic
+                               : description.dequantizeScaleIntrinsic;
 
   if (facts.computedMaskAccumulationPlan)
     facts.requiredHeaders = facts.computedMaskAccumulationPlan->requiredHeaders;
@@ -25196,6 +26320,8 @@ getRVVSelectedBodyRouteMaterializationFacts(
     facts.requiredHeaders = facts.scalarBroadcastPlan->requiredHeaders;
   else if (facts.runtimeScalarSplatStorePlan)
     facts.requiredHeaders = facts.runtimeScalarSplatStorePlan->requiredHeaders;
+  else if (facts.dequantizationPlan)
+    facts.requiredHeaders = facts.dequantizationPlan->requiredHeaders;
   else if (facts.wideningConversionPlan)
     facts.requiredHeaders = facts.wideningConversionPlan->requiredHeaders;
   else if (facts.baseMemoryMovementPlan)
@@ -25225,7 +26351,17 @@ getRVVSelectedBodyRouteMaterializationFacts(
   const bool wideningStandaloneReductionConsumer =
       description.operation ==
       RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
-  if (facts.standaloneReductionPlan && !wideningStandaloneReductionConsumer) {
+  if (facts.dequantizationPlan) {
+    if (llvm::Error error = requireTypedEmissionMatch(
+            "source vector type", facts.sourceVectorTypeName,
+            typedConfigFacts.vectorTypeName))
+      return std::move(error);
+    if (llvm::Error error = requireTypedEmissionMatch(
+            "source vector C type", facts.sourceVectorCType,
+            typedConfigFacts.vectorCType))
+      return std::move(error);
+  } else if (facts.standaloneReductionPlan &&
+             !wideningStandaloneReductionConsumer) {
     if (llvm::Error error = requireTypedEmissionMatch(
             "source vector type", facts.sourceVectorTypeName,
             typedConfigFacts.vectorTypeName))
@@ -25947,6 +27083,343 @@ llvm::Error verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
         " widening conversion route construction requires statement/leaf "
         "facts for setvl, source load, conversion, and store before creating "
         "TCRVEmitCLowerableRoute");
+
+  return llvm::Error::success();
+}
+
+llvm::Error verifyRVVSelectedBodyDequantizationRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyDequantizationRouteStatementPlan &statementPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  const RVVSelectedBodyOperationKind operation = description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyDequantizationRouteFamilyConsumer(operation);
+  const bool carriesDequantFacts =
+      analysis.dequantizationRouteFamilyPlan.has_value() ||
+      materializationFacts.dequantizationPlan ||
+      materializationFacts.emitsDequantization ||
+      mathOperandBindingFacts.bindsDequantization ||
+      statementPlan.plansDequantizationRoute ||
+      !description.dequantizationRouteFamilyPlanID.empty() ||
+      !description.dequantizationRelation.empty() ||
+      !description.dequantizeConvertIntrinsic.empty() ||
+      !description.dequantizeScaleIntrinsic.empty() ||
+      !description.dequantScaleRole.empty() ||
+      !description.dequantScaleCType.empty() ||
+      !description.dequantScaleName.empty();
+  if (!isConsumer) {
+    if (carriesDequantFacts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " must not carry dequantization provider facts for non-dequant "
+          "operation '" +
+          stringifyRVVSelectedBodyOperationKind(operation) +
+          "' before creating TCRVEmitCLowerableRoute");
+    return llvm::Error::success();
+  }
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context))
+    return error;
+
+  if (!analysis.dequantizationRouteFamilyPlan ||
+      materializationFacts.dequantizationPlan !=
+          &*analysis.dequantizationRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route construction requires exactly the verified "
+        "dequantization family plan before creating TCRVEmitCLowerableRoute");
+
+  const RVVSelectedBodyDequantizationRouteFamilyPlan &plan =
+      *materializationFacts.dequantizationPlan;
+  if (llvm::Error error =
+          validateRVVSelectedBodyDequantizationRouteFamilyPlan(plan))
+    return error;
+  if (plan.operation != operation || plan.memoryForm != description.memoryForm ||
+      plan.memoryForm != RVVSelectedBodyMemoryForm::UnitStrideDequantization)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route construction requires family-plan operation "
+        "and unit-stride dequantization memory form to match the selected "
+        "typed body before creating TCRVEmitCLowerableRoute");
+
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      materializationFacts.typedConfigFacts;
+  if (!typedFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route construction requires typed RVV body/config "
+        "facts before creating TCRVEmitCLowerableRoute");
+  if (typedFacts.sew != plan.sourceSEW ||
+      typedFacts.lmul != plan.sourceLMUL ||
+      typedFacts.tailPolicy != plan.runtimeControlPlan.tailPolicy ||
+      typedFacts.maskPolicy != plan.runtimeControlPlan.maskPolicy ||
+      typedFacts.configContractID !=
+          plan.runtimeControlPlan.configContractID ||
+      typedFacts.vlCType != plan.vlCType ||
+      typedFacts.vectorTypeName != plan.sourceVectorTypeName ||
+      typedFacts.vectorCType != plan.sourceVectorCType ||
+      typedFacts.setVLIntrinsic != plan.setVLIntrinsic ||
+      typedFacts.vectorLoadIntrinsic != plan.sourceVectorLoadIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route construction requires family-plan source "
+        "i32m1 type/config facts to mirror the selected typed RVV body before "
+        "creating TCRVEmitCLowerableRoute");
+
+  auto requiredHeadersMatchPlan = [&]() {
+    if (materializationFacts.requiredHeaders.size() !=
+        plan.requiredHeaders.size())
+      return false;
+    for (std::size_t index = 0, count = plan.requiredHeaders.size();
+         index < count; ++index)
+      if (materializationFacts.requiredHeaders[index] !=
+          plan.requiredHeaders[index])
+        return false;
+    return true;
+  };
+  if (!requiredHeadersMatchPlan() ||
+      materializationFacts.vlCType != plan.vlCType ||
+      materializationFacts.resultVectorTypeName !=
+          plan.resultVectorTypeName ||
+      materializationFacts.resultVectorCType != plan.resultVectorCType ||
+      materializationFacts.sourceVectorTypeName !=
+          plan.sourceVectorTypeName ||
+      materializationFacts.sourceVectorCType != plan.sourceVectorCType ||
+      materializationFacts.setVLLeaf != plan.setVLIntrinsic ||
+      materializationFacts.sourceLoadLeaf !=
+          plan.sourceVectorLoadIntrinsic ||
+      materializationFacts.vectorLoadLeaf !=
+          plan.sourceVectorLoadIntrinsic ||
+      materializationFacts.dequantizeConvertLeaf != plan.convertIntrinsic ||
+      materializationFacts.dequantizeScaleLeaf != plan.scaleIntrinsic ||
+      materializationFacts.elementwiseComputeLeaf != plan.convertIntrinsic ||
+      materializationFacts.storeLeaf != plan.storeIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route construction requires materialization facts "
+        "to come from the verified dequantization family plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  if (!materializationFacts.maskTypeName.empty() ||
+      !materializationFacts.maskCType.empty() ||
+      !materializationFacts.rhsScalarBroadcastLeaf.empty() ||
+      !materializationFacts.sourceSplatLeaf.empty() ||
+      !materializationFacts.scalarSeedSplatLeaf.empty() ||
+      !materializationFacts.compareLeaf.empty() ||
+      !materializationFacts.maskedMergeLeaf.empty() ||
+      materializationFacts.wideningConversionPlan ||
+      materializationFacts.standaloneReductionPlan ||
+      materializationFacts.computedMaskAccumulationPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route construction rejects stale widening, mask, "
+        "scalar, standalone-reduction, or accumulation materialization facts "
+        "before creating TCRVEmitCLowerableRoute");
+
+  llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+      getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
+                                                 context);
+  if (!routeControlPlan)
+    return routeControlPlan.takeError();
+  if (!routeControlPlan->plansRouteControl ||
+      !routeControlPlan->controlsDequantization ||
+      routeControlPlan->typedConfigFacts != &analysis.typedConfigFacts ||
+      routeControlPlan->selectedTargetCapabilityFacts !=
+          &analysis.selectedTargetCapabilityFacts ||
+      routeControlPlan->runtimeControlPlan != &plan.runtimeControlPlan ||
+      routeControlPlan->runtimeABIOrderMirror != plan.runtimeABIOrder ||
+      routeControlPlan->selectedProviderMirror !=
+          analysis.selectedTargetCapabilityFacts.providerMirror ||
+      routeControlPlan->selectedLegalityMirror !=
+          analysis.selectedTargetCapabilityFacts.legalityMirror)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route construction requires the RVV-owned "
+        "route-control provider plan from the same selected analysis before "
+        "creating TCRVEmitCLowerableRoute");
+
+  if (description.dequantizationRouteFamilyPlanID != plan.familyPlanID ||
+      description.memoryForm != plan.memoryForm ||
+      description.runtimeABIOrder != plan.runtimeABIOrder ||
+      description.runtimeControlPlanID !=
+          plan.runtimeControlPlan.controlPlanID ||
+      description.configContractID !=
+          plan.runtimeControlPlan.configContractID ||
+      description.runtimeVLContractID !=
+          plan.runtimeControlPlan.runtimeVLContractID ||
+      description.runtimeAVLASource !=
+          plan.runtimeControlPlan.runtimeAVLASource ||
+      description.vlDefOpName != plan.runtimeControlPlan.vlDefOpName ||
+      description.vlScopeOpName != plan.runtimeControlPlan.vlScopeOpName ||
+      description.vlUses != plan.runtimeControlPlan.vlUses ||
+      description.emitCLoopKind != plan.runtimeControlPlan.emitCLoopKind ||
+      description.emitCLoopInductionName !=
+          plan.runtimeControlPlan.emitCLoopInductionName ||
+      description.emitCFullChunkVLName !=
+          plan.runtimeControlPlan.emitCFullChunkVLName ||
+      description.emitCLoopVLName !=
+          plan.runtimeControlPlan.emitCLoopVLName ||
+      description.remainingAVLMetadata !=
+          plan.runtimeControlPlan.remainingAVLMetadata ||
+      description.pointerAdvanceMetadata !=
+          plan.runtimeControlPlan.pointerAdvanceMetadata ||
+      description.boundedSlice != plan.runtimeControlPlan.boundedSlice ||
+      description.multiVL != plan.runtimeControlPlan.multiVL ||
+      description.targetLeafProfile != plan.targetLeafProfile ||
+      description.providerSupportedMirror != plan.providerSupportedMirror ||
+      description.requiredHeaderDeclarations !=
+          plan.requiredHeaderDeclarations ||
+      description.cTypeMappingSummary != plan.cTypeMappingSummary ||
+      description.vlCType != plan.vlCType ||
+      description.sourceElementTypeName != plan.sourceElementTypeName ||
+      description.sourceSEW != plan.sourceSEW ||
+      description.sourceLMUL != plan.sourceLMUL ||
+      description.sourceVectorTypeName != plan.sourceVectorTypeName ||
+      description.sourceVectorCType != plan.sourceVectorCType ||
+      description.sourceVectorLoadIntrinsic !=
+          plan.sourceVectorLoadIntrinsic ||
+      description.resultElementTypeName != plan.resultElementTypeName ||
+      description.sew != plan.resultSEW ||
+      description.lmul != plan.resultLMUL ||
+      description.vectorTypeName != plan.resultVectorTypeName ||
+      description.vectorCType != plan.resultVectorCType ||
+      description.setVLIntrinsic != plan.setVLIntrinsic ||
+      description.conversionKind != plan.dequantizationKind ||
+      description.dequantizationRelation != plan.dequantizationRelation ||
+      description.dequantizeConvertIntrinsic != plan.convertIntrinsic ||
+      description.dequantizeScaleIntrinsic != plan.scaleIntrinsic ||
+      description.intrinsic != plan.convertIntrinsic ||
+      description.storeIntrinsic != plan.storeIntrinsic ||
+      description.resultName != plan.resultName ||
+      description.dequantScaleRole != plan.scaleRole ||
+      description.dequantScaleCType != plan.scaleCType ||
+      description.dequantScaleName != plan.scaleName)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route construction requires route description and "
+        "artifact ABI mirror facts to be populated from the validated family "
+        "plan before creating TCRVEmitCLowerableRoute");
+  if (!support::runtimeABIParametersEqual(description.runtimeABIParameters,
+                                          plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route construction requires runtime ABI parameters "
+        "from the verified family plan before creating "
+        "TCRVEmitCLowerableRoute");
+  if (!description.conversionRelation.empty() ||
+      !description.wideningConversionRouteFamilyPlanID.empty() ||
+      !description.scalarBroadcastElementwiseRouteFamilyPlanID.empty() ||
+      !description.standaloneReductionRouteFamilyPlanID.empty() ||
+      !description.accumulationRouteFamilyPlanID.empty() ||
+      !description.contractionRouteFamilyPlanID.empty() ||
+      !description.maskRole.empty() || !description.maskSource.empty() ||
+      !description.maskMemoryForm.empty() ||
+      !description.inactiveLaneContract.empty() ||
+      !description.inactiveLaneZeroingRequirement.empty() ||
+      !description.scalarSeedSplatIntrinsic.empty() ||
+      !description.rhsBroadcastIntrinsic.empty() ||
+      !description.compareIntrinsic.empty() ||
+      !description.maskedMergeIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route construction rejects stale widening, scalar, "
+        "mask, standalone-reduction, accumulation, or contraction route "
+        "mirrors before creating TCRVEmitCLowerableRoute");
+
+  if (mathOperandBindingFacts.bindingPlan != &analysis.routeOperandBindingPlan ||
+      !mathOperandBindingFacts.bindsMathCluster ||
+      !mathOperandBindingFacts.bindsDequantization ||
+      mathOperandBindingFacts.bindsWideningConversion ||
+      mathOperandBindingFacts.bindsStandaloneReduction ||
+      mathOperandBindingFacts.bindsComputedMaskStandaloneReduction ||
+      mathOperandBindingFacts
+          .bindsRuntimeScalarComputedMaskStandaloneReduction ||
+      mathOperandBindingFacts.bindsWideningMAcc ||
+      mathOperandBindingFacts.bindsWideningDotReduction ||
+      mathOperandBindingFacts.bindsComputedMaskWideningDotReduction)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route construction requires math operand-binding "
+        "facts from the same selected route analysis before creating "
+        "TCRVEmitCLowerableRoute");
+
+  auto requireABI = [&](const support::RuntimeABIParameter *parameter,
+                        llvm::StringRef logicalName,
+                        support::RuntimeABIParameterRole expectedRole)
+      -> llvm::Error {
+    if (!parameter)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " dequantization route construction requires lhs/scale/out/n "
+          "operand-binding facts before creating TCRVEmitCLowerableRoute");
+    if (parameter->role != expectedRole)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " dequantization route construction requires ABI role for " +
+          logicalName + " to be '" +
+          support::stringifyRuntimeABIParameterRole(expectedRole) +
+          "' before creating TCRVEmitCLowerableRoute, but saw '" +
+          support::stringifyRuntimeABIParameterRole(parameter->role) + "'");
+    return llvm::Error::success();
+  };
+  if (llvm::Error error =
+          requireABI(mathOperandBindingFacts.lhsABI, "lhs",
+                     support::RuntimeABIParameterRole::LHSInputBuffer))
+    return error;
+  if (llvm::Error error =
+          requireABI(mathOperandBindingFacts.dequantScaleABI, "scale",
+                     support::RuntimeABIParameterRole::DequantScaleValue))
+    return error;
+  if (llvm::Error error =
+          requireABI(mathOperandBindingFacts.outABI, "out",
+                     support::RuntimeABIParameterRole::OutputBuffer))
+    return error;
+  if (llvm::Error error = requireABI(
+          mathOperandBindingFacts.runtimeElementCountABI, "n",
+          support::RuntimeABIParameterRole::RuntimeElementCount))
+    return error;
+
+  if (!statementPlan.plansDequantizationRoute ||
+      statementPlan.dequantizationPlan != &plan ||
+      statementPlan.preLoopSteps.empty() ||
+      statementPlan.loop.bodySteps.empty() ||
+      !statementPlan.plansDequantizeI32ToF32)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route construction requires the matching RVV-owned "
+        "dequantization statement plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  auto preLoopHasCallee = [&](llvm::StringRef callee) {
+    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         statementPlan.preLoopSteps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  auto loopHasCallee = [&](llvm::StringRef callee) {
+    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         statementPlan.loop.bodySteps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  if (!preLoopHasCallee(plan.setVLIntrinsic) ||
+      !loopHasCallee(plan.setVLIntrinsic) ||
+      !loopHasCallee(plan.sourceVectorLoadIntrinsic) ||
+      !loopHasCallee(plan.convertIntrinsic) ||
+      !loopHasCallee(plan.scaleIntrinsic) ||
+      !loopHasCallee(plan.storeIntrinsic))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route construction requires statement/leaf facts "
+        "for setvl, source load, conversion, runtime scale, and store before "
+        "creating TCRVEmitCLowerableRoute");
 
   return llvm::Error::success();
 }
@@ -29636,7 +31109,8 @@ static bool isRVVSelectedBodyMathRouteOperandBindingFactsConsumer(
              operation) ||
          isRVVSelectedBodyStandaloneReductionRouteOperation(operation) ||
          isRVVSelectedBodyContractionRouteOperation(operation) ||
-         isRVVSelectedBodyWideningConversionRouteOperation(operation);
+         isRVVSelectedBodyWideningConversionRouteOperation(operation) ||
+         isRVVSelectedBodyDequantizationRouteOperation(operation);
 }
 
 llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
@@ -30280,6 +31754,72 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
       return std::move(error);
     if (llvm::Error error =
             bindRuntimeCount("loop", "hdr", "widening conversion"))
+      return std::move(error);
+    return facts;
+  }
+
+  case RVVSelectedBodyOperationKind::DequantizeI32ToF32: {
+    if (llvm::Error error = requireFamilyPlan(
+            analysis.dequantizationRouteFamilyPlan.has_value(),
+            "dequantization"))
+      return std::move(error);
+    facts.bindsDequantization = true;
+    if (llvm::Error error =
+            bindOperand(facts.lhsABI, "lhs", "src-load",
+                        "dequantization source load operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", "dequant-src",
+                              "dequantization compute source operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", "src-i32m1",
+                              "dequantization source type/config mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse(
+                "lhs", "relation-signed-i32m1-to-f32m1-scale-f32",
+                "dequantization source relation mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("lhs", "hdr",
+                              "dequantization source header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.dequantScaleABI, "scale", "runtime-scale",
+                        "dequantization runtime scale operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("scale", "scale-f32",
+                              "dequantization runtime scale type mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("scale", "hdr",
+                              "dequantization runtime scale header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindOperand(facts.outABI, "out", "res-store",
+                        "dequantization result store operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "dequant-result",
+                              "dequantization result dataflow operand"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "res-f32m1",
+                              "dequantization result type/config mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse(
+                "out", "relation-signed-i32m1-to-f32m1-scale-f32",
+                "dequantization result relation mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            requireOperandUse("out", "hdr",
+                              "dequantization output header mirror"))
+      return std::move(error);
+    if (llvm::Error error =
+            bindRuntimeCount("loop", "hdr", "dequantization"))
       return std::move(error);
     return facts;
   }
@@ -31609,6 +33149,10 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     analysis.description.runtimeABIOrder =
         kRVVWideningConversionRuntimeABIOrder;
     break;
+  case RVVSelectedBodyMemoryForm::UnitStrideDequantization:
+    analysis.description.runtimeABIOrder =
+        kRVVDequantizeI32ToF32RuntimeABIOrder;
+    break;
   case RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideWideningDotReduce:
   case RVVSelectedBodyMemoryForm::StridedInputWideningDotReduce:
   case RVVSelectedBodyMemoryForm::ComputedMaskStridedInputWideningDotReduce:
@@ -31674,6 +33218,32 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       analysis.description.conversionRelation = kRVVWideningConversionRelation;
     }
   }
+  if (analysis.slice.memoryForm ==
+      RVVSelectedBodyMemoryForm::UnitStrideDequantization) {
+    analysis.description.sourceSEW = tcrv::rvv::getRVVFirstSliceSEWBits();
+    analysis.description.sourceLMUL = tcrv::rvv::getRVVLMULM1();
+    analysis.description.sourceElementTypeName =
+        getRVVSelectedBodyIntegerElementTypeName(
+            analysis.description.sourceSEW);
+    analysis.description.sourceVectorTypeName =
+        getRVVSelectedBodyVectorTypeName(analysis.description.sourceSEW,
+                                         analysis.description.sourceLMUL);
+    analysis.description.sourceVectorCType =
+        getRVVSelectedBodySignedVectorCType(analysis.description.sourceSEW,
+                                            analysis.description.sourceLMUL);
+    analysis.description.sourceVectorLoadIntrinsic =
+        getRVVSelectedBodyVectorLoadIntrinsic(
+            analysis.description.sourceSEW, analysis.description.sourceLMUL);
+    analysis.description.resultElementTypeName =
+        getRVVSelectedBodyFloatElementTypeName(
+            tcrv::rvv::getRVVFirstSliceSEWBits());
+    analysis.description.conversionKind = kRVVDequantizeI32ToF32Kind;
+    analysis.description.dequantizationRelation =
+        kRVVDequantizeI32ToF32Relation;
+    analysis.description.dequantScaleRole = "dequant-scale-value";
+    analysis.description.dequantScaleCType = "float";
+    analysis.description.dequantScaleName = "scale";
+  }
   analysis.description.boundaryOpName = kRVVSelectedBodyLoweringBoundaryOpName;
   analysis.description.targetArtifactRouteID =
       getRVVSelectedBodyTargetArtifactRouteID();
@@ -31718,6 +33288,14 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   } else if (analysis.slice.memoryForm ==
              RVVSelectedBodyMemoryForm::RuntimeScalarSplatStore) {
     analysis.description.runtimeABIParameters.push_back(analysis.slice.rhsABI);
+    analysis.description.runtimeABIParameters.push_back(analysis.slice.outABI);
+    analysis.description.runtimeABIParameters.push_back(
+        analysis.slice.runtimeElementCountABI);
+  } else if (analysis.slice.memoryForm ==
+             RVVSelectedBodyMemoryForm::UnitStrideDequantization) {
+    analysis.description.runtimeABIParameters.push_back(analysis.slice.lhsABI);
+    analysis.description.runtimeABIParameters.push_back(
+        analysis.slice.dequantScaleABI);
     analysis.description.runtimeABIParameters.push_back(analysis.slice.outABI);
     analysis.description.runtimeABIParameters.push_back(
         analysis.slice.runtimeElementCountABI);
@@ -32141,6 +33719,18 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
         std::move(*wideningConversionPlan);
     applyRVVSelectedBodyWideningConversionRouteFamilyPlan(
         *analysis.wideningConversionRouteFamilyPlan, analysis.description);
+  }
+  if (isRVVSelectedBodyDequantizationRouteOperation(
+          routeProfile->operation.operation)) {
+    llvm::Expected<RVVSelectedBodyDequantizationRouteFamilyPlan>
+        dequantizationPlan =
+            deriveRVVSelectedBodyDequantizationRouteFamilyPlan(
+                analysis, routeProfile->config);
+    if (!dequantizationPlan)
+      return dequantizationPlan.takeError();
+    analysis.dequantizationRouteFamilyPlan = std::move(*dequantizationPlan);
+    applyRVVSelectedBodyDequantizationRouteFamilyPlan(
+        *analysis.dequantizationRouteFamilyPlan, analysis.description);
   }
   if (isRVVSelectedBodyBaseMemoryMovementRouteOperation(
           routeProfile->operation.operation)) {
@@ -32675,6 +34265,8 @@ stringifyRVVSelectedBodyMemoryForm(RVVSelectedBodyMemoryForm form) {
     return "unit-load-segment2-store";
   case RVVSelectedBodyMemoryForm::UnitStrideConversion:
     return "unit-stride-conversion";
+  case RVVSelectedBodyMemoryForm::UnitStrideDequantization:
+    return "unit-stride-dequantization";
   case RVVSelectedBodyMemoryForm::ComputedMaskUnitStrideWideningDotReduce:
     return "computed-mask-unit-stride-widening-dot-reduce";
   case RVVSelectedBodyMemoryForm::StridedInputWideningDotReduce:
@@ -32800,6 +34392,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   const bool isRuntimeScalarSplatStoreRoute =
       isRVVSelectedBodyRuntimeScalarSplatStoreRouteOperation(
           operationProfile.operation);
+  const bool isDequantizationRoute =
+      isRVVSelectedBodyDequantizationRouteOperation(operationProfile.operation);
   const bool isRuntimeScalarComputedMaskSelectRoute =
       isRVVSelectedBodyComputedMaskSelectRouteOperation(
           operationProfile.operation);
@@ -33062,6 +34656,44 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "conversion kind", description.conversionKind,
             routeFacts->conversionKind))
+      return error;
+  } else if (isDequantizationRoute) {
+    std::optional<RVVDequantizationRouteFacts> routeFacts =
+        getRVVDequantizationRouteFacts(operationProfile.operation);
+    if (!routeFacts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " requires provider-owned dequantization canonical route facts for "
+          "the selected operation");
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "target leaf profile", description.targetLeafProfile,
+            routeFacts->targetLeafProfile))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "provider_supported_mirror",
+            description.providerSupportedMirror,
+            routeFacts->providerSupportedMirror))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "required header declarations",
+            description.requiredHeaderDeclarations,
+            routeFacts->requiredHeaderDeclarations))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "C type mapping summary", description.cTypeMappingSummary,
+            routeFacts->cTypeMappingSummary))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source element type", description.sourceElementTypeName,
+            routeFacts->sourceElementTypeName))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "result element type", description.resultElementTypeName,
+            routeFacts->resultElementTypeName))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "dequantization kind", description.conversionKind,
+            routeFacts->dequantizationKind))
       return error;
   } else if (isRuntimeScalarComputedMaskSelectRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
@@ -33570,6 +35202,8 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
              !isBaseMemoryMovementRouteFamilyRoute) {
   } else if (operationProfile.isWideningConversion) {
     expectedRuntimeABIOrder = kRVVWideningConversionRuntimeABIOrder;
+  } else if (isDequantizationRoute) {
+    expectedRuntimeABIOrder = kRVVDequantizeI32ToF32RuntimeABIOrder;
   } else if (std::optional<llvm::StringRef> maccRuntimeABIOrder =
                  getExpectedRVVSelectedBodyMAccRuntimeABIOrder(
                      operationProfile.operation)) {
@@ -33642,6 +35276,18 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "widening conversion route family plan",
             description.wideningConversionRouteFamilyPlanID, ""))
+      return error;
+  }
+  if (isDequantizationRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "dequantization route family plan",
+            description.dequantizationRouteFamilyPlanID,
+            kRVVDequantizationRouteFamilyPlanID))
+      return error;
+  } else {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "dequantization route family plan",
+            description.dequantizationRouteFamilyPlanID, ""))
       return error;
   }
   if (isRuntimeScalarComputedMaskSelectRoute) {
@@ -33851,14 +35497,32 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   if (llvm::Error error = requireRouteDescriptionField(
           context, "VL C type", description.vlCType, configProfile.vlCType))
     return error;
-  if (llvm::Error error = requireRouteDescriptionField(
-          context, "vector type", description.vectorTypeName,
-          configProfile.vectorTypeName))
-    return error;
-  if (llvm::Error error = requireRouteDescriptionField(
-          context, "vector C type", description.vectorCType,
-          configProfile.vectorCType))
-    return error;
+  if (!isDequantizationRoute) {
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "vector type", description.vectorTypeName,
+            configProfile.vectorTypeName))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "vector C type", description.vectorCType,
+            configProfile.vectorCType))
+      return error;
+  } else {
+    std::optional<RVVDequantizationRouteFacts> routeFacts =
+        getRVVDequantizationRouteFacts(operationProfile.operation);
+    if (!routeFacts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " dequantization requires provider-owned route facts before "
+          "route-description verification");
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "dequant result vector type", description.vectorTypeName,
+            routeFacts->resultVectorTypeName))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "dequant result vector C type", description.vectorCType,
+            routeFacts->resultVectorCType))
+      return error;
+  }
   if (operationProfile.isIndexedMemoryMovement) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "index vector type", description.indexVectorTypeName,
@@ -33940,6 +35604,71 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     if (llvm::Error error = requireRouteDescriptionField(
             context, "conversion relation", description.conversionRelation,
             expectedConversionRelation))
+      return error;
+  } else if (isDequantizationRoute) {
+    std::optional<RVVDequantizationRouteFacts> routeFacts =
+        getRVVDequantizationRouteFacts(operationProfile.operation);
+    if (!routeFacts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " dequantization requires provider-owned route facts before "
+          "source/result/scale route-description verification");
+    if (description.sourceSEW != routeFacts->sourceSEW)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " source SEW must be provider-derived from typed source vector for "
+          "dequantization");
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source LMUL", description.sourceLMUL,
+            routeFacts->sourceLMUL))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source vector type", description.sourceVectorTypeName,
+            routeFacts->sourceVectorTypeName))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source vector C type", description.sourceVectorCType,
+            routeFacts->sourceVectorCType))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "source vector-load intrinsic",
+            description.sourceVectorLoadIntrinsic,
+            routeFacts->sourceVectorLoadIntrinsic))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "dequantization relation",
+            description.dequantizationRelation,
+            routeFacts->dequantizationRelation))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "dequant conversion kind", description.conversionKind,
+            routeFacts->dequantizationKind))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "dequant convert intrinsic",
+            description.dequantizeConvertIntrinsic,
+            routeFacts->convertIntrinsic))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "dequant scale intrinsic",
+            description.dequantizeScaleIntrinsic,
+            routeFacts->scaleIntrinsic))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "dequant scale role", description.dequantScaleRole,
+            routeFacts->scaleRole))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "dequant scale C type", description.dequantScaleCType,
+            routeFacts->scaleCType))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "dequant scale name", description.dequantScaleName,
+            routeFacts->scaleName))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "conversion relation", description.conversionRelation,
+            ""))
       return error;
   } else {
     if (description.sourceSEW != 0)
@@ -34161,6 +35890,9 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             : isStandaloneReductionRoute
                 ? getRVVStandaloneReductionScalarResultStoreIntrinsic(
                       description.sew, description.lmul)
+            : isDequantizationRoute
+                ? getRVVSelectedBodyFloatStoreIntrinsic(description.sew,
+                                                        description.lmul)
                 : configProfile.storeIntrinsic))
       return error;
   if (!isElementwiseArithmeticRoute && !isScalarBroadcastElementwiseRoute) {
@@ -35264,7 +36996,7 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   } else {
     const bool isUnitStrideSourceStoreRoute =
         isElementwiseArithmeticRoute || isPlainCompareSelect ||
-        operationProfile.isWideningConversion;
+        operationProfile.isWideningConversion || isDequantizationRoute;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "strided memory layout",
             description.stridedMemoryLayout, ""))
@@ -35647,6 +37379,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back(
         {"tcrv_rvv.widening_conversion_route_family_plan",
          description.wideningConversionRouteFamilyPlanID});
+  if (!description.dequantizationRouteFamilyPlanID.empty())
+    metadata.push_back(
+        {"tcrv_rvv.dequantization_route_family_plan",
+         description.dequantizationRouteFamilyPlanID});
   if (!description.baseMemoryMovementRouteFamilyPlanID.empty())
     metadata.push_back(
         {"tcrv_rvv.base_memory_movement_route_family_plan",
@@ -35721,6 +37457,7 @@ getRVVSelectedBodyConfigArtifactMetadata(
       !description.plainMAccRouteFamilyPlanID.empty() ||
       !description.plainCompareSelectRouteFamilyPlanID.empty() ||
       isRVVSelectedBodyWideningConversionRouteOperation(description.operation) ||
+      description.operation == RVVSelectedBodyOperationKind::DequantizeI32ToF32 ||
       isRVVSelectedBodyBaseMemoryMovementRouteOperation(
           description.operation) ||
       isRVVSelectedBodyComputedMaskSelectRouteOperation(
@@ -36240,6 +37977,37 @@ getRVVSelectedBodyConfigArtifactMetadata(
         {"tcrv_rvv.conversion_kind", description.conversionKind});
     metadata.push_back(
         {"tcrv_rvv.conversion_relation", description.conversionRelation});
+    metadata.push_back(
+        {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
+    metadata.push_back({"tcrv_rvv.destination_memory_form",
+                        description.destinationMemoryForm});
+  }
+  if (description.operation ==
+      RVVSelectedBodyOperationKind::DequantizeI32ToF32) {
+    metadata.push_back({"tcrv_rvv.source_element_type",
+                        description.sourceElementTypeName});
+    metadata.push_back({"tcrv_rvv.result_element_type",
+                        description.resultElementTypeName});
+    metadata.push_back(
+        {"tcrv_rvv.source_sew", llvm::Twine(description.sourceSEW).str()});
+    metadata.push_back({"tcrv_rvv.source_lmul", description.sourceLMUL});
+    metadata.push_back(
+        {"tcrv_rvv.dest_sew", llvm::Twine(description.sew).str()});
+    metadata.push_back({"tcrv_rvv.dest_lmul", description.lmul});
+    metadata.push_back(
+        {"tcrv_rvv.conversion_kind", description.conversionKind});
+    metadata.push_back({"tcrv_rvv.dequantization_relation",
+                        description.dequantizationRelation});
+    metadata.push_back({"tcrv_rvv.dequantize_convert_intrinsic",
+                        description.dequantizeConvertIntrinsic});
+    metadata.push_back({"tcrv_rvv.dequantize_scale_intrinsic",
+                        description.dequantizeScaleIntrinsic});
+    metadata.push_back({"tcrv_rvv.dequant_scale_role",
+                        description.dequantScaleRole});
+    metadata.push_back({"tcrv_rvv.dequant_scale_c_type",
+                        description.dequantScaleCType});
+    metadata.push_back({"tcrv_rvv.dequant_scale_name",
+                        description.dequantScaleName});
     metadata.push_back(
         {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
     metadata.push_back({"tcrv_rvv.destination_memory_form",

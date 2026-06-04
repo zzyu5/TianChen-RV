@@ -1621,3 +1621,42 @@ Implemented route-supported typed i16 source to i32 accumulator/result widening 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 453: Stage2 RVV i32-to-f32 dequantization route foundation
+
+**Date**: 2026-06-05
+**Task**: Stage2 RVV i32-to-f32 dequantization route foundation
+**Branch**: `main`
+
+### Summary
+
+Implemented a route-supported typed RVV i32-to-f32 runtime-scale dequantization foundation, with provider-derived conversion/scale/store facts, target validation, focused positive/negative coverage, and full check-tianchenrv verification.
+
+### Main Changes
+
+- Added generic `tcrv_rvv.dequantize` typed body support for i32 source values to f32 result values with a structurally bound runtime scale.
+- Extended RVV route planning/provider facts, statement plan ownership, target support bundle export, and target route-family validation for dequantization metadata and fail-closed stale/missing-scale/mismatch cases.
+- Updated runtime ABI support with `dequant-scale-value` and float output pointer handling.
+- Added focused dialect and target artifact tests, plus plugin/construction registry coverage updates.
+- Checks run this session: focused `tcrv-opt` verifier/materialization/export paths, `tianchenrv-rvv-extension-plugin-test`, `tianchenrv-target-artifact-export-test`, `tianchenrv-construction-protocol-common-test`, full `check-tianchenrv`, and diff whitespace checks.
+- No ssh rvv executable correctness claim was made for this route-supported foundation.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

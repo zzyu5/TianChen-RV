@@ -83,6 +83,7 @@ constexpr llvm::StringLiteral kDestSEWAttrName("dest_sew");
 constexpr llvm::StringLiteral kDestLMULAttrName("dest_lmul");
 constexpr llvm::StringLiteral kConversionRelationAttrName(
     "conversion_relation");
+constexpr llvm::StringLiteral kDequantRelationAttrName("dequant_relation");
 constexpr llvm::StringLiteral kAccumulatorSEWAttrName("accumulator_sew");
 constexpr llvm::StringLiteral kAccumulatorLMULAttrName("accumulator_lmul");
 constexpr llvm::StringLiteral kResultSEWAttrName("result_sew");
@@ -628,6 +629,10 @@ bool isAllowedMaskedWideningDotReduceAttr(llvm::StringRef name) {
 
 bool isAllowedWideningConvertAttr(llvm::StringRef name) {
   return name == "kind";
+}
+
+bool isAllowedDequantizeAttr(llvm::StringRef name) {
+  return name == "kind" || name == kDequantRelationAttrName;
 }
 
 bool isAllowedMoveAttr(llvm::StringRef name) { return name == "kind"; }
@@ -1551,6 +1556,14 @@ bool isSupportedGenericWideningConvertKind(llvm::StringRef kind) {
          kind == "sign_extend_widen_vf2";
 }
 
+bool isSupportedGenericDequantizeKind(llvm::StringRef kind) {
+  return kind == "i32_to_f32_scaled";
+}
+
+bool isSupportedGenericDequantizeRelation(llvm::StringRef relation) {
+  return relation == "signed-i32m1-to-f32m1-scale-f32";
+}
+
 bool isSupportedGenericMoveKind(llvm::StringRef kind) {
   return kind == "copy";
 }
@@ -1673,9 +1686,11 @@ bool isSupportedBoundedRuntimeABIValueCType(
   case Role::RHSScalarValue:
   case Role::RHSSecondaryScalarValue:
     return cType == "int32_t" || cType == "int64_t";
+  case Role::DequantScaleValue:
+    return cType == "float";
   case Role::OutputBuffer:
     return cType == "int16_t *" || cType == "int32_t *" ||
-           cType == "int64_t *";
+           cType == "int64_t *" || cType == "float *";
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
   case Role::SegmentInterleavedOutputBuffer:
@@ -1717,8 +1732,10 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::RHSScalarValue:
   case Role::RHSSecondaryScalarValue:
     return "'int32_t' or 'int64_t'";
+  case Role::DequantScaleValue:
+    return "'float'";
   case Role::OutputBuffer:
-    return "'int16_t *', 'int32_t *', or 'int64_t *'";
+    return "'int16_t *', 'int32_t *', 'int64_t *', or 'float *'";
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
   case Role::SegmentInterleavedOutputBuffer:
@@ -1753,6 +1770,12 @@ bool isBoundedScalarRole(tianchenrv::support::RuntimeABIParameterRole role) {
   using Role = tianchenrv::support::RuntimeABIParameterRole;
   return role == Role::RHSScalarValue ||
          role == Role::RHSSecondaryScalarValue;
+}
+
+bool isBoundedRuntimeABITokenScalarRole(
+    tianchenrv::support::RuntimeABIParameterRole role) {
+  using Role = tianchenrv::support::RuntimeABIParameterRole;
+  return role == Role::DequantScaleValue;
 }
 
 bool isBoundedBufferRole(tianchenrv::support::RuntimeABIParameterRole role) {
@@ -1888,6 +1911,7 @@ mlir::LogicalResult verifyRuntimeABIValueExecBinding(
   }
 
   if (isBoundedScalarRole(parsedRole) ||
+      isBoundedRuntimeABITokenScalarRole(parsedRole) ||
       isBoundedRuntimeIndexRole(parsedRole)) {
     auto param =
         llvm::dyn_cast<tianchenrv::tcrv::exec::RuntimeParamOp>(target);
@@ -2170,6 +2194,66 @@ bool isGenericRVVVectorI16MF2(mlir::Type type) {
 
 bool isGenericRVVVectorI64M2(mlir::Type type) {
   return isGenericRVVVectorType(type, getRVVSEW64Bits(), getRVVLMULM2());
+}
+
+bool isGenericRVVVectorF32M1(mlir::Type type) {
+  auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
+  if (!vector)
+    return false;
+  return vector.getElementType().isF32() && vector.getLmul() == getRVVLMULM1();
+}
+
+mlir::LogicalResult verifyDequantizeResultVectorForWithVL(
+    mlir::Operation *op, mlir::Value value, llvm::StringRef role) {
+  auto vector =
+      llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(value.getType());
+  if (!vector)
+    return op->emitOpError()
+           << "requires " << role
+           << " type to be generic !tcrv_rvv.vector";
+  if (!vector.getElementType().isF32())
+    return op->emitOpError()
+           << "requires " << role
+           << " element type to be f32 for the bounded i32-to-f32 "
+              "dequantization route";
+  if (vector.getLmul() != getRVVLMULM1())
+    return op->emitOpError()
+           << "requires " << role << " type " << value.getType()
+           << " to use LMUL \"m1\" for the bounded i32-to-f32 "
+              "dequantization route";
+
+  auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
+  if (!withVL)
+    return mlir::success();
+
+  auto expectedSEW =
+      withVL->getAttrOfType<mlir::IntegerAttr>(kSEWAttrName);
+  if (!expectedSEW)
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
+              "metadata for dequantization result dataflow";
+  if (expectedSEW.getInt() != getRVVFirstSliceSEWBits())
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl SEW32 metadata for the "
+              "bounded i32-to-f32 dequantization route";
+
+  auto expectedLMUL =
+      withVL->getAttrOfType<mlir::StringAttr>(kLMULAttrName);
+  if (!expectedLMUL)
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit LMUL "
+              "metadata for dequantization result dataflow";
+  if (expectedLMUL.getValue() != getRVVLMULM1())
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl LMUL \"m1\" metadata for "
+              "the bounded i32-to-f32 dequantization route";
+
+  if (!withVL->getAttrOfType<PolicyAttr>(kPolicyAttrName))
+    return op->emitOpError()
+           << "requires enclosing tcrv_rvv.with_vl to carry explicit policy "
+              "metadata for dequantization result dataflow";
+
+  return mlir::success();
 }
 
 llvm::StringRef getGenericRVVMaskLMUL(mlir::Type type) {
@@ -3117,6 +3201,10 @@ mlir::LogicalResult RuntimeABIValueOp::verify() {
              << "' result to have i32 or i64 scalar type";
     return mlir::success();
   }
+
+  if (isBoundedRuntimeABITokenScalarRole(*parsedRole) &&
+      llvm::isa<RuntimeABIValueType>(getValue().getType()))
+    return mlir::success();
 
   if (isBoundedBufferRole(*parsedRole) &&
       llvm::isa<RuntimeABIValueType>(getValue().getType()))
@@ -10079,6 +10167,94 @@ mlir::LogicalResult WideningConvertOp::verify() {
   return mlir::success();
 }
 
+mlir::LogicalResult DequantizeOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; tcrv_rvv.dequantize keeps source/result dtype, "
+                "SEW/LMUL/policy, and runtime scale authority on typed vector "
+                "values, runtime ABI SSA, and setvl/with_vl, and rejects "
+                "deleted local element_count metadata";
+
+    if (!isAllowedDequantizeAttr(attrName))
+      return emitOpError()
+             << "only accepts generic dequantization attributes 'kind' and "
+                "'dequant_relation'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!isSupportedGenericDequantizeKind(getKind()))
+    return emitOpError()
+           << "currently supports only kind \"i32_to_f32_scaled\" for the "
+              "bounded Stage 2 i32-to-f32 dequantization route";
+  if (!isSupportedGenericDequantizeRelation(getDequantRelation()))
+    return emitOpError()
+           << "currently supports only dequant_relation "
+              "\"signed-i32m1-to-f32m1-scale-f32\" for the bounded Stage 2 "
+              "i32-to-f32 dequantization route";
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one i32 source generic RVV vector operand, one "
+              "runtime f32 scale ABI operand, one !tcrv_rvv.vl operand, and "
+              "one f32 destination generic RVV vector result";
+  if (!isGenericRVVVectorI32M1(getSource().getType()))
+    return emitOpError()
+           << "requires source vector type to be "
+              "!tcrv_rvv.vector<i32, \"m1\"> for the bounded i32-to-f32 "
+              "dequantization route";
+  if (!isGenericRVVVectorF32M1(getResult().getType()))
+    return emitOpError()
+           << "requires result vector type to be "
+              "!tcrv_rvv.vector<f32, \"m1\"> for the bounded i32-to-f32 "
+              "dequantization route";
+  if (!llvm::isa<RuntimeABIValueType>(getScale().getType()))
+    return emitOpError()
+           << "requires scale operand to have !tcrv_rvv.runtime_abi_value "
+              "type";
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getScale(), "runtime scale",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               DequantScaleValue})))
+    return mlir::failure();
+  RuntimeABIValueOp scaleBinding = getScale().getDefiningOp<RuntimeABIValueOp>();
+  if (!scaleBinding || scaleBinding.getCType() != "float")
+    return emitOpError()
+           << "requires runtime scale operand C type 'float' for the bounded "
+              "i32-to-f32 dequantization route";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError()
+           << "requires runtime VL operand to have !tcrv_rvv.vl type";
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  auto sourceLoad = getSource().getDefiningOp<LoadOp>();
+  if (!sourceLoad)
+    return emitOpError()
+           << "requires source vector to be produced by tcrv_rvv.load inside "
+              "the selected RVV typed body";
+  if (sourceLoad.getVl() != getVl())
+    return emitOpError()
+           << "requires source-producing tcrv_rvv.load to consume the same "
+              "!tcrv_rvv.vl token as tcrv_rvv.dequantize";
+  if (sourceLoad->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires source-producing tcrv_rvv.load to be in the same "
+              "tcrv_rvv.with_vl body as tcrv_rvv.dequantize";
+
+  if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getSource(),
+                                                    "source")))
+    return mlir::failure();
+  return verifyDequantizeResultVectorForWithVL(op, getResult(), "result");
+}
+
 mlir::LogicalResult MoveOp::verify() {
   mlir::Operation *op = getOperation();
 
@@ -10244,6 +10420,9 @@ mlir::LogicalResult StoreOp::verify() {
       getValue().getDefiningOp<MaskedStandaloneReduceOp>())
     return verifyStandaloneReductionScalarResultVectorForWithVL(
         op, getValue(), "stored standalone reduction result");
+  if (getValue().getDefiningOp<DequantizeOp>())
+    return verifyDequantizeResultVectorForWithVL(
+        op, getValue(), "stored dequantization result");
   return verifyGenericVectorTypeForWithVL(op, getValue(), "stored value");
 }
 

@@ -705,6 +705,22 @@ getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters() {
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVSelectedBodyDequantizationRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "scale", "float", support::RuntimeABIParameterRole::DequantScaleValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "float *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 4>
 getRVVSelectedBodyWideningProductRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
   parameters.push_back(support::makeTargetExportABIParameter(
@@ -1605,6 +1621,11 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   llvm::SmallVector<support::RuntimeABIParameter, 3> widenI16ToI32Expected =
       getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, widenI16ToI32Expected))
+    return llvm::Error::success();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 4> dequantExpected =
+      getRVVSelectedBodyDequantizationRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters, dequantExpected))
     return llvm::Error::success();
 
   llvm::SmallVector<support::RuntimeABIParameter, 5> maccExpected =

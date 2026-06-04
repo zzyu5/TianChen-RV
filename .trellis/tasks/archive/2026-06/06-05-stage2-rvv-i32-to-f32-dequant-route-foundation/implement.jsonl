@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture boundary, RVV Stage order, and source-of-truth rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body authority, Stage2 coverage, conversion dtype-policy owner, and provider fail-closed contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary plus existing conversion fact surface and target validation contract pattern."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/generated-artifact evidence rules and RVV runtime evidence boundary."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first checks for route/config legality and dtype/config authority."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-locality checks for RVV-owned route planning, intrinsic/type mapping, and common EmitC neutrality."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute-boundary checks for typed RVV extension ops and no high-level/frontend drift."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-06-05-stage2-rvv-product-reduction-executable-abi-closure/prd.md", "reason": "Previous completed i32 output boundary and explicit non-continuation point for product-reduction evidence."}
+{"phase": "implementation", "summary": "Implemented typed tcrv_rvv.dequantize i32-to-f32 runtime-scale route foundation with dequant-scale runtime ABI role, f32 output buffer ABI support, RVV provider-owned dequantization route facts, route-control/math-binding/statement-plan owners, target validation, and header metadata export. Added focused dialect and target positive/negative tests; repaired stale registry/test expectations exposed by full lit."}

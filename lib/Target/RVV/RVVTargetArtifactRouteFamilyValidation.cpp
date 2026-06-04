@@ -618,7 +618,9 @@ bool isRVVConversionDtypePolicyWideningRouteFamilyOperation(
 
 bool isRVVConversionDtypePolicyRouteFamilyOperation(
     plugin::rvv::RVVSelectedBodyOperationKind operation) {
-  return isRVVConversionDtypePolicyWideningRouteFamilyOperation(operation);
+  return isRVVConversionDtypePolicyWideningRouteFamilyOperation(operation) ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::DequantizeI32ToF32;
 }
 
 bool isRVVSegment2MemoryRouteFamilyOperation(
@@ -9970,12 +9972,18 @@ llvm::Error validateRVVConversionDtypePolicyTypedFacts(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-owned route id '" + contract.emitCRouteID +
         "' but description carried '" + description.emitCRouteID + "'");
-  if (contract.kind !=
+  const bool isWidening =
+      contract.kind ==
       plugin::rvv::RVVConversionDtypePolicyRouteValidationKind::
-          WideningConversion)
+          WideningConversion;
+  const bool isDequantization =
+      contract.kind ==
+      plugin::rvv::RVVConversionDtypePolicyRouteValidationKind::
+          Dequantization;
+  if (!isWidening && !isDequantization)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
-        " requires provider-owned widening conversion contract kind before "
+        " requires provider-owned conversion dtype-policy contract kind before "
         "artifact export");
   if (description.memoryForm != contract.memoryForm)
     return makeRVVTargetRouteError(
@@ -9986,13 +9994,23 @@ llvm::Error validateRVVConversionDtypePolicyTypedFacts(
         plugin::rvv::stringifyRVVSelectedBodyMemoryForm(
             description.memoryForm) +
         "'");
-  if (description.wideningConversionRouteFamilyPlanID !=
-      contract.wideningConversionRouteFamilyPlanID)
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract.consumerLabel) +
-        " requires provider-owned widening conversion route-family plan '" +
-        contract.wideningConversionRouteFamilyPlanID + "' but was '" +
-        description.wideningConversionRouteFamilyPlanID + "'");
+  if (isWidening) {
+    if (description.wideningConversionRouteFamilyPlanID !=
+        contract.wideningConversionRouteFamilyPlanID)
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires provider-owned widening conversion route-family plan '" +
+          contract.wideningConversionRouteFamilyPlanID + "' but was '" +
+          description.wideningConversionRouteFamilyPlanID + "'");
+  } else {
+    if (description.dequantizationRouteFamilyPlanID !=
+        contract.dequantizationRouteFamilyPlanID)
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires provider-owned dequantization route-family plan '" +
+          contract.dequantizationRouteFamilyPlanID + "' but was '" +
+          description.dequantizationRouteFamilyPlanID + "'");
+  }
   if (description.typedComputeOpName != contract.typedComputeOpName)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
@@ -10014,12 +10032,10 @@ llvm::Error validateRVVConversionDtypePolicyTypedFacts(
       description.sew != contract.resultSEW ||
       description.lmul != contract.resultLMUL ||
       description.vectorTypeName != contract.resultVectorTypeName ||
-      description.vectorCType != contract.resultVectorCType ||
-      description.conversionRelation != contract.conversionRelation)
+      description.vectorCType != contract.resultVectorCType)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
-        " requires provider-derived source/result dtype policy and "
-        "conversion relation for '" +
+        " requires provider-derived source/result dtype policy for '" +
         plugin::rvv::stringifyRVVSelectedBodyOperationKind(
             contract.operation) +
         "' but saw source element '" + description.sourceElementTypeName +
@@ -10030,8 +10046,28 @@ llvm::Error validateRVVConversionDtypePolicyTypedFacts(
         description.sourceVectorCType + "', result SEW " +
         llvm::Twine(description.sew) + ", result LMUL '" + description.lmul +
         "', result type '" + description.vectorTypeName + "'/'" +
-        description.vectorCType + "', and relation '" +
+        description.vectorCType + "'");
+  if (isWidening &&
+      description.conversionRelation != contract.conversionRelation)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived widening conversion relation '" +
+        contract.conversionRelation + "' but saw '" +
         description.conversionRelation + "'");
+  if (isDequantization &&
+      (description.dequantizationRelation != contract.dequantizationRelation ||
+       description.dequantizeConvertIntrinsic !=
+           contract.dequantizeConvertIntrinsic ||
+       description.dequantizeScaleIntrinsic !=
+           contract.dequantizeScaleIntrinsic ||
+       description.dequantScaleRole != contract.dequantScaleRole ||
+       description.dequantScaleCType != contract.dequantScaleCType ||
+       description.dequantScaleName != contract.dequantScaleName))
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived dequantization relation, convert/scale "
+        "intrinsics, and runtime scale role/type/name facts before artifact "
+        "export");
   if (description.tailPolicy != contract.tailPolicy ||
       description.maskPolicy != contract.maskPolicy ||
       description.sourceMemoryForm != contract.sourceMemoryForm ||
@@ -10068,10 +10104,13 @@ llvm::Error validateRVVConversionDtypePolicyTypedFacts(
         "', binding summary '" + description.routeOperandBindingSummary +
         "', and target leaf profile '" + description.targetLeafProfile + "'");
 
+  const bool intrinsicMatches =
+      isWidening ? description.intrinsic == contract.conversionIntrinsic
+                 : description.dequantizeConvertIntrinsic ==
+                       contract.dequantizeConvertIntrinsic;
   if (description.sourceVectorLoadIntrinsic !=
           contract.sourceVectorLoadIntrinsic ||
-      description.intrinsic != contract.conversionIntrinsic ||
-      description.storeIntrinsic != contract.storeIntrinsic ||
+      !intrinsicMatches || description.storeIntrinsic != contract.storeIntrinsic ||
       description.resultName != contract.resultName)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
@@ -10090,10 +10129,16 @@ llvm::Error validateRVVConversionDtypePolicyRouteStatementPlan(
         &contract) {
   const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
       contract.runtimeAVLVLContract;
-  if (contract.runtimeABIParameters.size() != 3)
+  const bool isDequantization =
+      contract.kind ==
+      plugin::rvv::RVVConversionDtypePolicyRouteValidationKind::
+          Dequantization;
+  const std::size_t expectedRuntimeABIParameterCount =
+      isDequantization ? 4 : 3;
+  if (contract.runtimeABIParameters.size() != expectedRuntimeABIParameterCount)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
-        " requires provider-derived lhs, out, and n ABI parameters before "
+        " requires provider-derived conversion/dequantization ABI parameters before "
         "validating route statements");
   if (contract.resultName.empty() || contract.sourceVectorCType.empty() ||
       contract.vectorCType.empty() || runtimeContract.vlCType.empty() ||
@@ -10119,11 +10164,14 @@ llvm::Error validateRVVConversionDtypePolicyRouteStatementPlan(
 
   const support::RuntimeABIParameter &sourceABI =
       contract.runtimeABIParameters[0];
-  const support::RuntimeABIParameter &outABI = contract.runtimeABIParameters[1];
+  const support::RuntimeABIParameter *scaleABI =
+      isDequantization ? &contract.runtimeABIParameters[1] : nullptr;
+  const support::RuntimeABIParameter &outABI =
+      contract.runtimeABIParameters[isDequantization ? 2 : 1];
   const support::RuntimeABIParameter &runtimeNABI =
       runtimeContract.runtimeAVLParameter;
   const support::RuntimeABIParameter &orderedRuntimeNABI =
-      contract.runtimeABIParameters[2];
+      contract.runtimeABIParameters[isDequantization ? 3 : 2];
   if (!runtimeABIParameterEquals(orderedRuntimeNABI, runtimeNABI))
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
@@ -10212,18 +10260,39 @@ llvm::Error validateRVVConversionDtypePolicyRouteStatementPlan(
 
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[2], contract.consumerLabel, "widening conversion",
-          contract.intrinsic,
+          isDequantization ? contract.dequantizeConvertIntrinsic
+                           : contract.intrinsic,
           {{"lhs_vec", contract.sourceVectorCType},
            {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
-          contract.resultName, contract.vectorCType))
+          isDequantization ? "converted_f32_vec" : contract.resultName,
+          contract.vectorCType))
     return error;
+
+  const std::size_t storeStepIndex = isDequantization ? 4 : 3;
+  if (isDequantization) {
+    if (!scaleABI || contract.dequantizeScaleIntrinsic.empty() ||
+        contract.dequantScaleRole.empty() || contract.dequantScaleCType.empty())
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires provider-derived runtime scale ABI and scale intrinsic "
+          "facts before validating dequantization route statements");
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[3], contract.consumerLabel, "dequantization scale",
+            contract.dequantizeScaleIntrinsic,
+            {{"converted_f32_vec", contract.vectorCType},
+             {scaleABI->cName, scaleABI->cType},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+            contract.resultName, contract.vectorCType))
+      return error;
+  }
 
   const std::string expectedOutPointer =
       (llvm::StringRef(outABI.cName) + " + " +
        runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-          loop.bodySteps[3], contract.consumerLabel, "output store",
+          loop.bodySteps[storeStepIndex], contract.consumerLabel,
+          "output store",
           contract.storeIntrinsic,
           {{expectedOutPointer, outABI.cType},
            {contract.resultName, contract.vectorCType},
@@ -10247,6 +10316,19 @@ llvm::Error validateRVVConversionDtypePolicyRoutePayloadFacts(
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires a provider-supported mirror label after route construction");
+  const bool isWidening =
+      contract.kind ==
+      plugin::rvv::RVVConversionDtypePolicyRouteValidationKind::
+          WideningConversion;
+  const bool isDequantization =
+      contract.kind ==
+      plugin::rvv::RVVConversionDtypePolicyRouteValidationKind::
+          Dequantization;
+  if (!isWidening && !isDequantization)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires a provider-owned conversion dtype-policy kind before "
+        "artifact export");
   if (contract.routeOperandBindingPlanID.empty() ||
       contract.routeOperandBindingSummary.empty())
     return makeRVVTargetRouteError(
@@ -10262,12 +10344,15 @@ llvm::Error validateRVVConversionDtypePolicyRoutePayloadFacts(
         " requires provider-derived dtype, policy, intrinsic, and "
         "result facts before artifact export");
 
-  if (contract.memoryForm !=
-      plugin::rvv::RVVSelectedBodyMemoryForm::UnitStrideConversion)
+  const plugin::rvv::RVVSelectedBodyMemoryForm expectedMemoryForm =
+      isDequantization
+          ? plugin::rvv::RVVSelectedBodyMemoryForm::UnitStrideDequantization
+          : plugin::rvv::RVVSelectedBodyMemoryForm::UnitStrideConversion;
+  if (contract.memoryForm != expectedMemoryForm)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
-        " requires unit-stride conversion memory form from the selected typed "
-        "RVV body");
+        " requires unit-stride conversion/dequantization memory form from the "
+        "selected typed RVV body");
   if (description.configContractID != contract.configContractID)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
@@ -10289,23 +10374,39 @@ llvm::Error validateRVVConversionDtypePolicyRoutePayloadFacts(
                                                           contract))
     return error;
 
-  if (contract.wideningConversionRouteFamilyPlanID.empty() ||
-      contract.sourceElementTypeName.empty() ||
+  if (contract.sourceElementTypeName.empty() ||
       contract.sourceSEW == 0 || contract.sourceLMUL.empty() ||
       contract.sourceVectorTypeName.empty() ||
       contract.sourceVectorCType.empty() ||
       contract.resultElementTypeName.empty() ||
       contract.conversionKind.empty() ||
       contract.sourceVectorLoadIntrinsic.empty() ||
-      contract.conversionRelation.empty() ||
       contract.sourceMemoryForm.empty() ||
       contract.destinationMemoryForm.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-derived source dtype, source vector type, "
-        "source load, result dtype, conversion kind/relation, memory forms, "
-        "and widening plan facts before artifact export");
-  if (contract.sourceSEW >= contract.resultSEW)
+        "source load, result dtype, conversion kind, memory forms, "
+        "and route-family plan facts before artifact export");
+  if (isWidening && (contract.wideningConversionRouteFamilyPlanID.empty() ||
+                     contract.conversionRelation.empty()))
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived widening conversion route-family plan and "
+        "conversion relation before artifact export");
+  if (isDequantization &&
+      (contract.dequantizationRouteFamilyPlanID.empty() ||
+       contract.dequantizationRelation.empty() ||
+       contract.dequantizeConvertIntrinsic.empty() ||
+       contract.dequantizeScaleIntrinsic.empty() ||
+       contract.dequantScaleRole.empty() || contract.dequantScaleCType.empty() ||
+       contract.dequantScaleName.empty()))
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived dequantization plan, relation, "
+        "convert/scale intrinsics, and runtime scale facts before artifact "
+        "export");
+  if (isWidening && contract.sourceSEW >= contract.resultSEW)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires source SEW to be smaller than result SEW");
@@ -10331,6 +10432,24 @@ llvm::Error validateRVVConversionDtypePolicyRoutePayloadFacts(
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " rejects stale non-conversion route-family facts");
+  if (isWidening &&
+      (!description.dequantizationRouteFamilyPlanID.empty() ||
+       !description.dequantizationRelation.empty() ||
+       !description.dequantizeConvertIntrinsic.empty() ||
+       !description.dequantizeScaleIntrinsic.empty() ||
+       !description.dequantScaleRole.empty() ||
+       !description.dequantScaleCType.empty() ||
+       !description.dequantScaleName.empty()))
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " rejects stale dequantization route-family facts on widening "
+        "conversion routes");
+  if (isDequantization &&
+      (!description.wideningConversionRouteFamilyPlanID.empty() ||
+       !description.conversionRelation.empty()))
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " rejects stale widening conversion facts on dequantization routes");
 
   if (llvm::Error error =
           validateRVVConversionDtypePolicyRouteHeaders(route, contract))

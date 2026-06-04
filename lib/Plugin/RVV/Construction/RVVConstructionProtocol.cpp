@@ -65,7 +65,7 @@ constexpr llvm::StringLiteral kTypedRoleRealizationSummary(
     "tcrv_rvv.widening_macc|tcrv_rvv.widening_product|"
     "tcrv_rvv.widening_dot_reduce|"
     "tcrv_rvv.masked_widening_dot_reduce|tcrv_rvv.widening_convert|"
-    "tcrv_rvv.move|tcrv_rvv.masked_move:"
+    "tcrv_rvv.dequantize|tcrv_rvv.move|tcrv_rvv.masked_move:"
     "TCRVComputeOpInterface:TCRVEmitCLowerableInterface;"
     "store:rvv.role.store.generic_store:tcrv_rvv.store|"
     "tcrv_rvv.strided_store|tcrv_rvv.indexed_store|"
@@ -234,7 +234,7 @@ const RVVConstructionSemanticRole kSemanticRoles[] = {
      "tcrv_rvv.widening_macc|tcrv_rvv.widening_product|"
      "tcrv_rvv.widening_dot_reduce|"
      "tcrv_rvv.masked_widening_dot_reduce|tcrv_rvv.widening_convert|"
-     "tcrv_rvv.move|tcrv_rvv.masked_move",
+     "tcrv_rvv.dequantize|tcrv_rvv.move|tcrv_rvv.masked_move",
      "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "perform the bounded generic RVV arithmetic, masked arithmetic, "
@@ -321,7 +321,7 @@ const RVVTypedRoleInterfaceRealization kTypedRoleRealizations[] = {
      "tcrv_rvv.widening_macc|tcrv_rvv.widening_product|"
      "tcrv_rvv.widening_dot_reduce|"
      "tcrv_rvv.masked_widening_dot_reduce|tcrv_rvv.widening_convert|"
-     "tcrv_rvv.move|tcrv_rvv.masked_move",
+     "tcrv_rvv.dequantize|tcrv_rvv.move|tcrv_rvv.masked_move",
      "TCRVExtensionOpInterface+TCRVComputeOpInterface+"
      "TCRVResourceOpInterface+TCRVEmitCLowerableInterface",
      "TCRVComputeOpInterface",
@@ -692,6 +692,12 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-widen-i16-to-i32-emitc-route",
      "rvv-generic-widen-i16-to-i32-callable-c-abi.v1",
      "rvv-generic-widen-i16-to-i32-callable-c-abi"},
+    {"dequantize_i32_to_f32",
+     "tcrv_rvv.dequantize",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-dequantize-i32-to-f32-emitc-route",
+     "rvv-generic-dequantize-i32-to-f32-callable-c-abi.v1",
+     "rvv-generic-dequantize-i32-to-f32-callable-c-abi"},
 };
 
 const RVVSelectedBodyTargetArtifactMapping kTargetArtifactMapping = {
@@ -838,7 +844,7 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 57)
+          .size() != 58)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
         "cmp_select, computed_mask_select, runtime_scalar_cmp_select, "
@@ -876,7 +882,8 @@ llvm::Error verifySelectedBodyRoutes() {
         "segment2_deinterleave_unit_store, "
         "segment2_interleave_unit_load, scalar_broadcast_add, "
         "scalar_broadcast_sub, scalar_broadcast_mul, widen_i32_to_i64, "
-        "widen_i16_to_i32, and runtime_scalar_splat_store");
+        "widen_i16_to_i32, dequantize_i32_to_f32, and "
+        "runtime_scalar_splat_store");
   return llvm::Error::success();
 }
 
@@ -1072,6 +1079,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
   const bool isWidenI16ToI32 =
       route->operationMnemonic == "widen_i16_to_i32";
   const bool isWideningConversion = isWidenI32ToI64 || isWidenI16ToI32;
+  const bool isDequantizeI32ToF32 =
+      route->operationMnemonic == "dequantize_i32_to_f32";
   if (isCompareSelect && typedComputeOpName != "tcrv_rvv.select")
     return makeRVVConstructionError(
         "RVV compare/select construction requires generic tcrv_rvv.select");
@@ -1167,6 +1176,10 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return makeRVVConstructionError(
         "RVV widening conversion construction requires generic "
         "tcrv_rvv.widening_convert");
+  if (isDequantizeI32ToF32 && typedComputeOpName != "tcrv_rvv.dequantize")
+    return makeRVVConstructionError(
+        "RVV i32-to-f32 dequantization construction requires generic "
+        "tcrv_rvv.dequantize");
   if (isStridedLoadUnitStore && typedComputeOpName != "tcrv_rvv.move")
     return makeRVVConstructionError(
         "RVV strided-load to unit-stride-store construction requires generic "
@@ -1283,12 +1296,14 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isSegment2DeinterleaveUnitStore && !isSegment2InterleaveUnitLoad &&
       !isRuntimeScalarSplatStore &&
       !isWideningConversion &&
+      !isDequantizeI32ToF32 &&
       !usesGenericBinary)
     return makeRVVConstructionError(
         llvm::Twine("RVV arithmetic construction requires generic "
                     "tcrv_rvv.binary, not legacy typed compute op '") +
         typedComputeOpName + "'");
-  if (!isWideningConversion && !isStridedLoadUnitStore &&
+  if (!isWideningConversion && !isDequantizeI32ToF32 &&
+      !isStridedLoadUnitStore &&
       !isUnitLoadStridedStore &&
       !isIndexedGatherUnitStore && !isIndexedScatterUnitLoad &&
       !isMaskedUnitLoadStore && !isMaskedUnitStore &&
@@ -1627,6 +1642,10 @@ buildRVVSelectedBodyExecutableRoleSteps(
     return makeRVVConstructionError(
         "RVV widening conversion construction must not carry an RHS source "
         "operation");
+  if (isDequantizeI32ToF32 && !rhsSourceOperationName.empty())
+    return makeRVVConstructionError(
+        "RVV i32-to-f32 dequantization construction must not carry an RHS "
+        "source operation");
 
   llvm::SmallVector<RVVSelectedBodyExecutableRoleStep, 10> steps;
   if (isRuntimeScalarSplatStore) {
@@ -1681,10 +1700,42 @@ buildRVVSelectedBodyExecutableRoleSteps(
                               : ((isIndexedScatterUnitLoad ||
                                   isMaskedUnitLoadStore ||
                                   isMaskedUnitStore ||
-                                  isSegment2DeinterleaveUnitStore)
+                   isSegment2DeinterleaveUnitStore)
                                      ? "src"
                                      : "lhs")),
                    0});
+  if (isDequantizeI32ToF32) {
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "scale", 1});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "out", 2});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "n", 3});
+    steps.push_back({"configure", "tcrv_rvv.setvl",
+                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+                     4});
+    steps.push_back({"scope", "tcrv_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "with_vl", 5});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "lhs_load", 6});
+    steps.push_back({"compute", "tcrv_rvv.dequantize",
+                     "rvv.role.compute.generic_vector",
+                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "dequantize", 7});
+    steps.push_back({"store", "tcrv_rvv.store",
+                     "rvv.role.store.generic_store", "TCRVMemoryOpInterface",
+                     "TCRVEmitCLowerableInterface", "store", 8});
+    return steps;
+  }
   if (isComputedMaskSelect) {
     steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
                      "rvv.role.runtime_abi.runtime_abi_value",
@@ -3890,6 +3941,13 @@ llvm::Error verifyRVVConstructionProtocolReady() {
               getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
       routeRuntimeABIParameters.append(conversionParameters.begin(),
                                        conversionParameters.end());
+    } else if (route.operationMnemonic == "dequantize_i32_to_f32") {
+      llvm::SmallVector<support::RuntimeABIParameter, 4>
+          dequantizationParameters =
+              tcrv::rvv::
+                  getRVVSelectedBodyDequantizationRuntimeABIParameters();
+      routeRuntimeABIParameters.append(dequantizationParameters.begin(),
+                                       dequantizationParameters.end());
     } else if (route.operationMnemonic == "runtime_scalar_splat_store") {
       llvm::SmallVector<support::RuntimeABIParameter, 3> splatParameters =
           tcrv::rvv::
@@ -4168,6 +4226,11 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         llvm::Twine(context) +
         " widening conversion cannot use generic tcrv_rvv.binary");
   if (usesGenericBinary &&
+      route->operationMnemonic == "dequantize_i32_to_f32")
+    return makeRVVConstructionError(
+        llvm::Twine(context) +
+        " i32-to-f32 dequantization cannot use generic tcrv_rvv.binary");
+  if (usesGenericBinary &&
       route->operationMnemonic == "strided_load_unit_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
@@ -4286,6 +4349,7 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                      "strided_input_widening_dot_reduce_add" ||
                  route->operationMnemonic == "widen_i32_to_i64" ||
                  route->operationMnemonic == "widen_i16_to_i32" ||
+                 route->operationMnemonic == "dequantize_i32_to_f32" ||
                  route->operationMnemonic == "strided_load_unit_store" ||
                  route->operationMnemonic == "indexed_gather_unit_store" ||
                  route->operationMnemonic == "indexed_scatter_unit_load" ||
@@ -4548,6 +4612,12 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         tcrv::rvv::getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
     expectedParameters.append(conversionParameters.begin(),
                               conversionParameters.end());
+  } else if (route->operationMnemonic == "dequantize_i32_to_f32") {
+    llvm::SmallVector<support::RuntimeABIParameter, 4>
+        dequantizationParameters =
+            tcrv::rvv::getRVVSelectedBodyDequantizationRuntimeABIParameters();
+    expectedParameters.append(dequantizationParameters.begin(),
+                              dequantizationParameters.end());
   } else if (route->operationMnemonic == "runtime_scalar_splat_store") {
     llvm::SmallVector<support::RuntimeABIParameter, 3> splatParameters =
         tcrv::rvv::getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters();
@@ -4733,6 +4803,9 @@ llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
       typedComputeOpName == "tcrv_rvv.widening_convert"
           ? "runtime_abi->runtime_abi->runtime_abi->configure->scope->"
             "load->compute->store"
+      : typedComputeOpName == "tcrv_rvv.dequantize"
+          ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
+            "configure->scope->load->compute->store"
       : typedComputeOpName == "tcrv_rvv.move"
           ? (operationMnemonic == "segment2_deinterleave_unit_store"
                  ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
@@ -5053,6 +5126,11 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
         "selected-body widening conversion cannot use generic "
         "tcrv_rvv.binary");
   if (usesGenericBinary &&
+      expected.operationMnemonic == "dequantize_i32_to_f32")
+    return makeRVVConstructionError(
+        "selected-body i32-to-f32 dequantization cannot use generic "
+        "tcrv_rvv.binary");
+  if (usesGenericBinary &&
       expected.operationMnemonic == "strided_load_unit_store")
     return makeRVVConstructionError(
         "selected-body strided-load to unit-stride-store cannot use generic "
@@ -5160,6 +5238,7 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
                      "strided_input_widening_dot_reduce_add" ||
                  expected.operationMnemonic == "widen_i32_to_i64" ||
                  expected.operationMnemonic == "widen_i16_to_i32" ||
+                 expected.operationMnemonic == "dequantize_i32_to_f32" ||
                  expected.operationMnemonic == "strided_load_unit_store" ||
                  expected.operationMnemonic == "indexed_gather_unit_store" ||
                  expected.operationMnemonic == "indexed_scatter_unit_load" ||

@@ -405,6 +405,19 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               *wideningConversionStatementPlanOrError,
               "selected RVV EmitC route construction"))
     return error;
+  llvm::Expected<RVVSelectedBodyDequantizationRouteStatementPlan>
+      dequantizationStatementPlanOrError =
+          getRVVSelectedBodyDequantizationRouteStatementPlan(
+              analysis, materializationFacts, mathOperandBindingFacts,
+              "selected RVV EmitC route construction");
+  if (!dequantizationStatementPlanOrError)
+    return dequantizationStatementPlanOrError.takeError();
+  if (llvm::Error error =
+          verifyRVVSelectedBodyDequantizationRouteProviderFacts(
+              analysis, materializationFacts, mathOperandBindingFacts,
+              *dequantizationStatementPlanOrError,
+              "selected RVV EmitC route construction"))
+    return error;
   llvm::Expected<RVVSelectedBodyStandaloneReductionRouteStatementPlan>
       standaloneReductionStatementPlanOrError =
           getRVVSelectedBodyStandaloneReductionRouteStatementPlan(

@@ -418,6 +418,8 @@ llvm::StringRef stringifyRVVSelectedBodyMigratedRouteStatementPlanFamily(
     return "compare/select";
   case RVVSelectedBodyMigratedRouteStatementPlanFamily::WideningConversion:
     return "widening conversion";
+  case RVVSelectedBodyMigratedRouteStatementPlanFamily::Dequantization:
+    return "dequantization";
   case RVVSelectedBodyMigratedRouteStatementPlanFamily::
       RuntimeScalarSplatStore:
     return "runtime scalar splat-store";

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final changes preserve RVV-first typed-body route authority and Stage2 boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin ownership, conversion/dequant route support, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route contracts, mirror-only metadata, and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check test/evidence sufficiency and SSH evidence claims."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Audit for extension-specific logic leaking into common/core code."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Audit for high-level compute/frontend drift and missing runtime ABI consumption."}
+{"phase": "check", "summary": "Verified tcrv-opt dialect dequant positive/negative file, target materialize/header export pipe, tianchenrv-rvv-extension-plugin-test, tianchenrv-target-artifact-export-test, tianchenrv-construction-protocol-common-test, git diff --check, and full check-tianchenrv 484/484. No ssh rvv evidence claimed because this task only establishes route-supported/header artifact behavior, not executable runtime correctness."}

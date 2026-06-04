@@ -36,6 +36,8 @@ llvm::StringRef stringifyRVVSelectedBodyMigratedRouteStatementPlanFamilyName(
     return "compare/select";
   case RVVSelectedBodyMigratedRouteStatementPlanFamily::WideningConversion:
     return "widening conversion";
+  case RVVSelectedBodyMigratedRouteStatementPlanFamily::Dequantization:
+    return "dequantization";
   case RVVSelectedBodyMigratedRouteStatementPlanFamily::
       RuntimeScalarSplatStore:
     return "runtime scalar splat-store";
@@ -196,6 +198,14 @@ bool isRVVSelectedBodyWideningConversionStatementPlanConsumer(
          description.memoryForm == RVVSelectedBodyMemoryForm::UnitStrideConversion;
 }
 
+bool isRVVSelectedBodyDequantizationStatementPlanConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return isRVVSelectedBodyDequantizationRouteFamilyConsumer(
+             description.operation) &&
+         description.memoryForm ==
+             RVVSelectedBodyMemoryForm::UnitStrideDequantization;
+}
+
 bool isRVVSelectedBodyRuntimeScalarSplatStoreStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyConsumer(
@@ -353,6 +363,10 @@ getRVVSelectedBodyMigratedRouteStatementPlanOwners() {
        RVVSelectedBodyMigratedRouteStatementPlanFamily::WideningConversion,
        isRVVSelectedBodyWideningConversionStatementPlanConsumer,
        buildRVVSelectedBodyWideningConversionMigratedRouteStatementPlan},
+      {"dequantization",
+       RVVSelectedBodyMigratedRouteStatementPlanFamily::Dequantization,
+       isRVVSelectedBodyDequantizationStatementPlanConsumer,
+       buildRVVSelectedBodyDequantizationMigratedRouteStatementPlan},
       {"runtime scalar splat-store",
        RVVSelectedBodyMigratedRouteStatementPlanFamily::
            RuntimeScalarSplatStore,

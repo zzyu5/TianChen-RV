@@ -78,6 +78,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::WideningDotReduceOp wideningDotReduceOp;
   tcrv::rvv::MaskedWideningDotReduceOp maskedWideningDotReduceOp;
   tcrv::rvv::WideningConvertOp wideningConvertOp;
+  tcrv::rvv::DequantizeOp dequantizeOp;
   tcrv::rvv::MoveOp moveOp;
   tcrv::rvv::MoveOp field0MoveOp;
   tcrv::rvv::MoveOp field1MoveOp;
@@ -101,6 +102,7 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value maskedActiveValue;
   mlir::Value maskedInactivePassthrough;
   mlir::Value conversionSource;
+  mlir::Value dequantScale;
   mlir::Value dotLHSValue;
   mlir::Value dotRHSValue;
   RVVSelectedBodyOperationKind arithmeticKind = RVVSelectedBodyOperationKind::Add;
@@ -176,6 +178,7 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value storeValue;
   support::RuntimeABIParameter lhsABI;
   support::RuntimeABIParameter rhsABI;
+  support::RuntimeABIParameter dequantScaleABI;
   support::RuntimeABIParameter secondaryCompareLhsABI;
   support::RuntimeABIParameter secondaryCompareRhsScalarABI;
   support::RuntimeABIParameter trueValueABI;
@@ -578,6 +581,46 @@ struct RVVSelectedBodyWideningConversionRouteFamilyPlan {
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
 };
 
+struct RVVSelectedBodyDequantizationRouteFamilyPlan {
+  RVVSelectedBodyOperationKind operation;
+  RVVSelectedBodyMemoryForm memoryForm;
+  RVVRuntimeAVLVLControlPlan runtimeControlPlan;
+  llvm::StringRef familyPlanID;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::SmallVector<llvm::StringRef, 4> requiredHeaders;
+  llvm::StringRef requiredHeaderDeclarations;
+  llvm::StringRef cTypeMappingSummary;
+  llvm::StringRef runtimeControlPlanID;
+  llvm::StringRef vlCType;
+  llvm::StringRef sourceElementTypeName;
+  std::int64_t sourceSEW = 0;
+  llvm::StringRef sourceLMUL;
+  llvm::StringRef sourceVectorTypeName;
+  llvm::StringRef sourceVectorCType;
+  llvm::StringRef sourceVectorLoadIntrinsic;
+  llvm::StringRef resultElementTypeName;
+  std::int64_t resultSEW = 0;
+  llvm::StringRef resultLMUL;
+  llvm::StringRef resultVectorTypeName;
+  llvm::StringRef resultVectorCType;
+  llvm::StringRef scaleElementTypeName;
+  llvm::StringRef scaleCType;
+  llvm::StringRef scaleRole;
+  llvm::StringRef scaleName;
+  llvm::StringRef setVLIntrinsic;
+  llvm::StringRef dequantizationKind;
+  llvm::StringRef dequantizationRelation;
+  llvm::StringRef convertIntrinsic;
+  llvm::StringRef scaleIntrinsic;
+  llvm::StringRef storeIntrinsic;
+  llvm::StringRef resultName;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;
+};
+
 struct RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
@@ -931,6 +974,8 @@ struct RVVSelectedBodyRouteAnalysis {
       plainCompareSelectRouteFamilyPlan;
   std::optional<RVVSelectedBodyWideningConversionRouteFamilyPlan>
       wideningConversionRouteFamilyPlan;
+  std::optional<RVVSelectedBodyDequantizationRouteFamilyPlan>
+      dequantizationRouteFamilyPlan;
   std::optional<RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan>
       baseMemoryMovementRouteFamilyPlan;
   std::optional<RVVSelectedBodyComputedMaskSelectRouteFamilyPlan>
@@ -963,6 +1008,8 @@ struct RVVSelectedBodyRouteMaterializationFacts {
       *plainCompareSelectPlan = nullptr;
   const RVVSelectedBodyWideningConversionRouteFamilyPlan
       *wideningConversionPlan = nullptr;
+  const RVVSelectedBodyDequantizationRouteFamilyPlan *dequantizationPlan =
+      nullptr;
   const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan
       *baseMemoryMovementPlan = nullptr;
   const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan
@@ -986,6 +1033,7 @@ struct RVVSelectedBodyRouteMaterializationFacts {
   bool emitsComputedMaskStandaloneReduction = false;
   bool emitsRuntimeScalarComputedMaskStandaloneReduction = false;
   bool emitsWideningConversion = false;
+  bool emitsDequantization = false;
   bool emitsPlainStandaloneReduction = false;
   bool emitsComputedMaskAccumulation = false;
 
@@ -1010,6 +1058,8 @@ struct RVVSelectedBodyRouteMaterializationFacts {
   llvm::StringRef elementwiseComputeLeaf;
   llvm::StringRef wideningProductLeaf;
   llvm::StringRef maskedWideningProductLeaf;
+  llvm::StringRef dequantizeConvertLeaf;
+  llvm::StringRef dequantizeScaleLeaf;
   llvm::StringRef scalarSeedSplatLeaf;
   llvm::StringRef rhsScalarBroadcastLeaf;
   llvm::StringRef compareLeaf;
@@ -1034,6 +1084,7 @@ struct RVVSelectedBodyRouteControlProviderPlan {
   bool controlsPlainCompareSelect = false;
   bool controlsComputedMaskSelect = false;
   bool controlsWideningConversion = false;
+  bool controlsDequantization = false;
   bool controlsComputedMaskMemory = false;
   bool controlsSegment2Memory = false;
   bool controlsRuntimeScalarSplatStore = false;
@@ -1142,6 +1193,7 @@ struct RVVSelectedBodyMathRouteOperandBindingFacts {
   bool bindsWideningProduct = false;
   bool bindsWideningProductReductionChain = false;
   bool bindsWideningConversion = false;
+  bool bindsDequantization = false;
   bool bindsWideningDotReduction = false;
   bool bindsStridedInputWideningDotReduction = false;
   bool bindsComputedMaskWideningDotReduction = false;
@@ -1149,6 +1201,7 @@ struct RVVSelectedBodyMathRouteOperandBindingFacts {
 
   const support::RuntimeABIParameter *lhsABI = nullptr;
   const support::RuntimeABIParameter *rhsABI = nullptr;
+  const support::RuntimeABIParameter *dequantScaleABI = nullptr;
   const support::RuntimeABIParameter *sourceABI = nullptr;
   const support::RuntimeABIParameter *accumulatorABI = nullptr;
   const support::RuntimeABIParameter *dotLHSABI = nullptr;
@@ -1219,6 +1272,18 @@ struct RVVSelectedBodyWideningConversionRouteStatementPlan {
   bool plansWideningConversionRoute = false;
   bool plansWidenI32ToI64 = false;
   bool plansWidenI16ToI32 = false;
+
+  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
+      preLoopSteps;
+  conversion::emitc::TCRVEmitCForLoop loop;
+};
+
+struct RVVSelectedBodyDequantizationRouteStatementPlan {
+  const RVVSelectedBodyDequantizationRouteFamilyPlan *dequantizationPlan =
+      nullptr;
+
+  bool plansDequantizationRoute = false;
+  bool plansDequantizeI32ToF32 = false;
 
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
       preLoopSteps;
@@ -1490,6 +1555,7 @@ enum class RVVSelectedBodyMigratedRouteStatementPlanFamily {
   ElementwiseArithmetic,
   CompareSelect,
   WideningConversion,
+  Dequantization,
   RuntimeScalarSplatStore,
   Reduction,
   StandaloneReduction,
@@ -1571,6 +1637,12 @@ bool isRVVSelectedBodyWideningConversionRouteFamilyConsumer(
     RVVSelectedBodyOperationKind operation);
 
 llvm::Error verifyRVVSelectedBodyWideningConversionRouteFamilyProviderPlans(
+    const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
+
+bool isRVVSelectedBodyDequantizationRouteFamilyConsumer(
+    RVVSelectedBodyOperationKind operation);
+
+llvm::Error verifyRVVSelectedBodyDequantizationRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
 bool isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(
@@ -1739,6 +1811,13 @@ llvm::Error verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
     const RVVSelectedBodyWideningConversionRouteStatementPlan &statementPlan,
+    llvm::StringRef context);
+
+llvm::Error verifyRVVSelectedBodyDequantizationRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyDequantizationRouteStatementPlan &statementPlan,
     llvm::StringRef context);
 
 llvm::Error verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(

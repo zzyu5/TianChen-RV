@@ -130,6 +130,24 @@ llvm::Error addRVVWideningConversionStatementPlanLoopStep(
   return llvm::Error::success();
 }
 
+llvm::Error addRVVWideningConversionStatementPlanLoopStep(
+    RVVSelectedBodyDequantizationRouteStatementPlan &plan,
+    mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef callee,
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context,
+    std::optional<conversion::emitc::TCRVEmitCCallOpaqueResult> result =
+        std::nullopt) {
+  llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> step =
+      makeRVVWideningConversionStatementPlanStep(
+          op, expectedRole, callee, operands, description, context,
+          std::move(result));
+  if (!step)
+    return step.takeError();
+  plan.loop.bodySteps.push_back(std::move(*step));
+  return llvm::Error::success();
+}
+
 llvm::Error requireRVVRuntimeScalarSplatStoreStatementPlanLeaf(
     llvm::StringRef leaf, const llvm::Twine &leafName,
     const RVVSelectedBodyEmitCRouteDescription &description,
@@ -257,6 +275,8 @@ llvm::StringRef stringifyRVVSelectedBodyMigratedRouteStatementPlanFamily(
     return "compare/select";
   case RVVSelectedBodyMigratedRouteStatementPlanFamily::WideningConversion:
     return "widening conversion";
+  case RVVSelectedBodyMigratedRouteStatementPlanFamily::Dequantization:
+    return "dequantization";
   case RVVSelectedBodyMigratedRouteStatementPlanFamily::
       RuntimeScalarSplatStore:
     return "runtime scalar splat-store";
@@ -334,6 +354,31 @@ llvm::Error buildWideningConversionMigratedRouteStatementPlan(
       plan->preLoopSteps, plan->loop, analysis.description, context);
 }
 
+llvm::Error buildDequantizationMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts &,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts &,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts &,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context) {
+  llvm::Expected<RVVSelectedBodyDequantizationRouteStatementPlan> plan =
+      getRVVSelectedBodyDequantizationRouteStatementPlan(
+          analysis, materializationFacts, mathOperandBindingFacts, context);
+  if (!plan)
+    return plan.takeError();
+  if (!plan->plansDequantizationRoute)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " migrated statement-plan owner 'dequantization' did not produce a "
+        "statement plan for operation '" +
+        stringifyRVVSelectedBodyOperationKind(analysis.description.operation) +
+        "'");
+  return setRVVSelectedBodyMigratedRouteStatementPlan(
+      out, RVVSelectedBodyMigratedRouteStatementPlanFamily::Dequantization,
+      plan->preLoopSteps, plan->loop, analysis.description, context);
+}
+
 llvm::Error buildRuntimeScalarSplatStoreMigratedRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
@@ -376,6 +421,23 @@ llvm::Error buildRVVSelectedBodyWideningConversionMigratedRouteStatementPlan(
         &residualOperandBindingFacts,
     RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context) {
   return buildWideningConversionMigratedRouteStatementPlan(
+      analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+      memoryOperandBindingFacts, mathOperandBindingFacts,
+      residualOperandBindingFacts, out, context);
+}
+
+llvm::Error buildRVVSelectedBodyDequantizationMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context) {
+  return buildDequantizationMigratedRouteStatementPlan(
       analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
       memoryOperandBindingFacts, mathOperandBindingFacts,
       residualOperandBindingFacts, out, context);
@@ -538,6 +600,190 @@ getRVVSelectedBodyWideningConversionRouteStatementPlan(
           materializationFacts.elementwiseComputeLeaf,
           {TCRVEmitCCallOpaqueOperand{
                "lhs_vec", materializationFacts.sourceVectorCType.str()},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                      materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                    materializationFacts.resultVectorCType
+                                        .str()}))
+    return std::move(error);
+
+  if (llvm::Error error = addRVVWideningConversionStatementPlanLoopStep(
+          plan, slice.storeOperation, "store", materializationFacts.storeLeaf,
+          {TCRVEmitCCallOpaqueOperand{
+               (llvm::StringRef(outABI->cName) + " + " + inductionName).str(),
+               outABI->cType},
+           TCRVEmitCCallOpaqueOperand{
+               description.resultName.str(),
+               materializationFacts.resultVectorCType.str()},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                      materializationFacts.vlCType.str()}},
+          description, context))
+    return std::move(error);
+
+  return plan;
+}
+
+llvm::Expected<RVVSelectedBodyDequantizationRouteStatementPlan>
+getRVVSelectedBodyDequantizationRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts
+        &mathOperandBindingFacts,
+    llvm::StringRef context) {
+  RVVSelectedBodyRouteSlice &slice = analysis.slice;
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  RVVSelectedBodyDequantizationRouteStatementPlan plan;
+  if (!isRVVSelectedBodyDequantizationStatementPlanConsumer(description))
+    return plan;
+
+  plan.plansDequantizationRoute = true;
+  plan.plansDequantizeI32ToF32 =
+      description.operation == RVVSelectedBodyOperationKind::DequantizeI32ToF32;
+  plan.dequantizationPlan = materializationFacts.dequantizationPlan;
+
+  if (!materializationFacts.dequantizationPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization statement plan requires the verified "
+        "dequantization route-family plan before route statement "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (!mathOperandBindingFacts.bindsDequantization)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization statement plan requires dequantization math "
+        "operand-binding facts before route statement construction");
+
+  llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+      getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
+                                                 context);
+  if (!routeControlPlan)
+    return routeControlPlan.takeError();
+  if (!routeControlPlan->plansRouteControl ||
+      !routeControlPlan->controlsDequantization ||
+      routeControlPlan->runtimeControlPlan !=
+          &materializationFacts.dequantizationPlan->runtimeControlPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization statement plan requires the RVV-owned route-control "
+        "provider plan before route statement construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const support::RuntimeABIParameter *lhsABI = mathOperandBindingFacts.lhsABI;
+  const support::RuntimeABIParameter *scaleABI =
+      mathOperandBindingFacts.dequantScaleABI;
+  const support::RuntimeABIParameter *outABI = mathOperandBindingFacts.outABI;
+  const support::RuntimeABIParameter *runtimeElementCountABI =
+      mathOperandBindingFacts.runtimeElementCountABI;
+  if (llvm::Error error = requireRVVWideningConversionStatementPlanABI(
+          lhsABI, "lhs", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVWideningConversionStatementPlanABI(
+          scaleABI, "scale", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVWideningConversionStatementPlanABI(
+          outABI, "out", description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVWideningConversionStatementPlanABI(
+          runtimeElementCountABI, "n", description, context))
+    return std::move(error);
+
+  if (llvm::Error error = requireRVVWideningConversionStatementPlanLeaf(
+          materializationFacts.setVLLeaf, "setvl callee", description,
+          context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVWideningConversionStatementPlanLeaf(
+          materializationFacts.sourceLoadLeaf, "source load callee",
+          description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVWideningConversionStatementPlanLeaf(
+          materializationFacts.dequantizeConvertLeaf, "dequant convert callee",
+          description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVWideningConversionStatementPlanLeaf(
+          materializationFacts.dequantizeScaleLeaf, "dequant scale callee",
+          description, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVWideningConversionStatementPlanLeaf(
+          materializationFacts.storeLeaf, "store callee", description,
+          context))
+    return std::move(error);
+
+  using conversion::emitc::TCRVEmitCCallOpaqueOperand;
+  using conversion::emitc::TCRVEmitCCallOpaqueResult;
+  llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> fullChunkSetVL =
+      makeRVVWideningConversionStatementPlanStep(
+          slice.setvl.getOperation(), "configure",
+          materializationFacts.setVLLeaf,
+          {TCRVEmitCCallOpaqueOperand{runtimeElementCountABI->cName,
+                                      runtimeElementCountABI->cType}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{
+              description.emitCFullChunkVLName.str(),
+              materializationFacts.vlCType.str()});
+  if (!fullChunkSetVL)
+    return fullChunkSetVL.takeError();
+  plan.preLoopSteps.push_back(std::move(*fullChunkSetVL));
+
+  llvm::StringRef inductionName = description.emitCLoopInductionName;
+  llvm::StringRef fullChunkVLName = description.emitCFullChunkVLName;
+  llvm::StringRef loopVLName = description.emitCLoopVLName;
+  plan.loop.inductionVarName = inductionName.str();
+  plan.loop.lowerBound =
+      TCRVEmitCCallOpaqueOperand{"0", materializationFacts.vlCType.str()};
+  plan.loop.upperBound = TCRVEmitCCallOpaqueOperand{
+      runtimeElementCountABI->cName, runtimeElementCountABI->cType};
+  plan.loop.step = TCRVEmitCCallOpaqueOperand{
+      fullChunkVLName.str(), materializationFacts.vlCType.str()};
+
+  if (llvm::Error error = addRVVWideningConversionStatementPlanLoopStep(
+          plan, slice.setvl.getOperation(), "configure",
+          materializationFacts.setVLLeaf,
+          {TCRVEmitCCallOpaqueOperand{
+              tcrv::rvv::getRVVSelectedBodyEmitCRemainingAVLExpression(
+                  runtimeElementCountABI->cName, inductionName),
+              materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{loopVLName.str(),
+                                    materializationFacts.vlCType.str()}))
+    return std::move(error);
+
+  if (llvm::Error error = addRVVWideningConversionStatementPlanLoopStep(
+          plan, slice.lhsLoadOperation, "load",
+          materializationFacts.sourceLoadLeaf,
+          {TCRVEmitCCallOpaqueOperand{
+               (llvm::StringRef(lhsABI->cName) + " + " + inductionName).str(),
+               lhsABI->cType},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                      materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{"lhs_vec",
+                                    materializationFacts.sourceVectorCType
+                                        .str()}))
+    return std::move(error);
+
+  if (llvm::Error error = addRVVWideningConversionStatementPlanLoopStep(
+          plan, slice.arithmeticOp, "compute",
+          materializationFacts.dequantizeConvertLeaf,
+          {TCRVEmitCCallOpaqueOperand{
+               "lhs_vec", materializationFacts.sourceVectorCType.str()},
+           TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                      materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{"converted_f32_vec",
+                                    materializationFacts.resultVectorCType
+                                        .str()}))
+    return std::move(error);
+
+  if (llvm::Error error = addRVVWideningConversionStatementPlanLoopStep(
+          plan, slice.arithmeticOp, "compute",
+          materializationFacts.dequantizeScaleLeaf,
+          {TCRVEmitCCallOpaqueOperand{
+               "converted_f32_vec",
+               materializationFacts.resultVectorCType.str()},
+           TCRVEmitCCallOpaqueOperand{scaleABI->cName, scaleABI->cType},
            TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                       materializationFacts.vlCType.str()}},
           description, context,

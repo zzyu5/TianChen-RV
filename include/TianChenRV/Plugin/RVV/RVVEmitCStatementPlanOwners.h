@@ -65,6 +65,8 @@ bool isRVVSelectedBodyCompareSelectStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description);
 bool isRVVSelectedBodyWideningConversionStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description);
+bool isRVVSelectedBodyDequantizationStatementPlanConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description);
 bool isRVVSelectedBodyRuntimeScalarSplatStoreStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description);
 bool isRVVSelectedBodyReductionStatementPlanConsumer(
@@ -102,6 +104,14 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
 
 llvm::Expected<RVVSelectedBodyWideningConversionRouteStatementPlan>
 getRVVSelectedBodyWideningConversionRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts
+        &mathOperandBindingFacts,
+    llvm::StringRef context);
+
+llvm::Expected<RVVSelectedBodyDequantizationRouteStatementPlan>
+getRVVSelectedBodyDequantizationRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMathRouteOperandBindingFacts
@@ -193,6 +203,18 @@ llvm::Error buildRVVSelectedBodyCompareSelectMigratedRouteStatementPlan(
     RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
 
 llvm::Error buildRVVSelectedBodyWideningConversionMigratedRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+
+llvm::Error buildRVVSelectedBodyDequantizationMigratedRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts

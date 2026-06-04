@@ -1645,10 +1645,14 @@ int runRVVCommonValidationTest() {
     const bool isConversionRoute =
         route.operationMnemonic == "widen_i32_to_i64" ||
         route.operationMnemonic == "widen_i16_to_i32";
+    const bool isDequantizationRoute =
+        route.operationMnemonic == "dequantize_i32_to_f32";
     const bool isWideningMAccRoute =
         route.operationMnemonic == "widening_macc_add";
     const bool isWideningProductRoute =
         route.operationMnemonic == "widening_product";
+    const bool isWideningProductReductionRoute =
+        route.operationMnemonic == "widening_product_reduce_add";
     const bool isWideningDotReduceRoute =
         route.operationMnemonic == "widening_dot_reduce_add";
     const bool isStandaloneReduceRoute =
@@ -1708,6 +1712,9 @@ int runRVVCommonValidationTest() {
       executableComputeOp = "tcrv_rvv.widening_macc";
     else if (isWideningProductRoute)
       executableComputeOp = "tcrv_rvv.widening_product";
+    else if (isWideningProductReductionRoute)
+      executableComputeOp =
+          "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce";
     else if (isWideningDotReduceRoute || isStridedInputWideningDotReduceRoute)
       executableComputeOp = "tcrv_rvv.widening_dot_reduce";
     else if (isComputedMaskWideningDotReduceRoute ||
@@ -1715,6 +1722,8 @@ int runRVVCommonValidationTest() {
       executableComputeOp = "tcrv_rvv.masked_widening_dot_reduce";
     else if (isConversionRoute)
       executableComputeOp = "tcrv_rvv.widening_convert";
+    else if (isDequantizationRoute)
+      executableComputeOp = "tcrv_rvv.dequantize";
     else if (route.operationMnemonic == "masked_unit_load_store" ||
              route.operationMnemonic == "computed_masked_unit_load_store" ||
              route.operationMnemonic ==
@@ -1751,7 +1760,7 @@ int runRVVCommonValidationTest() {
     else if (route.operationMnemonic == "runtime_scalar_splat_store")
       executableComputeOp = "tcrv_rvv.splat";
     llvm::StringRef rhsSourceOp = "tcrv_rvv.load";
-    if (isConversionRoute) {
+    if (isConversionRoute || isDequantizationRoute) {
       rhsSourceOp = "";
     } else if (route.operationMnemonic == "unit_load_strided_store") {
       rhsSourceOp = "tcrv_rvv.strided_store";
@@ -1859,7 +1868,9 @@ int runRVVCommonValidationTest() {
     const bool hasRuntimeScalarSplatStore =
         route.operationMnemonic == "runtime_scalar_splat_store";
     const bool hasConversion = isConversionRoute;
+    const bool hasDequantization = isDequantizationRoute;
     const bool hasWideningMAcc = isWideningMAccRoute;
+    const bool hasWideningProductReduction = isWideningProductReductionRoute;
     const bool hasWideningDotReduce = isWideningDotReduceRoute;
     const bool hasStridedInputWideningDotReduce =
         isStridedInputWideningDotReduceRoute;
@@ -1884,6 +1895,7 @@ int runRVVCommonValidationTest() {
         isComputedMaskMAccRoute || isRuntimeScalarComputedMaskMAccRoute;
     unsigned expectedStepCount =
         hasConversion          ? 8u
+        : hasDequantization                    ? 9u
         : hasComputedMaskSelect                  ? 15u
         : hasRuntimeScalarCompareSelect          ? 15u
         : hasRuntimeScalarDualCompareMaskAndSelect ? 21u
@@ -1894,6 +1906,7 @@ int runRVVCommonValidationTest() {
         : hasComputedMaskMAcc                    ? 17u
         : isStandaloneReduceRoute                ? 9u
         : hasWideningMAcc                       ? 12u
+        : hasWideningProductReduction           ? 12u
         : hasWideningDotReduce                  ? 11u
         : hasStridedInputWideningDotReduce      ? 13u
         : hasComputedMaskWideningDotReduce       ? 16u
@@ -2103,6 +2116,12 @@ int runRVVCommonValidationTest() {
               getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
+    } else if (route.operationMnemonic == "dequantize_i32_to_f32") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyDequantizationRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
     } else if (route.operationMnemonic == "runtime_scalar_splat_store") {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
@@ -2114,6 +2133,18 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyWideningMAccRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "widening_product") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyWideningProductRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "widening_product_reduce_add") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyWideningProductReductionRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==

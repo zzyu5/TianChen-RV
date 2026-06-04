@@ -3065,6 +3065,39 @@ def WideningConvertOp : TCRVRVV_Op<"widening_convert",
   let hasVerifier = 1;
 }
 
+def DequantizeOp : TCRVRVV_Op<"dequantize",
+    [TCRVEmitCLowerableOpInterface]> {
+  let summary = "generic typed RVV i32-to-f32 runtime-scale dequantization op";
+  let description = [{
+    Records one bounded generic plugin-local RVV dequantization step. The op
+    is nested directly under tcrv_rvv.with_vl, consumes one signed i32
+    !tcrv_rvv.vector source, one explicitly imported runtime scale ABI value,
+    and the active !tcrv_rvv.vl token, carries an explicit dequantization kind
+    and relation, and produces one f32 !tcrv_rvv.vector result.
+
+    The current bounded Stage 2 slice supports signed i32 LMUL m1 to f32 LMUL
+    m1 with runtime f32 scale. Source dtype, result dtype, scale ABI role,
+    SEW, LMUL, VL, policy, operation kind, and conversion relation are
+    structural typed-body facts consumed by the RVV plugin. Route ids, helper
+    names, ABI strings, artifact names, status fields, exact intrinsic
+    spellings, and common EmitC/export code must not infer or choose
+    dequantization semantics.
+  }];
+
+  let arguments = (ins
+    AnyType:$source,
+    AnyType:$scale,
+    AnyType:$vl,
+    StrAttr:$kind,
+    StrAttr:$dequant_relation
+  );
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat =
+    "$source `,` $scale `,` $vl attr-dict `:` type($source) `,` type($scale) `,` type($vl) `->` type($result)";
+  let hasVerifier = 1;
+}
+
 def MoveOp : TCRVRVV_Op<"move",
     [TCRVEmitCLowerableOpInterface]> {
   let summary = "generic typed RVV movement dataflow op";
