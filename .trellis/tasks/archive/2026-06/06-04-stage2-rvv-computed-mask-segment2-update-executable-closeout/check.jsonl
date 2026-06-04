@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global RVV authority and no descriptor/mirror/status authority regression."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify computed-mask segment2 update remains RVV plugin/provider-owned and selected-boundary based."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify provider fact surface, target contract, common EmitC neutrality, and generated-bundle evidence mirrors remain consistent."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify ssh rvv evidence, runtime counts, harness oracle, inactive lane, and tail preservation requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-04-stage2-rvv-computed-mask-segment2-update-executable-closeout/prd.md", "reason": "Verify acceptance criteria, evidence results, artifact paths, checks, and final status are truthful."}

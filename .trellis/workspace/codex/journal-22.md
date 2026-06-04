@@ -342,3 +342,36 @@ Removed target-local plain/computed-mask segment2 raw route-fact reconstruction;
 ### Next Steps
 
 - None - task complete
+
+
+## Session 428: Stage2 RVV computed-mask segment2 update executable closeout
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV computed-mask segment2 update executable closeout
+**Branch**: `main`
+
+### Summary
+
+Closed computed_masked_segment2_update_unit_load generated-bundle executable evidence for pre-realized and explicit selected RVV fixtures with real ssh rvv PASS output; no compiler or runner source changes were needed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
