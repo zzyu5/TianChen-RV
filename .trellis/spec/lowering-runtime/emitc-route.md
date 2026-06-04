@@ -375,6 +375,14 @@ code.
   loop induction, runtime `n` ABI role, remaining AVL, or pointer advancement
   before accepting pre-loop setvl, loop setvl, scalar seed, reduction, or
   scalar-result store statements.
+- Good: computed-mask indexed memory route facts build
+  `RVVComputedMaskIndexedMemoryRouteValidationContract` with an embedded
+  `RVVRuntimeAVLVLSelectedBoundaryContract`; target validation checks runtime
+  AVL source `runtime_abi:n`, runtime VL contract, selected `with_vl` scope,
+  setvl callee/type, full-chunk VL, loop VL, loop induction, runtime `n` ABI
+  role/order, remaining AVL, and pointer advancement before accepting
+  computed-mask producer facts, index load/scale facts, indexed gather/scatter
+  statement-plan facts, header/type facts, ABI mappings, or mirrors.
 - Base: a route family not yet promoted may keep its existing runtime checks
   until a bounded task embeds the shared runtime AVL/VL contract.
 - Bad: target validation accepts a route because generated statements happen
@@ -398,6 +406,12 @@ code.
   setvl callee, VL C type, loop induction, remaining AVL metadata, and runtime
   `n` ABI role so the shared runtime contract, not a later route statement
   fallback, owns the first rejection.
+- Promoted computed-mask indexed memory consumers must have positive target
+  coverage proving the embedded runtime contract is populated for both gather
+  and scatter variants, and negative target coverage for stale runtime AVL
+  source, runtime VL contract, selected `with_vl` scope, setvl callee, loop VL
+  or loop induction, and runtime `n` ABI role before indexed memory-form or
+  mirror checks can accept the artifact.
 - Focused lit/generated-bundle dry-run tests for the promoted route family
   must remain green.
 - Real `ssh rvv` is required only when emitted C/C++, runtime ABI order,

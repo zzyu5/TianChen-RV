@@ -703,3 +703,34 @@ Embedded runtime AVL/VL selected-boundary contract in the unit-stride masked mem
 ### Next Steps
 
 - None - task complete
+
+
+## Session 439: Stage2 RVV computed-mask indexed runtime AVL/VL contract
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV computed-mask indexed runtime AVL/VL contract
+**Branch**: `main`
+
+### Summary
+
+Promoted computed-mask indexed memory target validation to consume the embedded RVV runtime AVL/VL selected-boundary contract; added focused target/plugin/dry-run evidence and archived the task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

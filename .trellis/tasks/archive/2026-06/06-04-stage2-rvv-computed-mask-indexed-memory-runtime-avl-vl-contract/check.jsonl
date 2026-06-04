@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify implementation preserves global TianChen-RV and RVV-first authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify computed-mask indexed memory remains RVV plugin-owned and statement-plan-backed."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify runtime AVL/VL selected-boundary contract embedding and target consumer order."}
+{"file": ".trellis/tasks/06-04-stage2-rvv-computed-mask-indexed-memory-runtime-avl-vl-contract/prd.md", "reason": "Verify acceptance criteria, non-goals, and evidence plan."}
