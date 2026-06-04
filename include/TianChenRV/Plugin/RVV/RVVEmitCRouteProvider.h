@@ -1957,6 +1957,7 @@ struct RVVConversionDtypePolicyRouteValidationContract {
   std::string resultLMUL;
   std::string tailPolicy;
   std::string maskPolicy;
+  std::string configContractID;
   std::string runtimeControlPlanID;
   std::string runtimeABIOrder;
   std::string targetLeafProfile;
@@ -2304,6 +2305,7 @@ struct RVVWideningDotReduceRouteValidationContract {
   std::string resultLMUL;
   std::string tailPolicy;
   std::string maskPolicy;
+  std::string configContractID;
   std::string runtimeControlPlanID;
   std::string runtimeABIOrder;
   std::string targetLeafProfile;
@@ -2364,6 +2366,7 @@ struct RVVWideningDotReduceRouteValidationContract {
 
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 9>
       runtimeABIParameters;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
   llvm::SmallVector<std::string, 4> requiredHeaders;
   llvm::SmallVector<RVVWideningDotReduceRouteTypeMappingContract, 4>
       typeMappings;

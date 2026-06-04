@@ -1151,6 +1151,7 @@ struct RVVWideningDotReduceRouteValidationContract {
   std::string resultLMUL;
   std::string tailPolicy;
   std::string maskPolicy;
+  std::string configContractID;
   std::string runtimeControlPlanID;
   std::string runtimeABIOrder;
   std::string targetLeafProfile;
@@ -1206,6 +1207,7 @@ struct RVVWideningDotReduceRouteValidationContract {
   std::size_t expectedPreLoopStepCount;
   std::size_t expectedLoopBodyStepCount;
   llvm::SmallVector<RuntimeABIParameter, 9> runtimeABIParameters;
+  RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
   llvm::SmallVector<std::string, 4> requiredHeaders;
   llvm::SmallVector<RVVWideningDotReduceRouteTypeMappingContract, 4>
       typeMappings;
@@ -1231,10 +1233,24 @@ selected operation, not by treating target artifact metadata as authority.
   duplicate widening dot-reduce expected-fact accessors or local fallback
   constants for fields already represented in the contract.
 - The contract must include common route facts: route token, memory form,
-  source/accumulator/result SEW-LMUL, tail/mask policy, runtime-control plan,
-  runtime ABI order, target leaf profile, provider-supported mirror, required
-  headers, C type summary, operand-binding plan/summary, typed compute op,
-  contraction route-family plan, and runtime ABI parameters.
+  source/accumulator/result SEW-LMUL, tail/mask policy, config contract,
+  runtime-control plan, runtime ABI order, target leaf profile,
+  provider-supported mirror, required headers, C type summary, operand-binding
+  plan/summary, typed compute op, contraction route-family plan, and runtime
+  ABI parameters.
+- The contract must embed `RVVRuntimeAVLVLSelectedBoundaryContract`. Target
+  provider-fact validation must consume that embedded contract before
+  accepting widening dot-reduce runtime ABI facts, route payloads, source/
+  accumulator/result type facts, memory-form facts, contraction facts, mask
+  facts, statement plans, headers/type mappings, or metadata mirrors.
+- The embedded runtime contract is the authority for runtime AVL source,
+  runtime-VL contract, selected `with_vl` boundary/scope, selected-body
+  provenance, setvl callee, VL C type, full-chunk VL, loop VL, loop induction,
+  remaining AVL metadata, pointer advancement metadata, bounded-slice,
+  multi-VL, and runtime `n` ABI parameter facts. Widening dot-reduce
+  statement-plan validation must read those runtime/control names from the
+  embedded contract instead of reconstructing them from widening-dot-local
+  fields.
 - The contract must include widening dot-reduce facts: narrow source type,
   widened accumulator/result type, accumulator/result layout, widening
   relation, product/reduction/store/setvl intrinsics, reduction store VL,
@@ -1258,10 +1274,15 @@ selected operation, not by treating target artifact metadata as authority.
 - Rebuilt route token differs from the provider contract -> fail before target
   artifact acceptance.
 - Description memory form, source/accumulator/result SEW-LMUL, tail/mask
-  policy, runtime-control plan, runtime ABI order, target leaf profile,
-  provider-supported mirror, header/type summary, operand-binding plan/summary,
-  contraction family plan, typed compute op, layout, or widening relation
-  differs from the contract -> fail before target artifact acceptance.
+  policy, config contract, runtime-control plan, runtime ABI order, target leaf
+  profile, provider-supported mirror, header/type summary, operand-binding
+  plan/summary, contraction family plan, typed compute op, layout, or widening
+  relation differs from the contract -> fail before target artifact acceptance.
+- Embedded runtime AVL/VL contract is missing, stale, or mismatched for runtime
+  AVL source, runtime VL contract, selected `with_vl` scope, setvl callee, VL C
+  type, full-chunk VL, loop VL, loop induction, runtime `n` ABI role/order,
+  remaining AVL metadata, or pointer advancement metadata -> fail before target
+  artifact acceptance.
 - Runtime ABI parameter count, order, role, C name, or C type differs from the
   contract -> fail before target artifact acceptance with a diagnostic naming
   the parameter index and provider-owned parameter.
@@ -1322,10 +1343,13 @@ selected operation, not by treating target artifact metadata as authority.
   candidates.
 - C++ target artifact tests must mutate provider descriptions for stale route
   payload facts: memory form, source/accumulator/result SEW-LMUL, route-family
-  plan, runtime ABI order/parameters, operand-binding plan/summary, target
-  leaf profile, provider-supported mirror, header/type summary, typed compute
-  op, source/destination memory form, stride facts, mask facts, intrinsic
-  facts, reduction store VL, and cross-family residue fields.
+  plan, runtime AVL source, runtime VL contract, selected `with_vl` scope,
+  setvl callee, VL C type, full-chunk VL, loop VL, loop induction, runtime ABI
+  order/parameters, remaining AVL metadata, pointer advancement metadata,
+  operand-binding plan/summary, target leaf profile, provider-supported mirror,
+  header/type summary, typed compute op, source/destination memory form, stride
+  facts, mask facts, intrinsic facts, reduction store VL, and cross-family
+  residue fields.
 - C++ target artifact tests must mutate rebuilt route payloads where practical:
   route token, headers, type mappings, ABI mappings, statement counts, and
   statement operand wiring.
@@ -1352,6 +1376,7 @@ Correct:
 ```text
 selected typed tcrv_rvv widening dot-reduce body
   -> RVV provider facts and route description
+  -> RVVRuntimeAVLVLSelectedBoundaryContract
   -> getRVVWideningDotReduceRouteValidationContract(description)
   -> target validator consumes contract for rebuilt route payload
   -> candidate metadata mirrors are checked separately as mirrors only

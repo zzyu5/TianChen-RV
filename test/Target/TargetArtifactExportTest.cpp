@@ -10882,6 +10882,8 @@ bool expectRVVTargetArtifactExporterShape(
             tianchenrv::plugin::rvv::getRVVSelectedBodyEmitCRouteID(
                 operation) ||
         validationContract->memoryForm != routeFacts->memoryForm ||
+        validationContract->configContractID !=
+            description.configContractID ||
         validationContract->runtimeABIOrder != routeFacts->runtimeABIOrder ||
         validationContract->routeOperandBindingPlanID !=
             routeFacts->routeOperandBindingPlanID ||
@@ -10917,6 +10919,49 @@ bool expectRVVTargetArtifactExporterShape(
       llvm::errs() << fixtureContext
                    << " provider widening dot route validation contract did "
                       "not mirror canonical provider facts\n";
+      return false;
+    }
+    const tianchenrv::plugin::rvv::
+        RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+            validationContract->runtimeAVLVLContract;
+    if (runtimeContract.consumerLabel.empty() ||
+        runtimeContract.sew != description.sew ||
+        runtimeContract.lmul != description.lmul ||
+        runtimeContract.tailPolicy != description.tailPolicy ||
+        runtimeContract.maskPolicy != description.maskPolicy ||
+        runtimeContract.configContractID != description.configContractID ||
+        runtimeContract.runtimeControlPlanID !=
+            description.runtimeControlPlanID ||
+        runtimeContract.runtimeVLContractID !=
+            description.runtimeVLContractID ||
+        runtimeContract.runtimeAVLASource !=
+            description.runtimeAVLASource ||
+        runtimeContract.runtimeABIOrder != description.runtimeABIOrder ||
+        runtimeContract.selectedBoundaryOpName != description.boundaryOpName ||
+        runtimeContract.selectedBodyProvenance.empty() ||
+        runtimeContract.vlDefOpName != description.vlDefOpName ||
+        runtimeContract.vlScopeOpName != description.vlScopeOpName ||
+        runtimeContract.vlUses != description.vlUses ||
+        runtimeContract.setVLIntrinsic != description.setVLIntrinsic ||
+        runtimeContract.vlCType != description.vlCType ||
+        runtimeContract.emitCLoopKind != description.emitCLoopKind ||
+        runtimeContract.emitCLoopInductionName !=
+            description.emitCLoopInductionName ||
+        runtimeContract.emitCFullChunkVLName !=
+            description.emitCFullChunkVLName ||
+        runtimeContract.emitCLoopVLName != description.emitCLoopVLName ||
+        runtimeContract.remainingAVLMetadata !=
+            description.remainingAVLMetadata ||
+        runtimeContract.pointerAdvanceMetadata !=
+            description.pointerAdvanceMetadata ||
+        runtimeContract.boundedSlice != description.boundedSlice ||
+        runtimeContract.multiVL != description.multiVL ||
+        runtimeContract.runtimeAVLParameter.cName != "n" ||
+        runtimeContract.runtimeAVLParameter.role !=
+            RuntimeABIParameterRole::RuntimeElementCount) {
+      llvm::errs() << fixtureContext
+                   << " embedded runtime AVL/VL selected-boundary contract "
+                      "did not mirror widening-dot route facts\n";
       return false;
     }
     return true;
@@ -10979,6 +11024,116 @@ bool expectRVVTargetArtifactExporterShape(
             validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
         mutationContext, fragments);
   };
+
+  RVVRouteDescription staleWideningDotRuntimeAVLSource =
+      wideningDotDescription;
+  staleWideningDotRuntimeAVLSource.runtimeAVLASource = "metadata_abi:n";
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotRuntimeAVLSource,
+          "widening-dot registry rejects stale runtime AVL source",
+          {"runtime AVL source", "runtime_abi:n", "metadata_abi:n"}))
+    return false;
+
+  RVVRouteDescription missingWideningDotRuntimeVLContract =
+      wideningDotDescription;
+  missingWideningDotRuntimeVLContract.runtimeVLContractID = "";
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          missingWideningDotRuntimeVLContract,
+          "widening-dot registry rejects missing runtime VL contract",
+          {"runtime VL contract", "before artifact export"}))
+    return false;
+
+  RVVRouteDescription staleWideningDotVLScope = wideningDotDescription;
+  staleWideningDotVLScope.vlScopeOpName = "metadata_with_vl";
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotVLScope,
+          "widening-dot registry rejects stale selected with_vl scope",
+          {"VL scope op", "metadata_with_vl"}))
+    return false;
+
+  RVVRouteDescription staleWideningDotSetVLCallee = wideningDotDescription;
+  staleWideningDotSetVLCallee.setVLIntrinsic = "metadata_setvl";
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotSetVLCallee,
+          "widening-dot registry rejects stale setvl callee",
+          {"setvl callee", wideningDotDescription.setVLIntrinsic,
+           "metadata_setvl"}))
+    return false;
+
+  RVVRouteDescription staleWideningDotVLType = wideningDotDescription;
+  staleWideningDotVLType.vlCType = "uint64_t";
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotVLType,
+          "widening-dot registry rejects stale VL C type",
+          {"VL C type", "size_t", "uint64_t"}))
+    return false;
+
+  RVVRouteDescription staleWideningDotFullChunkVL =
+      wideningDotDescription;
+  staleWideningDotFullChunkVL.emitCFullChunkVLName =
+      "metadata_full_chunk_vl";
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotFullChunkVL,
+          "widening-dot registry rejects stale full-chunk VL",
+          {"EmitC full-chunk VL", "metadata_full_chunk_vl"}))
+    return false;
+
+  RVVRouteDescription staleWideningDotLoopVL = wideningDotDescription;
+  staleWideningDotLoopVL.emitCLoopVLName = "metadata_vl";
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotLoopVL,
+          "widening-dot registry rejects stale loop VL",
+          {"EmitC loop VL", "metadata_vl"}))
+    return false;
+
+  RVVRouteDescription staleWideningDotLoopInduction =
+      wideningDotDescription;
+  staleWideningDotLoopInduction.emitCLoopInductionName = "metadata_offset";
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotLoopInduction,
+          "widening-dot registry rejects stale loop induction",
+          {"EmitC loop induction", "metadata_offset"}))
+    return false;
+
+  RVVRouteDescription staleWideningDotRuntimeNRole = wideningDotDescription;
+  staleWideningDotRuntimeNRole.runtimeABIParameters[4].role =
+      RuntimeABIParameterRole::OutputBuffer;
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotRuntimeNRole,
+          "widening-dot registry rejects stale runtime n ABI role",
+          {"runtime n/AVL ABI parameter", "before artifact export"}))
+    return false;
+
+  RVVRouteDescription staleWideningDotRemainingAVL =
+      wideningDotDescription;
+  staleWideningDotRemainingAVL.remainingAVLMetadata =
+      "metadata_remaining_avl";
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotRemainingAVL,
+          "widening-dot registry rejects stale remaining AVL metadata",
+          {"remaining AVL metadata", "metadata_remaining_avl"}))
+    return false;
+
+  RVVRouteDescription staleWideningDotPointerAdvance =
+      wideningDotDescription;
+  staleWideningDotPointerAdvance.pointerAdvanceMetadata =
+      "metadata_pointer_advance";
+  if (!expectWideningDotProviderFailure(
+          wideningDotFixture.candidate, wideningDotRoute,
+          staleWideningDotPointerAdvance,
+          "widening-dot registry rejects stale pointer advancement metadata",
+          {"pointer advancement metadata", "metadata_pointer_advance"}))
+    return false;
 
   RVVRouteDescription staleWideningDotProviderSupport =
       wideningDotDescription;
@@ -11121,7 +11276,7 @@ bool expectRVVTargetArtifactExporterShape(
           stridedWideningDotFixture.candidate, stridedWideningDotRoute,
           staleStridedDotLHSStrideRole,
           "strided widening-dot registry rejects stale lhs stride ABI role",
-          {"runtime ABI parameter 5", "lhs_stride", "lhs-input-stride"}))
+          {"exactly one provider-owned runtime n/AVL ABI parameter"}))
     return false;
 
   RVVRouteDescription staleStridedDotRHSStrideRole =
@@ -11132,7 +11287,7 @@ bool expectRVVTargetArtifactExporterShape(
           stridedWideningDotFixture.candidate, stridedWideningDotRoute,
           staleStridedDotRHSStrideRole,
           "strided widening-dot registry rejects stale rhs stride ABI role",
-          {"runtime ABI parameter 6", "rhs_stride", "rhs-input-stride"}))
+          {"exactly one provider-owned runtime n/AVL ABI parameter"}))
     return false;
 
   RVVRouteDescription staleWideningDotNonFamily = wideningDotDescription;
@@ -11342,7 +11497,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskStridedDotLHSStrideRole,
           "computed-mask strided widening-dot registry rejects stale lhs "
           "stride ABI role",
-          {"runtime ABI parameter 7", "lhs_stride", "lhs-input-stride"}))
+          {"exactly one provider-owned runtime n/AVL ABI parameter"}))
     return false;
 
   RVVRouteDescription staleComputedMaskStridedDotRHSStrideRole =
@@ -11355,7 +11510,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleComputedMaskStridedDotRHSStrideRole,
           "computed-mask strided widening-dot registry rejects stale rhs "
           "stride ABI role",
-          {"runtime ABI parameter 8", "rhs_stride", "rhs-input-stride"}))
+          {"exactly one provider-owned runtime n/AVL ABI parameter"}))
     return false;
 
   RVVRouteDescription staleComputedMaskStridedDotMaskSource =

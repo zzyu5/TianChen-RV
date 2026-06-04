@@ -2755,6 +2755,13 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
           contract.maskPolicy))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "config contract",
+          description.configContractID, contract.configContractID))
+    return error;
+  if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
+          description, contract.runtimeAVLVLContract))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "runtime AVL/VL control plan",
           description.runtimeControlPlanID, contract.runtimeControlPlanID))
     return error;
@@ -3092,6 +3099,8 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
     const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
   const auto &description = contract;
   const llvm::StringRef consumerLabel = contract.consumerLabel;
+  const plugin::rvv::RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
+      contract.runtimeAVLVLContract;
   const bool isComputedMask =
       contract.kind ==
           plugin::rvv::RVVWideningDotReduceRouteValidationKind::ComputedMask ||
@@ -3110,7 +3119,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
         " requires provider-derived widening dot ABI parameters before "
         "validating route statements");
   if (description.resultName.empty() || description.sourceVectorCType.empty() ||
-      description.vectorCType.empty() || description.vlCType.empty())
+      description.vectorCType.empty() || runtimeContract.vlCType.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
         " requires provider-derived result, source/result vector C type, and "
@@ -3166,7 +3175,9 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
       runtimeElementCount = &parameter;
       break;
     }
-  if (!runtimeElementCount || runtimeElementCount != runtimeNABI)
+  if (!runtimeElementCount || runtimeElementCount != runtimeNABI ||
+      !runtimeABIParameterEquals(*runtimeNABI,
+                                 runtimeContract.runtimeAVLParameter))
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
         " requires runtime n/AVL ABI role to match the selected widening dot "
@@ -3184,8 +3195,10 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
       route.getCallOpaqueSteps()[0];
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           preLoopSetVL, consumerLabel, "pre-loop setvl",
-          description.setVLIntrinsic, {{runtimeNABI->cName, runtimeNABI->cType}},
-          description.emitCFullChunkVLName, description.vlCType))
+          runtimeContract.setVLIntrinsic,
+          {{runtimeContract.runtimeAVLParameter.cName,
+            runtimeContract.runtimeAVLParameter.cType}},
+          runtimeContract.emitCFullChunkVLName, runtimeContract.vlCType))
     return error;
 
   const std::string expectedInitialAccumulatorLane =
@@ -3196,7 +3209,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           preLoopSeed, consumerLabel, "pre-loop scalar seed splat",
           description.scalarSeedSplatIntrinsic,
           {{expectedInitialAccumulatorLane, scalarI32CType},
-           {description.reductionStoreVL, description.vlCType}},
+           {description.reductionStoreVL, runtimeContract.vlCType}},
           "dot_initial_acc_vec", description.vectorCType))
     return error;
 
@@ -3207,7 +3220,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           description.storeIntrinsic,
           {{outABI->cName, outABI->cType},
            {"dot_initial_acc_vec", description.vectorCType},
-           {description.reductionStoreVL, description.vlCType}}))
+           {description.reductionStoreVL, runtimeContract.vlCType}}))
     return error;
 
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
@@ -3222,13 +3235,13 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
         "widening dot-reduction target artifact consumer requires exactly one "
         "provider-built runtime AVL/VL loop before artifact export");
   const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
-  if (loop.inductionVarName != description.emitCLoopInductionName ||
+  if (loop.inductionVarName != runtimeContract.emitCLoopInductionName ||
       loop.lowerBound.expression != "0" ||
-      loop.lowerBound.cType != description.vlCType ||
-      loop.upperBound.expression != runtimeNABI->cName ||
-      loop.upperBound.cType != runtimeNABI->cType ||
-      loop.step.expression != description.emitCFullChunkVLName ||
-      loop.step.cType != description.vlCType)
+      loop.lowerBound.cType != runtimeContract.vlCType ||
+      loop.upperBound.expression != runtimeContract.runtimeAVLParameter.cName ||
+      loop.upperBound.cType != runtimeContract.runtimeAVLParameter.cType ||
+      loop.step.expression != runtimeContract.emitCFullChunkVLName ||
+      loop.step.cType != runtimeContract.vlCType)
     return makeRVVTargetRouteError(
         "widening dot-reduction target artifact consumer requires "
         "provider-built loop bounds and step to mirror runtime AVL/VL route "
@@ -3242,14 +3255,14 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
         " before artifact export");
 
   const std::string expectedRemainingAVL =
-      (llvm::StringRef(runtimeNABI->cName) + " - " +
-       description.emitCLoopInductionName)
+      (llvm::StringRef(runtimeContract.runtimeAVLParameter.cName) + " - " +
+       runtimeContract.emitCLoopInductionName)
           .str();
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[0], consumerLabel, "loop setvl",
-          description.setVLIntrinsic,
-          {{expectedRemainingAVL, description.vlCType}},
-          description.emitCLoopVLName, description.vlCType))
+          runtimeContract.setVLIntrinsic,
+          {{expectedRemainingAVL, runtimeContract.vlCType}},
+          runtimeContract.emitCLoopVLName, runtimeContract.vlCType))
     return error;
 
   for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step : loop.bodySteps)
@@ -3264,12 +3277,12 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           llvm::StringRef stepLabel) -> llvm::Error {
     const std::string expectedPointer =
         (llvm::StringRef(abi.cName) + " + " +
-         description.emitCLoopInductionName)
+         runtimeContract.emitCLoopInductionName)
             .str();
     return validateRVVProviderBuiltRouteStep(
         step, consumerLabel, stepLabel, description.sourceVectorLoadIntrinsic,
         {{expectedPointer, abi.cType},
-         {description.emitCLoopVLName, description.vlCType}},
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
         resultName, description.sourceVectorCType);
   };
 
@@ -3280,7 +3293,8 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           llvm::StringRef resultName, llvm::StringRef stepLabel) -> llvm::Error {
     const std::string expectedPointer =
         (llvm::StringRef(abi.cName) + " + (" +
-         description.emitCLoopInductionName + " * " + strideABI.cName + ")")
+         runtimeContract.emitCLoopInductionName + " * " + strideABI.cName +
+         ")")
             .str();
     const std::string expectedStrideBytes =
         (llvm::StringRef(strideABI.cName) + " * 2").str();
@@ -3288,7 +3302,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
         step, consumerLabel, stepLabel, description.stridedLoadIntrinsic,
         {{expectedPointer, abi.cType},
          {expectedStrideBytes, "ptrdiff_t"},
-         {description.emitCLoopVLName, description.vlCType}},
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
         resultName, description.sourceVectorCType);
   };
 
@@ -3314,20 +3328,20 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
             loop.bodySteps[1], consumerLabel, "compare lhs vector load",
             description.vectorLoadIntrinsic,
             {{(llvm::StringRef(cmpLHSABI->cName) + " + " +
-               description.emitCLoopInductionName)
+               runtimeContract.emitCLoopInductionName)
                   .str(),
               cmpLHSABI->cType},
-             {description.emitCLoopVLName, description.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             "cmp_lhs_vec", description.vectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[2], consumerLabel, "compare rhs vector load",
             description.vectorLoadIntrinsic,
             {{(llvm::StringRef(cmpRHSABI->cName) + " + " +
-               description.emitCLoopInductionName)
+               runtimeContract.emitCLoopInductionName)
                   .str(),
               cmpRHSABI->cType},
-             {description.emitCLoopVLName, description.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             "cmp_rhs_vec", description.vectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -3335,7 +3349,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
             description.compareIntrinsic,
             {{"cmp_lhs_vec", description.vectorCType},
              {"cmp_rhs_vec", description.vectorCType},
-             {description.emitCLoopVLName, description.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             description.maskName, description.maskCType))
       return error;
     if (llvm::Error error =
@@ -3350,7 +3364,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
             loop.bodySteps[6], consumerLabel, "inactive zero scalar splat",
             description.scalarSeedSplatIntrinsic,
             {{"0", scalarI32CType},
-             {description.emitCLoopVLName, description.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             "dot_zero_vec", description.vectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -3359,7 +3373,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
             {{description.maskName, description.maskCType},
              {"dot_lhs_vec", description.sourceVectorCType},
              {"dot_rhs_vec", description.sourceVectorCType},
-             {description.emitCLoopVLName, description.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             "active_dot_product_vec", description.vectorCType))
       return error;
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -3368,7 +3382,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
             {{"dot_zero_vec", description.vectorCType},
              {"active_dot_product_vec", description.vectorCType},
              {description.maskName, description.maskCType},
-             {description.emitCLoopVLName, description.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             "dot_product_vec", description.vectorCType))
       return error;
   } else {
@@ -3385,7 +3399,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
             description.wideningProductIntrinsic,
             {{"lhs_vec", description.sourceVectorCType},
              {"rhs_vec", description.sourceVectorCType},
-             {description.emitCLoopVLName, description.vlCType}},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             "dot_product_vec", description.vectorCType))
       return error;
   }
@@ -3399,7 +3413,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           loop.bodySteps[seedIndex], consumerLabel, "loop scalar seed splat",
           description.scalarSeedSplatIntrinsic,
           {{expectedOutLane, scalarI32CType},
-           {description.reductionStoreVL, description.vlCType}},
+           {description.reductionStoreVL, runtimeContract.vlCType}},
           "dot_acc_vec", description.vectorCType))
     return error;
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -3407,7 +3421,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           "widening dot reduction", description.intrinsic,
           {{"dot_product_vec", description.vectorCType},
            {"dot_acc_vec", description.vectorCType},
-           {description.emitCLoopVLName, description.vlCType}},
+           {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
           description.resultName, description.vectorCType))
     return error;
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -3415,7 +3429,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           description.storeIntrinsic,
           {{outABI->cName, outABI->cType},
            {description.resultName, description.vectorCType},
-           {description.reductionStoreVL, description.vlCType}}))
+           {description.reductionStoreVL, runtimeContract.vlCType}}))
     return error;
 
   return llvm::Error::success();

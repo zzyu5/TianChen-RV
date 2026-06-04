@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain and Stage2 route-supported boundary rules"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Direct contraction/widening-dot provider ownership and runtime control boundary"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "RVV runtime AVL/VL selected-boundary contract and route validation contract rules"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit and ssh rvv evidence policy"}

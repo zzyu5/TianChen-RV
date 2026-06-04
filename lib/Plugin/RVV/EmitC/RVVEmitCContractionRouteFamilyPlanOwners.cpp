@@ -1447,6 +1447,7 @@ static void populateRVVWideningDotValidationContract(
   contract.resultLMUL = facts.resultLMUL.str();
   contract.tailPolicy = facts.tailPolicy.str();
   contract.maskPolicy = facts.maskPolicy.str();
+  contract.configContractID = description.configContractID.str();
   contract.runtimeControlPlanID = facts.runtimeControlPlanID.str();
   contract.runtimeABIOrder = facts.runtimeABIOrder.str();
   contract.targetLeafProfile = facts.targetLeafProfile.str();
@@ -1510,6 +1511,14 @@ static void populateRVVWideningDotValidationContract(
   contract.runtimeABIParameters.append(facts.runtimeABIParameters.begin(),
                                        facts.runtimeABIParameters.end());
   populateRVVWideningDotDynamicDescriptionPayload(contract, description);
+  if (std::optional<RVVRuntimeAVLVLSelectedBoundaryContract> runtimeContract =
+          getRVVRuntimeAVLVLSelectedBoundaryContract(
+              contract.resultSEW, contract.resultLMUL, contract.tailPolicy,
+              contract.maskPolicy, contract.configContractID,
+              contract.setVLIntrinsic, contract.vlCType,
+              contract.runtimeABIOrder, contract.runtimeABIParameters,
+              contract.consumerLabel))
+    contract.runtimeAVLVLContract = std::move(*runtimeContract);
 
   appendRVVWideningDotValidationHeaders(contract,
                                         facts.requiredHeaderDeclarations);

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check no RVV authority drift or common EmitC semantic leakage"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check widening-dot remains RVV provider-owned direct contraction route-family validation"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check runtime AVL/VL contract is embedded and consumed before route acceptance"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused evidence and ssh rvv decision"}
