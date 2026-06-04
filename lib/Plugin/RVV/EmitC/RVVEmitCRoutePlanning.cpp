@@ -22513,10 +22513,10 @@ buildRVVCompareSelectRouteMetadataMirrorContract(
   appendRVVCompareSelectMetadataMirror(
       contract, "tcrv_rvv.runtime_control_plan",
       facts.runtimeControlPlanID,
-      "selected typed RVV compare/select runtime AVL/VL control plan");
+      "route-local runtime AVL/VL control plan mirror");
   appendRVVCompareSelectMetadataMirror(
       contract, "tcrv_rvv.runtime_abi_order", facts.runtimeABIOrder,
-      "selected typed RVV compare/select runtime ABI order");
+      "route-local runtime AVL/VL ABI order mirror");
   appendRVVCompareSelectMetadataMirror(
       contract, "tcrv_rvv.required_header_declarations",
       facts.requiredHeaderDeclarations,

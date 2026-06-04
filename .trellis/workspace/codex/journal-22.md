@@ -870,3 +870,36 @@ Made promoted memory-family target validation consume RVVRuntimeAVLVLSelectedBou
 ### Next Steps
 
 - None - task complete
+
+
+## Session 441: Stage2 RVV compare/select runtime AVL/VL sole-authority cleanup
+
+**Date**: 2026-06-04
+**Task**: Stage2 RVV compare/select runtime AVL/VL sole-authority cleanup
+**Branch**: `main`
+
+### Summary
+
+Made RVV compare/select target validation consume RVVRuntimeAVLVLSelectedBoundaryContract as sole runtime n / AVL / VL authority before route-local mirror checks; added focused provider/candidate mirror coverage and archived the task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

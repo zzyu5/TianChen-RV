@@ -6220,6 +6220,13 @@ llvm::Error validateRVVCompareSelectRouteValidationContract(
   if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
           description, contract.runtimeAVLVLContract))
     return error;
+  if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
+          contract.consumerLabel, contract.runtimeAVLVLContract,
+          contract.runtimeControlPlanID, contract.runtimeABIOrder,
+          contract.setVLIntrinsic, contract.vlCType,
+          contract.emitCFullChunkVLName, contract.emitCLoopVLName,
+          contract.emitCLoopInductionName))
+    return error;
   if (llvm::Error error = require("LMUL", description.lmul, contract.lmul))
     return error;
   if (llvm::Error error =
@@ -6229,15 +6236,6 @@ llvm::Error validateRVVCompareSelectRouteValidationContract(
   if (llvm::Error error =
           require("mask policy", description.maskPolicy,
                   contract.maskPolicy))
-    return error;
-  if (llvm::Error error =
-          require("runtime ABI order", description.runtimeABIOrder,
-                  contract.runtimeABIOrder))
-    return error;
-  if (llvm::Error error =
-          require("runtime AVL/VL control plan",
-                  description.runtimeControlPlanID,
-                  contract.runtimeControlPlanID))
     return error;
   if (llvm::Error error =
           require("provider_supported_mirror",
@@ -6272,9 +6270,6 @@ llvm::Error validateRVVCompareSelectRouteValidationContract(
                                   contract.typedComputeOpName))
     return error;
   if (llvm::Error error =
-          require("VL C type", description.vlCType, contract.vlCType))
-    return error;
-  if (llvm::Error error =
           require("vector type", description.vectorTypeName,
                   contract.vectorTypeName))
     return error;
@@ -6288,10 +6283,6 @@ llvm::Error validateRVVCompareSelectRouteValidationContract(
     return error;
   if (llvm::Error error =
           require("mask C type", description.maskCType, contract.maskCType))
-    return error;
-  if (llvm::Error error =
-          require("setvl callee", description.setVLIntrinsic,
-                  contract.setVLIntrinsic))
     return error;
   if (llvm::Error error =
           require("vector load callee", description.vectorLoadIntrinsic,

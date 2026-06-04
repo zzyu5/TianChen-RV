@@ -17585,6 +17585,13 @@ bool expectRVVTargetArtifactExporterShape(
     const tianchenrv::plugin::rvv::
         RVVRuntimeAVLVLSelectedBoundaryContract &runtimeContract =
             contract->runtimeAVLVLContract;
+    if (!expectRVVProviderRouteLocalRuntimeAVLVLMirrors(
+            fixtureContext, contract->runtimeControlPlanID,
+            contract->runtimeABIOrder, contract->setVLIntrinsic,
+            contract->vlCType, contract->emitCFullChunkVLName,
+            contract->emitCLoopVLName, contract->emitCLoopInductionName,
+            runtimeContract))
+      return false;
     if (runtimeContract.consumerLabel.empty() ||
         runtimeContract.sew != manualDescription.sew ||
         runtimeContract.lmul != manualDescription.lmul ||
@@ -19321,6 +19328,21 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-only-leaf"}))
     return false;
 
+  TargetArtifactCandidate wrongDualRuntimePlanCandidate = manualDualCandidate;
+  if (!rewriteArtifactMetadataValue(wrongDualRuntimePlanCandidate,
+                                    "tcrv_rvv.runtime_control_plan",
+                                    "metadata-derived-runtime-plan"))
+    return false;
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongDualRuntimePlanCandidate, manualDualRoute,
+          manualDualDescription,
+          "compare/select mask registry rejects stale runtime control plan "
+          "mirror metadata",
+          {"runtime_control_plan",
+           "route-local runtime AVL/VL control plan mirror",
+           "metadata-derived-runtime-plan"}))
+    return false;
+
   TargetArtifactCandidate wrongDualABICandidate = manualDualCandidate;
   if (!rewriteArtifactMetadataValue(
           wrongDualABICandidate, "tcrv_rvv.runtime_abi_order",
@@ -19330,6 +19352,7 @@ bool expectRVVTargetArtifactExporterShape(
           wrongDualABICandidate, manualDualRoute, manualDualDescription,
           "compare/select mask registry rejects stale ABI mirror metadata",
           {"runtime_abi_order",
+           "route-local runtime AVL/VL ABI order mirror",
            "cmp_lhs_a,rhs_scalar_a,cmp_lhs_b,rhs_scalar_b,true_value,false_value,out,n",
            "cmp_lhs_a,cmp_lhs_b"}))
     return false;

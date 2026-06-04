@@ -1674,6 +1674,8 @@ struct RVVCompareSelectRouteValidationContract {
   std::string lmul;
   std::string tailPolicy;
   std::string maskPolicy;
+  // Runtime/control copies in this validation contract are target-side
+  // consistency mirrors. runtimeAVLVLContract is the acceptance authority.
   std::string configContractID;
   std::string runtimeControlPlanID;
   std::string runtimeABIOrder;
