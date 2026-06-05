@@ -1190,3 +1190,57 @@ included-in-this-commit
 ### Next Steps
 
 - None - task complete
+
+
+## Session 473: Stage2 RVV explicit computed masked strided dot ABI closure
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV explicit computed masked strided dot ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed explicit computed_masked_strided_input_widening_dot_reduce_add generated-bundle executable ABI evidence on ssh rvv for counts 0,1,16,17,257 with stride pairs 2:3 and 3:2, mask/input patterns, scalar oracle, inactive-lane skipping, source preservation, and tail preservation; no production code change required.
+
+### Main Changes
+
+- Created and archived the Trellis task for the explicit
+  `computed_masked_strided_input_widening_dot_reduce_add` executable ABI
+  closure.
+- Proved the existing explicit selected-body generated bundle is executable on
+  real `ssh rvv` without production compiler or script changes.
+- Recorded completion evidence for provider-derived ABI order, route operand
+  binding, compare-produced mask facts, strided source facts, inactive-lane
+  zeroing, widening product/reduction facts, and target header/type mirrors.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] explicit generated-bundle dry-run for counts `0,1,16,17,257`
+- [OK] real `ssh rvv` generated-bundle compile/run:
+  `PASS op=computed_masked_strided_input_widening_dot_reduce_add counts=0,1,16,17,257 stride_pairs=2:3,3:2 mask_patterns=2 input_patterns=2`
+- [OK] direct `FileCheck` of the dry-run test's `ROOT`, `MSDOT`, and
+  `HARNESS` prefixes
+- [OK] focused explicit target fixture `PLAN` and `HEADER` FileCheck commands
+- [OK] stale-mirror negatives for provider mirror, operand binding, ABI order,
+  required headers, type mapping, contraction plan, widening relation,
+  reduction store VL, strided load intrinsic, and masked widening product
+  intrinsic
+- [OK] adjacent pre-realized generated-bundle dry-run regression
+- [OK] bounded old-authority scan over touched files and added diff lines
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Trellis context validation
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

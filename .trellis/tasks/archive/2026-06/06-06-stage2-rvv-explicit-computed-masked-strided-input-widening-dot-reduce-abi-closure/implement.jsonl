@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage 2 RVV typed-body route boundary, and descriptor/source-front-door red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, computed-mask/strided widening dot-reduce route authority, and selected-body realization constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC/TCRVEmitCLowerableRoute boundary, provider operand binding, and widening dot-reduce validation contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle dry-run and ssh rvv runtime evidence requirements including oracle and tail preservation."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-explicit-computed-masked-strided-input-widening-dot-reduce-abi-closure/prd.md", "reason": "Task-local goal, scope, acceptance criteria, and non-goals for this explicit ABI closure round."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Primary explicit selected-body fixture and target/header/stale-mirror contract for this route."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Focused generated-bundle dry-run and harness oracle expectations to preserve."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated bundle, harness, dry-run, and ssh rvv execution bridge for the route."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-06-06-stage2-rvv-explicit-fused-dequant-clamp-executable-abi-closure/prd.md", "reason": "Prior executable ABI closure pattern and evidence format for explicit selected-body generated-bundle tasks."}

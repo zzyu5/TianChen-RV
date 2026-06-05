@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify changes preserve global TianChen-RV Stage 2 and authority-chain rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify computed-mask/strided widening dot-reduce execution evidence stays plugin-owned and route-supported."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify generated bundle/header evidence consumes provider route facts without common EmitC semantic invention."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused dry-run, ssh rvv, self-test, and evidence claims match testing policy."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-explicit-computed-masked-strided-input-widening-dot-reduce-abi-closure/prd.md", "reason": "Verify all task acceptance criteria are either satisfied or truthfully blocked."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Verify provider/target facts and stale-mirror negatives for the explicit route remain intact."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Verify dry-run and generated harness oracle expectations still match produced evidence."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Verify any script bridge changes preserve self-test and generated-bundle execution behavior."}
