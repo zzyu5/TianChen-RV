@@ -2644,6 +2644,13 @@ class OpExpectation:
         return self.input_mode == "pre-realized-selected-body"
 
     @property
+    def requires_selected_lowering_boundary_materialization(self) -> bool:
+        return self.is_pre_realized or (
+            self.input_mode == "explicit-selected-body"
+            and self.is_widening_product_reduce_dequant_clamp_f32
+        )
+
+    @property
     def supports_direct_pre_realized_route_entry(self) -> bool:
         return False
 
@@ -3899,6 +3906,47 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         element_c_type="int32_t",
         config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
+    ),
+    "widening_product_reduce_dequant_clamp_f32": OpExpectation(
+        kind="widening_product_reduce_dequant_clamp_f32",
+        input_path=Path(
+            "test/Target/RVV/explicit-selected-body-realization-widening-product-reduce-dequant-clamp-f32.mlir"
+        ),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_rvv_wprdc",
+        external_abi_name=(
+            "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1"
+        ),
+        function_name="tcrv_emitc_explicit_wprdc_kernel_explicit_rvv_wprdc",
+        emitc_route=(
+            "rvv-generic-widening-product-reduce-dequant-clamp-f32-emitc-route"
+        ),
+        typed_compute_op=(
+            "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
+            "tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
+        ),
+        memory_form="unit-stride-widening-product-reduce-dequant-clamp-f32",
+        lhs_initializer=(
+            "(int8_t)(((index % 4) < 2) ? -((int)(index % 47) + 12) "
+            ": ((int)(index % 43) + 14))"
+        ),
+        rhs_initializer=(
+            "(int8_t)(((index % 5) == 0) ? -((int)(index % 31) + 15) "
+            ": ((int)(index % 29) + 17))"
+        ),
+        source_initializer="(int32_t)19",
+        expected_expression=(
+            "scaled < lower_bound ? lower_bound : "
+            "(scaled > upper_bound ? upper_bound : scaled)"
+        ),
+        out_initializer=F32_CLAMP_SELECT_OUT_SENTINEL,
+        lmul="m1",
+        sew="32",
+        element_c_type="float",
+        config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+        bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
+        compare_predicate_kind="slt",
     ),
     "strided_input_widening_dot_reduce_add": OpExpectation(
         kind="strided_input_widening_dot_reduce_add",
@@ -16771,6 +16819,15 @@ def verify_materialized_selected_body(
             "tcrv_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
+    if (
+        expectation.input_mode == "explicit-selected-body"
+        and expectation.is_widening_product_reduce_dequant_clamp_f32
+    ):
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_widening_product_reduce_dequant_clamp_f32_body",
+            "materialized explicit selected-body MLIR",
+        )
     require_no_forbidden_public_residue(text, "materialized selected-body MLIR")
     return {
         "path": str(materialized_path),
@@ -16781,6 +16838,10 @@ def verify_materialized_selected_body(
         "lmul": expectation.lmul,
         "contains_with_vl": True,
         "pre_realized_body_consumed": expectation.is_pre_realized,
+        "explicit_compound_body_consumed": (
+            expectation.input_mode == "explicit-selected-body"
+            and expectation.is_widening_product_reduce_dequant_clamp_f32
+        ),
         "runtime_avl_vl_boundary": runtime_avl_vl_boundary,
         "mask_tail_policy_boundary": mask_tail_policy_boundary,
         "compare_select_predicate_boundary": compare_select_predicate_boundary,
@@ -24762,7 +24823,7 @@ def generate_bundle(
         )
     materialized_path = bundle_dir.parent / "materialized_selected_body.mlir"
     materialize_command = [tcrv_opt, str(expectation.input_path)]
-    if expectation.is_pre_realized:
+    if expectation.requires_selected_lowering_boundary_materialization:
         materialize_command.append("--tcrv-materialize-selected-lowering-boundaries")
     if expectation.is_dequantize_i32_to_f32:
         materialize_command.append("--tcrv-rvv-materialize-gearbox-schedules")
@@ -24829,6 +24890,17 @@ def generate_bundle(
         result["realization_boundary"] = (
             "public selected lowering-boundary materialization consumed the "
             "pre-realized typed tcrv_rvv body before provider route construction"
+        )
+    elif expectation.requires_selected_lowering_boundary_materialization:
+        result["materializer"] = "tcrv-materialize-selected-lowering-boundaries"
+        result["route_entry_realization"] = False
+        result["selected_body_realization_producer"] = (
+            "rvv-plugin-local-selected-body-realization-owner-registry"
+        )
+        result["realization_boundary"] = (
+            "public selected lowering-boundary materialization consumed the "
+            "explicit compound typed tcrv_rvv body before provider route "
+            "construction"
         )
     return result
 

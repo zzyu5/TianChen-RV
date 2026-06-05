@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage 2 RVV realization boundary, and descriptor/source-front-door red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, explicit widening product reduce dequant-clamp realization contract, and provider-derived route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC/TCRVEmitCLowerableRoute boundary and provider operand binding mirror contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle dry-run and ssh rvv runtime evidence requirements including oracle and tail preservation."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-06-06-stage2-rvv-explicit-fused-dequant-clamp-executable-abi-closure/prd.md", "reason": "Task-local goal, scope, acceptance criteria, and non-goals for the explicit ABI closure round."}

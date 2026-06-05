@@ -1133,3 +1133,60 @@ Closed dequant_clamp_f32_epilogue generated-bundle executable evidence on ssh rv
 ### Next Steps
 
 - None - task complete
+
+
+## Session 472: Stage2 RVV explicit fused dequant-clamp executable ABI closure
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV explicit fused dequant-clamp executable ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed explicit selected-body generated-bundle executable ABI evidence for
+`widening_product_reduce_dequant_clamp_f32`. The explicit compound
+`tcrv_rvv` body now enters the generated-bundle harness through plugin-local
+selected-body realization, and the resulting bundle passed real `ssh rvv`
+correctness with scalar oracle, signed source patterns, scale/bound coverage,
+source preservation, accumulator preservation, and output tail preservation.
+
+### Main Changes
+
+- Added explicit fused dequant-clamp expectation support in
+  `scripts/rvv_generated_bundle_abi_e2e.py`, including the explicit fixture,
+  selected variant, generated C ABI function, and realization-before-emission
+  bridge.
+- Added evidence checks that the explicit compound body is consumed before
+  provider route construction while the pre-realized body flag remains false.
+- Added focused explicit generated-bundle dry-run test coverage for the
+  explicit fixture/function, provider-derived route mirrors, target artifact
+  facts, and harness oracle coverage.
+
+### Git Commits
+
+included-in-this-commit
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] explicit generated-bundle dry-run for counts `0,1,16,17,257`
+- [OK] direct `FileCheck` of the new dry-run test's `ROOT`, `WPRDC`, and
+  `HARNESS` prefixes
+- [OK] focused explicit `tcrv-opt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans`
+- [OK] pre-realized fused generated-bundle dry-run regression
+- [OK] real `ssh rvv` generated-bundle compile/run:
+  `PASS op=widening_product_reduce_dequant_clamp_f32 counts=0,1,16,17,257 patterns=0,1 scales=-0.125,0.375 bound_pairs=-1.5:2.25,-8:-0.75 tolerance=1e-05`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Trellis context validation
+- [OK] bounded old-authority scan over touched files and added diff lines
+- [WARN] `python3 -m lit` unavailable locally: `No module named lit`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

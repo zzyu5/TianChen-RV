@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify changes preserve global TianChen-RV Stage 2 and authority-chain rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify explicit fused selected-body execution evidence stays plugin-owned and realization-first."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify generated bundle/header evidence consumes provider route facts without common EmitC semantic invention."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused dry-run, ssh rvv, self-test, and evidence claims match testing policy."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-06-06-stage2-rvv-explicit-fused-dequant-clamp-executable-abi-closure/prd.md", "reason": "Verify all task acceptance criteria are either satisfied or truthfully blocked."}
