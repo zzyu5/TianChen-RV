@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain and RVV Stage1/Stage2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership of typed body legality, selected-body realization, schedule decisions, provider route construction, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built lowerable-route plus target mirror contracts."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Variant selection/tuning must be capability-aware and mirror-only outside plugin ownership."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/C++ checks and ssh rvv evidence boundary."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-rvv-gearbox-autotuning-pass-reference/prd.md", "reason": "Previous Gearbox MVP scope, completed behavior, and next-step context."}
+{"file": "artifacts/tianchenrv_rvv_gearbox_autotuning_pass_v3.md", "reason": "Non-authoritative Gearbox reference intake for candidate-selection vocabulary."}

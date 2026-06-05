@@ -272,6 +272,10 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef dequantScaleRole;
   llvm::StringRef dequantScaleCType;
   llvm::StringRef dequantScaleName;
+  llvm::StringRef gearboxCandidateSet;
+  llvm::StringRef gearboxSelectedCandidate;
+  llvm::StringRef gearboxSelectionReason;
+  llvm::StringRef gearboxLegalityScope;
   llvm::StringRef gearboxScheduleID;
   llvm::StringRef gearboxSelector;
   llvm::StringRef gearboxSource;
@@ -2056,6 +2060,10 @@ struct RVVDequantizationRouteFacts {
   llvm::StringRef scaleRole;
   llvm::StringRef scaleName;
   llvm::StringRef resultName;
+  llvm::StringRef gearboxCandidateSet;
+  llvm::StringRef gearboxSelectedCandidate;
+  llvm::StringRef gearboxSelectionReason;
+  llvm::StringRef gearboxLegalityScope;
   llvm::StringRef gearboxScheduleID;
   llvm::StringRef gearboxSelector;
   llvm::StringRef gearboxSource;
@@ -2131,6 +2139,10 @@ struct RVVConversionDtypePolicyRouteValidationContract {
   std::string dequantScaleRole;
   std::string dequantScaleCType;
   std::string dequantScaleName;
+  std::string gearboxCandidateSet;
+  std::string gearboxSelectedCandidate;
+  std::string gearboxSelectionReason;
+  std::string gearboxLegalityScope;
   std::string gearboxScheduleID;
   std::string gearboxSelector;
   std::string gearboxSource;

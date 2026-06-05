@@ -643,6 +643,10 @@ struct RVVSelectedBodyDequantizationRouteFamilyPlan {
   llvm::StringRef scaleIntrinsic;
   llvm::StringRef storeIntrinsic;
   llvm::StringRef resultName;
+  llvm::StringRef gearboxCandidateSet;
+  llvm::StringRef gearboxSelectedCandidate;
+  llvm::StringRef gearboxSelectionReason;
+  llvm::StringRef gearboxLegalityScope;
   llvm::StringRef gearboxScheduleID;
   llvm::StringRef gearboxSelector;
   llvm::StringRef gearboxSource;

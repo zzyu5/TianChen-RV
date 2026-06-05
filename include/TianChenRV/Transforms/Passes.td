@@ -279,9 +279,10 @@ def MaterializeRVVGearboxSchedules
   let description = [{
     Runs one RVV plugin-local Stage 2 Gearbox MVP over already selected and
     realized typed tcrv_rvv bodies. The pass recognizes the existing bounded
-    dequantize_i32_to_f32 body shape, derives one static schedule from typed
-    body/config/runtime facts, and materializes explicit tcrv_rvv.gearbox.*
-    facts on the with_vl boundary and dequantize operation.
+    dequantize_i32_to_f32 body shape, derives a bounded one-candidate legal
+    inventory and deterministic selected schedule from typed body/config/runtime
+    facts, and materializes explicit tcrv_rvv.gearbox.* facts on the with_vl
+    boundary and dequantize operation.
 
     The pass does not benchmark, profile, query assembly, persist tuning
     caches, infer from artifact names or route strings, change computation

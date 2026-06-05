@@ -38,6 +38,71 @@ Closed generated dequant-clamp f32 epilogue executable ABI evidence with dry-run
 - None - task complete
 
 
+## Session 464: Stage2 RVV Gearbox bounded candidate-selection contract
+
+**Date**: 2026-06-05
+**Task**: `06-05-06-05-rvv-gearbox-bounded-candidate-selection-contract`
+**Branch**: `main`
+
+### Summary
+
+Expanded the existing RVV Gearbox dequant MVP from a single static schedule
+annotation into a bounded candidate-set plus selected-candidate contract for
+the existing typed `dequantize_i32_to_f32` route. This remains a
+pass/provider/target contract slice; no runtime benchmark, tuning cache, or
+ssh-rvv executable claim was made.
+
+### Main Changes
+
+- Added provider-owned Gearbox candidate inventory, selected candidate,
+  selection reason, and legality scope constants for the bounded
+  `dequantize_i32_to_f32` `e32,m1,unroll=1` candidate.
+- Updated `--tcrv-rvv-materialize-gearbox-schedules` to materialize the new
+  candidate-selection facts on both `tcrv_rvv.with_vl` and
+  `tcrv_rvv.dequantize`.
+- Extended RVV dialect verification, dequant route facts, route-family plan,
+  route description, conversion dtype-policy validation contract, target
+  route-family validation, and header metadata mirrors.
+- Added provider-side membership validation so the selected candidate must
+  belong to the pass-produced legal candidate set before route construction.
+- Added focused positive and negative lit/C++ coverage for candidate inventory,
+  selected candidate, stale metadata, unsupported unroll, missing candidate
+  set, and selected-candidate membership failure.
+
+### Git Commits
+
+(Recorded in the final commit for this session.)
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `cd build/test && /usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-gearbox-dequantize-i32-to-f32|explicit-selected-body-artifact-dequantize-i32-to-f32'`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `git diff --check`
+- [OK] Bounded old-authority/q-name scan over touched diff. Hits were limited
+  to negative `artifact-name-derived-gear` and `route-string-derived-gear`
+  guardrail strings.
+- [N/A] `ssh rvv` was not run because this task makes no executable
+  correctness/runtime/performance claim.
+
+### Self-Repair
+
+- Added missing RVV dialect verifier allow-list entries for new Gearbox attrs
+  on `tcrv_rvv.with_vl` and `tcrv_rvv.dequantize`.
+- Corrected the C++ target test expectation to match the target validator's
+  provider-facts diagnostic boundary.
+
+### Status
+
+[OK] **Completed** as a pass/provider/target contract foundation.
+
+### Next Steps
+
+- Finish/archive the Trellis task and create one coherent commit.
+
+
 ## Session 463: Stage2 RVV Gearbox pass MVP for typed conversion route control
 
 **Date**: 2026-06-05

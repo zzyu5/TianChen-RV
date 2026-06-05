@@ -6538,6 +6538,12 @@ buildRVVDequantizationRouteFacts(RVVSelectedBodyOperationKind operation) {
   facts.scaleRole = "dequant-scale-value";
   facts.scaleName = "scale";
   facts.resultName = "dequantized_vec";
+  facts.gearboxCandidateSet = kRVVGearboxDequantizeI32ToF32CandidateSet;
+  facts.gearboxSelectedCandidate =
+      kRVVGearboxDequantizeI32ToF32SelectedCandidate;
+  facts.gearboxSelectionReason =
+      kRVVGearboxDequantizeI32ToF32SelectionReason;
+  facts.gearboxLegalityScope = kRVVGearboxDequantizeI32ToF32LegalityScope;
   facts.gearboxScheduleID = kRVVGearboxDequantizeI32ToF32ScheduleID;
   facts.gearboxSelector = kRVVGearboxDequantizeI32ToF32Selector;
   facts.gearboxSource = kRVVGearboxStaticPassSource;
@@ -6625,9 +6631,74 @@ llvm::Error requireRVVDequantizationGearboxIntegerAttr(
       "'");
 }
 
+bool rvvGearboxCandidateSetContains(llvm::StringRef candidateSet,
+                                    llvm::StringRef selectedCandidate) {
+  constexpr llvm::StringLiteral kPrefix("rvv-gearbox-candidate-set.v1[");
+  if (!candidateSet.consume_front(kPrefix))
+    return false;
+  if (!candidateSet.consume_back("]"))
+    return false;
+
+  llvm::SmallVector<llvm::StringRef, 4> candidates;
+  llvm::SplitString(candidateSet, candidates, ",");
+  for (llvm::StringRef candidate : candidates)
+    if (candidate.trim() == selectedCandidate)
+      return true;
+  return false;
+}
+
+llvm::Error requireRVVDequantizationGearboxCandidateMembership(
+    mlir::Operation *op, llvm::StringRef context) {
+  auto candidateSet = op->getAttrOfType<mlir::StringAttr>(
+      kRVVGearboxCandidateSetAttrName);
+  if (!candidateSet)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("dequantization route-family plan requires pass-produced "
+                    "RVV Gearbox candidate-selection fact '") +
+        kRVVGearboxCandidateSetAttrName + "' on " + context +
+        " before provider route construction");
+  auto selectedCandidate = op->getAttrOfType<mlir::StringAttr>(
+      kRVVGearboxSelectedCandidateAttrName);
+  if (!selectedCandidate)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("dequantization route-family plan requires pass-produced "
+                    "RVV Gearbox candidate-selection fact '") +
+        kRVVGearboxSelectedCandidateAttrName + "' on " + context +
+        " before provider route construction");
+
+  if (rvvGearboxCandidateSetContains(candidateSet.getValue(),
+                                     selectedCandidate.getValue()))
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("dequantization route-family plan requires selected RVV "
+                  "Gearbox candidate '") +
+      selectedCandidate.getValue() + "' on " + context +
+      " to belong to pass-produced legal candidate set '" +
+      candidateSet.getValue() + "'");
+}
+
 llvm::Error requireRVVDequantizationGearboxFactsOnOp(
     mlir::Operation *op, llvm::StringRef context,
     const RVVDequantizationRouteFacts &facts) {
+  if (llvm::Error error =
+          requireRVVDequantizationGearboxCandidateMembership(op, context))
+    return error;
+  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
+          op, context, kRVVGearboxCandidateSetAttrName,
+          facts.gearboxCandidateSet))
+    return error;
+  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
+          op, context, kRVVGearboxSelectedCandidateAttrName,
+          facts.gearboxSelectedCandidate))
+    return error;
+  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
+          op, context, kRVVGearboxSelectionReasonAttrName,
+          facts.gearboxSelectionReason))
+    return error;
+  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
+          op, context, kRVVGearboxLegalityScopeAttrName,
+          facts.gearboxLegalityScope))
+    return error;
   if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
           op, context, kRVVGearboxScheduleIDAttrName,
           facts.gearboxScheduleID))
@@ -6838,6 +6909,27 @@ llvm::Error validateRVVSelectedBodyDequantizationRouteFamilyPlan(
                                        plan.destinationMemoryForm,
                                        expectedFacts->destinationMemoryForm))
     return error;
+  if (llvm::Error error = requireField("Gearbox candidate set",
+                                       plan.gearboxCandidateSet,
+                                       expectedFacts->gearboxCandidateSet))
+    return error;
+  if (llvm::Error error = requireField("Gearbox selected candidate",
+                                       plan.gearboxSelectedCandidate,
+                                       expectedFacts->gearboxSelectedCandidate))
+    return error;
+  if (!rvvGearboxCandidateSetContains(plan.gearboxCandidateSet,
+                                      plan.gearboxSelectedCandidate))
+    return makeRVVEmitCRouteProviderError(
+        "dequantization route-family plan selected RVV Gearbox candidate "
+        "must belong to the provider-consumed legal candidate set");
+  if (llvm::Error error = requireField("Gearbox selection reason",
+                                       plan.gearboxSelectionReason,
+                                       expectedFacts->gearboxSelectionReason))
+    return error;
+  if (llvm::Error error = requireField("Gearbox legality scope",
+                                       plan.gearboxLegalityScope,
+                                       expectedFacts->gearboxLegalityScope))
+    return error;
   if (llvm::Error error = requireField("Gearbox schedule id",
                                        plan.gearboxScheduleID,
                                        expectedFacts->gearboxScheduleID))
@@ -7005,6 +7097,10 @@ deriveRVVSelectedBodyDequantizationRouteFamilyPlan(
   plan.resultName = routeFacts->resultName;
   plan.sourceMemoryForm = routeFacts->sourceMemoryForm;
   plan.destinationMemoryForm = routeFacts->destinationMemoryForm;
+  plan.gearboxCandidateSet = routeFacts->gearboxCandidateSet;
+  plan.gearboxSelectedCandidate = routeFacts->gearboxSelectedCandidate;
+  plan.gearboxSelectionReason = routeFacts->gearboxSelectionReason;
+  plan.gearboxLegalityScope = routeFacts->gearboxLegalityScope;
   plan.gearboxScheduleID = routeFacts->gearboxScheduleID;
   plan.gearboxSelector = routeFacts->gearboxSelector;
   plan.gearboxSource = routeFacts->gearboxSource;
@@ -7068,6 +7164,10 @@ void applyRVVSelectedBodyDequantizationRouteFamilyPlan(
   description.dequantScaleName = plan.scaleName;
   description.sourceMemoryForm = plan.sourceMemoryForm;
   description.destinationMemoryForm = plan.destinationMemoryForm;
+  description.gearboxCandidateSet = plan.gearboxCandidateSet;
+  description.gearboxSelectedCandidate = plan.gearboxSelectedCandidate;
+  description.gearboxSelectionReason = plan.gearboxSelectionReason;
+  description.gearboxLegalityScope = plan.gearboxLegalityScope;
   description.gearboxScheduleID = plan.gearboxScheduleID;
   description.gearboxSelector = plan.gearboxSelector;
   description.gearboxSource = plan.gearboxSource;
@@ -22658,6 +22758,10 @@ static void populateRVVConversionDtypePolicyValidationContract(
   contract.dequantScaleRole = facts.scaleRole.str();
   contract.dequantScaleCType = facts.scaleCType.str();
   contract.dequantScaleName = facts.scaleName.str();
+  contract.gearboxCandidateSet = facts.gearboxCandidateSet.str();
+  contract.gearboxSelectedCandidate = facts.gearboxSelectedCandidate.str();
+  contract.gearboxSelectionReason = facts.gearboxSelectionReason.str();
+  contract.gearboxLegalityScope = facts.gearboxLegalityScope.str();
   contract.gearboxScheduleID = facts.gearboxScheduleID.str();
   contract.gearboxSelector = facts.gearboxSelector.str();
   contract.gearboxSource = facts.gearboxSource.str();
@@ -22834,6 +22938,22 @@ buildRVVConversionDtypePolicyRouteMetadataMirrorContract(
         contract, "tcrv_rvv.dequant_scale_name",
         facts.dequantScaleName,
         "selected typed RVV dequantization scale ABI name");
+    appendRVVConversionDtypePolicyMetadataMirror(
+        contract, "tcrv_rvv.gearbox.candidate_set",
+        facts.gearboxCandidateSet,
+        "selected typed RVV dequantization Gearbox candidate set");
+    appendRVVConversionDtypePolicyMetadataMirror(
+        contract, "tcrv_rvv.gearbox.selected_candidate",
+        facts.gearboxSelectedCandidate,
+        "selected typed RVV dequantization Gearbox selected candidate");
+    appendRVVConversionDtypePolicyMetadataMirror(
+        contract, "tcrv_rvv.gearbox.selection_reason",
+        facts.gearboxSelectionReason,
+        "selected typed RVV dequantization Gearbox selection reason");
+    appendRVVConversionDtypePolicyMetadataMirror(
+        contract, "tcrv_rvv.gearbox.legality_scope",
+        facts.gearboxLegalityScope,
+        "selected typed RVV dequantization Gearbox legality scope");
     appendRVVConversionDtypePolicyMetadataMirror(
         contract, "tcrv_rvv.gearbox.schedule_id",
         facts.gearboxScheduleID,
@@ -37598,6 +37718,30 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             context, "dequantization kind", description.conversionKind,
             routeFacts->dequantizationKind))
       return error;
+    if (!rvvGearboxCandidateSetContains(description.gearboxCandidateSet,
+                                        description.gearboxSelectedCandidate))
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " selected RVV Gearbox candidate must belong to the "
+          "provider-consumed legal candidate set");
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "Gearbox candidate set", description.gearboxCandidateSet,
+            routeFacts->gearboxCandidateSet))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "Gearbox selected candidate",
+            description.gearboxSelectedCandidate,
+            routeFacts->gearboxSelectedCandidate))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "Gearbox selection reason",
+            description.gearboxSelectionReason,
+            routeFacts->gearboxSelectionReason))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "Gearbox legality scope", description.gearboxLegalityScope,
+            routeFacts->gearboxLegalityScope))
+      return error;
     if (llvm::Error error = requireRouteDescriptionField(
             context, "Gearbox schedule id", description.gearboxScheduleID,
             routeFacts->gearboxScheduleID))
@@ -41346,6 +41490,14 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         description.dequantScaleCType});
     metadata.push_back({"tcrv_rvv.dequant_scale_name",
                         description.dequantScaleName});
+    metadata.push_back({"tcrv_rvv.gearbox.candidate_set",
+                        description.gearboxCandidateSet});
+    metadata.push_back({"tcrv_rvv.gearbox.selected_candidate",
+                        description.gearboxSelectedCandidate});
+    metadata.push_back({"tcrv_rvv.gearbox.selection_reason",
+                        description.gearboxSelectionReason});
+    metadata.push_back({"tcrv_rvv.gearbox.legality_scope",
+                        description.gearboxLegalityScope});
     metadata.push_back({"tcrv_rvv.gearbox.schedule_id",
                         description.gearboxScheduleID});
     metadata.push_back(

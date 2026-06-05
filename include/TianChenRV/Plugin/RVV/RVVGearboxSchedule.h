@@ -29,11 +29,27 @@ constexpr llvm::StringLiteral kRVVGearboxDestLMULAttrName(
     "tcrv_rvv.gearbox.dest_lmul");
 constexpr llvm::StringLiteral kRVVGearboxRuntimeAVLSourceAttrName(
     "tcrv_rvv.gearbox.runtime_avl_source");
+constexpr llvm::StringLiteral kRVVGearboxCandidateSetAttrName(
+    "tcrv_rvv.gearbox.candidate_set");
+constexpr llvm::StringLiteral kRVVGearboxSelectedCandidateAttrName(
+    "tcrv_rvv.gearbox.selected_candidate");
+constexpr llvm::StringLiteral kRVVGearboxSelectionReasonAttrName(
+    "tcrv_rvv.gearbox.selection_reason");
+constexpr llvm::StringLiteral kRVVGearboxLegalityScopeAttrName(
+    "tcrv_rvv.gearbox.legality_scope");
 
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32ScheduleID(
     "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1");
+constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32CandidateSet(
+    "rvv-gearbox-candidate-set.v1[rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1]");
+constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32SelectedCandidate(
+    "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1");
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32Selector(
     "static-dequantize-i32-to-f32-e32-m1-u1");
+constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32SelectionReason(
+    "only-legal-candidate-for-typed-dequantize-i32-to-f32-e32-m1-runtime-avl");
+constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32LegalityScope(
+    "typed-dequantize-i32-to-f32-sew32-lmul-m1-runtime-avl");
 constexpr llvm::StringLiteral kRVVGearboxStaticPassSource(
     "rvv-gearbox-static-pass.v1");
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32Operation(

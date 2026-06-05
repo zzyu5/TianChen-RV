@@ -4,6 +4,9 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.dequantization_relation", value = "signed-i32m1-to-f32m1-scale-f32"/s//tcrv_rvv.dequantization_relation", value = "script-derived-dequant"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RELATION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.dequant_scale_role", value = "dequant-scale-value"/s//tcrv_rvv.dequant_scale_role", value = "output-buffer"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SCALE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.dest_lmul", value = "m1"/s//tcrv_rvv.dest_lmul", value = "m2"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DEST-LMUL
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | sed '0,/tcrv_rvv.gearbox.candidate_set = "rvv-gearbox-candidate-set.v1\[rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1\]"/s//tcrv_rvv.gearbox.candidate_set = "rvv-gearbox-candidate-set.v1[artifact-name-derived-gear]"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=BAD-GEARBOX-CANDIDATE-SET
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | sed '0,/tcrv_rvv.gearbox.unroll = 1 : i64/s//tcrv_rvv.gearbox.unroll = 2 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-GEARBOX-UNROLL
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.gearbox.selected_candidate", value = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1"/s//tcrv_rvv.gearbox.selected_candidate", value = "artifact-name-derived-gear"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-GEARBOX-SELECTED
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.gearbox.schedule_id", value = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1"/s//tcrv_rvv.gearbox.schedule_id", value = "artifact-name-derived-gear"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-GEARBOX
 
 // Hand-authored explicit selected-body input for one bounded Stage 2
@@ -66,6 +69,10 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.dequant_scale_role", value = "dequant-scale-value"}
 // PLAN-SAME: {key = "tcrv_rvv.dequant_scale_c_type", value = "float"}
 // PLAN-SAME: {key = "tcrv_rvv.dequant_scale_name", value = "scale"}
+// PLAN-SAME: {key = "tcrv_rvv.gearbox.candidate_set", value = "rvv-gearbox-candidate-set.v1[rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1]"}
+// PLAN-SAME: {key = "tcrv_rvv.gearbox.selected_candidate", value = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.gearbox.selection_reason", value = "only-legal-candidate-for-typed-dequantize-i32-to-f32-e32-m1-runtime-avl"}
+// PLAN-SAME: {key = "tcrv_rvv.gearbox.legality_scope", value = "typed-dequantize-i32-to-f32-sew32-lmul-m1-runtime-avl"}
 // PLAN-SAME: {key = "tcrv_rvv.gearbox.schedule_id", value = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.gearbox.selector", value = "static-dequantize-i32-to-f32-e32-m1-u1"}
 // PLAN-SAME: {key = "tcrv_rvv.gearbox.source", value = "rvv-gearbox-static-pass.v1"}
@@ -101,6 +108,10 @@ module {
 // HEADER: tianchenrv.rvv.dequant_scale_role: dequant-scale-value
 // HEADER: tianchenrv.rvv.dequant_scale_c_type: float
 // HEADER: tianchenrv.rvv.dequant_scale_name: scale
+// HEADER: tianchenrv.rvv.gearbox_candidate_set: rvv-gearbox-candidate-set.v1[rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1]
+// HEADER: tianchenrv.rvv.gearbox_selected_candidate: rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1
+// HEADER: tianchenrv.rvv.gearbox_selection_reason: only-legal-candidate-for-typed-dequantize-i32-to-f32-e32-m1-runtime-avl
+// HEADER: tianchenrv.rvv.gearbox_legality_scope: typed-dequantize-i32-to-f32-sew32-lmul-m1-runtime-avl
 // HEADER: tianchenrv.rvv.gearbox_schedule_id: rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1
 // HEADER: tianchenrv.rvv.gearbox_selector: static-dequantize-i32-to-f32-e32-m1-u1
 // HEADER: tianchenrv.rvv.gearbox_source: rvv-gearbox-static-pass.v1
@@ -121,8 +132,14 @@ module {
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e32m1,converted/scaled:float-e32m1,scale:float
 // HEADER: void tcrv_emitc_explicit_selected_body_dequantize_i32_to_f32_kernel_explicit_selected_body_rvv_dequantize_i32_to_f32(const int32_t *lhs, float scale, float *out, size_t n);
 
-// MISSING-GEARBOX: requires pass-produced RVV Gearbox schedule fact 'tcrv_rvv.gearbox.schedule_id'
+// MISSING-GEARBOX: requires pass-produced RVV Gearbox candidate-selection fact 'tcrv_rvv.gearbox.candidate_set'
 // MISSING-GEARBOX-SAME: before provider route construction
+
+// BAD-GEARBOX-CANDIDATE-SET: selected RVV Gearbox candidate
+// BAD-GEARBOX-CANDIDATE-SET-SAME: belong to pass-produced legal candidate set
+
+// UNSUPPORTED-GEARBOX-UNROLL: requires RVV Gearbox schedule fact 'tcrv_rvv.gearbox.unroll'
+// UNSUPPORTED-GEARBOX-UNROLL-SAME: provider-derived '1' but found '2'
 
 // STALE-RELATION: target artifact candidate validation failed
 // STALE-RELATION-SAME: candidate tcrv_rvv.dequantization_relation provenance must mirror selected typed RVV dequantization relation 'signed-i32m1-to-f32m1-scale-f32' but was 'script-derived-dequant'
@@ -132,6 +149,9 @@ module {
 
 // STALE-DEST-LMUL: target artifact candidate validation failed
 // STALE-DEST-LMUL-SAME: candidate tcrv_rvv.dest_lmul provenance must mirror selected typed RVV conversion dtype-policy destination LMUL 'm1' but was 'm2'
+
+// STALE-GEARBOX-SELECTED: target artifact candidate validation failed
+// STALE-GEARBOX-SELECTED-SAME: candidate tcrv_rvv.gearbox.selected_candidate provenance must mirror selected typed RVV dequantization Gearbox selected candidate 'rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1' but was 'artifact-name-derived-gear'
 
 // STALE-GEARBOX: target artifact candidate validation failed
 // STALE-GEARBOX-SAME: candidate tcrv_rvv.gearbox.schedule_id provenance must mirror selected typed RVV dequantization Gearbox schedule id 'rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1' but was 'artifact-name-derived-gear'

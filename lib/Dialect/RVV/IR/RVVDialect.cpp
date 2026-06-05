@@ -192,6 +192,11 @@ bool isAllowedWithVLAttr(llvm::StringRef name) {
          name == kRequiredCapabilitiesAttrName ||
          name == kRVVConstructionProtocolAttrName ||
          name == kRVVEmitCRouteMappingAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxCandidateSetAttrName ||
+         name ==
+             tianchenrv::plugin::rvv::kRVVGearboxSelectedCandidateAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxSelectionReasonAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxLegalityScopeAttrName ||
          name == tianchenrv::plugin::rvv::kRVVGearboxScheduleIDAttrName ||
          name == tianchenrv::plugin::rvv::kRVVGearboxSelectorAttrName ||
          name == tianchenrv::plugin::rvv::kRVVGearboxSourceAttrName ||
@@ -712,6 +717,11 @@ bool isAllowedWideningConvertAttr(llvm::StringRef name) {
 
 bool isAllowedDequantizeAttr(llvm::StringRef name) {
   return name == "kind" || name == kDequantRelationAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxCandidateSetAttrName ||
+         name ==
+             tianchenrv::plugin::rvv::kRVVGearboxSelectedCandidateAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxSelectionReasonAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxLegalityScopeAttrName ||
          name == tianchenrv::plugin::rvv::kRVVGearboxScheduleIDAttrName ||
          name == tianchenrv::plugin::rvv::kRVVGearboxSelectorAttrName ||
          name == tianchenrv::plugin::rvv::kRVVGearboxSourceAttrName ||

@@ -29,19 +29,27 @@ namespace {
 
 using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32DestLMUL;
 using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32DestSEW;
+using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32CandidateSet;
+using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32LegalityScope;
 using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32Operation;
 using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32ScheduleID;
+using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32SelectedCandidate;
+using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32SelectionReason;
 using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32Selector;
 using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32SourceLMUL;
 using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32SourceSEW;
 using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32Unroll;
+using tianchenrv::plugin::rvv::kRVVGearboxCandidateSetAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxDestLMULAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxDestSEWAttrName;
+using tianchenrv::plugin::rvv::kRVVGearboxLegalityScopeAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxOperationAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSingleSetVLPolicy;
 using tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceN;
 using tianchenrv::plugin::rvv::kRVVGearboxScheduleIDAttrName;
+using tianchenrv::plugin::rvv::kRVVGearboxSelectedCandidateAttrName;
+using tianchenrv::plugin::rvv::kRVVGearboxSelectionReasonAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxSelectorAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxSourceAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxSourceLMULAttrName;
@@ -114,6 +122,22 @@ mlir::LogicalResult requireIntegerAttr(mlir::Operation *op,
 
 mlir::LogicalResult materializeGearboxAttrs(mlir::Operation *op,
                                             mlir::OpBuilder &builder) {
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVGearboxCandidateSetAttrName,
+          kRVVGearboxDequantizeI32ToF32CandidateSet)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVGearboxSelectedCandidateAttrName,
+          kRVVGearboxDequantizeI32ToF32SelectedCandidate)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVGearboxSelectionReasonAttrName,
+          kRVVGearboxDequantizeI32ToF32SelectionReason)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVGearboxLegalityScopeAttrName,
+          kRVVGearboxDequantizeI32ToF32LegalityScope)))
+    return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVGearboxScheduleIDAttrName,
           kRVVGearboxDequantizeI32ToF32ScheduleID)))

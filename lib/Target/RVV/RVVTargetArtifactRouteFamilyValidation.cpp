@@ -10752,7 +10752,13 @@ llvm::Error validateRVVConversionDtypePolicyTypedFacts(
         "intrinsics, and runtime scale role/type/name facts before artifact "
         "export");
   if (isDequantization &&
-      (description.gearboxScheduleID != contract.gearboxScheduleID ||
+      (description.gearboxCandidateSet != contract.gearboxCandidateSet ||
+       description.gearboxSelectedCandidate !=
+           contract.gearboxSelectedCandidate ||
+       description.gearboxSelectionReason !=
+           contract.gearboxSelectionReason ||
+       description.gearboxLegalityScope != contract.gearboxLegalityScope ||
+       description.gearboxScheduleID != contract.gearboxScheduleID ||
        description.gearboxSelector != contract.gearboxSelector ||
        description.gearboxSource != contract.gearboxSource ||
        description.gearboxOperation != contract.gearboxOperation ||
