@@ -10410,6 +10410,35 @@ llvm::Error validateRVVCompareSelectMaskTargetArtifactCandidateMirrors(
             "selected typed RVV compare/select selected-value layout"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.lower_bound_role",
+            description.lowerBoundRole,
+            "selected typed RVV compare/select lower bound role"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.upper_bound_role",
+            description.upperBoundRole,
+            "selected typed RVV compare/select upper bound role"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.lower_bound_c_type",
+            description.lowerBoundCType,
+            "selected typed RVV compare/select lower bound C type"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.upper_bound_c_type",
+            description.upperBoundCType,
+            "selected typed RVV compare/select upper bound C type"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.bound_order", description.boundOrder,
+            "selected typed RVV compare/select bound order"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, "tcrv_rvv.clamp_relation",
+            description.clampRelation,
+            "selected typed RVV compare/select clamp relation"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.secondary_compare_predicate_kind",
             description.secondaryComparePredicateKind,
             "selected typed RVV dual compare secondary predicate"))

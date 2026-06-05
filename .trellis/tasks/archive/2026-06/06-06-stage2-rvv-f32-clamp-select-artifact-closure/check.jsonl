@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Final global architecture and RVV stage compliance check."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify route authority remains in typed tcrv_rvv body and RVV plugin-owned realization/provider code."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC/export are neutral and target mirrors match provider-owned route payload."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests and generated-bundle evidence match the f32 clamp/select contract."}
+{"file": ".trellis/tasks/06-06-stage2-rvv-f32-clamp-select-artifact-closure/prd.md", "reason": "Check implementation and evidence against task acceptance criteria."}

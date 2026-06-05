@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV stage order, and authority-chain invariants for the f32 clamp/select route closure."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, route-provider, and ssh evidence rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality, provider-built TCRVEmitCLowerableRoute contract, and operand-binding mirror validation."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck, target artifact, generated-bundle, and f32 clamp/select evidence contracts."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-extension-plugin-construction-protocol-common-repair/prd.md", "reason": "Prior task context for repaired construction-protocol route boundary and provider-owned route value contract."}
+{"file": ".trellis/tasks/06-06-stage2-rvv-f32-clamp-select-artifact-closure/prd.md", "reason": "Task-specific goal, non-goals, acceptance criteria, and evidence plan."}

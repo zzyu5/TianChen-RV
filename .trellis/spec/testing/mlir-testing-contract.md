@@ -132,6 +132,18 @@ void tcrv_emitc_pre_realized_f32_clamp_select_kernel_pre_realized_rvv_f32_clamp_
 - Evidence JSON must expose the lower/upper bound ABI roles, ordered bound
   relation, provider mirror, route operand binding, emitted C++ boundary, and
   runtime AVL/VL boundary.
+- Target artifact/header metadata must mirror the provider-derived route facts
+  exactly for `tcrv_rvv.runtime_abi_order`,
+  `tcrv_rvv.route_operand_binding_plan`,
+  `tcrv_rvv.route_operand_binding_operands`,
+  `tcrv_rvv.computed_mask_select_route_family_plan`,
+  `tcrv_rvv.computed_mask_select_mask_producer_source`,
+  `tcrv_rvv.provider_supported_mirror`,
+  `tcrv_rvv.required_header_declarations`, `tcrv_rvv.c_type_mapping`,
+  `tcrv_rvv.lower_bound_role`, `tcrv_rvv.upper_bound_role`,
+  `tcrv_rvv.lower_bound_c_type`, `tcrv_rvv.upper_bound_c_type`,
+  `tcrv_rvv.bound_order`, `tcrv_rvv.clamp_relation`, and
+  `tcrv_rvv.secondary_compare_predicate_kind`.
 - Runtime bound pairs and counts are execution cases only; they must not define
   dtype, SEW, LMUL, policy, bound semantics, or route support.
 
@@ -143,6 +155,9 @@ void tcrv_emitc_pre_realized_f32_clamp_select_kernel_pre_realized_rvv_f32_clamp_
   operand -> evidence failure.
 - Object/header metadata disagree on bound roles, bound order, provider mirror,
   or route operand binding -> evidence failure.
+- Object/header metadata disagree on bound C types, route-family plan, computed
+  mask producer source, secondary compare predicate, required headers, or C type
+  mapping -> evidence failure.
 - `ssh rvv` compile/run failure -> report blocked evidence and do not claim
   executable correctness.
 
@@ -162,6 +177,10 @@ void tcrv_emitc_pre_realized_f32_clamp_select_kernel_pre_realized_rvv_f32_clamp_
   source checks.
 - Dry-run evidence must generate the bundle and harness before remote
   execution.
+- Target artifact dry-run or lit/FileCheck must include stale-mirror negative
+  checks for provider mirror, runtime ABI order, route operand binding summary,
+  route-family plan, lower/upper bound role or C type, bound order, secondary
+  predicate, and required header/type-mapping mirrors.
 - Runtime evidence must run on `ssh rvv` with multiple counts, at least two
   ordered nontrivial bound pairs, below/in/above-bound source patterns, explicit
   f32 tolerance, source preservation, and output tail sentinel preservation.

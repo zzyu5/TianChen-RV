@@ -5,6 +5,11 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/input,lower_bound,upper_bound,out,n/s//input,upper_bound,lower_bound,out,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-F32-ABI
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.lower_bound_role\", value = \"lower-bound-scalar-value\"/s//tcrv_rvv.lower_bound_role\", value = \"rhs-scalar-value\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-F32-LOWER
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.bound_order\", value = \"lower-bound-before-upper-bound\"/s//tcrv_rvv.bound_order\", value = \"upper-bound-before-lower-bound\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-F32-BOUND
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.route_operand_binding_operands\", value = \"rvv-route-operand-binding:f32_clamp_select.v1;input=lhs-input-buffer:input:abi|ld|lcmp|lselF|hdr/s//tcrv_rvv.route_operand_binding_operands\", value = \"rvv-route-operand-binding:f32_clamp_select.v1;input=lhs-input-buffer:input:abi|ld|stale-lcmp|lselF|hdr/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-F32-BINDING
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/rvv-f32-clamp-select-route-family-plan.v1/s//rvv-stale-f32-clamp-select-route-family-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-F32-FAMILY
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.upper_bound_c_type\", value = \"float\"/s//tcrv_rvv.upper_bound_c_type\", value = \"double\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-F32-UPPER-CTYPE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.secondary_compare_predicate_kind\", value = \"slt\"/s//tcrv_rvv.secondary_compare_predicate_kind\", value = \"sle\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-F32-SECONDARY-PRED
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.required_header_declarations\", value = \"stddef.h,stdint.h,riscv_vector.h\"/s//tcrv_rvv.required_header_declarations\", value = \"stddef.h,stdint.h\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-F32-HEADER
 
 module {
   tcrv.exec.kernel @pre_realized_f32_clamp_select_kernel {
@@ -56,15 +61,21 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "runtime-scalar-f32-clamp-select"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "input,lower_bound,upper_bound,out,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:f32_clamp_select.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:f32_clamp_select.v1;input=lhs-input-buffer:input:abi|ld|lcmp|lselF|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lsp|lcmp|lselT|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|usp|ucmp|uselT|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr"}
 // PLAN-SAME: {key = "tcrv_rvv.computed_mask_select_route_family_plan", value = "rvv-f32-clamp-select-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.computed_mask_select_mask_producer_source", value = "two-compare-two-select-f32-clamp-same-vl-scope"}
+// PLAN-SAME: {key = "tcrv_rvv.mask_tail_policy_route_family_plan", value = "rvv-mask-tail-policy-route-family-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-f32m1-runtime-lower-upper-clamp-select-leaf-profile.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-f32-clamp-select-runtime-bounds-plan-validated"}
+// PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
+// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,input:f32m1,lower:float,upper:float,mask:f32m1-predicate,result:f32m1"}
 // PLAN-SAME: {key = "tcrv_rvv.lower_bound_role", value = "lower-bound-scalar-value"}
 // PLAN-SAME: {key = "tcrv_rvv.upper_bound_role", value = "upper-bound-scalar-value"}
 // PLAN-SAME: {key = "tcrv_rvv.lower_bound_c_type", value = "float"}
 // PLAN-SAME: {key = "tcrv_rvv.upper_bound_c_type", value = "float"}
 // PLAN-SAME: {key = "tcrv_rvv.bound_order", value = "lower-bound-before-upper-bound"}
 // PLAN-SAME: {key = "tcrv_rvv.clamp_relation", value = "input-lower-select-then-upper-select-f32-runtime-bounds"}
+// PLAN-SAME: {key = "tcrv_rvv.secondary_compare_predicate_kind", value = "slt"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: target = @pre_realized_rvv_f32_clamp_select
 
@@ -74,9 +85,16 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_order: input,lower_bound,upper_bound,out,n
 // HEADER: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-f32-clamp-select-runtime-bounds-plan-validated
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:f32_clamp_select.v1
+// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:f32_clamp_select.v1;input=lhs-input-buffer:input:abi|ld|lcmp|lselF|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lsp|lcmp|lselT|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|usp|ucmp|uselT|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr
 // HEADER: tianchenrv.rvv.computed_mask_select_route_family_plan: rvv-f32-clamp-select-route-family-plan.v1
+// HEADER: tianchenrv.rvv.computed_mask_select_mask_producer_source: two-compare-two-select-f32-clamp-same-vl-scope
+// HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
+// HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,input:f32m1,lower:float,upper:float,mask:f32m1-predicate,result:f32m1
 // HEADER: tianchenrv.rvv.lower_bound_role: lower-bound-scalar-value
 // HEADER: tianchenrv.rvv.upper_bound_role: upper-bound-scalar-value
+// HEADER: tianchenrv.rvv.lower_bound_c_type: float
+// HEADER: tianchenrv.rvv.upper_bound_c_type: float
+// HEADER: tianchenrv.rvv.secondary_compare_predicate_kind: slt
 // HEADER: tianchenrv.rvv.bound_order: lower-bound-before-upper-bound
 // HEADER: tianchenrv.rvv.clamp_relation: input-lower-select-then-upper-select-f32-runtime-bounds
 // HEADER: void tcrv_emitc_pre_realized_f32_clamp_select_kernel_pre_realized_rvv_f32_clamp_select(const float *input, float lower_bound, float upper_bound, float *out, size_t n);
@@ -99,3 +117,28 @@ module {
 // STALE-F32-BOUND: candidate tcrv_rvv.bound_order provenance
 // STALE-F32-BOUND-SAME: must mirror
 // STALE-F32-BOUND-SAME: upper-bound-before-lower-bound
+
+// STALE-F32-BINDING: RVV materialized EmitC target artifact bridge failed
+// STALE-F32-BINDING: candidate tcrv_rvv.route_operand_binding_operands provenance
+// STALE-F32-BINDING-SAME: must mirror
+// STALE-F32-BINDING-SAME: stale-lcmp
+
+// STALE-F32-FAMILY: RVV materialized EmitC target artifact bridge failed
+// STALE-F32-FAMILY: candidate tcrv_rvv.computed_mask_select_route_family_plan provenance
+// STALE-F32-FAMILY-SAME: must mirror
+// STALE-F32-FAMILY-SAME: rvv-stale-f32-clamp-select-route-family-plan.v1
+
+// STALE-F32-UPPER-CTYPE: RVV materialized EmitC target artifact bridge failed
+// STALE-F32-UPPER-CTYPE: candidate tcrv_rvv.upper_bound_c_type provenance
+// STALE-F32-UPPER-CTYPE-SAME: must mirror
+// STALE-F32-UPPER-CTYPE-SAME: double
+
+// STALE-F32-SECONDARY-PRED: RVV materialized EmitC target artifact bridge failed
+// STALE-F32-SECONDARY-PRED: candidate tcrv_rvv.secondary_compare_predicate_kind provenance
+// STALE-F32-SECONDARY-PRED-SAME: must mirror
+// STALE-F32-SECONDARY-PRED-SAME: sle
+
+// STALE-F32-HEADER: RVV materialized EmitC target artifact bridge failed
+// STALE-F32-HEADER: candidate tcrv_rvv.required_header_declarations provenance
+// STALE-F32-HEADER-SAME: must mirror
+// STALE-F32-HEADER-SAME: stddef.h,stdint.h
