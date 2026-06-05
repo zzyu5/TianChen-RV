@@ -10588,6 +10588,17 @@ llvm::Error validateRVVConversionDtypePolicyRouteABIMappings(
   return llvm::Error::success();
 }
 
+std::string formatRVVRuntimeABIParameterNames(
+    llvm::ArrayRef<support::RuntimeABIParameter> parameters) {
+  std::string names;
+  for (const auto &indexed : llvm::enumerate(parameters)) {
+    if (indexed.index() != 0)
+      names += ", ";
+    names += indexed.value().cName;
+  }
+  return names;
+}
+
 llvm::Error validateRVVConversionDtypePolicyRuntimeABIFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVConversionDtypePolicyRouteValidationContract
@@ -10597,8 +10608,11 @@ llvm::Error validateRVVConversionDtypePolicyRuntimeABIFacts(
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires "
-        "provider-derived runtime ABI parameters for lhs, out, and n before "
-        "artifact export");
+        "provider-derived runtime ABI parameters for " +
+        formatRVVRuntimeABIParameterNames(contract.runtimeABIParameters) +
+        " before artifact export; route description carried " +
+        llvm::Twine(description.runtimeABIParameters.size()) +
+        " parameter(s)");
 
   for (size_t index = 0, count = contract.runtimeABIParameters.size();
        index < count; ++index) {

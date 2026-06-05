@@ -671,6 +671,8 @@ llvm::StringRef getRVVTestBinaryKind(
     return "widen_i32_to_i64";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WidenI16ToI32:
     return "widen_i16_to_i32";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::DequantizeI32ToF32:
+    return "dequantize_i32_to_f32";
   }
   llvm_unreachable("unknown RVV test binary kind");
 }
@@ -1627,6 +1629,32 @@ module {
         %product = tcrv_rvv.widening_product %lhs_vec, %rhs_vec, %vl {kind = "signed_widening_product", product_relation = "signed-i8mf4xi8mf4-to-i16mf2"} : !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
         %reduced = tcrv_rvv.standalone_reduce %product, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "signed_widening_reduce_add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
         tcrv_rvv.store %out, %reduced, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
+  if (op == OperationKind::DequantizeI32ToF32) {
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_dequant_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-dequantize-i32-to-f32:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %scale = tcrv_rvv.runtime_abi_value {c_name = "scale", c_type = "float", ownership = "target-export-abi-owned", purpose = "target-artifact-test-dequantize-i32-to-f32:scale", role = "dequant-scale-value"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "float *", ownership = "target-export-abi-owned", purpose = "target-artifact-test-dequantize-i32-to-f32:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "target-artifact-test-dequantize-i32-to-f32:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
+       << variant
+       << R"mlir(, sew = 32 : i64, source_kernel = "rvv_dequant_body_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %dequantized_vec = tcrv_rvv.dequantize %lhs_vec, %scale, %vl {dequant_relation = "signed-i32m1-to-f32m1-scale-f32", kind = "i32_to_f32_scaled"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
+        tcrv_rvv.store %out, %dequantized_vec, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<f32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
   }
@@ -9940,6 +9968,186 @@ bool expectRVVTargetArtifactExporterShape(
           staleWideningConversionNonFamilyMirror,
           "widening conversion registry rejects stale non-conversion "
           "candidate route-family mirror",
+          {"must not carry",
+           "selected typed RVV non-conversion route-family mirror"}))
+    return false;
+
+  RVVTargetArtifactCandidateFixture dequantFixture(
+      OperationKind::DequantizeI32ToF32);
+  if (!expectRVVTargetArtifactCandidateFixtureReady(
+          dequantFixture,
+          "build valid RVV dequantize_i32_to_f32 selected-body candidate "
+          "fixture"))
+    return false;
+  if (!expectSuccess(validateTargetArtifactCandidateAgainstExporter(
+                         dequantFixture.candidate, *exporter),
+                     "validate RVV dequantize_i32_to_f32 target artifact "
+                     "candidate through exporter"))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute dequantRoute;
+  RVVRouteDescription dequantDescription;
+  if (!buildRVVRouteValidationInputs(
+          dequantFixture, dequantRoute, dequantDescription,
+          "rebuild RVV dequantize_i32_to_f32 route validator inputs"))
+    return false;
+  RVVRouteValidationContext dequantContext{dequantFixture.candidate,
+                                           dequantRoute,
+                                           dequantDescription};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  dequantContext),
+          "dequantize_i32_to_f32 conversion dtype-policy registry accepts "
+          "provider facts"))
+    return false;
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  dequantContext),
+          "dequantize_i32_to_f32 conversion dtype-policy registry accepts "
+          "candidate mirrors"))
+    return false;
+
+  std::optional<tianchenrv::plugin::rvv::RVVDequantizationRouteFacts>
+      dequantFacts =
+          tianchenrv::plugin::rvv::getRVVDequantizationRouteFacts(
+              OperationKind::DequantizeI32ToF32);
+  if (!dequantFacts) {
+    llvm::errs() << "dequantize_i32_to_f32 positive fixture requires "
+                    "canonical provider-owned route facts\n";
+    return false;
+  }
+  std::optional<tianchenrv::plugin::rvv::
+                    RVVConversionDtypePolicyRouteValidationContract>
+      dequantContract = tianchenrv::plugin::rvv::
+          getRVVConversionDtypePolicyRouteValidationContract(
+              dequantDescription);
+  const auto dequantContractKind =
+      tianchenrv::plugin::rvv::
+          RVVConversionDtypePolicyRouteValidationKind::Dequantization;
+  if (!dequantContract ||
+      dequantContract->kind != dequantContractKind ||
+      dequantContract->operation != OperationKind::DequantizeI32ToF32 ||
+      dequantContract->dequantizationRouteFamilyPlanID !=
+          dequantFacts->routeFamilyPlanID ||
+      dequantContract->typedComputeOpName != dequantFacts->typedComputeOpName ||
+      dequantContract->conversionKind != dequantFacts->dequantizationKind ||
+      dequantContract->dequantizationRelation !=
+          dequantFacts->dequantizationRelation ||
+      dequantContract->dequantizeConvertIntrinsic !=
+          dequantFacts->convertIntrinsic ||
+      dequantContract->dequantizeScaleIntrinsic !=
+          dequantFacts->scaleIntrinsic ||
+      dequantContract->dequantScaleRole != dequantFacts->scaleRole ||
+      dequantContract->dequantScaleCType != dequantFacts->scaleCType ||
+      dequantContract->dequantScaleName != dequantFacts->scaleName ||
+      dequantContract->runtimeABIOrder != dequantFacts->runtimeABIOrder ||
+      dequantContract->runtimeABIParameters.size() != 4 ||
+      dequantContract->expectedLoopBodyStepCount != 5 ||
+      !tianchenrv::support::runtimeABIParametersEqual(
+          dequantContract->runtimeABIParameters,
+          dequantFacts->runtimeABIParameters)) {
+    llvm::errs() << "dequantize_i32_to_f32 conversion dtype-policy contract "
+                    "did not mirror provider-owned dequantization facts\n";
+    return false;
+  }
+
+  auto expectDequantProviderFailure =
+      [&](RVVRouteDescription mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{dequantFixture.candidate,
+                                             dequantRoute, mutated};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectDequantRouteFailure =
+      [&](const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+              &mutatedRoute,
+          llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{dequantFixture.candidate,
+                                             mutatedRoute,
+                                             dequantDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyProviderFacts(mutatedContext),
+        mutationContext, fragments);
+  };
+  auto expectDequantCandidateFailure =
+      [&](TargetArtifactCandidate mutated, llvm::StringRef mutationContext,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    RVVRouteValidationContext mutatedContext{mutated, dequantRoute,
+                                             dequantDescription};
+    return expectErrorContains(
+        tianchenrv::target::rvv::
+            validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                mutatedContext),
+        mutationContext, fragments);
+  };
+
+  RVVRouteDescription missingDequantRuntimeABI = dequantDescription;
+  missingDequantRuntimeABI.runtimeABIParameters.erase(
+      missingDequantRuntimeABI.runtimeABIParameters.begin() + 1);
+  if (!expectDequantProviderFailure(
+          missingDequantRuntimeABI,
+          "dequantize_i32_to_f32 registry rejects missing runtime scale ABI",
+          {"lhs, scale, out, n", "3 parameter"}))
+    return false;
+
+  RVVRouteDescription staleDequantScaleRole = dequantDescription;
+  staleDequantScaleRole.dequantScaleRole = "output-buffer";
+  if (!expectDequantProviderFailure(
+          staleDequantScaleRole,
+          "dequantize_i32_to_f32 registry rejects stale scale role",
+          {"dequantization relation, convert/scale intrinsics",
+           "runtime scale role/type/name facts"}))
+    return false;
+
+  RVVRouteDescription staleDequantWideningFacts = dequantDescription;
+  staleDequantWideningFacts.wideningConversionRouteFamilyPlanID =
+      "rvv-widening-conversion-route-family-plan.v1";
+  staleDequantWideningFacts.conversionRelation = "signed-i32m1-to-i64m2";
+  if (!expectDequantProviderFailure(
+          staleDequantWideningFacts,
+          "dequantize_i32_to_f32 registry rejects stale widening facts",
+          {"rejects stale widening conversion facts on dequantization "
+           "routes"}))
+    return false;
+
+  if (!expectDequantRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              dequantRoute, /*loopIndex=*/0, /*stepIndex=*/3,
+              /*operandIndex=*/1, "metadata_scale"),
+          "dequantize_i32_to_f32 registry rejects stale scale operand",
+          {"dequantization scale operand[1]", "scale", "metadata_scale"}))
+    return false;
+
+  TargetArtifactCandidate staleDequantScaleMirror = dequantFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleDequantScaleMirror,
+                                    "tcrv_rvv.dequant_scale_role",
+                                    "output-buffer")) {
+    llvm::errs() << "test fixture did not contain dequantization scale role "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectDequantCandidateFailure(
+          staleDequantScaleMirror,
+          "dequantize_i32_to_f32 registry rejects stale scale role mirror",
+          {"dequant_scale_role", "dequant-scale-value", "output-buffer"}))
+    return false;
+
+  TargetArtifactCandidate staleDequantWideningMirror = dequantFixture.candidate;
+  staleDequantWideningMirror.artifactMetadata.push_back(
+      tianchenrv::support::ArtifactMetadataEntry(
+          "tcrv_rvv.widening_conversion_route_family_plan",
+          "metadata-derived-widening-conversion"));
+  if (!expectDequantCandidateFailure(
+          staleDequantWideningMirror,
+          "dequantize_i32_to_f32 registry rejects stale widening candidate "
+          "mirror",
           {"must not carry",
            "selected typed RVV non-conversion route-family mirror"}))
     return false;

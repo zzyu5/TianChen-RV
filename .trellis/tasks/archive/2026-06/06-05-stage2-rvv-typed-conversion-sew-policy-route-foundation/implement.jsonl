@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture invariants, RVV Stage 2 authority chain, descriptor/source-front-door exclusions, and runtime evidence boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority placement for typed body/config/runtime facts, conversion coverage, selected-body realization, and Common EmitC neutrality."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built EmitC route contract, conversion dtype-policy validation contract, metadata mirror rules, header/type summaries, and target validation fail-closed requirements."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused MLIR/C++/lit/FileCheck evidence scope and ssh rvv requirement only for runtime correctness/performance claims."}

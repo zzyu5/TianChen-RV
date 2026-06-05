@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final changes against unified RISC-V MLIR boundary, typed RVV authority chain, and no descriptor/source-front-door drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin ownership of conversion dtype/config/runtime facts and no legacy i32 route-authority expansion."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-owned conversion dtype-policy contract, Common EmitC neutrality, and target metadata mirror fail-closed behavior."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused C++/lit/script evidence and correct treatment of ssh rvv applicability."}

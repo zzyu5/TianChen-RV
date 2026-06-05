@@ -294,3 +294,38 @@ unit-load/strided-store proof shapes.
 ### Next Steps
 
 - None - task complete.
+
+
+## Session 462: Stage2 RVV typed conversion SEW-policy route foundation
+
+**Date**: 2026-06-05
+**Task**: Stage2 RVV typed conversion SEW-policy route foundation
+**Branch**: `main`
+
+### Summary
+
+Added provider-contract target validation coverage for typed RVV dequantization conversion facts, repaired conversion dtype-policy spec, archived the Trellis task, and kept ssh rvv out of scope because no executable correctness/performance claim was made.
+
+### Main Changes
+
+- Implemented target-side dequantization conversion dtype-policy validation coverage for provider-derived route facts, runtime ABI order, scale role/type/name, typed compute op, relation, intrinsic family, and stale mirror rejection.
+- Repaired runtime ABI count diagnostics to report the provider-contract parameter list instead of hard-coded widening-only names.
+- Updated the EmitC route spec with dequantization conversion facts and required positive/negative target validation coverage.
+- Checks run: target artifact export test, RVV extension plugin test, focused tcrv-opt/translate dequant route pipeline, focused widening conversion diagnostics, git diff --check, and bounded old-authority scan.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

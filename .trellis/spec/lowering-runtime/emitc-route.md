@@ -3454,11 +3454,20 @@ std::optional<RVVWideningConversionRouteFacts>
 getRVVWideningConversionRouteFacts(RVVSelectedBodyOperationKind operation);
 ```
 
+The same conversion dtype-policy target consumer also covers the bounded
+runtime-scale dequantization route through provider-owned dequantization facts:
+`getRVVDequantizationRouteFacts(DequantizeI32ToF32)` carries source/result
+element type, source/result SEW-LMUL, scale ABI role/type/name, conversion
+kind, dequantization relation, convert/scale/store intrinsics, operand
+binding, header/type summaries, runtime ABI order `lhs,scale,out,n`, and
+`provider_supported_mirror`.
+
 ### Widening Conversion Route Validation Contract
 
-Scope / trigger: selected-body `widen_i32_to_i64` and `widen_i16_to_i32`
-routes must expose a provider-owned validation contract before target artifact
-validation accepts rebuilt route payloads or candidate metadata mirrors.
+Scope / trigger: selected-body `widen_i32_to_i64`, `widen_i16_to_i32`, and
+`dequantize_i32_to_f32` routes must expose a provider-owned conversion
+dtype-policy validation contract before target artifact validation accepts
+rebuilt route payloads or candidate metadata mirrors.
 
 Signatures:
 
@@ -3476,10 +3485,16 @@ struct RVVConversionDtypePolicyRouteValidationContract {
   std::string resultLMUL;
   std::string conversionKind;
   std::string conversionRelation;
+  std::string dequantizationRelation;
+  std::string dequantizeConvertIntrinsic;
+  std::string dequantizeScaleIntrinsic;
+  std::string dequantScaleRole;
+  std::string dequantScaleCType;
+  std::string dequantScaleName;
   std::string sourceMemoryForm;
   std::string destinationMemoryForm;
   std::string runtimeABIOrder;
-  llvm::SmallVector<RuntimeABIParameter, 3> runtimeABIParameters;
+  llvm::SmallVector<RuntimeABIParameter, 4> runtimeABIParameters;
   RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;
   llvm::SmallVector<RVVConversionDtypePolicyRouteTypeMappingContract, 3>
       typeMappings;
@@ -3501,9 +3516,9 @@ getRVVConversionDtypePolicyRouteMetadataMirrorContract(
 Contracts:
 
 - The validation contract must be built from
-  `getRVVWideningConversionRouteFacts(description.operation)` and selected
-  route statement names. Unsupported/non-conversion operations return
-  `std::nullopt`.
+  `getRVVWideningConversionRouteFacts(description.operation)` or
+  `getRVVDequantizationRouteFacts(description.operation)` plus selected route
+  statement names. Unsupported/non-conversion operations return `std::nullopt`.
 - Target artifact route-family validation is a consume-only client: it compares
   the embedded `RVVRuntimeAVLVLSelectedBoundaryContract` before accepting
   rebuilt route id, headers, type mappings, ABI mappings, source/result dtype
@@ -3542,6 +3557,12 @@ Validation & error matrix:
 - Route id, required header, type mapping, ABI parameter, source/result dtype,
   source/result SEW/LMUL, conversion kind/relation, memory form, intrinsic, or
   statement-plan mismatch -> fail before artifact export.
+- Runtime ABI parameter count diagnostics must name the provider-contract ABI
+  order rather than hard-code a widening-only list: widening conversion expects
+  `lhs, out, n`; dequantization expects `lhs, scale, out, n`.
+- Dequantization-specific stale scale role/type/name, dequantization relation,
+  convert intrinsic, scale intrinsic, or stale widening conversion route-family
+  facts -> fail before artifact export.
 - Candidate mirror missing/stale or stale non-conversion mirror present -> fail
   before accepting candidate metadata.
 
@@ -3550,8 +3571,14 @@ Good/base/bad:
 - Good: typed widening conversion body -> provider facts -> conversion
   validation contract -> target validator consumes contract -> metadata mirrors
   checked separately as mirrors.
+- Good: typed dequantize_i32_to_f32 body/config/runtime facts, including
+  explicit `scale` runtime ABI value -> dequantization facts -> the same
+  conversion dtype-policy validation contract -> target validator consumes the
+  dequantization branch and checks mirrors separately.
 - Base: `widen_i32_to_i64` and `widen_i16_to_i32` expose contracts derived
-  from their existing canonical widening conversion facts.
+  from their existing canonical widening conversion facts;
+  `dequantize_i32_to_f32` exposes the same contract kind through canonical
+  dequantization facts.
 - Bad: target artifact validation reconstructs conversion semantics from route
   ids, artifact metadata, C strings, test names, or local target tables.
 
@@ -3571,8 +3598,14 @@ Tests required:
   diagnostics.
 - C++ target artifact tests must mutate route payload fields and metadata
   mirrors to prove fail-closed behavior.
+- C++ target artifact tests must cover `dequantize_i32_to_f32` as a
+  conversion dtype-policy consumer, including positive contract access,
+  provider-derived `lhs,scale,out,n` runtime ABI order, stale scale role,
+  stale widening conversion facts on dequantization routes, stale scale route
+  operands, stale dequant scale mirrors, and stale widening candidate mirrors.
 - Focused conversion lit/dry-run fixtures must continue to pass for existing
-  `widen_i32_to_i64` and `widen_i16_to_i32` artifact flows.
+  `widen_i32_to_i64`, `widen_i16_to_i32`, and `dequantize_i32_to_f32`
+  artifact flows.
 
 The accessor is the canonical provider-owned fact surface for
 `widen_i32_to_i64` and `widen_i16_to_i32`. `widen_i32_to_i64` facts must include
@@ -3584,12 +3617,18 @@ family plan, route operand binding plan/summary, required headers, C type
 mapping, target leaf profile, runtime ABI parameter facts, and explicit
 `provider_supported_mirror`. `widen_i16_to_i32` facts must carry the analogous
 source `i16/mf2`, result `i32/m1`, conversion kind `sign_extend_widen_vf2`,
-and relation `signed-i16mf2-to-i32m1` facts.
+and relation `signed-i16mf2-to-i32m1` facts. `dequantize_i32_to_f32` facts
+must carry source `i32/m1`, result `f32/m1`, runtime ABI order
+`lhs,scale,out,n`, conversion kind `i32_to_f32_scaled`, dequantization
+relation `signed-i32m1-to-f32m1-scale-f32`, scale role
+`dequant-scale-value`, scale C type `float`, scale ABI name `scale`, and
+provider-owned convert/scale intrinsic facts.
 
 Provider route-family plan derivation may use typed body/config/runtime facts
 to select the operation, but every shared constant above must be copied from
-`getRVVWideningConversionRouteFacts(...)` or validated against it. Target
-artifact validation must consume
+`getRVVWideningConversionRouteFacts(...)`,
+`getRVVDequantizationRouteFacts(...)`, or validated against the corresponding
+fact accessor. Target artifact validation must consume
 `getRVVConversionDtypePolicyRouteValidationContract(...)`, then consume the
 embedded runtime AVL/VL contract before rejecting stale local copies of
 source/result element type, source/result SEW-LMUL, tail/mask policy,
@@ -3603,6 +3642,12 @@ Good:
 typed widen_i32_to_i64 body/config/runtime facts
   -> getRVVWideningConversionRouteFacts(WidenI32ToI64)
   -> widening conversion route-family plan
+  -> provider-built TCRVEmitCLowerableRoute
+  -> target validator consumes the provider validation contract
+
+typed dequantize_i32_to_f32 body/config/runtime facts
+  -> getRVVDequantizationRouteFacts(DequantizeI32ToF32)
+  -> dequantization route-family plan
   -> provider-built TCRVEmitCLowerableRoute
   -> target validator consumes the provider validation contract
 ```
@@ -3620,7 +3665,8 @@ Required tests:
   leaf/profile, source/result element type, source/result SEW-LMUL,
   tail/mask policy, conversion kind/relation, source/destination memory form,
   route-family plan, route operand binding plan/summary, runtime ABI parameter
-  facts, and stale non-conversion route-family mirrors.
+  facts, dequantization scale facts, and stale non-conversion/cross-conversion
+  route-family mirrors.
 - Generated-bundle dry-run must expose provider-derived conversion facts and
   mirror fields.
 - Runtime RVV correctness claims still require real `ssh rvv` execution after
