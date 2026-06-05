@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV RVV-first authority chain, Stage2 boundary, and forbidden route-authority sources."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected-body realization, MAcc owner boundary, computed-mask facts, and fail-closed provider requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC neutrality plus provider-owned computed-mask MAcc fact, mirror, operand-binding, and route validation contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Computed-mask MAcc generated-bundle evidence requirements and RVV runtime correctness policy."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected variant and mirror-only route/artifact metadata checklist for Stage2 typed RVV coverage."}

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final behavior against global RVV-first Stage2 route authority and no descriptor/source-front-door drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin owns computed-mask MAcc realization/provider facts and fails closed on stale/missing facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC neutrality and target artifact validation consume provider-owned MAcc contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify generated-bundle and optional ssh rvv evidence matches computed-mask MAcc requirements."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Verify selected-body and mirror-only artifact metadata discipline."}

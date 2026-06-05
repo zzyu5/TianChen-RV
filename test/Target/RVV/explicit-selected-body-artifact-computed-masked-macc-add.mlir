@@ -67,6 +67,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.mask_memory_form", value = "compare-produced-mask"}
 // PLAN-SAME: {key = "tcrv_rvv.inactive_lane_contract", value = "masked-macc-false-lanes-preserve-accumulator"}
 // PLAN-SAME: {key = "tcrv_rvv.masked_passthrough_layout", value = "accumulator-vector-preserves-inactive-lanes"}
+// PLAN-SAME: {key = "tcrv_rvv.macc_arithmetic_kind", value = "add"}
 // PLAN-SAME: {key = "tcrv_rvv.macc_accumulator_layout", value = "separate-i32-vector-accumulator-input"}
 // PLAN-SAME: {key = "tcrv_rvv.macc_result_layout", value = "store-multiply-accumulate-result-to-output-buffer"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-computed-masked-macc-add-callable-c-abi.v1"
@@ -80,8 +81,14 @@ module {
 // HEADER: tianchenrv.rvv.runtime_avl_source: runtime_abi:n
 // HEADER: tianchenrv.rvv.runtime_abi_order: cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n
 // HEADER: tianchenrv.rvv.compare_predicate_kind: slt
+// HEADER: tianchenrv.rvv.mask_role: predicate-mask-produced-by-compare
+// HEADER: tianchenrv.rvv.mask_source: compare-produced-mask-same-vl-scope
+// HEADER: tianchenrv.rvv.mask_memory_form: compare-produced-mask
 // HEADER: tianchenrv.rvv.inactive_lane_contract: masked-macc-false-lanes-preserve-accumulator
 // HEADER: tianchenrv.rvv.masked_passthrough_layout: accumulator-vector-preserves-inactive-lanes
+// HEADER: tianchenrv.rvv.macc_accumulator_layout: separate-i32-vector-accumulator-input
+// HEADER: tianchenrv.rvv.macc_result_layout: store-multiply-accumulate-result-to-output-buffer
+// HEADER: tianchenrv.rvv.macc_arithmetic_kind: add
 // HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-typed-computed-mask-macc-add-leaf-profile.v1
 // HEADER: tianchenrv.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
 // HEADER: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-computed-mask-macc-add-plan-validated

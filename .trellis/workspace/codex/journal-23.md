@@ -769,3 +769,61 @@ MAcc generated-bundle evidence contract already covered this behavior.
 ### Next Steps
 
 - Archive the Trellis task and create one coherent commit.
+
+
+## Session 466: Stage2 RVV computed-mask MAcc selected-body route foundation
+
+**Date**: 2026-06-05
+**Task**: Stage2 RVV computed-mask MAcc selected-body route foundation
+**Branch**: `main`
+
+### Summary
+
+Closed computed-mask `macc_add` selected-body route foundation with
+provider/header mirror evidence, stale mask/arithmetic fail-closed checks,
+explicit and pre-realized generated-bundle dry-runs, and real `ssh rvv`
+correctness for counts `0,1,16,17,257`.
+
+### Main Changes
+
+- Added explicit and pre-realized target fixture checks for provider-derived
+  mask role/source/form, MAcc arithmetic kind, accumulator/result layout, and
+  header mirrors.
+- Added pre-realized target artifact stale-mirror negative checks for mask
+  role, mask memory form, and MAcc arithmetic kind.
+- Kept production C++ provider/materializer/target semantics unchanged because
+  the current provider-owned MAcc contracts and target validation already
+  support `computed_masked_macc_add`.
+
+### Git Commits
+
+- included-in-this-commit
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Direct FileCheck equivalents for explicit/pre-realized computed-mask
+  MAcc plan/header/realization paths and stale mask/arithmetic mirrors
+- [OK] `build/bin/tcrv-opt test/Dialect/RVV/masked-macc-dataflow.mlir --split-input-file --verify-diagnostics`
+- [OK] `build/bin/tcrv-opt test/Dialect/RVV/pre-realized-computed-mask-macc-negative.mlir --split-input-file --verify-diagnostics`
+- [OK] Explicit and pre-realized generated-bundle dry-runs for
+  `computed_masked_macc_add`
+- [OK] Explicit and pre-realized real `ssh rvv` generated-bundle runs for
+  `computed_masked_macc_add`, both passing
+  `PASS op=computed_masked_macc_add counts=0,1,16,17,257 patterns=0,1`
+- [OK] `git diff --check`
+- [OK] Trellis task validation and added-line authority scan
+
+### Status
+
+[OK] **Completed** as executable computed-mask MAcc selected-body route
+foundation. No `.trellis/spec/` update was needed because the existing RVV
+plugin, EmitC-route, and testing contracts already captured the provider-owned
+computed-mask MAcc behavior.
+
+### Next Steps
+
+- None - task complete
