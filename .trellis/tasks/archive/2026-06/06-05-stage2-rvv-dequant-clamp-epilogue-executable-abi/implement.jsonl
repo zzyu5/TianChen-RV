@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture boundary, RVV-first stage order, and typed-body executable authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected-body realization boundary, provider route authority, and no legacy/name/metadata authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality, provider-built route payloads, operand binding summaries, and target mirror validation."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Executable emission and runtime ABI boundary for typed RVV body to target artifact evidence."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle dry-run, ssh rvv correctness evidence, f32 tolerance, and tail/source preservation requirements."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first checks for typed/config/runtime facts and avoiding metadata-derived route authority."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep RVV-specific legality, realization, route planning, type/intrinsic mapping, and ABI mapping plugin-local."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Avoid high-level/frontend drift and keep compute semantics in typed RVV extension bodies."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-stage2-rvv-dequant-clamp-epilogue-executable-abi/prd.md", "reason": "Task-specific executable closure scope, acceptance criteria, and non-goals."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-stage2-rvv-dequant-clamp-epilogue-composition-foundation/prd.md", "reason": "Previous route-supported foundation and explicit no-executable-correctness boundary."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Added neutral generated-bundle ABI harness/evidence support for pre-realized dequant_clamp_f32_epilogue, including six-argument ABI prototype, metadata boundary checks, materialized EmitC boundary checks, reference calculation, source preservation, tail sentinel preservation, and ssh rvv pass-marker handling."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-dequant-clamp-dry/dequant_clamp_f32_epilogue/evidence.json", "reason": "Dry-run generated-bundle evidence for the selected pre-realized dequant-clamp fixture and realization-before-emission path."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-dequant-clamp-ssh/dequant_clamp_f32_epilogue/evidence.json", "reason": "ssh rvv compile/run correctness evidence for the generated dequant-clamp f32 epilogue external ABI."}

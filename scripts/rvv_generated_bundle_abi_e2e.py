@@ -97,6 +97,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "widening_product_reduce_add",
     "widening_product_reduce_dequantize_f32",
     "f32_clamp_select",
+    "dequant_clamp_f32_epilogue",
     "strided_input_widening_dot_reduce_add",
     "computed_masked_widening_dot_reduce_add",
     "computed_masked_strided_input_widening_dot_reduce_add",
@@ -1143,6 +1144,59 @@ F32_CLAMP_SELECT_STORE_INTRINSIC = "__riscv_vse32_v_f32m1"
 F32_CLAMP_SELECT_OUT_SENTINEL = "-76543.25f"
 F32_CLAMP_SELECT_ABS_TOLERANCE = 0.00001
 DEFAULT_F32_CLAMP_BOUND_PAIRS = ((-1.5, 2.25), (-8.0, -0.75))
+DEQUANT_CLAMP_F32_EPILOGUE_RUNTIME_ABI_ORDER = (
+    "lhs,scale,lower_bound,upper_bound,out,n"
+)
+DEQUANT_CLAMP_F32_EPILOGUE_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:dequant_clamp_f32_epilogue.v1"
+)
+DEQUANT_CLAMP_F32_EPILOGUE_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:dequant_clamp_f32_epilogue.v1;"
+    "lhs=lhs-input-buffer:lhs:abi|src-load|deq-src|i32m1|i32-f32-scale|"
+    "lcmp|lselF|hdr;"
+    "scale=dequant-scale-value:scale:abi|scale|sf32|hdr;"
+    "lower_bound=lower-bound-scalar-value:lower_bound:abi|lsp|lcmp|lselT|hdr;"
+    "upper_bound=upper-bound-scalar-value:upper_bound:abi|usp|ucmp|uselT|hdr;"
+    "out=output-buffer:out:abi|store|dequant-result|res-f32m1|"
+    "i32-f32-scale|hdr;"
+    "n=runtime-element-count:n:abi|setvl|loop|hdr"
+)
+DEQUANT_CLAMP_F32_EPILOGUE_ROUTE_FAMILY_PLAN = (
+    "rvv-dequant-clamp-f32-epilogue-route-family-plan.v1"
+)
+DEQUANT_CLAMP_F32_EPILOGUE_MASK_PRODUCER_SOURCE = (
+    "i32-to-f32-dequant-then-two-compare-two-select-f32-clamp-same-vl-scope"
+)
+DEQUANT_CLAMP_F32_EPILOGUE_MASK_ROLE = (
+    "predicate-mask-produced-by-dequantized-f32-bound-compare"
+)
+DEQUANT_CLAMP_F32_EPILOGUE_MASK_SOURCE = (
+    "dequantized-f32-lower-upper-bound-compare-produced-masks"
+)
+DEQUANT_CLAMP_F32_EPILOGUE_MASK_MEMORY_FORM = (
+    "two-dequantized-f32-compare-produced-masks"
+)
+DEQUANT_CLAMP_F32_EPILOGUE_TARGET_LEAF_PROFILE = (
+    "rvv-v1-i32m1-to-f32m1-runtime-scale-lower-upper-clamp-select-leaf-profile.v1"
+)
+DEQUANT_CLAMP_F32_EPILOGUE_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-dequant-clamp-f32-epilogue-plan-validated"
+)
+DEQUANT_CLAMP_F32_EPILOGUE_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+DEQUANT_CLAMP_F32_EPILOGUE_C_TYPE_MAPPING = (
+    "vl:size_t,source:signed-e32m1,converted/scaled:float-e32m1,"
+    "scale:float,lower:float,upper:float,mask:f32m1-predicate,result:f32m1"
+)
+DEQUANT_CLAMP_F32_EPILOGUE_CLAMP_RELATION = (
+    "i32-input-runtime-scale-dequant-lower-select-then-upper-select-f32-runtime-bounds"
+)
+DEQUANT_CLAMP_F32_EPILOGUE_MEMORY_FORM = (
+    "unit-stride-dequant-clamp-f32-epilogue"
+)
+DEQUANT_CLAMP_F32_EPILOGUE_SOURCE_VECTOR_TYPE = '!tcrv_rvv.vector<i32, "m1">'
+DEQUANT_CLAMP_F32_EPILOGUE_RESULT_VECTOR_TYPE = '!tcrv_rvv.vector<f32, "m1">'
 BASE_MEMORY_MOVEMENT_ROUTE_FAMILY_PLAN = (
     "rvv-base-memory-movement-route-family-plan.v1"
 )
@@ -2231,6 +2285,12 @@ class OpExpectation:
                 f"void {self.function_name}(const int32_t *lhs, "
                 "float scale, float *out, size_t n);"
             )
+        if self.is_dequant_clamp_f32_epilogue:
+            return (
+                f"void {self.function_name}(const int32_t *lhs, "
+                "float scale, float lower_bound, float upper_bound, "
+                "float *out, size_t n);"
+            )
         if self.is_widening_product_reduce_dequantize_f32:
             return (
                 f"void {self.function_name}(const int8_t *lhs, "
@@ -2347,6 +2407,8 @@ class OpExpectation:
             return EXPECTED_RUNTIME_SCALAR_COMPUTED_MASKED_MACC_RUNTIME_PARAMETERS
         if self.is_widening_product_reduce_dequantize_f32:
             return EXPECTED_WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RUNTIME_PARAMETERS
+        if self.is_dequant_clamp_f32_epilogue:
+            return EXPECTED_DEQUANT_CLAMP_F32_EPILOGUE_RUNTIME_PARAMETERS
         if self.is_f32_clamp_select:
             return EXPECTED_F32_CLAMP_SELECT_RUNTIME_PARAMETERS
         if self.is_widening_product_reduce_add:
@@ -2485,6 +2547,8 @@ class OpExpectation:
             return WIDENING_MACC_RUNTIME_ABI_ORDER
         if self.is_widening_product_reduce_dequantize_f32:
             return WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RUNTIME_ABI_ORDER
+        if self.is_dequant_clamp_f32_epilogue:
+            return DEQUANT_CLAMP_F32_EPILOGUE_RUNTIME_ABI_ORDER
         if self.is_f32_clamp_select:
             return F32_CLAMP_SELECT_RUNTIME_ABI_ORDER
         if self.is_widening_product_reduce_add:
@@ -2635,10 +2699,19 @@ class OpExpectation:
         return self.kind == "f32_clamp_select"
 
     @property
+    def is_dequant_clamp_f32_epilogue(self) -> bool:
+        return self.kind == "dequant_clamp_f32_epilogue"
+
+    @property
+    def uses_runtime_f32_clamp_bounds(self) -> bool:
+        return self.is_f32_clamp_select or self.is_dequant_clamp_f32_epilogue
+
+    @property
     def uses_runtime_dequant_scale(self) -> bool:
         return (
             self.is_dequantize_i32_to_f32
             or self.is_widening_product_reduce_dequantize_f32
+            or self.is_dequant_clamp_f32_epilogue
         )
 
     @property
@@ -5396,6 +5469,41 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         element_c_type="float",
         compare_predicate_kind="slt",
     ),
+    "dequant_clamp_f32_epilogue": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["dequantize_i32_to_f32"],
+        kind="dequant_clamp_f32_epilogue",
+        input_path=Path(
+            "test/Target/RVV/pre-realized-selected-body-artifact-dequant-clamp-f32-epilogue.mlir"
+        ),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_rvv_dequant_clamp_f32_epilogue",
+        external_abi_name=(
+            "rvv-generic-dequant-clamp-f32-epilogue-callable-c-abi.v1"
+        ),
+        function_name=(
+            "tcrv_emitc_pre_realized_dequant_clamp_f32_epilogue_kernel_"
+            "pre_realized_rvv_dequant_clamp_f32_epilogue"
+        ),
+        emitc_route="rvv-generic-dequant-clamp-f32-epilogue-emitc-route",
+        typed_compute_op="tcrv_rvv.select",
+        memory_form=DEQUANT_CLAMP_F32_EPILOGUE_MEMORY_FORM,
+        lhs_initializer=(
+            "(int32_t)(((index % 6) == 0) ? -24 : "
+            "((index % 6) == 1 ? -12 : "
+            "((index % 6) == 2 ? -4 : "
+            "((index % 6) == 3 ? 0 : "
+            "((index % 6) == 4 ? 8 : 32)))))"
+        ),
+        rhs_initializer="unused",
+        expected_expression=(
+            "scaled < lower_bound ? lower_bound : "
+            "(scaled > upper_bound ? upper_bound : scaled)"
+        ),
+        out_initializer=F32_CLAMP_SELECT_OUT_SENTINEL,
+        sew="32",
+        element_c_type="float",
+        compare_predicate_kind="slt",
+    ),
     "strided_input_widening_dot_reduce_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
         kind="strided_input_widening_dot_reduce_add",
@@ -6343,6 +6451,34 @@ EXPECTED_F32_CLAMP_SELECT_RUNTIME_PARAMETERS = (
     },
     EXPECTED_RUNTIME_PARAMETERS[3],
 )
+EXPECTED_DEQUANT_CLAMP_F32_EPILOGUE_RUNTIME_PARAMETERS = (
+    EXPECTED_RUNTIME_PARAMETERS[0],
+    {
+        "c_name": "scale",
+        "c_type": "float",
+        "role": "dequant-scale-value",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "lower_bound",
+        "c_type": "float",
+        "role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "upper_bound",
+        "c_type": "float",
+        "role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "out",
+        "c_type": "float *",
+        "role": "output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_RUNTIME_PARAMETERS[3],
+)
 EXPECTED_WIDENING_MACC_RUNTIME_PARAMETERS = (
     {
         "c_name": "lhs",
@@ -7205,6 +7341,8 @@ def run_command(
     input_data: bytes | None = None,
     timeout: int = DEFAULT_TIMEOUT_SECONDS,
     cwd: Path | None = None,
+    stdout_limit: int | None = 8192,
+    stderr_limit: int | None = 8192,
 ) -> dict[str, Any]:
     started = utc_timestamp()
     try:
@@ -7222,8 +7360,8 @@ def run_command(
             "started_at": started,
             "finished_at": utc_timestamp(),
             "exit_code": result.returncode,
-            "stdout": sanitize_text(result.stdout, limit=8192),
-            "stderr": sanitize_text(result.stderr, limit=8192),
+            "stdout": sanitize_text(result.stdout, limit=stdout_limit),
+            "stderr": sanitize_text(result.stderr, limit=stderr_limit),
         }
     except subprocess.TimeoutExpired as exc:
         return {
@@ -7232,8 +7370,8 @@ def run_command(
             "finished_at": utc_timestamp(),
             "exit_code": None,
             "timeout": True,
-            "stdout": sanitize_text(exc.stdout, limit=8192),
-            "stderr": sanitize_text(exc.stderr, limit=8192),
+            "stdout": sanitize_text(exc.stdout, limit=stdout_limit),
+            "stderr": sanitize_text(exc.stderr, limit=stderr_limit),
         }
     except OSError as exc:
         return {
@@ -9217,6 +9355,79 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
+    if expectation.is_dequant_clamp_f32_epilogue:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.compare_predicate_kind": (
+                    F32_CLAMP_SELECT_LOWER_COMPARE_PREDICATE
+                ),
+                "tcrv_rvv.secondary_compare_predicate_kind": (
+                    F32_CLAMP_SELECT_UPPER_COMPARE_PREDICATE
+                ),
+                "tcrv_rvv.computed_mask_select_route_family_plan": (
+                    DEQUANT_CLAMP_F32_EPILOGUE_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.computed_mask_select_mask_producer_source": (
+                    DEQUANT_CLAMP_F32_EPILOGUE_MASK_PRODUCER_SOURCE
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    DEQUANT_CLAMP_F32_EPILOGUE_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    DEQUANT_CLAMP_F32_EPILOGUE_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    DEQUANT_CLAMP_F32_EPILOGUE_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": (
+                    DEQUANT_CLAMP_F32_EPILOGUE_C_TYPE_MAPPING
+                ),
+                "tcrv_rvv.source_memory_form": "unit-stride-load",
+                "tcrv_rvv.destination_memory_form": "unit-stride-store",
+                "tcrv_rvv.mask_role": DEQUANT_CLAMP_F32_EPILOGUE_MASK_ROLE,
+                "tcrv_rvv.mask_source": DEQUANT_CLAMP_F32_EPILOGUE_MASK_SOURCE,
+                "tcrv_rvv.mask_memory_form": (
+                    DEQUANT_CLAMP_F32_EPILOGUE_MASK_MEMORY_FORM
+                ),
+                "tcrv_rvv.select_layout": F32_CLAMP_SELECT_SELECT_LAYOUT,
+                "tcrv_rvv.lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+                "tcrv_rvv.upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+                "tcrv_rvv.lower_bound_c_type": "float",
+                "tcrv_rvv.upper_bound_c_type": "float",
+                "tcrv_rvv.bound_order": F32_CLAMP_SELECT_BOUND_ORDER,
+                "tcrv_rvv.clamp_relation": (
+                    DEQUANT_CLAMP_F32_EPILOGUE_CLAMP_RELATION
+                ),
+                "tcrv_rvv.source_vector_type": (
+                    DEQUANT_CLAMP_F32_EPILOGUE_SOURCE_VECTOR_TYPE
+                ),
+                "tcrv_rvv.source_vector_c_type": (
+                    DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE
+                ),
+                "tcrv_rvv.source_vector_load_intrinsic": (
+                    DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC
+                ),
+                "tcrv_rvv.dequantization_relation": (
+                    DEQUANTIZE_I32_TO_F32_RELATION
+                ),
+                "tcrv_rvv.dequantize_convert_intrinsic": (
+                    DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC
+                ),
+                "tcrv_rvv.dequantize_scale_intrinsic": (
+                    DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
+                ),
+                "tcrv_rvv.dequant_scale_role": "dequant-scale-value",
+                "tcrv_rvv.dequant_scale_c_type": "float",
+                "tcrv_rvv.dequant_scale_name": "scale",
+                "tcrv_rvv.route_operand_binding_plan": (
+                    DEQUANT_CLAMP_F32_EPILOGUE_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    DEQUANT_CLAMP_F32_EPILOGUE_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+            }
+        )
     if (
         expectation.is_widening_macc_add
         or expectation.is_widening_dot_reduce_add
@@ -9623,6 +9834,7 @@ def verify_emitted_rvv_cpp(
     compare_select_predicate_boundary: dict[str, Any] = {}
     conversion_sew_policy_boundary: dict[str, Any] = {}
     dequantization_boundary: dict[str, Any] = {}
+    dequant_clamp_epilogue_boundary: dict[str, Any] = {}
     reduction_accumulation_boundary: dict[str, Any] = {}
     vector_reduction_boundary: dict[str, Any] = {}
     multiply_accumulate_boundary: dict[str, Any] = {}
@@ -9948,6 +10160,71 @@ def verify_emitted_rvv_cpp(
             text, expectation
         )
         runtime_avl_vl_boundary = dequantization_boundary[
+            "runtime_avl_vl_control"
+        ]
+    if expectation.is_dequant_clamp_f32_epilogue:
+        vector_c_type = DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE
+        intrinsics = [
+            F32_CLAMP_SELECT_SETVL_INTRINSIC,
+            DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC,
+            DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
+            DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
+            F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+            F32_CLAMP_SELECT_COMPARE_INTRINSIC,
+            F32_CLAMP_SELECT_SELECT_INTRINSIC,
+            F32_CLAMP_SELECT_STORE_INTRINSIC,
+        ]
+        for token, context in (
+            (
+                DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE,
+                "emitted RVV C/C++ dequant-clamp i32 source vector C type",
+            ),
+            (
+                DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE,
+                "emitted RVV C/C++ dequant-clamp f32 result vector C type",
+            ),
+            (
+                F32_CLAMP_SELECT_MASK_C_TYPE,
+                "emitted RVV C/C++ dequant-clamp f32 mask C type",
+            ),
+        ):
+            require_contains(text, token, context)
+        for intrinsic in intrinsics:
+            require_contains(
+                text,
+                intrinsic,
+                "emitted RVV C/C++ dequant-clamp epilogue intrinsic spelling",
+            )
+        dequant_clamp_epilogue_boundary = (
+            extract_dequant_clamp_f32_epilogue_emitc_boundary(text, expectation)
+        )
+        dequantization_boundary = {
+            "typed_compute_op": "tcrv_rvv.dequantize",
+            "source_vector_type": DEQUANT_CLAMP_F32_EPILOGUE_SOURCE_VECTOR_TYPE,
+            "result_vector_type": DEQUANT_CLAMP_F32_EPILOGUE_RESULT_VECTOR_TYPE,
+            "source_element_type": "i32",
+            "result_element_type": "f32",
+            "source_sew": "32",
+            "source_lmul": "m1",
+            "result_sew": "32",
+            "result_lmul": "m1",
+            "scale_abi_role": "dequant-scale-value",
+            "scale_c_type": "float",
+            "dequantization_relation": DEQUANTIZE_I32_TO_F32_RELATION,
+            "conversion_kind": DEQUANTIZE_I32_TO_F32_CONVERSION_KIND,
+            "runtime_avl_vl_control": dequant_clamp_epilogue_boundary[
+                "runtime_avl_vl_control"
+            ],
+            "source_vector": dequant_clamp_epilogue_boundary["source_vector"],
+            "converted_vector": dequant_clamp_epilogue_boundary[
+                "converted_vector"
+            ],
+            "scaled_vector": dequant_clamp_epilogue_boundary["scaled_vector"],
+        }
+        compare_select_predicate_boundary = dequant_clamp_epilogue_boundary[
+            "compare_select_predicate_boundary"
+        ]
+        runtime_avl_vl_boundary = dequant_clamp_epilogue_boundary[
             "runtime_avl_vl_control"
         ]
     if expectation.is_reduce_add:
@@ -10405,6 +10682,7 @@ def verify_emitted_rvv_cpp(
         "compare_select_predicate_boundary": compare_select_predicate_boundary,
         "conversion_sew_policy_boundary": conversion_sew_policy_boundary,
         "dequantization_boundary": dequantization_boundary,
+        "dequant_clamp_epilogue_boundary": dequant_clamp_epilogue_boundary,
         "reduction_accumulation_boundary": reduction_accumulation_boundary,
         "vector_reduction_boundary": vector_reduction_boundary,
         "multiply_accumulate_boundary": multiply_accumulate_boundary,
@@ -12094,6 +12372,205 @@ def extract_f32_clamp_select_emitc_boundary(
     }
 
 
+def extract_dequant_clamp_f32_epilogue_emitc_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    signature = require_regex(
+        text,
+        rf"extern \"C\" void {re.escape(expectation.function_name)}"
+        r"\(const int32_t\s*\*\s*(?P<lhs>v[0-9]+), "
+        r"float (?P<scale>v[0-9]+), "
+        r"float (?P<lower_bound>v[0-9]+), "
+        r"float (?P<upper_bound>v[0-9]+), "
+        r"float\s*\*\s*(?P<out>v[0-9]+), "
+        r"size_t (?P<runtime_n>v[0-9]+)\) \{",
+        "emitted RVV C/C++ dequant-clamp epilogue ABI parameters",
+    )
+    lhs = signature.group("lhs")
+    scale = signature.group("scale")
+    lower_bound = signature.group("lower_bound")
+    upper_bound = signature.group("upper_bound")
+    out = signature.group("out")
+    runtime_n = signature.group("runtime_n")
+    setvl_intrinsic = re.escape(F32_CLAMP_SELECT_SETVL_INTRINSIC)
+    full_chunk = require_regex(
+        text,
+        rf"size_t (?P<full_chunk_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\({runtime_n}\);",
+        "emitted RVV C/C++ dequant-clamp full-chunk setvl",
+    )
+    full_chunk_vl = full_chunk.group("full_chunk_vl")
+    loop = require_regex(
+        text,
+        rf"for \(size_t (?P<offset>v[0-9]+) = 0; "
+        rf"(?P=offset) < {runtime_n}; "
+        rf"(?P=offset) \+= {full_chunk_vl}\) \{{",
+        "emitted RVV C/C++ dequant-clamp runtime loop",
+    )
+    offset = loop.group("offset")
+    remaining = require_regex(
+        text,
+        rf"size_t (?P<remaining_avl>v[0-9]+) = {runtime_n} - {offset};\s*"
+        rf"size_t (?P<loop_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\((?P=remaining_avl)\);",
+        "emitted RVV C/C++ dequant-clamp remaining AVL setvl",
+    )
+    remaining_avl = remaining.group("remaining_avl")
+    loop_vl = remaining.group("loop_vl")
+    source_load = require_regex(
+        text,
+        rf"const int32_t\* (?P<src_ptr>v[0-9]+) = {lhs} \+ {offset};\s*"
+        rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
+        rf"(?P<src_vec>v[0-9]+) = "
+        rf"{re.escape(DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC)}"
+        rf"\((?P=src_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ dequant-clamp i32 source load",
+    )
+    source_vec = source_load.group("src_vec")
+    converted = require_regex(
+        text,
+        rf"{DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE} "
+        rf"(?P<converted>v[0-9]+) = "
+        rf"{re.escape(DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC)}"
+        rf"\({source_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ dequant-clamp i32-to-f32 conversion",
+    )
+    converted_vec = converted.group("converted")
+    scaled = require_regex(
+        text,
+        rf"{DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE} "
+        rf"(?P<scaled>v[0-9]+) = "
+        rf"{re.escape(DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC)}"
+        rf"\({converted_vec}, {scale}, {loop_vl}\);",
+        "emitted RVV C/C++ dequant-clamp runtime scale multiply",
+    )
+    scaled_vec = scaled.group("scaled")
+    lower_splat = require_regex(
+        text,
+        rf"{F32_CLAMP_SELECT_VECTOR_C_TYPE} (?P<lower_vec>v[0-9]+) = "
+        rf"{re.escape(F32_CLAMP_SELECT_SPLAT_INTRINSIC)}"
+        rf"\({lower_bound}, {loop_vl}\);",
+        "emitted RVV C/C++ dequant-clamp lower-bound splat",
+    )
+    lower_vec = lower_splat.group("lower_vec")
+    upper_splat = require_regex(
+        text,
+        rf"{F32_CLAMP_SELECT_VECTOR_C_TYPE} (?P<upper_vec>v[0-9]+) = "
+        rf"{re.escape(F32_CLAMP_SELECT_SPLAT_INTRINSIC)}"
+        rf"\({upper_bound}, {loop_vl}\);",
+        "emitted RVV C/C++ dequant-clamp upper-bound splat",
+    )
+    upper_vec = upper_splat.group("upper_vec")
+    lower_compare = require_regex(
+        text,
+        rf"{F32_CLAMP_SELECT_MASK_C_TYPE} (?P<lower_mask>v[0-9]+) = "
+        rf"{re.escape(F32_CLAMP_SELECT_COMPARE_INTRINSIC)}"
+        rf"\({scaled_vec}, {lower_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ dequant-clamp lower compare",
+    )
+    lower_mask = lower_compare.group("lower_mask")
+    lower_select = require_regex(
+        text,
+        rf"{F32_CLAMP_SELECT_VECTOR_C_TYPE} (?P<lower_clamped>v[0-9]+) = "
+        rf"{re.escape(F32_CLAMP_SELECT_SELECT_INTRINSIC)}"
+        rf"\({scaled_vec}, {lower_vec}, {lower_mask}, {loop_vl}\);",
+        "emitted RVV C/C++ dequant-clamp lower select",
+    )
+    lower_clamped = lower_select.group("lower_clamped")
+    upper_compare = require_regex(
+        text,
+        rf"{F32_CLAMP_SELECT_MASK_C_TYPE} (?P<upper_mask>v[0-9]+) = "
+        rf"{re.escape(F32_CLAMP_SELECT_COMPARE_INTRINSIC)}"
+        rf"\({upper_vec}, {lower_clamped}, {loop_vl}\);",
+        "emitted RVV C/C++ dequant-clamp upper compare",
+    )
+    upper_mask = upper_compare.group("upper_mask")
+    upper_select = require_regex(
+        text,
+        rf"{F32_CLAMP_SELECT_VECTOR_C_TYPE} (?P<clamped>v[0-9]+) = "
+        rf"{re.escape(F32_CLAMP_SELECT_SELECT_INTRINSIC)}"
+        rf"\({lower_clamped}, {upper_vec}, {upper_mask}, {loop_vl}\);",
+        "emitted RVV C/C++ dequant-clamp upper select",
+    )
+    clamped = upper_select.group("clamped")
+    store = require_regex(
+        text,
+        rf"float\* (?P<out_ptr>v[0-9]+) = {out} \+ {offset};\s*"
+        rf"{re.escape(F32_CLAMP_SELECT_STORE_INTRINSIC)}"
+        rf"\((?P=out_ptr), {clamped}, {loop_vl}\);",
+        "emitted RVV C/C++ dequant-clamp f32 store",
+    )
+    runtime_avl_vl_control = {
+        "runtime_abi_parameter": runtime_n,
+        "full_chunk_vl": full_chunk_vl,
+        "offset_induction": offset,
+        "remaining_avl": remaining_avl,
+        "loop_vl": loop_vl,
+        "setvl_intrinsic": F32_CLAMP_SELECT_SETVL_INTRINSIC,
+        "full_chunk_setvl": f"{F32_CLAMP_SELECT_SETVL_INTRINSIC}({runtime_n})",
+        "loop_remaining_avl": f"{runtime_n} - {offset}",
+        "loop_setvl": f"{F32_CLAMP_SELECT_SETVL_INTRINSIC}({remaining_avl})",
+        "uses_runtime_remaining_avl": True,
+        "uses_loop_vl_for_intrinsics": True,
+    }
+    return {
+        "runtime_avl_vl_control": runtime_avl_vl_control,
+        "lhs_abi_parameter": lhs,
+        "scale_abi_parameter": scale,
+        "lower_bound_abi_parameter": lower_bound,
+        "upper_bound_abi_parameter": upper_bound,
+        "out_abi_parameter": out,
+        "runtime_n_abi_parameter": runtime_n,
+        "source_pointer": source_load.group("src_ptr"),
+        "out_pointer": store.group("out_ptr"),
+        "source_vector": source_vec,
+        "converted_vector": converted_vec,
+        "scaled_vector": scaled_vec,
+        "lower_bound_vector": lower_vec,
+        "upper_bound_vector": upper_vec,
+        "lower_predicate_mask": lower_mask,
+        "upper_predicate_mask": upper_mask,
+        "lower_clamped_vector": lower_clamped,
+        "selected_result_vector": clamped,
+        "source_load_intrinsic": DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC,
+        "convert_intrinsic": DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
+        "scale_intrinsic": DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
+        "splat_intrinsic": F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+        "compare_intrinsic": F32_CLAMP_SELECT_COMPARE_INTRINSIC,
+        "select_intrinsic": F32_CLAMP_SELECT_SELECT_INTRINSIC,
+        "store_intrinsic": F32_CLAMP_SELECT_STORE_INTRINSIC,
+        "dequantization_relation": DEQUANTIZE_I32_TO_F32_RELATION,
+        "clamp_relation": DEQUANT_CLAMP_F32_EPILOGUE_CLAMP_RELATION,
+        "compare_select_predicate_boundary": {
+            "runtime_avl_vl_control": runtime_avl_vl_control,
+            "input_abi_parameter": lhs,
+            "lower_bound_abi_parameter": lower_bound,
+            "upper_bound_abi_parameter": upper_bound,
+            "out_abi_parameter": out,
+            "input_vector": scaled_vec,
+            "lower_bound_vector": lower_vec,
+            "upper_bound_vector": upper_vec,
+            "lower_predicate_mask": lower_mask,
+            "upper_predicate_mask": upper_mask,
+            "predicate_mask_type": F32_CLAMP_SELECT_MASK_C_TYPE,
+            "lower_clamped_vector": lower_clamped,
+            "selected_result_vector": clamped,
+            "compare_predicate_kind": F32_CLAMP_SELECT_LOWER_COMPARE_PREDICATE,
+            "secondary_compare_predicate_kind": (
+                F32_CLAMP_SELECT_UPPER_COMPARE_PREDICATE
+            ),
+            "select_layout": F32_CLAMP_SELECT_SELECT_LAYOUT,
+            "lower_select_true_vector": lower_vec,
+            "lower_select_false_vector": scaled_vec,
+            "upper_select_true_vector": upper_vec,
+            "upper_select_false_vector": lower_clamped,
+            "store_uses_selected_result": True,
+            "compare_uses_loop_vl": True,
+            "select_uses_loop_vl": True,
+        },
+    }
+
+
 def extract_computed_mask_select_emitc_boundary(
     text: str, expectation: OpExpectation
 ) -> dict[str, Any]:
@@ -13188,6 +13665,7 @@ def verify_materialized_selected_body(
             extract_widening_conversion_materialized_boundary(text, expectation)
         )
     dequantization_boundary: dict[str, Any] = {}
+    dequant_clamp_epilogue_boundary: dict[str, Any] = {}
     reduction_accumulation_boundary: dict[str, Any] = {}
     vector_reduction_boundary: dict[str, Any] = {}
     multiply_accumulate_boundary: dict[str, Any] = {}
@@ -13274,6 +13752,15 @@ def verify_materialized_selected_body(
             "conversion_kind": DEQUANTIZE_I32_TO_F32_CONVERSION_KIND,
             "runtime_avl_vl_control": runtime_avl_vl_boundary,
         }
+    if expectation.is_dequant_clamp_f32_epilogue:
+        dequant_clamp_epilogue_boundary = (
+            extract_dequant_clamp_f32_epilogue_materialized_boundary(
+                text, expectation
+            )
+        )
+        compare_select_predicate_boundary = dequant_clamp_epilogue_boundary[
+            "compare_select_predicate_boundary"
+        ]
     if expectation.is_widening_macc_add:
         require_contains(
             text,
@@ -15722,6 +16209,11 @@ def verify_materialized_selected_body(
             "tcrv_rvv.typed_computed_mask_segment2_store_pre_realized_body",
             "materialized pre-realized selected-body MLIR",
         )
+        require_not_contains(
+            text,
+            "tcrv_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body",
+            "materialized pre-realized selected-body MLIR",
+        )
     require_no_forbidden_public_residue(text, "materialized selected-body MLIR")
     return {
         "path": str(materialized_path),
@@ -15737,6 +16229,7 @@ def verify_materialized_selected_body(
         "compare_select_predicate_boundary": compare_select_predicate_boundary,
         "conversion_sew_policy_boundary": conversion_sew_policy_boundary,
         "dequantization_boundary": dequantization_boundary,
+        "dequant_clamp_epilogue_boundary": dequant_clamp_epilogue_boundary,
         "reduction_accumulation_boundary": reduction_accumulation_boundary,
         "vector_reduction_boundary": vector_reduction_boundary,
         "multiply_accumulate_boundary": multiply_accumulate_boundary,
@@ -15940,6 +16433,121 @@ def extract_f32_clamp_select_materialized_boundary(
         "bound_order": F32_CLAMP_SELECT_BOUND_ORDER,
         "clamp_relation": F32_CLAMP_SELECT_CLAMP_RELATION,
         "memory_form": expectation.memory_form,
+    }
+
+
+def extract_dequant_clamp_f32_epilogue_materialized_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    require_not_contains(
+        text,
+        "tcrv_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body",
+        "materialized selected-body MLIR dequant-clamp epilogue",
+    )
+    for role in (
+        "lhs-input-buffer",
+        "dequant-scale-value",
+        F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+        F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+        "output-buffer",
+        "runtime-element-count",
+    ):
+        require_contains(
+            text,
+            f'role = "{role}"',
+            "materialized selected-body MLIR dequant-clamp ABI role",
+        )
+    for token, context in (
+        (
+            DEQUANT_CLAMP_F32_EPILOGUE_SOURCE_VECTOR_TYPE,
+            "i32 source vector type",
+        ),
+        (
+            DEQUANT_CLAMP_F32_EPILOGUE_RESULT_VECTOR_TYPE,
+            "f32 result vector type",
+        ),
+        ('!tcrv_rvv.mask<f32, "m1">', "f32 compare mask type"),
+        ("tcrv_rvv.load", "i32 source load"),
+        ("tcrv_rvv.dequantize", "runtime-scale dequantize op"),
+        ("tcrv_rvv.splat", "runtime bound splat"),
+        ("tcrv_rvv.compare", "lower/upper compare"),
+        ("tcrv_rvv.select", "lower/upper select"),
+        ("tcrv_rvv.store", "f32 store"),
+    ):
+        require_contains(
+            text,
+            token,
+            f"materialized selected-body MLIR dequant-clamp {context}",
+        )
+    for token, context in (
+        (
+            f'dequant_relation = "{DEQUANTIZE_I32_TO_F32_RELATION}"',
+            "dequant relation",
+        ),
+        (
+            f'kind = "{DEQUANTIZE_I32_TO_F32_CONVERSION_KIND}"',
+            "dequant conversion kind",
+        ),
+        (
+            f'kind = "{F32_CLAMP_SELECT_LOWER_COMPARE_PREDICATE}"',
+            "compare predicate",
+        ),
+    ):
+        require_contains(
+            text,
+            token,
+            f"materialized selected-body MLIR dequant-clamp {context}",
+        )
+    require_no_op_invocation(
+        text,
+        "tcrv_rvv.mask_load",
+        "materialized selected-body MLIR dequant-clamp",
+    )
+    require_no_op_invocation(
+        text,
+        "tcrv_rvv.binary",
+        "materialized selected-body MLIR dequant-clamp",
+    )
+    return {
+        "typed_body_source": (
+            "tcrv_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body"
+        ),
+        "pre_realized_body_consumed": True,
+        "realized_load_op": "tcrv_rvv.load",
+        "realized_dequant_op": "tcrv_rvv.dequantize",
+        "realized_bound_splat_op": "tcrv_rvv.splat",
+        "realized_compare_op": "tcrv_rvv.compare",
+        "realized_select_op": "tcrv_rvv.select",
+        "realized_store_op": "tcrv_rvv.store",
+        "source_vector_type": DEQUANT_CLAMP_F32_EPILOGUE_SOURCE_VECTOR_TYPE,
+        "result_vector_type": DEQUANT_CLAMP_F32_EPILOGUE_RESULT_VECTOR_TYPE,
+        "predicate_type": '!tcrv_rvv.mask<f32, "m1">',
+        "dequantization_relation": DEQUANTIZE_I32_TO_F32_RELATION,
+        "conversion_kind": DEQUANTIZE_I32_TO_F32_CONVERSION_KIND,
+        "compare_predicate_kind": F32_CLAMP_SELECT_LOWER_COMPARE_PREDICATE,
+        "secondary_compare_predicate_kind": (
+            F32_CLAMP_SELECT_UPPER_COMPARE_PREDICATE
+        ),
+        "select_layout": F32_CLAMP_SELECT_SELECT_LAYOUT,
+        "lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+        "upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+        "bound_order": F32_CLAMP_SELECT_BOUND_ORDER,
+        "clamp_relation": DEQUANT_CLAMP_F32_EPILOGUE_CLAMP_RELATION,
+        "memory_form": expectation.memory_form,
+        "compare_select_predicate_boundary": {
+            "typed_body_source": (
+                "tcrv_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body"
+            ),
+            "pre_realized_body_consumed": True,
+            "input_vector": "dequantized-scaled-f32-vector",
+            "realized_compare_op": "tcrv_rvv.compare",
+            "realized_select_op": "tcrv_rvv.select",
+            "predicate_type": '!tcrv_rvv.mask<f32, "m1">',
+            "select_layout": F32_CLAMP_SELECT_SELECT_LAYOUT,
+            "lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+            "upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+            "clamp_relation": DEQUANT_CLAMP_F32_EPILOGUE_CLAMP_RELATION,
+        },
     }
 
 
@@ -16568,6 +17176,223 @@ def harness_source(
         f"{lower:.9g}:{upper:.9g}" for lower, upper in f32_clamp_bound_pairs
     )
     f32_clamp_tolerance_literal = f"{F32_CLAMP_SELECT_ABS_TOLERANCE:.9g}f"
+    if expectation.is_dequant_clamp_f32_epilogue:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+struct BoundPair {{
+  float lower_bound;
+  float upper_bound;
+}};
+
+static int32_t rounded_i32_for_scaled_target(float target, float scale) {{
+  float raw = target / scale;
+  return (int32_t)(raw >= 0.0f ? raw + 0.5f : raw - 0.5f);
+}}
+
+static int32_t init_lhs(size_t index, int pattern, float scale,
+                        float lower_bound, float upper_bound) {{
+  if (pattern == 0)
+    return {expectation.lhs_initializer};
+  float span = upper_bound - lower_bound;
+  float target;
+  switch (index % 6) {{
+  case 0:
+    target = lower_bound - 8.0f;
+    break;
+  case 1:
+    target = lower_bound + span * 0.25f;
+    break;
+  case 2:
+    target = (lower_bound + upper_bound) * 0.5f;
+    break;
+  case 3:
+    target = upper_bound - span * 0.25f;
+    break;
+  case 4:
+    target = upper_bound + 8.0f;
+    break;
+  default:
+    target = (index & 1) ? (lower_bound - 4.0f) : (upper_bound + 4.0f);
+    break;
+  }}
+  return rounded_i32_for_scaled_target(target, scale);
+}}
+
+static int run_case(size_t n, int pattern, float scale,
+                    struct BoundPair bounds) {{
+  /* expected: {expectation.expected_expression} */
+  const float tolerance = {dequant_tolerance_literal};
+  const float lower_bound = bounds.lower_bound;
+  const float upper_bound = bounds.upper_bound;
+  size_t alloc_n = n == 0 ? 1 : n;
+  size_t out_alloc_n = alloc_n + 8;
+  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *lhs_before = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  float *out = (float *)malloc(sizeof(float) * out_alloc_n);
+  float *old_out = (float *)malloc(sizeof(float) * out_alloc_n);
+  int status = 0;
+  if (!lhs || !lhs_before || !out || !old_out) {{
+    fprintf(stderr,
+            "allocation failed for n=%zu pattern=%d scale=%.9g bounds=[%.9g,%.9g]\\n",
+            n, pattern, scale, lower_bound, upper_bound);
+    status = 11;
+    goto cleanup;
+  }}
+  if (scale == 0.0f) {{
+    fprintf(stderr, "{expectation.kind} requires nonzero runtime scale values\\n");
+    status = 21;
+    goto cleanup;
+  }}
+  if (!(lower_bound < upper_bound)) {{
+    fprintf(stderr,
+            "{expectation.kind} requires ordered runtime bounds lower<upper; lower=%.9g upper=%.9g\\n",
+            lower_bound, upper_bound);
+    status = 22;
+    goto cleanup;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    lhs[index] = init_lhs(index, pattern, scale, lower_bound, upper_bound);
+    lhs_before[index] = lhs[index];
+  }}
+  for (size_t index = 0; index < out_alloc_n; ++index) {{
+    out[index] = {F32_CLAMP_SELECT_OUT_SENTINEL};
+    if (pattern == 1)
+      out[index] = -65432.5f + (float)index;
+    old_out[index] = out[index];
+  }}
+
+  {expectation.function_name}(lhs, scale, lower_bound, upper_bound, out, n);
+
+  size_t below_bound_lanes = 0;
+  size_t inside_bound_lanes = 0;
+  size_t above_bound_lanes = 0;
+  size_t signed_negative_lanes = 0;
+  size_t signed_positive_lanes = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    float scaled = ((float)lhs[index]) * scale;
+    float expected = scaled < lower_bound ? lower_bound : (scaled > upper_bound ? upper_bound : scaled);
+    float delta = out[index] - expected;
+    if (delta < 0.0f)
+      delta = -delta;
+    if (scaled < lower_bound)
+      ++below_bound_lanes;
+    else if (scaled > upper_bound)
+      ++above_bound_lanes;
+    else
+      ++inside_bound_lanes;
+    if (lhs[index] < 0)
+      ++signed_negative_lanes;
+    if (lhs[index] > 0)
+      ++signed_positive_lanes;
+    if (delta > tolerance) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu pattern=%d scale=%.9g bounds=[%.9g,%.9g] index=%zu lhs=%d scaled=%.9g got=%.9g expected=%.9g delta=%.9g tolerance=%.9g\\n",
+              n, pattern, scale, lower_bound, upper_bound, index, lhs[index],
+              scaled, out[index], expected, delta, tolerance);
+      status = 12;
+      goto cleanup;
+    }}
+  }}
+  if (pattern == 1 && n > 5 &&
+      (below_bound_lanes == 0 || inside_bound_lanes == 0 ||
+       above_bound_lanes == 0 || signed_negative_lanes == 0 ||
+       signed_positive_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} coverage missing n=%zu pattern=%d scale=%.9g bounds=[%.9g,%.9g] below=%zu inside=%zu above=%zu neg=%zu pos=%zu\\n",
+            n, pattern, scale, lower_bound, upper_bound, below_bound_lanes,
+            inside_bound_lanes, above_bound_lanes, signed_negative_lanes,
+            signed_positive_lanes);
+    status = 13;
+    goto cleanup;
+  }}
+  for (size_t index = n; index < out_alloc_n; ++index) {{
+    if (out[index] != old_out[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu pattern=%d scale=%.9g bounds=[%.9g,%.9g] index=%zu got=%.9g old=%.9g\\n",
+              n, pattern, scale, lower_bound, upper_bound, index, out[index],
+              old_out[index]);
+      status = 14;
+      goto cleanup;
+    }}
+  }}
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    if (lhs[index] != lhs_before[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} source buffer mutated n=%zu pattern=%d scale=%.9g bounds=[%.9g,%.9g] index=%zu got=%d before=%d\\n",
+              n, pattern, scale, lower_bound, upper_bound, index, lhs[index],
+              lhs_before[index]);
+      status = 15;
+      goto cleanup;
+    }}
+  }}
+
+  printf("{expectation.kind} case n=%zu pattern=%d scale=%.9g bounds=[%.9g,%.9g] ok tolerance=%.9g below_bound_lanes=%zu inside_bound_lanes=%zu above_bound_lanes=%zu signed_negative_lanes=%zu signed_positive_lanes=%zu source_preserved tail_preserved\\n",
+         n, pattern, scale, lower_bound, upper_bound, tolerance,
+         below_bound_lanes, inside_bound_lanes, above_bound_lanes,
+         signed_negative_lanes, signed_positive_lanes);
+
+cleanup:
+  free(lhs);
+  free(lhs_before);
+  free(out);
+  free(old_out);
+  return status;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const float scale_values[] = {{{dequant_values_literal}}};
+  const struct BoundPair bound_pairs[] = {{{f32_clamp_bound_pairs_literal}}};
+  const size_t scale_count = sizeof(scale_values) / sizeof(scale_values[0]);
+  const size_t bound_pair_count = sizeof(bound_pairs) / sizeof(bound_pairs[0]);
+  if (scale_count < 2) {{
+    fprintf(stderr, "{expectation.kind} requires at least two runtime scale values\\n");
+    return 23;
+  }}
+  if (bound_pair_count < 2) {{
+    fprintf(stderr, "{expectation.kind} requires at least two runtime bound pairs\\n");
+    return 24;
+  }}
+  for (size_t scale_index = 0; scale_index < scale_count; ++scale_index) {{
+    if (scale_values[scale_index] == 0.0f) {{
+      fprintf(stderr, "{expectation.kind} requires nonzero runtime scale values\\n");
+      return 25;
+    }}
+  }}
+  for (size_t bound_index = 0; bound_index < bound_pair_count; ++bound_index) {{
+    if (!(bound_pairs[bound_index].lower_bound < bound_pairs[bound_index].upper_bound)) {{
+      fprintf(stderr,
+              "{expectation.kind} requires ordered runtime bound pair at index=%zu lower=%.9g upper=%.9g\\n",
+              bound_index, bound_pairs[bound_index].lower_bound,
+              bound_pairs[bound_index].upper_bound);
+      return 26;
+    }}
+  }}
+  for (size_t count_index = 0; count_index < sizeof(counts) / sizeof(counts[0]); ++count_index) {{
+    for (int pattern = 0; pattern < 2; ++pattern) {{
+      for (size_t scale_index = 0; scale_index < scale_count; ++scale_index) {{
+        for (size_t bound_index = 0; bound_index < bound_pair_count; ++bound_index) {{
+          int status = run_case(counts[count_index], pattern,
+                                scale_values[scale_index],
+                                bound_pairs[bound_index]);
+          if (status != 0)
+            return status;
+        }}
+      }}
+    }}
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1 scales={dequant_values_summary} bound_pairs={f32_clamp_bound_pairs_summary} tolerance={DEQUANT_FLOAT_ABS_TOLERANCE:.9g} source_preserved tail_preserved\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1 scales={dequant_values_summary} bound_pairs={f32_clamp_bound_pairs_summary} tolerance={DEQUANT_FLOAT_ABS_TOLERANCE:.9g}\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_f32_clamp_select:
         return f"""
 #include <stddef.h>
@@ -23214,11 +24039,16 @@ def run_remote_shell(
     connect_timeout: int,
     command: str,
     timeout: int,
+    *,
+    stdout_limit: int | None = 8192,
+    stderr_limit: int | None = 8192,
 ) -> dict[str, Any]:
     remote_invocation = shlex.join(["sh", "-lc", command])
     return run_command(
         ssh_base_command(ssh_target, connect_timeout) + [remote_invocation],
         timeout=timeout,
+        stdout_limit=stdout_limit,
+        stderr_limit=stderr_limit,
     )
 
 
@@ -23279,7 +24109,11 @@ def run_remote_evidence(
     require_command_success(compile_record, "remote clang compile/link")
 
     run_record = run_remote_shell(
-        ssh_target, connect_timeout, remote_quote(remote_binary), timeout
+        ssh_target,
+        connect_timeout,
+        remote_quote(remote_binary),
+        timeout,
+        stdout_limit=65536,
     )
     commands["run"] = run_record
     require_command_success(run_record, "remote generated bundle ABI harness run")
@@ -24902,6 +25736,7 @@ def dequantization_boundary_summary(
     composed_product_dequant = (
         expectation.is_widening_product_reduce_dequantize_f32
     )
+    composed_dequant_clamp = expectation.is_dequant_clamp_f32_epilogue
     selected_source_abi = (
         {
             "lhs": "lhs-input-buffer source-load product-lhs",
@@ -24912,6 +25747,15 @@ def dequantization_boundary_summary(
             "n": "runtime-element-count setvl-avl loop",
         }
         if composed_product_dequant
+        else {
+            "lhs": "lhs-input-buffer source-load dequant-src",
+            "scale": "dequant-scale-value runtime-scale scale-f32",
+            "lower_bound": "lower-bound-scalar-value runtime-clamp-bound",
+            "upper_bound": "upper-bound-scalar-value runtime-clamp-bound",
+            "out": "output-buffer result-store dequant-clamp-result",
+            "n": "runtime-element-count setvl-avl loop",
+        }
+        if composed_dequant_clamp
         else {
             "lhs": "lhs-input-buffer source-load dequant-src",
             "scale": "dequant-scale-value runtime-scale scale-f32",
@@ -24946,6 +25790,32 @@ def dequantization_boundary_summary(
         }
         if composed_product_dequant
         else {
+            "family": "runtime-scale i32-to-f32 dequantization plus f32 clamp epilogue",
+            "pre_loop_callees": [expectation.setvl_intrinsic],
+            "loop_callees": [
+                expectation.setvl_intrinsic,
+                DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC,
+                DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
+                DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
+                F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+                F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+                F32_CLAMP_SELECT_COMPARE_INTRINSIC,
+                F32_CLAMP_SELECT_SELECT_INTRINSIC,
+                F32_CLAMP_SELECT_COMPARE_INTRINSIC,
+                F32_CLAMP_SELECT_SELECT_INTRINSIC,
+                F32_CLAMP_SELECT_STORE_INTRINSIC,
+            ],
+            "source_load_operand_order": "lhs + loop_induction, vl",
+            "conversion_operand_order": "loaded_i32_source, vl",
+            "scale_operand_order": "converted_f32_vector, scale, vl",
+            "lower_compare_operand_order": "scaled_f32, lower_bound_splat, vl",
+            "lower_select_operand_order": "lower_mask, lower_bound, scaled_f32, vl",
+            "upper_compare_operand_order": "upper_bound_splat, lower_clamped, vl",
+            "upper_select_operand_order": "upper_mask, upper_bound, lower_clamped, vl",
+            "store_operand_order": "out + loop_induction, clamped_f32_vector, vl",
+        }
+        if composed_dequant_clamp
+        else {
             "family": "runtime-scale i32-to-f32 dequantization",
             "pre_loop_callees": [expectation.setvl_intrinsic],
             "loop_callees": [
@@ -24972,6 +25842,15 @@ def dequantization_boundary_summary(
         }
         if composed_product_dequant
         else {
+            "element_type": "i32",
+            "element_c_type": "int32_t",
+            "sew": "32",
+            "lmul": "m1",
+            "vector_type": DEQUANT_CLAMP_F32_EPILOGUE_SOURCE_VECTOR_TYPE,
+            "vector_c_type": DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE,
+        }
+        if composed_dequant_clamp
+        else {
             "element_type": route_metadata.get("tcrv_rvv.source_element_type"),
             "element_c_type": "int32_t",
             "sew": route_metadata.get("tcrv_rvv.source_sew"),
@@ -24989,6 +25868,15 @@ def dequantization_boundary_summary(
         }
         if composed_product_dequant
         else {
+            "element_type": "f32",
+            "element_c_type": "float",
+            "sew": "32",
+            "lmul": "m1",
+            "vector_type": DEQUANT_CLAMP_F32_EPILOGUE_RESULT_VECTOR_TYPE,
+            "vector_c_type": DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE,
+        }
+        if composed_dequant_clamp
+        else {
             "element_type": route_metadata.get("tcrv_rvv.result_element_type"),
             "element_c_type": "float",
             "sew": route_metadata.get("tcrv_rvv.dest_sew"),
@@ -25004,6 +25892,15 @@ def dequantization_boundary_summary(
             "reduction, conversion, scale, and store intrinsics -> "
             "runtime-callable artifact ABI"
             if composed_product_dequant
+            else (
+                "selected tcrv.exec RVV variant -> typed dequant-clamp "
+                "tcrv_rvv body/config/runtime-scale/runtime-bound facts -> "
+                "RVV plugin-local realization -> provider route facts -> "
+                "statement plan -> emitted conversion, scale, lower/upper "
+                "clamp/select, and store intrinsics -> runtime-callable "
+                "artifact ABI"
+            )
+            if composed_dequant_clamp
             else (
                 "selected tcrv.exec RVV variant -> typed tcrv_rvv.dequantize "
                 "body/config/runtime-scale facts -> RVV provider dequantization "
@@ -25068,6 +25965,117 @@ def dequantization_boundary_summary(
         "dequant_scale_values": dequant_scale_values,
         "f32_abs_tolerance": DEQUANT_FLOAT_ABS_TOLERANCE,
         "runtime_counts_and_scale_values_are_execution_cases_not_dequant_authority": True,
+    }
+
+
+def dequant_clamp_epilogue_boundary_summary(
+    *,
+    expectation: OpExpectation,
+    materialized_checks: dict[str, Any],
+    emitted_cpp_checks: dict[str, Any],
+    bundle_checks: dict[str, Any],
+    runtime_counts: list[int],
+    dequant_scale_values: list[float],
+) -> dict[str, Any]:
+    if not expectation.is_dequant_clamp_f32_epilogue:
+        return {}
+    dequant_metadata = dequantization_metadata_from_bundle(
+        bundle_checks, expectation
+    )
+    clamp_metadata = compare_select_predicate_metadata_from_bundle(
+        bundle_checks, expectation
+    )
+    return {
+        "source": (
+            "selected tcrv.exec RVV variant -> typed pre-realized "
+            "dequant-clamp tcrv_rvv body -> RVV plugin-local realization -> "
+            "provider-derived dequant plus lower/upper clamp route facts -> "
+            "common EmitC materialization -> generated object/header bundle -> "
+            "external ABI harness"
+        ),
+        "authority": (
+            "provider-derived typed tcrv_rvv dequant-clamp body/config/"
+            "runtime scale/runtime bound facts"
+        ),
+        "artifact_metadata_role": "mirror-only-after-provider-route",
+        "typed_body_source": (
+            "tcrv_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body"
+        ),
+        "typed_compute_chain": [
+            "tcrv_rvv.load",
+            "tcrv_rvv.dequantize",
+            "tcrv_rvv.splat(lower_bound)",
+            "tcrv_rvv.splat(upper_bound)",
+            "tcrv_rvv.compare(lower)",
+            "tcrv_rvv.select(lower)",
+            "tcrv_rvv.compare(upper)",
+            "tcrv_rvv.select(upper)",
+            "tcrv_rvv.store",
+        ],
+        "selected_source_abi": {
+            "lhs": "lhs-input-buffer",
+            "scale": "dequant-scale-value",
+            "lower_bound": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+            "upper_bound": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+            "out": "output-buffer",
+            "n": "runtime-element-count",
+        },
+        "dequantization_relation": DEQUANTIZE_I32_TO_F32_RELATION,
+        "clamp_relation": DEQUANT_CLAMP_F32_EPILOGUE_CLAMP_RELATION,
+        "runtime_bound_roles": {
+            "lower_bound": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+            "upper_bound": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+        },
+        "runtime_bound_pairs_required_minimum": 2,
+        "runtime_bound_pairs": [
+            {"lower_bound": lower, "upper_bound": upper}
+            for lower, upper in DEFAULT_F32_CLAMP_BOUND_PAIRS
+        ],
+        "dequant_scale_values_required_minimum": MIN_DEQUANT_SCALE_CASES,
+        "dequant_scale_values": dequant_scale_values,
+        "f32_abs_tolerance": DEQUANT_FLOAT_ABS_TOLERANCE,
+        "source_preservation_required": True,
+        "tail_sentinel_preservation_required": True,
+        "statement_plan": {
+            "family": "runtime-scale i32-to-f32 dequantization plus f32 clamp epilogue",
+            "pre_loop_callees": [expectation.setvl_intrinsic],
+            "loop_callees": [
+                expectation.setvl_intrinsic,
+                DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC,
+                DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
+                DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
+                F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+                F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+                F32_CLAMP_SELECT_COMPARE_INTRINSIC,
+                F32_CLAMP_SELECT_SELECT_INTRINSIC,
+                F32_CLAMP_SELECT_COMPARE_INTRINSIC,
+                F32_CLAMP_SELECT_SELECT_INTRINSIC,
+                F32_CLAMP_SELECT_STORE_INTRINSIC,
+            ],
+            "source_load_operand_order": "lhs + loop_induction, vl",
+            "conversion_operand_order": "loaded_i32_source, vl",
+            "scale_operand_order": "converted_f32_vector, scale, vl",
+            "lower_compare_operand_order": "scaled_f32, lower_bound_splat, vl",
+            "lower_select_operand_order": "lower_mask, lower_bound, scaled_f32, vl",
+            "upper_compare_operand_order": "upper_bound_splat, lower_clamped, vl",
+            "upper_select_operand_order": "upper_mask, upper_bound, lower_clamped, vl",
+            "store_operand_order": "out + loop_induction, clamped_f32_vector, vl",
+        },
+        "materialized_body": materialized_checks.get(
+            "dequant_clamp_epilogue_boundary", {}
+        ),
+        "emitted_cpp": emitted_cpp_checks.get(
+            "dequant_clamp_epilogue_boundary", {}
+        ),
+        "dequant_route_metadata": dequant_metadata,
+        "clamp_route_metadata": clamp_metadata,
+        "artifact_abi": {
+            "prototype": bundle_checks["header"]["prototype"],
+            "runtime_abi_order": expectation.runtime_abi_order,
+            "runtime_parameters": expectation.runtime_parameters,
+        },
+        "runtime_counts": runtime_counts,
+        "runtime_counts_scale_values_and_bounds_are_execution_cases_not_route_authority": True,
     }
 
 
@@ -26782,7 +27790,7 @@ def run_one_op_e2e(
             "f32_abs_tolerance": DEQUANT_FLOAT_ABS_TOLERANCE,
             "scale_values_are_runtime_cases_not_dequant_authority": True,
         }
-    if expectation.is_f32_clamp_select:
+    if expectation.uses_runtime_f32_clamp_bounds:
         evidence["f32_clamp_bound_pairs"] = [
             {"lower_bound": lower, "upper_bound": upper}
             for lower, upper in DEFAULT_F32_CLAMP_BOUND_PAIRS
@@ -26930,6 +27938,19 @@ def run_one_op_e2e(
         if expectation.uses_runtime_dequant_scale:
             evidence["dequantization_boundary"] = (
                 dequantization_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks=evidence[
+                        "materialized_selected_body_checks"
+                    ],
+                    emitted_cpp_checks=evidence["emitted_rvv_cpp_checks"],
+                    bundle_checks=bundle_checks,
+                    runtime_counts=runtime_counts,
+                    dequant_scale_values=dequant_scale_values,
+                )
+            )
+        if expectation.is_dequant_clamp_f32_epilogue:
+            evidence["dequant_clamp_epilogue_boundary"] = (
+                dequant_clamp_epilogue_boundary_summary(
                     expectation=expectation,
                     materialized_checks=evidence[
                         "materialized_selected_body_checks"
@@ -27136,7 +28157,7 @@ def run_one_op_e2e(
             evidence["harness"]["tail_lane_contract"] = (
                 "output lanes beyond runtime n preserve their f32 sentinels"
             )
-        if expectation.is_f32_clamp_select:
+        if expectation.uses_runtime_f32_clamp_bounds:
             evidence["harness"]["f32_clamp_bound_pairs"] = [
                 {"lower_bound": lower, "upper_bound": upper}
                 for lower, upper in DEFAULT_F32_CLAMP_BOUND_PAIRS
@@ -27702,6 +28723,9 @@ def root_op_result_summary(
         "dequantization_boundary": result.get(
             "dequantization_boundary", {}
         ),
+        "dequant_clamp_epilogue_boundary": result.get(
+            "dequant_clamp_epilogue_boundary", {}
+        ),
         "vector_reduction_boundary": result.get(
             "vector_reduction_boundary", {}
         ),
@@ -27748,7 +28772,7 @@ def root_op_result_summary(
                 "source_preservation_required": True,
             }
         )
-    if expectation.is_f32_clamp_select:
+    if expectation.uses_runtime_f32_clamp_bounds:
         summary["correctness_oracle"].update(
             {
                 "f32_clamp_bound_pairs": result.get(
@@ -27850,8 +28874,9 @@ def run_e2e(args: argparse.Namespace) -> int:
         has_dequant_scale_operand = any(
             expectation.uses_runtime_dequant_scale for expectation in expectations
         )
-        has_f32_clamp_select = any(
-            expectation.is_f32_clamp_select for expectation in expectations
+        has_runtime_f32_clamp_bounds = any(
+            expectation.uses_runtime_f32_clamp_bounds
+            for expectation in expectations
         )
         if args.rhs_scalar and not has_runtime_scalar_operand:
             raise EvidenceError(
@@ -27880,7 +28905,8 @@ def run_e2e(args: argparse.Namespace) -> int:
             raise EvidenceError(
                 "--dequant-scale may only be used when an op kind includes "
                 "dequantize_i32_to_f32 or "
-                "widening_product_reduce_dequantize_f32"
+                "widening_product_reduce_dequantize_f32 or "
+                "dequant_clamp_f32_epilogue"
             )
         validate_rhs_scalar_values(rhs_scalar_values)
         validate_runtime_scalar_compare_select_rhs_coverage(
@@ -27921,7 +28947,7 @@ def run_e2e(args: argparse.Namespace) -> int:
                 "nonzero": True,
                 "scale_values_are_runtime_cases_not_dequant_authority": True,
             }
-        if has_f32_clamp_select:
+        if has_runtime_f32_clamp_bounds:
             evidence["f32_clamp_bound_pairs"] = [
                 {"lower_bound": lower, "upper_bound": upper}
                 for lower, upper in DEFAULT_F32_CLAMP_BOUND_PAIRS
@@ -29966,6 +30992,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "widening_macc_add/widening_dot_reduce_add/"
             "widening_product_reduce_dequantize_f32/"
             "f32_clamp_select/"
+            "dequant_clamp_f32_epilogue/"
             "strided_input_widening_dot_reduce_add/"
             "computed_masked_widening_dot_reduce_add/"
             "computed_masked_strided_input_widening_dot_reduce_add "
@@ -30059,9 +31086,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=float,
         default=[],
         help=(
-            "runtime f32 scale value for dequantize_i32_to_f32; may be "
-            "repeated to prove the same generated artifact consumes multiple "
-            "nonzero runtime scale values"
+            "runtime f32 scale value for dequantize_i32_to_f32, "
+            "widening_product_reduce_dequantize_f32, or "
+            "dequant_clamp_f32_epilogue; may be repeated to prove the same "
+            "generated artifact consumes multiple nonzero runtime scale values"
         ),
     )
     parser.add_argument(

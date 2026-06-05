@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-22.md`
-- **Total Sessions**: 457
+- **Active File**: `journal-23.md`
+- **Total Sessions**: 458
 - **Last Active**: 2026-06-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-22.md` | ~1972 | Active |
+| `journal-23.md` | ~38 | Active |
+| `journal-22.md` | ~2034 | Archived |
 | `journal-21.md` | ~1978 | Archived |
 | `journal-20.md` | ~1977 | Archived |
 | `journal-19.md` | ~1996 | Archived |
@@ -50,6 +51,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 458 | 2026-06-05 | Stage2 RVV dequant-clamp ABI closure | - | `main` |
 | 457 | 2026-06-05 | Stage2 RVV f32 clamp/select executable ABI closure | pending-rvv-f32-clamp-select-executable-abi-closure | `main` |
 | 456 | 2026-06-05 | Stage2 RVV f32 clamp/select route foundation | pending-rvv-f32-clamp-select-route-foundation | `main` |
 | 455 | 2026-06-05 | Stage2 RVV contraction-dequant realization | - | `main` |

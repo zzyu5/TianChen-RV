@@ -1,0 +1,36 @@
+{
+  "id": "stage2-rvv-dequant-clamp-epilogue-executable-abi",
+  "name": "stage2-rvv-dequant-clamp-epilogue-executable-abi",
+  "title": "Stage2 RVV dequant-clamp epilogue executable ABI closure",
+  "description": "Close executable ABI evidence for the generated dequant-clamp epilogue route added in 701e4070 without expanding RVV route coverage.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-05",
+  "completedAt": "2026-06-05",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "scripts/rvv_generated_bundle_abi_e2e.py",
+    "test/Target/RVV/pre-realized-selected-body-artifact-dequant-clamp-f32-epilogue.mlir",
+    "artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-dequant-clamp-dry",
+    "artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-dequant-clamp-ssh"
+  ],
+  "notes": "Executable ABI closure completed with neutral generated-bundle harness/evidence support only; no production C++/MLIR/TableGen route code changed. Real ssh rvv compile/run passed for pre-realized dequant-clamp f32 epilogue with i32 source, runtime f32 scale, runtime f32 lower/upper bounds, f32 output, runtime n/AVL, source preservation, tail sentinel preservation, and tolerance checks.",
+  "meta": {
+    "artifact_run_id_dry": "codex-dequant-clamp-dry",
+    "artifact_run_id_ssh": "codex-dequant-clamp-ssh",
+    "production_code_changed": false,
+    "remote_target": "ssh rvv"
+  }
+}
