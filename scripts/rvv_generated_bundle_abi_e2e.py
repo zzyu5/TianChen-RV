@@ -883,6 +883,12 @@ COMPUTED_MASK_SELECT_C_TYPE_MAPPING = (
     "vl:size_t,compare:true_false:typed-vector,mask:typed-mask,result:typed-vector"
 )
 COMPUTED_MASK_SELECT_VECTOR_COMPARE_PRODUCER_SOURCE = "vector-compare-rhs-load"
+COMPUTED_MASK_SELECT_MASK_TAIL_POLICY_ROUTE_FAMILY_PLAN = (
+    "rvv-mask-tail-policy-route-family-plan.v1"
+)
+COMPUTED_MASK_SELECT_MASK_TAIL_POLICY_OWNER = (
+    "computed-mask select mask/tail policy"
+)
 COMPUTED_MASK_SELECT_RUNTIME_SCALAR_PRODUCER_SOURCE = (
     "runtime-scalar-splat-compare-rhs"
 )
@@ -6858,6 +6864,8 @@ MASK_TAIL_POLICY_METADATA_KEYS = (
     "tcrv_rvv.runtime_abi_order",
     "tcrv_rvv.route_operand_binding_plan",
     "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.mask_tail_policy_route_family_plan",
+    "tcrv_rvv.mask_tail_policy_owner",
     "tcrv_rvv.base_memory_movement_route_family_plan",
     "tcrv_rvv.target_leaf_profile",
     "tcrv_rvv.provider_supported_mirror",
@@ -8594,6 +8602,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.computed_mask_select_mask_producer_source": (
                     COMPUTED_MASK_SELECT_VECTOR_COMPARE_PRODUCER_SOURCE
+                ),
+                "tcrv_rvv.mask_tail_policy_route_family_plan": (
+                    COMPUTED_MASK_SELECT_MASK_TAIL_POLICY_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.mask_tail_policy_owner": (
+                    COMPUTED_MASK_SELECT_MASK_TAIL_POLICY_OWNER
                 ),
                 "tcrv_rvv.target_leaf_profile": (
                     COMPUTED_MASK_SELECT_TARGET_LEAF_PROFILE
@@ -25404,6 +25418,118 @@ def mask_tail_policy_boundary_summary(
     bundle_checks: dict[str, Any],
     runtime_counts: list[int],
 ) -> dict[str, Any]:
+    if expectation.is_computed_mask_select:
+        materialized_compare_select = materialized_checks.get(
+            "compare_select_predicate_boundary", {}
+        )
+        emitted_compare_select = emitted_cpp_checks.get(
+            "compare_select_predicate_boundary", {}
+        )
+        route_metadata = mask_tail_policy_metadata_from_bundle(
+            bundle_checks, expectation
+        )
+        return {
+            "source": (
+                "typed tcrv_rvv computed-mask select body/config -> "
+                "compare-produced mask -> RVV route-family facts -> "
+                "mask/tail statement plan -> emitted compare/select/store"
+            ),
+            "authority": (
+                "provider-derived typed tcrv_rvv computed-mask select "
+                "mask/policy body/config/runtime facts"
+            ),
+            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "selected_mask_abi": {
+                "external_mask": False,
+                "producer": "tcrv_rvv.compare",
+                "role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "mask_type": expectation.rvv_mask_type,
+                "mask_c_type": expectation.rvv_mask_c_type,
+            },
+            "tail_policy": route_metadata.get("tcrv_rvv.tail_policy"),
+            "mask_policy": route_metadata.get("tcrv_rvv.mask_policy"),
+            "mask_tail_policy_route_family_plan": route_metadata.get(
+                "tcrv_rvv.mask_tail_policy_route_family_plan"
+            ),
+            "mask_tail_policy_owner": route_metadata.get(
+                "tcrv_rvv.mask_tail_policy_owner"
+            ),
+            "active_lane_contract": (
+                "compare-true lanes select true_value and compare-false "
+                "lanes select false_value"
+            ),
+            "inactive_lane_contract": (
+                "runtime n bounds the store and output tail sentinel lanes "
+                "are preserved by the generated ABI harness"
+            ),
+            "select_layout": COMPUTED_MASK_SELECT_LAYOUT,
+            "compare_data_patterns_required_minimum": 2,
+            "compare_data_patterns": [
+                "fixture-selected-mixed-vector-compare",
+                "alternate-signed-mixed-vector-compare",
+            ],
+            "materialized_body": {
+                "typed_body_source": materialized_compare_select.get(
+                    "typed_body_source"
+                ),
+                "realized_compare_op": materialized_compare_select.get(
+                    "realized_compare_op"
+                ),
+                "realized_select_op": materialized_compare_select.get(
+                    "realized_select_op"
+                ),
+                "compare_predicate_kind": materialized_compare_select.get(
+                    "compare_predicate_kind"
+                ),
+                "predicate_type": materialized_compare_select.get(
+                    "predicate_type"
+                ),
+                "predicate_source": materialized_compare_select.get(
+                    "predicate_source"
+                ),
+                "select_layout": materialized_compare_select.get(
+                    "select_layout"
+                ),
+                "runtime_avl_vl_boundary": materialized_checks.get(
+                    "runtime_avl_vl_boundary", {}
+                ),
+            },
+            "emitted_cpp": {
+                "compare_intrinsic": emitted_compare_select.get(
+                    "compare_intrinsic"
+                ),
+                "select_intrinsic": emitted_compare_select.get(
+                    "select_intrinsic"
+                ),
+                "store_intrinsic": emitted_compare_select.get(
+                    "store_intrinsic"
+                ),
+                "predicate_mask_type": emitted_compare_select.get(
+                    "predicate_mask_type"
+                ),
+                "compare_uses_loop_vl": emitted_compare_select.get(
+                    "compare_uses_loop_vl"
+                ),
+                "select_uses_loop_vl": emitted_compare_select.get(
+                    "select_uses_loop_vl"
+                ),
+                "store_uses_selected_result": emitted_compare_select.get(
+                    "store_uses_selected_result"
+                ),
+                "runtime_avl_vl_control": emitted_compare_select.get(
+                    "runtime_avl_vl_control", {}
+                ),
+            },
+            "route_metadata": route_metadata,
+            "artifact_abi": {
+                "prototype": bundle_checks["header"]["prototype"],
+                "runtime_abi_order": expectation.runtime_abi_order,
+            },
+            "runtime_counts": runtime_counts,
+            "runtime_counts_are_execution_cases_not_policy_authority": True,
+        }
     if (
         expectation.is_computed_mask_standalone_reduce
         or expectation.is_runtime_scalar_computed_mask_standalone_reduce
@@ -28534,6 +28660,7 @@ def run_one_op_e2e(
         if (
             expectation.is_masked_elementwise
             or expectation.is_masked_unit_store
+            or expectation.is_computed_mask_select
             or expectation.is_computed_mask_standalone_reduce
             or expectation.is_runtime_scalar_computed_mask_standalone_reduce
         ):

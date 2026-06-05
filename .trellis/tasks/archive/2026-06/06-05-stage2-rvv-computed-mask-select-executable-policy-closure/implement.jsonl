@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage 2 boundary, common EmitC neutrality, and runtime evidence requirement."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Computed-mask select provider preflight, route-family facts, statement-plan mask/tail policy, and fail-closed route construction contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Compare/select route validation contract, runtime AVL/VL selected-boundary contract, and provider-derived artifact mirror rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle dry-run, mask/tail policy evidence, ssh rvv runtime correctness, and tail sentinel requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-06-05-stage2-rvv-mask-tail-policy-route-foundation/prd.md", "reason": "Previous task boundary: provider/target policy validation completed without runtime correctness claim."}
+{"file": "test/Dialect/RVV/computed-mask-select-dataflow.mlir", "reason": "Typed computed-mask select body/config dialect authority fixture and negative guardrails."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-select.mlir", "reason": "Generated target artifact fixture proving provider-derived mask/tail mirrors before runtime evidence."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated bundle dry-run, external ABI harness, evidence JSON, and ssh rvv execution owner for this closure."}

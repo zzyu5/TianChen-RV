@@ -37,6 +37,52 @@ Closed generated dequant-clamp f32 epilogue executable ABI evidence with dry-run
 
 - None - task complete
 
+
+## Session 461: Stage2 RVV computed-mask select executable policy closure
+
+**Date**: 2026-06-05
+**Task**: Stage2 RVV computed-mask select executable policy closure
+**Branch**: `main`
+
+### Summary
+
+Closed the executable evidence loop for the pre-realized RVV
+computed-mask select route. Production C++ did not change; the source change is
+neutral harness/evidence support that exposes provider-derived
+`mask_tail_policy_boundary` facts for the existing generated-bundle path.
+
+### Main Changes
+
+- Added computed-mask select mask/tail policy boundary evidence to
+  `scripts/rvv_generated_bundle_abi_e2e.py`.
+- The evidence now records typed-body authority, compare-produced mask role,
+  tail/mask policy, mask/tail provider plan and owner, emitted compare/select
+  structure, route metadata, runtime counts, and artifact ABI.
+- Created and completed Trellis task
+  `06-05-stage2-rvv-computed-mask-select-executable-policy-closure`.
+
+### Git Commits
+
+(Pending commit in this session)
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --op-kind computed_mask_select --run-id codex-cms-dryrun-20260605-policy --overwrite`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind computed_mask_select --run-id codex-cms-ssh-20260605 --overwrite`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] New-diff old-authority scan over touched files
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Archive the Trellis task and create the coherent commit.
+
 ---
 
 ## Session 459: Stage2 RVV contraction-dequant-clamp composition

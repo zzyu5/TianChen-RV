@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check no route authority drift into metadata, names, descriptors, common EmitC, or old i32 surfaces."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check provider-derived computed-mask select policy path remains the authority before route construction."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check target/export mirrors remain provider-derived and common EmitC stays neutral."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle dry-run and ssh rvv evidence satisfy mask/tail and sentinel requirements."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Check script changes are neutral evidence/harness validation, not compiler semantics."}
+{"file": "test/Dialect/RVV/computed-mask-select-dataflow.mlir", "reason": "Run if fixture or dialect-facing behavior is touched."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-mask-select.mlir", "reason": "Run if generated artifact fixture or policy mirrors are touched."}
