@@ -35827,6 +35827,395 @@ getRVVSelectedBodyDirectContractionRouteProviderPlan(
   return plan;
 }
 
+llvm::Error verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
+    const RVVSelectedBodyRouteStatementPlanOwnerSelection
+        &statementPlanOwnerSelection,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  const bool isConsumer =
+      isRVVSelectedBodyDirectContractionRouteProviderConsumer(description);
+
+  if (!isConsumer) {
+    if (providerPlan.plansDirectContractionRoute ||
+        statementPlanOwnerSelection.ownerKind ==
+            RVVSelectedBodyRouteStatementPlanOwnerKind::DirectContraction)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " direct contraction route construction must not carry direct "
+          "contraction provider facts for non-contraction operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    return llvm::Error::success();
+  }
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(analysis,
+                                                                   context))
+    return error;
+
+  if (!analysis.contractionRouteFamilyPlan ||
+      !materializationFacts.contractionPlan ||
+      !providerPlan.plansDirectContractionRoute ||
+      !providerPlan.contractionPlan ||
+      providerPlan.contractionPlan != materializationFacts.contractionPlan ||
+      providerPlan.contractionPlan != &*analysis.contractionRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction route construction requires the prevalidated "
+        "direct contraction provider plan from the same selected route analysis "
+        "before creating TCRVEmitCLowerableRoute for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const RVVSelectedBodyContractionRouteFamilyPlan &familyPlan =
+      *providerPlan.contractionPlan;
+  if (familyPlan.operation != description.operation ||
+      familyPlan.memoryForm != description.memoryForm ||
+      familyPlan.usesWideningMAcc != providerPlan.plansWideningMAcc ||
+      familyPlan.usesWideningProduct != providerPlan.plansWideningProduct ||
+      familyPlan.usesProductReductionChain !=
+          providerPlan.plansProductReductionChain ||
+      familyPlan.usesProductReductionDequantization !=
+          providerPlan.plansProductReductionDequantization ||
+      familyPlan.usesProductReductionDequantClamp !=
+          providerPlan.plansProductReductionDequantClamp ||
+      familyPlan.usesDotReduction != providerPlan.plansDotReduction ||
+      familyPlan.usesComputedMask != providerPlan.plansComputedMask ||
+      familyPlan.usesStridedInputs != providerPlan.plansStridedInput ||
+      materializationFacts.emitsContractionWideningMAcc !=
+          providerPlan.plansWideningMAcc ||
+      materializationFacts.emitsContractionWideningProduct !=
+          providerPlan.plansWideningProduct ||
+      materializationFacts.emitsContractionProductReductionChain !=
+          providerPlan.plansProductReductionChain ||
+      materializationFacts.emitsContractionProductReductionDequantization !=
+          providerPlan.plansProductReductionDequantization ||
+      materializationFacts.emitsContractionProductReductionDequantClamp !=
+          providerPlan.plansProductReductionDequantClamp ||
+      materializationFacts.emitsContractionDotReduction !=
+          providerPlan.plansDotReduction ||
+      materializationFacts.emitsComputedMaskContraction !=
+          providerPlan.plansComputedMask ||
+      materializationFacts.emitsStridedInputContraction !=
+          providerPlan.plansStridedInput)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction route construction requires family "
+        "classification and materialization facts from the same verified "
+        "contraction provider plan before creating TCRVEmitCLowerableRoute for "
+        "operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      materializationFacts.typedConfigFacts;
+  if (!typedFacts.hasFacts() ||
+      familyPlan.typedConfigFactsID != typedFacts.factsID ||
+      familyPlan.elementTypeName != typedFacts.elementTypeName ||
+      familyPlan.elementBitWidth != typedFacts.elementBitWidth ||
+      familyPlan.sew != typedFacts.sew ||
+      familyPlan.lmul != typedFacts.lmul ||
+      familyPlan.tailPolicy != typedFacts.tailPolicy ||
+      familyPlan.maskPolicy != typedFacts.maskPolicy ||
+      familyPlan.configContractID != typedFacts.configContractID ||
+      familyPlan.vlCType != typedFacts.vlCType ||
+      familyPlan.setVLIntrinsic != typedFacts.setVLIntrinsic ||
+      (!familyPlan.maskTypeName.empty() &&
+       (familyPlan.maskTypeName != typedFacts.maskTypeName ||
+        familyPlan.maskCType != typedFacts.maskCType)))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction route construction requires family-plan "
+        "type/config facts to mirror the selected typed RVV body before "
+        "creating TCRVEmitCLowerableRoute for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const RVVSelectedBodyRouteControlProviderPlan &routeControlPlan =
+      providerPlan.routeControlPlan;
+  if (!routeControlPlan.plansRouteControl ||
+      !routeControlPlan.controlsContraction ||
+      routeControlPlan.runtimeControlPlan != &familyPlan.runtimeControlPlan ||
+      routeControlPlan.typedConfigFacts != &analysis.typedConfigFacts ||
+      routeControlPlan.selectedTargetCapabilityFacts !=
+          &analysis.selectedTargetCapabilityFacts ||
+      routeControlPlan.controlPlanIDMirror !=
+          familyPlan.runtimeControlPlan.controlPlanID ||
+      routeControlPlan.configContractIDMirror !=
+          familyPlan.runtimeControlPlan.configContractID ||
+      routeControlPlan.runtimeVLContractIDMirror !=
+          familyPlan.runtimeControlPlan.runtimeVLContractID ||
+      routeControlPlan.runtimeAVLASourceMirror !=
+          familyPlan.runtimeControlPlan.runtimeAVLASource ||
+      routeControlPlan.runtimeABIOrderMirror != familyPlan.runtimeABIOrder ||
+      routeControlPlan.tailPolicyMirror !=
+          familyPlan.runtimeControlPlan.tailPolicy ||
+      routeControlPlan.maskPolicyMirror !=
+          familyPlan.runtimeControlPlan.maskPolicy ||
+      routeControlPlan.selectedProviderMirror.empty() ||
+      routeControlPlan.selectedLegalityMirror.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction route construction requires the RVV-owned "
+        "route-control provider plan from the same selected route analysis "
+        "before creating TCRVEmitCLowerableRoute for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  if (mathOperandBindingFacts.bindingPlan !=
+          &analysis.routeOperandBindingPlan ||
+      !mathOperandBindingFacts.bindsMathCluster)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction route construction requires RVV-owned math "
+        "operand-binding facts from the same selected route analysis before "
+        "creating TCRVEmitCLowerableRoute for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  bool hasExpectedBindingFacts = false;
+  switch (description.operation) {
+  case RVVSelectedBodyOperationKind::WideningMAccAdd:
+    hasExpectedBindingFacts = mathOperandBindingFacts.bindsWideningMAcc;
+    break;
+  case RVVSelectedBodyOperationKind::WideningProduct:
+    hasExpectedBindingFacts = mathOperandBindingFacts.bindsWideningProduct;
+    break;
+  case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
+    hasExpectedBindingFacts =
+        mathOperandBindingFacts.bindsWideningProductReductionChain;
+    break;
+  case RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32:
+    hasExpectedBindingFacts =
+        mathOperandBindingFacts.bindsWideningProductReductionDequantization;
+    break;
+  case RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32:
+    hasExpectedBindingFacts =
+        mathOperandBindingFacts.bindsWideningProductReductionDequantClamp;
+    break;
+  case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
+    hasExpectedBindingFacts =
+        mathOperandBindingFacts.bindsWideningDotReduction;
+    break;
+  case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
+    hasExpectedBindingFacts =
+        mathOperandBindingFacts.bindsStridedInputWideningDotReduction;
+    break;
+  case RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd:
+    hasExpectedBindingFacts =
+        mathOperandBindingFacts.bindsComputedMaskWideningDotReduction;
+    break;
+  case RVVSelectedBodyOperationKind::
+      ComputedMaskStridedInputWideningDotReduceAdd:
+    hasExpectedBindingFacts =
+        mathOperandBindingFacts
+            .bindsComputedMaskStridedInputWideningDotReduction;
+    break;
+  default:
+    break;
+  }
+  if (!hasExpectedBindingFacts)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction route construction requires math "
+        "operand-binding facts for the exact direct contraction sub-family "
+        "before creating TCRVEmitCLowerableRoute for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  auto requireABI = [&](const support::RuntimeABIParameter *parameter,
+                        llvm::StringRef logicalName,
+                        support::RuntimeABIParameterRole expectedRole)
+      -> llvm::Error {
+    if (!parameter)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " direct contraction route construction requires ABI operand '" +
+          logicalName + "' before creating TCRVEmitCLowerableRoute for "
+          "operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (parameter->role != expectedRole)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " direct contraction route construction requires ABI role for '" +
+          logicalName + "' to be '" +
+          support::stringifyRuntimeABIParameterRole(expectedRole) +
+          "' before creating TCRVEmitCLowerableRoute, but saw '" +
+          support::stringifyRuntimeABIParameterRole(parameter->role) + "'");
+    return llvm::Error::success();
+  };
+
+  if (providerPlan.plansComputedMask) {
+    if (llvm::Error error = requireABI(
+            providerPlan.lhsABI, "compare lhs",
+            support::RuntimeABIParameterRole::LHSInputBuffer))
+      return error;
+    if (llvm::Error error = requireABI(
+            providerPlan.rhsABI, "compare rhs",
+            support::RuntimeABIParameterRole::RHSInputBuffer))
+      return error;
+    if (llvm::Error error = requireABI(
+            providerPlan.dotLHSABI, "dot lhs",
+            support::RuntimeABIParameterRole::DotLHSInputBuffer))
+      return error;
+    if (llvm::Error error = requireABI(
+            providerPlan.dotRHSABI, "dot rhs",
+            support::RuntimeABIParameterRole::DotRHSInputBuffer))
+      return error;
+  } else {
+    if (llvm::Error error = requireABI(
+            providerPlan.lhsABI, "lhs",
+            support::RuntimeABIParameterRole::LHSInputBuffer))
+      return error;
+    if (llvm::Error error = requireABI(
+            providerPlan.rhsABI, "rhs",
+            support::RuntimeABIParameterRole::RHSInputBuffer))
+      return error;
+  }
+
+  if (!providerPlan.plansWideningProduct)
+    if (llvm::Error error = requireABI(
+            providerPlan.accumulatorABI, "accumulator",
+            support::RuntimeABIParameterRole::AccumulatorInputBuffer))
+      return error;
+  if (providerPlan.plansProductReductionDequantization)
+    if (llvm::Error error = requireABI(
+            providerPlan.dequantScaleABI, "dequant scale",
+            support::RuntimeABIParameterRole::DequantScaleValue))
+      return error;
+  if (providerPlan.plansProductReductionDequantClamp) {
+    if (llvm::Error error = requireABI(
+            providerPlan.lowerBoundABI, "lower bound",
+            support::RuntimeABIParameterRole::LowerBoundScalarValue))
+      return error;
+    if (llvm::Error error = requireABI(
+            providerPlan.upperBoundABI, "upper bound",
+            support::RuntimeABIParameterRole::UpperBoundScalarValue))
+      return error;
+  }
+  if (llvm::Error error = requireABI(
+          providerPlan.outABI, "out",
+          support::RuntimeABIParameterRole::OutputBuffer))
+    return error;
+  if (llvm::Error error = requireABI(
+          providerPlan.runtimeElementCountABI, "runtime element count",
+          support::RuntimeABIParameterRole::RuntimeElementCount))
+    return error;
+  if (providerPlan.plansStridedInput) {
+    if (llvm::Error error = requireABI(
+            providerPlan.lhsStrideABI, "lhs stride",
+            support::RuntimeABIParameterRole::LHSInputStride))
+      return error;
+    if (llvm::Error error = requireABI(
+            providerPlan.rhsStrideABI, "rhs stride",
+            support::RuntimeABIParameterRole::RHSInputStride))
+      return error;
+  }
+
+  if (!statementPlanOwnerSelection.plansSelectedBodyRoute ||
+      statementPlanOwnerSelection.ownerKind !=
+          RVVSelectedBodyRouteStatementPlanOwnerKind::DirectContraction ||
+      statementPlanOwnerSelection.ownerName != "direct-provider contraction" ||
+      statementPlanOwnerSelection.loop.bodySteps.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction route construction requires the RVV-owned direct "
+        "contraction statement owner selection before creating "
+        "TCRVEmitCLowerableRoute for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  auto hasCallee = [](const auto &steps, llvm::StringRef callee) {
+    for (const auto &step : steps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  auto selectionHasCallee = [&](llvm::StringRef callee) {
+    return hasCallee(statementPlanOwnerSelection.preLoopSteps, callee) ||
+           hasCallee(statementPlanOwnerSelection.loop.bodySteps, callee) ||
+           hasCallee(statementPlanOwnerSelection.postLoopSteps, callee);
+  };
+  auto requireStatementLeaf = [&](llvm::StringRef leaf,
+                                  llvm::StringRef leafName) -> llvm::Error {
+    if (!leaf.empty() && selectionHasCallee(leaf))
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction route construction requires direct contraction "
+        "owner statements for " + leafName +
+        " before creating TCRVEmitCLowerableRoute for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  };
+
+  if (llvm::Error error =
+          requireStatementLeaf(providerPlan.setVLLeaf, "setvl"))
+    return error;
+  if (!providerPlan.plansStridedInput)
+    if (llvm::Error error =
+            requireStatementLeaf(providerPlan.sourceLoadLeaf, "source load"))
+      return error;
+  if (llvm::Error error =
+          requireStatementLeaf(providerPlan.storeLeaf, "store"))
+    return error;
+  if (!providerPlan.plansWideningProduct)
+    if (llvm::Error error = requireStatementLeaf(
+            providerPlan.contractionComputeLeaf, "contraction compute"))
+      return error;
+  if (providerPlan.plansWideningMAcc)
+    if (llvm::Error error = requireStatementLeaf(providerPlan.vectorLoadLeaf,
+                                                 "accumulator load"))
+      return error;
+  if (providerPlan.plansWideningProduct ||
+      providerPlan.plansProductReductionChain ||
+      (providerPlan.plansDotReduction && !providerPlan.plansComputedMask))
+    if (llvm::Error error = requireStatementLeaf(
+            providerPlan.wideningProductLeaf, "widening product"))
+      return error;
+  if (providerPlan.plansDotReduction ||
+      providerPlan.plansProductReductionChain)
+    if (llvm::Error error = requireStatementLeaf(
+            providerPlan.scalarSeedSplatLeaf, "scalar seed splat"))
+      return error;
+  if (providerPlan.plansProductReductionDequantization) {
+    if (llvm::Error error = requireStatementLeaf(
+            providerPlan.dequantizeConvertLeaf, "dequantize convert"))
+      return error;
+    if (llvm::Error error = requireStatementLeaf(
+            providerPlan.dequantizeScaleLeaf, "dequantize scale"))
+      return error;
+  }
+  if (providerPlan.plansProductReductionDequantClamp) {
+    if (llvm::Error error = requireStatementLeaf(providerPlan.compareLeaf,
+                                                 "lower compare"))
+      return error;
+    if (llvm::Error error = requireStatementLeaf(
+            providerPlan.secondaryCompareLeaf, "upper compare"))
+      return error;
+    if (llvm::Error error = requireStatementLeaf(providerPlan.maskedMergeLeaf,
+                                                 "clamp select"))
+      return error;
+  }
+  if (providerPlan.plansComputedMask) {
+    if (llvm::Error error = requireStatementLeaf(providerPlan.vectorLoadLeaf,
+                                                 "compare vector load"))
+      return error;
+    if (llvm::Error error = requireStatementLeaf(providerPlan.compareLeaf,
+                                                 "compare"))
+      return error;
+    if (llvm::Error error = requireStatementLeaf(
+            providerPlan.maskedWideningProductLeaf,
+            "masked widening product"))
+      return error;
+    if (llvm::Error error = requireStatementLeaf(providerPlan.maskedMergeLeaf,
+                                                 "masked merge"))
+      return error;
+  }
+  if (providerPlan.plansStridedInput)
+    if (llvm::Error error = requireStatementLeaf(
+            providerPlan.stridedSourceLoadLeaf, "strided source load"))
+      return error;
+
+  return llvm::Error::success();
+}
+
 void addRVVSelectedBodySegment2MemoryRouteFamilyMetadataMirrors(
     const RVVSelectedBodyEmitCRouteDescription &description,
     llvm::SmallVectorImpl<support::ArtifactMetadataEntry> &metadata) {

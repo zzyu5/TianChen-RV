@@ -22051,6 +22051,8 @@ int runContractionTargetLeafProfileValidationTest(mlir::MLIRContext &context) {
       isRVVSelectedBodyWideningMAccContractionRouteFamilyConsumer;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyContractionRouteFamilyProviderPlans;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyDirectContractionRouteProviderFacts;
   using tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
@@ -22484,6 +22486,38 @@ module {
                     directStatementPlan->loop.bodySteps.size(),
             "statement-plan owner module selects the direct-contraction owner "
             "and preserves provider-ready statements"))
+      return result;
+    if (int result = expectSuccess(
+            verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
+                analysis, *materializationFacts, *mathFacts,
+                *directProviderPlan, *selectedStatementPlan, label),
+            "direct contraction provider-facts verifier accepts the "
+            "same-analysis provider plan and owner statements"))
+      return result;
+
+    auto staleDirectProviderPlan = *directProviderPlan;
+    staleDirectProviderPlan.routeControlPlan.typedConfigFacts = nullptr;
+    if (int result = expectErrorContains(
+            verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
+                analysis, *materializationFacts, *mathFacts,
+                staleDirectProviderPlan, *selectedStatementPlan, label),
+            {"direct contraction route construction requires the RVV-owned "
+             "route-control provider plan from the same selected route "
+             "analysis",
+             tianchenrv::plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+                 analysis.description.operation)}))
+      return result;
+
+    auto staleDirectStatementPlan = *selectedStatementPlan;
+    staleDirectStatementPlan.loop.bodySteps.clear();
+    if (int result = expectErrorContains(
+            verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
+                analysis, *materializationFacts, *mathFacts,
+                *directProviderPlan, staleDirectStatementPlan, label),
+            {"direct contraction route construction requires the RVV-owned "
+             "direct contraction statement owner selection",
+             tianchenrv::plugin::rvv::stringifyRVVSelectedBodyOperationKind(
+                 analysis.description.operation)}))
       return result;
 
     auto containsCallee = [](const auto &steps, llvm::StringRef callee) {

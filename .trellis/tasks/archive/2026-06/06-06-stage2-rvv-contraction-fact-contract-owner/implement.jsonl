@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV Stage 2 selected-body realization, and common EmitC neutrality invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin selected-body realization owner registry and Direct Contraction Route-Provider Owner Boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned TCRVEmitCLowerableRoute and common EmitC neutral materialization contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit/FileCheck evidence requirements and old-authority testing policy."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-computed-masked-strided-input-widening-dot-closure/prd.md", "reason": "Previous computed-mask strided widening-dot executable closure and evidence pattern."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Direct contraction provider plan API and route/provider verifier declarations."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h", "reason": "Direct contraction statement owner API and owner-selection output."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Direct contraction provider plan construction and new provider-facts verifier implementation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "Direct contraction statement-owner behavior consumed by the provider-facts verifier."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Production route construction call site before TCRVEmitCLowerableRoute construction."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused C++ positive/fail-closed coverage for direct contraction provider facts."}

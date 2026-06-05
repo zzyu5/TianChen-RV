@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Check authority/source-of-truth rules and RVV Stage 2 route authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body realization/provider ownership, direct contraction provider-plan boundary, and fail-closed requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route value and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused C++/lit evidence and old-authority scan requirements."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Verify direct contraction provider-facts verifier API is declared in the RVV planning layer."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Verify direct contraction provider-facts verifier consumes provider/materialization/math/route-control/statement facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Verify production provider calls the verifier before constructing TCRVEmitCLowerableRoute."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Verify focused C++ positive and fail-closed direct contraction coverage."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Verify existing pre-realized computed-mask strided widening-dot target regression remains passing if needed."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Verify existing explicit computed-mask strided widening-dot target regression remains passing if needed."}
