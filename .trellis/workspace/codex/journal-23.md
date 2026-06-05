@@ -396,7 +396,14 @@ Closed executable evidence for the pre-realized RVV widening-product reduce dequ
 
 ### Main Changes
 
-(Add details)
+- Repaired the stale `const float *` verifier expectation in the runtime
+  scalar splat-store negative fixture.
+- Added fail-closed Conversion/EmitC slices for runtime ABI operation order,
+  SEW/config mismatch, and store/VL ownership mismatch.
+- Strengthened pre-realized target artifact and generated-bundle dry-run
+  checks for provider support, target leaf profile, required headers, and
+  route type mapping mirrors.
+- Archived the completed Trellis task.
 
 ### Git Commits
 
@@ -404,7 +411,15 @@ Closed executable evidence for the pre-realized RVV widening-product reduce dequ
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] Focused lit for repaired runtime scalar splat-store negative fixture.
+- [OK] Focused lit for runtime scalar splat-store materialization.
+- [OK] Focused lit for explicit/pre-realized target artifact fixtures.
+- [OK] Focused lit for pre-realized generated-bundle dry-run.
+- [OK] `tianchenrv-target-artifact-export-test`.
+- [OK] `tianchenrv-rvv-extension-plugin-test`.
+- [EXPECTED UNRELATED FAIL] `check-tianchenrv`: 492/494 passed; remaining
+  failures are `Plugin/construction-protocol-common.test` and
+  `Plugin/template-extension-plugin.test`.
 
 ### Status
 
@@ -958,6 +973,37 @@ Closed bounded strided memory route evidence: repaired pre-realized target heade
 ### Git Commits
 
 (No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 469: Stage2 RVV runtime scalar splat-store route repair
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV runtime scalar splat-store route repair
+**Branch**: `main`
+
+### Summary
+
+Repaired runtime scalar splat-store negative fixture drift, added fail-closed Conversion evidence, strengthened pre-realized target/generated-bundle provider mirror checks, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+included-in-this-commit
 
 ### Testing
 

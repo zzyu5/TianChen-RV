@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV selected-body realization, typed body authority, runtime ABI binding, and provider-owned fail-closed route support boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify provider-built TCRVEmitCLowerableRoute payloads are carried by Common EmitC without scalar splat semantic invention."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused FileCheck, target artifact, generated-bundle, and ssh rvv evidence requirements for runtime/correctness claims."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-rvv-stage2-strided-memory-selected-body-route-foundation/prd.md", "reason": "Reuse the prior route-closure pattern for distinguishing stale fixture expectations from production provider drift."}
+{"file": "test/Conversion/EmitC/rvv-generic-stage2-runtime-scalar-splat-store-negative.mlir", "reason": "Named failing fixture and primary negative-route evidence surface for this task."}
+{"file": "test/Conversion/EmitC/rvv-generic-stage2-runtime-scalar-splat-store-materialization.mlir", "reason": "Focused positive materialization evidence for the explicit runtime scalar splat-store route."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-splat-store.mlir", "reason": "Pre-realized selected-body artifact/header evidence for provider-derived route facts."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-splat-store.mlir", "reason": "Explicit selected-body artifact/header evidence for provider-derived route facts."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "ODS authority for the pre-realized runtime scalar splat-store selected body and typed RVV splat op."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "RVV provider route analysis, family plan validation, materialization fact checks, residual operand binding, route-control, statement plan, and metadata emission for splat-store."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle dry-run/runtime evidence builder for splat-store counts, scalar values, ABI, route metadata, and harness sentinel checks."}
