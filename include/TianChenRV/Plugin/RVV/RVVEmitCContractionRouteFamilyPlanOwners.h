@@ -110,6 +110,10 @@ validatePreRealizedRVVSelectedWideningProductReduceDequantClampF32Body(
     tcrv::rvv::
         TypedWideningProductReduceDequantClampF32PreRealizedBodyOp body);
 
+llvm::Error validateExplicitRVVSelectedWideningProductReduceDequantClampF32Body(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedWideningProductReduceDequantClampF32BodyOp body);
+
 } // namespace tianchenrv::plugin::rvv
 
 #endif // TIANCHENRV_PLUGIN_RVV_RVVEMITCCONTRACTIONROUTEFAMILYPLANOWNERS_H

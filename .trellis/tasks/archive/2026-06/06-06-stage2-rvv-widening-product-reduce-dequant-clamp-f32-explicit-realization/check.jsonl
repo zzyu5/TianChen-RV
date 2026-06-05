@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final changes against global RVV authority-chain, Stage2 boundary, and legacy/source-front-door prohibitions."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check explicit selected-body realization remains RVV plugin-owned and fail-closed before provider route construction."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route and Common EmitC neutrality after the explicit body is realized."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/FileCheck and generated-bundle evidence quality without overclaiming runtime evidence."}
+{"file": ".trellis/tasks/06-06-stage2-rvv-widening-product-reduce-dequant-clamp-f32-explicit-realization/prd.md", "reason": "Check implementation, evidence, non-goals, and final task status against this task PRD."}

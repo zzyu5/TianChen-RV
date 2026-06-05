@@ -196,7 +196,7 @@ databases, dashboards, or readiness state machines.
 RVV plugin-local selected-body realization is one linear compiler step:
 
 ```text
-selected pre-realized tcrv_rvv body
+selected explicit or pre-realized tcrv_rvv body
   + target capability
   + runtime SSA / ABI values
   + optional hints / policy / profile
@@ -215,6 +215,144 @@ mask/tail materialization
 register-pressure-safe unroll
 prefetch/software-pipeline structure
 accumulator/reduction layout
+```
+
+## Explicit Widening Product Reduce Dequant-Clamp Realization Boundary
+
+### 1. Scope / Trigger
+
+Use this contract when a selected RVV variant contains the bounded explicit
+compound body:
+
+```text
+tcrv_rvv.typed_widening_product_reduce_dequant_clamp_f32_body
+```
+
+The body represents the same fused Stage 2 chain as the already supported
+pre-realized fixture:
+
+```text
+i8mf4 lhs/rhs loads
+  -> widening_product
+  -> standalone signed widening reduction with i32 scalar seed/carry
+  -> f32 dequantize using runtime scale
+  -> lower/upper f32 clamp
+  -> f32 output store
+```
+
+This is an RVV selected-body realization boundary, not a direct route-entry
+shortcut and not a Common EmitC semantic branch.
+
+### 2. Signatures
+
+The explicit body signature is:
+
+```text
+tcrv_rvv.typed_widening_product_reduce_dequant_clamp_f32_body
+  %lhs, %rhs, %acc, %scale, %lower_bound, %upper_bound, %out, %n
+  {
+    op_kind = "widening_product_reduce_dequant_clamp_f32",
+    memory_form = "unit-stride-widening-product-reduce-dequant-clamp-f32",
+    source_sew = 8, source_lmul = "mf4",
+    product_sew = 16, product_lmul = "mf2",
+    accumulator_sew = 32, accumulator_lmul = "m1",
+    result_sew = 32, result_lmul = "m1",
+    product_relation = "signed-i8mf4xi8mf4-to-i16mf2",
+    product_reduction_chain_relation =
+      "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32",
+    dequant_relation = "signed-i32m1-to-f32m1-scale-f32",
+    scale_role = "dequant-scale-value",
+    lower_predicate_kind = "slt",
+    upper_predicate_kind = "slt",
+    bound_order = "lower-bound-before-upper-bound",
+    select_layout = "clamp-lower-then-upper",
+    policy = tail agnostic, mask agnostic
+  }
+```
+
+The runtime ABI order remains:
+
+```text
+lhs, rhs, acc, scale, lower_bound, upper_bound, out, n
+```
+
+### 3. Contracts
+
+- The explicit op carries typed/config/runtime facts only. Route ids, artifact
+  names, ABI names, metadata mirrors, exact intrinsic spellings, descriptors,
+  or test names must not authorize the route.
+- The RVV contraction selected-body realization owner must consume the explicit
+  op and create the realized vector-level structure before route-family facts,
+  route-control facts, statement plans, or `TCRVEmitCLowerableRoute`
+  construction.
+- The realized structure must contain the legal RVV body sequence:
+  `setvl`, `with_vl`, lhs/rhs loads, `widening_product`,
+  `standalone_reduce`, `dequantize`, lower/upper splats, lower/upper compares,
+  two selects, and store.
+- The existing provider-derived fused route contract remains authority after
+  realization. Common EmitC and target export consume provider output and
+  metadata mirrors only.
+
+### 4. Validation & Error Matrix
+
+- Unsupported `op_kind` or `memory_form` -> fail before realization.
+- Stale `route_id`, descriptor, source-front-door, artifact-name, or other
+  authority metadata on the explicit body -> fail before realization.
+- Source/product/accumulator/result SEW or LMUL mismatch -> fail before
+  realization.
+- Missing or stale accumulator role/layout, result layout, product relation,
+  product-reduction relation, dequant relation, scale role, clamp predicates,
+  bound order, select layout, or policy -> fail before provider facts.
+- Runtime ABI role or C type mismatch for lhs, rhs, accumulator, scale,
+  lower/upper bounds, output, or runtime `n` -> fail before provider facts.
+- Target artifact mirrors for provider support, ABI order, operand binding,
+  header/type mapping, product/reduction/dequant/clamp facts, or stale
+  cross-family route facts disagree with the rebuilt provider route -> fail
+  before bundle/header acceptance.
+
+### 5. Good/Base/Bad Cases
+
+- Good: explicit compound selected body -> RVV contraction realization owner ->
+  realized `tcrv_rvv` vector-level body -> provider-derived fused route ->
+  Common EmitC -> target artifact mirrors.
+- Base: pre-realized fused fixtures keep using the same owner and realized
+  structure; they are regression evidence, not the explicit-body achievement.
+- Bad: route construction accepts the explicit op directly without materialized
+  `setvl/load/widening_product/reduce/dequant/clamp/store` structure.
+- Bad: Common EmitC or target export infers fused semantics from route id,
+  artifact name, ABI string, test name, descriptor, or script option.
+
+### 6. Tests Required
+
+- A positive lit/FileCheck fixture must show the explicit body is removed and
+  replaced by the realized vector-level structure before emission-plan and
+  target header checks.
+- The same fixture must check provider-derived route facts such as operation
+  kind, typed compute chain, runtime ABI order, operand binding, route-family
+  plan, provider mirror, type mapping, product-reduction relation, dequant
+  relation, and clamp roles.
+- Negative tests must cover stale or missing operation, dtype/config,
+  accumulator/reduction, dequant scale, clamp bound, runtime ABI, policy, and
+  route-authority facts.
+- Existing pre-realized fused artifact/generated-bundle tests must remain
+  passing when shared realization/provider/target code changes.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+typed_widening_product_reduce_dequant_clamp_f32_body
+  -> provider route constructed from op name or route metadata
+```
+
+Correct:
+
+```text
+typed_widening_product_reduce_dequant_clamp_f32_body
+  -> RVV contraction selected-body realization owner
+  -> realized setvl/load/widening_product/reduce/dequant/clamp/store body
+  -> provider-derived TCRVEmitCLowerableRoute
 ```
 
 ## Selected-Body Realization Owner Registry

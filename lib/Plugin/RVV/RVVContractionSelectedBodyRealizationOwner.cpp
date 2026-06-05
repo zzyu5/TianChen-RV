@@ -453,10 +453,9 @@ makeContractionRealizationPlan(
   return plan;
 }
 
+template <typename BodyOp>
 RVVSelectedBodyContractionRealizationPlan
-makeContractionRealizationPlan(
-    tcrv::rvv::TypedWideningProductReduceDequantClampF32PreRealizedBodyOp
-        body) {
+makeWideningProductReduceDequantClampF32RealizationPlan(BodyOp body) {
   RVVSelectedBodyContractionRealizationPlan plan;
   plan.preRealizedBody = body.getOperation();
   plan.usesProductReductionDequantization = true;
@@ -491,6 +490,19 @@ makeContractionRealizationPlan(
   plan.out = body.getOut();
   plan.n = body.getN();
   return plan;
+}
+
+RVVSelectedBodyContractionRealizationPlan
+makeContractionRealizationPlan(
+    tcrv::rvv::TypedWideningProductReduceDequantClampF32PreRealizedBodyOp
+        body) {
+  return makeWideningProductReduceDequantClampF32RealizationPlan(body);
+}
+
+RVVSelectedBodyContractionRealizationPlan
+makeContractionRealizationPlan(
+    tcrv::rvv::TypedWideningProductReduceDequantClampF32BodyOp body) {
+  return makeWideningProductReduceDequantClampF32RealizationPlan(body);
 }
 
 RVVSelectedBodyContractionRealizationPlan
@@ -719,7 +731,8 @@ bool isPreRealizedRVVContractionClusterOp(mlir::Operation *op) {
           TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp,
       tcrv::rvv::TypedWideningProductReduceDequantizePreRealizedBodyOp,
       tcrv::rvv::
-          TypedWideningProductReduceDequantClampF32PreRealizedBodyOp>(op);
+          TypedWideningProductReduceDequantClampF32PreRealizedBodyOp,
+      tcrv::rvv::TypedWideningProductReduceDequantClampF32BodyOp>(op);
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
@@ -823,6 +836,19 @@ llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
     return realizePreRealizedRVVSelectedContractionFamily(
         request, requires,
         makeContractionRealizationPlan(productReduceDequantClampBody));
+  }
+
+  if (auto explicitProductReduceDequantClampBody =
+          llvm::dyn_cast<
+              tcrv::rvv::TypedWideningProductReduceDequantClampF32BodyOp>(
+              bodyOp)) {
+    if (llvm::Error error =
+            validateExplicitRVVSelectedWideningProductReduceDequantClampF32Body(
+                request, explicitProductReduceDequantClampBody))
+      return std::move(error);
+    return realizePreRealizedRVVSelectedContractionFamily(
+        request, requires,
+        makeContractionRealizationPlan(explicitProductReduceDequantClampBody));
   }
 
   return makeRVVPluginError(

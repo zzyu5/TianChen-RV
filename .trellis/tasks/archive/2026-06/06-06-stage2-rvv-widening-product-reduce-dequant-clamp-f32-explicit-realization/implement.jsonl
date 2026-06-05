@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV stage order, and selected-body route authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned selected-body realization, route provider, fail-closed diagnostics, and Stage2 coverage boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality, provider-built TCRVEmitCLowerableRoute contract, operand binding, and target mirror validation rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required lit/FileCheck, selected-body realization, target artifact, generated-bundle, and RVV evidence rules."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-widening-product-reduce-dequant-clamp-f32-artifact-foundation/prd.md", "reason": "Prior pre-realized fused route/artifact/generated-bundle and ssh evidence baseline that this explicit realization task builds on without re-claiming."}

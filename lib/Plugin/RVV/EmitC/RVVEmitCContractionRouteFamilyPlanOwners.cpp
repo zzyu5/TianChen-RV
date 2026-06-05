@@ -3580,16 +3580,16 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
       variant, "widening product reduction dequantization");
 }
 
-llvm::Error
-validatePreRealizedRVVSelectedWideningProductReduceDequantClampF32Body(
-    const VariantLoweringBoundaryRequest &request,
-    tcrv::rvv::
-        TypedWideningProductReduceDequantClampF32PreRealizedBodyOp body) {
+template <typename BodyOp>
+llvm::Error validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
+    const VariantLoweringBoundaryRequest &request, BodyOp body,
+    llvm::StringRef bodyKind) {
   tcrv::exec::VariantOp variant = request.getVariant();
   if (!body)
     return makeRVVEmitCRouteProviderError(
-        "selected RVV widening product reduction dequant-clamp realization "
-        "requires a pre-realized product-reduction-dequant-clamp body op");
+        llvm::Twine("selected RVV widening product reduction dequant-clamp "
+                    "realization requires a ") +
+        bodyKind + " product-reduction-dequant-clamp body op");
   if (!variant)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction "
@@ -3761,6 +3761,22 @@ validatePreRealizedRVVSelectedWideningProductReduceDequantClampF32Body(
     return error;
   return requireContractionSelectedVariantRequires(
       variant, "widening product reduction dequant-clamp");
+}
+
+llvm::Error
+validatePreRealizedRVVSelectedWideningProductReduceDequantClampF32Body(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::
+        TypedWideningProductReduceDequantClampF32PreRealizedBodyOp body) {
+  return validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
+      request, body, "pre-realized");
+}
+
+llvm::Error validateExplicitRVVSelectedWideningProductReduceDequantClampF32Body(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedWideningProductReduceDequantClampF32BodyOp body) {
+  return validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
+      request, body, "explicit");
 }
 
 llvm::Error requireRVVSelectedBodyContractionPlanField(
