@@ -13751,8 +13751,20 @@ int runBaseMemoryMovementRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyBaseMemoryMovementRouteStatementPlan;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyMathRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyResidualRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
       getRVVSelectedBodyRouteControlProviderPlan;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteStatementPlanOwnerSelection;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyDirectContractionRouteProviderPlan;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMigratedRouteStatementPlanFamily;
   using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
@@ -13773,9 +13785,13 @@ int runBaseMemoryMovementRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyMemoryRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
+      RVVSelectedBodyRouteStatementPlanOwnerKind;
+  using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyBaseMemoryMovementRouteDescriptionMirrors;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyBaseMemoryMovementRouteProviderFacts;
   using tianchenrv::support::RuntimeABIParameterRole;
 
   for (RVVSelectedBodyOperationKind op :
@@ -14122,6 +14138,94 @@ module {
                       analysis.description.outStrideSource,
               "base memory provider plan exposes strided memory facts that "
               "mirror the provider-built route description"))
+        return result;
+    }
+    auto elementwiseFacts =
+        getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
+            analysis, "base memory provider-facts unit test");
+    if (!elementwiseFacts)
+      return fail("base memory elementwise/select operand-binding facts: " +
+                  llvm::toString(elementwiseFacts.takeError()));
+    auto mathFacts = getRVVSelectedBodyMathRouteOperandBindingFacts(
+        analysis, "base memory provider-facts unit test");
+    if (!mathFacts)
+      return fail("base memory math operand-binding facts: " +
+                  llvm::toString(mathFacts.takeError()));
+    auto residualFacts = getRVVSelectedBodyResidualRouteOperandBindingFacts(
+        analysis, "base memory provider-facts unit test");
+    if (!residualFacts)
+      return fail("base memory residual operand-binding facts: " +
+                  llvm::toString(residualFacts.takeError()));
+
+    RVVSelectedBodyDirectContractionRouteProviderPlan
+        emptyDirectProviderPlan;
+    auto selectedStatementPlan =
+        getRVVSelectedBodyRouteStatementPlanOwnerSelection(
+            analysis, *materializationFacts, *elementwiseFacts, *memoryFacts,
+            *mathFacts, *residualFacts, emptyDirectProviderPlan,
+            "base memory provider-facts unit test");
+    if (!selectedStatementPlan)
+      return fail("base memory statement-plan owner selection: " +
+                  llvm::toString(selectedStatementPlan.takeError()));
+    if (int result = expect(
+            selectedStatementPlan->plansSelectedBodyRoute &&
+                selectedStatementPlan->ownerKind ==
+                    RVVSelectedBodyRouteStatementPlanOwnerKind::Migrated &&
+                selectedStatementPlan->migratedFamily ==
+                    RVVSelectedBodyMigratedRouteStatementPlanFamily::
+                        BaseMemoryMovement &&
+                selectedStatementPlan->ownerName == "base memory movement" &&
+                selectedStatementPlan->preLoopSteps.size() ==
+                    statementPlan->preLoopSteps.size() &&
+                selectedStatementPlan->loop.bodySteps.size() ==
+                    statementPlan->loop.bodySteps.size(),
+            "statement-plan owner module selects the migrated base memory "
+            "owner and preserves provider-ready statements"))
+      return result;
+    if (int result = expectSuccess(
+            verifyRVVSelectedBodyBaseMemoryMovementRouteProviderFacts(
+                analysis, *materializationFacts, *memoryFacts, *providerPlan,
+                *selectedStatementPlan, "base memory provider-facts unit test"),
+            "base memory provider-facts verifier accepts the same-analysis "
+            "provider plan, operand facts, and owner statements"))
+      return result;
+
+    if (stridedLoad) {
+      auto staleProviderPlan = *providerPlan;
+      staleProviderPlan.runtimeABIOrderMirror = "metadata-selected-abi";
+      if (int result = expectErrorContains(
+              verifyRVVSelectedBodyBaseMemoryMovementRouteProviderFacts(
+                  analysis, *materializationFacts, *memoryFacts,
+                  staleProviderPlan, *selectedStatementPlan,
+                  "base memory provider-facts stale provider unit test"),
+              {"base memory movement route construction requires "
+               "provider-plan mirrors",
+               "before creating TCRVEmitCLowerableRoute"}))
+        return result;
+
+      auto staleStatementPlan = *selectedStatementPlan;
+      staleStatementPlan.loop.bodySteps.clear();
+      if (int result = expectErrorContains(
+              verifyRVVSelectedBodyBaseMemoryMovementRouteProviderFacts(
+                  analysis, *materializationFacts, *memoryFacts, *providerPlan,
+                  staleStatementPlan,
+                  "base memory provider-facts stale statement unit test"),
+              {"base memory movement route construction requires the migrated "
+               "base memory statement-plan owner",
+               "before creating TCRVEmitCLowerableRoute"}))
+        return result;
+
+      RVVSelectedBodyMemoryRouteOperandBindingFacts staleMemoryFacts =
+          *memoryFacts;
+      staleMemoryFacts.sourceStrideABI = nullptr;
+      if (int result = expectErrorContains(
+              verifyRVVSelectedBodyBaseMemoryMovementRouteProviderFacts(
+                  analysis, *materializationFacts, staleMemoryFacts,
+                  *providerPlan, *selectedStatementPlan,
+                  "base memory provider-facts stale stride unit test"),
+              {"base memory movement route construction requires ABI operand "
+               "'stride_bytes'",
+               "before creating TCRVEmitCLowerableRoute"}))
         return result;
     }
     KernelOp kernel = findKernel(*module, kernelName);

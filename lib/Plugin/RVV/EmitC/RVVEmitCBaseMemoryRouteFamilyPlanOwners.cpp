@@ -3203,4 +3203,414 @@ getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
   return providerPlan;
 }
 
+llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyBaseMemoryMovementRouteProviderPlan &providerPlan,
+    const RVVSelectedBodyRouteStatementPlanOwnerSelection
+        &statementPlanOwnerSelection,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  const RVVSelectedBodyOperationKind operation = description.operation;
+  const bool isConsumer =
+      isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(description);
+
+  if (!isConsumer) {
+    if (providerPlan.plansBaseMemoryMovementRoute ||
+        statementPlanOwnerSelection.migratedFamily ==
+            RVVSelectedBodyMigratedRouteStatementPlanFamily::
+                BaseMemoryMovement)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " base memory movement route construction must not carry base "
+          "memory movement provider facts for non-base-memory operation '" +
+          stringifyRVVSelectedBodyOperationKind(operation) +
+          "' before creating TCRVEmitCLowerableRoute");
+    return llvm::Error::success();
+  }
+
+  auto makeConstructionError = [&](llvm::Twine message) {
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " base memory movement route construction " +
+        message + " before creating TCRVEmitCLowerableRoute for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  };
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              analysis, context))
+    return error;
+
+  if (!analysis.baseMemoryMovementRouteFamilyPlan ||
+      !materializationFacts.baseMemoryMovementPlan ||
+      !providerPlan.plansBaseMemoryMovementRoute ||
+      !providerPlan.baseMemoryMovementPlan ||
+      providerPlan.baseMemoryMovementPlan !=
+          materializationFacts.baseMemoryMovementPlan ||
+      providerPlan.baseMemoryMovementPlan !=
+          &*analysis.baseMemoryMovementRouteFamilyPlan)
+    return makeConstructionError(
+        "requires the prevalidated base memory movement provider plan from "
+        "the same selected route analysis");
+
+  const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan &basePlan =
+      *providerPlan.baseMemoryMovementPlan;
+  const bool isStridedLoad =
+      operation == RVVSelectedBodyOperationKind::StridedLoadUnitStore;
+  const bool isStridedStore =
+      operation == RVVSelectedBodyOperationKind::UnitLoadStridedStore;
+  const bool isIndexedGather =
+      operation == RVVSelectedBodyOperationKind::IndexedGatherUnitStore;
+  const bool isIndexedScatter =
+      operation == RVVSelectedBodyOperationKind::IndexedScatterUnitLoad;
+  const bool isStaticMaskLoad =
+      operation == RVVSelectedBodyOperationKind::MaskedUnitLoadStore;
+  const bool isStaticMaskStore =
+      operation == RVVSelectedBodyOperationKind::MaskedUnitStore;
+  const bool isIndexed = isIndexedGather || isIndexedScatter;
+  const bool isStaticMask = isStaticMaskLoad || isStaticMaskStore;
+
+  if (basePlan.operation != operation ||
+      basePlan.memoryForm != description.memoryForm ||
+      basePlan.usesStridedLoad != isStridedLoad ||
+      basePlan.usesStridedStore != isStridedStore ||
+      basePlan.usesIndexedGather != isIndexedGather ||
+      basePlan.usesIndexedScatter != isIndexedScatter ||
+      basePlan.usesStaticMaskLoad != isStaticMaskLoad ||
+      basePlan.usesStaticMaskStore != isStaticMaskStore)
+    return makeConstructionError(
+        "requires family classification facts from the verified base memory "
+        "movement provider plan");
+
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      materializationFacts.typedConfigFacts;
+  if (!typedFacts.hasFacts() ||
+      basePlan.typedConfigFactsID != typedFacts.factsID ||
+      basePlan.elementTypeName != typedFacts.elementTypeName ||
+      basePlan.elementBitWidth != typedFacts.elementBitWidth ||
+      basePlan.sew != typedFacts.sew || basePlan.lmul != typedFacts.lmul ||
+      basePlan.tailPolicy != typedFacts.tailPolicy ||
+      basePlan.maskPolicy != typedFacts.maskPolicy ||
+      basePlan.configContractID != typedFacts.configContractID ||
+      basePlan.vlCType != typedFacts.vlCType ||
+      basePlan.vectorTypeName != typedFacts.vectorTypeName ||
+      basePlan.vectorCType != typedFacts.vectorCType ||
+      basePlan.setVLIntrinsic != typedFacts.setVLIntrinsic ||
+      basePlan.vectorLoadIntrinsic != typedFacts.vectorLoadIntrinsic)
+    return makeConstructionError(
+        "requires family-plan type/config facts to mirror the selected typed "
+        "RVV memory body");
+
+  if (providerPlan.bindingPlan != &analysis.routeOperandBindingPlan ||
+      memoryOperandBindingFacts.bindingPlan !=
+          &analysis.routeOperandBindingPlan ||
+      !memoryOperandBindingFacts.bindsMemoryCluster ||
+      !memoryOperandBindingFacts.bindsBaseMemoryMovement)
+    return makeConstructionError(
+        "requires RVV-owned base memory operand-binding facts from the same "
+        "selected route analysis");
+
+  auto requireABI = [&](const support::RuntimeABIParameter *parameter,
+                        llvm::StringRef logicalName,
+                        support::RuntimeABIParameterRole expectedRole)
+      -> llvm::Error {
+    if (!parameter)
+      return makeConstructionError(llvm::Twine("requires ABI operand '") +
+                                   logicalName + "'");
+    if (parameter->role != expectedRole)
+      return makeConstructionError(
+          llvm::Twine("requires ABI role for '") + logicalName + "' to be '" +
+          support::stringifyRuntimeABIParameterRole(expectedRole) +
+          "' but saw '" +
+          support::stringifyRuntimeABIParameterRole(parameter->role) + "'");
+    return llvm::Error::success();
+  };
+  auto rejectInactiveABI = [&](const support::RuntimeABIParameter *parameter,
+                               llvm::StringRef logicalName) -> llvm::Error {
+    if (!parameter)
+      return llvm::Error::success();
+    return makeConstructionError(llvm::Twine("must not carry inactive ABI "
+                                             "operand '") +
+                                 logicalName + "'");
+  };
+
+  if (llvm::Error error = requireABI(
+          memoryOperandBindingFacts.sourceABI,
+          isIndexedGather ? "data" : "src",
+          isStridedLoad
+              ? support::RuntimeABIParameterRole::SourceInputBuffer
+              : support::RuntimeABIParameterRole::LHSInputBuffer))
+    return error;
+  if (llvm::Error error = requireABI(
+          memoryOperandBindingFacts.destinationABI,
+          isStridedStore || isIndexedScatter || isStaticMask
+              ? "dst"
+              : "out",
+          support::RuntimeABIParameterRole::OutputBuffer))
+    return error;
+  if (llvm::Error error = requireABI(
+          memoryOperandBindingFacts.runtimeElementCountABI, "n",
+          support::RuntimeABIParameterRole::RuntimeElementCount))
+    return error;
+  if (isStridedLoad) {
+    if (llvm::Error error = requireABI(
+            memoryOperandBindingFacts.sourceStrideABI, "stride_bytes",
+            support::RuntimeABIParameterRole::SourceByteStride))
+      return error;
+  } else if (llvm::Error error = rejectInactiveABI(
+                 memoryOperandBindingFacts.sourceStrideABI, "stride_bytes")) {
+    return error;
+  }
+  if (isStridedStore) {
+    if (llvm::Error error = requireABI(
+            memoryOperandBindingFacts.destinationStrideABI,
+            "dst_stride_bytes",
+            support::RuntimeABIParameterRole::DestinationByteStride))
+      return error;
+  } else if (llvm::Error error =
+                 rejectInactiveABI(memoryOperandBindingFacts.destinationStrideABI,
+                                   "dst_stride_bytes")) {
+    return error;
+  }
+  if (isIndexed) {
+    if (llvm::Error error = requireABI(
+            memoryOperandBindingFacts.indexABI, "index",
+            support::RuntimeABIParameterRole::IndexInputBuffer))
+      return error;
+  } else if (llvm::Error error =
+                 rejectInactiveABI(memoryOperandBindingFacts.indexABI,
+                                   "index")) {
+    return error;
+  }
+  if (isStaticMask) {
+    if (llvm::Error error = requireABI(
+            memoryOperandBindingFacts.maskABI, "mask",
+            support::RuntimeABIParameterRole::MaskInputBuffer))
+      return error;
+    if (isStaticMaskLoad) {
+      if (llvm::Error error = requireABI(
+              memoryOperandBindingFacts.passthroughABI, "dst",
+              support::RuntimeABIParameterRole::OutputBuffer))
+        return error;
+      if (!memoryOperandBindingFacts.destinationABI ||
+          !memoryOperandBindingFacts.passthroughABI ||
+          memoryOperandBindingFacts.destinationABI->cName !=
+              memoryOperandBindingFacts.passthroughABI->cName)
+        return makeConstructionError(
+            "requires masked-load passthrough ABI to use the destination "
+            "runtime value");
+    } else if (llvm::Error error =
+                   rejectInactiveABI(memoryOperandBindingFacts.passthroughABI,
+                                     "passthrough")) {
+      return error;
+    }
+  } else {
+    if (llvm::Error error =
+            rejectInactiveABI(memoryOperandBindingFacts.maskABI, "mask"))
+      return error;
+    if (llvm::Error error = rejectInactiveABI(
+            memoryOperandBindingFacts.passthroughABI, "passthrough"))
+      return error;
+  }
+
+  auto requireMirror = [&](llvm::StringRef label, llvm::StringRef actual,
+                           llvm::StringRef expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeConstructionError(llvm::Twine("requires provider-plan mirrors "
+                                             "for ") +
+                                 label + " to come from selected typed-body "
+                                         "facts");
+  };
+  if (llvm::Error error = requireMirror(
+          "family plan", providerPlan.familyPlanIDMirror,
+          basePlan.familyPlanID))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "provider support", providerPlan.providerSupportedMirror,
+          basePlan.providerSupportedMirror))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "target leaf profile", providerPlan.targetLeafProfileMirror,
+          basePlan.targetLeafProfile))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "runtime ABI order", providerPlan.runtimeABIOrderMirror,
+          basePlan.runtimeABIOrder))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "route operand binding plan",
+          providerPlan.routeOperandBindingPlanIDMirror,
+          analysis.routeOperandBindingPlan.planID))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "route operand binding summary",
+          providerPlan.routeOperandBindingSummaryMirror,
+          description.routeOperandBindingSummary))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "headers", providerPlan.requiredHeaderDeclarationsMirror,
+          basePlan.requiredHeaderDeclarations))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "C type mapping", providerPlan.cTypeMappingSummaryMirror,
+          basePlan.cTypeMappingSummary))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "typed compute op", providerPlan.typedComputeOpNameMirror,
+          description.typedComputeOpName))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "source memory form", providerPlan.sourceMemoryFormMirror,
+          basePlan.sourceMemoryForm))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "destination memory form",
+          providerPlan.destinationMemoryFormMirror,
+          basePlan.destinationMemoryForm))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "strided memory layout", providerPlan.stridedMemoryLayoutMirror,
+          basePlan.stridedMemoryLayout))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "source stride source", providerPlan.sourceStrideSourceMirror,
+          basePlan.sourceStrideSource))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "destination stride source",
+          providerPlan.destinationStrideSourceMirror,
+          basePlan.destinationStrideSource))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "indexed memory layout", providerPlan.indexedMemoryLayoutMirror,
+          basePlan.indexedMemoryLayout))
+    return error;
+  if (providerPlan.indexEEWMirror != basePlan.indexEEW)
+    return makeConstructionError(
+        "requires provider-plan mirrors for index EEW to come from selected "
+        "typed-body facts");
+  if (llvm::Error error =
+          requireMirror("offset unit", providerPlan.offsetUnitMirror,
+                        basePlan.offsetUnit))
+    return error;
+  if (llvm::Error error =
+          requireMirror("index source", providerPlan.indexSourceMirror,
+                        basePlan.indexSource))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "index uniqueness", providerPlan.indexUniquenessMirror,
+          basePlan.indexUniqueness))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "indexed data memory form",
+          providerPlan.indexedDataMemoryFormMirror,
+          basePlan.indexedDataMemoryForm))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "indexed destination memory form",
+          providerPlan.indexedDestinationMemoryFormMirror,
+          basePlan.indexedDestinationMemoryForm))
+    return error;
+
+  if (basePlan.maskRole != (isStaticMask ? llvm::StringRef(kRVVMaskRole)
+                                         : llvm::StringRef()) ||
+      basePlan.maskSource != (isStaticMask ? llvm::StringRef(kRVVMaskSource)
+                                           : llvm::StringRef()) ||
+      basePlan.maskMemoryForm !=
+          (isStaticMask ? llvm::StringRef(kRVVMaskMemoryForm)
+                        : llvm::StringRef()))
+    return makeConstructionError(
+        "requires mask provenance facts to come from the selected typed "
+        "base-memory body");
+
+  if (!statementPlanOwnerSelection.plansSelectedBodyRoute ||
+      statementPlanOwnerSelection.ownerKind !=
+          RVVSelectedBodyRouteStatementPlanOwnerKind::Migrated ||
+      statementPlanOwnerSelection.migratedFamily !=
+          RVVSelectedBodyMigratedRouteStatementPlanFamily::
+              BaseMemoryMovement ||
+      statementPlanOwnerSelection.ownerName != "base memory movement" ||
+      statementPlanOwnerSelection.preLoopSteps.empty() ||
+      statementPlanOwnerSelection.loop.bodySteps.empty())
+    return makeConstructionError(
+        "requires the migrated base memory statement-plan owner");
+
+  auto hasCallee = [](const auto &steps, llvm::StringRef callee) {
+    for (const auto &step : steps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  auto requireStatementLeaf = [&](llvm::StringRef leaf,
+                                  llvm::StringRef leafName) -> llvm::Error {
+    if (!leaf.empty() &&
+        (hasCallee(statementPlanOwnerSelection.preLoopSteps, leaf) ||
+         hasCallee(statementPlanOwnerSelection.loop.bodySteps, leaf) ||
+         hasCallee(statementPlanOwnerSelection.postLoopSteps, leaf)))
+      return llvm::Error::success();
+    return makeConstructionError(
+        llvm::Twine("requires base memory owner statements for ") + leafName);
+  };
+
+  if (llvm::Error error =
+          requireStatementLeaf(basePlan.setVLIntrinsic, "setvl"))
+    return error;
+  if (isStridedLoad)
+    if (llvm::Error error = requireStatementLeaf(basePlan.stridedLoadIntrinsic,
+                                                 "strided load"))
+      return error;
+  if (isStridedStore)
+    if (llvm::Error error =
+            requireStatementLeaf(basePlan.stridedStoreIntrinsic,
+                                 "strided store"))
+      return error;
+  if (isIndexed) {
+    if (llvm::Error error =
+            requireStatementLeaf(basePlan.indexLoadIntrinsic, "index load"))
+      return error;
+    if (llvm::Error error =
+            requireStatementLeaf(basePlan.indexScaleIntrinsic, "index scale"))
+      return error;
+  }
+  if (isIndexedGather)
+    if (llvm::Error error =
+            requireStatementLeaf(basePlan.indexedLoadIntrinsic,
+                                 "indexed load"))
+      return error;
+  if (isIndexedScatter)
+    if (llvm::Error error =
+            requireStatementLeaf(basePlan.indexedStoreIntrinsic,
+                                 "indexed store"))
+      return error;
+  if (isStaticMask) {
+    if (llvm::Error error =
+            requireStatementLeaf(basePlan.vectorLoadIntrinsic, "mask load"))
+      return error;
+    if (llvm::Error error =
+            requireStatementLeaf(materializationFacts.compareLeaf,
+                                 "mask provenance compare"))
+      return error;
+  }
+  if (isStaticMaskLoad)
+    if (llvm::Error error =
+            requireStatementLeaf(basePlan.maskedLoadIntrinsic,
+                                 "masked load"))
+      return error;
+  if (isStridedStore || isIndexedScatter || isStaticMaskStore)
+    if (llvm::Error error =
+            requireStatementLeaf(basePlan.vectorLoadIntrinsic, "source load"))
+      return error;
+  if (isStridedLoad || isIndexedGather || isStaticMaskLoad ||
+      isStaticMaskStore)
+    if (llvm::Error error = requireStatementLeaf(basePlan.storeIntrinsic,
+                                                 "store"))
+      return error;
+
+  return llvm::Error::success();
+}
+
 } // namespace tianchenrv::plugin::rvv

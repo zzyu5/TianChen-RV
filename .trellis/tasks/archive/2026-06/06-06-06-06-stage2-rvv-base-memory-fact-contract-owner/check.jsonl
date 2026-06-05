@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global source-of-truth, RVV-first order, and forbidden route authority drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider/locality, selected-body realization, and memory/provider facts contract compliance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check TCRVEmitCLowerableRoute is provider-built and Common EmitC remains neutral."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused tests, dry-run/runtime evidence boundary, and old-authority scan expectations."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Passed after self-repair; verifies focused RVV plugin base-memory provider-facts positive and fail-closed paths plus existing explicit/pre-realized memory regressions."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Passed; confirms the new provider gate did not break target artifact/export consumers."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-06-06-stage2-rvv-base-memory-fact-contract-owner/prd.md", "reason": "Records git diff --check and bounded old-authority scan evidence: added diff lines contain no positive legacy i32m1, descriptor, source-front-door, direct-C, or source-export route authority. Only metadata hit is intentional stale negative test string metadata-selected-abi."}

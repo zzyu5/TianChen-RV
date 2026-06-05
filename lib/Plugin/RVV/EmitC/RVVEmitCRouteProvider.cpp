@@ -4,6 +4,7 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
@@ -481,6 +482,25 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const RVVSelectedBodyDirectContractionRouteProviderPlan
       directContractionProviderPlan = *directContractionProviderPlanOrError;
 
+  RVVSelectedBodyBaseMemoryMovementRouteProviderPlan
+      baseMemoryRouteConstructionPlan;
+  if (isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(description)) {
+    llvm::Expected<RVVSelectedBodyBaseMemoryMovementRouteProviderPlan>
+        baseMemoryRouteConstructionPlanOrError =
+            getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
+                analysis, materializationFacts, memoryOperandBindingFacts,
+                "selected RVV EmitC route construction");
+    if (!baseMemoryRouteConstructionPlanOrError)
+      return baseMemoryRouteConstructionPlanOrError.takeError();
+    if (!baseMemoryRouteConstructionPlanOrError->plansBaseMemoryMovementRoute)
+      return makeRVVEmitCRouteProviderError(
+          "selected RVV EmitC route construction requires the matched base "
+          "memory movement planning owner to produce a provider plan before "
+          "constructing TCRVEmitCLowerableRoute");
+    baseMemoryRouteConstructionPlan =
+        *baseMemoryRouteConstructionPlanOrError;
+  }
+
   std::optional<RVVSelectedBodySegment2RouteFamilyProviderPlan>
       segment2RouteConstructionPlan;
   if (isRVVSelectedBodySegment2RouteFamilyPlanningConsumer(description)) {
@@ -509,6 +529,12 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               "selected RVV EmitC route construction");
   if (!statementPlanOwnerSelection)
     return statementPlanOwnerSelection.takeError();
+  if (llvm::Error error =
+          verifyRVVSelectedBodyBaseMemoryMovementRouteProviderFacts(
+              analysis, materializationFacts, memoryOperandBindingFacts,
+              baseMemoryRouteConstructionPlan, *statementPlanOwnerSelection,
+              "selected RVV EmitC route construction"))
+    return error;
   if (segment2RouteConstructionPlan) {
     if (llvm::Error error = verifyRVVSelectedBodySegment2RouteProviderFacts(
             analysis, materializationFacts, memoryOperandBindingFacts,

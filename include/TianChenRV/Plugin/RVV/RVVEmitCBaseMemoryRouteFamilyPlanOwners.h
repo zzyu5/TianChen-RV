@@ -74,6 +74,16 @@ getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
         &memoryOperandBindingFacts,
     llvm::StringRef context);
 
+llvm::Error verifyRVVSelectedBodyBaseMemoryMovementRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyBaseMemoryMovementRouteProviderPlan &providerPlan,
+    const RVVSelectedBodyRouteStatementPlanOwnerSelection
+        &statementPlanOwnerSelection,
+    llvm::StringRef context);
+
 } // namespace tianchenrv::plugin::rvv
 
 #endif // TIANCHENRV_PLUGIN_RVV_RVVEMITCBASEMEMORYROUTEFAMILYPLANOWNERS_H

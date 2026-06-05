@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV-first stage authority rules for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected-body realization, base-memory, provider, and fail-closed contract rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/C++/artifact evidence expectations and runtime evidence boundary."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCBaseMemoryRouteFamilyPlanOwners.cpp", "reason": "Implemented base-memory provider-facts verifier for same-analysis plan/materialization facts, typed config, ABI roles, provider mirrors, mask provenance, and migrated statement owner leaves before route construction."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Connected the base-memory provider plan and verifier into the production selected-body EmitC route construction path before TCRVEmitCLowerableRoute creation."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Extended focused base-memory route-family provider tests with positive verifier coverage and fail-closed stale provider, owner, and stride ABI regressions."}
