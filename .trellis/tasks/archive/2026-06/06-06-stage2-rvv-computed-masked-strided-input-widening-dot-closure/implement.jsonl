@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain and RVV Stage 2 selected-body realization invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin selected-body realization owner registry and direct contraction route-provider owner boundary for computed-mask strided widening-dot routes."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned TCRVEmitCLowerableRoute and route operand binding summary contract for exported runtime ABI parameters."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/FileCheck, generated-bundle, and ssh rvv evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-computed-masked-widening-dot-selected-body-realization/prd.md", "reason": "Previous non-strided computed-mask widening-dot closure and evidence pattern."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Primary pre-realized selected-body fixture and provider/target facts for this task."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Explicit selected-body regression for shared strided computed-mask widening-dot route code."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle dry-run and ssh rvv harness/evidence generator for this route."}

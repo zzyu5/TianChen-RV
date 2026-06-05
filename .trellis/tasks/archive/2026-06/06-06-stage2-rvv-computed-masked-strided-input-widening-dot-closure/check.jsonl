@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Check implementation against global authority/source-of-truth rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin ownership, selected-body realization, provider-plan, and fail-closed requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC neutrality and provider-owned ABI/operand binding mirrors."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused evidence, ssh rvv runtime claim, and legacy authority scan requirements."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Verify pre-realized target fixture evidence and negative guards."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Verify explicit strided computed-mask regression remains passing."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Verify generated-bundle dry-run evidence contract for pre-realized path."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Verify generated-bundle dry-run explicit regression."}

@@ -1,6 +1,9 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: sed 's/source_lmul = "mf2"/route_id = "rvv-i32m1", source_lmul = "mf2"/' %s | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-AUTH
+// RUN: sed 's/mask_source = "compare-produced-mask-same-vl-scope"/mask_source = "runtime_abi:mask"/' %s | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-MASK-PROVENANCE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.lhs_stride_source", value = "runtime_abi:lhs_stride/s//tcrv_rvv.lhs_stride_source", value = "metadata-derived-stride/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STRIDE-SOURCE
 
 // Pre-realized selected-body input for one bounded Stage 2 signed computed-mask
 // runtime-strided-input widening dot-product reduction slice. The RVV plugin
@@ -125,3 +128,7 @@ module {
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32
 // HEADER: tianchenrv.rvv.inactive_lane_zeroing_requirement: masked-widening-products-zero-inactive-lanes-before-reduction
 // HEADER: void tcrv_emitc_pre_realized_masked_strided_dot_kernel_rvv_computed_mask_strided_input_dot(const int32_t *cmp_lhs, const int32_t *cmp_rhs, const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n, size_t lhs_stride, size_t rhs_stride);
+
+// STALE-AUTH: does not accept authority metadata attribute '"route_id"'
+// MISSING-MASK-PROVENANCE: currently supports only mask_source "compare-produced-mask-same-vl-scope"
+// STALE-STRIDE-SOURCE: candidate tcrv_rvv.lhs_stride_source provenance must mirror selected typed RVV strided widening dot lhs stride source 'runtime_abi:lhs_stride' but was 'metadata-derived-stride'
