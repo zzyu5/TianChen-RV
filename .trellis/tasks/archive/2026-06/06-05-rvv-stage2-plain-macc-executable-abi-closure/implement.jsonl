@@ -1,0 +1,18 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage 2 boundary, and runtime evidence requirements."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Plain MAcc typed-body authority, RVV-owned MAcc owner/statement-plan boundaries, and plugin-local provider facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute boundary, Common EmitC neutrality, provider operand-binding summary, and runtime ABI validation rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Plain MAcc generated-bundle evidence contract and real ssh rvv requirement for correctness claims."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected typed RVV body and metadata-mirror authority boundaries."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Ensure MAcc dtype/config/runtime facts stay structural and provider-derived."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep RVV semantics in the plugin/provider and out of Common EmitC/core."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Keep this as RVV extension execution behavior, not high-level/core compute."}
+{"file": ".trellis/tasks/06-05-rvv-stage2-plain-macc-executable-abi-closure/prd.md", "reason": "Bounded executable ABI closure PRD, acceptance criteria, and evidence plan."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-rvv-stage2-plain-macc-selected-body-route/prd.md", "reason": "Previous route-contract evidence and non-ssh scope boundary."}
+{"file": ".trellis/tasks/archive/2026-06/06-02-06-02-stage2-rvv-plain-macc-add-vector-vector-artifact-abi-boundary/prd.md", "reason": "Prior plain MAcc executable ABI context and expected harness coverage."}
+{"file": ".trellis/tasks/archive/2026-06/06-03-06-03-stage2-rvv-unit-stride-macc-production-validation-boundary/prd.md", "reason": "Provider-owned MAcc target validation contract and fail-closed context."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle ABI evidence runner and external harness generator for macc_add."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-macc-add-dry-run.test", "reason": "Explicit selected-body plain MAcc dry-run evidence contract."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-macc-add-dry-run.test", "reason": "Pre-realized selected-body plain MAcc dry-run evidence contract."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-macc-add.mlir", "reason": "Explicit typed tcrv_rvv.macc selected-body fixture."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-macc-add.mlir", "reason": "Pre-realized typed MAcc selected-body fixture and realization evidence."}

@@ -1,0 +1,11 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "Final check must preserve global RVV authority chain and Stage 2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check must ensure plain MAcc facts remain RVV-provider-derived from typed body/config/runtime facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check must verify Common EmitC stays neutral and route facts remain provider-owned."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check must validate generated-bundle and ssh rvv evidence for the executable claim."}
+{"file": ".trellis/tasks/06-05-rvv-stage2-plain-macc-executable-abi-closure/prd.md", "reason": "Verify implementation and evidence satisfy this task's bounded acceptance criteria."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Check generated bundle, harness, evidence JSON, and ssh rvv path if changed or exercised."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-macc-add-dry-run.test", "reason": "Check explicit selected-body plain MAcc dry-run evidence."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-macc-add-dry-run.test", "reason": "Check pre-realized selected-body plain MAcc dry-run evidence."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-macc-add.mlir", "reason": "Check explicit selected-body target artifact route facts."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-macc-add.mlir", "reason": "Check pre-realized body consumption and target artifact route facts."}

@@ -1,5 +1,5 @@
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id macc-add --overwrite --op-kind macc_add --runtime-count 0 --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id macc-add --overwrite --op-kind macc_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/macc-add/evidence.json
 # RUN: FileCheck %s --check-prefix=MACC --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/macc-add/macc_add/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/macc-add/macc_add/rvv_generated_bundle_abi_macc_add_harness.c
@@ -59,6 +59,7 @@
 # MACC-DAG: "macc_kind": "add"
 # MACC-DAG: "macc_intrinsic": "__riscv_vmacc_vv_i32m1"
 # MACC-DAG: "macc_operand_order": "acc,lhs,rhs,vl"
+# MACC-DAG: "runtime_counts": [
 # MACC-DAG: "store_advances_by_loop_induction": true
 # MACC-DAG: "store_pointer": "out + loop_induction"
 # MACC-DAG: "runtime_counts_are_execution_cases_not_macc_authority": true
@@ -71,6 +72,7 @@
 # HARNESS: tcrv_emitc_explicit_selected_body_macc_add_kernel_explicit_selected_body_rvv_macc_add(lhs, rhs, acc, out, n);
 # HARNESS: int32_t expected = (int32_t)(acc[index] + (int32_t)(lhs[index] * rhs[index]));
 # HARNESS: source_preserved tail_preserved
+# HARNESS: const size_t counts[] = {0, 1, 16, 17, 257};
 # HARNESS: for (int pattern = 0; pattern < 2; ++pattern)
 # HARNESS: int status = run_case(counts[index], pattern);
 # HARNESS: patterns=0,1

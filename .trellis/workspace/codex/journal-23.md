@@ -696,3 +696,76 @@ testing contract.
 ### Next Steps
 
 - Archive the Trellis task and create one coherent commit.
+
+
+## Session 467: Stage2 RVV plain MAcc executable ABI closure
+
+**Date**: 2026-06-05
+**Task**: `06-05-rvv-stage2-plain-macc-executable-abi-closure`
+**Branch**: `main`
+
+### Summary
+
+Closed the current plain `macc_add` generated-bundle executable ABI path with
+real `ssh rvv` correctness evidence for both explicit selected-body and
+pre-realized selected-body routes. The generated header/source/object and
+external ABI harness agree with provider-derived route facts for
+`lhs,rhs,acc,out,n`, arithmetic kind `add`, accumulator/result layout, and the
+plain MAcc operand-binding plan.
+
+### Main Changes
+
+- Aligned plain MAcc generated-bundle dry-run tests and script self-test
+  boundary to the executable closure count set `0,1,16,17,257`.
+- Added FileCheck coverage for `multiply_accumulate_boundary.runtime_counts`
+  and generated harness `counts[]` in explicit and pre-realized dry-runs.
+- Kept production C++ provider/materializer/target semantics unchanged because
+  live generated-bundle and RVV evidence showed the current route is executable.
+
+### Runtime Evidence
+
+- Explicit artifact:
+  `/tmp/tcrv-plain-macc-executable-abi/explicit-macc-add-ssh/macc_add`
+- Pre-realized artifact:
+  `/tmp/tcrv-plain-macc-executable-abi/pre-realized-macc-add-ssh/macc_add`
+- Both remote runs passed with:
+  `PASS op=macc_add counts=0,1,16,17,257 patterns=0,1`
+- Harness per-case output included:
+  `explicit_accumulator signed_products source_preserved tail_preserved`
+
+### Self-Repair
+
+- Initial manual dry-run failed because bare `llvm-readobj` was not on PATH;
+  re-ran with `/usr/bin/llvm-readobj-20`.
+- Initial lit update placed the `counts[]` FileCheck before the earlier
+  generated function call; reordered the check to match harness source order.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] explicit and pre-realized plain MAcc dry-runs with counts
+  `0,1,16,17,257`
+- [OK] focused lit from `build/test` for explicit/pre-realized plain MAcc
+  generated-bundle dry-runs
+- [OK] explicit real `ssh rvv` generated-bundle run for `macc_add`
+- [OK] pre-realized real `ssh rvv` generated-bundle run for `macc_add`
+- [OK] direct pre-realized route-entry fail-closed reproduction for `macc_add`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused lit from `build/test` for explicit/pre-realized plain MAcc
+  Target/RVV fixtures
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-05-rvv-stage2-plain-macc-executable-abi-closure`
+- [OK] `git diff --check`
+- [OK] bounded added-line authority scan; no new positive legacy authority hits
+
+### Status
+
+[OK] **Completed** as executable ABI closure with real RVV correctness
+evidence. No `.trellis/spec/` update was needed because the existing Plain
+MAcc generated-bundle evidence contract already covered this behavior.
+
+### Next Steps
+
+- Archive the Trellis task and create one coherent commit.

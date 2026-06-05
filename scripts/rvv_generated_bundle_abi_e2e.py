@@ -30964,7 +30964,7 @@ def run_self_test() -> int:
                     materialized_checks={},
                     emitted_cpp_checks={},
                     bundle_checks=bundle_checks,
-                    runtime_counts=[0, 1, 16, 23, 257],
+                    runtime_counts=[0, 1, 16, 17, 257],
                 )
                 selected_source_abi = macc_boundary.get(
                     "selected_source_abi", {}
@@ -31000,7 +31000,7 @@ def run_self_test() -> int:
                     or statement_plan.get("macc_operand_order")
                     != "acc,lhs,rhs,vl"
                     or macc_boundary.get("runtime_counts")
-                    != [0, 1, 16, 23, 257]
+                    != [0, 1, 16, 17, 257]
                 ):
                     raise AssertionError(
                         "self-test fake bundle generation lost plain MAcc "
