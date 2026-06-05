@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final evidence language, descriptor/source-front-door exclusions, and typed RVV authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check base memory statement-plan evidence, provider-derived facts, mirror-only metadata, and no legacy route authority drift."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check Common EmitC neutrality and provider-derived operand/header/type summaries."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused dry-run, script validation, and ssh rvv runtime evidence requirements."}

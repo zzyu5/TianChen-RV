@@ -241,3 +241,56 @@ Implemented provider-derived strided memory route mirrors for base-memory moveme
 
 - Executable ABI/harness and `ssh rvv` correctness evidence remain out of
   scope unless a later task asks for executable closure.
+
+
+## Session 462: Stage2 RVV runtime-strided memory-window executable ABI closure
+
+**Date**: 2026-06-05
+**Task**: Stage2 RVV runtime-strided memory-window executable ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed executable ABI evidence for the pre-realized RVV runtime-strided
+base-memory routes. The generated external C ABI harness now proves read-only
+source preservation in addition to host/reference output comparison,
+noncontiguous memory behavior, destination sentinel preservation, and real
+`ssh rvv` execution for both strided-load/unit-store and
+unit-load/strided-store proof shapes.
+
+### Main Changes
+
+- Added source-buffer preservation checks to the generated
+  `strided_load_unit_store` and `unit_load_strided_store` ABI harnesses in
+  `scripts/rvv_generated_bundle_abi_e2e.py`.
+- Updated the RVV plugin spec so executable base-memory route harnesses must
+  verify host/reference behavior, multiple runtime counts and positive strides,
+  destination sentinel preservation, and read-only source preservation without
+  treating harness checks as route authority.
+- Created and completed the Trellis task for this executable closure.
+
+### Git Commits
+
+(Recorded in the final commit for this session.)
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Generated-bundle dry-run for both pre-realized base-memory proof shapes
+  with counts `1,17,257` and byte strides `4,8,12`
+- [OK] `ssh rvv` generated-bundle ABI run for both proof shapes with PASS
+  output and `source_preserved` markers
+- [OK] Focused per-op evidence inspection for
+  `base_memory_movement_boundary`, provider-derived memory forms, stride-source
+  mirrors, and ordered statement-plan callees
+- [OK] Bounded old-authority/q-name diff scan
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed** as executable ABI closure with real RVV evidence.
+
+### Next Steps
+
+- None - task complete.

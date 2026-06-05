@@ -2590,6 +2590,13 @@ declaration by itself.
   base memory route must check `base_memory_movement_boundary`, ordered
   statement-plan callees, route-family mirror metadata, and runtime counts as
   execution cases rather than memory route authority.
+- Executable base memory route harnesses must compare against a host/reference
+  over multiple runtime counts and positive stride values, verify
+  destination tail or skipped-slot sentinel preservation, and verify
+  read-only source preservation where the memory form does not write the
+  source. These checks are external ABI evidence only; they must not infer
+  route support, memory form, stride side, dtype, policy, or intrinsic
+  spelling.
 - Bounded provider scan showing included base memory movement statement
   sequence construction is reached through the RVV-owned plan before the older
   generic provider-local statement assembly path.

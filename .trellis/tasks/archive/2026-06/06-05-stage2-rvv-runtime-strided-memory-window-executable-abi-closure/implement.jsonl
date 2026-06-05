@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture invariants, RVV Stage 2 authority chain, and runtime evidence requirement."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "Extension plugin checklist and RVV Stage 2 priority boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority placement, base memory movement statement-plan boundary, and generated-bundle evidence contract."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Lowering/runtime checklist for plugin-owned emission and common EmitC neutrality."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built route, runtime ABI operand binding, header/type summary, and target mirror contracts."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused test/evidence scope and ssh rvv requirement for runtime correctness claims."}

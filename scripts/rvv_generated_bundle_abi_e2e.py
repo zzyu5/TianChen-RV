@@ -20776,11 +20776,13 @@ static int run_case(size_t n, size_t stride_bytes) {{
   size_t src_alloc_bytes = (n == 0 ? 1 : n) * stride_bytes + 32;
   size_t out_alloc_n = (n == 0 ? 1 : n) + 8;
   uint8_t *src_raw = (uint8_t *)malloc(src_alloc_bytes);
+  uint8_t *src_before = (uint8_t *)malloc(src_alloc_bytes);
   int32_t *src = (int32_t *)src_raw;
   int32_t *out = (int32_t *)malloc(sizeof(int32_t) * out_alloc_n);
-  if (!src_raw || !out) {{
+  if (!src_raw || !src_before || !out) {{
     fprintf(stderr, "allocation failed for n=%zu\\n", n);
     free(src_raw);
+    free(src_before);
     free(out);
     return 11;
   }}
@@ -20792,8 +20794,23 @@ static int run_case(size_t n, size_t stride_bytes) {{
 
   for (size_t index = 0; index < n; ++index)
     *(int32_t *)(src_raw + index * stride_bytes) = {expectation.lhs_initializer};
+  for (size_t index = 0; index < src_alloc_bytes; ++index)
+    src_before[index] = src_raw[index];
 
   {expectation.function_name}(src, out, n, stride_bytes);
+
+  for (size_t index = 0; index < src_alloc_bytes; ++index) {{
+    if (src_raw[index] != src_before[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} source buffer changed n=%zu raw_byte=%zu got=%u expected=%u stride_bytes=%zu\\n",
+              n, index, (unsigned)src_raw[index], (unsigned)src_before[index],
+              stride_bytes);
+      free(src_raw);
+      free(src_before);
+      free(out);
+      return 15;
+    }}
+  }}
 
   for (size_t index = 0; index < n; ++index) {{
     int32_t expected = *(int32_t *)(src_raw + index * stride_bytes);
@@ -20802,6 +20819,7 @@ static int run_case(size_t n, size_t stride_bytes) {{
               "{expectation.kind} mismatch n=%zu index=%zu got=%d expected=%d stride_bytes=%zu\\n",
               n, index, out[index], expected, stride_bytes);
       free(src_raw);
+      free(src_before);
       free(out);
       return 12;
     }}
@@ -20813,6 +20831,7 @@ static int run_case(size_t n, size_t stride_bytes) {{
               "{expectation.kind} touched unit-store tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
               n, index, out[index], {OUT_SENTINEL});
       free(src_raw);
+      free(src_before);
       free(out);
       return 13;
     }}
@@ -20824,13 +20843,15 @@ static int run_case(size_t n, size_t stride_bytes) {{
             "{expectation.kind} vacuous byte-stride check failed n=%zu stride_bytes=%zu contiguous_slot=%d out[1]=%d\\n",
             n, stride_bytes, *(int32_t *)(src_raw + sizeof(int32_t)), out[1]);
     free(src_raw);
+    free(src_before);
     free(out);
     return 14;
   }}
 
   free(src_raw);
+  free(src_before);
   free(out);
-  printf("{expectation.kind} case n=%zu ok stride_bytes=%zu byte_strided_load contiguous_output tail_preserved\\n", n, stride_bytes);
+  printf("{expectation.kind} case n=%zu ok stride_bytes=%zu byte_strided_load contiguous_output tail_preserved source_preserved\\n", n, stride_bytes);
   return 0;
 }}
 
@@ -20846,8 +20867,8 @@ int main(void) {{
         return status;
     }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} stride_bytes={stride_values_summary}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} stride_bytes={stride_values_summary}\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} stride_bytes={stride_values_summary} source_preserved\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} stride_bytes={stride_values_summary} source_preserved\\n");
   return 0;
 }}
 """.lstrip()
@@ -20866,12 +20887,14 @@ static int run_case(size_t n, size_t dst_stride_bytes) {{
   size_t dst_alloc_bytes = (n == 0 ? 1 : n) * dst_stride_bytes + 32;
   size_t dst_alloc_n = (dst_alloc_bytes + sizeof(int32_t) - 1) / sizeof(int32_t);
   int32_t *src = (int32_t *)malloc(sizeof(int32_t) * src_alloc_n);
+  int32_t *src_before = (int32_t *)malloc(sizeof(int32_t) * src_alloc_n);
   int32_t *dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
   uint8_t *dst_raw = (uint8_t *)dst;
-  if (!src || !dst) {{
+  if (!src || !src_before || !dst) {{
     fprintf(stderr, "allocation failed for n=%zu dst_stride_bytes=%zu\\n",
             n, dst_stride_bytes);
     free(src);
+    free(src_before);
     free(dst);
     return 11;
   }}
@@ -20883,8 +20906,22 @@ static int run_case(size_t n, size_t dst_stride_bytes) {{
 
   for (size_t index = 0; index < n; ++index)
     src[index] = {expectation.lhs_initializer};
+  for (size_t index = 0; index < src_alloc_n; ++index)
+    src_before[index] = src[index];
 
   {expectation.function_name}(src, dst, n, dst_stride_bytes);
+
+  for (size_t index = 0; index < src_alloc_n; ++index) {{
+    if (src[index] != src_before[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} source buffer changed n=%zu src_index=%zu got=%d expected=%d dst_stride_bytes=%zu\\n",
+              n, index, src[index], src_before[index], dst_stride_bytes);
+      free(src);
+      free(src_before);
+      free(dst);
+      return 15;
+    }}
+  }}
 
   for (size_t index = 0; index < n; ++index) {{
     int32_t expected = {expectation.expected_expression};
@@ -20896,6 +20933,7 @@ static int run_case(size_t n, size_t dst_stride_bytes) {{
               n, index, dst_byte_offset, got, expected, src[index],
               dst_stride_bytes);
       free(src);
+      free(src_before);
       free(dst);
       return 12;
     }}
@@ -20916,6 +20954,7 @@ static int run_case(size_t n, size_t dst_stride_bytes) {{
               "{expectation.kind} touched skipped/tail destination sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
               n, index, dst[index], {OUT_SENTINEL});
       free(src);
+      free(src_before);
       free(dst);
       return 13;
     }}
@@ -20926,13 +20965,15 @@ static int run_case(size_t n, size_t dst_stride_bytes) {{
             "{expectation.kind} vacuous byte-strided-store check failed n=%zu dst_stride_bytes=%zu dst[1]=%d sentinel=%d\\n",
             n, dst_stride_bytes, dst[1], {OUT_SENTINEL});
     free(src);
+    free(src_before);
     free(dst);
     return 14;
   }}
 
   free(src);
+  free(src_before);
   free(dst);
-  printf("{expectation.kind} case n=%zu ok dst_stride_bytes=%zu byte_strided_store selected_destination_writes sentinel_preserved tail_preserved\\n",
+  printf("{expectation.kind} case n=%zu ok dst_stride_bytes=%zu byte_strided_store selected_destination_writes sentinel_preserved tail_preserved source_preserved\\n",
          n, dst_stride_bytes);
   return 0;
 }}
@@ -20949,8 +20990,8 @@ int main(void) {{
         return status;
     }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} stride_bytes={stride_values_summary}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} stride_bytes={stride_values_summary}\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} stride_bytes={stride_values_summary} source_preserved\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} stride_bytes={stride_values_summary} source_preserved\\n");
   return 0;
 }}
 """.lstrip()
