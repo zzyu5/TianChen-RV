@@ -275,6 +275,25 @@ bool isAllowedTypedDequantClampF32EpiloguePreRealizedBodyAttr(
          name == kLMULAttrName || name == kPolicyAttrName;
 }
 
+bool isAllowedTypedWideningProductReduceDequantClampF32PreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kAccumulatorRoleAttrName ||
+         name == kAccumulatorLayoutAttrName || name == kResultLayoutAttrName ||
+         name == kAccumulatorCarryBoundaryAttrName ||
+         name == kSourceSEWAttrName || name == kSourceLMULAttrName ||
+         name == kProductSEWAttrName || name == kProductLMULAttrName ||
+         name == kAccumulatorSEWAttrName || name == kAccumulatorLMULAttrName ||
+         name == kResultSEWAttrName || name == kResultLMULAttrName ||
+         name == kProductRelationAttrName ||
+         name == kProductReductionChainRelationAttrName ||
+         name == kDequantRelationAttrName || name == kScaleRoleAttrName ||
+         name == kLowerPredicateKindAttrName ||
+         name == kUpperPredicateKindAttrName || name == kBoundOrderAttrName ||
+         name == kSelectLayoutAttrName ||
+         name == kDequantStoreBoundaryAttrName || name == kPolicyAttrName;
+}
+
 bool isAllowedTypedRuntimeScalarComputedMaskStorePreRealizedBodyAttr(
     llvm::StringRef name) {
   return name == kOpKindAttrName || name == kPredicateKindAttrName ||
@@ -960,6 +979,23 @@ bool isSupportedTypedDequantClampF32EpiloguePreRealizedSelectLayout(
 bool isSupportedTypedDequantClampF32EpiloguePreRealizedConfig(
     std::int64_t sew, llvm::StringRef lmul) {
   return isSupportedTypedF32ClampSelectPreRealizedConfig(sew, lmul);
+}
+
+bool isSupportedTypedWideningProductReduceDequantClampF32PreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "widening_product_reduce_dequant_clamp_f32";
+}
+
+bool isSupportedTypedWideningProductReduceDequantClampF32PreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm ==
+         "unit-stride-widening-product-reduce-dequant-clamp-f32";
+}
+
+bool isSupportedTypedWideningProductReduceDequantClampF32StoreBoundary(
+    llvm::StringRef boundary) {
+  return boundary ==
+         "store-clamped-dequantized-f32-vector-to-output-buffer";
 }
 
 bool isSupportedTypedRuntimeScalarComputedMaskStorePreRealizedBodyOpKind(
@@ -6980,6 +7016,237 @@ TypedWideningProductReduceDequantizePreRealizedBodyOp::verify() {
     return emitOpError()
            << "requires out operand C type 'float *' to match typed f32 "
               "store boundary";
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult
+TypedWideningProductReduceDequantClampF32PreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected widening product reduction "
+                "dequant-clamp bodies carry only typed RVV source/product/"
+                "accumulator/scale/bound/result config, operation, memory, "
+                "policy, and runtime SSA facts and must be realized by the "
+                "RVV plugin before route construction";
+
+    if (!isAllowedTypedWideningProductReduceDequantClampF32PreRealizedBodyAttr(
+            attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '"
+             << kAccumulatorRoleAttrName << "', '"
+             << kAccumulatorLayoutAttrName << "', '" << kResultLayoutAttrName
+             << "', '" << kAccumulatorCarryBoundaryAttrName << "', '"
+             << kSourceSEWAttrName << "', '" << kSourceLMULAttrName << "', '"
+             << kProductSEWAttrName << "', '" << kProductLMULAttrName
+             << "', '" << kAccumulatorSEWAttrName << "', '"
+             << kAccumulatorLMULAttrName << "', '" << kResultSEWAttrName
+             << "', '" << kResultLMULAttrName << "', '"
+             << kProductRelationAttrName << "', '"
+             << kProductReductionChainRelationAttrName << "', '"
+             << kDequantRelationAttrName << "', '" << kScaleRoleAttrName
+             << "', '" << kLowerPredicateKindAttrName << "', '"
+             << kUpperPredicateKindAttrName << "', '" << kBoundOrderAttrName
+             << "', '" << kSelectLayoutAttrName << "', '"
+             << kDequantStoreBoundaryAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 8 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires lhs, rhs, accumulator seed/carry, runtime scale, "
+              "lower bound scalar, upper bound scalar, out, runtime n/AVL "
+              "operands and no results";
+
+  if (!isSupportedTypedWideningProductReduceDequantClampF32PreRealizedBodyOpKind(
+          getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"widening_product_reduce_dequant_clamp_f32\" for the "
+              "bounded selected-body product-reduction-dequant-clamp hook";
+  if (!isSupportedTypedWideningProductReduceDequantClampF32PreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"unit-stride-widening-product-reduce-dequant-clamp-f32\" "
+              "for the bounded selected-body product-reduction-dequant-clamp "
+              "hook";
+  if (!isSupportedTypedWideningDotReducePreRealizedAccumulatorRole(
+          getAccumulatorRole()))
+    return emitOpError()
+           << "currently supports only accumulator_role "
+              "\"accumulator-input-buffer\" for the bounded selected-body "
+              "product-reduction-dequant-clamp hook";
+  if (!isSupportedTypedWideningDotReducePreRealizedAccumulatorLayout(
+          getAccumulatorLayout()))
+    return emitOpError()
+           << "currently supports only accumulator_layout "
+              "\"scalar-i32-seed-lane0-from-accumulator-input\" for the "
+              "bounded selected-body product-reduction-dequant-clamp hook";
+  if (!isSupportedTypedWideningProductReduceDequantizeResultLayout(
+          getResultLayout()))
+    return emitOpError()
+           << "currently supports only result_layout "
+              "\"store-standalone-reduction-lane0-to-output-scalar\" for "
+              "the bounded selected-body product-reduction-dequant-clamp "
+              "hook";
+  if (!isSupportedTypedWideningProductReduceDequantizeAccumulatorCarryBoundary(
+          getAccumulatorCarryBoundary()))
+    return emitOpError()
+           << "currently supports only accumulator_carry_boundary "
+              "\"scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-"
+              "chunks-final-f32-store.v1\" for the bounded selected-body "
+              "product-reduction-dequant-clamp hook";
+  if (!isSupportedGenericWideningProductRelation(getProductRelation()))
+    return emitOpError()
+           << "currently supports only product_relation "
+              "\"signed-i8mf4xi8mf4-to-i16mf2\" for the bounded "
+              "selected-body product-reduction-dequant-clamp hook";
+  if (!isSupportedTypedWideningProductReductionChainRelation(
+          getProductReductionChainRelation()))
+    return emitOpError()
+           << "currently supports only product_reduction_chain_relation "
+              "\"signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-"
+              "i32\" for the bounded selected-body "
+              "product-reduction-dequant-clamp hook";
+  if (!isSupportedGenericDequantizeRelation(getDequantRelation()))
+    return emitOpError()
+           << "currently supports only dequant_relation "
+              "\"signed-i32m1-to-f32m1-scale-f32\" for the bounded "
+              "selected-body product-reduction-dequant-clamp hook";
+  if (!isSupportedTypedWideningProductReduceDequantizeScaleRole(
+          getScaleRole()))
+    return emitOpError()
+           << "currently supports only scale_role \"dequant-scale-value\" "
+              "for the bounded selected-body product-reduction-dequant-clamp "
+              "hook";
+  if (!isSupportedTypedDequantClampF32EpiloguePreRealizedPredicateKind(
+          getLowerPredicateKind()) ||
+      !isSupportedTypedDequantClampF32EpiloguePreRealizedPredicateKind(
+          getUpperPredicateKind()))
+    return emitOpError()
+           << "currently supports only lower_predicate_kind and "
+              "upper_predicate_kind \"slt\" for the bounded selected-body "
+              "product-reduction-dequant-clamp hook";
+  if (!isSupportedTypedDequantClampF32EpiloguePreRealizedBoundOrder(
+          getBoundOrder()))
+    return emitOpError()
+           << "currently supports only bound_order "
+              "\"lower-bound-before-upper-bound\" for the bounded "
+              "selected-body product-reduction-dequant-clamp hook";
+  if (!isSupportedTypedDequantClampF32EpiloguePreRealizedSelectLayout(
+          getSelectLayout()))
+    return emitOpError()
+           << "currently supports only select_layout "
+              "\"clamp-lower-then-upper\" for the bounded selected-body "
+              "product-reduction-dequant-clamp hook";
+  if (!isSupportedTypedWideningProductReduceDequantClampF32StoreBoundary(
+          getDequantStoreBoundary()))
+    return emitOpError()
+           << "currently supports only dequant_store_boundary "
+              "\"store-clamped-dequantized-f32-vector-to-output-buffer\" for "
+              "the bounded selected-body product-reduction-dequant-clamp "
+              "hook";
+
+  if (static_cast<std::int64_t>(getSourceSew()) != getRVVSEW8Bits() ||
+      getSourceLmul() != getRVVLMULMF4() ||
+      static_cast<std::int64_t>(getProductSew()) != getRVVSEW16Bits() ||
+      getProductLmul() != getRVVLMULMF2() ||
+      static_cast<std::int64_t>(getAccumulatorSew()) !=
+          getRVVFirstSliceSEWBits() ||
+      getAccumulatorLmul() != getRVVLMULM1() ||
+      static_cast<std::int64_t>(getResultSew()) !=
+          getRVVFirstSliceSEWBits() ||
+      getResultLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires typed product-reduction-dequant-clamp config to "
+              "match source SEW8 LMUL mf4, product SEW16 LMUL mf2, "
+              "accumulator SEW32 LMUL m1, and f32 result SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body product-reduction-dequant-clamp hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getRhs(), "rhs",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getAcc(), "accumulator seed/carry",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               AccumulatorInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getScale(), "runtime scale",
+          {tianchenrv::support::RuntimeABIParameterRole::DequantScaleValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIF32ScalarOperandRole(
+          op, getLowerBound(), "lower bound scalar",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               LowerBoundScalarValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIF32ScalarOperandRole(
+          op, getUpperBound(), "upper bound scalar",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               UpperBoundScalarValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsBinding = getRhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp accBinding = getAcc().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp scaleBinding =
+      getScale().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp lowerBinding =
+      getLowerBound().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp upperBinding =
+      getUpperBound().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
+  if (!lhsBinding || lhsBinding.getCType() != "const int8_t *")
+    return emitOpError()
+           << "requires lhs operand C type 'const int8_t *' to match typed "
+              "signed i8 product source dtype";
+  if (!rhsBinding || rhsBinding.getCType() != "const int8_t *")
+    return emitOpError()
+           << "requires rhs operand C type 'const int8_t *' to match typed "
+              "signed i8 product source dtype";
+  if (!accBinding || accBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires accumulator seed/carry operand C type "
+              "'const int32_t *' to match typed i32 reduction boundary";
+  if (!scaleBinding || scaleBinding.getCType() != "float")
+    return emitOpError()
+           << "requires runtime scale operand C type 'float' to match typed "
+              "f32 dequantization scale boundary";
+  if (!lowerBinding || lowerBinding.getCType() != "float")
+    return emitOpError()
+           << "requires lower bound scalar operand C type 'float' to match "
+              "typed f32 clamp boundary";
+  if (!upperBinding || upperBinding.getCType() != "float")
+    return emitOpError()
+           << "requires upper bound scalar operand C type 'float' to match "
+              "typed f32 clamp boundary";
+  if (!outBinding || outBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires out operand C type 'float *' to match typed "
+              "clamped f32 store boundary";
   return verifyRuntimeElementCountOperand(op, getN());
 }
 

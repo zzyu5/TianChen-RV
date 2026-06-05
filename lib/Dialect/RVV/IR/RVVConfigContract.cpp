@@ -801,6 +801,34 @@ getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 8>
+getRVVSelectedBodyWideningProductReductionDequantClampF32RuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 8> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int8_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs", "const int8_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "acc", "const int32_t *",
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "scale", "float", support::RuntimeABIParameterRole::DequantScaleValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lower_bound", "float",
+      support::RuntimeABIParameterRole::LowerBoundScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "upper_bound", "float",
+      support::RuntimeABIParameterRole::UpperBoundScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "float *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 5>
 getRVVSelectedBodyMAccRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
@@ -1748,6 +1776,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
           getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(
           parameters, wideningProductReductionDequantizationExpected))
+    return llvm::Error::success();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 8>
+      wideningProductReductionDequantClampF32Expected =
+          getRVVSelectedBodyWideningProductReductionDequantClampF32RuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(
+          parameters, wideningProductReductionDequantClampF32Expected))
     return llvm::Error::success();
 
   llvm::SmallVector<support::RuntimeABIParameter, 4>

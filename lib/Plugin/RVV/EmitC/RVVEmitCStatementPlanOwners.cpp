@@ -736,6 +736,8 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
       providerPlan.plansProductReductionChain;
   const bool isProductReductionDequantization =
       providerPlan.plansProductReductionDequantization;
+  const bool isProductReductionDequantClamp =
+      providerPlan.plansProductReductionDequantClamp;
   const bool isDotReduction = providerPlan.plansDotReduction;
   const bool isComputedMask = providerPlan.plansComputedMask;
   const bool isStridedInput = providerPlan.plansStridedInput;
@@ -751,6 +753,10 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
       providerPlan.accumulatorABI;
   const support::RuntimeABIParameter *boundDequantScaleABI =
       providerPlan.dequantScaleABI;
+  const support::RuntimeABIParameter *boundLowerBoundABI =
+      providerPlan.lowerBoundABI;
+  const support::RuntimeABIParameter *boundUpperBoundABI =
+      providerPlan.upperBoundABI;
   const support::RuntimeABIParameter *boundOutABI = providerPlan.outABI;
   const support::RuntimeABIParameter *boundRuntimeElementCountABI =
       providerPlan.runtimeElementCountABI;
@@ -778,6 +784,7 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
   plan.plansProductReductionChain = isProductReductionChain;
   plan.plansProductReductionDequantization =
       isProductReductionDequantization;
+  plan.plansProductReductionDequantClamp = isProductReductionDequantClamp;
   plan.plansDotReduction = isDotReduction;
   plan.plansComputedMask = isComputedMask;
   plan.plansStridedInput = isStridedInput;
@@ -1084,6 +1091,9 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
   }
 
   if (isProductReductionChain) {
+    const std::string accumulatorVectorCType =
+        isProductReductionDequantization ? std::string("vint32m1_t")
+                                         : resultVectorCType.str();
     if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
             plan, slice.wideningProductOp.getOperation(), "compute",
             providerFacts.wideningProductLeaf,
@@ -1106,7 +1116,7 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
                                         vlCType.str()}},
             description, context,
             TCRVEmitCCallOpaqueResult{"dot_acc_vec",
-                                      resultVectorCType.str()}))
+                                      accumulatorVectorCType}))
       return error;
     if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
             plan, slice.standaloneReduceOp.getOperation(), "compute",
@@ -1114,18 +1124,18 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
             {TCRVEmitCCallOpaqueOperand{"product_vec",
                                         productVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{"dot_acc_vec",
-                                        resultVectorCType.str()},
+                                        accumulatorVectorCType},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
             description, context,
             TCRVEmitCCallOpaqueResult{"reduced_i32_vec",
-                                      resultVectorCType.str()}))
+                                      accumulatorVectorCType}))
       return error;
     if (isProductReductionDequantization) {
       if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
               plan, slice.standaloneReduceOp.getOperation(), "compute",
               "__riscv_vmv_x_s_i32m1_i32",
               {TCRVEmitCCallOpaqueOperand{"reduced_i32_vec",
-                                          resultVectorCType.str()}},
+                                          accumulatorVectorCType}},
               description, context,
               TCRVEmitCCallOpaqueResult{"dot_acc_scalar_next", "int32_t"}))
         return error;
@@ -1145,19 +1155,22 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
                                           vlCType.str()}},
               description, context,
               TCRVEmitCCallOpaqueResult{"final_acc_vec",
-                                        resultVectorCType.str()}))
+                                        accumulatorVectorCType}))
         return error;
       if (llvm::Error error = addRVVDirectContractionStatementOwnerPostLoopStep(
               plan, slice.dequantizeOp.getOperation(), "compute",
               providerFacts.dequantizeConvertLeaf,
               {TCRVEmitCCallOpaqueOperand{"final_acc_vec",
-                                          resultVectorCType.str()},
+                                          accumulatorVectorCType},
                TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
                                           vlCType.str()}},
               description, context,
               TCRVEmitCCallOpaqueResult{"converted_f32_vec",
                                         dequantResultVectorCType.str()}))
         return error;
+      const llvm::StringRef scaledResultName =
+          isProductReductionDequantClamp ? llvm::StringRef("dequantized_vec")
+                                         : description.resultName;
       if (llvm::Error error = addRVVDirectContractionStatementOwnerPostLoopStep(
               plan, slice.dequantizeOp.getOperation(), "compute",
               providerFacts.dequantizeScaleLeaf,
@@ -1168,9 +1181,95 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
                TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
                                           vlCType.str()}},
               description, context,
-              TCRVEmitCCallOpaqueResult{description.resultName.str(),
+              TCRVEmitCCallOpaqueResult{scaledResultName.str(),
                                         dequantResultVectorCType.str()}))
         return error;
+      if (isProductReductionDequantClamp) {
+        if (llvm::Error error =
+                addRVVDirectContractionStatementOwnerPostLoopStep(
+                    plan, slice.lowerBoundScalarSplat.getOperation(), "load",
+                    description.rhsBroadcastIntrinsic,
+                    {TCRVEmitCCallOpaqueOperand{boundLowerBoundABI->cName,
+                                                boundLowerBoundABI->cType},
+                     TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                                vlCType.str()}},
+                    description, context,
+                    TCRVEmitCCallOpaqueResult{"lower_bound_vec",
+                                              dequantResultVectorCType.str()}))
+          return error;
+        if (llvm::Error error =
+                addRVVDirectContractionStatementOwnerPostLoopStep(
+                    plan, slice.compareOp.getOperation(), "compute",
+                    providerFacts.compareLeaf,
+                    {TCRVEmitCCallOpaqueOperand{scaledResultName.str(),
+                                                dequantResultVectorCType.str()},
+                     TCRVEmitCCallOpaqueOperand{"lower_bound_vec",
+                                                dequantResultVectorCType.str()},
+                     TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                                vlCType.str()}},
+                    description, context,
+                    TCRVEmitCCallOpaqueResult{"lower_clamp_mask",
+                                              maskCType.str()}))
+          return error;
+        if (llvm::Error error =
+                addRVVDirectContractionStatementOwnerPostLoopStep(
+                    plan, slice.selectOp.getOperation(), "compute",
+                    providerFacts.maskedMergeLeaf,
+                    {TCRVEmitCCallOpaqueOperand{scaledResultName.str(),
+                                                dequantResultVectorCType.str()},
+                     TCRVEmitCCallOpaqueOperand{"lower_bound_vec",
+                                                dequantResultVectorCType.str()},
+                     TCRVEmitCCallOpaqueOperand{"lower_clamp_mask",
+                                                maskCType.str()},
+                     TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                                vlCType.str()}},
+                    description, context,
+                    TCRVEmitCCallOpaqueResult{"lower_clamped_vec",
+                                              dequantResultVectorCType.str()}))
+          return error;
+        if (llvm::Error error =
+                addRVVDirectContractionStatementOwnerPostLoopStep(
+                    plan, slice.upperBoundScalarSplat.getOperation(), "load",
+                    description.rhsBroadcastIntrinsic,
+                    {TCRVEmitCCallOpaqueOperand{boundUpperBoundABI->cName,
+                                                boundUpperBoundABI->cType},
+                     TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                                vlCType.str()}},
+                    description, context,
+                    TCRVEmitCCallOpaqueResult{"upper_bound_vec",
+                                              dequantResultVectorCType.str()}))
+          return error;
+        if (llvm::Error error =
+                addRVVDirectContractionStatementOwnerPostLoopStep(
+                    plan, slice.secondaryCompareOp.getOperation(), "compute",
+                    providerFacts.secondaryCompareLeaf,
+                    {TCRVEmitCCallOpaqueOperand{"upper_bound_vec",
+                                                dequantResultVectorCType.str()},
+                     TCRVEmitCCallOpaqueOperand{"lower_clamped_vec",
+                                                dequantResultVectorCType.str()},
+                     TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                                vlCType.str()}},
+                    description, context,
+                    TCRVEmitCCallOpaqueResult{"upper_clamp_mask",
+                                              maskCType.str()}))
+          return error;
+        if (llvm::Error error =
+                addRVVDirectContractionStatementOwnerPostLoopStep(
+                    plan, slice.secondarySelectOp.getOperation(), "compute",
+                    providerFacts.maskedMergeLeaf,
+                    {TCRVEmitCCallOpaqueOperand{"lower_clamped_vec",
+                                                dequantResultVectorCType.str()},
+                     TCRVEmitCCallOpaqueOperand{"upper_bound_vec",
+                                                dequantResultVectorCType.str()},
+                     TCRVEmitCCallOpaqueOperand{"upper_clamp_mask",
+                                                maskCType.str()},
+                     TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
+                                                vlCType.str()}},
+                    description, context,
+                    TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                              dequantResultVectorCType.str()}))
+          return error;
+      }
       if (llvm::Error error = addRVVDirectContractionStatementOwnerPostLoopStep(
               plan, slice.storeOperation, "store", providerFacts.storeLeaf,
               {TCRVEmitCCallOpaqueOperand{boundOutABI->cName,

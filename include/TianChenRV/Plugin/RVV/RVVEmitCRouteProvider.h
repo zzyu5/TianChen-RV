@@ -84,6 +84,7 @@ enum class RVVSelectedBodyOperationKind {
   WideningProduct,
   WideningProductReduceAdd,
   WideningProductReduceDequantizeF32,
+  WideningProductReduceDequantClampF32,
   WideningDotReduceAdd,
   StridedInputWideningDotReduceAdd,
   ComputedMaskWideningDotReduceAdd,
@@ -123,6 +124,7 @@ enum class RVVSelectedBodyMemoryForm {
   UnitStrideConversion,
   UnitStrideDequantization,
   UnitStrideDequantClampF32Epilogue,
+  UnitStrideWideningProductReduceDequantClampF32,
   ComputedMaskUnitStrideWideningDotReduce,
   StridedInputWideningDotReduce,
   ComputedMaskStridedInputWideningDotReduce,
@@ -2507,6 +2509,15 @@ struct RVVWideningDotReduceRouteFacts {
   llvm::StringRef dequantScaleRole;
   llvm::StringRef dequantScaleCType;
   llvm::StringRef dequantScaleName;
+  llvm::StringRef lowerBoundRole;
+  llvm::StringRef upperBoundRole;
+  llvm::StringRef lowerBoundCType;
+  llvm::StringRef upperBoundCType;
+  llvm::StringRef boundOrder;
+  llvm::StringRef clampRelation;
+  llvm::StringRef selectLayout;
+  llvm::StringRef secondaryComparePredicateKind;
+  llvm::StringRef secondaryCompareIntrinsic;
   llvm::StringRef scalarSeedSplatIntrinsic;
   llvm::StringRef stridedLoadIntrinsic;
   llvm::StringRef sourceVectorLoadIntrinsic;
@@ -2516,6 +2527,7 @@ struct RVVWideningDotReduceRouteFacts {
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef compareIntrinsic;
   llvm::StringRef maskedMergeIntrinsic;
+  llvm::StringRef rhsBroadcastIntrinsic;
   llvm::StringRef reductionStoreVL;
   llvm::StringRef inactiveLaneZeroingRequirement;
   llvm::StringRef vlCType;
@@ -2540,6 +2552,7 @@ enum class RVVWideningDotReduceRouteValidationKind {
   Plain,
   ProductReductionChain,
   ProductReductionDequantization,
+  ProductReductionDequantClampF32,
   StridedInput,
   ComputedMask,
   ComputedMaskStridedInput,
@@ -2604,6 +2617,15 @@ struct RVVWideningDotReduceRouteValidationContract {
   std::string dequantScaleRole;
   std::string dequantScaleCType;
   std::string dequantScaleName;
+  std::string lowerBoundRole;
+  std::string upperBoundRole;
+  std::string lowerBoundCType;
+  std::string upperBoundCType;
+  std::string boundOrder;
+  std::string clampRelation;
+  std::string selectLayout;
+  std::string secondaryComparePredicateKind;
+  std::string secondaryCompareIntrinsic;
   std::string scalarSeedSplatIntrinsic;
   std::string stridedLoadIntrinsic;
   std::string sourceVectorLoadIntrinsic;
@@ -2615,6 +2637,7 @@ struct RVVWideningDotReduceRouteValidationContract {
   std::string setVLIntrinsic;
   std::string compareIntrinsic;
   std::string maskedMergeIntrinsic;
+  std::string rhsBroadcastIntrinsic;
   std::string reductionStoreVL;
   std::string inactiveLaneZeroingRequirement;
 

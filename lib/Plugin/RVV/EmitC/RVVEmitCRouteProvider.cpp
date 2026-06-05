@@ -556,7 +556,9 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
       route.addTypeMapping(description.productVectorTypeName,
                            description.productVectorCType);
     if (description.operation ==
-        RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32)
+            RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+        description.operation ==
+            RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32)
       route.addTypeMapping("!tcrv_rvv.vector<i32, \"m1\">", "vint32m1_t");
     if (!maskTypeName.empty())
       route.addTypeMapping(maskTypeName, maskCType);

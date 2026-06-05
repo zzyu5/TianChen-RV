@@ -73,6 +73,8 @@ bool isRVVSelectedBodyContractionDotReduction(
   return op == RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
          op ==
              RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+         op ==
+             RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32 ||
          op == RVVSelectedBodyOperationKind::WideningDotReduceAdd ||
          op == RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd ||
          op == RVVSelectedBodyOperationKind::ComputedMaskWideningDotReduceAdd ||
@@ -140,10 +142,6 @@ static llvm::Error verifyRVVSelectedBodyTypedConfigFactsMirror(
     return error;
   if (llvm::Error error = requireText("element type", facts.elementTypeName))
     return error;
-  if (llvm::Error error =
-          requireMatch("element type", facts.elementTypeName,
-                       description.elementTypeName))
-    return error;
   if (llvm::Error error = requireIntMatch("element bit width",
                                           facts.elementBitWidth,
                                           description.sew))
@@ -170,7 +168,32 @@ static llvm::Error verifyRVVSelectedBodyTypedConfigFactsMirror(
   const bool hasDequantizedF32ResultVector =
       isDequantizationRoute ||
       description.operation ==
-          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32;
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  const bool hasProductReductionDequantizedF32ResultVector =
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+
+  if (hasProductReductionDequantizedF32ResultVector) {
+    if (facts.elementTypeName != "i32" && facts.elementTypeName != "f32")
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " typed config facts element type must be either product-reduction "
+          "accumulator element type 'i32' or dequantized result element type "
+          "'f32' but was '" +
+          facts.elementTypeName + "'");
+    if (llvm::Error error =
+            requireMatch("dequantized result element type",
+                         description.elementTypeName, "f32"))
+      return error;
+  } else if (llvm::Error error =
+                 requireMatch("element type", facts.elementTypeName,
+                              description.elementTypeName)) {
+    return error;
+  }
   if (!description.vectorTypeName.empty() && !hasDequantizedF32ResultVector)
     if (llvm::Error error =
             requireMatch("vector type", facts.vectorTypeName,
@@ -361,6 +384,10 @@ static bool isRVVSelectedBodyContractionRouteControlConsumer(
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32:
   case RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  case RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::
+               UnitStrideWideningProductReduceDequantClampF32;
   case RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
     return description.memoryForm ==
            RVVSelectedBodyMemoryForm::StridedInputWideningDotReduce;
@@ -1324,10 +1351,17 @@ static llvm::Error buildContractionRouteControlProviderPlan(
       description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
       description.operation ==
-          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32;
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
   const bool isProductReductionDequantization =
       description.operation ==
-      RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32;
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  const bool isProductReductionDequantClamp =
+      description.operation ==
+      RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
   const bool isDotReduction =
       isRVVSelectedBodyContractionDotReduction(description.operation);
   const bool isComputedMask =
@@ -1411,7 +1445,35 @@ static llvm::Error buildContractionRouteControlProviderPlan(
           contractionPlan.dequantScaleRole != description.dequantScaleRole ||
           contractionPlan.dequantScaleCType !=
               description.dequantScaleCType ||
-          contractionPlan.dequantScaleName != description.dequantScaleName)) ||
+          contractionPlan.dequantScaleName != description.dequantScaleName ||
+          (isProductReductionDequantClamp &&
+           (contractionPlan.lowerBoundRole != description.lowerBoundRole ||
+            contractionPlan.upperBoundRole != description.upperBoundRole ||
+            contractionPlan.lowerBoundCType != description.lowerBoundCType ||
+            contractionPlan.upperBoundCType != description.upperBoundCType ||
+            contractionPlan.boundOrder != description.boundOrder ||
+            contractionPlan.clampRelation != description.clampRelation ||
+            contractionPlan.selectLayout != description.selectLayout ||
+            contractionPlan.secondaryComparePredicateKind !=
+                description.secondaryComparePredicateKind ||
+            contractionPlan.compareIntrinsic != description.compareIntrinsic ||
+            contractionPlan.secondaryCompareIntrinsic !=
+                description.secondaryCompareIntrinsic ||
+            contractionPlan.maskedMergeIntrinsic !=
+                description.maskedMergeIntrinsic ||
+            contractionPlan.rhsBroadcastIntrinsic !=
+                description.rhsBroadcastIntrinsic)) ||
+          (!isProductReductionDequantClamp &&
+           (!description.lowerBoundRole.empty() ||
+            !description.upperBoundRole.empty() ||
+            !description.lowerBoundCType.empty() ||
+            !description.upperBoundCType.empty() ||
+            !description.boundOrder.empty() ||
+            !description.clampRelation.empty() ||
+            !description.selectLayout.empty() ||
+            !description.secondaryComparePredicateKind.empty() ||
+            !description.secondaryCompareIntrinsic.empty() ||
+            !description.rhsBroadcastIntrinsic.empty())))) ||
         (!isProductReductionDequantization &&
          (!contractionPlan.dequantizationRelation.empty() ||
           !contractionPlan.dequantizeConvertIntrinsic.empty() ||
@@ -1465,8 +1527,9 @@ static llvm::Error buildContractionRouteControlProviderPlan(
           "route-family plan before provider route construction for "
           "operation '" +
           stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-  } else if (!description.compareIntrinsic.empty() ||
-             !description.maskedMergeIntrinsic.empty() ||
+  } else if ((!isProductReductionDequantClamp &&
+              (!description.compareIntrinsic.empty() ||
+               !description.maskedMergeIntrinsic.empty())) ||
              !description.maskRole.empty() || !description.maskSource.empty() ||
              !description.maskMemoryForm.empty() ||
              !description.inactiveLaneZeroingRequirement.empty()) {
@@ -1577,11 +1640,20 @@ static llvm::Error buildContractionRouteControlProviderPlan(
             contractionPlan.dequantizeConvertIntrinsic ||
         materializationFacts.dequantizeScaleLeaf !=
             contractionPlan.dequantizeScaleIntrinsic)) ||
+      (isProductReductionDequantClamp &&
+       (materializationFacts.rhsScalarBroadcastLeaf !=
+            contractionPlan.rhsBroadcastIntrinsic ||
+        materializationFacts.compareLeaf != contractionPlan.compareIntrinsic ||
+        materializationFacts.secondaryCompareLeaf !=
+            contractionPlan.secondaryCompareIntrinsic ||
+        materializationFacts.maskedMergeLeaf !=
+            contractionPlan.maskedMergeIntrinsic)) ||
       materializationFacts.scalarSeedSplatLeaf !=
           contractionPlan.scalarSeedSplatIntrinsic ||
-      materializationFacts.compareLeaf != contractionPlan.compareIntrinsic ||
-      materializationFacts.maskedMergeLeaf !=
-          contractionPlan.maskedMergeIntrinsic ||
+      (!isProductReductionDequantClamp &&
+       (materializationFacts.compareLeaf != contractionPlan.compareIntrinsic ||
+        materializationFacts.maskedMergeLeaf !=
+            contractionPlan.maskedMergeIntrinsic)) ||
       (isStridedInput && materializationFacts.stridedSourceLoadLeaf !=
                              contractionPlan.stridedLoadIntrinsic) ||
       (isComputedMask &&

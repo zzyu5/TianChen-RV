@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV RVV-first typed-body route authority and stage ordering."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local selected-body realization, provider ownership, and fail-closed authority rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, route fact surfaces, runtime AVL/VL, operand binding, and target mirror contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/FileCheck, generated-bundle, and ssh rvv evidence boundaries for selected RVV routes."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Stage2 typed-body coverage and selected-body realization scope."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin locality and common/core boundary constraints."}
+{"file": ".trellis/tasks/06-05-stage2-rvv-contraction-dequant-clamp-composition/prd.md", "reason": "Task-specific module goal, boundaries, acceptance criteria, and non-goals."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-stage2-rvv-low-precision-contraction-dequant-chain/prd.md", "reason": "Predecessor contraction-dequant route-supported provider and target validation surface."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-stage2-rvv-contraction-dequant-realization/prd.md", "reason": "Predecessor pre-realized contraction-dequant selected-body realization boundary."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-stage2-rvv-dequant-clamp-epilogue-composition-foundation/prd.md", "reason": "Predecessor dequant-clamp route-supported body, provider facts, and target validation surface."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-stage2-rvv-dequant-clamp-epilogue-executable-abi/prd.md", "reason": "Predecessor dequant-clamp executable evidence boundary and non-route production changes."}

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Final audit for typed-body route authority and Stage2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final audit for RVV plugin-local realization/provider ownership and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final audit for provider-built route facts and target mirror validation."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final audit for focused tests and ssh rvv evidence boundary."}
+{"file": ".trellis/tasks/06-05-stage2-rvv-contraction-dequant-clamp-composition/prd.md", "reason": "Acceptance criteria and non-goals for completion."}

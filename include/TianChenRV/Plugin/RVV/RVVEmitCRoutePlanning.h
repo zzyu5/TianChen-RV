@@ -272,6 +272,7 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   bool usesWideningProduct = false;
   bool usesProductReductionChain = false;
   bool usesProductReductionDequantization = false;
+  bool usesProductReductionDequantClamp = false;
   bool usesDotReduction = false;
   bool usesComputedMask = false;
   bool usesStridedInputs = false;
@@ -327,8 +328,19 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   llvm::StringRef dequantScaleRole;
   llvm::StringRef dequantScaleCType;
   llvm::StringRef dequantScaleName;
+  llvm::StringRef lowerBoundRole;
+  llvm::StringRef upperBoundRole;
+  llvm::StringRef lowerBoundCType;
+  llvm::StringRef upperBoundCType;
+  llvm::StringRef boundOrder;
+  llvm::StringRef clampRelation;
+  llvm::StringRef selectLayout;
+  llvm::StringRef comparePredicateKind;
+  llvm::StringRef secondaryComparePredicateKind;
+  llvm::StringRef secondaryCompareIntrinsic;
   llvm::StringRef compareIntrinsic;
   llvm::StringRef maskedMergeIntrinsic;
+  llvm::StringRef rhsBroadcastIntrinsic;
   llvm::StringRef wideningProductIntrinsic;
   llvm::StringRef maskedWideningProductIntrinsic;
   llvm::StringRef scalarSeedSplatIntrinsic;
@@ -1049,6 +1061,7 @@ struct RVVSelectedBodyRouteMaterializationFacts {
   bool emitsContractionWideningProduct = false;
   bool emitsContractionProductReductionChain = false;
   bool emitsContractionProductReductionDequantization = false;
+  bool emitsContractionProductReductionDequantClamp = false;
   bool emitsContractionWideningMAcc = false;
   bool emitsComputedMaskContraction = false;
   bool emitsStridedInputContraction = false;
@@ -1086,6 +1099,7 @@ struct RVVSelectedBodyRouteMaterializationFacts {
   llvm::StringRef scalarSeedSplatLeaf;
   llvm::StringRef rhsScalarBroadcastLeaf;
   llvm::StringRef compareLeaf;
+  llvm::StringRef secondaryCompareLeaf;
   llvm::StringRef maskedMergeLeaf;
 };
 
@@ -1221,6 +1235,7 @@ struct RVVSelectedBodyMathRouteOperandBindingFacts {
   bool bindsWideningProduct = false;
   bool bindsWideningProductReductionChain = false;
   bool bindsWideningProductReductionDequantization = false;
+  bool bindsWideningProductReductionDequantClamp = false;
   bool bindsWideningConversion = false;
   bool bindsDequantization = false;
   bool bindsWideningDotReduction = false;
@@ -1231,6 +1246,8 @@ struct RVVSelectedBodyMathRouteOperandBindingFacts {
   const support::RuntimeABIParameter *lhsABI = nullptr;
   const support::RuntimeABIParameter *rhsABI = nullptr;
   const support::RuntimeABIParameter *dequantScaleABI = nullptr;
+  const support::RuntimeABIParameter *lowerBoundABI = nullptr;
+  const support::RuntimeABIParameter *upperBoundABI = nullptr;
   const support::RuntimeABIParameter *sourceABI = nullptr;
   const support::RuntimeABIParameter *accumulatorABI = nullptr;
   const support::RuntimeABIParameter *dotLHSABI = nullptr;
@@ -1533,6 +1550,7 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
   bool plansWideningProduct = false;
   bool plansProductReductionChain = false;
   bool plansProductReductionDequantization = false;
+  bool plansProductReductionDequantClamp = false;
   bool plansDotReduction = false;
   bool plansComputedMask = false;
   bool plansStridedInput = false;
@@ -1543,6 +1561,8 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
   const support::RuntimeABIParameter *dotRHSABI = nullptr;
   const support::RuntimeABIParameter *accumulatorABI = nullptr;
   const support::RuntimeABIParameter *dequantScaleABI = nullptr;
+  const support::RuntimeABIParameter *lowerBoundABI = nullptr;
+  const support::RuntimeABIParameter *upperBoundABI = nullptr;
   const support::RuntimeABIParameter *outABI = nullptr;
   const support::RuntimeABIParameter *runtimeElementCountABI = nullptr;
   const support::RuntimeABIParameter *lhsStrideABI = nullptr;
@@ -1564,6 +1584,7 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
   llvm::StringRef wideningProductLeaf;
   llvm::StringRef dequantizeConvertLeaf;
   llvm::StringRef dequantizeScaleLeaf;
+  llvm::StringRef secondaryCompareLeaf;
   llvm::StringRef maskedWideningProductLeaf;
   llvm::StringRef scalarSeedSplatLeaf;
   llvm::StringRef compareLeaf;
@@ -1578,6 +1599,7 @@ struct RVVSelectedBodyDirectContractionRouteStatementPlan {
   bool plansWideningProduct = false;
   bool plansProductReductionChain = false;
   bool plansProductReductionDequantization = false;
+  bool plansProductReductionDequantClamp = false;
   bool plansDotReduction = false;
   bool plansComputedMask = false;
   bool plansStridedInput = false;
