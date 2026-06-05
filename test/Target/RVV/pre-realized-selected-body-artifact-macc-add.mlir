@@ -56,6 +56,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-plain-macc-add-plan-validated"}
 // PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
 // PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,lhs/rhs/acc:typed-vector,result:typed-vector"}
+// PLAN-SAME: {key = "tcrv_rvv.macc_arithmetic_kind", value = "add"}
 // PLAN-SAME: {key = "tcrv_rvv.macc_accumulator_layout", value = "separate-i32-vector-accumulator-input"}
 // PLAN-SAME: {key = "tcrv_rvv.macc_result_layout", value = "store-multiply-accumulate-result-to-output-buffer"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"

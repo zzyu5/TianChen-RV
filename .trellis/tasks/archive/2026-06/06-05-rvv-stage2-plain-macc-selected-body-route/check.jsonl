@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check must preserve the global RVV authority chain and stage boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check must ensure plain MAcc facts remain RVV-provider-derived from typed body/config/runtime facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check must verify Common EmitC stays neutral and target artifact mirrors remain provider-derived."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check must validate the added plain MAcc generated-bundle evidence contract."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Final check must reject route-id, artifact-name, and metadata authority drift."}
+{"file": ".trellis/tasks/06-05-rvv-stage2-plain-macc-selected-body-route/prd.md", "reason": "Verify the implemented changes satisfy this task's bounded acceptance criteria."}

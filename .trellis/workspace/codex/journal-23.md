@@ -642,3 +642,57 @@ Closed computed-mask standalone reduce-add route evidence with provider-derived 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 466: Stage2 RVV plain MAcc selected-body route foundation
+
+**Date**: 2026-06-05
+**Task**: `06-05-rvv-stage2-plain-macc-selected-body-route`
+**Branch**: `main`
+
+### Summary
+
+Closed a bounded plain `macc_add` route-contract evidence gap. The existing
+production RVV provider/target path already carried the plain MAcc selected
+body, provider validation contract, target validation, and generated-bundle
+route. This round pinned the provider-derived arithmetic kind in focused
+route/generator evidence and documented the plain MAcc generated-bundle
+testing contract.
+
+### Main Changes
+
+- Added `tcrv_rvv.macc_arithmetic_kind = add` FileCheck coverage in explicit
+  and pre-realized plain MAcc emission-plan fixtures.
+- Added generated-bundle evidence extraction and dry-run checks for plain
+  MAcc `macc_arithmetic_kind = add` under `provider_route_facts`.
+- Added the `Plain MAcc Generated-Bundle Evidence` section to the MLIR testing
+  contract.
+- Kept C++ provider/target route semantics unchanged.
+
+### Git Commits
+
+(Commit created after journal entry as part of the final task commit.)
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] focused lit from `build/test` for explicit/pre-realized plain MAcc
+  target fixtures and generated-bundle dry-runs
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-05-rvv-stage2-plain-macc-selected-body-route`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded added-line authority scan; hits were negative guardrail text in
+  the testing spec only
+- [N/A] `ssh rvv`; no route emission/runtime ABI/correctness behavior changed
+
+### Status
+
+[OK] **Completed** as route-contract evidence closure.
+
+### Next Steps
+
+- Archive the Trellis task and create one coherent commit.

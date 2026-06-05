@@ -387,6 +387,137 @@ typed body/config/runtime compare-mask and reduction facts
   -> ssh rvv harness checks mixed masks and all-inactive seed preservation
 ```
 
+## Plain MAcc Generated-Bundle Evidence
+
+### 1. Scope / Trigger
+
+Use plain MAcc generated-bundle evidence whenever an RVV generated-bundle test
+claims route-supported or executable correctness for a selected typed
+`tcrv_rvv.macc` vector-vector multiply-accumulate body.
+
+This contract applies to the bounded plain route:
+
+```text
+macc_add
+```
+
+Scalar-broadcast, computed-mask, runtime-scalar computed-mask, widening MAcc,
+widening dot-reduction, and high-level matmul/frontend routes use their own
+contracts.
+
+### 2. Signatures
+
+The bounded command shape is:
+
+```bash
+python3 scripts/rvv_generated_bundle_abi_e2e.py \
+  --op-kind macc_add
+```
+
+For pre-realized selected bodies:
+
+```bash
+python3 scripts/rvv_generated_bundle_abi_e2e.py \
+  --pre-realized-selected-body \
+  --op-kind macc_add
+```
+
+The provider-owned runtime ABI order for the plain vector-vector MAcc family
+is:
+
+```text
+lhs,rhs,acc,out,n
+```
+
+### 3. Contracts
+
+- Authority is the selected typed `tcrv_rvv.macc` body/config/runtime facts,
+  not route ids, artifact names, ABI strings, metadata mirrors, exact
+  intrinsic spelling, fixture names, or harness constants.
+- Evidence must mirror source/result dtype, SEW, LMUL, tail/mask policy,
+  arithmetic kind, accumulator layout, result layout, runtime AVL/VL
+  boundary, route operand binding, required headers, C type mapping, target
+  leaf profile, and `provider_supported_mirror`.
+- The selected ABI role summary must bind `lhs`, `rhs`, accumulator input,
+  output, and runtime `n` in the provider-owned ABI order.
+- The generated C/C++ must show runtime-VL-controlled lhs load, rhs load,
+  accumulator load, multiply-accumulate compute, and output store. The MAcc
+  operand order and store pointer must be checked as emitted code facts, not
+  inferred from the op kind string.
+- The harness must check vector-vector multiply, accumulator contribution,
+  source preservation, output tail sentinel preservation, and `n = 0` loop
+  skip behavior.
+- Runtime counts and data patterns are execution cases only. They must not
+  define arithmetic kind, dtype, route support, accumulator layout, result
+  layout, policy, or artifact authority.
+
+### 4. Validation & Error Matrix
+
+- Missing `lhs`, `rhs`, accumulator, output, or runtime `n` ABI role ->
+  evidence failure.
+- Wrong ABI order or missing `abi`/`hdr` binding marker for any exported
+  parameter -> evidence failure.
+- Missing or stale arithmetic kind, accumulator layout, result layout,
+  runtime AVL/VL boundary, header/type mapping, target profile, or
+  provider-supported mirror -> evidence failure.
+- Generated C/C++ omits runtime VL in lhs load, rhs load, accumulator load,
+  MAcc, or store -> evidence failure.
+- Harness does not distinguish add-only, multiply-only, missing-accumulator, or
+  wrong-operand-order behavior -> evidence failure.
+- A route id, artifact name, ABI string, exact intrinsic spelling, descriptor,
+  source-front-door marker, or legacy i32 helper is required to explain MAcc
+  semantics -> evidence failure.
+- `ssh rvv` compile/run failure -> report blocked/failed evidence and do not
+  claim runtime correctness.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed selected body carries lhs/rhs/acc/out/n roles, `kind = add`,
+  SEW/LMUL/policy, accumulator/result layout, and runtime facts -> RVV plugin
+  realizes or validates the body -> provider emits the plain MAcc route ->
+  generated evidence mirrors provider facts -> harness checks
+  `acc + lhs * rhs` and tail preservation.
+- Base: dry-run evidence proves materialization, route/export metadata,
+  emitted C++ shape, and harness source without claiming runtime correctness.
+- Bad: evidence infers arithmetic kind, accumulator behavior, operand order,
+  or runtime ABI order from `macc_add`, artifact filenames, exact intrinsic
+  spelling, or harness constants.
+
+### 6. Tests Required
+
+- lit/FileCheck for route/artifact fixtures must check representative
+  arithmetic kind, accumulator/result layout, runtime ABI order, route operand
+  binding, provider-supported mirror, and header/type mirrors.
+- Target artifact tests must reject stale provider or candidate facts for
+  arithmetic kind, accumulator/result layout, runtime AVL/order, operand
+  binding, header/type facts, provider-supported mirror, and cross-family MAcc
+  residue before artifact acceptance.
+- Generated-bundle dry-run coverage must check `multiply_accumulate_boundary`
+  fields and provider route facts, including `macc_arithmetic_kind`.
+- Runtime RVV claims must include `ssh rvv` output over multiple runtime
+  counts, including `n = 0`, at least one tail case, and at least two data
+  patterns that distinguish multiply, accumulator contribution, source
+  preservation, and tail preservation.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+artifact name or route id says macc_add
+  -> harness expects acc + lhs * rhs behavior
+```
+
+Correct:
+
+```text
+selected typed tcrv_rvv.macc body/config/runtime facts
+  -> RVV provider derives arithmetic kind, layout, ABI, type, and route facts
+  -> Common EmitC carries provider payload
+  -> target mirrors are checked
+  -> generated/ssh rvv harness checks acc + lhs * rhs behavior
+```
+
 ## Computed-Mask MAcc Generated-Bundle Evidence
 
 ### 1. Scope / Trigger

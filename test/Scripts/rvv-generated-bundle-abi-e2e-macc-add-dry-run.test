@@ -50,6 +50,7 @@
 # MACC-DAG: "provider_supported_mirror": "provider_supported_mirror:rvv-plain-macc-add-plan-validated"
 # MACC-DAG: "required_header_declarations": "stddef.h,stdint.h,riscv_vector.h"
 # MACC-DAG: "c_type_mapping": "vl:size_t,lhs/rhs/acc:typed-vector,result:typed-vector"
+# MACC-DAG: "macc_arithmetic_kind": "add"
 # MACC-DAG: "accumulator_layout": "separate-i32-vector-accumulator-input"
 # MACC-DAG: "result_layout": "store-multiply-accumulate-result-to-output-buffer"
 # MACC-DAG: "multiply_accumulate_boundary": {

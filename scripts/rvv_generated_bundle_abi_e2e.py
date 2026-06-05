@@ -7302,6 +7302,7 @@ MULTIPLY_ACCUMULATE_METADATA_KEYS = (
     "tcrv_rvv.provider_supported_mirror",
     "tcrv_rvv.required_header_declarations",
     "tcrv_rvv.c_type_mapping",
+    "tcrv_rvv.macc_arithmetic_kind",
     "tcrv_rvv.macc_accumulator_layout",
     "tcrv_rvv.macc_result_layout",
     "tcrv_rvv.runtime_abi_order",
@@ -8111,6 +8112,7 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     SCALAR_BROADCAST_MACC_REQUIRED_HEADER_DECLARATIONS
                 ),
                 "tcrv_rvv.c_type_mapping": SCALAR_BROADCAST_MACC_C_TYPE_MAPPING,
+                "tcrv_rvv.macc_arithmetic_kind": "add",
                 "tcrv_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
                 "tcrv_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
                 "tcrv_rvv.route_operand_binding_plan": (
@@ -8278,6 +8280,7 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     PLAIN_MACC_REQUIRED_HEADER_DECLARATIONS
                 ),
                 "tcrv_rvv.c_type_mapping": PLAIN_MACC_C_TYPE_MAPPING,
+                "tcrv_rvv.macc_arithmetic_kind": "add",
                 "tcrv_rvv.macc_accumulator_layout": MACC_ADD_ACCUMULATOR_LAYOUT,
                 "tcrv_rvv.macc_result_layout": MACC_ADD_RESULT_LAYOUT,
                 "tcrv_rvv.route_operand_binding_plan": (
@@ -27899,6 +27902,9 @@ def multiply_accumulate_boundary_summary(
                 "tcrv_rvv.required_header_declarations"
             ),
             "c_type_mapping": route_metadata.get("tcrv_rvv.c_type_mapping"),
+            "macc_arithmetic_kind": route_metadata.get(
+                "tcrv_rvv.macc_arithmetic_kind"
+            ),
             "accumulator_layout": route_metadata.get(
                 "tcrv_rvv.macc_accumulator_layout"
             ),
