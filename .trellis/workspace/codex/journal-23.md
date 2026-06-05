@@ -1244,3 +1244,59 @@ Closed explicit computed_masked_strided_input_widening_dot_reduce_add generated-
 ### Next Steps
 
 - None - task complete
+
+
+## Session 474: Stage2 RVV explicit computed masked segment2 update ABI closure
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV explicit computed masked segment2 update ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed explicit computed_masked_segment2_update_unit_load generated-bundle executable ABI evidence on ssh rvv for counts 0,1,16,17,257 with patterns 0,1, active/inactive mask lanes, segment update oracle, inactive destination preservation, source preservation, and tail preservation; no production code change required.
+
+### Main Changes
+
+- Created and archived the Trellis task for the explicit
+  `computed_masked_segment2_update_unit_load` executable ABI closure.
+- Proved the existing explicit selected-body generated bundle is executable on
+  real `ssh rvv` without production compiler, script, fixture, or test changes.
+- Recorded completion evidence for provider-derived ABI order, route operand
+  binding, compare-produced mask facts, segment2 field/update facts,
+  inactive-lane contract, required header/type mirrors, and target/header
+  fail-closed negatives.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] explicit generated-bundle dry-run for counts `0,1,16,17,257`
+- [OK] direct `FileCheck` of the dry-run test `STDOUT`, `ROOT`, `CMSEG`, and
+  `HARNESS` prefixes
+- [OK] real `ssh rvv` generated-bundle compile/run:
+  `PASS op=computed_masked_segment2_update_unit_load counts=0,1,16,17,257 patterns=0,1`
+- [OK] focused explicit target fixture `PLAN` and `HEADER` FileCheck commands
+- [OK] stale-mirror negatives for route id, provider mirror, operand binding,
+  ABI order, required headers, type mapping, mask source, inactive-lane
+  contract, field role, and update arithmetic
+- [OK] adjacent pre-realized generated-bundle dry-run regression
+- [OK] bounded old-authority scan over production/source diff lines
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Trellis context validation
+- [SKIP] script self-test was not required because
+  `scripts/rvv_generated_bundle_abi_e2e.py` was not changed
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

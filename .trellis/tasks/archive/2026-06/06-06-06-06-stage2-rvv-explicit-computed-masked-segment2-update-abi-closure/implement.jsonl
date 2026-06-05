@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage 2 RVV typed-body route boundary, and descriptor/source-front-door red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, computed-mask segment2 route-family planning owner, statement-plan boundary, and target export consumer contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC/TCRVEmitCLowerableRoute boundary, provider operand binding, computed-mask segment2 fact surface, and segment2 validation contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle dry-run and ssh rvv runtime evidence requirements including active/inactive lane and tail preservation."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-explicit-computed-masked-strided-input-widening-dot-reduce-abi-closure/prd.md", "reason": "Prior executable ABI closure pattern and evidence format for explicit selected-body generated-bundle tasks."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Primary explicit selected-body fixture and target/header/stale-mirror contract for this route."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Adjacent pre-realized regression if shared segment2 realization or script behavior is touched."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-computed-masked-segment2-update-dry-run.test", "reason": "Focused generated-bundle dry-run and harness oracle expectations to preserve."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated bundle, harness, dry-run, and ssh rvv execution bridge for the route."}

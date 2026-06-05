@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify changes preserve global TianChen-RV Stage 2 and authority-chain rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify computed-mask segment2 update execution evidence stays plugin-owned and route-supported."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify generated bundle/header evidence consumes provider route facts without common EmitC semantic invention."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused dry-run, ssh rvv, self-test, active/inactive lane, source, and tail evidence claims match testing policy."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-06-06-stage2-rvv-explicit-computed-masked-segment2-update-abi-closure/prd.md", "reason": "Verify all task acceptance criteria are either satisfied or truthfully blocked."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Verify provider/target facts and stale-mirror negatives for the explicit route remain intact."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Verify adjacent pre-realized route remains intact when shared code or checks are touched."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-computed-masked-segment2-update-dry-run.test", "reason": "Verify dry-run and generated harness oracle expectations still match produced evidence."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Verify any script bridge changes preserve self-test and generated-bundle execution behavior."}
