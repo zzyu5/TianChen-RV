@@ -62,6 +62,80 @@ Closed generated dequant-clamp f32 epilogue executable ABI evidence with dry-run
 - None - task complete
 
 
+## Session 479: Stage2 RVV widening-dot reduce selected-body realization
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV widening dot reduce selected-body realization
+**Branch**: `main`
+
+### Summary
+
+Closed the focused plain `widening_dot_reduce_add` pre-realized selected-body
+realization evidence path. The existing RVV contraction realization owner
+already materializes
+`tcrv_rvv.typed_widening_dot_reduce_pre_realized_body` into a realized typed
+`setvl`/`with_vl`/load/load/`tcrv_rvv.widening_dot_reduce`/store body. This
+round added the missing local stale-authority negative for the plain fixture,
+aligned the pre-realized generated-bundle dry-run to the `17` tail case, and
+proved real `ssh rvv` generated-bundle execution for counts
+`0,1,16,17,257` and patterns `0,1`.
+
+### Main Changes
+
+- Created and completed the Trellis task for the Stage2 RVV plugin-local
+  selected-body realization owner path for plain widening-dot reduce.
+- Added a `STALE-AUTH` negative to
+  `test/Target/RVV/pre-realized-selected-body-artifact-widening-dot-reduce-add.mlir`
+  showing a stale `route_id = "rvv-i32m1"` on the pre-realized typed body is
+  rejected before route/provider facts.
+- Updated
+  `test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-widening-dot-reduce-add-dry-run.test`
+  from tail count `23` to `17`, matching the current brief and explicit ABI
+  evidence set.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | `rvv: close widening dot reduce selected-body realization` |
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] pre-realized target fixture direct FileCheck for `REALIZED`, `PLAN`,
+  `HEADER`, and `STALE-AUTH`
+- [OK] explicit target fixture direct FileCheck for `PLAN` and `HEADER`
+- [OK] pre-realized generated-bundle dry-run for counts `0,1,16,17,257`
+- [OK] direct FileCheck of the pre-realized dry-run `ROOT`, `WDOT`, and
+  `HARNESS` prefixes
+- [OK] explicit generated-bundle dry-run regression for counts `0,1,16,17,257`
+- [OK] real `ssh rvv` generated-bundle compile/run:
+  `PASS op=widening_dot_reduce_add counts=0,1,16,17,257 patterns=0,1`
+- [OK] runtime evidence confirmed signed horizontal widening dot products,
+  seed-added behavior, add-only/mul-only distinguishing cases, scalar
+  `out[0]`, source preservation, accumulator preservation, and tail
+  preservation
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] bounded added-line old-authority scan; only the intentional
+  `STALE-AUTH` negative route-id injection matched
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Trellis context validation
+- [REPAIR] `FileCheck`, `not`, and `llvm-readobj` were not in PATH; reran
+  direct commands with `/usr/lib/llvm-20/bin/*`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 475: Stage2 RVV explicit computed masked indexed scatter store ABI closure
 
 **Date**: 2026-06-06

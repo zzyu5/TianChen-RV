@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final changes against global authority and Stage 2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body realization owner behavior and stale-authority rejection."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-derived widening-dot route facts and target artifact contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused FileCheck/generated-bundle/ssh evidence expectations."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-explicit-widening-dot-reduce-abi-closure/prd.md", "reason": "Check explicit route regression and generated-bundle harness contracts remain aligned."}
