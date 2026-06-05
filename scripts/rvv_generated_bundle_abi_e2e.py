@@ -23834,6 +23834,9 @@ static int run_case(size_t n, int pattern) {{
     free(rhs);
     free(acc);
     free(out);
+    free(lhs_before);
+    free(rhs_before);
+    free(acc_before);
     return 12;
   }}
 
@@ -23846,7 +23849,29 @@ static int run_case(size_t n, int pattern) {{
       free(rhs);
       free(acc);
       free(out);
+      free(lhs_before);
+      free(rhs_before);
+      free(acc_before);
       return 13;
+    }}
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    if (lhs[index] != lhs_before[index] ||
+        rhs[index] != rhs_before[index] ||
+        acc[index] != acc_before[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} source or accumulator buffer mutated n=%zu index=%zu lhs=%d before_lhs=%d rhs=%d before_rhs=%d acc=%d before_acc=%d\\n",
+              n, index, lhs[index], lhs_before[index], rhs[index],
+              rhs_before[index], acc[index], acc_before[index]);
+      free(lhs);
+      free(rhs);
+      free(acc);
+      free(out);
+      free(lhs_before);
+      free(rhs_before);
+      free(acc_before);
+      return 14;
     }}
   }}
 
@@ -23864,14 +23889,20 @@ static int run_case(size_t n, int pattern) {{
     free(rhs);
     free(acc);
     free(out);
-    return 14;
+    free(lhs_before);
+    free(rhs_before);
+    free(acc_before);
+    return 15;
   }}
 
   free(lhs);
   free(rhs);
   free(acc);
   free(out);
-  printf("{expectation.kind} case n=%zu ok signed_horizontal_dot seed_added scalar_output tail_preserved widening_products=%zu add_only_distinguishing=%zu mul_only_distinguishing=%zu\\n",
+  free(lhs_before);
+  free(rhs_before);
+  free(acc_before);
+  printf("{expectation.kind} case n=%zu ok signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved widening_products=%zu add_only_distinguishing=%zu mul_only_distinguishing=%zu\\n",
          n, widening_products, add_only_distinguishing, mul_only_distinguishing);
   return 0;
 }}
@@ -23879,13 +23910,19 @@ static int run_case(size_t n, int pattern) {{
 int main(void) {{
   const size_t counts[] = {{{counts}}};
   const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const int patterns[] = {{0, 1}};
+  const size_t pattern_count = sizeof(patterns) / sizeof(patterns[0]);
   for (size_t index = 0; index < count_count; ++index) {{
-    int status = run_case(counts[index]);
-    if (status != 0)
-      return status;
+    for (size_t pattern_index = 0; pattern_index < pattern_count;
+         ++pattern_index) {{
+      int pattern = patterns[pattern_index];
+      int status = run_case(counts[index], pattern);
+      if (status != 0)
+        return status;
+    }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)}\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)}\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1\\n");
   return 0;
 }}
 """.lstrip()

@@ -1479,3 +1479,77 @@ Closed explicit widening_macc_add generated-bundle executable ABI evidence on ss
 ### Next Steps
 
 - None - task complete
+
+
+## Session 478: Stage2 RVV explicit widening-dot reduce ABI closure
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV explicit widening-dot reduce executable ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed explicit `widening_dot_reduce_add` generated-bundle executable ABI
+evidence on real `ssh rvv` for counts `0,1,16,17,257` and patterns `0,1`.
+Fixed the route-specific generated harness so source and accumulator snapshot
+preservation is actual evidence, not an allocated-but-unused buffer. The final
+remote run validated signed horizontal widening dot products, seed-added
+behavior, add-only and mul-only distinguishing cases, scalar `out[0]` output,
+source preservation, accumulator preservation, and output tail preservation.
+
+### Main Changes
+
+- Created and archived the Trellis task for the explicit
+  `widening_dot_reduce_add` executable ABI closure.
+- Updated `scripts/rvv_generated_bundle_abi_e2e.py` only for the plain
+  `widening_dot_reduce_add` harness path:
+  - compare `lhs_before`, `rhs_before`, and `acc_before` after execution;
+  - free snapshot buffers on all touched return paths;
+  - iterate patterns `0,1` and pass `pattern` into `run_case`;
+  - print `patterns=0,1` and preservation markers in the success output.
+- Updated explicit and pre-realized widening-dot reduce dry-run HARNESS
+  FileCheck contracts to assert the preservation diagnostic, pattern loop, and
+  `source_preserved accumulator_preserved` success marker.
+- Updated `.trellis/spec/testing/mlir-testing-contract.md` with a generated
+  harness snapshot-preservation contract.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | `rvv: close explicit widening dot reduce abi` |
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] explicit generated-bundle dry-run for counts `0,1,16,17,257`
+- [OK] direct `FileCheck` of the explicit dry-run test `ROOT`, `WDOT`, and
+  `HARNESS` prefixes
+- [OK] focused explicit target fixture `PLAN` and `HEADER` FileCheck commands
+- [OK] adjacent pre-realized generated-bundle dry-run regression for counts
+  `0,1,16,23,257`
+- [OK] direct `FileCheck` of the pre-realized dry-run test `ROOT`, `WDOT`, and
+  `HARNESS` prefixes
+- [OK] real `ssh rvv` generated-bundle compile/run:
+  `PASS op=widening_dot_reduce_add counts=0,1,16,17,257 patterns=0,1`
+- [OK] remote compile evidence:
+  `remote_arch=riscv64`,
+  `clang_path=/usr/bin/clang`,
+  `clang_version=Ubuntu clang version 18.1.3 (1ubuntu1)`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] bounded old-authority scan over touched diff lines
+- [OK] `git diff --check`
+- [OK] Trellis context validation
+- [WARN] `python3 -m lit` unavailable locally: `No module named lit`; direct
+  RUN-equivalent commands and FileCheck prefixes were executed instead
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

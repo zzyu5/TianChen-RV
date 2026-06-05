@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundaries, RVV-first authority chain, Stage2 scope, and source-of-truth rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority placement, selected-body realization owner registry, and direct contraction route-provider owner boundary for widening dot-reduce."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned widening dot-reduce facts, route validation contract, Common EmitC neutrality, and target validation boundaries."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Runtime evidence requirements for RVV correctness claims and focused testing expectations."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle harness preservation, pattern coverage, and runtime evidence contracts."}

@@ -99,10 +99,13 @@
 # HARNESS: int32_t expected = acc[0];
 # HARNESS: int32_t add_only_expected = acc[0];
 # HARNESS: int32_t no_seed_expected = 0;
+# HARNESS: size_t widening_products = 0;
 # HARNESS: expected = (int32_t)(expected + product);
-# HARNESS: widening_products
-# HARNESS: add_only_distinguishing
-# HARNESS: mul_only_distinguishing
-# HARNESS: signed_horizontal_dot seed_added scalar_output tail_preserved
-# HARNESS: tcrv_rvv_generated_bundle_abi_widening_dot_reduce_add_ok counts=0,1,16,23,257
-# HARNESS: PASS op=widening_dot_reduce_add counts=0,1,16,23,257
+# HARNESS: source or accumulator buffer mutated
+# HARNESS: size_t add_only_distinguishing = expected != add_only_expected;
+# HARNESS: size_t mul_only_distinguishing = expected != no_seed_expected;
+# HARNESS: signed_horizontal_dot seed_added scalar_output source_preserved accumulator_preserved tail_preserved
+# HARNESS: const int patterns[] = {0, 1};
+# HARNESS: run_case(counts[index], pattern);
+# HARNESS: tcrv_rvv_generated_bundle_abi_widening_dot_reduce_add_ok counts=0,1,16,23,257 patterns=0,1
+# HARNESS: PASS op=widening_dot_reduce_add counts=0,1,16,23,257 patterns=0,1

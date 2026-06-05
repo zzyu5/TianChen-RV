@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture and RVV-first route authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV-owned widening dot-reduce semantics, provider ownership, and fail-closed boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check widening dot-reduce provider fact and target validation contract compliance."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check generated-bundle, FileCheck, script, and ssh rvv evidence coverage."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle harness preservation and multi-pattern runtime evidence coverage."}

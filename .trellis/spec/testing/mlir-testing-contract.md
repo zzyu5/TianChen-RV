@@ -88,6 +88,15 @@ lanes when applicable) with sentinels and fail if the generated route writes
 outside the runtime element count. These sentinel checks are evidence quality
 guards only; they do not become route, dtype, or artifact authority.
 
+When a generated-bundle harness snapshots input, accumulator, passthrough, or
+seed buffers before calling the generated route, the harness must compare those
+snapshots after execution, fail with a route-specific diagnostic if any
+snapshotted value changed unexpectedly, and free the snapshot buffers on every
+return path. The corresponding dry-run `HARNESS` FileCheck should assert both
+the mutation diagnostic path and the success marker such as
+`source_preserved` or `accumulator_preserved`. Allocating `*_before` buffers
+without comparing them is not preservation evidence.
+
 For multi-pattern generated-bundle harnesses, the pattern dimension is part of
 the evidence surface. If `run_case` accepts a pattern argument, `main` must
 iterate every required pattern, pass the pattern into `run_case`, and print the
