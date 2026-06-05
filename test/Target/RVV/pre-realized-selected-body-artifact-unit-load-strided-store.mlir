@@ -1,6 +1,11 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.runtime_abi_order\", value = \"src,dst,n,dst_stride_bytes/s//tcrv_rvv.runtime_abi_order\", value = \"src,n,dst,dst_stride_bytes/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RUNTIME-ABI
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.route_operand_binding_operands\", value = \"rvv-route-operand-binding:unit_load_strided_store.v1/s//tcrv_rvv.route_operand_binding_operands\", value = \"metadata-derived-binding/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-BINDING
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.provider_supported_mirror\", value = \"provider_supported_mirror:rvv-unit-load-strided-store-plan-validated/s//tcrv_rvv.provider_supported_mirror\", value = \"provider_supported_mirror:metadata-only-unit-strided/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.strided_memory_layout\", value = \"unit-stride-source-byte-strided-destination-runtime-abi/s//tcrv_rvv.strided_memory_layout\", value = \"metadata-derived-layout/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-LAYOUT
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.destination_stride_source\", value = \"runtime_abi:dst_stride_bytes/s//tcrv_rvv.destination_stride_source\", value = \"metadata-derived-dst-stride/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DEST-STRIDE
 
 // Pre-realized selected-body input for one bounded Stage2 strided destination
 // store slice. The RVV plugin must realize destination byte-stride ABI facts
@@ -63,17 +68,45 @@ module {
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @pre_realized_body_rvv_unit_load_strided_store
 
-// HEADER: tianchenrv.rvv.selected_variant: @pre_realized_body_rvv_unit_load_strided_store
-// HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-unit-load-strided-store-callable-c-abi.v1
-// HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
-// HEADER: tianchenrv.rvv.runtime_abi_order: src,dst,n,dst_stride_bytes
-// HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:unit_load_strided_store.v1
-// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:unit_load_strided_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|move-source;dst=output-buffer:dst:runtime-abi-mirror|materialized-strided-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror;dst_stride_bytes=destination-byte-stride:dst_stride_bytes:runtime-abi-mirror|materialized-strided-store-stride|materialized-byte-address|header-mirror
-// HEADER: tianchenrv.rvv.base_memory_movement_route_family_plan: rvv-base-memory-movement-route-family-plan.v1
-// HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
-// HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e32m1,destination:byte-strided-e32m1
-// HEADER: tianchenrv.rvv.strided_memory_layout: unit-stride-source-byte-strided-destination-runtime-abi
-// HEADER: tianchenrv.rvv.destination_stride_source: runtime_abi:dst_stride_bytes
-// HEADER: tianchenrv.rvv.source_memory_form: unit-stride-load
-// HEADER: tianchenrv.rvv.destination_memory_form: strided-store
+// HEADER-DAG: tianchenrv.rvv.selected_variant: @pre_realized_body_rvv_unit_load_strided_store
+// HEADER-DAG: tianchenrv.rvv.runtime_abi_name: rvv-generic-unit-load-strided-store-callable-c-abi.v1
+// HEADER-DAG: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
+// HEADER-DAG: tianchenrv.rvv.memory_form: unit-load-strided-store
+// HEADER-DAG: tianchenrv.rvv.runtime_abi_order: src,dst,n,dst_stride_bytes
+// HEADER-DAG: tianchenrv.rvv.target_leaf_profile: rvv-v1-e32m1-unit-load-strided-store-leaf-profile.v1
+// HEADER-DAG: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-unit-load-strided-store-plan-validated
+// HEADER-DAG: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:unit_load_strided_store.v1
+// HEADER-DAG: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:unit_load_strided_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|move-source;dst=output-buffer:dst:runtime-abi-mirror|materialized-strided-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror;dst_stride_bytes=destination-byte-stride:dst_stride_bytes:runtime-abi-mirror|materialized-strided-store-stride|materialized-byte-address|header-mirror
+// HEADER-DAG: tianchenrv.rvv.base_memory_movement_route_family_plan: rvv-base-memory-movement-route-family-plan.v1
+// HEADER-DAG: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
+// HEADER-DAG: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e32m1,destination:byte-strided-e32m1
+// HEADER-DAG: tianchenrv.rvv.strided_memory_layout: unit-stride-source-byte-strided-destination-runtime-abi
+// HEADER-DAG: tianchenrv.rvv.destination_stride_source: runtime_abi:dst_stride_bytes
+// HEADER-DAG: tianchenrv.rvv.source_memory_form: unit-stride-load
+// HEADER-DAG: tianchenrv.rvv.destination_memory_form: strided-store
 // HEADER: void tcrv_emitc_pre_realized_body_unit_load_strided_store_kernel_pre_realized_body_rvv_unit_load_strided_store(const int32_t *src, int32_t *dst, size_t n, size_t dst_stride_bytes);
+
+// STALE-RUNTIME-ABI: target artifact candidate validation failed
+// STALE-RUNTIME-ABI-SAME: runtime_abi_order
+// STALE-RUNTIME-ABI-SAME: src,dst,n,dst_stride_bytes
+// STALE-RUNTIME-ABI-SAME: src,n,dst,dst_stride_bytes
+
+// STALE-BINDING: target artifact candidate validation failed
+// STALE-BINDING-SAME: route_operand_binding_operands
+// STALE-BINDING-SAME: rvv-route-operand-binding:unit_load_strided_store.v1
+// STALE-BINDING-SAME: metadata-derived-binding
+
+// STALE-PROVIDER: target artifact candidate validation failed
+// STALE-PROVIDER-SAME: provider_supported_mirror
+// STALE-PROVIDER-SAME: provider_supported_mirror:rvv-unit-load-strided-store-plan-validated
+// STALE-PROVIDER-SAME: provider_supported_mirror:metadata-only-unit-strided
+
+// STALE-LAYOUT: target artifact candidate validation failed
+// STALE-LAYOUT-SAME: strided_memory_layout
+// STALE-LAYOUT-SAME: unit-stride-source-byte-strided-destination-runtime-abi
+// STALE-LAYOUT-SAME: metadata-derived-layout
+
+// STALE-DEST-STRIDE: target artifact candidate validation failed
+// STALE-DEST-STRIDE-SAME: destination_stride_source
+// STALE-DEST-STRIDE-SAME: runtime_abi:dst_stride_bytes
+// STALE-DEST-STRIDE-SAME: metadata-derived-dst-stride

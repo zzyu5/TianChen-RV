@@ -19,15 +19,39 @@ Closed generated dequant-clamp f32 epilogue executable ABI evidence with dry-run
 
 ### Main Changes
 
-(Add details)
+- Repaired the two pre-realized strided memory target fixture header checks by
+  treating target metadata ordering as non-authority while still asserting all
+  provider-derived mirrors.
+- Added fail-closed target-export mutations for stale runtime ABI order, route
+  operand binding, provider support mirror, strided memory layout, and
+  source/destination stride source.
+- Kept production provider/materializer/target C++ unchanged because current
+  base memory provider and target validators already derive and reject the
+  required route facts.
 
 ### Git Commits
 
-(No commits - planning session)
+- included-in-this-commit
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] Focused lit reproduction failed before the fixture repair and passed
+  after the repair for both strided memory target fixtures.
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] Focused lit filter for strided memory verifier, generated-bundle
+  dry-run, and direct pre-realized route-entry fail-closed tests.
+- [OK] Generated-bundle dry-runs for explicit/pre-realized
+  `strided_load_unit_store` and `unit_load_strided_store`.
+- [OK] Real `ssh rvv` generated-bundle runs for explicit/pre-realized
+  `strided_load_unit_store` and `unit_load_strided_store`, each passing
+  counts `0,1,16,23,257` with stride bytes `4,8`.
+- [WARN] `ninja -C build check-tianchenrv` is 491/494: prior strided memory
+  failures are fixed; remaining failures are unrelated existing runtime scalar
+  splat-store negative, construction protocol common, and template extension
+  plugin tests.
+- [OK] `git diff --check`
+- [OK] Trellis validation and added-line old-authority scan
 
 ### Status
 
@@ -895,6 +919,37 @@ computed-mask MAcc behavior.
 ### Summary
 
 Closed bounded widening conversion route evidence: added i16->i32 target mirror fail-closed checks, verified provider/target support, generated-bundle dry-runs, and ssh rvv correctness for supported explicit/pre-realized widening conversion modes.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 468: Stage2 RVV strided memory selected-body route foundation
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV strided memory selected-body route foundation
+**Branch**: `main`
+
+### Summary
+
+Closed bounded strided memory route evidence: repaired pre-realized target header drift, added stale target mirror fail-closed checks, verified explicit/pre-realized generated-bundle dry-runs, and passed ssh rvv correctness for strided load/store counts 0,1,16,23,257 with stride bytes 4,8.
 
 ### Main Changes
 
