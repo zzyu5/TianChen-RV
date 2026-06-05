@@ -19423,7 +19423,8 @@ module {
               "runtime-scalar compare/select stale statement-plan provider "
               "preflight unit test"),
           {"runtime scalar computed-mask select route construction requires "
-           "the matching single/dual/f32-clamp compare/select statement plan",
+           "the matching single/dual/f32-clamp/dequant-clamp compare/select "
+           "statement plan",
            "before creating TCRVEmitCLowerableRoute"}))
     return result;
 
@@ -19518,7 +19519,8 @@ module {
               "runtime-scalar dual compare/select stale statement-plan "
               "provider preflight unit test"),
           {"runtime scalar computed-mask select route construction requires "
-           "the matching single/dual/f32-clamp compare/select statement plan",
+           "the matching single/dual/f32-clamp/dequant-clamp compare/select "
+           "statement plan",
            "before creating TCRVEmitCLowerableRoute"}))
     return result;
 

@@ -477,6 +477,7 @@ bool isRVVCompareSelectMaskProducerRouteFamilyOperation(
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarDualCompareMaskAndSelect:
   case plugin::rvv::RVVSelectedBodyOperationKind::F32ClampSelect:
+  case plugin::rvv::RVVSelectedBodyOperationKind::DequantClampF32Epilogue:
     return true;
   default:
     return false;
@@ -496,6 +497,7 @@ bool isRVVComputedMaskSelectRouteFamilyOperation(
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarDualCompareMaskAndSelect:
   case plugin::rvv::RVVSelectedBodyOperationKind::F32ClampSelect:
+  case plugin::rvv::RVVSelectedBodyOperationKind::DequantClampF32Epilogue:
     return true;
   default:
     return false;
@@ -7333,6 +7335,29 @@ llvm::Error validateRVVCompareSelectRouteValidationContract(
                   contract.vectorLoadIntrinsic))
     return error;
   if (llvm::Error error =
+          require("source vector type", description.sourceVectorTypeName,
+                  contract.sourceVectorTypeName))
+    return error;
+  if (llvm::Error error =
+          require("source vector C type", description.sourceVectorCType,
+                  contract.sourceVectorCType))
+    return error;
+  if (llvm::Error error =
+          require("source vector load callee",
+                  description.sourceVectorLoadIntrinsic,
+                  contract.sourceVectorLoadIntrinsic))
+    return error;
+  if (llvm::Error error =
+          require("dequantize convert callee",
+                  description.dequantizeConvertIntrinsic,
+                  contract.dequantizeConvertIntrinsic))
+    return error;
+  if (llvm::Error error =
+          require("dequantize scale callee",
+                  description.dequantizeScaleIntrinsic,
+                  contract.dequantizeScaleIntrinsic))
+    return error;
+  if (llvm::Error error =
           require("primary compare predicate",
                   description.comparePredicateKind,
                   contract.comparePredicateKind))
@@ -7490,6 +7515,10 @@ llvm::Error validateRVVCompareSelectRouteValidationContract(
   if (llvm::Error error = rejectStaleRouteFamilyFact(
           "widening conversion route-family plan",
           description.wideningConversionRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = rejectStaleRouteFamilyFact(
+          "dequantization route-family plan",
+          description.dequantizationRouteFamilyPlanID))
     return error;
   if (llvm::Error error = rejectStaleRouteFamilyFact(
           "computed-mask memory route-family plan",
@@ -8940,6 +8969,15 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
         {{pointerAtInduction(abi), abi.cType}, {emitCLoopVLName, vlCType}},
         resultName, description.vectorCType);
   };
+  auto validateSourceVectorLoad =
+      [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
+          llvm::StringRef stepLabel, const support::RuntimeABIParameter &abi,
+          llvm::StringRef resultName) -> llvm::Error {
+    return validateRVVProviderBuiltRouteStep(
+        step, consumerLabel, stepLabel, description.sourceVectorLoadIntrinsic,
+        {{pointerAtInduction(abi), abi.cType}, {emitCLoopVLName, vlCType}},
+        resultName, description.sourceVectorCType);
+  };
   auto validateSplat =
       [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
           llvm::StringRef stepLabel, const support::RuntimeABIParameter &abi,
@@ -9165,6 +9203,88 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
             description.resultName, description.vectorCType))
       return error;
     return validateUnitStore(loop.bodySteps[8], "output store", outABI,
+                             description.resultName);
+  }
+  case OperationKind::DequantClampF32Epilogue: {
+    if (description.intrinsic.empty() || description.storeIntrinsic.empty() ||
+        description.rhsBroadcastIntrinsic.empty() ||
+        description.secondaryCompareIntrinsic.empty() ||
+        description.sourceVectorLoadIntrinsic.empty() ||
+        description.sourceVectorCType.empty() ||
+        description.dequantizeConvertIntrinsic.empty() ||
+        description.dequantizeScaleIntrinsic.empty())
+      return makeRVVTargetRouteError(
+          llvm::Twine(consumerLabel) +
+          " requires provider-derived source load, dequant convert/scale, "
+          "splat, dual compare, select, and store leaves before validating "
+          "dequant-clamp epilogue statements");
+    const support::RuntimeABIParameter &sourceABI =
+        description.runtimeABIParameters[0];
+    const support::RuntimeABIParameter &scaleABI =
+        description.runtimeABIParameters[1];
+    const support::RuntimeABIParameter &lowerBoundABI =
+        description.runtimeABIParameters[2];
+    const support::RuntimeABIParameter &upperBoundABI =
+        description.runtimeABIParameters[3];
+    const support::RuntimeABIParameter &outABI =
+        description.runtimeABIParameters[4];
+    if (llvm::Error error =
+            validateSourceVectorLoad(loop.bodySteps[1], "source i32 load",
+                                     sourceABI, "source_i32_vec"))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[2], consumerLabel, "dequant convert",
+            description.dequantizeConvertIntrinsic,
+            {{"source_i32_vec", description.sourceVectorCType},
+             {emitCLoopVLName, vlCType}},
+            "converted_f32_vec", description.vectorCType))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[3], consumerLabel, "dequant scale",
+            description.dequantizeScaleIntrinsic,
+            {{"converted_f32_vec", description.vectorCType},
+             {scaleABI.cName, scaleABI.cType},
+             {emitCLoopVLName, vlCType}},
+            "lhs_vec", description.vectorCType))
+      return error;
+    if (llvm::Error error =
+            validateSplat(loop.bodySteps[4], "lower bound scalar splat",
+                          lowerBoundABI, "lower_bound_vec"))
+      return error;
+    if (llvm::Error error =
+            validateSplat(loop.bodySteps[5], "upper bound scalar splat",
+                          upperBoundABI, "upper_bound_vec"))
+      return error;
+    if (llvm::Error error =
+            validateCompare(loop.bodySteps[6], "lower-bound compare",
+                            description.compareIntrinsic, "lhs_vec",
+                            "lower_bound_vec", "lower_clamp_mask"))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[7], consumerLabel, "lower-bound select",
+            description.intrinsic,
+            {{"lhs_vec", description.vectorCType},
+             {"lower_bound_vec", description.vectorCType},
+             {"lower_clamp_mask", description.maskCType},
+             {emitCLoopVLName, vlCType}},
+            "lower_clamped_vec", description.vectorCType))
+      return error;
+    if (llvm::Error error =
+            validateCompare(loop.bodySteps[8], "upper-bound compare",
+                            description.secondaryCompareIntrinsic,
+                            "upper_bound_vec", "lower_clamped_vec",
+                            "upper_clamp_mask"))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[9], consumerLabel, "upper-bound select",
+            description.intrinsic,
+            {{"lower_clamped_vec", description.vectorCType},
+             {"upper_bound_vec", description.vectorCType},
+             {"upper_clamp_mask", description.maskCType},
+             {emitCLoopVLName, vlCType}},
+            description.resultName, description.vectorCType))
+      return error;
+    return validateUnitStore(loop.bodySteps[10], "output store", outABI,
                              description.resultName);
   }
   case OperationKind::RuntimeScalarDualCompareMaskAndSelect: {

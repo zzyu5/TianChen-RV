@@ -116,6 +116,69 @@ Extracted a provider-owned runtime-scalar splat-store route validation contract,
 
 - None - task complete
 
+---
+
+# Stage2 RVV dequant-clamp epilogue composition foundation
+
+Date: 2026-06-05
+
+Completed route-supported production foundation for one typed RVV epilogue
+composition:
+
+```text
+selected/pre-realized typed tcrv_rvv body
+  -> RVV plugin-local realization
+  -> i32 source load
+  -> runtime f32 scale dequantization
+  -> lower/upper runtime f32 clamp/select
+  -> f32 store boundary
+  -> provider-derived route planning
+  -> target artifact validation
+```
+
+## Production Owner
+
+- Added `tcrv_rvv.typed_dequant_clamp_f32_epilogue_pre_realized_body`.
+- Realized the pre-realized op into `load -> dequantize -> splat lower/upper -> compare/select lower -> compare/select upper -> store`.
+- Added provider route facts, route description validation, operand binding,
+  statement planning, runtime ABI order `lhs,scale,lower_bound,upper_bound,out,n`,
+  and dequant/clamp mirror validation.
+- Extended target artifact validation so stale provider, ABI, source-load, and
+  dequant intrinsic mirrors fail closed before header export.
+- Kept the capability as route-supported only; no executable correctness claim
+  and no `ssh rvv` evidence in this round.
+
+## Evidence
+
+- `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- `build/bin/tianchenrv-rvv-extension-plugin-test`
+- `build/bin/tianchenrv-target-artifact-export-test`
+- `build/bin/tcrv-opt test/Dialect/RVV/pre-realized-dequant-clamp-f32-epilogue-negative.mlir --split-input-file --verify-diagnostics`
+- Positive fixture checks for `REALIZED`, `PLAN`, and `HEADER` on `test/Target/RVV/pre-realized-selected-body-artifact-dequant-clamp-f32-epilogue.mlir`
+- Stale target validation checks for provider mirror, ABI order, source-load
+  intrinsic, and dequant convert intrinsic.
+- `git diff --check`
+- Bounded old-authority/q-name scan: only non-goal doc mentions of `q8`,
+  `q4`, and `source-front-door`; no legacy route-authority matches.
+
+## Self-Repair
+
+- Fixed standalone dequant verifier interaction so the composed route can carry
+  dequant leaf mirrors without being treated as a standalone dequant route.
+- Synchronized C++ stale statement-plan test expectations with the new
+  `single/dual/f32-clamp/dequant-clamp` provider preflight diagnostic.
+- Aligned FileCheck expectations with current MLIR string-attribute escaping
+  and target bridge metadata-key diagnostics.
+
+## Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Next Hermes round may choose executable ABI closure with generated bundle and
+  `ssh rvv` evidence if runtime correctness is to be claimed.
+
 
 ## Session 454: Stage2 RVV i32-to-f32 dequant executable ABI closure
 

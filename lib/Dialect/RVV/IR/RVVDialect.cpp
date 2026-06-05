@@ -265,6 +265,16 @@ bool isAllowedTypedF32ClampSelectPreRealizedBodyAttr(llvm::StringRef name) {
          name == kLMULAttrName || name == kPolicyAttrName;
 }
 
+bool isAllowedTypedDequantClampF32EpiloguePreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kDequantRelationAttrName || name == kScaleRoleAttrName ||
+         name == kLowerPredicateKindAttrName ||
+         name == kUpperPredicateKindAttrName || name == kBoundOrderAttrName ||
+         name == kSelectLayoutAttrName || name == kSEWAttrName ||
+         name == kLMULAttrName || name == kPolicyAttrName;
+}
+
 bool isAllowedTypedRuntimeScalarComputedMaskStorePreRealizedBodyAttr(
     llvm::StringRef name) {
   return name == kOpKindAttrName || name == kPredicateKindAttrName ||
@@ -910,6 +920,46 @@ bool isSupportedTypedF32ClampSelectPreRealizedSelectLayout(
 bool isSupportedTypedF32ClampSelectPreRealizedConfig(std::int64_t sew,
                                                      llvm::StringRef lmul) {
   return sew == getRVVFirstSliceSEWBits() && lmul == getRVVLMULM1();
+}
+
+bool isSupportedTypedDequantClampF32EpiloguePreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "dequant_clamp_f32_epilogue";
+}
+
+bool isSupportedTypedDequantClampF32EpiloguePreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-stride-dequant-clamp-f32-epilogue";
+}
+
+bool isSupportedTypedDequantClampF32EpiloguePreRealizedRelation(
+    llvm::StringRef relation) {
+  return relation == "signed-i32m1-to-f32m1-scale-f32";
+}
+
+bool isSupportedTypedDequantClampF32EpiloguePreRealizedScaleRole(
+    llvm::StringRef role) {
+  return role == "dequant-scale-value";
+}
+
+bool isSupportedTypedDequantClampF32EpiloguePreRealizedPredicateKind(
+    llvm::StringRef predicateKind) {
+  return isSupportedTypedF32ClampSelectPreRealizedPredicateKind(predicateKind);
+}
+
+bool isSupportedTypedDequantClampF32EpiloguePreRealizedBoundOrder(
+    llvm::StringRef boundOrder) {
+  return isSupportedTypedF32ClampSelectPreRealizedBoundOrder(boundOrder);
+}
+
+bool isSupportedTypedDequantClampF32EpiloguePreRealizedSelectLayout(
+    llvm::StringRef layout) {
+  return isSupportedTypedF32ClampSelectPreRealizedSelectLayout(layout);
+}
+
+bool isSupportedTypedDequantClampF32EpiloguePreRealizedConfig(
+    std::int64_t sew, llvm::StringRef lmul) {
+  return isSupportedTypedF32ClampSelectPreRealizedConfig(sew, lmul);
 }
 
 bool isSupportedTypedRuntimeScalarComputedMaskStorePreRealizedBodyOpKind(
@@ -4542,6 +4592,153 @@ TypedF32ClampSelectPreRealizedBodyOp::verify() {
     return emitOpError()
            << "requires out operand C type 'float *' for the bounded f32 "
               "clamp/select route";
+
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult
+TypedDequantClampF32EpiloguePreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected dequant-clamp epilogue bodies carry "
+                "only typed RVV operand roles, runtime scale and lower/upper "
+                "bound scalars, dequant relation, bound order, predicate, "
+                "config, policy, and runtime SSA facts and must be realized "
+                "by the RVV plugin before route construction";
+
+    if (!isAllowedTypedDequantClampF32EpiloguePreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '"
+             << kDequantRelationAttrName << "', '" << kScaleRoleAttrName
+             << "', '" << kLowerPredicateKindAttrName << "', '"
+             << kUpperPredicateKindAttrName << "', '" << kBoundOrderAttrName
+             << "', '" << kSelectLayoutAttrName << "', '" << kSEWAttrName
+             << "', '" << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 6 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires lhs, runtime scale, lower bound scalar, upper bound "
+              "scalar, out, runtime n/AVL operands and no results";
+
+  if (!isSupportedTypedDequantClampF32EpiloguePreRealizedBodyOpKind(
+          getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"dequant_clamp_f32_epilogue\" for the bounded selected-body "
+              "dequant-clamp epilogue hook";
+  if (!isSupportedTypedDequantClampF32EpiloguePreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"unit-stride-dequant-clamp-f32-epilogue\" for the bounded "
+              "selected-body dequant-clamp epilogue hook";
+  if (!isSupportedTypedDequantClampF32EpiloguePreRealizedRelation(
+          getDequantRelation()))
+    return emitOpError()
+           << "currently supports only dequant_relation "
+              "\"signed-i32m1-to-f32m1-scale-f32\" for the bounded "
+              "selected-body dequant-clamp epilogue hook";
+  if (!isSupportedTypedDequantClampF32EpiloguePreRealizedScaleRole(
+          getScaleRole()))
+    return emitOpError()
+           << "currently supports only scale_role \"dequant-scale-value\" for "
+              "the bounded selected-body dequant-clamp epilogue hook";
+  if (!isSupportedTypedDequantClampF32EpiloguePreRealizedPredicateKind(
+          getLowerPredicateKind()) ||
+      !isSupportedTypedDequantClampF32EpiloguePreRealizedPredicateKind(
+          getUpperPredicateKind()))
+    return emitOpError()
+           << "currently supports only lower_predicate_kind and "
+              "upper_predicate_kind \"slt\" for the bounded selected-body "
+              "dequant-clamp epilogue hook";
+  if (!isSupportedTypedDequantClampF32EpiloguePreRealizedBoundOrder(
+          getBoundOrder()))
+    return emitOpError()
+           << "currently supports only bound_order "
+              "\"lower-bound-before-upper-bound\" for the bounded "
+              "selected-body dequant-clamp epilogue hook";
+  if (!isSupportedTypedDequantClampF32EpiloguePreRealizedSelectLayout(
+          getSelectLayout()))
+    return emitOpError()
+           << "currently supports only select_layout "
+              "\"clamp-lower-then-upper\" for the bounded selected-body "
+              "dequant-clamp epilogue hook";
+
+  if (!isSupportedTypedDequantClampF32EpiloguePreRealizedConfig(
+          static_cast<std::int64_t>(getSew()), getLmul()))
+    return emitOpError()
+           << "requires bounded pre-realized dequant-clamp epilogue data "
+              "config to be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body dequant-clamp epilogue hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getScale(), "runtime scale",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               DequantScaleValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIF32ScalarOperandRole(
+          op, getLowerBound(), "lower bound scalar",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               LowerBoundScalarValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIF32ScalarOperandRole(
+          op, getUpperBound(), "upper bound scalar",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               UpperBoundScalarValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp scaleBinding =
+      getScale().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp lowerBinding =
+      getLowerBound().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp upperBinding =
+      getUpperBound().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
+  if (!lhsBinding || lhsBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires lhs operand C type 'const int32_t *' for the bounded "
+              "dequant-clamp epilogue route";
+  if (!scaleBinding || scaleBinding.getCType() != "float")
+    return emitOpError()
+           << "requires runtime scale operand C type 'float' for the bounded "
+              "dequant-clamp epilogue route";
+  if (!lowerBinding || lowerBinding.getCType() != "float")
+    return emitOpError()
+           << "requires lower bound scalar operand C type 'float' for the "
+              "bounded dequant-clamp epilogue route";
+  if (!upperBinding || upperBinding.getCType() != "float")
+    return emitOpError()
+           << "requires upper bound scalar operand C type 'float' for the "
+              "bounded dequant-clamp epilogue route";
+  if (!outBinding || outBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires out operand C type 'float *' for the bounded "
+              "dequant-clamp epilogue route";
 
   return verifyRuntimeElementCountOperand(op, getN());
 }

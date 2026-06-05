@@ -1,0 +1,18 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture boundary, RVV-first stage order, and typed-body route authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, selected-body realization boundary, provider ownership, fail-closed diagnostics, and no legacy/source/name authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality, provider-built route summaries, operand binding, and target mirror validation contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/generated-artifact evidence rules and ssh rvv claim discipline."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first checks for route/config legality and runtime-bound facts."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-locality checks for RVV-owned route planning, realization, intrinsic/type mapping, and common EmitC neutrality."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute-boundary checks for typed RVV extension ops and no high-level/frontend drift."}
+{"file": ".trellis/tasks/06-05-stage2-rvv-dequant-clamp-epilogue-composition-foundation/prd.md", "reason": "Task-specific goal, bounded scope, requirements, acceptance criteria, and non-goals."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-stage2-rvv-i32-to-f32-dequant-route-foundation/prd.md", "reason": "Predecessor dequant route-supported surface and provider/target facts."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-stage2-rvv-f32-clamp-select-route-foundation/prd.md", "reason": "Predecessor f32 clamp/select route-supported surface and provider/target facts."}
+{"file":"include/TianChenRV/Dialect/RVV/IR/RVVOps.td","reason":"Added typed pre-realized dequant-clamp f32 epilogue body surface carrying i32 source, runtime scale, lower/upper runtime bounds, SEW/LMUL/policy, and memory/select relation facts."}
+{"file":"lib/Dialect/RVV/IR/RVVDialect.cpp","reason":"Added verifier fail-closed checks for dequant-clamp roles, dtype/C-type chain, config/policy, allowed attrs, and route/artifact authority metadata."}
+{"file":"lib/Plugin/RVV/RVVElementwiseSelectedBodyRealizationOwner.cpp","reason":"Realized the pre-realized body into i32 load, dequantize, lower clamp compare/select, upper clamp compare/select, and f32 store within one selected RVV VL scope."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp","reason":"Added provider-owned DequantClampF32Epilogue facts, runtime ABI order, route family plan, operand binding, dequant/clamp mirrors, route description verification, and statement-plan validation."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCCompareSelectStatementPlanOwners.cpp","reason":"Added concrete EmitC statement plan for i32 source load, f32 conversion/scale, lower/upper splat, two compare/selects, and f32 store."}
+{"file":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","reason":"Extended target artifact validation to rebuild and reject stale dequant-clamp source, dequant, bound, ABI, provider, and statement-plan mirrors."}
+{"file":"test/Target/RVV/pre-realized-selected-body-artifact-dequant-clamp-f32-epilogue.mlir","reason":"Added positive selected-body realization, provider plan, header artifact, and stale mirror rejection checks for the route-supported composition fixture."}
+{"file":"test/Dialect/RVV/pre-realized-dequant-clamp-f32-epilogue-negative.mlir","reason":"Added negative verifier coverage for missing scale, swapped/ambiguous bounds, dtype mismatch, unsupported config/policy, and route/artifact authority."}

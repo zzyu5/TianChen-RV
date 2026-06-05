@@ -1,0 +1,16 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final changes preserve RVV-first typed-body route authority and Stage2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV selected-body realization, provider ownership, fail-closed diagnostics, and no stale authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route contracts, mirror-only metadata, operand binding, and Common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused evidence sufficiency and no ssh rvv claim without runtime evidence."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Audit extension-specific logic stays in RVV plugin/target validation rather than common/core code."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Audit for high-level compute/frontend drift and missing typed runtime ABI consumption."}
+{"file": ".trellis/tasks/06-05-stage2-rvv-dequant-clamp-epilogue-composition-foundation/prd.md", "reason": "Check implementation against task-specific acceptance criteria and non-goals."}
+{"check":"cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2","result":"passed","notes":"Related tools and focused C++ test targets rebuilt; remaining switch warnings are from existing non-exhaustive test helper coverage of non-arithmetic route enums."}
+{"check":"build/bin/tianchenrv-rvv-extension-plugin-test","result":"passed","notes":"Provider/plugin route construction and stale statement-plan preflight passed after updating expected compare/select diagnostic wording."}
+{"check":"build/bin/tianchenrv-target-artifact-export-test","result":"passed","notes":"Target artifact export validation passed for provider-derived route facts."}
+{"check":"build/bin/tcrv-opt test/Dialect/RVV/pre-realized-dequant-clamp-f32-epilogue-negative.mlir --split-input-file --verify-diagnostics","result":"passed","notes":"Negative verifier coverage passed for scale, bounds, dtype, config/policy, and authority metadata cases."}
+{"check":"positive dequant-clamp fixture FileCheck REALIZED/PLAN/HEADER plus STALE-PROVIDER/STALE-ABI/STALE-SOURCE-LOAD/STALE-DEQUANT","result":"passed","notes":"Route-supported realization, provider plan, generated header artifact, and stale mirror rejection paths all passed with tcrv-opt/tcrv-translate/FileCheck."}
+{"check":"git diff --check","result":"passed","notes":"No whitespace errors before staging."}
+{"check":"bounded old-authority/q-name scan over touched diff","result":"passed","notes":"Only non-goal doc mentions of q8/q4/source-front-door were found; no RVVI32M1, rvv-i32m1, tcrv_rvv.i32_ op, or !tcrv_rvv.i32m route-authority matches."}
+{"check":"git diff --cached --check","result":"passed","notes":"No staged whitespace errors before commit."}
+{"check":"bounded old-authority/q-name scan over staged diff","result":"passed","notes":"Only task-log scan notes and non-goal doc mentions of q8/q4/source-front-door were found; no legacy i32 route-authority or route-string/artifact-name authority was added."}

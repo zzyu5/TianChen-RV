@@ -720,6 +720,28 @@ getRVVSelectedBodyDequantizationRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 6>
+getRVVSelectedBodyDequantClampF32EpilogueRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "scale", "float", support::RuntimeABIParameterRole::DequantScaleValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lower_bound", "float",
+      support::RuntimeABIParameterRole::LowerBoundScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "upper_bound", "float",
+      support::RuntimeABIParameterRole::UpperBoundScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "float *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 4>
 getRVVSelectedBodyWideningProductRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
@@ -1677,6 +1699,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, dequantExpected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 6>
+      dequantClampF32EpilogueExpected =
+          getRVVSelectedBodyDequantClampF32EpilogueRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters,
+                                         dequantClampF32EpilogueExpected))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 5> maccExpected =
       getRVVSelectedBodyMAccRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, maccExpected))
@@ -1787,7 +1816,8 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "the bounded i32 multiply-add accumulator, i16 widening "
       "multiply-accumulate, or unit-stride dot-reduction route; lhs, rhs, "
       "acc, scale, out, n for the bounded low-precision product-reduction "
-      "dequantization route; lhs, "
+      "dequantization route; lhs, scale, lower_bound, upper_bound, out, n "
+      "for the bounded dequant-clamp f32 epilogue route; lhs, "
       "rhs_scalar, acc, out, n for the bounded scalar-broadcast "
       "multiply-add accumulator composition route; lhs, acc, "
       "out, n for the bounded standalone i32 scalar "

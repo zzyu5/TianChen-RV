@@ -398,6 +398,12 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-f32-clamp-select-emitc-route",
      "rvv-generic-f32-clamp-select-callable-c-abi.v1",
      "rvv-generic-f32-clamp-select-callable-c-abi"},
+    {"dequant_clamp_f32_epilogue",
+     "tcrv_rvv.select",
+     "rvv.role.compute.generic_vector",
+     "rvv-generic-dequant-clamp-f32-epilogue-emitc-route",
+     "rvv-generic-dequant-clamp-f32-epilogue-callable-c-abi.v1",
+     "rvv-generic-dequant-clamp-f32-epilogue-callable-c-abi"},
     {"runtime_scalar_cmp_masked_store",
      "tcrv_rvv.masked_store",
      "rvv.role.store.generic_store",
@@ -857,12 +863,12 @@ llvm::Error verifySelectedBodyRoutes() {
   }
   if (llvm::ArrayRef<RVVSelectedBodyConstructionRoute>(
           kRetainedSelectedBodySpecializations)
-          .size() != 60)
+          .size() != 61)
     return makeRVVConstructionError(
         "selected-body construction mapping requires add, sub, mul, "
         "cmp_select, computed_mask_select, runtime_scalar_cmp_select, "
         "runtime_scalar_dual_cmp_mask_and_select, "
-        "f32_clamp_select, "
+        "f32_clamp_select, dequant_clamp_f32_epilogue, "
         "runtime_scalar_cmp_masked_store, "
         "runtime_scalar_cmp_masked_load_store, "
         "reduce_add, "
@@ -1013,6 +1019,8 @@ buildRVVSelectedBodyExecutableRoleSteps(
       route->operationMnemonic == "runtime_scalar_dual_cmp_mask_and_select";
   const bool isF32ClampSelect =
       route->operationMnemonic == "f32_clamp_select";
+  const bool isDequantClampF32Epilogue =
+      route->operationMnemonic == "dequant_clamp_f32_epilogue";
   const bool isRuntimeScalarComputedMaskStore =
       route->operationMnemonic == "runtime_scalar_cmp_masked_store";
   const bool isRuntimeScalarComputedMaskLoadStore =
@@ -1120,6 +1128,11 @@ buildRVVSelectedBodyExecutableRoleSteps(
   if (isF32ClampSelect && typedComputeOpName != "tcrv_rvv.select")
     return makeRVVConstructionError(
         "RVV f32 clamp/select construction requires generic tcrv_rvv.select");
+  if (isDequantClampF32Epilogue &&
+      typedComputeOpName != "tcrv_rvv.select")
+    return makeRVVConstructionError(
+        "RVV dequant-clamp epilogue construction requires generic "
+        "tcrv_rvv.select");
   if (isRuntimeScalarComputedMaskStore &&
       typedComputeOpName != "tcrv_rvv.masked_store")
     return makeRVVConstructionError(
@@ -1298,7 +1311,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isReduction &&
       !isStandaloneReduction && !isComputedMaskStandaloneReduction &&
       !isRuntimeScalarComputedMaskStandaloneReduction &&
-      !isF32ClampSelect &&
+      !isF32ClampSelect && !isDequantClampF32Epilogue &&
       !isMaskedElementwise && !isMAccAdd && !isScalarBroadcastMAccAdd &&
       !isComputedMaskedMAccAdd && !isRuntimeScalarComputedMaskedMAccAdd &&
       !isWideningMAccAdd &&
@@ -1351,6 +1364,7 @@ buildRVVSelectedBodyExecutableRoleSteps(
       !isRuntimeScalarCompareSelect &&
       !isRuntimeScalarDualCompareMaskAndSelect &&
       !isF32ClampSelect &&
+      !isDequantClampF32Epilogue &&
       !isRuntimeScalarComputedMaskStore &&
       !isRuntimeScalarComputedMaskLoadStore &&
       !isRuntimeScalarDualCompareMaskAndSelect &&
@@ -1819,6 +1833,66 @@ buildRVVSelectedBodyExecutableRoleSteps(
     steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
                      "store", 14});
+    return steps;
+  }
+  if (isDequantClampF32Epilogue) {
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "scale", 1});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "lower_bound", 2});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "upper_bound", 3});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "out", 4});
+    steps.push_back({"runtime_abi", "tcrv_rvv.runtime_abi_value",
+                     "rvv.role.runtime_abi.runtime_abi_value",
+                     "TCRVResourceOpInterface", "TCRVEmitCLowerableInterface",
+                     "n", 5});
+    steps.push_back({"configure", "tcrv_rvv.setvl",
+                     "rvv.role.configure.setvl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "__riscv_vsetvl_e32m1",
+                     6});
+    steps.push_back({"scope", "tcrv_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "with_vl", 7});
+    steps.push_back({"load", "tcrv_rvv.load", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "source_i32_load", 8});
+    steps.push_back({"compute", "tcrv_rvv.dequantize",
+                     "rvv.role.compute.generic_vector",
+                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "dequantize", 9});
+    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "lower_bound_splat", 10});
+    steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "upper_bound_splat", 11});
+    steps.push_back({"compute", "tcrv_rvv.compare",
+                     "rvv.role.compute.generic_vector",
+                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "lower_compare", 12});
+    steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
+                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "lower_select", 13});
+    steps.push_back({"compute", "tcrv_rvv.compare",
+                     "rvv.role.compute.generic_vector",
+                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "upper_compare", 14});
+    steps.push_back({"compute", route->typedComputeOpName, route->typedRoleID,
+                     "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
+                     "upper_select", 15});
+    steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
+                     "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
+                     "store", 16});
     return steps;
   }
   if (isComputedMaskSelect) {
@@ -3937,6 +4011,14 @@ llvm::Error verifyRVVConstructionProtocolReady() {
       routeRuntimeABIParameters.append(
           runtimeScalarF32ClampSelectParameters.begin(),
           runtimeScalarF32ClampSelectParameters.end());
+    } else if (route.operationMnemonic == "dequant_clamp_f32_epilogue") {
+      llvm::SmallVector<support::RuntimeABIParameter, 6>
+          dequantClampF32EpilogueParameters =
+              tcrv::rvv::
+                  getRVVSelectedBodyDequantClampF32EpilogueRuntimeABIParameters();
+      routeRuntimeABIParameters.append(
+          dequantClampF32EpilogueParameters.begin(),
+          dequantClampF32EpilogueParameters.end());
     } else if (route.operationMnemonic ==
                    "runtime_scalar_cmp_masked_store" ||
                route.operationMnemonic ==
@@ -4283,6 +4365,11 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
         llvm::Twine(context) +
         " f32 clamp/select cannot use generic tcrv_rvv.binary");
   if (usesGenericBinary &&
+      route->operationMnemonic == "dequant_clamp_f32_epilogue")
+    return makeRVVConstructionError(
+        llvm::Twine(context) +
+        " dequant-clamp epilogue cannot use generic tcrv_rvv.binary");
+  if (usesGenericBinary &&
       route->operationMnemonic == "runtime_scalar_cmp_masked_store")
     return makeRVVConstructionError(
         llvm::Twine(context) +
@@ -4485,7 +4572,8 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
 	                 route->operationMnemonic == "runtime_scalar_cmp_select" ||
 	                 route->operationMnemonic ==
 	                     "runtime_scalar_dual_cmp_mask_and_select" ||
-	                 route->operationMnemonic ==
+                 route->operationMnemonic == "dequant_clamp_f32_epilogue" ||
+                 route->operationMnemonic ==
                      "runtime_scalar_cmp_masked_store" ||
                  route->operationMnemonic ==
                      "runtime_scalar_cmp_masked_load_store" ||
@@ -4647,6 +4735,13 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
                 getRVVSelectedBodyRuntimeScalarF32ClampSelectRuntimeABIParameters();
     expectedParameters.append(runtimeScalarF32ClampSelectParameters.begin(),
                               runtimeScalarF32ClampSelectParameters.end());
+  } else if (route->operationMnemonic == "dequant_clamp_f32_epilogue") {
+    llvm::SmallVector<support::RuntimeABIParameter, 6>
+        dequantClampF32EpilogueParameters =
+            tcrv::rvv::
+                getRVVSelectedBodyDequantClampF32EpilogueRuntimeABIParameters();
+    expectedParameters.append(dequantClampF32EpilogueParameters.begin(),
+                              dequantClampF32EpilogueParameters.end());
   } else if (route->operationMnemonic ==
                  "runtime_scalar_cmp_masked_store" ||
              route->operationMnemonic ==
@@ -5067,6 +5162,11 @@ llvm::Error verifyRVVSelectedBodySelectedRoleSequence(
 	          ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
 	            "runtime_abi->configure->scope->load->load->load->"
 	            "compute->compute->compute->compute->store"
+	      : typedComputeOpName == "tcrv_rvv.select" &&
+	                operationMnemonic == "dequant_clamp_f32_epilogue"
+	          ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
+	            "runtime_abi->runtime_abi->configure->scope->load->compute->"
+	            "load->load->compute->compute->compute->compute->store"
 	      : (typedComputeOpName == "tcrv_rvv.select" ||
 	         typedComputeOpName == "tcrv_rvv.masked_binary")
 	          ? "runtime_abi->runtime_abi->runtime_abi->runtime_abi->"
@@ -5234,6 +5334,11 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
   if (usesGenericBinary && expected.operationMnemonic == "f32_clamp_select")
     return makeRVVConstructionError(
         "selected-body f32 clamp/select cannot use generic tcrv_rvv.binary");
+  if (usesGenericBinary &&
+      expected.operationMnemonic == "dequant_clamp_f32_epilogue")
+    return makeRVVConstructionError(
+        "selected-body dequant-clamp epilogue cannot use generic "
+        "tcrv_rvv.binary");
   if (usesGenericBinary &&
       expected.operationMnemonic == "runtime_scalar_cmp_masked_store")
     return makeRVVConstructionError(
@@ -5412,6 +5517,7 @@ llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(
 	                 expected.operationMnemonic == "runtime_scalar_cmp_select" ||
 	                 expected.operationMnemonic ==
 	                     "runtime_scalar_dual_cmp_mask_and_select" ||
+                 expected.operationMnemonic == "dequant_clamp_f32_epilogue" ||
                  expected.operationMnemonic ==
                      "runtime_scalar_cmp_masked_store" ||
                  expected.operationMnemonic ==

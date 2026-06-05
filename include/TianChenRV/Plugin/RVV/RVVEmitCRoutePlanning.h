@@ -707,6 +707,7 @@ struct RVVSelectedBodyComputedMaskSelectRouteFamilyPlan {
   bool usesRuntimeScalarProducer = false;
   bool usesDualCompareMaskAnd = false;
   bool usesF32ClampSelect = false;
+  bool usesDequantClampF32Epilogue = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
   llvm::StringRef typedConfigFactsID;
   llvm::StringRef elementTypeName;
@@ -728,11 +729,16 @@ struct RVVSelectedBodyComputedMaskSelectRouteFamilyPlan {
   llvm::StringRef vlCType;
   llvm::StringRef vectorTypeName;
   llvm::StringRef vectorCType;
+  llvm::StringRef sourceVectorTypeName;
+  llvm::StringRef sourceVectorCType;
+  llvm::StringRef sourceVectorLoadIntrinsic;
   llvm::StringRef maskTypeName;
   llvm::StringRef maskCType;
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
   llvm::StringRef rhsScalarSplatIntrinsic;
+  llvm::StringRef dequantizeConvertIntrinsic;
+  llvm::StringRef dequantizeScaleIntrinsic;
   llvm::StringRef comparePredicateKind;
   llvm::StringRef secondaryComparePredicateKind;
   llvm::StringRef compareIntrinsic;
@@ -1161,9 +1167,11 @@ struct RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts {
   bool bindsRuntimeScalarComputedMaskSelect = false;
   bool bindsRuntimeScalarDualCompareMaskAndSelect = false;
   bool bindsF32ClampSelect = false;
+  bool bindsDequantClampF32Epilogue = false;
 
   const support::RuntimeABIParameter *lhsABI = nullptr;
   const support::RuntimeABIParameter *rhsABI = nullptr;
+  const support::RuntimeABIParameter *dequantScaleABI = nullptr;
   const support::RuntimeABIParameter *lowerBoundABI = nullptr;
   const support::RuntimeABIParameter *upperBoundABI = nullptr;
   const support::RuntimeABIParameter *secondaryCompareLhsABI = nullptr;
@@ -1280,6 +1288,7 @@ struct RVVSelectedBodyCompareSelectRouteStatementPlan {
   bool plansRuntimeScalarComputedMaskSelect = false;
   bool plansRuntimeScalarDualCompareMaskAndSelect = false;
   bool plansF32ClampSelect = false;
+  bool plansDequantClampF32Epilogue = false;
   RVVSelectedBodyMaskTailPolicyProviderPlan maskTailPolicyPlan;
 
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>

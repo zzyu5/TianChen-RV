@@ -228,6 +228,42 @@ bool isPreRealizedF32ClampSelectConfig(std::int64_t sew,
          lmul == tcrv::rvv::getRVVLMULM1();
 }
 
+bool isPreRealizedDequantClampF32EpilogueOpKind(llvm::StringRef opKind) {
+  return opKind == "dequant_clamp_f32_epilogue";
+}
+
+bool isPreRealizedDequantClampF32EpilogueMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "unit-stride-dequant-clamp-f32-epilogue";
+}
+
+bool isPreRealizedDequantClampF32EpilogueRelation(llvm::StringRef relation) {
+  return relation == "signed-i32m1-to-f32m1-scale-f32";
+}
+
+bool isPreRealizedDequantClampF32EpilogueScaleRole(llvm::StringRef role) {
+  return role == "dequant-scale-value";
+}
+
+bool isPreRealizedDequantClampF32EpiloguePredicateKind(
+    llvm::StringRef predicateKind) {
+  return isPreRealizedF32ClampSelectPredicateKind(predicateKind);
+}
+
+bool isPreRealizedDequantClampF32EpilogueBoundOrder(
+    llvm::StringRef boundOrder) {
+  return isPreRealizedF32ClampSelectBoundOrder(boundOrder);
+}
+
+bool isPreRealizedDequantClampF32EpilogueLayout(llvm::StringRef layout) {
+  return isPreRealizedF32ClampSelectLayout(layout);
+}
+
+bool isPreRealizedDequantClampF32EpilogueConfig(std::int64_t sew,
+                                                llvm::StringRef lmul) {
+  return isPreRealizedF32ClampSelectConfig(sew, lmul);
+}
+
 bool isPreRealizedComputedMaskMovementMaskRole(llvm::StringRef role) {
   return role == "predicate-mask-produced-by-compare";
 }
@@ -378,6 +414,19 @@ mlir::Operation *createRealizedGenericF32Splat(mlir::OpBuilder &builder,
                                                llvm::StringRef lmul) {
   mlir::OperationState state(loc, "tcrv_rvv.splat");
   state.addOperands({scalar, vl});
+  state.addTypes(getGenericF32VectorType(builder, lmul));
+  return builder.create(state);
+}
+
+mlir::Operation *createRealizedGenericDequantizeI32ToF32(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value source,
+    mlir::Value scale, mlir::Value vl, llvm::StringRef lmul) {
+  mlir::OperationState state(loc, "tcrv_rvv.dequantize");
+  state.addOperands({source, scale, vl});
+  state.addAttribute("kind", builder.getStringAttr("i32_to_f32_scaled"));
+  state.addAttribute(
+      "dequant_relation",
+      builder.getStringAttr("signed-i32m1-to-f32m1-scale-f32"));
   state.addTypes(getGenericF32VectorType(builder, lmul));
   return builder.create(state);
 }
@@ -1328,6 +1377,154 @@ llvm::Error validatePreRealizedRVVSelectedF32ClampSelectBody(
   return llvm::Error::success();
 }
 
+llvm::Error validatePreRealizedRVVSelectedDequantClampF32EpilogueBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedDequantClampF32EpiloguePreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVPluginError(
+        "selected RVV dequant-clamp epilogue realization requires a "
+        "pre-realized dequant-clamp epilogue body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVPluginError(
+        "pre-realized RVV selected dequant-clamp epilogue body must be a "
+        "direct child of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedDequantClampF32EpilogueOpKind(body.getOpKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected dequant-clamp epilogue body currently "
+        "supports only op_kind 'dequant_clamp_f32_epilogue'");
+  if (!isPreRealizedDequantClampF32EpilogueMemoryForm(body.getMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected dequant-clamp epilogue body currently "
+        "supports only memory_form 'unit-stride-dequant-clamp-f32-epilogue'");
+  if (!isPreRealizedDequantClampF32EpilogueRelation(
+          body.getDequantRelation()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected dequant-clamp epilogue body currently "
+        "supports only dequant_relation 'signed-i32m1-to-f32m1-scale-f32'");
+  if (!isPreRealizedDequantClampF32EpilogueScaleRole(body.getScaleRole()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected dequant-clamp epilogue body currently "
+        "supports only scale_role 'dequant-scale-value'");
+  if (!isPreRealizedDequantClampF32EpiloguePredicateKind(
+          body.getLowerPredicateKind()) ||
+      !isPreRealizedDequantClampF32EpiloguePredicateKind(
+          body.getUpperPredicateKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected dequant-clamp epilogue body currently "
+        "supports only lower/upper predicate kind 'slt'");
+  if (!isPreRealizedDequantClampF32EpilogueBoundOrder(body.getBoundOrder()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected dequant-clamp epilogue body currently "
+        "supports only bound_order 'lower-bound-before-upper-bound'");
+  if (!isPreRealizedDequantClampF32EpilogueLayout(body.getSelectLayout()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected dequant-clamp epilogue body currently "
+        "supports only select_layout 'clamp-lower-then-upper'");
+  if (!isPreRealizedDequantClampF32EpilogueConfig(
+          static_cast<std::int64_t>(body.getSew()), body.getLmul()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected dequant-clamp epilogue body requires "
+        "SEW32 LMUL m1 data/mask config");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected dequant-clamp epilogue body requires tail "
+        "agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+      requirePreRealizedRuntimeABIValue(
+          body.getLhs(),
+          "pre-realized RVV dequant-clamp epilogue lhs operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!lhs)
+    return lhs.takeError();
+  if ((*lhs).getCType() != "const int32_t *")
+    return makeRVVPluginError(
+        "pre-realized RVV dequant-clamp epilogue lhs operand must use C type "
+        "'const int32_t *'");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> scale =
+      requirePreRealizedRuntimeABIValue(
+          body.getScale(),
+          "pre-realized RVV dequant-clamp epilogue runtime scale operand",
+          support::RuntimeABIParameterRole::DequantScaleValue);
+  if (!scale)
+    return scale.takeError();
+  if ((*scale).getCType() != "float")
+    return makeRVVPluginError(
+        "pre-realized RVV dequant-clamp epilogue runtime scale operand must "
+        "use C type 'float'");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lowerBound =
+      requirePreRealizedRuntimeABIValue(
+          body.getLowerBound(),
+          "pre-realized RVV dequant-clamp epilogue lower bound operand",
+          support::RuntimeABIParameterRole::LowerBoundScalarValue);
+  if (!lowerBound)
+    return lowerBound.takeError();
+  if ((*lowerBound).getCType() != "float")
+    return makeRVVPluginError(
+        "pre-realized RVV dequant-clamp epilogue lower bound operand must use "
+        "C type 'float'");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> upperBound =
+      requirePreRealizedRuntimeABIValue(
+          body.getUpperBound(),
+          "pre-realized RVV dequant-clamp epilogue upper bound operand",
+          support::RuntimeABIParameterRole::UpperBoundScalarValue);
+  if (!upperBound)
+    return upperBound.takeError();
+  if ((*upperBound).getCType() != "float")
+    return makeRVVPluginError(
+        "pre-realized RVV dequant-clamp epilogue upper bound operand must use "
+        "C type 'float'");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+      requirePreRealizedRuntimeABIValue(
+          body.getOut(), "pre-realized RVV dequant-clamp epilogue out operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!out)
+    return out.takeError();
+  if ((*out).getCType() != "float *")
+    return makeRVVPluginError(
+        "pre-realized RVV dequant-clamp epilogue out operand must use C type "
+        "'float *'");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(),
+          "pre-realized RVV dequant-clamp epilogue runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<
+            tcrv::rvv::RuntimeABIValueOp,
+            tcrv::rvv::TypedDequantClampF32EpiloguePreRealizedBodyOp>(op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected dequant-clamp epilogue body "
+                    "must not be mixed with already realized RVV route body "
+                    "op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVPluginError(
+        "pre-realized RVV selected dequant-clamp epilogue realization "
+        "requires non-empty selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
 llvm::Expected<mlir::Operation *>
 findUniquePreRealizedRVVElementwiseCompareSelectBody(
     tcrv::exec::VariantOp variant) {
@@ -1366,7 +1563,9 @@ bool isPreRealizedRVVElementwiseCompareSelectClusterOp(mlir::Operation *op) {
                        TypedRuntimeScalarCompareSelectPreRealizedBodyOp,
                    tcrv::rvv::
                        TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp,
-                   tcrv::rvv::TypedF32ClampSelectPreRealizedBodyOp>(
+                   tcrv::rvv::TypedF32ClampSelectPreRealizedBodyOp,
+                   tcrv::rvv::
+                       TypedDequantClampF32EpiloguePreRealizedBodyOp>(
       op);
 }
 
@@ -1854,6 +2053,80 @@ realizePreRealizedRVVElementwiseCompareSelectCluster(
     createRealizedGenericStore(builder, loc, f32ClampSelectBody.getOut(),
                                upperSelect.getSelected(), setvl.getVl());
     f32ClampSelectBody->erase();
+    result.boundary = withVL;
+    return result;
+  }
+
+  if (auto dequantClampBody =
+          llvm::dyn_cast<
+              tcrv::rvv::TypedDequantClampF32EpiloguePreRealizedBodyOp>(
+              bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedDequantClampF32EpilogueBody(
+                request, dequantClampBody))
+      return std::move(error);
+
+    mlir::Location loc = dequantClampBody->getLoc();
+    builder.setInsertionPoint(dequantClampBody.getOperation());
+
+    std::int64_t sew = static_cast<std::int64_t>(dequantClampBody.getSew());
+    llvm::StringRef lmul = dequantClampBody.getLmul();
+    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+            variant, dequantClampBody.getN(), sew, lmul,
+            dequantClampBody.getPolicy(),
+            "lhs,scale,lower_bound,upper_bound,out,n",
+            "pre-realized RVV dequant-clamp epilogue selected-body "
+            "realization");
+    if (!runtimeControlPlan)
+      return runtimeControlPlan.takeError();
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
+        builder, loc, runtimeControlPlan->runtimeAVLValue,
+        runtimeControlPlan->sew, runtimeControlPlan->lmul,
+        runtimeControlPlan->policy));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             runtimeControlPlan->sew,
+                             runtimeControlPlan->lmul,
+                             runtimeControlPlan->policy);
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+        builder, loc, dequantClampBody.getLhs(), setvl.getVl(),
+        runtimeControlPlan->sew, runtimeControlPlan->lmul));
+    auto dequantized = llvm::cast<tcrv::rvv::DequantizeOp>(
+        createRealizedGenericDequantizeI32ToF32(
+            builder, loc, lhsLoad.getLoaded(), dequantClampBody.getScale(),
+            setvl.getVl(), runtimeControlPlan->lmul));
+    auto lowerSplat = llvm::cast<tcrv::rvv::SplatOp>(
+        createRealizedGenericF32Splat(
+            builder, loc, dequantClampBody.getLowerBound(), setvl.getVl(),
+            runtimeControlPlan->lmul));
+    auto upperSplat = llvm::cast<tcrv::rvv::SplatOp>(
+        createRealizedGenericF32Splat(
+            builder, loc, dequantClampBody.getUpperBound(), setvl.getVl(),
+            runtimeControlPlan->lmul));
+    auto lowerCompare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(
+            builder, loc, dequantized.getResult(), lowerSplat.getBroadcast(),
+            setvl.getVl(), dequantClampBody.getLowerPredicateKind()));
+    auto lowerSelect = llvm::cast<tcrv::rvv::SelectOp>(
+        createRealizedGenericSelect(builder, loc, lowerCompare.getMask(),
+                                    lowerSplat.getBroadcast(),
+                                    dequantized.getResult(), setvl.getVl()));
+    auto upperCompare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(
+            builder, loc, upperSplat.getBroadcast(), lowerSelect.getSelected(),
+            setvl.getVl(), dequantClampBody.getUpperPredicateKind()));
+    auto upperSelect = llvm::cast<tcrv::rvv::SelectOp>(
+        createRealizedGenericSelect(builder, loc, upperCompare.getMask(),
+                                    upperSplat.getBroadcast(),
+                                    lowerSelect.getSelected(), setvl.getVl()));
+    createRealizedGenericStore(builder, loc, dequantClampBody.getOut(),
+                               upperSelect.getSelected(), setvl.getVl());
+    dequantClampBody->erase();
     result.boundary = withVL;
     return result;
   }

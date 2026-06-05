@@ -667,6 +667,55 @@ def TypedF32ClampSelectPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedDequantClampF32EpiloguePreRealizedBodyOp
+    : TCRVRVV_Op<"typed_dequant_clamp_f32_epilogue_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV i32-to-f32 dequant plus f32 clamp epilogue body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body where a
+    typed signed i32 vector input is loaded, converted to f32 with a runtime
+    f32 dequantization scale, clamped by runtime f32 lower and upper bounds
+    using f32 compare/select structure, then stored to an f32 output buffer.
+    The op is nested directly in a selected tcrv.exec.variant and binds
+    runtime ABI values for lhs, scale, lower bound, upper bound, output, and
+    runtime n/AVL together with explicit dequant relation, scale role, lower/
+    upper compare predicates, bound order, select layout, memory form,
+    compile-time RVV config, and policy.
+
+    This op is not a q8/q4 route, matmul/contraction fusion, zero-point
+    dequantization, high-level activation op, one-intrinsic wrapper, route
+    label, descriptor, source-front-door marker, direct-C exporter, runtime
+    artifact, correctness evidence, or performance evidence. The RVV plugin
+    must realize it into explicit setvl/with_vl/load/dequantize/splat/splat/
+    compare/select/compare/select/store tcrv_rvv body structure before the
+    provider may construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$scale,
+    AnyType:$lower_bound,
+    AnyType:$upper_bound,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    StrAttr:$dequant_relation,
+    StrAttr:$scale_role,
+    StrAttr:$lower_predicate_kind,
+    StrAttr:$upper_predicate_kind,
+    StrAttr:$bound_order,
+    StrAttr:$select_layout,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$lhs `,` $scale `,` $lower_bound `,` $upper_bound `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp
     : TCRVRVV_Op<"typed_runtime_scalar_computed_mask_store_pre_realized_body"> {
   let summary =

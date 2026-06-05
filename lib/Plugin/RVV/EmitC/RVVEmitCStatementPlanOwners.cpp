@@ -203,6 +203,10 @@ bool isRVVSelectedBodyCompareSelectStatementPlanConsumer(
   if (description.operation == RVVSelectedBodyOperationKind::F32ClampSelect)
     return description.memoryForm ==
            RVVSelectedBodyMemoryForm::RuntimeScalarF32ClampSelect;
+  if (description.operation ==
+      RVVSelectedBodyOperationKind::DequantClampF32Epilogue)
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::UnitStrideDequantClampF32Epilogue;
   return description.operation ==
              RVVSelectedBodyOperationKind::
                  RuntimeScalarDualCompareMaskAndSelect &&

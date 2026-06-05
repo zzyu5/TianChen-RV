@@ -79,6 +79,7 @@ enum class RVVSelectedBodyOperationKind {
   WidenI32ToI64,
   WidenI16ToI32,
   DequantizeI32ToF32,
+  DequantClampF32Epilogue,
   WideningMAccAdd,
   WideningProduct,
   WideningProductReduceAdd,
@@ -121,6 +122,7 @@ enum class RVVSelectedBodyMemoryForm {
   UnitLoadSegment2Store,
   UnitStrideConversion,
   UnitStrideDequantization,
+  UnitStrideDequantClampF32Epilogue,
   ComputedMaskUnitStrideWideningDotReduce,
   StridedInputWideningDotReduce,
   ComputedMaskStridedInputWideningDotReduce,
@@ -1691,6 +1693,7 @@ enum class RVVCompareSelectRouteValidationKind {
   RuntimeScalar,
   RuntimeScalarDual,
   F32Clamp,
+  DequantClampF32Epilogue,
 };
 
 struct RVVCompareSelectRouteTypeMappingContract {
@@ -1741,7 +1744,12 @@ struct RVVCompareSelectRouteValidationContract {
   std::string maskCType;
   std::string setVLIntrinsic;
   std::string vectorLoadIntrinsic;
+  std::string sourceVectorTypeName;
+  std::string sourceVectorCType;
+  std::string sourceVectorLoadIntrinsic;
   std::string rhsScalarSplatIntrinsic;
+  std::string dequantizeConvertIntrinsic;
+  std::string dequantizeScaleIntrinsic;
   std::string comparePredicateKind;
   std::string secondaryComparePredicateKind;
   std::string compareIntrinsic;

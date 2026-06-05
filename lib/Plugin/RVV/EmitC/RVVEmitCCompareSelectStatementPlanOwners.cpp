@@ -265,9 +265,12 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
       RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect;
   const bool isF32ClampSelect =
       description.operation == RVVSelectedBodyOperationKind::F32ClampSelect;
+  const bool isDequantClampF32Epilogue =
+      description.operation ==
+      RVVSelectedBodyOperationKind::DequantClampF32Epilogue;
   const bool isRuntimeScalarComputedMaskSelect =
       isRuntimeScalarCompareSelect || isRuntimeScalarDualCompareMaskAndSelect ||
-      isF32ClampSelect;
+      isF32ClampSelect || isDequantClampF32Epilogue;
 
   plan.plansCompareSelectRoute = true;
   plan.plansPlainCompareSelect = isPlainCompareSelect;
@@ -277,6 +280,7 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
   plan.plansRuntimeScalarDualCompareMaskAndSelect =
       isRuntimeScalarDualCompareMaskAndSelect;
   plan.plansF32ClampSelect = isF32ClampSelect;
+  plan.plansDequantClampF32Epilogue = isDequantClampF32Epilogue;
   plan.plainCompareSelectPlan = materializationFacts.plainCompareSelectPlan;
   plan.computedMaskSelectPlan = materializationFacts.computedMaskSelectPlan;
 
@@ -326,7 +330,9 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
                  .bindsRuntimeScalarDualCompareMaskAndSelect !=
              isRuntimeScalarDualCompareMaskAndSelect ||
          elementwiseSelectOperandBindingFacts.bindsF32ClampSelect !=
-             isF32ClampSelect))
+             isF32ClampSelect ||
+         elementwiseSelectOperandBindingFacts.bindsDequantClampF32Epilogue !=
+             isDequantClampF32Epilogue))
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " compare/select statement plan requires runtime-scalar "
@@ -372,6 +378,8 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
       elementwiseSelectOperandBindingFacts.lhsABI;
   const support::RuntimeABIParameter *rhsABI =
       elementwiseSelectOperandBindingFacts.rhsABI;
+  const support::RuntimeABIParameter *dequantScaleABI =
+      elementwiseSelectOperandBindingFacts.dequantScaleABI;
   const support::RuntimeABIParameter *lowerBoundABI =
       elementwiseSelectOperandBindingFacts.lowerBoundABI;
   const support::RuntimeABIParameter *upperBoundABI =
@@ -392,11 +400,18 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
   if (llvm::Error error = requireRVVCompareSelectStatementPlanABI(
           lhsABI, isComputedMaskSelect ? "cmp_lhs"
                   : isF32ClampSelect ? "input"
-                                      : "lhs",
+                  : isDequantClampF32Epilogue
+                      ? "lhs"
+                      : "lhs",
           description,
           context))
     return std::move(error);
-  if (isF32ClampSelect) {
+  if (isDequantClampF32Epilogue) {
+    if (llvm::Error error = requireRVVCompareSelectStatementPlanABI(
+            dequantScaleABI, "scale", description, context))
+      return std::move(error);
+  }
+  if (isF32ClampSelect || isDequantClampF32Epilogue) {
     if (llvm::Error error = requireRVVCompareSelectStatementPlanABI(
             lowerBoundABI, "lower_bound", description, context))
       return std::move(error);
@@ -419,7 +434,8 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
             context))
       return std::move(error);
   }
-  if (!isPlainCompareSelect && !isF32ClampSelect) {
+  if (!isPlainCompareSelect && !isF32ClampSelect &&
+      !isDequantClampF32Epilogue) {
     if (llvm::Error error = requireRVVCompareSelectStatementPlanABI(
             trueValueABI, "true_value", description, context))
       return std::move(error);
@@ -445,10 +461,24 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
           materializationFacts.setVLLeaf, "setvl callee", description,
           context))
     return std::move(error);
-  if (llvm::Error error = requireRVVCompareSelectStatementPlanLeaf(
-          materializationFacts.vectorLoadLeaf, "vector load callee",
-          description, context))
+  if (isDequantClampF32Epilogue) {
+    if (llvm::Error error = requireRVVCompareSelectStatementPlanLeaf(
+            materializationFacts.sourceLoadLeaf, "source load callee",
+            description, context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVCompareSelectStatementPlanLeaf(
+            materializationFacts.dequantizeConvertLeaf,
+            "dequantize convert callee", description, context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVCompareSelectStatementPlanLeaf(
+            materializationFacts.dequantizeScaleLeaf,
+            "dequantize scale callee", description, context))
+      return std::move(error);
+  } else if (llvm::Error error = requireRVVCompareSelectStatementPlanLeaf(
+                 materializationFacts.vectorLoadLeaf, "vector load callee",
+                 description, context)) {
     return std::move(error);
+  }
   if (llvm::Error error = requireRVVCompareSelectStatementPlanLeaf(
           materializationFacts.storeLeaf, "store callee", description,
           context))
@@ -466,7 +496,8 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
             materializationFacts.rhsScalarBroadcastLeaf,
             "runtime scalar splat callee", description, context))
       return std::move(error);
-  if (isRuntimeScalarDualCompareMaskAndSelect || isF32ClampSelect) {
+  if (isRuntimeScalarDualCompareMaskAndSelect || isF32ClampSelect ||
+      isDequantClampF32Epilogue) {
     if (llvm::Error error = requireRVVCompareSelectStatementPlanLeaf(
             secondaryCompareLeaf, "secondary compare callee", description,
             context))
@@ -517,21 +548,67 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
                                     materializationFacts.vlCType.str()}))
     return std::move(error);
 
-  if (llvm::Error error = addRVVCompareSelectStatementPlanLoopStep(
-          plan, slice.lhsLoadOperation, "load",
-          materializationFacts.vectorLoadLeaf,
-          {TCRVEmitCCallOpaqueOperand{
-               (llvm::StringRef(lhsABI->cName) + " + " + inductionName).str(),
-               lhsABI->cType},
-           TCRVEmitCCallOpaqueOperand{loopVLName.str(),
-                                      materializationFacts.vlCType.str()}},
-          description, context,
-          TCRVEmitCCallOpaqueResult{"lhs_vec",
-                                    materializationFacts.resultVectorCType
-                                        .str()}))
+  if (isDequantClampF32Epilogue) {
+    if (llvm::Error error = addRVVCompareSelectStatementPlanLoopStep(
+            plan, slice.lhsLoadOperation, "load",
+            materializationFacts.sourceLoadLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(lhsABI->cName) + " + " + inductionName)
+                     .str(),
+                 lhsABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                "source_i32_vec",
+                materializationFacts.sourceVectorCType.str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVCompareSelectStatementPlanLoopStep(
+            plan, slice.dequantizeOp.getOperation(), "compute",
+            materializationFacts.dequantizeConvertLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 "source_i32_vec",
+                 materializationFacts.sourceVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{"converted_f32_vec",
+                                      materializationFacts.resultVectorCType
+                                          .str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVCompareSelectStatementPlanLoopStep(
+            plan, slice.dequantizeOp.getOperation(), "compute",
+            materializationFacts.dequantizeScaleLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 "converted_f32_vec",
+                 materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{dequantScaleABI->cName,
+                                        dequantScaleABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{"lhs_vec",
+                                      materializationFacts.resultVectorCType
+                                          .str()}))
+      return std::move(error);
+  } else if (llvm::Error error = addRVVCompareSelectStatementPlanLoopStep(
+                 plan, slice.lhsLoadOperation, "load",
+                 materializationFacts.vectorLoadLeaf,
+                 {TCRVEmitCCallOpaqueOperand{
+                      (llvm::StringRef(lhsABI->cName) + " + " +
+                       inductionName)
+                          .str(),
+                      lhsABI->cType},
+                  TCRVEmitCCallOpaqueOperand{
+                      loopVLName.str(), materializationFacts.vlCType.str()}},
+                 description, context,
+                 TCRVEmitCCallOpaqueResult{
+                     "lhs_vec",
+                     materializationFacts.resultVectorCType.str()})) {
     return std::move(error);
+  }
 
-  if (isF32ClampSelect) {
+  if (isF32ClampSelect || isDequantClampF32Epilogue) {
     if (llvm::Error error = addRVVCompareSelectStatementPlanLoopStep(
             plan, slice.lowerBoundScalarSplat.getOperation(), "load",
             materializationFacts.rhsScalarBroadcastLeaf,
