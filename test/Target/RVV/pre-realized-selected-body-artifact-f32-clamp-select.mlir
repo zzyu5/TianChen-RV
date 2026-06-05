@@ -69,13 +69,13 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-f32-clamp-select-runtime-bounds-plan-validated"}
 // PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
 // PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,input:f32m1,lower:float,upper:float,mask:f32m1-predicate,result:f32m1"}
+// PLAN-SAME: {key = "tcrv_rvv.secondary_compare_predicate_kind", value = "slt"}
 // PLAN-SAME: {key = "tcrv_rvv.lower_bound_role", value = "lower-bound-scalar-value"}
 // PLAN-SAME: {key = "tcrv_rvv.upper_bound_role", value = "upper-bound-scalar-value"}
 // PLAN-SAME: {key = "tcrv_rvv.lower_bound_c_type", value = "float"}
 // PLAN-SAME: {key = "tcrv_rvv.upper_bound_c_type", value = "float"}
 // PLAN-SAME: {key = "tcrv_rvv.bound_order", value = "lower-bound-before-upper-bound"}
 // PLAN-SAME: {key = "tcrv_rvv.clamp_relation", value = "input-lower-select-then-upper-select-f32-runtime-bounds"}
-// PLAN-SAME: {key = "tcrv_rvv.secondary_compare_predicate_kind", value = "slt"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: target = @pre_realized_rvv_f32_clamp_select
 
@@ -83,20 +83,20 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-f32-clamp-select-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.element_type: f32
 // HEADER: tianchenrv.rvv.runtime_abi_order: input,lower_bound,upper_bound,out,n
-// HEADER: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-f32-clamp-select-runtime-bounds-plan-validated
-// HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:f32_clamp_select.v1
-// HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:f32_clamp_select.v1;input=lhs-input-buffer:input:abi|ld|lcmp|lselF|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lsp|lcmp|lselT|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|usp|ucmp|uselT|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr
-// HEADER: tianchenrv.rvv.computed_mask_select_route_family_plan: rvv-f32-clamp-select-route-family-plan.v1
-// HEADER: tianchenrv.rvv.computed_mask_select_mask_producer_source: two-compare-two-select-f32-clamp-same-vl-scope
-// HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
-// HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,input:f32m1,lower:float,upper:float,mask:f32m1-predicate,result:f32m1
-// HEADER: tianchenrv.rvv.lower_bound_role: lower-bound-scalar-value
-// HEADER: tianchenrv.rvv.upper_bound_role: upper-bound-scalar-value
-// HEADER: tianchenrv.rvv.lower_bound_c_type: float
-// HEADER: tianchenrv.rvv.upper_bound_c_type: float
-// HEADER: tianchenrv.rvv.secondary_compare_predicate_kind: slt
-// HEADER: tianchenrv.rvv.bound_order: lower-bound-before-upper-bound
-// HEADER: tianchenrv.rvv.clamp_relation: input-lower-select-then-upper-select-f32-runtime-bounds
+// HEADER-DAG: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-f32-clamp-select-runtime-bounds-plan-validated
+// HEADER-DAG: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:f32_clamp_select.v1
+// HEADER-DAG: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:f32_clamp_select.v1;input=lhs-input-buffer:input:abi|ld|lcmp|lselF|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lsp|lcmp|lselT|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|usp|ucmp|uselT|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr
+// HEADER-DAG: tianchenrv.rvv.computed_mask_select_route_family_plan: rvv-f32-clamp-select-route-family-plan.v1
+// HEADER-DAG: tianchenrv.rvv.computed_mask_select_mask_producer_source: two-compare-two-select-f32-clamp-same-vl-scope
+// HEADER-DAG: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
+// HEADER-DAG: tianchenrv.rvv.c_type_mapping: vl:size_t,input:f32m1,lower:float,upper:float,mask:f32m1-predicate,result:f32m1
+// HEADER-DAG: tianchenrv.rvv.lower_bound_role: lower-bound-scalar-value
+// HEADER-DAG: tianchenrv.rvv.upper_bound_role: upper-bound-scalar-value
+// HEADER-DAG: tianchenrv.rvv.lower_bound_c_type: float
+// HEADER-DAG: tianchenrv.rvv.upper_bound_c_type: float
+// HEADER-DAG: tianchenrv.rvv.secondary_compare_predicate_kind: slt
+// HEADER-DAG: tianchenrv.rvv.bound_order: lower-bound-before-upper-bound
+// HEADER-DAG: tianchenrv.rvv.clamp_relation: input-lower-select-then-upper-select-f32-runtime-bounds
 // HEADER: void tcrv_emitc_pre_realized_f32_clamp_select_kernel_pre_realized_rvv_f32_clamp_select(const float *input, float lower_bound, float upper_bound, float *out, size_t n);
 
 // STALE-F32-PROVIDER: RVV materialized EmitC target artifact bridge failed

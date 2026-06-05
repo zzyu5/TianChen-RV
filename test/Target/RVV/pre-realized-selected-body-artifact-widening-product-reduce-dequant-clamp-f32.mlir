@@ -10,6 +10,19 @@
 // RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_pre_realized_body/s/policy = /route_id = "rvv-i32m1", policy = /' %s | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-AUTH
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-contraction-family-plan-validated/s//provider_supported_mirror:rvv-artifact-name-authority/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/lhs,rhs,acc,scale,lower_bound,upper_bound,out,n/s//lhs,rhs,acc,lower_bound,scale,upper_bound,out,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/bounds-splat,cmp-select/s//cmp-select/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-BINDING
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"/s//tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/converted\/scaled\/clamped:float-e32m1/s//converted\/scaled:float-e32m1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CTYPE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.target_leaf_profile", value = "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequant-clamp-leaf-profile.v1"/s//tcrv_rvv.target_leaf_profile", value = "rvv-v1-i8mf4-i16mf2-product-only-leaf-profile.v1"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-LEAF
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.reduction_accumulator_layout", value = "scalar-i32-seed-lane0-from-accumulator-input"/s//tcrv_rvv.reduction_accumulator_layout", value = "metadata-accumulator-layout"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ACC-LAYOUT
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.reduction_result_layout", value = "store-standalone-reduction-lane0-to-output-scalar"/s//tcrv_rvv.reduction_result_layout", value = "store-vector-result-from-metadata"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESULT-LAYOUT
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.product_vector_c_type", value = "vint16mf2_t"/s//tcrv_rvv.product_vector_c_type", value = "vint32m1_t"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRODUCT-CTYPE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/__riscv_vwmul_vv_i16mf2/s//__riscv_vwmul_vv_i32m1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-WPROD
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/__riscv_vwredsum_vs_i16mf2_i32m1/s//__riscv_vredsum_vs_i32m1_i32m1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-WRED
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/__riscv_vfcvt_f_x_v_f32m1/s//__riscv_vle32_v_f32m1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DEQUANT
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/__riscv_vfmul_vf_f32m1/s//__riscv_vfadd_vf_f32m1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DEQUANT-SCALE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.lower_bound_c_type", value = "float"/s//tcrv_rvv.lower_bound_c_type", value = "double"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-LOWER-CTYPE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.rhs_broadcast_intrinsic", value = "__riscv_vfmv_v_f_f32m1"/s//tcrv_rvv.rhs_broadcast_intrinsic", value = "__riscv_vfmv_v_f_f32m2"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-BOUND-SPLAT
 
 // Pre-realized selected-body input for the bounded Stage 2 signed i8 product
 // -> i16 product -> i32 reduction -> runtime-scale f32 dequantization
@@ -74,16 +87,53 @@ module {
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "widening_product_reduce_dequant_clamp_f32"}
+// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"}
 // PLAN-SAME: {key = "tcrv_rvv.memory_form", value = "unit-stride-widening-product-reduce-dequant-clamp-f32"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1;abi=lhs,rhs,acc,scale,lower_bound,upper_bound,out,n;chain=i8mf4xi8mf4-i16mf2-i32m1-f32m1;uses=src-load,wprod,wred,dequant,bounds-splat,cmp-select,store,setvl,hdr"}
+// PLAN-SAME: {key = "tcrv_rvv.contraction_route_family_plan", value = "rvv-contraction-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.target_leaf_profile", value = "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequant-clamp-leaf-profile.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.provider_supported_mirror", value = "provider_supported_mirror:rvv-contraction-family-plan-validated"}
+// PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
+// PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,converted/scaled/clamped:float-e32m1,scale:float,lower:float,upper:float"}
+// PLAN-SAME: {key = "tcrv_rvv.source_sew", value = "8"}
+// PLAN-SAME: {key = "tcrv_rvv.source_lmul", value = "mf4"}
+// PLAN-SAME: {key = "tcrv_rvv.product_sew", value = "16"}
+// PLAN-SAME: {key = "tcrv_rvv.product_lmul", value = "mf2"}
+// PLAN-SAME: {key = "tcrv_rvv.product_vector_type", value = "!tcrv_rvv.vector<i16, \22mf2\22>"}
+// PLAN-SAME: {key = "tcrv_rvv.product_vector_c_type", value = "vint16mf2_t"}
+// PLAN-SAME: {key = "tcrv_rvv.accumulator_sew", value = "32"}
+// PLAN-SAME: {key = "tcrv_rvv.accumulator_lmul", value = "m1"}
+// PLAN-SAME: {key = "tcrv_rvv.result_sew", value = "32"}
+// PLAN-SAME: {key = "tcrv_rvv.result_lmul", value = "m1"}
+// PLAN-SAME: {key = "tcrv_rvv.source_memory_form", value = "unit-stride-load"}
+// PLAN-SAME: {key = "tcrv_rvv.destination_memory_form", value = "unit-stride-store"}
+// PLAN-SAME: {key = "tcrv_rvv.reduction_accumulator_layout", value = "scalar-i32-seed-lane0-from-accumulator-input"}
+// PLAN-SAME: {key = "tcrv_rvv.reduction_result_layout", value = "store-standalone-reduction-lane0-to-output-scalar"}
+// PLAN-SAME: {key = "tcrv_rvv.widening_product_relation", value = "signed-i8mf4xi8mf4-to-i16mf2"}
 // PLAN-SAME: {key = "tcrv_rvv.product_reduction_chain_relation", value = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"}
+// PLAN-SAME: {key = "tcrv_rvv.widening_product_intrinsic", value = "__riscv_vwmul_vv_i16mf2"}
+// PLAN-SAME: {key = "tcrv_rvv.widening_reduction_intrinsic", value = "__riscv_vwredsum_vs_i16mf2_i32m1"}
+// PLAN-SAME: {key = "tcrv_rvv.scalar_seed_splat_intrinsic", value = "__riscv_vmv_v_x_i32m1"}
+// PLAN-SAME: {key = "tcrv_rvv.reduction_store_vl", value = "1"}
+// PLAN-SAME: {key = "tcrv_rvv.scalar_result_runtime_boundary", value = "scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-chunks-final-f32-store.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.dequantization_relation", value = "signed-i32m1-to-f32m1-scale-f32"}
+// PLAN-SAME: {key = "tcrv_rvv.dequantize_convert_intrinsic", value = "__riscv_vfcvt_f_x_v_f32m1"}
+// PLAN-SAME: {key = "tcrv_rvv.dequantize_scale_intrinsic", value = "__riscv_vfmul_vf_f32m1"}
+// PLAN-SAME: {key = "tcrv_rvv.dequant_scale_role", value = "dequant-scale-value"}
+// PLAN-SAME: {key = "tcrv_rvv.dequant_scale_c_type", value = "float"}
+// PLAN-SAME: {key = "tcrv_rvv.dequant_scale_name", value = "scale"}
 // PLAN-SAME: {key = "tcrv_rvv.lower_bound_role", value = "lower-bound-scalar-value"}
 // PLAN-SAME: {key = "tcrv_rvv.upper_bound_role", value = "upper-bound-scalar-value"}
+// PLAN-SAME: {key = "tcrv_rvv.lower_bound_c_type", value = "float"}
+// PLAN-SAME: {key = "tcrv_rvv.upper_bound_c_type", value = "float"}
 // PLAN-SAME: {key = "tcrv_rvv.bound_order", value = "lower-bound-before-upper-bound"}
 // PLAN-SAME: {key = "tcrv_rvv.clamp_relation", value = "signed-i8mf4xi8mf4-i32-reduction-scale-f32-clamp-lower-upper-to-f32m1"}
+// PLAN-SAME: {key = "tcrv_rvv.select_layout", value = "clamp-lower-then-upper"}
+// PLAN-SAME: {key = "tcrv_rvv.compare_predicate_kind", value = "slt"}
 // PLAN-SAME: {key = "tcrv_rvv.compare_intrinsic", value = "__riscv_vmflt_vv_f32m1_b32"}
+// PLAN-SAME: {key = "tcrv_rvv.secondary_compare_predicate_kind", value = "slt"}
 // PLAN-SAME: {key = "tcrv_rvv.secondary_compare_intrinsic", value = "__riscv_vmflt_vv_f32m1_b32"}
 // PLAN-SAME: {key = "tcrv_rvv.masked_merge_intrinsic", value = "__riscv_vmerge_vvm_f32m1"}
 // PLAN-SAME: {key = "tcrv_rvv.rhs_broadcast_intrinsic", value = "__riscv_vfmv_v_f_f32m1"}
@@ -94,11 +144,49 @@ module {
 // HEADER: tianchenrv.rvv.selected_variant: @pre_realized_body_rvv_product_reduce_dequant_clamp
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1
 // HEADER: tianchenrv.rvv.runtime_abi_order: lhs,rhs,acc,scale,lower_bound,upper_bound,out,n
-// HEADER: tianchenrv.rvv.dequantization_relation: signed-i32m1-to-f32m1-scale-f32
-// HEADER: tianchenrv.rvv.lower_bound_role: lower-bound-scalar-value
-// HEADER: tianchenrv.rvv.upper_bound_role: upper-bound-scalar-value
-// HEADER: tianchenrv.rvv.clamp_relation: signed-i8mf4xi8mf4-i32-reduction-scale-f32-clamp-lower-upper-to-f32m1
-// HEADER: tianchenrv.rvv.select_layout: clamp-lower-then-upper
+// HEADER-DAG: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1
+// HEADER-DAG: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1;abi=lhs,rhs,acc,scale,lower_bound,upper_bound,out,n;chain=i8mf4xi8mf4-i16mf2-i32m1-f32m1;uses=src-load,wprod,wred,dequant,bounds-splat,cmp-select,store,setvl,hdr
+// HEADER-DAG: tianchenrv.rvv.contraction_route_family_plan: rvv-contraction-route-family-plan.v1
+// HEADER-DAG: tianchenrv.rvv.target_leaf_profile: rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequant-clamp-leaf-profile.v1
+// HEADER-DAG: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-contraction-family-plan-validated
+// HEADER-DAG: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
+// HEADER-DAG: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,converted/scaled/clamped:float-e32m1,scale:float,lower:float,upper:float
+// HEADER-DAG: tianchenrv.rvv.source_sew: 8
+// HEADER-DAG: tianchenrv.rvv.source_lmul: mf4
+// HEADER-DAG: tianchenrv.rvv.product_sew: 16
+// HEADER-DAG: tianchenrv.rvv.product_lmul: mf2
+// HEADER-DAG: tianchenrv.rvv.product_vector_type: !tcrv_rvv.vector<i16, "mf2">
+// HEADER-DAG: tianchenrv.rvv.product_vector_c_type: vint16mf2_t
+// HEADER-DAG: tianchenrv.rvv.accumulator_sew: 32
+// HEADER-DAG: tianchenrv.rvv.accumulator_lmul: m1
+// HEADER-DAG: tianchenrv.rvv.result_sew: 32
+// HEADER-DAG: tianchenrv.rvv.result_lmul: m1
+// HEADER-DAG: tianchenrv.rvv.source_memory_form: unit-stride-load
+// HEADER-DAG: tianchenrv.rvv.destination_memory_form: unit-stride-store
+// HEADER-DAG: tianchenrv.rvv.reduction_accumulator_layout: scalar-i32-seed-lane0-from-accumulator-input
+// HEADER-DAG: tianchenrv.rvv.reduction_result_layout: store-standalone-reduction-lane0-to-output-scalar
+// HEADER-DAG: tianchenrv.rvv.widening_product_relation: signed-i8mf4xi8mf4-to-i16mf2
+// HEADER-DAG: tianchenrv.rvv.product_reduction_chain_relation: signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32
+// HEADER-DAG: tianchenrv.rvv.widening_product_intrinsic: __riscv_vwmul_vv_i16mf2
+// HEADER-DAG: tianchenrv.rvv.widening_reduction_intrinsic: __riscv_vwredsum_vs_i16mf2_i32m1
+// HEADER-DAG: tianchenrv.rvv.scalar_seed_splat_intrinsic: __riscv_vmv_v_x_i32m1
+// HEADER-DAG: tianchenrv.rvv.reduction_store_vl: 1
+// HEADER-DAG: tianchenrv.rvv.standalone_reduction_scalar_result_runtime_boundary: scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-chunks-final-f32-store.v1
+// HEADER-DAG: tianchenrv.rvv.dequantization_relation: signed-i32m1-to-f32m1-scale-f32
+// HEADER-DAG: tianchenrv.rvv.dequantize_convert_intrinsic: __riscv_vfcvt_f_x_v_f32m1
+// HEADER-DAG: tianchenrv.rvv.dequantize_scale_intrinsic: __riscv_vfmul_vf_f32m1
+// HEADER-DAG: tianchenrv.rvv.dequant_scale_role: dequant-scale-value
+// HEADER-DAG: tianchenrv.rvv.dequant_scale_c_type: float
+// HEADER-DAG: tianchenrv.rvv.dequant_scale_name: scale
+// HEADER-DAG: tianchenrv.rvv.lower_bound_role: lower-bound-scalar-value
+// HEADER-DAG: tianchenrv.rvv.upper_bound_role: upper-bound-scalar-value
+// HEADER-DAG: tianchenrv.rvv.lower_bound_c_type: float
+// HEADER-DAG: tianchenrv.rvv.upper_bound_c_type: float
+// HEADER-DAG: tianchenrv.rvv.bound_order: lower-bound-before-upper-bound
+// HEADER-DAG: tianchenrv.rvv.clamp_relation: signed-i8mf4xi8mf4-i32-reduction-scale-f32-clamp-lower-upper-to-f32m1
+// HEADER-DAG: tianchenrv.rvv.select_layout: clamp-lower-then-upper
+// HEADER-DAG: tianchenrv.rvv.compare_predicate_kind: slt
+// HEADER-DAG: tianchenrv.rvv.secondary_compare_predicate_kind: slt
 // HEADER: void tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);
 
 // MISSING-SCALE: runtime scale
@@ -127,3 +215,58 @@ module {
 // STALE-ABI: RVV materialized EmitC target artifact bridge failed
 // STALE-ABI: tcrv_rvv.runtime_abi_order
 // STALE-ABI-SAME: lhs,rhs,acc,lower_bound,scale,upper_bound,out,n
+
+// STALE-BINDING: RVV materialized EmitC target artifact bridge failed
+// STALE-BINDING: tcrv_rvv.route_operand_binding_operands
+// STALE-BINDING-SAME: must mirror
+// STALE-BINDING-SAME: bounds-splat,cmp-select,store
+
+// STALE-HEADER: RVV materialized EmitC target artifact bridge failed
+// STALE-HEADER: tcrv_rvv.required_header_declarations
+// STALE-HEADER-SAME: must mirror
+// STALE-HEADER-SAME: stddef.h,stdint.h
+
+// STALE-CTYPE: RVV materialized EmitC target artifact bridge failed
+// STALE-CTYPE: tcrv_rvv.c_type_mapping
+// STALE-CTYPE-SAME: must mirror
+// STALE-CTYPE-SAME: converted/scaled:float-e32m1
+
+// STALE-LEAF: RVV materialized EmitC target artifact bridge failed
+// STALE-LEAF: tcrv_rvv.target_leaf_profile
+// STALE-LEAF-SAME: product-only-leaf-profile
+
+// STALE-ACC-LAYOUT: RVV materialized EmitC target artifact bridge failed
+// STALE-ACC-LAYOUT: tcrv_rvv.reduction_accumulator_layout
+// STALE-ACC-LAYOUT-SAME: metadata-accumulator-layout
+
+// STALE-RESULT-LAYOUT: RVV materialized EmitC target artifact bridge failed
+// STALE-RESULT-LAYOUT: tcrv_rvv.reduction_result_layout
+// STALE-RESULT-LAYOUT-SAME: store-vector-result-from-metadata
+
+// STALE-PRODUCT-CTYPE: RVV materialized EmitC target artifact bridge failed
+// STALE-PRODUCT-CTYPE: tcrv_rvv.product_vector_c_type
+// STALE-PRODUCT-CTYPE-SAME: vint32m1_t
+
+// STALE-WPROD: RVV materialized EmitC target artifact bridge failed
+// STALE-WPROD: tcrv_rvv.widening_product_intrinsic
+// STALE-WPROD-SAME: __riscv_vwmul_vv_i32m1
+
+// STALE-WRED: RVV materialized EmitC target artifact bridge failed
+// STALE-WRED: tcrv_rvv.widening_reduction_intrinsic
+// STALE-WRED-SAME: __riscv_vredsum_vs_i32m1_i32m1
+
+// STALE-DEQUANT: RVV materialized EmitC target artifact bridge failed
+// STALE-DEQUANT: tcrv_rvv.dequantize_convert_intrinsic
+// STALE-DEQUANT-SAME: __riscv_vle32_v_f32m1
+
+// STALE-DEQUANT-SCALE: RVV materialized EmitC target artifact bridge failed
+// STALE-DEQUANT-SCALE: tcrv_rvv.dequantize_scale_intrinsic
+// STALE-DEQUANT-SCALE-SAME: __riscv_vfadd_vf_f32m1
+
+// STALE-LOWER-CTYPE: RVV materialized EmitC target artifact bridge failed
+// STALE-LOWER-CTYPE: tcrv_rvv.lower_bound_c_type
+// STALE-LOWER-CTYPE-SAME: double
+
+// STALE-BOUND-SPLAT: RVV materialized EmitC target artifact bridge failed
+// STALE-BOUND-SPLAT: tcrv_rvv.rhs_broadcast_intrinsic
+// STALE-BOUND-SPLAT-SAME: __riscv_vfmv_v_f_f32m2
