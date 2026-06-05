@@ -38,6 +38,63 @@ Closed generated dequant-clamp f32 epilogue executable ABI evidence with dry-run
 - None - task complete
 
 
+## Session 467: Stage2 RVV computed-mask select/merge selected-body route foundation
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV computed-mask select/merge selected-body route foundation
+**Branch**: `main`
+
+### Summary
+
+Closed computed-mask vector select/merge route foundation with focused
+target-artifact stale mirror checks, explicit/pre-realized route/header
+evidence, generated-bundle dry-runs, and real `ssh rvv` correctness for counts
+`0,1,16,17,257`.
+
+### Main Changes
+
+- Added target artifact fail-closed checks for stale computed-mask select
+  predicate, runtime ABI order, route operand binding plan/summary, provider
+  mirror, target leaf profile, mask role/source/form, and select layout.
+- Kept production C++ provider/materializer/target semantics unchanged because
+  the current provider-owned computed-mask select contracts and target
+  validation already support the bounded route.
+
+### Git Commits
+
+- included-in-this-commit
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Direct FileCheck equivalents for pre-realized `computed_mask_select`
+  realization/plan/header and stale mirror fail-closed paths
+- [OK] Direct FileCheck equivalents for explicit `computed_mask_select_sle`
+  plan/header paths
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Pre-realized generated-bundle dry-run for `computed_mask_select`
+- [OK] Explicit generated-bundle dry-run for `computed_mask_select_sle`
+- [OK] Pre-realized real `ssh rvv` generated-bundle run:
+  `PASS op=computed_mask_select counts=0,1,16,17,257 compare_data_patterns=2`
+- [OK] Explicit real `ssh rvv` generated-bundle run:
+  `PASS op=computed_mask_select_sle counts=0,1,16,17,257 compare_data_patterns=2`
+- [OK] `git diff --check`
+- [OK] Trellis task validation and code/test added-line authority scan
+
+### Status
+
+[OK] **Completed** as executable computed-mask select/merge selected-body route
+foundation. No `.trellis/spec/` update was needed because the existing RVV
+plugin, EmitC-route, and testing contracts already captured provider-owned
+computed-mask select behavior.
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 463: Stage2 RVV Gearbox two-candidate dequant route realization
 
 **Date**: 2026-06-05
