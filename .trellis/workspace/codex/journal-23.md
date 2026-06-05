@@ -115,3 +115,36 @@ Closed executable evidence for the pre-realized RVV widening-product reduce dequ
 ### Next Steps
 
 - None - task complete
+
+
+## Session 460: Stage2 RVV mask/tail policy route foundation
+
+**Date**: 2026-06-05
+**Task**: Stage2 RVV mask/tail policy route foundation
+**Branch**: `main`
+
+### Summary
+
+Implemented computed-mask select provider and target validation for explicit tail/mask policy mirrors, added focused negative coverage, archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9b079872` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

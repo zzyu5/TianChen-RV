@@ -19643,6 +19643,34 @@ module {
            "compare-mask operand-binding facts",
            "before creating TCRVEmitCLowerableRoute"}))
     return result;
+  auto staleComputedProviderMaskTailPolicy = *computedStatementPlan;
+  staleComputedProviderMaskTailPolicy.maskTailPolicyPlan.tailPolicyMirror =
+      "undisturbed";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+              *computedAnalysis, *computedMaterializationFacts,
+              *computedElementwiseFacts, staleComputedProviderMaskTailPolicy,
+              "computed-mask select stale mask/tail policy route-provider "
+              "unit test"),
+          {"computed-mask select route construction requires mask/tail policy "
+           "provider plan tail policy",
+           "agnostic", "undisturbed",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
+  staleComputedProviderMaskTailPolicy = *computedStatementPlan;
+  staleComputedProviderMaskTailPolicy.maskTailPolicyPlan.maskPolicyMirror =
+      "undisturbed";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+              *computedAnalysis, *computedMaterializationFacts,
+              *computedElementwiseFacts, staleComputedProviderMaskTailPolicy,
+              "computed-mask select stale mask/tail policy route-provider "
+              "unit test"),
+          {"computed-mask select route construction requires mask/tail policy "
+           "provider plan mask policy",
+           "agnostic", "undisturbed",
+           "before creating TCRVEmitCLowerableRoute"}))
+    return result;
   auto staleMaterializationFacts = *computedMaterializationFacts;
   staleMaterializationFacts.computedMaskSelectPlan = nullptr;
   if (int result = expectErrorContains(

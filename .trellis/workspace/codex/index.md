@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-23.md`
-- **Total Sessions**: 459
+- **Total Sessions**: 460
 - **Last Active**: 2026-06-05
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-23.md` | ~117 | Active |
+| `journal-23.md` | ~150 | Active |
 | `journal-22.md` | ~2034 | Archived |
 | `journal-21.md` | ~1978 | Archived |
 | `journal-20.md` | ~1977 | Archived |
@@ -51,6 +51,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 460 | 2026-06-05 | Stage2 RVV mask/tail policy route foundation | `9b079872` | `main` |
 | 459 | 2026-06-05 | Stage2 RVV contraction-dequant-clamp executable ABI closure | - | `main` |
 | 458 | 2026-06-05 | Stage2 RVV dequant-clamp ABI closure | - | `main` |
 | 457 | 2026-06-05 | Stage2 RVV f32 clamp/select executable ABI closure | pending-rvv-f32-clamp-select-executable-abi-closure | `main` |

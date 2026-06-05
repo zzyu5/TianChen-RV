@@ -10360,6 +10360,14 @@ llvm::Error validateRVVCompareSelectMaskTargetArtifactCandidateMirrors(
           "route-local runtime AVL/VL ABI order mirror"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.tail_policy", description.tailPolicy,
+          "selected typed RVV compare/select mask tail policy"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.mask_policy", description.maskPolicy,
+          "selected typed RVV compare/select mask policy"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.required_header_declarations",
           description.requiredHeaderDeclarations,
           "selected typed RVV compare/select mask route header requirements"))

@@ -28601,35 +28601,69 @@ llvm::Error verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
 
   const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan &plan =
       *materializationFacts.computedMaskSelectPlan;
-  if (!compareSelectStatementPlan.maskTailPolicyPlan.plansMaskTailPolicy ||
-      !compareSelectStatementPlan.maskTailPolicyPlan.controlsComputedMaskSelect ||
-      compareSelectStatementPlan.maskTailPolicyPlan.typedConfigFacts !=
-          &analysis.typedConfigFacts ||
-      compareSelectStatementPlan.maskTailPolicyPlan
-              .selectedTargetCapabilityFacts !=
+  const RVVSelectedBodyMaskTailPolicyProviderPlan &maskTailPlan =
+      compareSelectStatementPlan.maskTailPolicyPlan;
+  if (!maskTailPlan.plansMaskTailPolicy ||
+      !maskTailPlan.controlsComputedMaskSelect ||
+      maskTailPlan.typedConfigFacts != &analysis.typedConfigFacts ||
+      maskTailPlan.selectedTargetCapabilityFacts !=
           &analysis.selectedTargetCapabilityFacts ||
-      compareSelectStatementPlan.maskTailPolicyPlan.bindingPlan !=
-          &analysis.routeOperandBindingPlan ||
-      compareSelectStatementPlan.maskTailPolicyPlan.computedMaskSelectPlan !=
-          &plan ||
-      compareSelectStatementPlan.maskTailPolicyPlan.maskProducerSourceMirror !=
-          plan.maskProducerSource ||
-      compareSelectStatementPlan.maskTailPolicyPlan.maskRoleMirror !=
-          plan.maskRole ||
-      compareSelectStatementPlan.maskTailPolicyPlan.maskSourceMirror !=
-          plan.maskSource ||
-      compareSelectStatementPlan.maskTailPolicyPlan.maskMemoryFormMirror !=
-          plan.maskMemoryForm ||
-      compareSelectStatementPlan.maskTailPolicyPlan.runtimeABIOrderMirror !=
-          plan.runtimeABIOrder ||
-      compareSelectStatementPlan.maskTailPolicyPlan.providerSupportedMirror !=
-          plan.providerSupportedMirror)
+      maskTailPlan.bindingPlan != &analysis.routeOperandBindingPlan ||
+      maskTailPlan.computedMaskSelectPlan != &plan ||
+      maskTailPlan.maskProducerSourceMirror != plan.maskProducerSource ||
+      maskTailPlan.maskRoleMirror != plan.maskRole ||
+      maskTailPlan.maskSourceMirror != plan.maskSource ||
+      maskTailPlan.maskMemoryFormMirror != plan.maskMemoryForm ||
+      maskTailPlan.runtimeABIOrderMirror != plan.runtimeABIOrder ||
+      maskTailPlan.providerSupportedMirror != plan.providerSupportedMirror)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " computed-mask select route construction requires the RVV-owned "
         "mask/tail policy provider plan from the same computed-mask "
         "compare/select statement plan before creating "
         "TCRVEmitCLowerableRoute");
+  auto requireMaskTailPlanMirror =
+      [&](llvm::StringRef field, llvm::StringRef actual,
+          llvm::StringRef expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask select route construction requires mask/tail policy "
+        "provider plan " +
+        field + " to mirror provider-derived value '" + expected +
+        "' but carried '" + actual +
+        "' before creating TCRVEmitCLowerableRoute");
+  };
+  if (llvm::Error error = requireMaskTailPlanMirror(
+          "route-family plan id", maskTailPlan.familyPlanIDMirror,
+          analysis.description.maskTailPolicyRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireMaskTailPlanMirror(
+          "owner", maskTailPlan.ownerNameMirror,
+          analysis.description.maskTailPolicyOwner))
+    return error;
+  if (llvm::Error error = requireMaskTailPlanMirror(
+          "tail policy", maskTailPlan.tailPolicyMirror,
+          typedFacts.tailPolicy))
+    return error;
+  if (llvm::Error error = requireMaskTailPlanMirror(
+          "mask policy", maskTailPlan.maskPolicyMirror,
+          typedFacts.maskPolicy))
+    return error;
+  if (llvm::Error error = requireMaskTailPlanMirror(
+          "route operand binding plan",
+          maskTailPlan.routeOperandBindingPlanIDMirror,
+          analysis.routeOperandBindingPlan.planID))
+    return error;
+  if (llvm::Error error = requireMaskTailPlanMirror(
+          "selected target provider mirror", maskTailPlan.selectedProviderMirror,
+          analysis.selectedTargetCapabilityFacts.providerMirror))
+    return error;
+  if (llvm::Error error = requireMaskTailPlanMirror(
+          "selected target legality mirror", maskTailPlan.selectedLegalityMirror,
+          analysis.selectedTargetCapabilityFacts.legalityMirror))
+    return error;
   if ((isRuntimeScalarComputedMaskSelect ||
        isRuntimeScalarDualComputedMaskSelect || isF32ClampSelect ||
        isDequantClampF32Epilogue) &&

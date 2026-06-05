@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global authority and Stage 2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check provider preflight and selected-body route-family mask/tail policy contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC neutrality and target artifact mirror validation contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/C++ tests and no ssh rvv claim without runtime evidence."}

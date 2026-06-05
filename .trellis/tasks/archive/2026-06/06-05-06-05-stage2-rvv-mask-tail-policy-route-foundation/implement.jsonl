@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage order, and common EmitC neutrality constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body, compare/select provider preflight, mask/tail policy, and fail-closed route support contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route boundary, provider-derived runtime AVL/VL contract, and target mirror validation rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++ coverage and RVV runtime evidence boundaries for route-supported mask/tail policy changes."}
