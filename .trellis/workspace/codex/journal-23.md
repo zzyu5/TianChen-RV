@@ -760,15 +760,29 @@ Closed computed-mask standalone reduce-add route evidence with provider-derived 
 
 ### Main Changes
 
-(Add details)
+- Created and archived Trellis task
+  `06-06-stage2-rvv-dequant-clamp-f32-epilogue-executable-abi`.
+- Proved the existing `dequant_clamp_f32_epilogue` generated-bundle path on
+  real `ssh rvv` with runtime ABI order `lhs, scale, lower_bound, upper_bound,
+  out, n`.
+- Recorded executable evidence at
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/20260605T184905Z`.
+- No production compiler or script change was required.
 
 ### Git Commits
 
-(No commits - planning session)
+- rvv: close dequant clamp epilogue executable abi evidence
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind dequant_clamp_f32_epilogue --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --dry-run`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind dequant_clamp_f32_epilogue --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter pre-realized-selected-body-artifact-dequant-clamp-f32-epilogue` from `build/test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter pre-realized-dequant-clamp-f32-epilogue-negative` from `build/test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] task context validation
 
 ### Status
 
@@ -1076,6 +1090,37 @@ Closed bounded dequant_clamp_f32_epilogue route-supported artifact foundation: p
 | Hash | Message |
 |------|---------|
 | `included-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 471: Stage2 RVV dequant clamp f32 epilogue executable ABI closure
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV dequant clamp f32 epilogue executable ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed dequant_clamp_f32_epilogue generated-bundle executable evidence on ssh rvv for counts 0,1,16,17,257 with scalar oracle, source preservation, and output tail preservation; no production code change required.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
 
 ### Testing
 
