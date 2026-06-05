@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final changes against global route authority and Stage 2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body realization owner behavior, mask provenance, and stale-authority rejection."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-derived computed-mask widening dot-reduce facts and target artifact contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused FileCheck/generated-bundle/ssh evidence expectations."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-widening-dot-reduce-selected-body-realization/prd.md", "reason": "Check regression against the prior plain widening-dot selected-body realization evidence pattern."}

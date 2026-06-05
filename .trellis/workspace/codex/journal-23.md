@@ -1627,3 +1627,34 @@ source preservation, accumulator preservation, and output tail preservation.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 478: Stage2 RVV computed-masked widening-dot selected-body realization
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV computed-masked widening-dot selected-body realization
+**Branch**: `main`
+
+### Summary
+
+Strengthened pre-realized computed-mask widening-dot target evidence with inactive-lane zeroing checks and stale authority/mask provenance fail-closed guards; verified dry-run and ssh rvv generated-bundle execution.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

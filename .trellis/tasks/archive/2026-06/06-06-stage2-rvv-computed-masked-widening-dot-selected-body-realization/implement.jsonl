@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain and RVV Stage 2 selected-body realization invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local selected-body realization owner registry and contraction selected-body boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned TCRVEmitCLowerableRoute and computed-mask widening dot-reduce validation contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/FileCheck, generated-bundle, and ssh rvv evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-widening-dot-reduce-selected-body-realization/prd.md", "reason": "Previous plain widening_dot_reduce_add selected-body realization baseline and evidence pattern."}
