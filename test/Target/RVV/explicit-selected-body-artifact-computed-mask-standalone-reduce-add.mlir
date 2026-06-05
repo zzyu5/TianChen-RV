@@ -56,6 +56,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.mask_memory_form", value = "compare-produced-mask"}
 // PLAN-SAME: {key = "tcrv_rvv.reduction_accumulator_layout", value = "scalar-i32-seed-lane0-from-accumulator-input"}
 // PLAN-SAME: {key = "tcrv_rvv.reduction_result_layout", value = "store-standalone-reduction-lane0-to-output-scalar"}
+// PLAN-SAME: {key = "tcrv_rvv.reduction_kind", value = "add"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-computed-mask-standalone-reduce-add-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_cm_standalone_reduce
@@ -63,6 +64,7 @@ module {
 // HEADER: tianchenrv.rvv.selected_variant: @rvv_cm_standalone_reduce
 // HEADER: tianchenrv.rvv.compare_predicate_kind: sle
 // HEADER: tianchenrv.rvv.mask_role: predicate-mask-produced-by-compare
+// HEADER: tianchenrv.rvv.reduction_kind: add
 // HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-typed-computed-mask-standalone-reduction-leaf-profile.v1
 // HEADER: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-computed-mask-standalone-reduction-plan-validated
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:computed_mask_standalone_reduce_add.v1

@@ -278,6 +278,115 @@ typed body/config/runtime mask facts
   -> mirror metadata plus executable harness evidence
 ```
 
+## Computed-Mask Standalone Reduction Generated-Bundle Evidence
+
+### 1. Scope / Trigger
+
+Use computed-mask standalone reduction generated-bundle evidence whenever an
+RVV generated-bundle test claims executable correctness for
+`computed_mask_standalone_reduce_add`, `computed_mask_standalone_reduce_min`,
+or `computed_mask_standalone_reduce_max`.
+
+### 2. Signatures
+
+The bounded command shape is:
+
+```bash
+python3 scripts/rvv_generated_bundle_abi_e2e.py \
+  --pre-realized-selected-body \
+  --op-kind computed_mask_standalone_reduce_add
+```
+
+The provider-owned runtime ABI order for the vector computed-mask standalone
+reduction family is:
+
+```text
+cmp_lhs,cmp_rhs,src,acc,out,n
+```
+
+### 3. Contracts
+
+- Authority is the selected typed `tcrv_rvv` body/config/runtime facts, not
+  route ids, artifact names, ABI strings, metadata mirrors, exact intrinsic
+  spelling, or harness constants.
+- Evidence must mirror the provider-derived `reduction_kind`, compare
+  predicate, mask role/source/memory form, inactive-lane requirement,
+  accumulator/result layout, runtime AVL/VL boundary, route operand binding,
+  required headers, C type mapping, and statement plan.
+- For `add`, inactive lanes must be neutralized with zero before the horizontal
+  reduction. For `min`/`max`, inactive lanes must use the operation-specific
+  min/max neutral literal.
+- The generated C/C++ must show compare-mask construction, inactive neutral
+  splat, mask merge, scalar seed splat, standalone reduction intrinsic, and
+  scalar lane-0 store using runtime VL facts.
+- The harness must check ordinary mixed active/inactive cases and an
+  all-inactive-mask oracle where `out[0]` remains equal to the scalar seed.
+- Runtime counts are execution cases only. They must not define mask policy,
+  reduction kind, dtype, route support, or artifact authority.
+
+### 4. Validation & Error Matrix
+
+- Missing compare-mask producer facts -> evidence failure.
+- Missing or stale `reduction_kind` -> evidence failure.
+- Missing inactive-lane requirement or wrong inactive neutral literal ->
+  evidence failure.
+- Missing compare/source/accumulator/output/runtime `n` ABI role or wrong ABI
+  order -> evidence failure.
+- Generated C/C++ omits runtime VL in compare, merge, reduction, or scalar
+  store -> evidence failure.
+- A multi-lane runtime evidence case lacks both active and inactive mask lanes
+  -> evidence failure.
+- The all-inactive oracle changes `out[0]` away from the scalar seed ->
+  evidence failure.
+- `ssh rvv` compile/run failure -> report blocked/failed evidence and do not
+  claim runtime correctness.
+
+### 5. Good/Base/Bad Cases
+
+- Good: selected typed body carries compare-mask, source, scalar seed/result,
+  policy, and runtime facts -> RVV plugin realizes or validates those facts ->
+  provider emits computed-mask standalone reduction route -> generated evidence
+  mirrors provider facts -> harness checks active lanes, inactive neutral lanes,
+  all-inactive seed preservation, source preservation, and tail sentinels.
+- Base: dry-run evidence proves provider facts, generated bundle, emitted C++
+  shape, and harness source without claiming runtime correctness.
+- Bad: evidence infers `reduction_kind`, mask behavior, inactive behavior, or
+  runtime ABI order from op kind strings, artifact filenames, exact intrinsic
+  spelling, or harness constants.
+
+### 6. Tests Required
+
+- lit/FileCheck for route/artifact fixtures must check representative
+  `reduction_kind`, mask role/source/memory form, inactive-lane requirement,
+  runtime ABI order, route operand binding, and header/type mirrors.
+- Target artifact tests must reject stale provider or candidate mirrors for
+  reduction kind, mask facts, inactive-lane contract, runtime AVL/order,
+  operand binding, header/type facts, and statement-plan facts before artifact
+  acceptance.
+- Runtime RVV claims must include `ssh rvv` output over multiple runtime
+  counts, including `n=0`, at least one tail case, and mixed active/inactive
+  mask cases. Harness output must also include an all-inactive-mask oracle and
+  source/tail preservation checks.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+artifact name says computed_mask_standalone_reduce_add
+  -> harness assumes add reduction and inactive zeroing
+```
+
+Correct:
+
+```text
+typed body/config/runtime compare-mask and reduction facts
+  -> RVV provider derives reduction kind and inactive neutralization
+  -> Common EmitC carries provider payload
+  -> target mirrors are checked
+  -> ssh rvv harness checks mixed masks and all-inactive seed preservation
+```
+
 ## Computed-Mask MAcc Generated-Bundle Evidence
 
 ### 1. Scope / Trigger

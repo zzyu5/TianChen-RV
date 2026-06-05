@@ -7301,6 +7301,22 @@ bool expectRVVTargetArtifactExporterShape(
            "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"}))
     return false;
 
+  TargetArtifactCandidate staleComputedMaskStandaloneAddReductionKindMirror =
+      computedMaskStandaloneReduceAddFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleComputedMaskStandaloneAddReductionKindMirror,
+          "tcrv_rvv.reduction_kind", "min")) {
+    llvm::errs() << "test fixture did not contain computed-mask standalone "
+                    "reduce_add reduction-kind mirror metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskStandaloneReduceAddCandidateFailure(
+          staleComputedMaskStandaloneAddReductionKindMirror,
+          "computed-mask standalone reduce_add registry rejects stale "
+          "reduction-kind mirror",
+          {"reduction_kind", "add", "min"}))
+    return false;
+
   RVVRouteDescription staleComputedMaskStandaloneMinTypedOp =
       computedMaskStandaloneReduceMinDescription;
   staleComputedMaskStandaloneMinTypedOp.typedComputeOpName =
