@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "global stage order and authority chain"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership and computed-mask indexed statement-plan boundary"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "computed-mask indexed route facts and target validation contract"}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-indexed-scatter-store.mlir", "reason": "explicit selected-body indexed scatter fixture"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-indexed-scatter-store.mlir", "reason": "adjacent pre-realized indexed scatter fixture"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-computed-masked-indexed-scatter-store-dry-run.test", "reason": "explicit generated-bundle dry-run contract"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-indexed-scatter-store-dry-run.test", "reason": "pre-realized generated-bundle regression contract"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "generated-bundle harness and ssh execution bridge"}
+{"file": ".trellis/tasks/archive/2026-06/06-06-06-06-stage2-rvv-explicit-computed-masked-segment2-update-abi-closure/prd.md", "reason": "previous executable ABI closure evidence workflow"}
