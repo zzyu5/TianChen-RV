@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global invariants: C++/MLIR stack, RVV route authority, common EmitC neutrality, and required ssh rvv evidence for runtime claims."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check selected-body realization, provider-derived compare/select route facts, and no legacy i32 or descriptor route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated route summaries, runtime ABI/header binding mirrors, and target artifact validation boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle dry-run and runtime harness evidence quality, including counts, patterns, f32 tolerance, source preservation, and tail sentinel preservation."}
+{"file": ".trellis/tasks/06-05-stage2-rvv-f32-clamp-select-executable-abi-closure/prd.md", "reason": "Check implementation against current task acceptance criteria and non-goals."}

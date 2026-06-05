@@ -1,0 +1,32 @@
+{
+  "id": "stage2-rvv-f32-clamp-select-executable-abi-closure",
+  "name": "stage2-rvv-f32-clamp-select-executable-abi-closure",
+  "title": "Stage2 RVV f32 clamp/select executable ABI closure",
+  "description": "Close executable ABI correctness for existing Stage2 RVV f32 clamp/select route with generated bundle dry run and ssh rvv evidence.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-05",
+  "completedAt": "2026-06-05",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "scripts/rvv_generated_bundle_abi_e2e.py",
+    ".trellis/spec/testing/mlir-testing-contract.md",
+    ".trellis/tasks/archive/2026-06/06-05-stage2-rvv-f32-clamp-select-executable-abi-closure/evidence.md",
+    "artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-f32-clamp-select-dry-run/evidence.json",
+    "artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-f32-clamp-select-ssh/evidence.json"
+  ],
+  "notes": "Executable closure completed for existing Stage2 RVV f32 clamp/select route. Added neutral generated-bundle ABI harness/evidence support and testing contract; no production compiler C++/TableGen code changed. Dry-run and ssh rvv compile/run evidence passed for counts 0,1,16,17,257; patterns 0,1; bound pairs [-1.5,2.25] and [-8.0,-0.75]; f32 tolerance 1e-05; source and tail sentinel preservation.",
+  "meta": {}
+}

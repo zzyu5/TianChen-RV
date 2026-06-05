@@ -96,6 +96,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "widening_dot_reduce_add",
     "widening_product_reduce_add",
     "widening_product_reduce_dequantize_f32",
+    "f32_clamp_select",
     "strided_input_widening_dot_reduce_add",
     "computed_masked_widening_dot_reduce_add",
     "computed_masked_strided_input_widening_dot_reduce_add",
@@ -1088,6 +1089,60 @@ DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC = "__riscv_vse32_v_f32m1"
 DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE = "vint32m1_t"
 DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE = "vfloat32m1_t"
 DEQUANT_F32_OUT_SENTINEL = "-98765.25f"
+F32_CLAMP_SELECT_RUNTIME_ABI_ORDER = "input,lower_bound,upper_bound,out,n"
+F32_CLAMP_SELECT_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:f32_clamp_select.v1"
+)
+F32_CLAMP_SELECT_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:f32_clamp_select.v1;"
+    "input=lhs-input-buffer:input:abi|ld|lcmp|lselF|hdr;"
+    "lower_bound=lower-bound-scalar-value:lower_bound:abi|lsp|lcmp|lselT|hdr;"
+    "upper_bound=upper-bound-scalar-value:upper_bound:abi|usp|ucmp|uselT|hdr;"
+    "out=output-buffer:out:abi|store|hdr;"
+    "n=runtime-element-count:n:abi|setvl|loop|hdr"
+)
+F32_CLAMP_SELECT_ROUTE_FAMILY_PLAN = (
+    "rvv-f32-clamp-select-route-family-plan.v1"
+)
+F32_CLAMP_SELECT_MASK_PRODUCER_SOURCE = (
+    "two-compare-two-select-f32-clamp-same-vl-scope"
+)
+F32_CLAMP_SELECT_MASK_ROLE = "predicate-mask-produced-by-f32-bound-compare"
+F32_CLAMP_SELECT_MASK_SOURCE = "f32-lower-upper-bound-compare-produced-masks"
+F32_CLAMP_SELECT_MASK_MEMORY_FORM = "two-f32-compare-produced-masks"
+F32_CLAMP_SELECT_TARGET_LEAF_PROFILE = (
+    "rvv-v1-f32m1-runtime-lower-upper-clamp-select-leaf-profile.v1"
+)
+F32_CLAMP_SELECT_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-f32-clamp-select-runtime-bounds-plan-validated"
+)
+F32_CLAMP_SELECT_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+F32_CLAMP_SELECT_C_TYPE_MAPPING = (
+    "vl:size_t,input:f32m1,lower:float,upper:float,"
+    "mask:f32m1-predicate,result:f32m1"
+)
+F32_CLAMP_SELECT_SELECT_LAYOUT = "clamp-lower-then-upper"
+F32_CLAMP_SELECT_CLAMP_RELATION = (
+    "input-lower-select-then-upper-select-f32-runtime-bounds"
+)
+F32_CLAMP_SELECT_LOWER_BOUND_ROLE = "lower-bound-scalar-value"
+F32_CLAMP_SELECT_UPPER_BOUND_ROLE = "upper-bound-scalar-value"
+F32_CLAMP_SELECT_BOUND_ORDER = "lower-bound-before-upper-bound"
+F32_CLAMP_SELECT_LOWER_COMPARE_PREDICATE = "slt"
+F32_CLAMP_SELECT_UPPER_COMPARE_PREDICATE = "slt"
+F32_CLAMP_SELECT_VECTOR_C_TYPE = "vfloat32m1_t"
+F32_CLAMP_SELECT_MASK_C_TYPE = "vbool32_t"
+F32_CLAMP_SELECT_SETVL_INTRINSIC = "__riscv_vsetvl_e32m1"
+F32_CLAMP_SELECT_LOAD_INTRINSIC = "__riscv_vle32_v_f32m1"
+F32_CLAMP_SELECT_SPLAT_INTRINSIC = "__riscv_vfmv_v_f_f32m1"
+F32_CLAMP_SELECT_COMPARE_INTRINSIC = "__riscv_vmflt_vv_f32m1_b32"
+F32_CLAMP_SELECT_SELECT_INTRINSIC = "__riscv_vmerge_vvm_f32m1"
+F32_CLAMP_SELECT_STORE_INTRINSIC = "__riscv_vse32_v_f32m1"
+F32_CLAMP_SELECT_OUT_SENTINEL = "-76543.25f"
+F32_CLAMP_SELECT_ABS_TOLERANCE = 0.00001
+DEFAULT_F32_CLAMP_BOUND_PAIRS = ((-1.5, 2.25), (-8.0, -0.75))
 BASE_MEMORY_MOVEMENT_ROUTE_FAMILY_PLAN = (
     "rvv-base-memory-movement-route-family-plan.v1"
 )
@@ -1726,6 +1781,8 @@ class OpExpectation:
 
     @property
     def element_type(self) -> str:
+        if self.element_c_type == "float":
+            return "f32"
         if self.element_c_type == "int64_t":
             return "i64"
         if self.element_c_type == "int16_t":
@@ -1734,6 +1791,8 @@ class OpExpectation:
 
     @property
     def rvv_vector_c_type(self) -> str:
+        if self.element_c_type == "float":
+            return f"vfloat{self.sew}{self.lmul}_t"
         return f"vint{self.sew}{self.lmul}_t"
 
     @property
@@ -1795,6 +1854,8 @@ class OpExpectation:
 
     @property
     def compare_intrinsic(self) -> str:
+        if self.element_c_type == "float" and self.compare_predicate_kind == "slt":
+            return f"__riscv_vmflt_vv_f{self.sew}{self.lmul}_{self.rvv_mask_suffix}"
         predicate_leaf = {
             "eq": "vmseq",
             "slt": "vmslt",
@@ -1816,6 +1877,8 @@ class OpExpectation:
 
     @property
     def scalar_splat_intrinsic(self) -> str:
+        if self.element_c_type == "float":
+            return f"__riscv_vfmv_v_f_f{self.sew}{self.lmul}"
         return f"__riscv_vmv_v_x_{self.element_type}{self.lmul}"
 
     @property
@@ -2174,6 +2237,11 @@ class OpExpectation:
                 "const int8_t *rhs, const int32_t *acc, "
                 "float scale, float *out, size_t n);"
             )
+        if self.is_f32_clamp_select:
+            return (
+                f"void {self.function_name}(const float *input, "
+                "float lower_bound, float upper_bound, float *out, size_t n);"
+            )
         if self.is_widening_product_reduce_add:
             return (
                 f"void {self.function_name}(const int8_t *lhs, "
@@ -2279,6 +2347,8 @@ class OpExpectation:
             return EXPECTED_RUNTIME_SCALAR_COMPUTED_MASKED_MACC_RUNTIME_PARAMETERS
         if self.is_widening_product_reduce_dequantize_f32:
             return EXPECTED_WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RUNTIME_PARAMETERS
+        if self.is_f32_clamp_select:
+            return EXPECTED_F32_CLAMP_SELECT_RUNTIME_PARAMETERS
         if self.is_widening_product_reduce_add:
             return EXPECTED_WIDENING_PRODUCT_REDUCE_RUNTIME_PARAMETERS
         if self.is_widening_macc_add or self.is_widening_dot_reduce_add:
@@ -2415,6 +2485,8 @@ class OpExpectation:
             return WIDENING_MACC_RUNTIME_ABI_ORDER
         if self.is_widening_product_reduce_dequantize_f32:
             return WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RUNTIME_ABI_ORDER
+        if self.is_f32_clamp_select:
+            return F32_CLAMP_SELECT_RUNTIME_ABI_ORDER
         if self.is_widening_product_reduce_add:
             return WIDENING_PRODUCT_REDUCE_RUNTIME_ABI_ORDER
         if self.is_widening_dot_reduce_add:
@@ -2557,6 +2629,10 @@ class OpExpectation:
     @property
     def is_widening_product_reduce_dequantize_f32(self) -> bool:
         return self.kind == "widening_product_reduce_dequantize_f32"
+
+    @property
+    def is_f32_clamp_select(self) -> bool:
+        return self.kind == "f32_clamp_select"
 
     @property
     def uses_runtime_dequant_scale(self) -> bool:
@@ -5292,6 +5368,34 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="pre_realized_body_rvv_product_reduce_dequantize",
         function_name="tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize",
     ),
+    "f32_clamp_select": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["cmp_select"],
+        kind="f32_clamp_select",
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-f32-clamp-select.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_rvv_f32_clamp_select",
+        external_abi_name="rvv-generic-f32-clamp-select-callable-c-abi.v1",
+        function_name="tcrv_emitc_pre_realized_f32_clamp_select_kernel_pre_realized_rvv_f32_clamp_select",
+        emitc_route="rvv-generic-f32-clamp-select-emitc-route",
+        typed_compute_op="tcrv_rvv.select",
+        memory_form="runtime-scalar-f32-clamp-select",
+        lhs_initializer=(
+            "((index % 6) == 0 ? -4.5f : "
+            "((index % 6) == 1 ? -1.0f : "
+            "((index % 6) == 2 ? 0.25f : "
+            "((index % 6) == 3 ? 1.5f : "
+            "((index % 6) == 4 ? 2.75f : 9.0f)))))"
+        ),
+        rhs_initializer="unused",
+        expected_expression=(
+            "(input[index] < lower_bound ? lower_bound : "
+            "(input[index] > upper_bound ? upper_bound : input[index]))"
+        ),
+        out_initializer=F32_CLAMP_SELECT_OUT_SENTINEL,
+        sew="32",
+        element_c_type="float",
+        compare_predicate_kind="slt",
+    ),
     "strided_input_widening_dot_reduce_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
         kind="strided_input_widening_dot_reduce_add",
@@ -6212,6 +6316,33 @@ EXPECTED_DEQUANTIZE_I32_TO_F32_RUNTIME_PARAMETERS = (
     },
     EXPECTED_RUNTIME_PARAMETERS[3],
 )
+EXPECTED_F32_CLAMP_SELECT_RUNTIME_PARAMETERS = (
+    {
+        "c_name": "input",
+        "c_type": "const float *",
+        "role": "lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "lower_bound",
+        "c_type": "float",
+        "role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "upper_bound",
+        "c_type": "float",
+        "role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "out",
+        "c_type": "float *",
+        "role": "output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_RUNTIME_PARAMETERS[3],
+)
 EXPECTED_WIDENING_MACC_RUNTIME_PARAMETERS = (
     {
         "c_name": "lhs",
@@ -6576,6 +6707,12 @@ COMPARE_SELECT_PREDICATE_METADATA_KEYS = (
     "tcrv_rvv.source_memory_form",
     "tcrv_rvv.destination_memory_form",
     "tcrv_rvv.select_layout",
+    "tcrv_rvv.lower_bound_role",
+    "tcrv_rvv.upper_bound_role",
+    "tcrv_rvv.lower_bound_c_type",
+    "tcrv_rvv.upper_bound_c_type",
+    "tcrv_rvv.bound_order",
+    "tcrv_rvv.clamp_relation",
 )
 CONVERSION_SEW_POLICY_METADATA_KEYS = (
     "tcrv_rvv.config_contract",
@@ -9034,6 +9171,52 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
+    if expectation.is_f32_clamp_select:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.runtime_control_plan": RUNTIME_AVL_VL_CONTROL_PLAN,
+                "tcrv_rvv.compare_predicate_kind": (
+                    F32_CLAMP_SELECT_LOWER_COMPARE_PREDICATE
+                ),
+                "tcrv_rvv.secondary_compare_predicate_kind": (
+                    F32_CLAMP_SELECT_UPPER_COMPARE_PREDICATE
+                ),
+                "tcrv_rvv.computed_mask_select_route_family_plan": (
+                    F32_CLAMP_SELECT_ROUTE_FAMILY_PLAN
+                ),
+                "tcrv_rvv.computed_mask_select_mask_producer_source": (
+                    F32_CLAMP_SELECT_MASK_PRODUCER_SOURCE
+                ),
+                "tcrv_rvv.target_leaf_profile": (
+                    F32_CLAMP_SELECT_TARGET_LEAF_PROFILE
+                ),
+                "tcrv_rvv.provider_supported_mirror": (
+                    F32_CLAMP_SELECT_PROVIDER_SUPPORTED_MIRROR
+                ),
+                "tcrv_rvv.required_header_declarations": (
+                    F32_CLAMP_SELECT_REQUIRED_HEADER_DECLARATIONS
+                ),
+                "tcrv_rvv.c_type_mapping": F32_CLAMP_SELECT_C_TYPE_MAPPING,
+                "tcrv_rvv.source_memory_form": "unit-stride-load",
+                "tcrv_rvv.destination_memory_form": "unit-stride-store",
+                "tcrv_rvv.mask_role": F32_CLAMP_SELECT_MASK_ROLE,
+                "tcrv_rvv.mask_source": F32_CLAMP_SELECT_MASK_SOURCE,
+                "tcrv_rvv.mask_memory_form": F32_CLAMP_SELECT_MASK_MEMORY_FORM,
+                "tcrv_rvv.select_layout": F32_CLAMP_SELECT_SELECT_LAYOUT,
+                "tcrv_rvv.lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+                "tcrv_rvv.upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+                "tcrv_rvv.lower_bound_c_type": "float",
+                "tcrv_rvv.upper_bound_c_type": "float",
+                "tcrv_rvv.bound_order": F32_CLAMP_SELECT_BOUND_ORDER,
+                "tcrv_rvv.clamp_relation": F32_CLAMP_SELECT_CLAMP_RELATION,
+                "tcrv_rvv.route_operand_binding_plan": (
+                    F32_CLAMP_SELECT_ROUTE_OPERAND_BINDING_PLAN
+                ),
+                "tcrv_rvv.route_operand_binding_operands": (
+                    F32_CLAMP_SELECT_ROUTE_OPERAND_BINDING_OPERANDS
+                ),
+            }
+        )
     if (
         expectation.is_widening_macc_add
         or expectation.is_widening_dot_reduce_add
@@ -9591,6 +9774,38 @@ def verify_emitted_rvv_cpp(
             extract_runtime_scalar_dual_cmp_mask_and_select_emitc_boundary(
                 text, expectation
             )
+        )
+        runtime_avl_vl_boundary = compare_select_predicate_boundary[
+            "runtime_avl_vl_control"
+        ]
+    if expectation.is_f32_clamp_select:
+        vector_c_type = F32_CLAMP_SELECT_VECTOR_C_TYPE
+        intrinsics = [
+            F32_CLAMP_SELECT_SETVL_INTRINSIC,
+            F32_CLAMP_SELECT_LOAD_INTRINSIC,
+            F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+            F32_CLAMP_SELECT_COMPARE_INTRINSIC,
+            F32_CLAMP_SELECT_SELECT_INTRINSIC,
+            F32_CLAMP_SELECT_STORE_INTRINSIC,
+        ]
+        require_contains(
+            text,
+            F32_CLAMP_SELECT_VECTOR_C_TYPE,
+            "emitted RVV C/C++ f32 clamp/select vector C type",
+        )
+        require_contains(
+            text,
+            F32_CLAMP_SELECT_MASK_C_TYPE,
+            "emitted RVV C/C++ f32 clamp/select mask C type",
+        )
+        for intrinsic in intrinsics:
+            require_contains(
+                text,
+                intrinsic,
+                "emitted RVV C/C++ f32 clamp/select intrinsic spelling",
+            )
+        compare_select_predicate_boundary = (
+            extract_f32_clamp_select_emitc_boundary(text, expectation)
         )
         runtime_avl_vl_boundary = compare_select_predicate_boundary[
             "runtime_avl_vl_control"
@@ -11711,6 +11926,174 @@ def extract_plain_cmp_select_emitc_boundary(
     }
 
 
+def extract_f32_clamp_select_emitc_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    const_float_ptr_type = r"(?:const\s+float|float\s+const)\s*\*"
+    float_ptr_type = r"float\s*\*"
+    signature = require_regex(
+        text,
+        rf"extern \"C\" void {re.escape(expectation.function_name)}"
+        rf"\({const_float_ptr_type}\s*(?P<input>v[0-9]+), "
+        rf"float (?P<lower_bound>v[0-9]+), "
+        rf"float (?P<upper_bound>v[0-9]+), "
+        rf"{float_ptr_type}\s*(?P<out>v[0-9]+), "
+        r"size_t (?P<runtime_n>v[0-9]+)\) \{",
+        "emitted RVV C/C++ f32 clamp/select ABI parameters",
+    )
+    input_param = signature.group("input")
+    lower_bound = signature.group("lower_bound")
+    upper_bound = signature.group("upper_bound")
+    out = signature.group("out")
+    runtime_n = signature.group("runtime_n")
+    setvl_intrinsic = re.escape(F32_CLAMP_SELECT_SETVL_INTRINSIC)
+    load_intrinsic = re.escape(F32_CLAMP_SELECT_LOAD_INTRINSIC)
+    splat_intrinsic = re.escape(F32_CLAMP_SELECT_SPLAT_INTRINSIC)
+    compare_intrinsic = re.escape(F32_CLAMP_SELECT_COMPARE_INTRINSIC)
+    select_intrinsic = re.escape(F32_CLAMP_SELECT_SELECT_INTRINSIC)
+    store_intrinsic = re.escape(F32_CLAMP_SELECT_STORE_INTRINSIC)
+
+    full_chunk = require_regex(
+        text,
+        rf"size_t (?P<full_chunk_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\({runtime_n}\);",
+        "emitted RVV C/C++ f32 clamp/select full-chunk setvl",
+    )
+    full_chunk_vl = full_chunk.group("full_chunk_vl")
+    loop = require_regex(
+        text,
+        rf"for \(size_t (?P<offset>v[0-9]+) = 0; "
+        rf"(?P=offset) < {runtime_n}; "
+        rf"(?P=offset) \+= {full_chunk_vl}\) \{{",
+        "emitted RVV C/C++ f32 clamp/select runtime loop",
+    )
+    offset = loop.group("offset")
+    remaining = require_regex(
+        text,
+        rf"size_t (?P<remaining_avl>v[0-9]+) = {runtime_n} - {offset};\s*"
+        rf"size_t (?P<loop_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\((?P=remaining_avl)\);",
+        "emitted RVV C/C++ f32 clamp/select remaining AVL setvl",
+    )
+    remaining_avl = remaining.group("remaining_avl")
+    loop_vl = remaining.group("loop_vl")
+
+    input_load = require_regex(
+        text,
+        rf"{const_float_ptr_type}\s*(?P<input_ptr>v[0-9]+) = "
+        rf"{input_param} \+ {offset};\s*"
+        rf"{F32_CLAMP_SELECT_VECTOR_C_TYPE} (?P<input_vec>v[0-9]+) = "
+        rf"{load_intrinsic}\((?P=input_ptr), {loop_vl}\);",
+        "emitted RVV C/C++ f32 clamp/select input load",
+    )
+    input_vec = input_load.group("input_vec")
+    lower_splat = require_regex(
+        text,
+        rf"{F32_CLAMP_SELECT_VECTOR_C_TYPE} (?P<lower_vec>v[0-9]+) = "
+        rf"{splat_intrinsic}\({lower_bound}, {loop_vl}\);",
+        "emitted RVV C/C++ f32 clamp/select lower-bound splat",
+    )
+    lower_vec = lower_splat.group("lower_vec")
+    upper_splat = require_regex(
+        text,
+        rf"{F32_CLAMP_SELECT_VECTOR_C_TYPE} (?P<upper_vec>v[0-9]+) = "
+        rf"{splat_intrinsic}\({upper_bound}, {loop_vl}\);",
+        "emitted RVV C/C++ f32 clamp/select upper-bound splat",
+    )
+    upper_vec = upper_splat.group("upper_vec")
+    lower_compare = require_regex(
+        text,
+        rf"{F32_CLAMP_SELECT_MASK_C_TYPE} (?P<lower_mask>v[0-9]+) = "
+        rf"{compare_intrinsic}\({input_vec}, {lower_vec}, {loop_vl}\);",
+        "emitted RVV C/C++ f32 clamp/select lower compare",
+    )
+    lower_mask = lower_compare.group("lower_mask")
+    lower_select = require_regex(
+        text,
+        rf"{F32_CLAMP_SELECT_VECTOR_C_TYPE} (?P<lower_clamped>v[0-9]+) = "
+        rf"{select_intrinsic}\({input_vec}, {lower_vec}, {lower_mask}, "
+        rf"{loop_vl}\);",
+        "emitted RVV C/C++ f32 clamp/select lower select",
+    )
+    lower_clamped = lower_select.group("lower_clamped")
+    upper_compare = require_regex(
+        text,
+        rf"{F32_CLAMP_SELECT_MASK_C_TYPE} (?P<upper_mask>v[0-9]+) = "
+        rf"{compare_intrinsic}\({upper_vec}, {lower_clamped}, {loop_vl}\);",
+        "emitted RVV C/C++ f32 clamp/select upper compare",
+    )
+    upper_mask = upper_compare.group("upper_mask")
+    upper_select = require_regex(
+        text,
+        rf"{F32_CLAMP_SELECT_VECTOR_C_TYPE} (?P<clamped>v[0-9]+) = "
+        rf"{select_intrinsic}\({lower_clamped}, {upper_vec}, {upper_mask}, "
+        rf"{loop_vl}\);",
+        "emitted RVV C/C++ f32 clamp/select upper select",
+    )
+    clamped = upper_select.group("clamped")
+    store = require_regex(
+        text,
+        rf"{float_ptr_type}\s*(?P<out_ptr>v[0-9]+) = {out} \+ {offset};\s*"
+        rf"{store_intrinsic}\((?P=out_ptr), {clamped}, {loop_vl}\);",
+        "emitted RVV C/C++ f32 clamp/select store",
+    )
+    return {
+        "runtime_avl_vl_control": {
+            "runtime_abi_parameter": runtime_n,
+            "full_chunk_vl": full_chunk_vl,
+            "offset_induction": offset,
+            "remaining_avl": remaining_avl,
+            "loop_vl": loop_vl,
+            "setvl_intrinsic": F32_CLAMP_SELECT_SETVL_INTRINSIC,
+            "full_chunk_setvl": f"{F32_CLAMP_SELECT_SETVL_INTRINSIC}({runtime_n})",
+            "loop_remaining_avl": f"{runtime_n} - {offset}",
+            "loop_setvl": f"{F32_CLAMP_SELECT_SETVL_INTRINSIC}({remaining_avl})",
+            "uses_runtime_remaining_avl": True,
+            "uses_loop_vl_for_intrinsics": True,
+        },
+        "input_abi_parameter": input_param,
+        "lower_bound_abi_parameter": lower_bound,
+        "upper_bound_abi_parameter": upper_bound,
+        "out_abi_parameter": out,
+        "runtime_n_abi_parameter": runtime_n,
+        "input_pointer": input_load.group("input_ptr"),
+        "out_pointer": store.group("out_ptr"),
+        "input_vector": input_vec,
+        "lower_bound_vector": lower_vec,
+        "upper_bound_vector": upper_vec,
+        "lower_predicate_mask": lower_mask,
+        "upper_predicate_mask": upper_mask,
+        "predicate_mask_type": F32_CLAMP_SELECT_MASK_C_TYPE,
+        "lower_clamped_vector": lower_clamped,
+        "selected_result_vector": clamped,
+        "compare_predicate_kind": F32_CLAMP_SELECT_LOWER_COMPARE_PREDICATE,
+        "secondary_compare_predicate_kind": (
+            F32_CLAMP_SELECT_UPPER_COMPARE_PREDICATE
+        ),
+        "compare_intrinsic": F32_CLAMP_SELECT_COMPARE_INTRINSIC,
+        "select_intrinsic": F32_CLAMP_SELECT_SELECT_INTRINSIC,
+        "load_intrinsic": F32_CLAMP_SELECT_LOAD_INTRINSIC,
+        "splat_intrinsic": F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+        "store_intrinsic": F32_CLAMP_SELECT_STORE_INTRINSIC,
+        "select_layout": F32_CLAMP_SELECT_SELECT_LAYOUT,
+        "lower_select_true_vector": lower_vec,
+        "lower_select_false_vector": input_vec,
+        "upper_select_true_vector": upper_vec,
+        "upper_select_false_vector": lower_clamped,
+        "emitted_lower_vmerge_true_operand": lower_vec,
+        "emitted_lower_vmerge_false_operand": input_vec,
+        "emitted_upper_vmerge_true_operand": upper_vec,
+        "emitted_upper_vmerge_false_operand": lower_clamped,
+        "lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+        "upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+        "bound_order": F32_CLAMP_SELECT_BOUND_ORDER,
+        "clamp_relation": F32_CLAMP_SELECT_CLAMP_RELATION,
+        "store_uses_selected_result": True,
+        "compare_uses_loop_vl": True,
+        "select_uses_loop_vl": True,
+    }
+
+
 def extract_computed_mask_select_emitc_boundary(
     text: str, expectation: OpExpectation
 ) -> dict[str, Any]:
@@ -12770,6 +13153,10 @@ def verify_materialized_selected_body(
     if expectation.is_cmp_select:
         compare_select_predicate_boundary = (
             extract_plain_cmp_select_materialized_boundary(text, expectation)
+        )
+    if expectation.is_f32_clamp_select:
+        compare_select_predicate_boundary = (
+            extract_f32_clamp_select_materialized_boundary(text, expectation)
         )
     if expectation.is_computed_mask_select:
         compare_select_predicate_boundary = (
@@ -15476,6 +15863,86 @@ def extract_plain_cmp_select_materialized_boundary(
     }
 
 
+def extract_f32_clamp_select_materialized_boundary(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    require_not_contains(
+        text,
+        "tcrv_rvv.typed_f32_clamp_select_pre_realized_body",
+        "materialized selected-body MLIR f32 clamp/select",
+    )
+    for role in (
+        "lhs-input-buffer",
+        F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+        F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+        "output-buffer",
+        "runtime-element-count",
+    ):
+        require_contains(
+            text,
+            f'role = "{role}"',
+            "materialized selected-body MLIR f32 clamp/select ABI role",
+        )
+    require_contains(
+        text,
+        '!tcrv_rvv.vector<f32, "m1">',
+        "materialized selected-body MLIR f32 clamp/select vector type",
+    )
+    require_contains(
+        text,
+        '!tcrv_rvv.mask<f32, "m1">',
+        "materialized selected-body MLIR f32 clamp/select mask type",
+    )
+    for token, context in (
+        ("tcrv_rvv.load", "input load"),
+        ("tcrv_rvv.splat", "runtime bound splat"),
+        ("tcrv_rvv.compare", "compare"),
+        ("tcrv_rvv.select", "select"),
+        ("tcrv_rvv.store", "store"),
+    ):
+        require_contains(
+            text,
+            token,
+            f"materialized selected-body MLIR f32 clamp/select {context}",
+        )
+    require_contains(
+        text,
+        f'kind = "{F32_CLAMP_SELECT_LOWER_COMPARE_PREDICATE}"',
+        "materialized selected-body MLIR f32 clamp/select predicate",
+    )
+    require_no_op_invocation(
+        text,
+        "tcrv_rvv.mask_load",
+        "materialized selected-body MLIR f32 clamp/select",
+    )
+    require_no_op_invocation(
+        text,
+        "tcrv_rvv.binary",
+        "materialized selected-body MLIR f32 clamp/select",
+    )
+    return {
+        "typed_body_source": "tcrv_rvv.typed_f32_clamp_select_pre_realized_body",
+        "pre_realized_body_consumed": True,
+        "realized_load_op": "tcrv_rvv.load",
+        "realized_bound_splat_op": "tcrv_rvv.splat",
+        "realized_compare_op": "tcrv_rvv.compare",
+        "realized_select_op": "tcrv_rvv.select",
+        "realized_store_op": "tcrv_rvv.store",
+        "compare_predicate_kind": F32_CLAMP_SELECT_LOWER_COMPARE_PREDICATE,
+        "secondary_compare_predicate_kind": (
+            F32_CLAMP_SELECT_UPPER_COMPARE_PREDICATE
+        ),
+        "predicate_type": '!tcrv_rvv.mask<f32, "m1">',
+        "vector_type": '!tcrv_rvv.vector<f32, "m1">',
+        "select_layout": F32_CLAMP_SELECT_SELECT_LAYOUT,
+        "lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+        "upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+        "bound_order": F32_CLAMP_SELECT_BOUND_ORDER,
+        "clamp_relation": F32_CLAMP_SELECT_CLAMP_RELATION,
+        "memory_form": expectation.memory_form,
+    }
+
+
 def extract_computed_mask_select_materialized_boundary(
     text: str, expectation: OpExpectation
 ) -> dict[str, Any]:
@@ -16036,6 +16503,12 @@ def harness_source(
     stride_bytes_values: list[int] | None = None,
     dequant_scale_values: list[float] | None = None,
 ) -> str:
+    def f32_c_literal(value: float) -> str:
+        literal = f"{value:.9g}"
+        if "e" not in literal and "E" not in literal and "." not in literal:
+            literal += ".0"
+        return f"{literal}f"
+
     counts = ", ".join(str(count) for count in runtime_counts)
     scalar_values = list(
         DEFAULT_RHS_SCALAR_VALUES if rhs_scalar_values is None else rhs_scalar_values
@@ -16086,6 +16559,185 @@ def harness_source(
     dequant_values_literal = ", ".join(f"{value:.9g}f" for value in dequant_values)
     dequant_values_summary = ",".join(f"{value:.9g}" for value in dequant_values)
     dequant_tolerance_literal = f"{DEQUANT_FLOAT_ABS_TOLERANCE:.9g}f"
+    f32_clamp_bound_pairs = list(DEFAULT_F32_CLAMP_BOUND_PAIRS)
+    f32_clamp_bound_pairs_literal = ", ".join(
+        f"{{{f32_c_literal(lower)}, {f32_c_literal(upper)}}}"
+        for lower, upper in f32_clamp_bound_pairs
+    )
+    f32_clamp_bound_pairs_summary = ",".join(
+        f"{lower:.9g}:{upper:.9g}" for lower, upper in f32_clamp_bound_pairs
+    )
+    f32_clamp_tolerance_literal = f"{F32_CLAMP_SELECT_ABS_TOLERANCE:.9g}f"
+    if expectation.is_f32_clamp_select:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+struct BoundPair {{
+  float lower_bound;
+  float upper_bound;
+}};
+
+static float init_input(size_t index, int pattern, float lower_bound, float upper_bound) {{
+  if (pattern == 0)
+    return {expectation.lhs_initializer};
+  switch (index % 6) {{
+  case 0:
+    return lower_bound - 3.5f;
+  case 1:
+    return lower_bound;
+  case 2:
+    return lower_bound + 0.25f;
+  case 3:
+    return (lower_bound + upper_bound) * 0.5f;
+  case 4:
+    return upper_bound;
+  default:
+    return upper_bound + 4.0f;
+  }}
+}}
+
+static int run_case(size_t n, int pattern, struct BoundPair bounds) {{
+  /* expected: {expectation.expected_expression} */
+  const float tolerance = {f32_clamp_tolerance_literal};
+  const float lower_bound = bounds.lower_bound;
+  const float upper_bound = bounds.upper_bound;
+  size_t alloc_n = n == 0 ? 1 : n;
+  size_t out_alloc_n = alloc_n + 8;
+  float *input = (float *)malloc(sizeof(float) * alloc_n);
+  float *input_before = (float *)malloc(sizeof(float) * alloc_n);
+  float *out = (float *)malloc(sizeof(float) * out_alloc_n);
+  float *old_out = (float *)malloc(sizeof(float) * out_alloc_n);
+  int status = 0;
+  if (!input || !input_before || !out || !old_out) {{
+    fprintf(stderr,
+            "allocation failed for n=%zu pattern=%d bounds=[%.9g,%.9g]\\n",
+            n, pattern, lower_bound, upper_bound);
+    status = 11;
+    goto cleanup;
+  }}
+  if (!(lower_bound < upper_bound)) {{
+    fprintf(stderr,
+            "{expectation.kind} requires ordered runtime bounds lower<upper; lower=%.9g upper=%.9g\\n",
+            lower_bound, upper_bound);
+    status = 21;
+    goto cleanup;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    input[index] = init_input(index, pattern, lower_bound, upper_bound);
+    input_before[index] = input[index];
+  }}
+  for (size_t index = 0; index < out_alloc_n; ++index) {{
+    out[index] = {F32_CLAMP_SELECT_OUT_SENTINEL};
+    if (pattern == 1)
+      out[index] = -65432.5f + (float)index;
+    old_out[index] = out[index];
+  }}
+
+  {expectation.function_name}(input, lower_bound, upper_bound, out, n);
+
+  size_t below_bound_lanes = 0;
+  size_t inside_bound_lanes = 0;
+  size_t above_bound_lanes = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    float expected = input[index] < lower_bound ? lower_bound : (input[index] > upper_bound ? upper_bound : input[index]);
+    float delta = out[index] - expected;
+    if (delta < 0.0f)
+      delta = -delta;
+    if (input[index] < lower_bound)
+      ++below_bound_lanes;
+    else if (input[index] > upper_bound)
+      ++above_bound_lanes;
+    else
+      ++inside_bound_lanes;
+    if (delta > tolerance) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu pattern=%d bounds=[%.9g,%.9g] index=%zu got=%.9g expected=%.9g delta=%.9g tolerance=%.9g input=%.9g\\n",
+              n, pattern, lower_bound, upper_bound, index, out[index],
+              expected, delta, tolerance, input[index]);
+      status = 12;
+      goto cleanup;
+    }}
+  }}
+  if (pattern == 1 && n > 5 &&
+      (below_bound_lanes == 0 || inside_bound_lanes == 0 ||
+       above_bound_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} clamp coverage missing n=%zu pattern=%d bounds=[%.9g,%.9g] below=%zu inside=%zu above=%zu\\n",
+            n, pattern, lower_bound, upper_bound, below_bound_lanes,
+            inside_bound_lanes, above_bound_lanes);
+    status = 13;
+    goto cleanup;
+  }}
+  for (size_t index = n; index < out_alloc_n; ++index) {{
+    if (out[index] != old_out[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu pattern=%d bounds=[%.9g,%.9g] index=%zu got=%.9g old=%.9g\\n",
+              n, pattern, lower_bound, upper_bound, index, out[index],
+              old_out[index]);
+      status = 14;
+      goto cleanup;
+    }}
+  }}
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    if (input[index] != input_before[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} source buffer mutated n=%zu pattern=%d bounds=[%.9g,%.9g] index=%zu got=%.9g before=%.9g\\n",
+              n, pattern, lower_bound, upper_bound, index, input[index],
+              input_before[index]);
+      status = 15;
+      goto cleanup;
+    }}
+  }}
+
+  printf("{expectation.kind} case n=%zu pattern=%d bounds=[%.9g,%.9g] ok tolerance=%.9g below_bound_lanes=%zu inside_bound_lanes=%zu above_bound_lanes=%zu source_preserved tail_preserved\\n",
+         n, pattern, lower_bound, upper_bound, tolerance, below_bound_lanes,
+         inside_bound_lanes, above_bound_lanes);
+
+cleanup:
+  free(input);
+  free(input_before);
+  free(out);
+  free(old_out);
+  return status;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const struct BoundPair bound_pairs[] = {{{f32_clamp_bound_pairs_literal}}};
+  const size_t bound_pair_count = sizeof(bound_pairs) / sizeof(bound_pairs[0]);
+  if (bound_pair_count < 2) {{
+    fprintf(stderr, "{expectation.kind} requires at least two runtime bound pairs\\n");
+    return 22;
+  }}
+  for (size_t bound_index = 0; bound_index < bound_pair_count; ++bound_index) {{
+    if (!(bound_pairs[bound_index].lower_bound < bound_pairs[bound_index].upper_bound)) {{
+      fprintf(stderr,
+              "{expectation.kind} requires ordered runtime bound pair at index=%zu lower=%.9g upper=%.9g\\n",
+              bound_index, bound_pairs[bound_index].lower_bound,
+              bound_pairs[bound_index].upper_bound);
+      return 23;
+    }}
+  }}
+  for (size_t count_index = 0; count_index < sizeof(counts) / sizeof(counts[0]); ++count_index) {{
+    for (int pattern = 0; pattern < 2; ++pattern) {{
+      for (size_t bound_index = 0; bound_index < bound_pair_count; ++bound_index) {{
+        int status = run_case(counts[count_index], pattern, bound_pairs[bound_index]);
+        if (status != 0)
+          return status;
+      }}
+    }}
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1 bound_pairs={f32_clamp_bound_pairs_summary} tolerance={F32_CLAMP_SELECT_ABS_TOLERANCE:.9g} source_preserved tail_preserved\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1 bound_pairs={f32_clamp_bound_pairs_summary} tolerance={F32_CLAMP_SELECT_ABS_TOLERANCE:.9g}\\n");
+  return 0;
+}}
+""".lstrip()
     if expectation.is_widening_product_reduce_dequantize_f32:
         return f"""
 #include <stddef.h>
@@ -23787,20 +24439,37 @@ def compare_select_predicate_boundary_summary(
         or expectation.is_computed_mask_select
         or expectation.is_runtime_scalar_compare_select
         or expectation.is_runtime_scalar_dual_compare_mask_and_select
+        or expectation.is_f32_clamp_select
     ):
         return {}
-    select_layout = (
-        PLAIN_COMPARE_SELECT_LAYOUT
-        if expectation.is_cmp_select
-        else COMPUTED_MASK_SELECT_LAYOUT
-    )
+    if expectation.is_cmp_select:
+        select_layout = PLAIN_COMPARE_SELECT_LAYOUT
+    elif expectation.is_f32_clamp_select:
+        select_layout = F32_CLAMP_SELECT_SELECT_LAYOUT
+    else:
+        select_layout = COMPUTED_MASK_SELECT_LAYOUT
     predicate_source = COMPUTED_MASK_MEMORY_MASK_SOURCE
     predicate_role = COMPUTED_MASK_MEMORY_MASK_ROLE
     predicate_memory_form = COMPUTED_MASK_MEMORY_MASK_FORM
+    if expectation.is_f32_clamp_select:
+        predicate_source = F32_CLAMP_SELECT_MASK_SOURCE
+        predicate_role = F32_CLAMP_SELECT_MASK_ROLE
+        predicate_memory_form = F32_CLAMP_SELECT_MASK_MEMORY_FORM
     if expectation.is_cmp_select:
         selected_value_operands = {
             "true_value": "lhs",
             "false_value": "rhs",
+            "output": "out",
+        }
+    elif expectation.is_f32_clamp_select:
+        selected_value_operands = {
+            "input": "input",
+            "lower_bound_scalar": "lower_bound",
+            "upper_bound_scalar": "upper_bound",
+            "lower_select_true_value": "lower_bound",
+            "lower_select_false_value": "input",
+            "upper_select_true_value": "upper_bound",
+            "upper_select_false_value": "lower_clamped",
             "output": "out",
         }
     elif expectation.is_runtime_scalar_compare_select:
@@ -23905,6 +24574,77 @@ def compare_select_predicate_boundary_summary(
                     "alternate-signed-mixed-vector-compare",
                 ],
                 "compare_data_patterns_required_minimum": 2,
+            }
+        )
+    if expectation.is_f32_clamp_select:
+        summary.update(
+            {
+                "source": (
+                    "selected tcrv.exec RVV variant -> typed f32 "
+                    "clamp/select body/config/runtime-bound facts -> RVV "
+                    "plugin-local realization -> lower/upper compare-select "
+                    "route-family facts -> operand-binding facts -> statement "
+                    "plan -> emitted f32 clamp/select intrinsics"
+                ),
+                "authority": (
+                    "provider-derived typed tcrv_rvv f32 clamp/select "
+                    "body/config/runtime-bound facts"
+                ),
+                "runtime_bound_roles": {
+                    "lower_bound": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+                    "upper_bound": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+                },
+                "runtime_bound_pairs_required_minimum": 2,
+                "runtime_bound_pairs": [
+                    {"lower_bound": lower, "upper_bound": upper}
+                    for lower, upper in DEFAULT_F32_CLAMP_BOUND_PAIRS
+                ],
+                "runtime_bound_pairs_are_execution_cases_not_bound_authority": True,
+                "f32_abs_tolerance": F32_CLAMP_SELECT_ABS_TOLERANCE,
+                "bound_order": F32_CLAMP_SELECT_BOUND_ORDER,
+                "clamp_relation": F32_CLAMP_SELECT_CLAMP_RELATION,
+                "selected_source_abi": {
+                    "input": "lhs-input-buffer",
+                    "lower_bound": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+                    "upper_bound": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+                    "out": "output-buffer",
+                    "n": "runtime-element-count",
+                },
+                "statement_plan": {
+                    "family": "f32 runtime-bound clamp/select",
+                    "pre_loop_callees": [F32_CLAMP_SELECT_SETVL_INTRINSIC],
+                    "loop_callees": [
+                        F32_CLAMP_SELECT_SETVL_INTRINSIC,
+                        F32_CLAMP_SELECT_LOAD_INTRINSIC,
+                        F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+                        F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+                        F32_CLAMP_SELECT_COMPARE_INTRINSIC,
+                        F32_CLAMP_SELECT_SELECT_INTRINSIC,
+                        F32_CLAMP_SELECT_COMPARE_INTRINSIC,
+                        F32_CLAMP_SELECT_SELECT_INTRINSIC,
+                        F32_CLAMP_SELECT_STORE_INTRINSIC,
+                    ],
+                    "lower_compare_operand_order": "input,lower_bound_splat,vl",
+                    "lower_select_operand_order": (
+                        "lower_mask,lower_bound,input,vl"
+                    ),
+                    "upper_compare_operand_order": (
+                        "upper_bound_splat,lower_clamped,vl"
+                    ),
+                    "upper_select_operand_order": (
+                        "upper_mask,upper_bound,lower_clamped,vl"
+                    ),
+                    "store_operand_order": "out,clamped,vl",
+                },
+                "source_type_policy": {
+                    "element_type": "f32",
+                    "element_c_type": "float",
+                    "sew": "32",
+                    "lmul": "m1",
+                    "vector_type": '!tcrv_rvv.vector<f32, "m1">',
+                    "vector_c_type": F32_CLAMP_SELECT_VECTOR_C_TYPE,
+                    "mask_c_type": F32_CLAMP_SELECT_MASK_C_TYPE,
+                },
             }
         )
     return summary
@@ -26042,6 +26782,19 @@ def run_one_op_e2e(
             "f32_abs_tolerance": DEQUANT_FLOAT_ABS_TOLERANCE,
             "scale_values_are_runtime_cases_not_dequant_authority": True,
         }
+    if expectation.is_f32_clamp_select:
+        evidence["f32_clamp_bound_pairs"] = [
+            {"lower_bound": lower, "upper_bound": upper}
+            for lower, upper in DEFAULT_F32_CLAMP_BOUND_PAIRS
+        ]
+        evidence["f32_abs_tolerance"] = F32_CLAMP_SELECT_ABS_TOLERANCE
+        evidence["f32_clamp_contract"] = {
+            "minimum_bound_pair_cases": 2,
+            "ordered_bounds": True,
+            "runtime_bound_pairs_are_execution_cases_not_bound_authority": True,
+            "source_preservation_required": True,
+            "tail_sentinel_preservation_required": True,
+        }
 
     try:
         if expectation.is_pre_realized:
@@ -26134,6 +26887,7 @@ def run_one_op_e2e(
             or expectation.is_computed_mask_select
             or expectation.is_runtime_scalar_compare_select
             or expectation.is_runtime_scalar_dual_compare_mask_and_select
+            or expectation.is_f32_clamp_select
         ):
             evidence["compare_select_predicate_boundary"] = (
                 compare_select_predicate_boundary_summary(
@@ -26378,6 +27132,25 @@ def run_one_op_e2e(
             evidence["harness"]["source_pattern_contract"] = (
                 "two signed i32 source patterns execute for every runtime "
                 "count and scale value while preserving source buffers"
+            )
+            evidence["harness"]["tail_lane_contract"] = (
+                "output lanes beyond runtime n preserve their f32 sentinels"
+            )
+        if expectation.is_f32_clamp_select:
+            evidence["harness"]["f32_clamp_bound_pairs"] = [
+                {"lower_bound": lower, "upper_bound": upper}
+                for lower, upper in DEFAULT_F32_CLAMP_BOUND_PAIRS
+            ]
+            evidence["harness"][
+                "f32_abs_tolerance"
+            ] = F32_CLAMP_SELECT_ABS_TOLERANCE
+            evidence["harness"]["select_coverage_contract"] = (
+                "f32 clamp/select cases execute below-bound, in-bound, and "
+                "above-bound input lanes for every ordered runtime bound pair"
+            )
+            evidence["harness"]["source_pattern_contract"] = (
+                "fixture-derived and bound-relative f32 source patterns run "
+                "through the same generated external ABI"
             )
             evidence["harness"]["tail_lane_contract"] = (
                 "output lanes beyond runtime n preserve their f32 sentinels"
@@ -26975,6 +27748,18 @@ def root_op_result_summary(
                 "source_preservation_required": True,
             }
         )
+    if expectation.is_f32_clamp_select:
+        summary["correctness_oracle"].update(
+            {
+                "f32_clamp_bound_pairs": result.get(
+                    "f32_clamp_bound_pairs", []
+                ),
+                "f32_abs_tolerance": F32_CLAMP_SELECT_ABS_TOLERANCE,
+                "output_tail_sentinel": F32_CLAMP_SELECT_OUT_SENTINEL,
+                "source_preservation_required": True,
+                "tail_sentinel_preservation_required": True,
+            }
+        )
     remote = result.get("remote")
     if remote:
         commands = remote.get("commands", {})
@@ -27065,6 +27850,9 @@ def run_e2e(args: argparse.Namespace) -> int:
         has_dequant_scale_operand = any(
             expectation.uses_runtime_dequant_scale for expectation in expectations
         )
+        has_f32_clamp_select = any(
+            expectation.is_f32_clamp_select for expectation in expectations
+        )
         if args.rhs_scalar and not has_runtime_scalar_operand:
             raise EvidenceError(
                 "--rhs-scalar may only be used when an op kind includes "
@@ -27132,6 +27920,19 @@ def run_e2e(args: argparse.Namespace) -> int:
                 "finite": True,
                 "nonzero": True,
                 "scale_values_are_runtime_cases_not_dequant_authority": True,
+            }
+        if has_f32_clamp_select:
+            evidence["f32_clamp_bound_pairs"] = [
+                {"lower_bound": lower, "upper_bound": upper}
+                for lower, upper in DEFAULT_F32_CLAMP_BOUND_PAIRS
+            ]
+            evidence["f32_clamp_float_abs_tolerance"] = (
+                F32_CLAMP_SELECT_ABS_TOLERANCE
+            )
+            evidence["f32_clamp_contract"] = {
+                "minimum_bound_pair_cases": 2,
+                "ordered_bounds": True,
+                "bound_pairs_are_runtime_cases_not_bound_authority": True,
             }
         evidence["op_kinds"] = [expectation.kind for expectation in expectations]
         tcrv_opt = ensure_tool(args.tcrv_opt)
@@ -27558,6 +28359,29 @@ def run_self_test() -> int:
                 "self-test direct route-entry diagnostic lost selected "
                 "product-dequant fail-closed detail"
             )
+        direct_f32_clamp_select_error = expect_self_test_failure(
+            "unsupported direct pre-realized f32 clamp/select route entry",
+            lambda: selected_expectations(
+                argparse.Namespace(
+                    op_kind=["f32_clamp_select"],
+                    input=None,
+                    source_seed=False,
+                    pre_realized_selected_body=True,
+                    rhs_broadcast_selected_body=False,
+                    lmul_m2_selected_body=False,
+                    direct_pre_realized_route_entry=True,
+                )
+            ),
+        )
+        if (
+            "f32_clamp_select" not in direct_f32_clamp_select_error
+            or "the direct route-entry shortcut is retired"
+            not in direct_f32_clamp_select_error
+        ):
+            raise AssertionError(
+                "self-test direct route-entry diagnostic lost selected f32 "
+                "clamp/select fail-closed detail"
+            )
         direct_standalone_reduction_error = expect_self_test_failure(
             "unsupported direct pre-realized standalone reduction route entry",
             lambda: selected_expectations(
@@ -27781,6 +28605,77 @@ def run_self_test() -> int:
                     raise AssertionError(
                         "self-test fake bundle generation lost dequantization "
                         "provider-backed scale, conversion, or statement facts"
+                    )
+            if expectation.is_f32_clamp_select:
+                f32_clamp_metadata = compare_select_predicate_metadata_from_bundle(
+                    bundle_checks, expectation
+                )
+                f32_clamp_boundary = compare_select_predicate_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks={},
+                    emitted_cpp_checks={},
+                    bundle_checks=bundle_checks,
+                    runtime_counts=[0, 1, 16, 17, 257],
+                )
+                selected_source_abi = f32_clamp_boundary.get(
+                    "selected_source_abi", {}
+                )
+                statement_plan = f32_clamp_boundary.get("statement_plan", {})
+                runtime_bound_roles = f32_clamp_boundary.get(
+                    "runtime_bound_roles", {}
+                )
+                if (
+                    f32_clamp_metadata.get("tcrv_rvv.lower_bound_role")
+                    != F32_CLAMP_SELECT_LOWER_BOUND_ROLE
+                    or f32_clamp_metadata.get("tcrv_rvv.upper_bound_role")
+                    != F32_CLAMP_SELECT_UPPER_BOUND_ROLE
+                    or f32_clamp_metadata.get("tcrv_rvv.bound_order")
+                    != F32_CLAMP_SELECT_BOUND_ORDER
+                    or f32_clamp_metadata.get("tcrv_rvv.clamp_relation")
+                    != F32_CLAMP_SELECT_CLAMP_RELATION
+                    or f32_clamp_metadata.get(
+                        "tcrv_rvv.route_operand_binding_plan"
+                    )
+                    != F32_CLAMP_SELECT_ROUTE_OPERAND_BINDING_PLAN
+                    or f32_clamp_metadata.get(
+                        "tcrv_rvv.route_operand_binding_operands"
+                    )
+                    != F32_CLAMP_SELECT_ROUTE_OPERAND_BINDING_OPERANDS
+                    or f32_clamp_metadata.get("tcrv_rvv.target_leaf_profile")
+                    != F32_CLAMP_SELECT_TARGET_LEAF_PROFILE
+                    or runtime_bound_roles.get("lower_bound")
+                    != F32_CLAMP_SELECT_LOWER_BOUND_ROLE
+                    or runtime_bound_roles.get("upper_bound")
+                    != F32_CLAMP_SELECT_UPPER_BOUND_ROLE
+                    or selected_source_abi.get("input") != "lhs-input-buffer"
+                    or selected_source_abi.get("lower_bound")
+                    != F32_CLAMP_SELECT_LOWER_BOUND_ROLE
+                    or selected_source_abi.get("upper_bound")
+                    != F32_CLAMP_SELECT_UPPER_BOUND_ROLE
+                    or selected_source_abi.get("out") != "output-buffer"
+                    or selected_source_abi.get("n") != "runtime-element-count"
+                    or statement_plan.get("lower_compare_operand_order")
+                    != "input,lower_bound_splat,vl"
+                    or statement_plan.get("upper_compare_operand_order")
+                    != "upper_bound_splat,lower_clamped,vl"
+                    or F32_CLAMP_SELECT_STORE_INTRINSIC
+                    not in statement_plan.get("loop_callees", [])
+                    or f32_clamp_boundary.get("runtime_bound_pairs")
+                    != [
+                        {"lower_bound": lower, "upper_bound": upper}
+                        for lower, upper in DEFAULT_F32_CLAMP_BOUND_PAIRS
+                    ]
+                    or f32_clamp_boundary.get("f32_abs_tolerance")
+                    != F32_CLAMP_SELECT_ABS_TOLERANCE
+                    or f32_clamp_boundary.get(
+                        "runtime_bound_pairs_are_execution_cases_not_bound_authority"
+                    )
+                    is not True
+                ):
+                    raise AssertionError(
+                        "self-test fake bundle generation lost f32 "
+                        "clamp/select provider-backed bound, ABI, or "
+                        "statement facts"
                     )
             if expectation.is_macc_add:
                 macc_metadata = multiply_accumulate_metadata_from_bundle(
@@ -28307,6 +29202,24 @@ def run_self_test() -> int:
                     "self-test harness generation lost product-reduction "
                     "dequant signed i8, scale/tolerance, accumulator/source, "
                     "or tail coverage"
+                )
+            if expectation.is_f32_clamp_select and (
+                "struct BoundPair" not in harness
+                or "bound_pairs" not in harness
+                or "lower_bound" not in harness
+                or "upper_bound" not in harness
+                or "float expected = input[index] < lower_bound ? lower_bound :"
+                not in harness
+                or "below_bound_lanes" not in harness
+                or "inside_bound_lanes" not in harness
+                or "above_bound_lanes" not in harness
+                or "source_preserved tail_preserved" not in harness
+                or F32_CLAMP_SELECT_OUT_SENTINEL not in harness
+                or f"{F32_CLAMP_SELECT_ABS_TOLERANCE:.9g}" not in harness
+            ):
+                raise AssertionError(
+                    "self-test harness generation lost f32 clamp/select "
+                    "bound-pair, tolerance, source, tail, or lane coverage"
                 )
             if expectation.is_reduce_add and (
                 "-((int32_t)(index % 29) + 1)" not in harness
@@ -29052,6 +29965,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "lmul_m2_add/widen_i32_to_i64/widen_i16_to_i32/"
             "widening_macc_add/widening_dot_reduce_add/"
             "widening_product_reduce_dequantize_f32/"
+            "f32_clamp_select/"
             "strided_input_widening_dot_reduce_add/"
             "computed_masked_widening_dot_reduce_add/"
             "computed_masked_strided_input_widening_dot_reduce_add "

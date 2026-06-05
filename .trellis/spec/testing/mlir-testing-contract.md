@@ -96,6 +96,95 @@ FileCheck and script self-tests must check that pattern loop shape, so a
 single-count call such as `run_case(counts[index])` cannot pass local dry-run
 while failing real `ssh rvv` compilation.
 
+## F32 Clamp/Select Generated-Bundle Evidence
+
+### 1. Scope / Trigger
+
+Use this contract when generated-bundle evidence claims executable correctness
+for the selected pre-realized RVV f32 clamp/select route.
+
+### 2. Signatures
+
+The bounded command shape is:
+
+```bash
+python3 scripts/rvv_generated_bundle_abi_e2e.py \
+  --pre-realized-selected-body \
+  --op-kind f32_clamp_select
+```
+
+The generated external ABI must remain:
+
+```c
+void tcrv_emitc_pre_realized_f32_clamp_select_kernel_pre_realized_rvv_f32_clamp_select(
+    const float *input, float lower_bound, float upper_bound,
+    float *out, size_t n);
+```
+
+### 3. Contracts
+
+- Authority is the selected typed f32 `tcrv_rvv` body/config/runtime-bound
+  facts, not route ids, artifact names, ABI strings, metadata mirrors, or
+  harness constants.
+- Materialized IR must prove the pre-realized body was consumed before
+  emission and realized into `setvl`, input `load`, lower/upper `splat`,
+  lower/upper `compare`, lower/upper `select`, and `store`.
+- Evidence JSON must expose the lower/upper bound ABI roles, ordered bound
+  relation, provider mirror, route operand binding, emitted C++ boundary, and
+  runtime AVL/VL boundary.
+- Runtime bound pairs and counts are execution cases only; they must not define
+  dtype, SEW, LMUL, policy, bound semantics, or route support.
+
+### 4. Validation & Error Matrix
+
+- Missing lower/upper runtime ABI roles -> evidence failure.
+- Missing pre-realized-body consumption -> evidence failure.
+- Generated C/C++ omits either bound splat, compare, select, or runtime VL
+  operand -> evidence failure.
+- Object/header metadata disagree on bound roles, bound order, provider mirror,
+  or route operand binding -> evidence failure.
+- `ssh rvv` compile/run failure -> report blocked evidence and do not claim
+  executable correctness.
+
+### 5. Good/Base/Bad Cases
+
+- Good: selected f32 body/config/runtime-bound facts -> RVV plugin-local
+  realization -> provider-built clamp/select route -> common EmitC -> generated
+  artifact -> harness compares against a host clamp oracle.
+- Base: dry-run evidence proves materialization, route/export metadata, emitted
+  C++ shape, and harness source without claiming runtime correctness.
+- Bad: harness chooses semantics from `f32_clamp_select` as a string or accepts
+  metadata/header success without running the generated object on `ssh rvv`.
+
+### 6. Tests Required
+
+- Script self-test must cover fake-bundle bound metadata and generated harness
+  source checks.
+- Dry-run evidence must generate the bundle and harness before remote
+  execution.
+- Runtime evidence must run on `ssh rvv` with multiple counts, at least two
+  ordered nontrivial bound pairs, below/in/above-bound source patterns, explicit
+  f32 tolerance, source preservation, and output tail sentinel preservation.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+artifact/header says f32_clamp_select
+  -> claim clamp/select executable support
+```
+
+Correct:
+
+```text
+selected typed f32 clamp/select body
+  -> RVV realization before emission
+  -> provider-built route and common EmitC
+  -> generated bundle dry-run
+  -> ssh rvv harness with host/reference tolerance and source/tail checks
+```
+
 ## Mask/Tail Policy Generated-Bundle Evidence
 
 ### 1. Scope / Trigger

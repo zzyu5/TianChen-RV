@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV-first stage order, route authority, and ssh rvv evidence invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, typed tcrv_rvv authority, compare/select provider boundary, and fail-closed constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract, common EmitC neutrality, runtime ABI binding summaries, and target artifact mirror rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle dry-run, selected-boundary realization, runtime ssh rvv evidence, and sentinel/tolerance testing requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-stage2-rvv-f32-clamp-select-route-foundation/prd.md", "reason": "Previous module scope and acceptance criteria for the route-supported f32 clamp/select foundation."}
+{"file": ".trellis/tasks/06-05-stage2-rvv-f32-clamp-select-executable-abi-closure/prd.md", "reason": "Current executable-closure goal, requirements, acceptance criteria, and non-goals."}
