@@ -75,6 +75,12 @@ mlir::Type getGenericVectorType(mlir::OpBuilder &builder, std::int64_t sew,
   return tcrv::rvv::VectorType::get(builder.getContext(), elementType, lmul);
 }
 
+mlir::Type getGenericF32VectorType(mlir::OpBuilder &builder,
+                                   llvm::StringRef lmul) {
+  return tcrv::rvv::VectorType::get(builder.getContext(),
+                                    builder.getF32Type(), lmul);
+}
+
 mlir::Type getStage1GenericMaskType(mlir::OpBuilder &builder) {
   return tcrv::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
                                   tcrv::rvv::getRVVLMULM1());
@@ -191,6 +197,48 @@ createRealizedGenericMaskedWideningDotReduceCompute(
   return builder.create(state);
 }
 
+mlir::Operation *createRealizedGenericWideningProductCompute(
+    mlir::OpBuilder &builder, mlir::Location loc, llvm::StringRef opKind,
+    llvm::StringRef productRelation, mlir::Value lhs, mlir::Value rhs,
+    mlir::Value vl, std::int64_t productSEW, llvm::StringRef productLMUL) {
+  mlir::OperationState state(loc, "tcrv_rvv.widening_product");
+  state.addOperands({lhs, rhs, vl});
+  state.addAttribute("kind", builder.getStringAttr(opKind));
+  state.addAttribute("product_relation",
+                     builder.getStringAttr(productRelation));
+  state.addTypes(getGenericVectorType(builder, productSEW, productLMUL));
+  return builder.create(state);
+}
+
+mlir::Operation *createRealizedGenericStandaloneWideningReduceCompute(
+    mlir::OpBuilder &builder, mlir::Location loc,
+    llvm::StringRef accumulatorLayout, llvm::StringRef resultLayout,
+    mlir::Value input, mlir::Value accumulatorSeed, mlir::Value vl,
+    std::int64_t resultSEW, llvm::StringRef resultLMUL) {
+  mlir::OperationState state(loc, "tcrv_rvv.standalone_reduce");
+  state.addOperands({input, accumulatorSeed, vl});
+  state.addAttribute("kind",
+                     builder.getStringAttr("signed_widening_reduce_add"));
+  state.addAttribute("accumulator_layout",
+                     builder.getStringAttr(accumulatorLayout));
+  state.addAttribute("result_layout", builder.getStringAttr(resultLayout));
+  state.addTypes(getGenericVectorType(builder, resultSEW, resultLMUL));
+  return builder.create(state);
+}
+
+mlir::Operation *createRealizedGenericDequantizeCompute(
+    mlir::OpBuilder &builder, mlir::Location loc,
+    llvm::StringRef dequantizationRelation, mlir::Value source,
+    mlir::Value scale, mlir::Value vl, llvm::StringRef resultLMUL) {
+  mlir::OperationState state(loc, "tcrv_rvv.dequantize");
+  state.addOperands({source, scale, vl});
+  state.addAttribute("kind", builder.getStringAttr("i32_to_f32_scaled"));
+  state.addAttribute("dequant_relation",
+                     builder.getStringAttr(dequantizationRelation));
+  state.addTypes(getGenericF32VectorType(builder, resultLMUL));
+  return builder.create(state);
+}
+
 void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
                                 mlir::Value out, mlir::Value value,
                                 mlir::Value vl) {
@@ -204,13 +252,20 @@ struct RVVSelectedBodyContractionRealizationPlan {
 
   bool usesWideningMAcc = false;
   bool usesDotReduction = false;
+  bool usesProductReductionDequantization = false;
   bool usesComputedMask = false;
   bool usesStridedInputs = false;
 
   llvm::StringRef opKind;
+  llvm::StringRef productKind;
   llvm::StringRef accumulatorLayout;
   llvm::StringRef resultLayout;
   llvm::StringRef contractionRelation;
+  llvm::StringRef productRelation;
+  llvm::StringRef productReductionChainRelation;
+  llvm::StringRef dequantizationRelation;
+  llvm::StringRef scaleRole;
+  llvm::StringRef dequantStoreBoundary;
   llvm::StringRef predicateKind;
   llvm::StringRef maskRole;
   llvm::StringRef maskSource;
@@ -218,6 +273,8 @@ struct RVVSelectedBodyContractionRealizationPlan {
 
   std::int64_t sourceSEW = 0;
   llvm::StringRef sourceLMUL;
+  std::int64_t productSEW = 0;
+  llvm::StringRef productLMUL;
   std::int64_t resultSEW = 0;
   llvm::StringRef resultLMUL;
   tcrv::rvv::PolicyAttr policy;
@@ -227,6 +284,7 @@ struct RVVSelectedBodyContractionRealizationPlan {
   mlir::Value lhs;
   mlir::Value rhs;
   mlir::Value acc;
+  mlir::Value scale;
   mlir::Value out;
   mlir::Value n;
   mlir::Value lhsStride;
@@ -365,6 +423,38 @@ makeContractionRealizationPlan(
   return plan;
 }
 
+RVVSelectedBodyContractionRealizationPlan
+makeContractionRealizationPlan(
+    tcrv::rvv::TypedWideningProductReduceDequantizePreRealizedBodyOp body) {
+  RVVSelectedBodyContractionRealizationPlan plan;
+  plan.preRealizedBody = body.getOperation();
+  plan.usesProductReductionDequantization = true;
+  plan.opKind = body.getOpKind();
+  plan.productKind = "signed_widening_product";
+  plan.accumulatorLayout = body.getAccumulatorLayout();
+  plan.resultLayout = body.getResultLayout();
+  plan.contractionRelation = body.getProductReductionChainRelation();
+  plan.productRelation = body.getProductRelation();
+  plan.productReductionChainRelation = body.getProductReductionChainRelation();
+  plan.dequantizationRelation = body.getDequantRelation();
+  plan.scaleRole = body.getScaleRole();
+  plan.dequantStoreBoundary = body.getDequantStoreBoundary();
+  plan.sourceSEW = static_cast<std::int64_t>(body.getSourceSew());
+  plan.sourceLMUL = body.getSourceLmul();
+  plan.productSEW = static_cast<std::int64_t>(body.getProductSew());
+  plan.productLMUL = body.getProductLmul();
+  plan.resultSEW = static_cast<std::int64_t>(body.getResultSew());
+  plan.resultLMUL = body.getResultLmul();
+  plan.policy = body.getPolicy();
+  plan.lhs = body.getLhs();
+  plan.rhs = body.getRhs();
+  plan.acc = body.getAcc();
+  plan.scale = body.getScale();
+  plan.out = body.getOut();
+  plan.n = body.getN();
+  return plan;
+}
+
 llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVSelectedContractionFamily(
     const VariantLoweringBoundaryRequest &request, mlir::ArrayAttr requires,
@@ -373,10 +463,22 @@ realizePreRealizedRVVSelectedContractionFamily(
     return makeRVVPluginError(
         "pre-realized RVV contraction selected-body realization requires a "
         "contraction family pre-realized body op");
-  if (!plan.usesWideningMAcc && !plan.usesDotReduction)
+  if (!plan.usesWideningMAcc && !plan.usesDotReduction &&
+      !plan.usesProductReductionDequantization)
     return makeRVVPluginError(
         "pre-realized RVV contraction selected-body realization requires a "
-        "widening macc or widening dot reduction family operation");
+        "widening macc, widening dot reduction, or product-reduction "
+        "dequantization family operation");
+  if (plan.usesProductReductionDequantization &&
+      (!plan.scale || plan.productRelation.empty() ||
+       plan.productReductionChainRelation.empty() ||
+       plan.dequantizationRelation.empty() || plan.scaleRole.empty() ||
+       plan.dequantStoreBoundary.empty()))
+    return makeRVVPluginError(
+        "pre-realized RVV contraction selected-body realization requires "
+        "runtime scale, product relation, reduction relation, "
+        "dequantization relation, scale role, and f32 store boundary for "
+        "product-reduction-dequantization routes");
   if (plan.usesStridedInputs && (!plan.lhsStride || !plan.rhsStride))
     return makeRVVPluginError(
         "pre-realized RVV contraction selected-body realization requires lhs "
@@ -444,7 +546,23 @@ realizePreRealizedRVVSelectedContractionFamily(
     compareMask = compare.getMask();
   }
 
-  if (plan.usesWideningMAcc) {
+  if (plan.usesProductReductionDequantization) {
+    auto product = llvm::cast<tcrv::rvv::WideningProductOp>(
+        createRealizedGenericWideningProductCompute(
+            builder, loc, plan.productKind, plan.productRelation, lhsValue,
+            rhsValue, setvl.getVl(), plan.productSEW, plan.productLMUL));
+    auto reduced = llvm::cast<tcrv::rvv::StandaloneReduceOp>(
+        createRealizedGenericStandaloneWideningReduceCompute(
+            builder, loc, plan.accumulatorLayout, plan.resultLayout,
+            product.getResult(), plan.acc, setvl.getVl(), plan.resultSEW,
+            plan.resultLMUL));
+    auto dequantized = llvm::cast<tcrv::rvv::DequantizeOp>(
+        createRealizedGenericDequantizeCompute(
+            builder, loc, plan.dequantizationRelation, reduced.getResult(),
+            plan.scale, setvl.getVl(), plan.resultLMUL));
+    createRealizedGenericStore(builder, loc, plan.out,
+                               dequantized.getResult(), setvl.getVl());
+  } else if (plan.usesWideningMAcc) {
     auto accumulatorLoad =
         llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
             builder, loc, plan.acc, setvl.getVl(), plan.resultSEW,
@@ -493,7 +611,8 @@ bool isPreRealizedRVVContractionClusterOp(mlir::Operation *op) {
       tcrv::rvv::TypedStridedInputWideningDotReducePreRealizedBodyOp,
       tcrv::rvv::TypedComputedMaskWideningDotReducePreRealizedBodyOp,
       tcrv::rvv::
-          TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp>(op);
+          TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp,
+      tcrv::rvv::TypedWideningProductReduceDequantizePreRealizedBodyOp>(op);
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
@@ -571,6 +690,19 @@ llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
     return realizePreRealizedRVVSelectedContractionFamily(
         request, requires,
         makeContractionRealizationPlan(maskedStridedDotReduceBody));
+  }
+
+  if (auto productReduceDequantBody =
+          llvm::dyn_cast<tcrv::rvv::
+                             TypedWideningProductReduceDequantizePreRealizedBodyOp>(
+              bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
+                request, productReduceDequantBody))
+      return std::move(error);
+    return realizePreRealizedRVVSelectedContractionFamily(
+        request, requires,
+        makeContractionRealizationPlan(productReduceDequantBody));
   }
 
   return makeRVVPluginError(

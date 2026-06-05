@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Project spec index and pre-development routing for RVV realization work."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed body authority, realization boundary, and fail-closed rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route neutrality and plugin-owned route planning boundary."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected variant and selected-body realization context."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-06-05-stage2-rvv-contraction-dequant-executable-abi-closure/prd.md", "reason": "Prior completed contraction-dequant executable route scope and evidence closure."}

@@ -1297,6 +1297,63 @@ def TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedWideningProductReduceDequantizePreRealizedBodyOp
+    : TCRVRVV_Op<"typed_widening_product_reduce_dequantize_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV widening product reduction dequantization body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body for the
+    signed low-precision contraction-to-f32 chain. The op is nested directly
+    in a selected tcrv.exec.variant and binds explicit runtime ABI values for
+    signed i8 lhs/rhs inputs, an i32 accumulator seed/carry boundary, a
+    runtime f32 scale, f32 output, and runtime n/AVL. It also carries source,
+    product, accumulator, and f32 result SEW+LMUL facts, product/reduction/
+    dequantization relations, memory form, scale role, accumulator layouts,
+    store boundary, and policy.
+
+    This op is not a q8/q4 route, matmul framework, dtype-prefixed helper
+    namespace, descriptor, source-front-door marker, direct-C exporter, route
+    id, intrinsic wrapper, runtime artifact, correctness evidence, or
+    performance evidence. The RVV plugin must realize it into explicit
+    setvl/with_vl/load/load/widening_product/standalone_reduce/dequantize/
+    store tcrv_rvv body structure before the provider may construct a
+    TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$acc,
+    AnyType:$scale,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    StrAttr:$accumulator_role,
+    StrAttr:$accumulator_layout,
+    StrAttr:$result_layout,
+    StrAttr:$accumulator_carry_boundary,
+    I64Attr:$source_sew,
+    StrAttr:$source_lmul,
+    I64Attr:$product_sew,
+    StrAttr:$product_lmul,
+    I64Attr:$accumulator_sew,
+    StrAttr:$accumulator_lmul,
+    I64Attr:$result_sew,
+    StrAttr:$result_lmul,
+    StrAttr:$product_relation,
+    StrAttr:$product_reduction_chain_relation,
+    StrAttr:$dequant_relation,
+    StrAttr:$scale_role,
+    StrAttr:$dequant_store_boundary,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $acc `,` $scale `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedWideningConversionPreRealizedBodyOp
     : TCRVRVV_Op<"typed_widening_conversion_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV widening conversion body";

@@ -103,6 +103,9 @@ constexpr llvm::StringLiteral kRVVPreRealizedWideningMAccOpKind(
     "signed_widening_macc_add");
 constexpr llvm::StringLiteral kRVVPreRealizedWideningProductOpKind(
     "signed_widening_product");
+constexpr llvm::StringLiteral
+    kRVVPreRealizedWideningProductReduceDequantizeOpKind(
+        "widening_product_reduce_dequantize_f32");
 constexpr llvm::StringLiteral kRVVPreRealizedWideningDotReduceOpKind(
     "signed_widening_dot_reduce_add");
 constexpr llvm::StringLiteral
@@ -121,6 +124,9 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVPreRealizedComputedMaskStridedInputWideningDotReduceMemoryForm(
         "computed-mask-strided-input-widening-dot-reduce");
+constexpr llvm::StringLiteral
+    kRVVPreRealizedWideningProductReduceDequantizeMemoryForm(
+        "unit-stride-widening-product-reduce-dequantize-f32");
 constexpr llvm::StringLiteral kRVVPreRealizedAccumulatorRole(
     "accumulator-input-buffer");
 constexpr llvm::StringLiteral kRVVPreRealizedPredicateKind("slt");
@@ -152,6 +158,11 @@ bool isPreRealizedWideningDotReduceOpKind(llvm::StringRef opKind) {
 bool isPreRealizedComputedMaskWideningDotReduceOpKind(
     llvm::StringRef opKind) {
   return opKind == kRVVPreRealizedComputedMaskWideningDotReduceOpKind;
+}
+
+bool isPreRealizedWideningProductReduceDequantizeOpKind(
+    llvm::StringRef opKind) {
+  return opKind == kRVVPreRealizedWideningProductReduceDequantizeOpKind;
 }
 
 struct RVVContractionVectorFacts {
@@ -549,6 +560,30 @@ bool isPreRealizedComputedMaskWideningDotReduceSignature(
   return opKind == kRVVPreRealizedComputedMaskWideningDotReduceOpKind &&
          !expectedRelation.empty() && accumulatorSEW == resultSEW &&
          accumulatorLMUL == resultLMUL && relation == expectedRelation;
+}
+
+bool isPreRealizedWideningProductReduceDequantizeSignature(
+    llvm::StringRef opKind, std::int64_t sourceSEW,
+    llvm::StringRef sourceLMUL, std::int64_t productSEW,
+    llvm::StringRef productLMUL, std::int64_t accumulatorSEW,
+    llvm::StringRef accumulatorLMUL, std::int64_t resultSEW,
+    llvm::StringRef resultLMUL, llvm::StringRef productRelation,
+    llvm::StringRef productReductionChainRelation,
+    llvm::StringRef dequantizationRelation) {
+  llvm::StringRef expectedProductRelation =
+      getContractionWideningProductRelation(sourceSEW, sourceLMUL, productSEW,
+                                            productLMUL);
+  llvm::StringRef expectedChainRelation =
+      getContractionProductReductionChainRelation(
+          sourceSEW, sourceLMUL, productSEW, productLMUL, accumulatorSEW,
+          accumulatorLMUL);
+  return opKind == kRVVPreRealizedWideningProductReduceDequantizeOpKind &&
+         !expectedProductRelation.empty() &&
+         productRelation == expectedProductRelation &&
+         !expectedChainRelation.empty() &&
+         productReductionChainRelation == expectedChainRelation &&
+         accumulatorSEW == resultSEW && accumulatorLMUL == resultLMUL &&
+         dequantizationRelation == kRVVContractionDequantizationRelation;
 }
 
 llvm::Expected<tcrv::rvv::RuntimeABIValueOp>
@@ -3178,6 +3213,156 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
     return error;
   return requireContractionSelectedVariantRequires(
       variant, "computed-mask strided-input widening dot-product reduction");
+}
+
+llvm::Error validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedWideningProductReduceDequantizePreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV widening product reduction dequantization realization "
+        "requires a pre-realized product-reduction-dequantization body op");
+  if (!variant)
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected widening product reduction "
+        "dequantization realization requires a selected tcrv.exec.variant");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected widening product reduction "
+        "dequantization body must be a direct child of the selected variant");
+  if (!isPreRealizedWideningProductReduceDequantizeOpKind(body.getOpKind()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected widening product reduction "
+        "dequantization body currently supports only op_kind "
+        "'widening_product_reduce_dequantize_f32'");
+  if (body.getMemoryForm() !=
+      kRVVPreRealizedWideningProductReduceDequantizeMemoryForm)
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected widening product reduction "
+        "dequantization body currently supports only memory_form "
+        "'unit-stride-widening-product-reduce-dequantize-f32'");
+  if (body.getAccumulatorRole() != kRVVPreRealizedAccumulatorRole)
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected widening product reduction "
+        "dequantization body currently supports only accumulator_role "
+        "'accumulator-input-buffer'");
+  if (body.getAccumulatorLayout() != kRVVWideningDotProductAccumulatorLayout)
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected widening product reduction "
+        "dequantization body currently supports only accumulator_layout "
+        "'scalar-i32-seed-lane0-from-accumulator-input'");
+  if (body.getResultLayout() != kRVVProductReductionResultLayout)
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected widening product reduction "
+        "dequantization body currently supports only result_layout "
+        "'store-standalone-reduction-lane0-to-output-scalar'");
+  if (body.getAccumulatorCarryBoundary() !=
+      kRVVProductReductionDequantLocalCarryBoundary)
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected widening product reduction "
+        "dequantization body requires the local i32 carry boundary that feeds "
+        "the final f32 store");
+  if (body.getScaleRole() != kRVVContractionDequantScaleRole)
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected widening product reduction "
+        "dequantization body requires scale_role 'dequant-scale-value'");
+  if (body.getDequantStoreBoundary() !=
+      "store-dequantized-f32-vector-to-output-buffer")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected widening product reduction "
+        "dequantization body requires the f32 output store boundary");
+  if (!isPreRealizedWideningProductReduceDequantizeSignature(
+          body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
+          body.getSourceLmul(),
+          static_cast<std::int64_t>(body.getProductSew()),
+          body.getProductLmul(),
+          static_cast<std::int64_t>(body.getAccumulatorSew()),
+          body.getAccumulatorLmul(),
+          static_cast<std::int64_t>(body.getResultSew()),
+          body.getResultLmul(), body.getProductRelation(),
+          body.getProductReductionChainRelation(), body.getDequantRelation()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected widening product reduction "
+        "dequantization config/relation must match op_kind "
+        "'widening_product_reduce_dequantize_f32' with source SEW8 LMUL mf4, "
+        "product SEW16 LMUL mf2, accumulator/result SEW32 LMUL m1, and "
+        "provider-derived product, reduction, and dequantization relations");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected widening product reduction "
+        "dequantization body requires tail agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+      requirePreRealizedContractionRuntimeABIValue(
+          body.getLhs(),
+          "pre-realized RVV widening product reduction dequantization lhs "
+          "operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!lhs)
+    return lhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhs =
+      requirePreRealizedContractionRuntimeABIValue(
+          body.getRhs(),
+          "pre-realized RVV widening product reduction dequantization rhs "
+          "operand",
+          support::RuntimeABIParameterRole::RHSInputBuffer);
+  if (!rhs)
+    return rhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> acc =
+      requirePreRealizedContractionRuntimeABIValue(
+          body.getAcc(),
+          "pre-realized RVV widening product reduction dequantization "
+          "accumulator seed/carry operand",
+          support::RuntimeABIParameterRole::AccumulatorInputBuffer);
+  if (!acc)
+    return acc.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> scale =
+      requirePreRealizedContractionRuntimeABIValue(
+          body.getScale(),
+          "pre-realized RVV widening product reduction dequantization "
+          "runtime scale operand",
+          support::RuntimeABIParameterRole::DequantScaleValue);
+  if (!scale)
+    return scale.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+      requirePreRealizedContractionRuntimeABIValue(
+          body.getOut(),
+          "pre-realized RVV widening product reduction dequantization f32 "
+          "out operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!out)
+    return out.takeError();
+  if ((*lhs).getCType() != kRVVContractionI8PointerCType ||
+      (*rhs).getCType() != kRVVContractionI8PointerCType ||
+      (*acc).getCType() != kRVVContractionI32PointerCType ||
+      (*scale).getCType() != kRVVContractionDequantScaleCType ||
+      (*out).getCType() != kRVVContractionF32PointerCType)
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected widening product reduction "
+        "dequantization body requires lhs/rhs const int8_t *, accumulator "
+        "seed/carry const int32_t *, runtime scale float, and out float * "
+        "runtime ABI bindings");
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedContractionRuntimeABIValue(
+          body.getN(),
+          "pre-realized RVV widening product reduction dequantization runtime "
+          "n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  if (llvm::Error error =
+          rejectMixedPreRealizedContractionBody<
+              tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
+              tcrv::rvv::LoadOp, tcrv::rvv::WideningProductOp,
+              tcrv::rvv::StandaloneReduceOp, tcrv::rvv::DequantizeOp,
+              tcrv::rvv::StoreOp>(
+              variant, body.getOperation(),
+              "widening product reduction dequantization"))
+    return error;
+  return requireContractionSelectedVariantRequires(
+      variant, "widening product reduction dequantization");
 }
 
 llvm::Error requireRVVSelectedBodyContractionPlanField(

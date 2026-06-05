@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Spec compliance review entrypoint."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-local realization authority, typed body facts, and diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export neutrality and route planning boundary."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused validation expectations and test scope."}
+{"file": ".trellis/tasks/06-05-stage2-rvv-contraction-dequant-realization/prd.md", "reason": "Task acceptance criteria for final verification."}

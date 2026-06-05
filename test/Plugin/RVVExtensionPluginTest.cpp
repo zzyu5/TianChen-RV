@@ -8043,6 +8043,15 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_widening_dot_reduce_pre_realized_body %lhs, %rhs, %acc, %out, %n {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, dot_product_relation = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32", memory_form = "unit-stride-widening-dot-reduce", op_kind = "signed_widening_dot_reduce_add", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-dot-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, source_lmul = "mf2", source_sew = 16 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_route_product_reduce_dequantize attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int8_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int8_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %scale = tcrv_rvv.runtime_abi_value {c_name = "scale", c_type = "float", ownership = "target-export-abi-owned", role = "dequant-scale-value"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "float *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body %lhs, %rhs, %acc, %scale, %out, %n {accumulator_carry_boundary = "scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-chunks-final-f32-store.v1", accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, dequant_relation = "signed-i32m1-to-f32m1-scale-f32", dequant_store_boundary = "store-dequantized-f32-vector-to-output-buffer", memory_form = "unit-stride-widening-product-reduce-dequantize-f32", op_kind = "widening_product_reduce_dequantize_f32", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, product_lmul = "mf2", product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", product_relation = "signed-i8mf4xi8mf4-to-i16mf2", product_sew = 16 : i64, result_layout = "store-standalone-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, scale_role = "dequant-scale-value", source_lmul = "mf4", source_sew = 8 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_route_strided_widening_dot attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -8157,19 +8166,26 @@ module {
     stalePlan.targetLeafProfile = "metadata-target-leaf-profile";
     if (int result = expectErrorContains(
             validateRVVSelectedBodyContractionRouteFamilyPlan(stalePlan),
-            {"target leaf profile",
-             "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1"}))
+            {"target leaf profile", ownerPlan->targetLeafProfile}))
       return result;
 
     stalePlan = *ownerPlan;
     stalePlan.relation = "metadata-derived-relation";
+    llvm::StringRef expectedRelationField =
+        ownerPlan->usesWideningMAcc
+            ? "widening macc relation"
+        : ownerPlan->usesWideningProduct
+            ? "widening product relation"
+        : ownerPlan->usesProductReductionChain
+            ? "product-reduction relation mirror"
+            : "widening dot relation";
+    llvm::StringRef expectedRelation =
+        ownerPlan->usesProductReductionChain
+            ? ownerPlan->productReductionChainRelation
+            : ownerPlan->relation;
     if (int result = expectErrorContains(
             validateRVVSelectedBodyContractionRouteFamilyPlan(stalePlan),
-            {ownerPlan->usesWideningMAcc ? "widening macc relation"
-                                         : "widening dot relation",
-             ownerPlan->usesWideningMAcc
-                 ? "signed-i16mf2xi16mf2-plus-i32m1-to-i32m1"
-                 : "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"}))
+            {expectedRelationField, expectedRelation}))
       return result;
 
     if (ownerPlan->usesComputedMask) {
@@ -8601,6 +8617,127 @@ module {
                   wideningMAccMaterializationFacts->contractionComputeLeaf,
           "selected-boundary widening_macc_add reaches math binding and "
           "direct contraction provider facts before route construction"))
+    return result;
+
+  VariantOp productDequantVariant =
+      findVariant(kernel, "rvv_pre_route_product_reduce_dequantize");
+  if (int result = expect(
+          variantContainsPreRealizedRVVSelectedBody(productDequantVariant),
+          "widening_product_reduce_dequantize_f32 remains a contraction "
+          "selected-body realization consumer"))
+    return result;
+  mlir::Operation *productDequantBody = findFirstNestedOp(
+      productDequantVariant,
+      "tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body");
+  if (int result = expect(productDequantBody != nullptr,
+                          "found pre-realized product-reduction-dequant body"))
+    return result;
+  auto productDequantOwner = getRVVSelectedBodyRealizationOwnerForBody(
+      productDequantBody,
+      "product-reduction-dequant selected-body realization test");
+  if (!productDequantOwner)
+    return fail("product-reduction-dequant owner lookup: " +
+                llvm::toString(productDequantOwner.takeError()));
+  if (int result = expect(
+          (*productDequantOwner)->familyName == "contraction",
+          "widening_product_reduce_dequantize_f32 dispatches through the "
+          "contraction realization owner"))
+    return result;
+
+  mlir::OpBuilder selectedProductDequantBuilder(module->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> realizedProductDequant =
+      contractionOwner->realize(
+          VariantLoweringBoundaryRequest(
+              productDequantVariant, kernel, capabilities,
+              VariantEmissionRole::DirectVariant,
+              selectedProductDequantBuilder),
+          productDequantBody);
+  if (!realizedProductDequant)
+    return fail("selected-boundary product-reduction-dequant realization "
+                "failed: " +
+                llvm::toString(realizedProductDequant.takeError()));
+  if (int result = expect(
+          countNestedOps(productDequantVariant,
+                         "tcrv_rvv.typed_widening_product_reduce_dequantize_"
+                         "pre_realized_body") == 0 &&
+              countNestedOps(productDequantVariant, "tcrv_rvv.setvl") == 1 &&
+              countNestedOps(productDequantVariant, "tcrv_rvv.with_vl") == 1 &&
+              countNestedOps(productDequantVariant, "tcrv_rvv.load") == 2 &&
+              countNestedOps(productDequantVariant,
+                             "tcrv_rvv.widening_product") == 1 &&
+              countNestedOps(productDequantVariant,
+                             "tcrv_rvv.standalone_reduce") == 1 &&
+              countNestedOps(productDequantVariant, "tcrv_rvv.dequantize") ==
+                  1 &&
+              countNestedOps(productDequantVariant, "tcrv_rvv.store") == 1,
+          "selected-boundary product-reduction-dequant consumes shorthand "
+          "into setvl/with_vl/load/load/widening_product/standalone_reduce/"
+          "dequantize/store IR"))
+    return result;
+
+  auto productDequantAnalysis = analyzeRVVSelectedBodyRoute(
+      VariantEmitCLowerableRequest(productDequantVariant, kernel,
+                                   capabilities,
+                                   VariantEmissionRole::DirectVariant));
+  if (!productDequantAnalysis)
+    return fail("analyze realized selected-boundary product-reduction-"
+                "dequant: " +
+                llvm::toString(productDequantAnalysis.takeError()));
+  if (int result = expect(
+          productDequantAnalysis->description.operation ==
+              RVVSelectedBodyOperationKind::
+                  WideningProductReduceDequantizeF32 &&
+              productDequantAnalysis->contractionRouteFamilyPlan &&
+              productDequantAnalysis->contractionRouteFamilyPlan
+                  ->usesProductReductionChain &&
+              productDequantAnalysis->contractionRouteFamilyPlan
+                  ->usesProductReductionDequantization &&
+              productDequantAnalysis->description.contractionRouteFamilyPlanID ==
+                  "rvv-contraction-route-family-plan.v1",
+          "selected-boundary product-reduction-dequant carries contraction "
+          "family facts to route analysis"))
+    return result;
+  if (int result = expectOwnerBindingBoundary(
+          *productDequantAnalysis,
+          "rvv-route-operand-binding:widening_product_reduce_dequantize_f32.v1",
+          "lhs,rhs,acc,scale,out,n",
+          "selected-boundary product-reduction-dequant"))
+    return result;
+  auto productDequantMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *productDequantAnalysis,
+          "selected-boundary product-reduction-dequant test");
+  if (!productDequantMaterializationFacts)
+    return fail("product-reduction-dequant materialization facts: " +
+                llvm::toString(
+                    productDequantMaterializationFacts.takeError()));
+  auto productDequantMathFacts =
+      getRVVSelectedBodyMathRouteOperandBindingFacts(
+          *productDequantAnalysis,
+          "selected-boundary product-reduction-dequant test");
+  if (!productDequantMathFacts)
+    return fail("product-reduction-dequant math operand-binding facts: " +
+                llvm::toString(productDequantMathFacts.takeError()));
+  if (int result = expect(
+          productDequantMaterializationFacts
+              ->emitsContractionProductReductionDequantization &&
+              productDequantMaterializationFacts->wideningProductLeaf ==
+                  "__riscv_vwmul_vv_i16mf2" &&
+              productDequantMaterializationFacts->dequantizeConvertLeaf ==
+                  "__riscv_vfcvt_f_x_v_f32m1" &&
+              productDequantMaterializationFacts->dequantizeScaleLeaf ==
+                  "__riscv_vfmul_vf_f32m1" &&
+              productDequantMathFacts
+                  ->bindsWideningProductReductionDequantization &&
+              productDequantMathFacts->lhsABI &&
+              productDequantMathFacts->rhsABI &&
+              productDequantMathFacts->accumulatorABI &&
+              productDequantMathFacts->dequantScaleABI &&
+              productDequantMathFacts->outABI &&
+              productDequantMathFacts->runtimeElementCountABI,
+          "selected-boundary product-reduction-dequant reaches "
+          "materialization and math operand-binding facts before route "
+          "construction"))
     return result;
 
   VariantOp wideningDotVariant =
