@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final route authority, descriptor/source-front-door exclusions, and RVV evidence language."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV typed body/provider ownership, fail-closed diagnostics, and no legacy i32 route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC neutrality, provider-derived operand/header/type summaries, and target artifact mirror validation."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused evidence scope and runtime evidence requirements."}

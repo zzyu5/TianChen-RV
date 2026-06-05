@@ -83,4 +83,8 @@ module {
 // HEADER: tianchenrv.rvv.base_memory_movement_route_family_plan: rvv-base-memory-movement-route-family-plan.v1
 // HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:byte-strided-e32m1,result:signed-e32m1
+// HEADER: tianchenrv.rvv.strided_memory_layout: byte-strided-source-unit-stride-output-runtime-abi
+// HEADER: tianchenrv.rvv.source_stride_source: runtime_abi:stride_bytes
+// HEADER: tianchenrv.rvv.source_memory_form: strided-load
+// HEADER: tianchenrv.rvv.destination_memory_form: unit-stride-store
 // HEADER: void tcrv_emitc_pre_realized_body_strided_load_unit_store_kernel_pre_realized_body_rvv_strided_load_unit_store(const int32_t *src, int32_t *out, size_t n, size_t stride_bytes);

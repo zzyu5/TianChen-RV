@@ -14106,6 +14106,24 @@ module {
             "base memory provider plan carries validated mirror payloads from "
             "the RVV family owner"))
       return result;
+    if (stridedLoad || stridedStore) {
+      if (int result = expect(
+              providerPlan->typedComputeOpNameMirror ==
+                      analysis.description.typedComputeOpName &&
+                  providerPlan->sourceMemoryFormMirror ==
+                      analysis.description.sourceMemoryForm &&
+                  providerPlan->destinationMemoryFormMirror ==
+                      analysis.description.destinationMemoryForm &&
+                  providerPlan->stridedMemoryLayoutMirror ==
+                      analysis.description.stridedMemoryLayout &&
+                  providerPlan->sourceStrideSourceMirror ==
+                      analysis.description.sourceStrideSource &&
+                  providerPlan->destinationStrideSourceMirror ==
+                      analysis.description.outStrideSource,
+              "base memory provider plan exposes strided memory facts that "
+              "mirror the provider-built route description"))
+        return result;
+    }
     KernelOp kernel = findKernel(*module, kernelName);
     VariantOp variant = findVariant(kernel, variantName);
     TCRVEmitCLowerableRoute route;
@@ -14497,6 +14515,15 @@ module {
     return result;
 
   stale = *stridedLoadAnalysis;
+  stale.description.sourceStrideSource = "metadata-derived-stride";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              stale, "base memory provider unit test"),
+          {"base memory movement route-family route, runtime, type",
+           "validated family plan"}))
+    return result;
+
+  stale = *stridedLoadAnalysis;
   stale.description.routeOperandBindingSummary = "stale";
   if (int result = expectErrorContains(
           verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
@@ -14549,6 +14576,14 @@ module {
                   "rvv-route-operand-binding:unit_load_strided_store.v1",
           "unit_load_strided_store plan must keep destination stride and "
           "binding facts isolated"))
+    return result;
+  stale = *stridedStoreAnalysis;
+  stale.description.outStrideSource = "metadata-derived-destination-stride";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyBaseMemoryMovementRouteFamilyProviderPlans(
+              stale, "base memory provider unit test"),
+          {"base memory movement route-family route, runtime, type",
+           "validated family plan"}))
     return result;
   if (int result = expectBaseMemoryStatementPlan(
           *stridedStoreAnalysis, "unit_load_strided_store_provider_kernel",

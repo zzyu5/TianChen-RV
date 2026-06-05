@@ -3188,6 +3188,10 @@ getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan(
   providerPlan.typedComputeOpNameMirror = description.typedComputeOpName;
   providerPlan.sourceMemoryFormMirror = basePlan->sourceMemoryForm;
   providerPlan.destinationMemoryFormMirror = basePlan->destinationMemoryForm;
+  providerPlan.stridedMemoryLayoutMirror = basePlan->stridedMemoryLayout;
+  providerPlan.sourceStrideSourceMirror = basePlan->sourceStrideSource;
+  providerPlan.destinationStrideSourceMirror =
+      basePlan->destinationStrideSource;
   providerPlan.indexedMemoryLayoutMirror = basePlan->indexedMemoryLayout;
   providerPlan.indexEEWMirror = basePlan->indexEEW;
   providerPlan.offsetUnitMirror = basePlan->offsetUnit;

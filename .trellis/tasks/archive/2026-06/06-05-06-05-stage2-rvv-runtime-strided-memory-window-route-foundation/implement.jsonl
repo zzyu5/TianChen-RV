@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture invariants and RVV Stage 1/2 authority chain."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "Extension plugin pre-development checklist and RVV Stage 2 priority boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority placement, typed body ownership, parameter flow, and Stage 2 coverage rules."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Lowering/runtime checklist for plugin-owned emission and common EmitC neutrality."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, operand binding, header/type summaries, and target mirror contracts."}

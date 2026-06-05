@@ -69,4 +69,11 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_order: src,dst,n,dst_stride_bytes
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:unit_load_strided_store.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:unit_load_strided_store.v1;src=lhs-input-buffer:src:runtime-abi-mirror|materialized-load-base|move-source;dst=output-buffer:dst:runtime-abi-mirror|materialized-strided-store-base|header-mirror;n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror;dst_stride_bytes=destination-byte-stride:dst_stride_bytes:runtime-abi-mirror|materialized-strided-store-stride|materialized-byte-address|header-mirror
+// HEADER: tianchenrv.rvv.base_memory_movement_route_family_plan: rvv-base-memory-movement-route-family-plan.v1
+// HEADER: tianchenrv.rvv.required_header_declarations: stddef.h,stdint.h,riscv_vector.h
+// HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e32m1,destination:byte-strided-e32m1
+// HEADER: tianchenrv.rvv.strided_memory_layout: unit-stride-source-byte-strided-destination-runtime-abi
+// HEADER: tianchenrv.rvv.destination_stride_source: runtime_abi:dst_stride_bytes
+// HEADER: tianchenrv.rvv.source_memory_form: unit-stride-load
+// HEADER: tianchenrv.rvv.destination_memory_form: strided-store
 // HEADER: void tcrv_emitc_pre_realized_body_unit_load_strided_store_kernel_pre_realized_body_rvv_unit_load_strided_store(const int32_t *src, int32_t *dst, size_t n, size_t dst_stride_bytes);

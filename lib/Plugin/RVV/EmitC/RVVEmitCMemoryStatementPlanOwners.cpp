@@ -430,6 +430,27 @@ llvm::Error buildBaseMemoryMovementMigratedRouteStatementPlan(
   const bool isIndexed =
       providerPlan->baseMemoryMovementPlan->usesIndexedGather ||
       providerPlan->baseMemoryMovementPlan->usesIndexedScatter;
+  const bool isStrided =
+      providerPlan->baseMemoryMovementPlan->usesStridedLoad ||
+      providerPlan->baseMemoryMovementPlan->usesStridedStore;
+  if (isStrided &&
+      (providerPlan->typedComputeOpNameMirror !=
+           analysis.description.typedComputeOpName ||
+       providerPlan->sourceMemoryFormMirror !=
+           analysis.description.sourceMemoryForm ||
+       providerPlan->destinationMemoryFormMirror !=
+           analysis.description.destinationMemoryForm ||
+       providerPlan->stridedMemoryLayoutMirror !=
+           analysis.description.stridedMemoryLayout ||
+       providerPlan->sourceStrideSourceMirror !=
+           analysis.description.sourceStrideSource ||
+       providerPlan->destinationStrideSourceMirror !=
+           analysis.description.outStrideSource))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " migrated statement-plan owner 'base memory movement' requires the "
+        "provider plan to expose strided memory facts that mirror the "
+        "provider-built route description before route statement construction");
   if (isIndexed &&
       (providerPlan->typedComputeOpNameMirror !=
            analysis.description.typedComputeOpName ||

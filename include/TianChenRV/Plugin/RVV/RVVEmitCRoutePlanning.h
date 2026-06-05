@@ -1428,6 +1428,9 @@ struct RVVSelectedBodyBaseMemoryMovementRouteProviderPlan {
   llvm::StringRef typedComputeOpNameMirror;
   llvm::StringRef sourceMemoryFormMirror;
   llvm::StringRef destinationMemoryFormMirror;
+  llvm::StringRef stridedMemoryLayoutMirror;
+  llvm::StringRef sourceStrideSourceMirror;
+  llvm::StringRef destinationStrideSourceMirror;
   llvm::StringRef indexedMemoryLayoutMirror;
   std::int64_t indexEEWMirror = 0;
   llvm::StringRef offsetUnitMirror;

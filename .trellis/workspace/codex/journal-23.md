@@ -194,3 +194,50 @@ Implemented computed-mask select provider and target validation for explicit tai
 ### Next Steps
 
 - None - task complete
+
+
+## Session 461: Stage2 RVV runtime-strided memory-window route foundation
+
+**Date**: 2026-06-05
+**Task**: Stage2 RVV runtime-strided memory-window route foundation
+**Branch**: `main`
+
+### Summary
+
+Implemented provider-derived strided memory route mirrors for base-memory movement, exported source/destination stride mirrors in RVV header artifacts, added focused plugin and target fixture coverage; route-supported only, no ssh rvv executable claim.
+
+### Main Changes
+
+- Added explicit strided memory mirrors to the RVV base-memory route provider
+  plan: strided layout, source stride source, and destination stride source.
+- Required the migrated base-memory statement-plan owner to consume those
+  provider-plan mirrors before constructing strided load/store statement plans.
+- Exported provider-derived source/destination stride mirrors through the RVV
+  materialized header artifact metadata evidence table.
+- Added focused plugin and target fixture coverage for strided-load/unit-store
+  and unit-load/strided-store route-supported artifacts.
+
+### Git Commits
+
+(Recorded in the final commit for this session.)
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tcrv-translate tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Manual `tcrv-opt` materialization checks for both runtime-strided memory fixtures
+- [OK] Manual `tcrv-opt | tcrv-translate --tcrv-export-target-header-artifact` header mirror checks for both fixtures
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Bounded old-authority/q-name scan over new source/test diff
+
+### Status
+
+[OK] **Completed** as route-supported plus target-validation foundation.
+
+### Next Steps
+
+- Executable ABI/harness and `ssh rvv` correctness evidence remain out of
+  scope unless a later task asks for executable closure.
