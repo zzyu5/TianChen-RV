@@ -68,6 +68,7 @@ std::unique_ptr<::mlir::Pass> createMaterializeSelectedLoweringBoundariesPass();
 std::unique_ptr<::mlir::Pass>
 createMaterializeSelectedLoweringBoundariesPass(
     const plugin::ExtensionPluginRegistry &registry);
+std::unique_ptr<::mlir::Pass> createMaterializeRVVGearboxSchedulesPass();
 std::unique_ptr<::mlir::Pass> createMaterializeEmitCLowerableRoutesPass();
 std::unique_ptr<::mlir::Pass> createMaterializeEmitCLowerableRoutesPass(
     const plugin::ExtensionPluginRegistry &registry);

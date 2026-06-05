@@ -10751,6 +10751,23 @@ llvm::Error validateRVVConversionDtypePolicyTypedFacts(
         " requires provider-derived dequantization relation, convert/scale "
         "intrinsics, and runtime scale role/type/name facts before artifact "
         "export");
+  if (isDequantization &&
+      (description.gearboxScheduleID != contract.gearboxScheduleID ||
+       description.gearboxSelector != contract.gearboxSelector ||
+       description.gearboxSource != contract.gearboxSource ||
+       description.gearboxOperation != contract.gearboxOperation ||
+       description.gearboxUnroll != contract.gearboxUnroll ||
+       description.gearboxVLPolicy != contract.gearboxVLPolicy ||
+       description.gearboxSourceSEW != contract.gearboxSourceSEW ||
+       description.gearboxSourceLMUL != contract.gearboxSourceLMUL ||
+       description.gearboxDestSEW != contract.gearboxDestSEW ||
+       description.gearboxDestLMUL != contract.gearboxDestLMUL ||
+       description.gearboxRuntimeAVLSource !=
+           contract.gearboxRuntimeAVLSource))
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-consumed RVV Gearbox schedule facts before "
+        "artifact export");
   if (description.tailPolicy != contract.tailPolicy ||
       description.maskPolicy != contract.maskPolicy ||
       description.sourceMemoryForm != contract.sourceMemoryForm ||

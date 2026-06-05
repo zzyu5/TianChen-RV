@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV Stage2 selected-body/provider boundary, descriptor/source-front-door exclusions, and ssh rvv evidence boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership of selected-body realization, code-affecting hints/config/profile, provider facts, fail-closed diagnostics, and metadata mirror rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract, Common EmitC neutrality, conversion dtype-policy validation, and target metadata mirror fail-closed requirements."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Variant-local tuning metadata, plugin legality/selection boundaries, and no route/artifact metadata authority."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Required lit/FileCheck pass tests, focused C++ tests for provider/target APIs, and ssh rvv applicability."}
+{"file": "artifacts/tianchenrv_rvv_gearbox_autotuning_pass_v3.md", "reason": "Non-authoritative local reference for Gearbox pass-pipeline framing and future search-space dimensions."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-stage2-rvv-typed-conversion-sew-policy-route-foundation/prd.md", "reason": "Immediate prior dequant conversion route foundation and target validation surface to extend."}

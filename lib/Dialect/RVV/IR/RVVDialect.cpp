@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
+#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 
@@ -190,7 +191,18 @@ bool isAllowedWithVLAttr(llvm::StringRef name) {
          name == kSelectedPathRoleAttrName || name == kStatusAttrName ||
          name == kRequiredCapabilitiesAttrName ||
          name == kRVVConstructionProtocolAttrName ||
-         name == kRVVEmitCRouteMappingAttrName;
+         name == kRVVEmitCRouteMappingAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxScheduleIDAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxSelectorAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxSourceAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxOperationAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxUnrollAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxVLPolicyAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxSourceSEWAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxSourceLMULAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxDestSEWAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxDestLMULAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName;
 }
 
 bool isAllowedI32LoadAttr(llvm::StringRef) {
@@ -699,7 +711,18 @@ bool isAllowedWideningConvertAttr(llvm::StringRef name) {
 }
 
 bool isAllowedDequantizeAttr(llvm::StringRef name) {
-  return name == "kind" || name == kDequantRelationAttrName;
+  return name == "kind" || name == kDequantRelationAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxScheduleIDAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxSelectorAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxSourceAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxOperationAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxUnrollAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxVLPolicyAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxSourceSEWAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxSourceLMULAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxDestSEWAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxDestLMULAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName;
 }
 
 bool isAllowedMoveAttr(llvm::StringRef name) { return name == "kind"; }

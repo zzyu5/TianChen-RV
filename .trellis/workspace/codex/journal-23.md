@@ -38,6 +38,62 @@ Closed generated dequant-clamp f32 epilogue executable ABI evidence with dry-run
 - None - task complete
 
 
+## Session 463: Stage2 RVV Gearbox pass MVP for typed conversion route control
+
+**Date**: 2026-06-05
+**Task**: `06-05-rvv-gearbox-autotuning-pass-reference`
+**Branch**: `main`
+
+### Summary
+
+Narrowed the existing Gearbox reference intake into a concrete Stage2 RVV
+plugin-local pass/provider slice for the existing typed
+`dequantize_i32_to_f32` route. The v3 Gearbox artifact was used only as
+reference input, not as an implementation contract.
+
+### Main Changes
+
+- Added `--tcrv-rvv-materialize-gearbox-schedules` as a production MLIR pass
+  registered in `tcrv-opt`.
+- Implemented the first bounded static Gearbox schedule for selected typed RVV
+  dequant bodies, deriving schedule facts from structural body/config/runtime
+  evidence rather than route strings, artifact names, q-names, ABI strings, or
+  intrinsic spelling.
+- Extended RVV provider dequant route planning and validation so pass-produced
+  Gearbox facts are required and consumed before route construction.
+- Extended conversion dtype-policy target validation and target metadata/header
+  output so Gearbox fields appear only as provider-derived mirrors, with stale
+  mirror rejection.
+- Added positive and negative lit/FileCheck tests for pass materialization,
+  provider missing-fact failure, stale Gearbox attrs, unsupported runtime AVL
+  facts, and artifact-name-derived stale target metadata.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test`
+- [OK] `cd build/test && /usr/bin/python3.10 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-gearbox-dequantize-i32-to-f32|explicit-selected-body-artifact-dequantize-i32-to-f32'`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `git diff --check`
+- [OK] Bounded old-authority/q-name scan over touched files. Expected hits were
+  limited to PRD/checklist non-goals, negative `artifact-name-derived-gear`
+  tests, and pre-existing legacy negative/compatibility text in touched files.
+- [N/A] `ssh rvv` was not run because this pass/provider/metadata slice makes
+  no executable correctness or performance claim.
+
+### Status
+
+[OK] **Completed** as a pass-plus-provider-consumption MVP. Ready for Trellis
+finish/archive and one coherent commit.
+
+### Next Steps
+
+- Later Gearbox work can broaden the same pass/provider fact surface to another
+  conversion family or add runtime/performance evidence in a separate Hermes
+  round.
+
+
 ## Session 461: Stage2 RVV computed-mask select executable policy closure
 
 **Date**: 2026-06-05

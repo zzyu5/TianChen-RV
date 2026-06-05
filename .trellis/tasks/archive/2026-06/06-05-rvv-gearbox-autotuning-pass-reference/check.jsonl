@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final changes preserve typed RVV authority and do not introduce descriptor/source-front-door/metadata authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check Gearbox remains RVV plugin-local, pass-produced facts are consumed before provider route construction, and old i32 authority is not expanded."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-owned route facts and target metadata mirror fail-closed behavior."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused pass/provider/target tests and correct ssh rvv non-applicability."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Check tuning facts remain variant-local/provider-consumed and do not become core route authority."}

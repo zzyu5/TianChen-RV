@@ -13,6 +13,7 @@ add_mlir_library(TianChenRVRVVPlugin
   RVVSegment2MemorySelectedBodyRealizationOwner.cpp
   RVVCapabilityProfile.cpp
   RVVExtensionPlugin.cpp
+  RVVGearboxSchedules.cpp
   RVVSelectedBodyRealization.cpp
   RVVStandaloneReductionSelectedBodyRealizationOwner.cpp
   RVVWideningConversionSelectedBodyRealizationOwner.cpp

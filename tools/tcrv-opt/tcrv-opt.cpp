@@ -72,6 +72,9 @@ llvm::Error registerTianChenRVOptPasses(
     return tianchenrv::transforms::
         createMaterializeSelectedLoweringBoundariesPass(plugins);
   });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::createMaterializeRVVGearboxSchedulesPass();
+  });
   mlir::registerPass([&plugins] {
     return tianchenrv::transforms::createMaterializeEmitCLowerableRoutesPass(
         plugins);

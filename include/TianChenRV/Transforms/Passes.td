@@ -273,6 +273,31 @@ def MaterializeSelectedLoweringBoundaries
   ];
 }
 
+def MaterializeRVVGearboxSchedules
+    : Pass<"tcrv-rvv-materialize-gearbox-schedules", "::mlir::ModuleOp"> {
+  let summary = "Materialize bounded RVV Gearbox schedule facts on selected typed RVV bodies";
+  let description = [{
+    Runs one RVV plugin-local Stage 2 Gearbox MVP over already selected and
+    realized typed tcrv_rvv bodies. The pass recognizes the existing bounded
+    dequantize_i32_to_f32 body shape, derives one static schedule from typed
+    body/config/runtime facts, and materializes explicit tcrv_rvv.gearbox.*
+    facts on the with_vl boundary and dequantize operation.
+
+    The pass does not benchmark, profile, query assembly, persist tuning
+    caches, infer from artifact names or route strings, change computation
+    semantics, change dtype semantics, mutate runtime ABI roles, alter dispatch
+    or fallback behavior, or choose target metadata. RVV provider route
+    planning remains responsible for consuming these facts before constructing
+    a lowerable route.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createMaterializeRVVGearboxSchedulesPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect",
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect"
+  ];
+}
+
 def MaterializeEmitCLowerableRoutes
     : Pass<"tcrv-materialize-emitc-lowerable-routes", "::mlir::ModuleOp"> {
   let summary = "Materialize plugin-owned EmitC lowerable routes through the common route interface";

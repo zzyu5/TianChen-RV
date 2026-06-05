@@ -643,6 +643,17 @@ struct RVVSelectedBodyDequantizationRouteFamilyPlan {
   llvm::StringRef scaleIntrinsic;
   llvm::StringRef storeIntrinsic;
   llvm::StringRef resultName;
+  llvm::StringRef gearboxScheduleID;
+  llvm::StringRef gearboxSelector;
+  llvm::StringRef gearboxSource;
+  llvm::StringRef gearboxOperation;
+  std::int64_t gearboxUnroll = 0;
+  llvm::StringRef gearboxVLPolicy;
+  std::int64_t gearboxSourceSEW = 0;
+  llvm::StringRef gearboxSourceLMUL;
+  std::int64_t gearboxDestSEW = 0;
+  llvm::StringRef gearboxDestLMUL;
+  llvm::StringRef gearboxRuntimeAVLSource;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
   llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeABIParameters;

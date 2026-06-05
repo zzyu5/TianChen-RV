@@ -1651,9 +1651,9 @@ module {
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
        << variant
-       << R"mlir(, sew = 32 : i64, source_kernel = "rvv_dequant_body_kernel", status = "selected-lowering-boundary"} {
+       << R"mlir(, sew = 32 : i64, source_kernel = "rvv_dequant_body_kernel", status = "selected-lowering-boundary", tcrv_rvv.gearbox.dest_lmul = "m1", tcrv_rvv.gearbox.dest_sew = 32 : i64, tcrv_rvv.gearbox.operation = "dequantize_i32_to_f32", tcrv_rvv.gearbox.runtime_avl_source = "runtime_abi:n", tcrv_rvv.gearbox.schedule_id = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1", tcrv_rvv.gearbox.selector = "static-dequantize-i32-to-f32-e32-m1-u1", tcrv_rvv.gearbox.source = "rvv-gearbox-static-pass.v1", tcrv_rvv.gearbox.source_lmul = "m1", tcrv_rvv.gearbox.source_sew = 32 : i64, tcrv_rvv.gearbox.unroll = 1 : i64, tcrv_rvv.gearbox.vl_policy = "runtime-avl-single-setvl"} {
         %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        %dequantized_vec = tcrv_rvv.dequantize %lhs_vec, %scale, %vl {dequant_relation = "signed-i32m1-to-f32m1-scale-f32", kind = "i32_to_f32_scaled"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
+        %dequantized_vec = tcrv_rvv.dequantize %lhs_vec, %scale, %vl {dequant_relation = "signed-i32m1-to-f32m1-scale-f32", kind = "i32_to_f32_scaled", tcrv_rvv.gearbox.dest_lmul = "m1", tcrv_rvv.gearbox.dest_sew = 32 : i64, tcrv_rvv.gearbox.operation = "dequantize_i32_to_f32", tcrv_rvv.gearbox.runtime_avl_source = "runtime_abi:n", tcrv_rvv.gearbox.schedule_id = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1", tcrv_rvv.gearbox.selector = "static-dequantize-i32-to-f32-e32-m1-u1", tcrv_rvv.gearbox.source = "rvv-gearbox-static-pass.v1", tcrv_rvv.gearbox.source_lmul = "m1", tcrv_rvv.gearbox.source_sew = 32 : i64, tcrv_rvv.gearbox.unroll = 1 : i64, tcrv_rvv.gearbox.vl_policy = "runtime-avl-single-setvl"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
         tcrv_rvv.store %out, %dequantized_vec, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<f32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
@@ -10042,6 +10042,20 @@ bool expectRVVTargetArtifactExporterShape(
       dequantContract->dequantScaleRole != dequantFacts->scaleRole ||
       dequantContract->dequantScaleCType != dequantFacts->scaleCType ||
       dequantContract->dequantScaleName != dequantFacts->scaleName ||
+      dequantContract->gearboxScheduleID !=
+          dequantFacts->gearboxScheduleID ||
+      dequantContract->gearboxSelector != dequantFacts->gearboxSelector ||
+      dequantContract->gearboxSource != dequantFacts->gearboxSource ||
+      dequantContract->gearboxOperation != dequantFacts->gearboxOperation ||
+      dequantContract->gearboxUnroll != dequantFacts->gearboxUnroll ||
+      dequantContract->gearboxVLPolicy != dequantFacts->gearboxVLPolicy ||
+      dequantContract->gearboxSourceSEW != dequantFacts->gearboxSourceSEW ||
+      dequantContract->gearboxSourceLMUL !=
+          dequantFacts->gearboxSourceLMUL ||
+      dequantContract->gearboxDestSEW != dequantFacts->gearboxDestSEW ||
+      dequantContract->gearboxDestLMUL != dequantFacts->gearboxDestLMUL ||
+      dequantContract->gearboxRuntimeAVLSource !=
+          dequantFacts->gearboxRuntimeAVLSource ||
       dequantContract->runtimeABIOrder != dequantFacts->runtimeABIOrder ||
       dequantContract->runtimeABIParameters.size() != 4 ||
       dequantContract->expectedLoopBodyStepCount != 5 ||
@@ -10106,6 +10120,15 @@ bool expectRVVTargetArtifactExporterShape(
            "runtime scale role/type/name facts"}))
     return false;
 
+  RVVRouteDescription staleDequantGearboxSchedule = dequantDescription;
+  staleDequantGearboxSchedule.gearboxScheduleID =
+      "artifact-name-derived-gear";
+  if (!expectDequantProviderFailure(
+          staleDequantGearboxSchedule,
+          "dequantize_i32_to_f32 registry rejects stale Gearbox schedule",
+          {"provider-consumed RVV Gearbox schedule facts"}))
+    return false;
+
   RVVRouteDescription staleDequantWideningFacts = dequantDescription;
   staleDequantWideningFacts.wideningConversionRouteFamilyPlanID =
       "rvv-widening-conversion-route-family-plan.v1";
@@ -10137,6 +10160,23 @@ bool expectRVVTargetArtifactExporterShape(
           staleDequantScaleMirror,
           "dequantize_i32_to_f32 registry rejects stale scale role mirror",
           {"dequant_scale_role", "dequant-scale-value", "output-buffer"}))
+    return false;
+
+  TargetArtifactCandidate staleDequantGearboxMirror = dequantFixture.candidate;
+  if (!rewriteArtifactMetadataValue(staleDequantGearboxMirror,
+                                    "tcrv_rvv.gearbox.schedule_id",
+                                    "artifact-name-derived-gear")) {
+    llvm::errs() << "test fixture did not contain dequantization Gearbox "
+                    "schedule metadata\n";
+    return false;
+  }
+  if (!expectDequantCandidateFailure(
+          staleDequantGearboxMirror,
+          "dequantize_i32_to_f32 registry rejects stale Gearbox schedule "
+          "mirror",
+          {"gearbox.schedule_id",
+           "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1",
+           "artifact-name-derived-gear"}))
     return false;
 
   TargetArtifactCandidate staleDequantWideningMirror = dequantFixture.candidate;
