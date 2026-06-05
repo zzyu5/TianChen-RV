@@ -990,6 +990,7 @@ struct RVVSelectedBodyStandaloneReductionRouteFamilyPlan {
   llvm::StringRef storeIntrinsic;
   llvm::StringRef accumulatorLayout;
   llvm::StringRef resultLayout;
+  llvm::StringRef reductionKind;
   llvm::StringRef reductionStoreVL;
   llvm::StringRef scalarResultRuntimeBoundary;
   llvm::StringRef inactiveLaneZeroingRequirement;

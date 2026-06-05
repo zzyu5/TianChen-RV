@@ -714,6 +714,31 @@ bool isRVVRuntimeScalarComputedMaskStandaloneReductionRouteFactsOperation(
   }
 }
 
+llvm::StringRef
+getRVVStandaloneReductionKindMirror(RVVSelectedBodyOperationKind operation) {
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::StandaloneReduceAdd:
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceAdd:
+    return "add";
+  case RVVSelectedBodyOperationKind::StandaloneReduceMin:
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMin:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceMin:
+    return "min";
+  case RVVSelectedBodyOperationKind::StandaloneReduceMax:
+  case RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceMax:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskStandaloneReduceMax:
+    return "max";
+  case RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd:
+    return "signed_widening_reduce_add";
+  default:
+    return "";
+  }
+}
+
 std::optional<RVVStandaloneReductionRouteFacts>
 getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation) {
   return getRVVStandaloneReductionRouteFacts(operation, /*sew=*/0);
@@ -763,6 +788,7 @@ getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation,
 
   RVVStandaloneReductionRouteFacts facts;
   facts.operation = operation;
+  facts.reductionKind = getRVVStandaloneReductionKindMirror(operation);
   facts.memoryForm =
       isRuntimeScalarComputedMask
           ? RVVSelectedBodyMemoryForm::
@@ -2297,6 +2323,7 @@ static void populateRVVStandaloneReductionValidationContract(
   contract.reductionAccumulatorLayout =
       facts.reductionAccumulatorLayout.str();
   contract.reductionResultLayout = facts.reductionResultLayout.str();
+  contract.reductionKind = facts.reductionKind.str();
   contract.reductionStoreVL = facts.reductionStoreVL.str();
 
   contract.comparePredicateKind = facts.comparePredicateKind.str();
@@ -2501,6 +2528,9 @@ buildRVVStandaloneReductionRouteMetadataMirrorContract(
       contract, "tcrv_rvv.reduction_result_layout",
       facts.reductionResultLayout,
       "selected typed RVV standalone reduction result layout");
+  appendRVVStandaloneReductionMetadataMirror(
+      contract, "tcrv_rvv.reduction_kind", facts.reductionKind,
+      "selected typed RVV standalone reduction kind");
   appendRVVStandaloneReductionMetadataMirror(
       contract, "tcrv_rvv.reduction_store_vl",
       facts.reductionStoreVL,
@@ -10589,6 +10619,7 @@ deriveRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   plan.resultLayout =
       isComputedMask ? analysis.slice.maskedStandaloneReduceOp.getResultLayout()
                      : analysis.slice.standaloneReduceOp.getResultLayout();
+  plan.reductionKind = routeFacts->reductionKind;
   plan.reductionStoreVL = kRVVStandaloneReductionStoreVL;
   plan.scalarResultRuntimeBoundary =
       kRVVStandaloneReductionScalarResultRuntimeBoundary;
@@ -10655,6 +10686,7 @@ void applyRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
   description.maskMemoryForm = plan.maskMemoryForm;
   description.reductionAccumulatorLayout = plan.accumulatorLayout;
   description.reductionResultLayout = plan.resultLayout;
+  description.reductionKind = plan.reductionKind;
   description.reductionStoreVL = plan.reductionStoreVL;
   description.standaloneReductionScalarResultRuntimeBoundary =
       plan.scalarResultRuntimeBoundary;
@@ -41128,6 +41160,9 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         description.reductionAccumulatorLayout});
     metadata.push_back({"tcrv_rvv.reduction_result_layout",
                         description.reductionResultLayout});
+    if (!description.reductionKind.empty())
+      metadata.push_back({"tcrv_rvv.reduction_kind",
+                          description.reductionKind});
     metadata.push_back(
         {"tcrv_rvv.reduction_store_vl", description.reductionStoreVL});
   }

@@ -1,5 +1,9 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.reduction_kind", value = "add"/s//tcrv_rvv.reduction_kind", value = "max"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-REDUCTION-KIND
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.reduction_accumulator_layout", value = "scalar-i32-seed-lane0-from-accumulator-input"/s//tcrv_rvv.reduction_accumulator_layout", value = "scalar-i64-seed-lane0-from-accumulator-input"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-REDUCTION-ACC
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/rvv-route-operand-binding:standalone_reduce_add.v1/s//rvv-route-operand-binding:script-derived-standalone-reduce.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-REDUCTION-BINDING
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/input:typed-source-vector/s//input:artifact-name-derived-vector/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-REDUCTION-TYPE
 
 // Explicit standalone reduction selected-body input. The RVV plugin must derive
 // source, scalar seed, scalar result, and runtime n/AVL facts from the typed
@@ -47,6 +51,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,input:typed-source-vector,seed:typed-scalar,result:typed-scalar-reduction-vector"}
 // PLAN-SAME: {key = "tcrv_rvv.reduction_accumulator_layout", value = "scalar-i32-seed-lane0-from-accumulator-input"}
 // PLAN-SAME: {key = "tcrv_rvv.reduction_result_layout", value = "store-standalone-reduction-lane0-to-output-scalar"}
+// PLAN-SAME: {key = "tcrv_rvv.reduction_kind", value = "add"}
 // PLAN-SAME: {key = "tcrv_rvv.reduction_store_vl", value = "1"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
 // PLAN-SAME: lowering_boundary = "tcrv_rvv.with_vl"
@@ -63,9 +68,30 @@ module {
 // HEADER: tianchenrv.rvv.memory_form: unit-stride-standalone-reduction
 // HEADER: tianchenrv.rvv.reduction_accumulator_layout: scalar-i32-seed-lane0-from-accumulator-input
 // HEADER: tianchenrv.rvv.reduction_result_layout: store-standalone-reduction-lane0-to-output-scalar
+// HEADER: tianchenrv.rvv.reduction_kind: add
 // HEADER: tianchenrv.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:standalone_reduce_add.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:standalone_reduce_add.v1;lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;out=output-buffer:out:abi|acc-state|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr
 // HEADER: tianchenrv.rvv.standalone_reduction_route_family_plan: rvv-standalone-reduction-route-family-plan.v1
 // HEADER: tianchenrv.rvv.standalone_reduction_scalar_result_runtime_boundary: scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1
 // HEADER: void tcrv_emitc_explicit_selected_body_standalone_reduce_add_kernel_explicit_selected_body_rvv_standalone_reduce_add(const int32_t *lhs, const int32_t *acc, int32_t *out, size_t n);
+
+// STALE-REDUCTION-KIND: RVV materialized EmitC target artifact bridge failed
+// STALE-REDUCTION-KIND: tcrv_rvv.reduction_kind
+// STALE-REDUCTION-KIND-SAME: must mirror
+// STALE-REDUCTION-KIND-SAME: max
+
+// STALE-REDUCTION-ACC: RVV materialized EmitC target artifact bridge failed
+// STALE-REDUCTION-ACC: tcrv_rvv.reduction_accumulator_layout
+// STALE-REDUCTION-ACC-SAME: must mirror
+// STALE-REDUCTION-ACC-SAME: scalar-i64-seed-lane0-from-accumulator-input
+
+// STALE-REDUCTION-BINDING: RVV materialized EmitC target artifact bridge failed
+// STALE-REDUCTION-BINDING: tcrv_rvv.route_operand_binding_plan
+// STALE-REDUCTION-BINDING-SAME: must mirror
+// STALE-REDUCTION-BINDING-SAME: rvv-route-operand-binding:script-derived-standalone-reduce.v1
+
+// STALE-REDUCTION-TYPE: RVV materialized EmitC target artifact bridge failed
+// STALE-REDUCTION-TYPE: tcrv_rvv.c_type_mapping
+// STALE-REDUCTION-TYPE-SAME: must mirror
+// STALE-REDUCTION-TYPE-SAME: input:artifact-name-derived-vector

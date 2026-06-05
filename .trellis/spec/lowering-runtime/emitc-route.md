@@ -173,6 +173,103 @@ typed body/runtime ABI fact
   -> target artifact mirror matches exactly
 ```
 
+## RVV Standalone Reduction Mirror Contract
+
+### 1. Scope / Trigger
+
+Use this contract when an RVV provider accepts a typed standalone reduction or
+masked standalone reduction body and emits target artifact metadata for that
+route family.
+
+### 2. Signatures
+
+The provider-owned route description and target artifact metadata must carry
+the explicit reduction-kind mirror:
+
+```text
+tcrv_rvv.reduction_kind = add | min | max | signed_widening_reduce_add
+```
+
+It is checked together with the existing standalone reduction mirrors:
+
+```text
+tcrv_rvv.reduction_accumulator_layout
+tcrv_rvv.reduction_result_layout
+tcrv_rvv.reduction_store_vl
+tcrv_rvv.standalone_reduction_route_family_plan
+tcrv_rvv.route_operand_binding_plan
+tcrv_rvv.route_operand_binding_operands
+```
+
+### 3. Contracts
+
+- The RVV provider derives `reduction_kind` from the selected typed
+  `tcrv_rvv.standalone_reduce` or `tcrv_rvv.masked_standalone_reduce` body and
+  route operation enum.
+- Common EmitC and target export carry the field unchanged as provider output.
+  They must not infer it from a route id, artifact name, ABI name, test name,
+  descriptor, or intrinsic spelling.
+- Target artifact validation must compare the candidate mirror exactly against
+  the provider contract before accepting the bundle.
+- `reduction_kind` is a mirror after provider route construction. It is not a
+  route selector and cannot make an unsupported body supported.
+
+### 4. Validation & Error Matrix
+
+- Missing `reduction_kind` on a standalone reduction route -> fail before
+  target artifact acceptance.
+- Candidate `reduction_kind` differs from the provider-derived kind -> fail
+  before target artifact acceptance.
+- Candidate accumulator/result layout or store VL differs while
+  `reduction_kind` matches -> fail before target artifact acceptance.
+- Candidate route binding or C type mapping differs while `reduction_kind`
+  matches -> fail before target artifact acceptance.
+- A route string, artifact name, ABI string, or intrinsic spelling is the only
+  source of `reduction_kind` -> invalid architecture; fail closed.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed `tcrv_rvv.standalone_reduce {kind = "add"}` ->
+  provider-derived `tcrv_rvv.reduction_kind = add` -> target artifact mirror
+  matches exactly.
+- Good: typed widening standalone reduction body -> provider-derived
+  `tcrv_rvv.reduction_kind = signed_widening_reduce_add` with matching source
+  and scalar-result type mirrors.
+- Base: non-standalone vector reduction routes use their own reduction route
+  contract and do not need this standalone mirror.
+- Bad: candidate metadata changes `tcrv_rvv.reduction_kind` from `add` to
+  `max` while keeping the same body, binding plan, and artifact name.
+
+### 6. Tests Required
+
+- FileCheck positive tests must assert the provider-emitted
+  `tcrv_rvv.reduction_kind` in emission-plan and target-header output for a
+  representative standalone reduction route.
+- Negative tests must mutate stale `reduction_kind`, accumulator layout,
+  route operand binding, or type mapping mirrors and prove target validation
+  fails closed.
+- Runtime evidence is not required for this mirror contract. It is required
+  only when executable correctness, runtime behavior, or performance is
+  claimed.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+artifact name contains standalone_reduce_add
+  -> accept target artifact as add reduction
+```
+
+Correct:
+
+```text
+typed standalone_reduce body + provider legality
+  -> provider route description carries reduction_kind = add
+  -> Common EmitC carries the mirror unchanged
+  -> target artifact validation compares the mirror exactly
+```
+
 ## Provider Header And Type Summary Contract
 
 ### 1. Scope / Trigger

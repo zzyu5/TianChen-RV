@@ -6014,6 +6014,10 @@ llvm::Error validateRVVStandaloneReductionDescriptionAgainstContract(
           description.reductionResultLayout, contract.reductionResultLayout))
     return error;
   if (llvm::Error error = requireRVVStandaloneReductionContractStringField(
+          consumerLabel, "reduction kind", description.reductionKind,
+          contract.reductionKind))
+    return error;
+  if (llvm::Error error = requireRVVStandaloneReductionContractStringField(
           consumerLabel, "reduction store VL", description.reductionStoreVL,
           contract.reductionStoreVL))
     return error;

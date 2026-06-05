@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants, RVV stage ordering, and typed RVV authority chain for this implementation round."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, typed body authority, Stage 2 coverage, selected-body realization, and fail-closed route support rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary, provider-owned payload contract, header/type/operand summary mirrors, and target validation obligations."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused MLIR, provider, target artifact, and runtime evidence expectations for compiler changes."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-rvv-gearbox-dequant-executable-abi-closure/prd.md", "reason": "Immediate previous task context showing the already-closed Gearbox/dequant route and the boundary for this new reduction task."}

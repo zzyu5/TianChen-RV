@@ -853,6 +853,8 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"reduction_result_layout", "tcrv_rvv.reduction_result_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"reduction_kind", "tcrv_rvv.reduction_kind", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"reduction_store_vl", "tcrv_rvv.reduction_store_vl", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"target_leaf_profile", "tcrv_rvv.target_leaf_profile", "",

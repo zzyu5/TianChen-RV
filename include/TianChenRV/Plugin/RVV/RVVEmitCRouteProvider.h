@@ -251,6 +251,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef maskedPassthroughLayout;
   llvm::StringRef reductionAccumulatorLayout;
   llvm::StringRef reductionResultLayout;
+  llvm::StringRef reductionKind;
   llvm::StringRef reductionStoreVL;
   llvm::StringRef standaloneReductionScalarResultRuntimeBoundary;
   llvm::StringRef maccAccumulatorLayout;
@@ -1469,6 +1470,7 @@ struct RVVStandaloneReductionRouteFacts {
   llvm::StringRef inactiveNeutralLiteralSEW64;
   llvm::StringRef reductionAccumulatorLayout;
   llvm::StringRef reductionResultLayout;
+  llvm::StringRef reductionKind;
   llvm::StringRef reductionStoreVL;
   llvm::StringRef scalarResultRuntimeBoundary;
   std::string routeOperandBindingSummary;
@@ -1549,6 +1551,7 @@ struct RVVStandaloneReductionRouteValidationContract {
   std::string standaloneReductionScalarResultRuntimeBoundary;
   std::string reductionAccumulatorLayout;
   std::string reductionResultLayout;
+  std::string reductionKind;
   std::string reductionStoreVL;
 
   std::string comparePredicateKind;
