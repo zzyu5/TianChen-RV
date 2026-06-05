@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "global stage order and authority chain"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership and direct contraction route-provider boundary"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "widening-MAcc provider facts, MAcc route validation, and target artifact mirror contracts"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "generated-bundle dry-run and ssh rvv runtime evidence policy"}
+{"file": ".trellis/spec/implementation-stack/compiler-stack-contract.md", "reason": "C++/MLIR compiler stack and Python tooling boundary"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "selected typed RVV body and metadata mirror constraints"}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-widening-macc-add.mlir", "reason": "explicit selected-body widening-MAcc fixture"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-macc-add.mlir", "reason": "adjacent pre-realized widening-MAcc fixture"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-widening-macc-add-dry-run.test", "reason": "explicit generated-bundle dry-run contract"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "generated-bundle harness and ssh execution bridge"}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-explicit-computed-masked-indexed-gather-load-abi-closure/prd.md", "reason": "previous executable ABI closure evidence workflow"}

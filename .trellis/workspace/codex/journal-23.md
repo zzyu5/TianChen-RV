@@ -1052,15 +1052,43 @@ Closed bounded widening conversion route evidence: added i16->i32 target mirror 
 
 ### Main Changes
 
-(Add details)
+- Created and archived the Trellis task for the explicit
+  `widening_macc_add` executable ABI closure.
+- Proved the existing explicit selected-body generated bundle is executable on
+  real `ssh rvv` without production compiler, script, fixture, or test changes.
+- Recorded completion evidence for provider-derived ABI order, route operand
+  binding, i16mf2 source facts, i32m1 accumulator/result facts, widening-MAcc
+  relation, required header/type/intrinsic mirrors, and target/header
+  fail-closed negatives.
 
 ### Git Commits
 
-(No commits - planning session)
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate -j2`
+- [OK] explicit generated-bundle dry-run for counts `0,1,7,16,23,257`
+- [OK] direct `FileCheck` of the explicit dry-run test `ROOT`, `WMACC`, and
+  `HARNESS` prefixes
+- [OK] real `ssh rvv` generated-bundle compile/run:
+  `PASS op=widening_macc_add counts=0,1,7,16,23,257 patterns=0,1`
+- [OK] focused explicit target fixture `PLAN` and `HEADER` FileCheck commands
+- [OK] adjacent pre-realized generated-bundle dry-run regression
+- [OK] direct `FileCheck` of the pre-realized dry-run test `ROOT`, `WMACC`,
+  and `HARNESS` prefixes
+- [OK] focused pre-realized target fixture `REALIZED`, `PLAN`, and `HEADER`
+  FileCheck commands
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] bounded old-authority scan over production/source diff lines
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Trellis context validation
+- [SKIP] script self-test was not required because
+  `scripts/rvv_generated_bundle_abi_e2e.py` was not changed
 
 ### Status
 
@@ -1412,6 +1440,37 @@ Closed explicit computed_masked_indexed_gather_load_unit_store generated-bundle 
 - [OK] Trellis context validation
 - [SKIP] script self-test was not required because
   `scripts/rvv_generated_bundle_abi_e2e.py` was not changed
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 477: Stage2 RVV explicit widening-MAcc ABI closure
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV explicit widening-MAcc ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed explicit widening_macc_add generated-bundle executable ABI evidence on ssh rvv for counts 0,1,7,16,23,257 and patterns 0,1; verified signed widening products, source preservation, accumulator preservation, tail preservation, provider/target facts, explicit/pre-realized FileCheck, and target/plugin C++ tests; no production code change required.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 

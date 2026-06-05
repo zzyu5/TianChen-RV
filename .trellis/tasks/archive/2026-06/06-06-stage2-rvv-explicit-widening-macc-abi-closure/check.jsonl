@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "global authority and stage-order check"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership check"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider route, MAcc contract, and target validation check"}
+{"file": ".trellis/spec/testing/index.md", "reason": "runtime evidence and testing policy check"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "generated-bundle evidence quality check"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-widening-macc-add-dry-run.test", "reason": "explicit dry-run check target"}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-widening-macc-add.mlir", "reason": "explicit target/header fixture check"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-macc-add.mlir", "reason": "adjacent pre-realized target/header fixture check"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "script self-test target if changed"}
