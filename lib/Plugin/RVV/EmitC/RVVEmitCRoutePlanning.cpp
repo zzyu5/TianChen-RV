@@ -22792,18 +22792,18 @@ static void populateRVVConversionDtypePolicyValidationContract(
     const llvm::StringRef outName = facts.runtimeABIParameters[2].cName;
     const llvm::StringRef runtimeNName = facts.runtimeABIParameters[3].cName;
     contract.gearboxSecondRemainingAVLExpression =
-        (runtimeNName + "-" + description.emitCLoopInductionName + "-" +
-         description.emitCLoopVLName)
+        (runtimeNName + " - " + description.emitCLoopInductionName +
+         " - " + description.emitCLoopVLName)
             .str();
     contract.gearboxSecondLoopVLName =
         kRVVGearboxDequantizeI32ToF32SecondLoopVLName.str();
     contract.gearboxSecondSourcePointerExpression =
-        (sourceName + "+" + description.emitCLoopInductionName + "+" +
-         description.emitCLoopVLName)
+        (sourceName + " + " + description.emitCLoopInductionName +
+         " + " + description.emitCLoopVLName)
             .str();
     contract.gearboxSecondOutPointerExpression =
-        (outName + "+" + description.emitCLoopInductionName + "+" +
-         description.emitCLoopVLName)
+        (outName + " + " + description.emitCLoopInductionName +
+         " + " + description.emitCLoopVLName)
             .str();
     contract.gearboxSecondSourceName =
         kRVVGearboxDequantizeI32ToF32SecondSourceName.str();

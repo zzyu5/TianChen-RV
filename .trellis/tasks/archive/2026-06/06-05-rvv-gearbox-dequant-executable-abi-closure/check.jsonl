@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Final compliance check for RVV-first authority chain and Stage2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final compliance check that Gearbox schedule authority stays RVV-plugin/provider-owned and runtime claims use ssh rvv evidence."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final compliance check for dequant route facts, ABI binding, Common EmitC neutrality, and target artifact mirror validation."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Final compliance check for focused build, lit/FileCheck, generated artifact, and real RVV runtime evidence."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-rvv-gearbox-two-candidate-dequant-route-realization/prd.md", "reason": "Regression check that this executable closure preserves the previous u2 route-realization contract."}
+{"file": "build/bin/tcrv-opt", "reason": "Built focused compiler target after Gearbox dequant route-plan and EmitC materializer changes."}
+{"file": "build/bin/tcrv-translate", "reason": "Built focused translator target after Common EmitC expression-chain materialization changes."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Passed py_compile, self-test, dry-run dequant u2 evidence, and real ssh rvv generated-bundle execution."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-dequantize-i32-to-f32-gearbox-dry-run.test", "reason": "Passed focused lit dry-run test for selected u2 Gearbox route evidence, generated C++ second slice, and ABI harness checks."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-dequantize-i32-to-f32.mlir", "reason": "Passed focused lit regression including existing Gearbox selected-body diagnostics and negative stale/missing schedule checks."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Passed target artifact export C++ tests after route-family validation expectation updates."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Passed RVV extension plugin smoke test after provider route-plan changes."}
+{"file": "artifacts/tmp/rvv_gearbox_dequant_executable/ssh-rvv-final/dequantize_i32_to_f32/evidence.json", "reason": "ssh rvv execution passed counts 0,1,16,17,257 with patterns 0,1, scales -0.125 and 0.375, f32 tolerance 1e-05, source preservation, and tail preservation."}

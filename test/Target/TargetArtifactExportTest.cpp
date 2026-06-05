@@ -10092,19 +10092,19 @@ bool expectRVVTargetArtifactExporterShape(
       dequantContract->gearboxLoopStepExpression !=
           (dequantDescription.emitCFullChunkVLName + " * 2").str() ||
       dequantContract->gearboxSecondRemainingAVLExpression !=
-          (llvm::StringRef("n") + "-" +
-           dequantDescription.emitCLoopInductionName + "-" +
+          (llvm::StringRef("n") + " - " +
+           dequantDescription.emitCLoopInductionName + " - " +
            dequantDescription.emitCLoopVLName)
               .str() ||
       dequantContract->gearboxSecondLoopVLName != "gearbox_loop_vl_u1" ||
       dequantContract->gearboxSecondSourcePointerExpression !=
-          (llvm::StringRef("lhs") + "+" +
-           dequantDescription.emitCLoopInductionName + "+" +
+          (llvm::StringRef("lhs") + " + " +
+           dequantDescription.emitCLoopInductionName + " + " +
            dequantDescription.emitCLoopVLName)
               .str() ||
       dequantContract->gearboxSecondOutPointerExpression !=
-          (llvm::StringRef("out") + "+" +
-           dequantDescription.emitCLoopInductionName + "+" +
+          (llvm::StringRef("out") + " + " +
+           dequantDescription.emitCLoopInductionName + " + " +
            dequantDescription.emitCLoopVLName)
               .str() ||
       dequantContract->gearboxSecondSourceName != "lhs_vec_u1" ||

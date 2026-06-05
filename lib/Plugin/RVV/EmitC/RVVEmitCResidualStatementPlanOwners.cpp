@@ -823,8 +823,8 @@ getRVVSelectedBodyDequantizationRouteStatementPlan(
     return plan;
 
   const std::string secondRemainingAVL =
-      (llvm::StringRef(runtimeElementCountABI->cName) + "-" + inductionName +
-       "-" + loopVLName)
+      (llvm::StringRef(runtimeElementCountABI->cName) + " - " +
+       inductionName + " - " + loopVLName)
           .str();
   const llvm::StringRef secondLoopVLName =
       kRVVGearboxDequantizeI32ToF32SecondLoopVLName;
@@ -839,7 +839,7 @@ getRVVSelectedBodyDequantizationRouteStatementPlan(
     return std::move(error);
 
   const std::string secondSourcePointer =
-      (llvm::StringRef(lhsABI->cName) + "+" + inductionName + "+" +
+      (llvm::StringRef(lhsABI->cName) + " + " + inductionName + " + " +
        loopVLName)
           .str();
   if (llvm::Error error = addRVVWideningConversionStatementPlanLoopStep(
@@ -884,7 +884,7 @@ getRVVSelectedBodyDequantizationRouteStatementPlan(
     return std::move(error);
 
   const std::string secondOutPointer =
-      (llvm::StringRef(outABI->cName) + "+" + inductionName + "+" +
+      (llvm::StringRef(outABI->cName) + " + " + inductionName + " + " +
        loopVLName)
           .str();
   if (llvm::Error error = addRVVWideningConversionStatementPlanLoopStep(

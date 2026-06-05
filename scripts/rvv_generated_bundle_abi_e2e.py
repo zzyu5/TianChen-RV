@@ -1116,6 +1116,37 @@ DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC = "__riscv_vle32_v_i32m1"
 DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC = "__riscv_vse32_v_f32m1"
 DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE = "vint32m1_t"
 DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE = "vfloat32m1_t"
+DEQUANTIZE_I32_TO_F32_GEARBOX_CANDIDATE_SET = (
+    "rvv-gearbox-candidate-set.v1["
+    "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1,"
+    "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1]"
+)
+DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE = (
+    "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1"
+)
+DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTION_REASON = (
+    "select-bounded-u2-two-slice-route-plan-for-typed-"
+    "dequantize-i32-to-f32-e32-m1-runtime-avl"
+)
+DEQUANTIZE_I32_TO_F32_GEARBOX_LEGALITY_SCOPE = (
+    "typed-dequantize-i32-to-f32-sew32-lmul-m1-runtime-avl"
+)
+DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTOR = (
+    "static-dequantize-i32-to-f32-e32-m1-u2"
+)
+DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE = "rvv-gearbox-static-pass.v1"
+DEQUANTIZE_I32_TO_F32_GEARBOX_OPERATION = "dequantize_i32_to_f32"
+DEQUANTIZE_I32_TO_F32_GEARBOX_UNROLL = "2"
+DEQUANTIZE_I32_TO_F32_GEARBOX_VL_POLICY = "runtime-avl-two-slice-setvl"
+DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE_SEW = "32"
+DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE_LMUL = "m1"
+DEQUANTIZE_I32_TO_F32_GEARBOX_DEST_SEW = "32"
+DEQUANTIZE_I32_TO_F32_GEARBOX_DEST_LMUL = "m1"
+DEQUANTIZE_I32_TO_F32_GEARBOX_RUNTIME_AVL_SOURCE = "runtime_abi:n"
+DEQUANTIZE_I32_TO_F32_GEARBOX_SECOND_LOOP_VL_NAME = "gearbox_loop_vl_u1"
+DEQUANTIZE_I32_TO_F32_GEARBOX_SECOND_SOURCE_NAME = "lhs_vec_u1"
+DEQUANTIZE_I32_TO_F32_GEARBOX_SECOND_CONVERTED_NAME = "converted_f32_vec_u1"
+DEQUANTIZE_I32_TO_F32_GEARBOX_SECOND_RESULT_NAME = "dequantized_vec_u1"
 DEQUANT_F32_OUT_SENTINEL = "-98765.25f"
 F32_CLAMP_SELECT_RUNTIME_ABI_ORDER = "input,lower_bound,upper_bound,out,n"
 F32_CLAMP_SELECT_ROUTE_OPERAND_BINDING_PLAN = (
@@ -7036,6 +7067,21 @@ DEQUANTIZATION_METADATA_KEYS = (
     "tcrv_rvv.dequant_scale_role",
     "tcrv_rvv.dequant_scale_c_type",
     "tcrv_rvv.dequant_scale_name",
+    "tcrv_rvv.gearbox.candidate_set",
+    "tcrv_rvv.gearbox.selected_candidate",
+    "tcrv_rvv.gearbox.selection_reason",
+    "tcrv_rvv.gearbox.legality_scope",
+    "tcrv_rvv.gearbox.schedule_id",
+    "tcrv_rvv.gearbox.selector",
+    "tcrv_rvv.gearbox.source",
+    "tcrv_rvv.gearbox.operation",
+    "tcrv_rvv.gearbox.unroll",
+    "tcrv_rvv.gearbox.vl_policy",
+    "tcrv_rvv.gearbox.source_sew",
+    "tcrv_rvv.gearbox.source_lmul",
+    "tcrv_rvv.gearbox.dest_sew",
+    "tcrv_rvv.gearbox.dest_lmul",
+    "tcrv_rvv.gearbox.runtime_avl_source",
     "tcrv_rvv.source_memory_form",
     "tcrv_rvv.destination_memory_form",
 )
@@ -9435,6 +9481,49 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.dequant_scale_role": "dequant-scale-value",
                 "tcrv_rvv.dequant_scale_c_type": "float",
                 "tcrv_rvv.dequant_scale_name": "scale",
+                "tcrv_rvv.gearbox.candidate_set": (
+                    DEQUANTIZE_I32_TO_F32_GEARBOX_CANDIDATE_SET
+                ),
+                "tcrv_rvv.gearbox.selected_candidate": (
+                    DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
+                ),
+                "tcrv_rvv.gearbox.selection_reason": (
+                    DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTION_REASON
+                ),
+                "tcrv_rvv.gearbox.legality_scope": (
+                    DEQUANTIZE_I32_TO_F32_GEARBOX_LEGALITY_SCOPE
+                ),
+                "tcrv_rvv.gearbox.schedule_id": (
+                    DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
+                ),
+                "tcrv_rvv.gearbox.selector": (
+                    DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTOR
+                ),
+                "tcrv_rvv.gearbox.source": DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE,
+                "tcrv_rvv.gearbox.operation": (
+                    DEQUANTIZE_I32_TO_F32_GEARBOX_OPERATION
+                ),
+                "tcrv_rvv.gearbox.unroll": (
+                    DEQUANTIZE_I32_TO_F32_GEARBOX_UNROLL
+                ),
+                "tcrv_rvv.gearbox.vl_policy": (
+                    DEQUANTIZE_I32_TO_F32_GEARBOX_VL_POLICY
+                ),
+                "tcrv_rvv.gearbox.source_sew": (
+                    DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE_SEW
+                ),
+                "tcrv_rvv.gearbox.source_lmul": (
+                    DEQUANTIZE_I32_TO_F32_GEARBOX_SOURCE_LMUL
+                ),
+                "tcrv_rvv.gearbox.dest_sew": (
+                    DEQUANTIZE_I32_TO_F32_GEARBOX_DEST_SEW
+                ),
+                "tcrv_rvv.gearbox.dest_lmul": (
+                    DEQUANTIZE_I32_TO_F32_GEARBOX_DEST_LMUL
+                ),
+                "tcrv_rvv.gearbox.runtime_avl_source": (
+                    DEQUANTIZE_I32_TO_F32_GEARBOX_RUNTIME_AVL_SOURCE
+                ),
                 "tcrv_rvv.source_memory_form": "unit-stride-load",
                 "tcrv_rvv.destination_memory_form": "unit-stride-store",
                 "tcrv_rvv.route_operand_binding_plan": (
@@ -10940,12 +11029,18 @@ def extract_dequantization_emitc_boundary(
         "emitted RVV C/C++ dequant full-chunk setvl",
     )
     full_chunk_vl = full_chunk.group("full_chunk_vl")
+    gearbox_loop_step = require_regex(
+        text,
+        rf"size_t (?P<gearbox_loop_step>v[0-9]+) = "
+        rf"{full_chunk_vl} \* 2;",
+        "emitted RVV C/C++ dequant Gearbox u2 loop step",
+    ).group("gearbox_loop_step")
     loop = require_regex(
         text,
         rf"for \(size_t (?P<offset>v[0-9]+) = 0; "
         rf"(?P=offset) < {runtime_n}; "
-        rf"(?P=offset) \+= {full_chunk_vl}\) \{{",
-        "emitted RVV C/C++ dequant runtime loop",
+        rf"(?P=offset) \+= {gearbox_loop_step}\) \{{",
+        "emitted RVV C/C++ dequant Gearbox u2 runtime loop",
     )
     offset = loop.group("offset")
     remaining = require_regex(
@@ -10992,19 +11087,139 @@ def extract_dequantization_emitc_boundary(
         rf"\((?P=out_ptr), {scaled_vec}, {loop_vl}\);",
         "emitted RVV C/C++ dequant f32 store",
     )
+    second_remaining_base = ""
+    second_remaining_avl = ""
+    second_loop_vl = ""
+    second_remaining = re.search(
+        rf"size_t (?P<second_remaining_base>v[0-9]+) = "
+        rf"{runtime_n} - {offset};\s*"
+        rf"size_t (?P<second_remaining_avl>v[0-9]+) = "
+        rf"(?P=second_remaining_base) - {loop_vl};\s*"
+        rf"size_t (?P<second_loop_vl>v[0-9]+) = "
+        rf"{setvl_intrinsic}\((?P=second_remaining_avl)\);",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
+    if second_remaining:
+        second_remaining_base = second_remaining.group("second_remaining_base")
+        second_remaining_avl = second_remaining.group("second_remaining_avl")
+        second_loop_vl = second_remaining.group("second_loop_vl")
+    else:
+        compact_second_remaining = re.search(
+            rf"size_t (?P<second_remaining_avl>v[0-9]+) = "
+            rf"{runtime_n} - {offset} - {loop_vl};\s*"
+            rf"size_t (?P<second_loop_vl>v[0-9]+) = "
+            rf"{setvl_intrinsic}\((?P=second_remaining_avl)\);",
+            text,
+            re.MULTILINE | re.DOTALL,
+        )
+        if compact_second_remaining:
+            second_remaining_avl = compact_second_remaining.group(
+                "second_remaining_avl"
+            )
+            second_loop_vl = compact_second_remaining.group("second_loop_vl")
+        else:
+            second_loop_vl = require_regex(
+                text,
+                rf"size_t (?P<second_loop_vl>v[0-9]+) = "
+                rf"{setvl_intrinsic}\({runtime_n} - {offset} - {loop_vl}\);",
+                "emitted RVV C/C++ dequant Gearbox u2 second remaining AVL setvl",
+            ).group("second_loop_vl")
+            second_remaining_avl = f"{runtime_n} - {offset} - {loop_vl}"
+    second_source_base_pointer = ""
+    second_source_load = re.search(
+        rf"const int32_t\* (?P<second_src_base>v[0-9]+) = "
+        rf"{lhs} \+ {offset};\s*"
+        rf"const int32_t\* (?P<second_src_ptr>v[0-9]+) = "
+        rf"(?P=second_src_base) \+ {loop_vl};\s*"
+        rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
+        rf"(?P<second_src_vec>v[0-9]+) = "
+        rf"{re.escape(DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC)}"
+        rf"\((?P=second_src_ptr), {second_loop_vl}\);",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
+    if second_source_load:
+        second_source_base_pointer = second_source_load.group("second_src_base")
+    else:
+        second_source_load = require_regex(
+            text,
+            rf"const int32_t\* (?P<second_src_ptr>v[0-9]+) = "
+            rf"{lhs} \+ {offset} \+ {loop_vl};\s*"
+            rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
+            rf"(?P<second_src_vec>v[0-9]+) = "
+            rf"{re.escape(DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC)}"
+            rf"\((?P=second_src_ptr), {second_loop_vl}\);",
+            "emitted RVV C/C++ dequant Gearbox u2 second source load",
+        )
+    second_source_vec = second_source_load.group("second_src_vec")
+    second_converted = require_regex(
+        text,
+        rf"{DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE} "
+        rf"(?P<second_converted>v[0-9]+) = "
+        rf"{re.escape(DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC)}"
+        rf"\({second_source_vec}, {second_loop_vl}\);",
+        "emitted RVV C/C++ dequant Gearbox u2 second i32-to-f32 conversion",
+    )
+    second_converted_vec = second_converted.group("second_converted")
+    second_scaled = require_regex(
+        text,
+        rf"{DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE} "
+        rf"(?P<second_scaled>v[0-9]+) = "
+        rf"{re.escape(DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC)}"
+        rf"\({second_converted_vec}, {scale}, {second_loop_vl}\);",
+        "emitted RVV C/C++ dequant Gearbox u2 second runtime scale multiply",
+    )
+    second_scaled_vec = second_scaled.group("second_scaled")
+    second_out_base_pointer = ""
+    second_store = re.search(
+        rf"float\* (?P<second_out_base>v[0-9]+) = "
+        rf"{out} \+ {offset};\s*"
+        rf"float\* (?P<second_out_ptr>v[0-9]+) = "
+        rf"(?P=second_out_base) \+ {loop_vl};\s*"
+        rf"{re.escape(DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC)}"
+        rf"\((?P=second_out_ptr), {second_scaled_vec}, {second_loop_vl}\);",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
+    if second_store:
+        second_out_base_pointer = second_store.group("second_out_base")
+    else:
+        second_store = require_regex(
+            text,
+            rf"float\* (?P<second_out_ptr>v[0-9]+) = "
+            rf"{out} \+ {offset} \+ {loop_vl};\s*"
+            rf"{re.escape(DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC)}"
+            rf"\((?P=second_out_ptr), {second_scaled_vec}, {second_loop_vl}\);",
+            "emitted RVV C/C++ dequant Gearbox u2 second f32 store",
+        )
     return {
         "runtime_avl_vl_control": {
             "runtime_abi_parameter": runtime_n,
             "full_chunk_vl": full_chunk_vl,
+            "gearbox_loop_step": gearbox_loop_step,
             "offset_induction": offset,
             "remaining_avl": remaining_avl,
             "loop_vl": loop_vl,
             "setvl_intrinsic": expectation.setvl_intrinsic,
             "full_chunk_setvl": f"{expectation.setvl_intrinsic}({runtime_n})",
+            "loop_step_expression": f"{full_chunk_vl} * 2",
             "loop_remaining_avl": f"{runtime_n} - {offset}",
             "loop_setvl": f"{expectation.setvl_intrinsic}({remaining_avl})",
             "uses_runtime_remaining_avl": True,
             "uses_loop_vl_for_intrinsics": True,
+            "uses_gearbox_u2_loop_step": True,
+            "gearbox_unroll": 2,
+            "second_remaining_base": second_remaining_base,
+            "second_remaining_avl": second_remaining_avl,
+            "second_loop_vl": second_loop_vl,
+            "second_remaining_avl_expression": (
+                f"{runtime_n} - {offset} - {loop_vl}"
+            ),
+            "second_loop_setvl": (
+                f"{expectation.setvl_intrinsic}({second_remaining_avl})"
+            ),
+            "uses_second_loop_vl_for_intrinsics": True,
         },
         "lhs_abi_parameter": lhs,
         "scale_abi_parameter": scale,
@@ -11014,6 +11229,26 @@ def extract_dequantization_emitc_boundary(
         "converted_vector": converted_vec,
         "scaled_vector": scaled_vec,
         "out_pointer": store.group("out_ptr"),
+        "gearbox_schedule": {
+            "candidate_set": DEQUANTIZE_I32_TO_F32_GEARBOX_CANDIDATE_SET,
+            "selected_candidate": (
+                DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
+            ),
+            "schedule_id": DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE,
+            "unroll": 2,
+            "vl_policy": DEQUANTIZE_I32_TO_F32_GEARBOX_VL_POLICY,
+            "loop_step_expression": f"{full_chunk_vl} * 2",
+            "second_slice_statement_count": 5,
+        },
+        "second_remaining_avl": second_remaining_avl,
+        "second_loop_vl": second_loop_vl,
+        "second_source_base_pointer": second_source_base_pointer,
+        "second_source_pointer": second_source_load.group("second_src_ptr"),
+        "second_source_vector": second_source_vec,
+        "second_converted_vector": second_converted_vec,
+        "second_scaled_vector": second_scaled_vec,
+        "second_out_base_pointer": second_out_base_pointer,
+        "second_out_pointer": second_store.group("second_out_ptr"),
         "source_vector_c_type": DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE,
         "result_vector_c_type": DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE,
         "source_load_intrinsic": DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC,
@@ -11024,6 +11259,14 @@ def extract_dequantization_emitc_boundary(
         "conversion_operand_order": "loaded_i32_source, vl",
         "scale_operand_order": "converted_f32_vector, scale, vl",
         "store_operand_order": "out, scaled_f32_vector, vl",
+        "second_source_load_operand_order": "lhs + offset + vl, gearbox_loop_vl_u1",
+        "second_conversion_operand_order": "lhs_vec_u1, gearbox_loop_vl_u1",
+        "second_scale_operand_order": (
+            "converted_f32_vec_u1, scale, gearbox_loop_vl_u1"
+        ),
+        "second_store_operand_order": (
+            "out + offset + vl, dequantized_vec_u1, gearbox_loop_vl_u1"
+        ),
     }
 
 
@@ -24518,6 +24761,8 @@ def generate_bundle(
     materialize_command = [tcrv_opt, str(expectation.input_path)]
     if expectation.is_pre_realized:
         materialize_command.append("--tcrv-materialize-selected-lowering-boundaries")
+    if expectation.is_dequantize_i32_to_f32:
+        materialize_command.append("--tcrv-rvv-materialize-gearbox-schedules")
     materialize_command.extend(
         ["--tcrv-materialize-emission-plans", "-o", str(materialized_path)]
     )
@@ -26558,11 +26803,40 @@ def dequantization_boundary_summary(
                 DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
                 DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
                 DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
+                expectation.setvl_intrinsic,
+                DEQUANTIZE_I32_TO_F32_SOURCE_LOAD_INTRINSIC,
+                DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
+                DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
+                DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
             ],
+            "gearbox_selected_candidate": (
+                DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
+            ),
+            "gearbox_schedule_id": (
+                DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
+            ),
+            "gearbox_unroll": 2,
+            "gearbox_loop_step": "full_chunk_vl * 2",
+            "loop_body_step_count": 10,
+            "second_slice_statement_count": 5,
             "source_load_operand_order": "lhs + loop_induction, vl",
             "conversion_operand_order": "loaded_i32_source, vl",
             "scale_operand_order": "converted_f32_vector, scale, vl",
             "store_operand_order": "out + loop_induction, scaled_f32_vector, vl",
+            "second_remaining_avl_operand": "n - loop_induction - vl",
+            "second_source_load_operand_order": (
+                "lhs + loop_induction + vl, gearbox_loop_vl_u1"
+            ),
+            "second_conversion_operand_order": (
+                "lhs_vec_u1, gearbox_loop_vl_u1"
+            ),
+            "second_scale_operand_order": (
+                "converted_f32_vec_u1, scale, gearbox_loop_vl_u1"
+            ),
+            "second_store_operand_order": (
+                "out + loop_induction + vl, dequantized_vec_u1, "
+                "gearbox_loop_vl_u1"
+            ),
         }
     )
     source_type_policy = (
@@ -26696,6 +26970,46 @@ def dequantization_boundary_summary(
                 "tcrv_rvv.provider_supported_mirror"
             ),
             "c_type_mapping": route_metadata.get("tcrv_rvv.c_type_mapping"),
+            "gearbox_candidate_set": route_metadata.get(
+                "tcrv_rvv.gearbox.candidate_set"
+            ),
+            "gearbox_selected_candidate": route_metadata.get(
+                "tcrv_rvv.gearbox.selected_candidate"
+            ),
+            "gearbox_schedule_id": route_metadata.get(
+                "tcrv_rvv.gearbox.schedule_id"
+            ),
+            "gearbox_selection_reason": route_metadata.get(
+                "tcrv_rvv.gearbox.selection_reason"
+            ),
+            "gearbox_legality_scope": route_metadata.get(
+                "tcrv_rvv.gearbox.legality_scope"
+            ),
+            "gearbox_unroll": route_metadata.get("tcrv_rvv.gearbox.unroll"),
+            "gearbox_vl_policy": route_metadata.get(
+                "tcrv_rvv.gearbox.vl_policy"
+            ),
+        },
+        "gearbox_preflight": {
+            "candidate_set": route_metadata.get("tcrv_rvv.gearbox.candidate_set"),
+            "selected_candidate": route_metadata.get(
+                "tcrv_rvv.gearbox.selected_candidate"
+            ),
+            "schedule_id": route_metadata.get("tcrv_rvv.gearbox.schedule_id"),
+            "unroll": route_metadata.get("tcrv_rvv.gearbox.unroll"),
+            "vl_policy": route_metadata.get("tcrv_rvv.gearbox.vl_policy"),
+            "emitted_cpp_loop_step": emitted_cpp_checks.get(
+                "dequantization_boundary", {}
+            )
+            .get("runtime_avl_vl_control", {})
+            .get("loop_step_expression"),
+            "emitted_cpp_second_loop_vl": emitted_cpp_checks.get(
+                "dequantization_boundary", {}
+            )
+            .get("runtime_avl_vl_control", {})
+            .get("second_loop_vl"),
+            "second_slice_statement_count": 5,
+            "checked_before_runtime": True,
         },
         "route_metadata": route_metadata,
         "artifact_abi": {
@@ -30498,10 +30812,11 @@ def run_self_test() -> int:
                     materialized_checks={},
                     emitted_cpp_checks={},
                     bundle_checks=bundle_checks,
-                    runtime_counts=[1, 17, 257],
+                    runtime_counts=[0, 1, 16, 17, 257],
                     dequant_scale_values=[-0.125, 0.375],
                 )
                 provider_facts = dequant_boundary.get("provider_route_facts", {})
+                gearbox_preflight = dequant_boundary.get("gearbox_preflight", {})
                 statement_plan = dequant_boundary.get("statement_plan", {})
                 selected_source_abi = dequant_boundary.get(
                     "selected_source_abi", {}
@@ -30527,8 +30842,29 @@ def run_self_test() -> int:
                     != DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
                     or provider_facts.get("store_intrinsic")
                     != DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC
+                    or provider_facts.get("gearbox_candidate_set")
+                    != DEQUANTIZE_I32_TO_F32_GEARBOX_CANDIDATE_SET
+                    or provider_facts.get("gearbox_selected_candidate")
+                    != DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
+                    or provider_facts.get("gearbox_unroll")
+                    != DEQUANTIZE_I32_TO_F32_GEARBOX_UNROLL
+                    or gearbox_preflight.get("candidate_set")
+                    != DEQUANTIZE_I32_TO_F32_GEARBOX_CANDIDATE_SET
+                    or gearbox_preflight.get("selected_candidate")
+                    != DEQUANTIZE_I32_TO_F32_GEARBOX_SELECTED_CANDIDATE
+                    or gearbox_preflight.get("unroll")
+                    != DEQUANTIZE_I32_TO_F32_GEARBOX_UNROLL
+                    or gearbox_preflight.get("second_slice_statement_count") != 5
+                    or gearbox_preflight.get("checked_before_runtime") is not True
+                    or statement_plan.get("gearbox_loop_step")
+                    != "full_chunk_vl * 2"
+                    or statement_plan.get("loop_body_step_count") != 10
                     or statement_plan.get("scale_operand_order")
                     != "converted_f32_vector, scale, vl"
+                    or statement_plan.get("second_scale_operand_order")
+                    != "converted_f32_vec_u1, scale, gearbox_loop_vl_u1"
+                    or dequant_boundary.get("runtime_counts")
+                    != [0, 1, 16, 17, 257]
                     or dequant_boundary.get("dequant_scale_values")
                     != [-0.125, 0.375]
                     or dequant_boundary.get("f32_abs_tolerance")

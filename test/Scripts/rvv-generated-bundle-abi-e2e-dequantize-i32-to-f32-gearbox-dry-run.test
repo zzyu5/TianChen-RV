@@ -1,0 +1,129 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id dequant-gearbox --overwrite --op-kind dequantize_i32_to_f32 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --dequant-scale -0.125 --dequant-scale 0.375 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/dequant-gearbox/evidence.json
+# RUN: FileCheck %s --check-prefix=DEQUANT --implicit-check-not="descriptor-driven" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="route-string authority" < %t.artifacts/dequant-gearbox/dequantize_i32_to_f32/evidence.json
+# RUN: FileCheck %s --check-prefix=CPP --implicit-check-not="n-offset-vl" --implicit-check-not="lhs+offset+vl" --implicit-check-not="out+offset+vl" < %t.artifacts/dequant-gearbox/dequantize_i32_to_f32/materialized_rvv_emitc.cpp
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor-driven" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/dequant-gearbox/dequantize_i32_to_f32/rvv_generated_bundle_abi_dequantize_i32_to_f32_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "explicit-selected-body"
+# ROOT: "dequantize_i32_to_f32"
+# ROOT: "dequantization_boundary"
+# ROOT: "source_seed": false
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# DEQUANT-DAG: "input_mode": "explicit-selected-body"
+# DEQUANT-DAG: "op_kind": "dequantize_i32_to_f32"
+# DEQUANT-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-dequantize-i32-to-f32.mlir"
+# DEQUANT-DAG: "prototype": "void tcrv_emitc_explicit_selected_body_dequantize_i32_to_f32_kernel_explicit_selected_body_rvv_dequantize_i32_to_f32(const int32_t *lhs, float scale, float *out, size_t n);"
+# DEQUANT-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_dequantize_i32_to_f32_kernel_explicit_selected_body_rvv_dequantize_i32_to_f32"
+# DEQUANT-DAG: "expected_runtime_abi_name": "rvv-generic-dequantize-i32-to-f32-callable-c-abi.v1"
+# DEQUANT-DAG: "expected_selected_variant": "explicit_selected_body_rvv_dequantize_i32_to_f32"
+# DEQUANT-DAG: "front_door": "explicit-selected-tcrv-exec-rvv-body"
+# DEQUANT-DAG: --tcrv-rvv-materialize-gearbox-schedules
+# DEQUANT-DAG: --tcrv-materialize-emission-plans
+# DEQUANT-DAG: "key": "rvv_emitc_lowerable_route"
+# DEQUANT-DAG: "value": "rvv-generic-dequantize-i32-to-f32-emitc-route"
+# DEQUANT-DAG: "key": "rvv_selected_body_operation"
+# DEQUANT-DAG: "value": "dequantize_i32_to_f32"
+# DEQUANT-DAG: "key": "rvv_selected_body_typed_compute_op"
+# DEQUANT-DAG: "value": "tcrv_rvv.dequantize"
+# DEQUANT-DAG: "key": "tcrv_rvv.dequantization_route_family_plan"
+# DEQUANT-DAG: "value": "rvv-dequantization-route-family-plan.v1"
+# DEQUANT-DAG: "key": "tcrv_rvv.gearbox.candidate_set"
+# DEQUANT-DAG: "value": "rvv-gearbox-candidate-set.v1[rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1,rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1]"
+# DEQUANT-DAG: "key": "tcrv_rvv.gearbox.selected_candidate"
+# DEQUANT-DAG: "value": "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1"
+# DEQUANT-DAG: "key": "tcrv_rvv.gearbox.selection_reason"
+# DEQUANT-DAG: "key": "tcrv_rvv.gearbox.legality_scope"
+# DEQUANT-DAG: "key": "tcrv_rvv.gearbox.unroll"
+# DEQUANT-DAG: "value": "2"
+# DEQUANT-DAG: "key": "tcrv_rvv.gearbox.vl_policy"
+# DEQUANT-DAG: "value": "runtime-avl-two-slice-setvl"
+# DEQUANT-DAG: "typed_compute_op": "tcrv_rvv.dequantize"
+# DEQUANT-DAG: "memory_form": "unit-stride-dequantization"
+# DEQUANT-DAG: "source_vector_type": "!tcrv_rvv.vector<i32, \"m1\">"
+# DEQUANT-DAG: "result_vector_type": "!tcrv_rvv.vector<f32, \"m1\">"
+# DEQUANT-DAG: "source_load_intrinsic": "__riscv_vle32_v_i32m1"
+# DEQUANT-DAG: "convert_intrinsic": "__riscv_vfcvt_f_x_v_f32m1"
+# DEQUANT-DAG: "scale_intrinsic": "__riscv_vfmul_vf_f32m1"
+# DEQUANT-DAG: "store_intrinsic": "__riscv_vse32_v_f32m1"
+# DEQUANT-DAG: "authority": "provider-derived typed tcrv_rvv dequantization body/config/runtime scale facts"
+# DEQUANT-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# DEQUANT-DAG: "runtime_counts": [
+# DEQUANT-DAG: 0
+# DEQUANT-DAG: 1
+# DEQUANT-DAG: 16
+# DEQUANT-DAG: 17
+# DEQUANT-DAG: 257
+# DEQUANT-DAG: "dequant_scale_values": [
+# DEQUANT-DAG: -0.125
+# DEQUANT-DAG: 0.375
+# DEQUANT-DAG: "f32_abs_tolerance": 1e-05
+# DEQUANT-DAG: "dequantization_boundary"
+# DEQUANT-DAG: "runtime_abi_parameter":
+# DEQUANT-DAG: "uses_runtime_remaining_avl": true
+# DEQUANT-DAG: "uses_gearbox_u2_loop_step": true
+# DEQUANT-DAG: "gearbox_unroll": 2
+# DEQUANT-DAG: "second_remaining_avl_expression": "v{{[0-9]+}} - v{{[0-9]+}} - v{{[0-9]+}}"
+# DEQUANT-DAG: "gearbox_schedule"
+# DEQUANT-DAG: "candidate_set": "rvv-gearbox-candidate-set.v1[rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1,rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1]"
+# DEQUANT-DAG: "selected_candidate": "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1"
+# DEQUANT-DAG: "schedule_id": "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1"
+# DEQUANT-DAG: "unroll": 2
+# DEQUANT-DAG: "vl_policy": "runtime-avl-two-slice-setvl"
+# DEQUANT-DAG: "second_slice_statement_count": 5
+# DEQUANT-DAG: "second_source_load_operand_order": "lhs + offset + vl, gearbox_loop_vl_u1"
+# DEQUANT-DAG: "second_scale_operand_order": "converted_f32_vec_u1, scale, gearbox_loop_vl_u1"
+# DEQUANT-DAG: "statement_plan"
+# DEQUANT-DAG: "loop_body_step_count": 10
+# DEQUANT-DAG: "gearbox_loop_step": "full_chunk_vl * 2"
+# DEQUANT-DAG: "gearbox_selected_candidate": "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1"
+# DEQUANT-DAG: "second_slice_statement_count": 5
+# DEQUANT-DAG: "gearbox_preflight"
+# DEQUANT-DAG: "checked_before_runtime": true
+# DEQUANT-DAG: "selected_candidate": "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1"
+# DEQUANT-DAG: "emitted_cpp_loop_step":
+# DEQUANT-DAG: "emitted_cpp_second_loop_vl":
+# DEQUANT-DAG: "status": "dry_run_success"
+
+# CPP: extern "C" void tcrv_emitc_explicit_selected_body_dequantize_i32_to_f32_kernel_explicit_selected_body_rvv_dequantize_i32_to_f32(const int32_t
+# CPP: size_t [[FULL:.*]] = __riscv_vsetvl_e32m1(
+# CPP: size_t [[STEP:.*]] = [[FULL]] * 2;
+# CPP: for (size_t [[OFFSET:.*]] = 0; [[OFFSET]] <
+# CPP-SAME: [[OFFSET]] += [[STEP]])
+# CPP: size_t [[AVL:.*]] =
+# CPP: size_t [[VL:.*]] = __riscv_vsetvl_e32m1([[AVL]]);
+# CPP: __riscv_vle32_v_i32m1
+# CPP: __riscv_vfcvt_f_x_v_f32m1
+# CPP: __riscv_vfmul_vf_f32m1
+# CPP: __riscv_vse32_v_f32m1
+# CPP: size_t [[REMBASE:v[0-9]+]] =
+# CPP-SAME: - [[OFFSET]]
+# CPP: size_t [[REM2:v[0-9]+]] = [[REMBASE]] - [[VL]];
+# CPP: size_t [[VL2:v[0-9]+]] = __riscv_vsetvl_e32m1([[REM2]]);
+# CPP: const int32_t* [[SRCBASE:v[0-9]+]] =
+# CPP-SAME: + [[OFFSET]]
+# CPP: const int32_t* [[SRC2:v[0-9]+]] = [[SRCBASE]] + [[VL]];
+# CPP: __riscv_vle32_v_i32m1([[SRC2]], [[VL2]])
+# CPP: __riscv_vfcvt_f_x_v_f32m1
+# CPP: __riscv_vfmul_vf_f32m1
+# CPP: float* [[OUTBASE:v[0-9]+]] =
+# CPP-SAME: + [[OFFSET]]
+# CPP: float* [[OUT2:v[0-9]+]] = [[OUTBASE]] + [[VL]];
+# CPP: __riscv_vse32_v_f32m1([[OUT2]]
+
+# HARNESS: size_t out_alloc_n = alloc_n + 8;
+# HARNESS: int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+# HARNESS: float *out = (float *)malloc(sizeof(float) * out_alloc_n);
+# HARNESS: float *old_out = (float *)malloc(sizeof(float) * out_alloc_n);
+# HARNESS: tcrv_emitc_explicit_selected_body_dequantize_i32_to_f32_kernel_explicit_selected_body_rvv_dequantize_i32_to_f32(lhs, scale, out, n);
+# HARNESS: float expected = ((float)lhs[index]) * scale;
+# HARNESS: if (delta > tolerance)
+# HARNESS: source_preserved tail_preserved
+# HARNESS: tcrv_rvv_generated_bundle_abi_dequantize_i32_to_f32_ok counts=0,1,16,17,257 patterns=0,1 scales=-0.125,0.375 tolerance=1e-05
+# HARNESS: PASS op=dequantize_i32_to_f32 counts=0,1,16,17,257 patterns=0,1 scales=-0.125,0.375 tolerance=1e-05

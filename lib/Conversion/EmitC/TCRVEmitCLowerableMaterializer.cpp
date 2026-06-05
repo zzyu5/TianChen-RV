@@ -267,6 +267,47 @@ parseSimpleBinaryExpression(llvm::StringRef expression) {
   return std::nullopt;
 }
 
+using BinaryChainTerms = llvm::SmallVector<llvm::StringRef, 4>;
+using BinaryChainOperators = llvm::SmallVector<char, 3>;
+using ParsedBinaryChain = std::pair<BinaryChainTerms, BinaryChainOperators>;
+
+std::optional<ParsedBinaryChain>
+parseLeftAssociativeBinaryChain(llvm::StringRef expression) {
+  BinaryChainTerms terms;
+  BinaryChainOperators operators;
+  llvm::StringRef remaining = expression.trim();
+  while (true) {
+    std::size_t addPos = remaining.find(" + ");
+    std::size_t subPos = remaining.find(" - ");
+    std::size_t nextPos = llvm::StringRef::npos;
+    char op = 0;
+    if (addPos != llvm::StringRef::npos &&
+        (subPos == llvm::StringRef::npos || addPos < subPos)) {
+      nextPos = addPos;
+      op = '+';
+    } else if (subPos != llvm::StringRef::npos) {
+      nextPos = subPos;
+      op = '-';
+    }
+
+    if (nextPos == llvm::StringRef::npos) {
+      terms.push_back(remaining.trim());
+      break;
+    }
+
+    terms.push_back(remaining.slice(0, nextPos).trim());
+    operators.push_back(op);
+    remaining = remaining.drop_front(nextPos + 3).trim();
+  }
+
+  if (operators.size() < 2 || terms.size() != operators.size() + 1)
+    return std::nullopt;
+  for (llvm::StringRef term : terms)
+    if (term.empty() || !isSafeIdentifier(term))
+      return std::nullopt;
+  return ParsedBinaryChain(std::move(terms), std::move(operators));
+}
+
 std::optional<std::pair<llvm::StringRef, llvm::StringRef>>
 parseSimpleProductExpression(llvm::StringRef expression) {
   std::pair<llvm::StringRef, llvm::StringRef> parts =
@@ -705,6 +746,48 @@ private:
           .create<mlir::emitc::MulOp>(builder.getUnknownLoc(), lhs.getType(),
                                       lhs, rhs)
           .getResult();
+    }
+
+    if (std::optional<ParsedBinaryChain> chain =
+            parseLeftAssociativeBinaryChain(expression)) {
+      llvm::ArrayRef<llvm::StringRef> terms = chain->first;
+      llvm::ArrayRef<char> operators = chain->second;
+      mlir::Value accumulated = valueMap.lookup(terms.front());
+      if (!accumulated)
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("operand expression '") + expression +
+                "' references values that are not materialized in the "
+                "current EmitC scope");
+
+      mlir::Type resultType = getEmitCTypeForCType(context, operand.cType);
+      for (std::size_t index = 0; index < operators.size(); ++index) {
+        mlir::Value rhs = valueMap.lookup(terms[index + 1]);
+        if (!rhs)
+          return makeMaterializerError(
+              route.getRouteID(),
+              llvm::Twine("operand expression '") + expression +
+                  "' references values that are not materialized in the "
+                  "current EmitC scope");
+        if (operators[index] == '+')
+          accumulated =
+              builder
+                  .create<mlir::emitc::AddOp>(builder.getUnknownLoc(),
+                                              resultType, accumulated, rhs)
+                  .getResult();
+        else if (operators[index] == '-')
+          accumulated =
+              builder
+                  .create<mlir::emitc::SubOp>(builder.getUnknownLoc(),
+                                              resultType, accumulated, rhs)
+                  .getResult();
+        else
+          return makeMaterializerError(
+              route.getRouteID(),
+              llvm::Twine("operand expression '") + expression +
+                  "' has unsupported binary operator");
+      }
+      return accumulated;
     }
 
     if (std::optional<std::tuple<llvm::StringRef, char, llvm::StringRef>>
