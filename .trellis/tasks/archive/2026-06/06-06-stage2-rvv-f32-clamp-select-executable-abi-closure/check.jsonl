@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Final global architecture and RVV stage compliance check."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify route authority remains in typed tcrv_rvv body and RVV plugin-owned realization/provider facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC/export stay neutral and route payload remains provider-owned."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify generated-bundle and ssh evidence match the f32 clamp/select contract."}
+{"file": ".trellis/tasks/06-06-stage2-rvv-f32-clamp-select-executable-abi-closure/prd.md", "reason": "Check implementation/evidence against task acceptance criteria."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Focused script self-test, dry-run, and ssh execution check if touched or used."}

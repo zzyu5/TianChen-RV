@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV stage order, and authority-chain invariants for executable f32 clamp/select evidence."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, route-provider, and ssh evidence rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "F32 clamp/select generated-bundle evidence contract and runtime evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-f32-clamp-select-artifact-closure/prd.md", "reason": "Prior artifact/header mirror closure and explicit non-claim of ssh RVV correctness."}
+{"file": ".trellis/tasks/06-06-stage2-rvv-f32-clamp-select-executable-abi-closure/prd.md", "reason": "Current bounded executable ABI closure goal, acceptance criteria, and non-goals."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated bundle dry-run, harness generation, and ssh rvv execution support for f32_clamp_select."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-f32-clamp-select.mlir", "reason": "Focused target artifact/header mirror fixture for the bounded route."}
+{"file": "test/Dialect/RVV/pre-realized-f32-clamp-select-negative.mlir", "reason": "Focused fail-closed diagnostics for pre-realized f32 clamp/select."}
