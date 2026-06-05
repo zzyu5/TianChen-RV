@@ -63,10 +63,13 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::BroadcastLoadOp rhsBroadcastLoad;
   tcrv::rvv::SplatOp rhsScalarSplat;
   tcrv::rvv::SplatOp rhsSecondaryScalarSplat;
+  tcrv::rvv::SplatOp lowerBoundScalarSplat;
+  tcrv::rvv::SplatOp upperBoundScalarSplat;
   tcrv::rvv::CompareOp compareOp;
   tcrv::rvv::CompareOp secondaryCompareOp;
   tcrv::rvv::MaskAndOp maskAndOp;
   tcrv::rvv::SelectOp selectOp;
+  tcrv::rvv::SelectOp secondarySelectOp;
   tcrv::rvv::ReduceOp reduceOp;
   tcrv::rvv::StandaloneReduceOp standaloneReduceOp;
   tcrv::rvv::MaskedStandaloneReduceOp maskedStandaloneReduceOp;
@@ -103,6 +106,9 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value maskedInactivePassthrough;
   mlir::Value conversionSource;
   mlir::Value dequantScale;
+  mlir::Value lowerBoundValue;
+  mlir::Value upperBoundValue;
+  mlir::Value lowerClampedValue;
   mlir::Value dotLHSValue;
   mlir::Value dotRHSValue;
   RVVSelectedBodyOperationKind arithmeticKind = RVVSelectedBodyOperationKind::Add;
@@ -179,6 +185,8 @@ struct RVVSelectedBodyRouteSlice {
   support::RuntimeABIParameter lhsABI;
   support::RuntimeABIParameter rhsABI;
   support::RuntimeABIParameter dequantScaleABI;
+  support::RuntimeABIParameter lowerBoundABI;
+  support::RuntimeABIParameter upperBoundABI;
   support::RuntimeABIParameter secondaryCompareLhsABI;
   support::RuntimeABIParameter secondaryCompareRhsScalarABI;
   support::RuntimeABIParameter trueValueABI;
@@ -698,6 +706,7 @@ struct RVVSelectedBodyComputedMaskSelectRouteFamilyPlan {
   bool usesVectorCompareProducer = false;
   bool usesRuntimeScalarProducer = false;
   bool usesDualCompareMaskAnd = false;
+  bool usesF32ClampSelect = false;
   RVVRuntimeAVLVLControlPlan runtimeControlPlan;
   llvm::StringRef typedConfigFactsID;
   llvm::StringRef elementTypeName;
@@ -1151,9 +1160,12 @@ struct RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts {
   bool bindsComputedMaskSelect = false;
   bool bindsRuntimeScalarComputedMaskSelect = false;
   bool bindsRuntimeScalarDualCompareMaskAndSelect = false;
+  bool bindsF32ClampSelect = false;
 
   const support::RuntimeABIParameter *lhsABI = nullptr;
   const support::RuntimeABIParameter *rhsABI = nullptr;
+  const support::RuntimeABIParameter *lowerBoundABI = nullptr;
+  const support::RuntimeABIParameter *upperBoundABI = nullptr;
   const support::RuntimeABIParameter *secondaryCompareLhsABI = nullptr;
   const support::RuntimeABIParameter *secondaryCompareRhsScalarABI = nullptr;
   const support::RuntimeABIParameter *trueValueABI = nullptr;
@@ -1267,6 +1279,7 @@ struct RVVSelectedBodyCompareSelectRouteStatementPlan {
   bool plansComputedMaskSelect = false;
   bool plansRuntimeScalarComputedMaskSelect = false;
   bool plansRuntimeScalarDualCompareMaskAndSelect = false;
+  bool plansF32ClampSelect = false;
   RVVSelectedBodyMaskTailPolicyProviderPlan maskTailPolicyPlan;
 
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>

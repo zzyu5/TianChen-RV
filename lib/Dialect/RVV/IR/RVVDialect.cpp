@@ -70,6 +70,11 @@ constexpr llvm::StringLiteral kMaskedPassthroughAttrName(
 constexpr llvm::StringLiteral kMaskRoleAttrName("mask_role");
 constexpr llvm::StringLiteral kMaskMemoryFormAttrName("mask_memory_form");
 constexpr llvm::StringLiteral kMaskCompositionAttrName("mask_composition");
+constexpr llvm::StringLiteral kLowerPredicateKindAttrName(
+    "lower_predicate_kind");
+constexpr llvm::StringLiteral kUpperPredicateKindAttrName(
+    "upper_predicate_kind");
+constexpr llvm::StringLiteral kBoundOrderAttrName("bound_order");
 constexpr llvm::StringLiteral kInactiveLanePolicyAttrName(
     "inactive_lane_policy");
 constexpr llvm::StringLiteral kSelectLayoutAttrName("select_layout");
@@ -250,6 +255,14 @@ bool isAllowedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyAttr(
          name == kMaskCompositionAttrName || name == kSelectLayoutAttrName ||
          name == kSEWAttrName || name == kLMULAttrName ||
          name == kPolicyAttrName;
+}
+
+bool isAllowedTypedF32ClampSelectPreRealizedBodyAttr(llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kMemoryFormAttrName ||
+         name == kLowerPredicateKindAttrName ||
+         name == kUpperPredicateKindAttrName || name == kBoundOrderAttrName ||
+         name == kSelectLayoutAttrName || name == kSEWAttrName ||
+         name == kLMULAttrName || name == kPolicyAttrName;
 }
 
 bool isAllowedTypedRuntimeScalarComputedMaskStorePreRealizedBodyAttr(
@@ -867,6 +880,36 @@ bool isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedSelectLayou
 bool isSupportedTypedRuntimeScalarDualCompareMaskAndSelectPreRealizedConfig(
     std::int64_t sew, llvm::StringRef lmul) {
   return isSupportedTypedComputedMaskSelectPreRealizedConfig(sew, lmul);
+}
+
+bool isSupportedTypedF32ClampSelectPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "f32_clamp_select";
+}
+
+bool isSupportedTypedF32ClampSelectPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "runtime-scalar-f32-clamp-select";
+}
+
+bool isSupportedTypedF32ClampSelectPreRealizedPredicateKind(
+    llvm::StringRef predicateKind) {
+  return predicateKind == "slt";
+}
+
+bool isSupportedTypedF32ClampSelectPreRealizedBoundOrder(
+    llvm::StringRef boundOrder) {
+  return boundOrder == "lower-bound-before-upper-bound";
+}
+
+bool isSupportedTypedF32ClampSelectPreRealizedSelectLayout(
+    llvm::StringRef layout) {
+  return layout == "clamp-lower-then-upper";
+}
+
+bool isSupportedTypedF32ClampSelectPreRealizedConfig(std::int64_t sew,
+                                                     llvm::StringRef lmul) {
+  return sew == getRVVFirstSliceSEWBits() && lmul == getRVVLMULM1();
 }
 
 bool isSupportedTypedRuntimeScalarComputedMaskStorePreRealizedBodyOpKind(
@@ -1731,7 +1774,8 @@ bool isSupportedBoundedRuntimeABIValueCType(
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
     return cType == "const int8_t *" || cType == "const int16_t *" ||
-           cType == "const int32_t *" || cType == "const int64_t *";
+           cType == "const int32_t *" || cType == "const int64_t *" ||
+           cType == "const float *";
   case Role::SourceInputBuffer:
   case Role::TrueValueInputBuffer:
   case Role::FalseValueInputBuffer:
@@ -1750,6 +1794,9 @@ bool isSupportedBoundedRuntimeABIValueCType(
   case Role::RHSSecondaryScalarValue:
     return cType == "int32_t" || cType == "int64_t";
   case Role::DequantScaleValue:
+    return cType == "float";
+  case Role::LowerBoundScalarValue:
+  case Role::UpperBoundScalarValue:
     return cType == "float";
   case Role::OutputBuffer:
     return cType == "int16_t *" || cType == "int32_t *" ||
@@ -1778,7 +1825,7 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
     return "'const int8_t *', 'const int16_t *', 'const int32_t *', "
-           "or 'const int64_t *'";
+           "'const int64_t *', or 'const float *'";
   case Role::SourceInputBuffer:
   case Role::TrueValueInputBuffer:
   case Role::FalseValueInputBuffer:
@@ -1796,6 +1843,9 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::RHSSecondaryScalarValue:
     return "'int32_t' or 'int64_t'";
   case Role::DequantScaleValue:
+    return "'float'";
+  case Role::LowerBoundScalarValue:
+  case Role::UpperBoundScalarValue:
     return "'float'";
   case Role::OutputBuffer:
     return "'int16_t *', 'int32_t *', 'int64_t *', or 'float *'";
@@ -1832,7 +1882,22 @@ bool isBoundedInputBufferRole(
 bool isBoundedScalarRole(tianchenrv::support::RuntimeABIParameterRole role) {
   using Role = tianchenrv::support::RuntimeABIParameterRole;
   return role == Role::RHSScalarValue ||
+         role == Role::RHSSecondaryScalarValue ||
+         role == Role::LowerBoundScalarValue ||
+         role == Role::UpperBoundScalarValue;
+}
+
+bool isBoundedIntegerScalarRole(
+    tianchenrv::support::RuntimeABIParameterRole role) {
+  using Role = tianchenrv::support::RuntimeABIParameterRole;
+  return role == Role::RHSScalarValue ||
          role == Role::RHSSecondaryScalarValue;
+}
+
+bool isBoundedF32ScalarRole(tianchenrv::support::RuntimeABIParameterRole role) {
+  using Role = tianchenrv::support::RuntimeABIParameterRole;
+  return role == Role::LowerBoundScalarValue ||
+         role == Role::UpperBoundScalarValue;
 }
 
 bool isBoundedRuntimeABITokenScalarRole(
@@ -2154,6 +2219,47 @@ mlir::LogicalResult verifyRuntimeABIScalarOperandRole(
          << expected;
 }
 
+mlir::LogicalResult verifyRuntimeABIF32ScalarOperandRole(
+    mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
+    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
+        expectedRoles) {
+  if (!value.getType().isF32())
+    return op->emitOpError()
+           << "requires " << operandName << " operand to have f32 scalar type";
+
+  auto binding = value.getDefiningOp<RuntimeABIValueOp>();
+  if (!binding)
+    return op->emitOpError()
+           << "requires " << operandName
+           << " operand to be defined by tcrv_rvv.runtime_abi_value";
+
+  std::optional<tianchenrv::support::RuntimeABIParameterRole> parsedRole =
+      tianchenrv::support::symbolizeRuntimeABIParameterRole(
+          binding.getRole());
+  if (!parsedRole)
+    return op->emitOpError()
+           << "requires " << operandName
+           << " operand runtime ABI role to be supported";
+
+  if (llvm::is_contained(expectedRoles, *parsedRole))
+    return mlir::success();
+
+  std::string expected;
+  llvm::raw_string_ostream stream(expected);
+  llvm::interleave(
+      expectedRoles,
+      [&](tianchenrv::support::RuntimeABIParameterRole role) {
+        stream << "'"
+               << tianchenrv::support::stringifyRuntimeABIParameterRole(role)
+               << "'";
+      },
+      [&] { stream << " or "; });
+  stream.flush();
+  return op->emitOpError()
+         << "requires " << operandName << " operand to bind runtime ABI role "
+         << expected;
+}
+
 mlir::LogicalResult verifyRuntimeABIScalarOperandRole(
     mlir::Operation *op, mlir::Value value, llvm::StringRef operandName,
     llvm::ArrayRef<tianchenrv::support::RuntimeABIParameterRole>
@@ -2224,10 +2330,14 @@ llvm::StringRef getGenericRVVVectorLMUL(mlir::Type type) {
   auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
   if (!vector)
     return {};
-  auto elementType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
-  if (!elementType)
+  if (auto elementType =
+          llvm::dyn_cast<mlir::IntegerType>(vector.getElementType())) {
+    if (isRVVFirstSliceDataflowConfig(elementType.getWidth(),
+                                      vector.getLmul()))
+      return vector.getLmul();
     return {};
-  if (isRVVFirstSliceDataflowConfig(elementType.getWidth(), vector.getLmul()))
+  }
+  if (vector.getElementType().isF32() && vector.getLmul() == getRVVLMULM1())
     return vector.getLmul();
   return {};
 }
@@ -2237,8 +2347,10 @@ bool isGenericRVVVectorType(mlir::Type type, std::int64_t sew,
   auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
   if (!vector)
     return false;
-  auto elementType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
-  return elementType && elementType.getWidth() == sew &&
+  if (auto elementType =
+          llvm::dyn_cast<mlir::IntegerType>(vector.getElementType()))
+    return elementType.getWidth() == sew && vector.getLmul() == lmul;
+  return vector.getElementType().isF32() && sew == getRVVFirstSliceSEWBits() &&
          vector.getLmul() == lmul;
 }
 
@@ -2323,6 +2435,8 @@ llvm::StringRef getGenericRVVMaskLMUL(mlir::Type type) {
   auto mask = llvm::dyn_cast<tianchenrv::tcrv::rvv::MaskType>(type);
   if (!mask)
     return {};
+  if (mask.getElementType().isF32())
+    return mask.getLmul() == getRVVLMULM1() ? mask.getLmul() : llvm::StringRef{};
   if (!mask.getElementType().isInteger(32) &&
       !mask.getElementType().isInteger(64))
     return {};
@@ -2341,18 +2455,20 @@ mlir::LogicalResult verifyGenericVectorTypeForWithVL(mlir::Operation *op,
            << "requires " << role
            << " type to be generic !tcrv_rvv.vector";
   auto integerType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
-  if (!integerType)
+  bool isF32 = vector.getElementType().isF32();
+  if (!integerType && !isF32)
     return op->emitOpError()
            << "currently requires " << role
-           << " element type to be an integer for the bounded generic RVV "
-              "route";
+           << " element type to be an integer or f32 for the bounded generic "
+              "RVV route";
 
   llvm::StringRef valueLMUL = getGenericRVVVectorLMUL(value.getType());
   if (valueLMUL.empty())
     return op->emitOpError()
            << "requires " << role
            << " config to be SEW32 LMUL \"m1\" or \"m2\", or SEW64 LMUL "
-              "\"m1\" or \"m2\", for the bounded generic RVV route";
+              "\"m1\" or \"m2\", or f32 LMUL \"m1\", for the bounded "
+              "generic RVV route";
 
   auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
   if (!withVL)
@@ -2364,10 +2480,12 @@ mlir::LogicalResult verifyGenericVectorTypeForWithVL(mlir::Operation *op,
     return op->emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
               "metadata for generic RVV vector dataflow";
-  if (expectedSEW.getInt() != integerType.getWidth())
+  std::int64_t elementWidth =
+      integerType ? integerType.getWidth() : getRVVFirstSliceSEWBits();
+  if (expectedSEW.getInt() != elementWidth)
     return op->emitOpError()
            << "requires " << role << " element width "
-           << integerType.getWidth()
+           << elementWidth
            << " to agree with enclosing tcrv_rvv.with_vl SEW"
            << expectedSEW.getInt() << " metadata";
 
@@ -2514,11 +2632,14 @@ mlir::LogicalResult verifyGenericMaskTypeForWithVL(mlir::Operation *op,
            << "requires " << role << " type to be generic !tcrv_rvv.mask";
   auto integerElement =
       llvm::dyn_cast<mlir::IntegerType>(mask.getElementType());
-  if (!integerElement)
+  bool isF32Mask = mask.getElementType().isF32();
+  if (!integerElement && !isF32Mask)
     return op->emitOpError()
-           << "requires " << role << " element type to be an integer type for "
-           << "the bounded Stage 2 predicate route";
-  if (integerElement.getWidth() != getRVVFirstSliceSEWBits() &&
+           << "requires " << role
+           << " element type to be an integer or f32 type for the bounded "
+              "Stage 2 predicate route";
+  if (integerElement &&
+      integerElement.getWidth() != getRVVFirstSliceSEWBits() &&
       integerElement.getWidth() != getRVVSEW64Bits())
     return op->emitOpError()
            << "currently requires " << role
@@ -2542,10 +2663,12 @@ mlir::LogicalResult verifyGenericMaskTypeForWithVL(mlir::Operation *op,
     return op->emitOpError()
            << "requires enclosing tcrv_rvv.with_vl to carry explicit SEW "
               "metadata for generic RVV mask dataflow";
-  if (expectedSEW.getInt() != integerElement.getWidth())
+  std::int64_t elementWidth =
+      integerElement ? integerElement.getWidth() : getRVVFirstSliceSEWBits();
+  if (expectedSEW.getInt() != elementWidth)
     return op->emitOpError()
            << "requires " << role
-           << " element width " << integerElement.getWidth()
+           << " element width " << elementWidth
            << " to agree with enclosing tcrv_rvv.with_vl SEW metadata "
            << expectedSEW.getInt();
 
@@ -3255,6 +3378,18 @@ mlir::LogicalResult RuntimeABIValueOp::verify() {
   }
 
   if (isBoundedScalarRole(*parsedRole)) {
+    if (isBoundedF32ScalarRole(*parsedRole)) {
+      if (!getValue().getType().isF32())
+        return emitOpError()
+               << "requires runtime ABI role '" << getRole()
+               << "' result to have f32 scalar type";
+      return mlir::success();
+    }
+    if (!isBoundedIntegerScalarRole(*parsedRole))
+      return emitOpError()
+             << "requires runtime ABI role '" << getRole()
+             << "' result to have a supported scalar type";
+
     auto integerType = llvm::dyn_cast<mlir::IntegerType>(getValue().getType());
     if (!integerType ||
         (integerType.getWidth() != getRVVFirstSliceSEWBits() &&
@@ -4286,6 +4421,127 @@ TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp::verify() {
            << "requires out operand C type '"
            << expectedMutablePointer << "' to match typed runtime "
               "scalar dual-compare mask-and select result dtype";
+
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult
+TypedF32ClampSelectPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected f32 clamp/select bodies carry only "
+                "typed RVV operand roles, runtime lower/upper bound scalars, "
+                "bound order, predicate, config, policy, and runtime SSA "
+                "facts and must be realized by the RVV plugin before route "
+                "construction";
+
+    if (!isAllowedTypedF32ClampSelectPreRealizedBodyAttr(attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kMemoryFormAttrName << "', '"
+             << kLowerPredicateKindAttrName << "', '"
+             << kUpperPredicateKindAttrName << "', '" << kBoundOrderAttrName
+             << "', '" << kSelectLayoutAttrName << "', '" << kSEWAttrName
+             << "', '" << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 5 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires input, lower bound scalar, upper bound scalar, out, "
+              "runtime n/AVL operands and no results";
+
+  if (!isSupportedTypedF32ClampSelectPreRealizedBodyOpKind(getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind \"f32_clamp_select\" for the "
+              "bounded selected-body f32 clamp/select hook";
+  if (!isSupportedTypedF32ClampSelectPreRealizedMemoryForm(getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"runtime-scalar-f32-clamp-select\" for the bounded "
+              "selected-body f32 clamp/select hook";
+  if (!isSupportedTypedF32ClampSelectPreRealizedPredicateKind(
+          getLowerPredicateKind()) ||
+      !isSupportedTypedF32ClampSelectPreRealizedPredicateKind(
+          getUpperPredicateKind()))
+    return emitOpError()
+           << "currently supports only lower_predicate_kind and "
+              "upper_predicate_kind \"slt\" for the bounded selected-body "
+              "f32 clamp/select hook";
+  if (!isSupportedTypedF32ClampSelectPreRealizedBoundOrder(getBoundOrder()))
+    return emitOpError()
+           << "currently supports only bound_order "
+              "\"lower-bound-before-upper-bound\" for the bounded "
+              "selected-body f32 clamp/select hook";
+  if (!isSupportedTypedF32ClampSelectPreRealizedSelectLayout(
+          getSelectLayout()))
+    return emitOpError()
+           << "currently supports only select_layout "
+              "\"clamp-lower-then-upper\" for the bounded selected-body f32 "
+              "clamp/select hook";
+
+  if (!isSupportedTypedF32ClampSelectPreRealizedConfig(
+          static_cast<std::int64_t>(getSew()), getLmul()))
+    return emitOpError()
+           << "requires bounded pre-realized f32 clamp/select data config to "
+              "be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body f32 clamp/select hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getInput(), "input",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIF32ScalarOperandRole(
+          op, getLowerBound(), "lower bound scalar",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               LowerBoundScalarValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIF32ScalarOperandRole(
+          op, getUpperBound(), "upper bound scalar",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               UpperBoundScalarValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getOut(), "out",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+
+  RuntimeABIValueOp inputBinding =
+      getInput().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp lowerBinding =
+      getLowerBound().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp upperBinding =
+      getUpperBound().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
+  if (!inputBinding || inputBinding.getCType() != "const float *")
+    return emitOpError()
+           << "requires input operand C type 'const float *' for the bounded "
+              "f32 clamp/select route";
+  if (!lowerBinding || lowerBinding.getCType() != "float")
+    return emitOpError()
+           << "requires lower bound scalar operand C type 'float' for the "
+              "bounded f32 clamp/select route";
+  if (!upperBinding || upperBinding.getCType() != "float")
+    return emitOpError()
+           << "requires upper bound scalar operand C type 'float' for the "
+              "bounded f32 clamp/select route";
+  if (!outBinding || outBinding.getCType() != "float *")
+    return emitOpError()
+           << "requires out operand C type 'float *' for the bounded f32 "
+              "clamp/select route";
 
   return verifyRuntimeElementCountOperand(op, getN());
 }
@@ -8994,6 +9250,23 @@ mlir::LogicalResult SplatOp::verify() {
 
   auto resultVector =
       llvm::cast<tianchenrv::tcrv::rvv::VectorType>(getBroadcast().getType());
+  if (resultVector.getElementType().isF32()) {
+    if (mlir::failed(verifyRuntimeABIF32ScalarOperandRole(
+            op, getScalar(), "f32 clamp bound scalar",
+            {tianchenrv::support::RuntimeABIParameterRole::
+                 LowerBoundScalarValue,
+             tianchenrv::support::RuntimeABIParameterRole::
+                 UpperBoundScalarValue})))
+      return mlir::failure();
+
+    auto scalarBinding = getScalar().getDefiningOp<RuntimeABIValueOp>();
+    if (!scalarBinding || scalarBinding.getCType() != "float")
+      return emitOpError()
+             << "requires f32 clamp bound scalar operand C type 'float' to "
+                "match result vector element type";
+    return mlir::success();
+  }
+
   auto resultElementType =
       llvm::cast<mlir::IntegerType>(resultVector.getElementType());
   std::int64_t resultSEW = resultElementType.getWidth();

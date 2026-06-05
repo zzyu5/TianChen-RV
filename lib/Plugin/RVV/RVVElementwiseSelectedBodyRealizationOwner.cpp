@@ -202,6 +202,32 @@ bool isPreRealizedRuntimeScalarDualCompareMaskAndSelectConfig(
   return isPreRealizedComputedMaskSelectConfig(sew, lmul);
 }
 
+bool isPreRealizedF32ClampSelectOpKind(llvm::StringRef opKind) {
+  return opKind == "f32_clamp_select";
+}
+
+bool isPreRealizedF32ClampSelectMemoryForm(llvm::StringRef memoryForm) {
+  return memoryForm == "runtime-scalar-f32-clamp-select";
+}
+
+bool isPreRealizedF32ClampSelectPredicateKind(llvm::StringRef predicateKind) {
+  return predicateKind == "slt";
+}
+
+bool isPreRealizedF32ClampSelectBoundOrder(llvm::StringRef boundOrder) {
+  return boundOrder == "lower-bound-before-upper-bound";
+}
+
+bool isPreRealizedF32ClampSelectLayout(llvm::StringRef layout) {
+  return layout == "clamp-lower-then-upper";
+}
+
+bool isPreRealizedF32ClampSelectConfig(std::int64_t sew,
+                                       llvm::StringRef lmul) {
+  return sew == tcrv::rvv::getRVVFirstSliceSEWBits() &&
+         lmul == tcrv::rvv::getRVVLMULM1();
+}
+
 bool isPreRealizedComputedMaskMovementMaskRole(llvm::StringRef role) {
   return role == "predicate-mask-produced-by-compare";
 }
@@ -291,6 +317,12 @@ mlir::Type getGenericVectorType(mlir::OpBuilder &builder, std::int64_t sew,
   return tcrv::rvv::VectorType::get(builder.getContext(), elementType, lmul);
 }
 
+mlir::Type getGenericF32VectorType(mlir::OpBuilder &builder,
+                                   llvm::StringRef lmul) {
+  return tcrv::rvv::VectorType::get(builder.getContext(),
+                                    builder.getF32Type(), lmul);
+}
+
 mlir::Type getStage1GenericMaskType(mlir::OpBuilder &builder) {
   return tcrv::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
                                   tcrv::rvv::getRVVLMULM1());
@@ -317,6 +349,17 @@ mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
   return builder.create(state);
 }
 
+mlir::Operation *createRealizedGenericF32Load(mlir::OpBuilder &builder,
+                                              mlir::Location loc,
+                                              mlir::Value buffer,
+                                              mlir::Value vl,
+                                              llvm::StringRef lmul) {
+  mlir::OperationState state(loc, "tcrv_rvv.load");
+  state.addOperands({buffer, vl});
+  state.addTypes(getGenericF32VectorType(builder, lmul));
+  return builder.create(state);
+}
+
 mlir::Operation *createRealizedGenericSplat(mlir::OpBuilder &builder,
                                             mlir::Location loc,
                                             mlir::Value scalar,
@@ -325,6 +368,17 @@ mlir::Operation *createRealizedGenericSplat(mlir::OpBuilder &builder,
   mlir::OperationState state(loc, "tcrv_rvv.splat");
   state.addOperands({scalar, vl});
   state.addTypes(getGenericVectorType(builder, sew, lmul));
+  return builder.create(state);
+}
+
+mlir::Operation *createRealizedGenericF32Splat(mlir::OpBuilder &builder,
+                                               mlir::Location loc,
+                                               mlir::Value scalar,
+                                               mlir::Value vl,
+                                               llvm::StringRef lmul) {
+  mlir::OperationState state(loc, "tcrv_rvv.splat");
+  state.addOperands({scalar, vl});
+  state.addTypes(getGenericF32VectorType(builder, lmul));
   return builder.create(state);
 }
 
@@ -1151,6 +1205,129 @@ validatePreRealizedRVVSelectedRuntimeScalarDualCompareMaskAndSelectBody(
   return llvm::Error::success();
 }
 
+llvm::Error validatePreRealizedRVVSelectedF32ClampSelectBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedF32ClampSelectPreRealizedBodyOp body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVPluginError(
+        "selected RVV f32 clamp/select realization requires a pre-realized "
+        "f32 clamp/select body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVPluginError(
+        "pre-realized RVV selected f32 clamp/select body must be a direct "
+        "child of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedF32ClampSelectOpKind(body.getOpKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected f32 clamp/select body currently supports "
+        "only op_kind 'f32_clamp_select'");
+  if (!isPreRealizedF32ClampSelectMemoryForm(body.getMemoryForm()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected f32 clamp/select body currently supports "
+        "only memory_form 'runtime-scalar-f32-clamp-select'");
+  if (!isPreRealizedF32ClampSelectPredicateKind(
+          body.getLowerPredicateKind()) ||
+      !isPreRealizedF32ClampSelectPredicateKind(body.getUpperPredicateKind()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected f32 clamp/select body currently supports "
+        "only lower/upper predicate kind 'slt'");
+  if (!isPreRealizedF32ClampSelectBoundOrder(body.getBoundOrder()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected f32 clamp/select body currently supports "
+        "only bound_order 'lower-bound-before-upper-bound'");
+  if (!isPreRealizedF32ClampSelectLayout(body.getSelectLayout()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected f32 clamp/select body currently supports "
+        "only select_layout 'clamp-lower-then-upper'");
+  if (!isPreRealizedF32ClampSelectConfig(
+          static_cast<std::int64_t>(body.getSew()), body.getLmul()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected f32 clamp/select body requires SEW32 LMUL "
+        "m1 data/mask config");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVPluginError(
+        "pre-realized RVV selected f32 clamp/select body requires tail "
+        "agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> input =
+      requirePreRealizedRuntimeABIValue(
+          body.getInput(), "pre-realized RVV f32 clamp/select input operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!input)
+    return input.takeError();
+  if ((*input).getCType() != "const float *")
+    return makeRVVPluginError(
+        "pre-realized RVV f32 clamp/select input operand must use C type "
+        "'const float *'");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lowerBound =
+      requirePreRealizedRuntimeABIValue(
+          body.getLowerBound(),
+          "pre-realized RVV f32 clamp/select lower bound operand",
+          support::RuntimeABIParameterRole::LowerBoundScalarValue);
+  if (!lowerBound)
+    return lowerBound.takeError();
+  if ((*lowerBound).getCType() != "float")
+    return makeRVVPluginError(
+        "pre-realized RVV f32 clamp/select lower bound operand must use C "
+        "type 'float'");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> upperBound =
+      requirePreRealizedRuntimeABIValue(
+          body.getUpperBound(),
+          "pre-realized RVV f32 clamp/select upper bound operand",
+          support::RuntimeABIParameterRole::UpperBoundScalarValue);
+  if (!upperBound)
+    return upperBound.takeError();
+  if ((*upperBound).getCType() != "float")
+    return makeRVVPluginError(
+        "pre-realized RVV f32 clamp/select upper bound operand must use C "
+        "type 'float'");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> out =
+      requirePreRealizedRuntimeABIValue(
+          body.getOut(), "pre-realized RVV f32 clamp/select out operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!out)
+    return out.takeError();
+  if ((*out).getCType() != "float *")
+    return makeRVVPluginError(
+        "pre-realized RVV f32 clamp/select out operand must use C type "
+        "'float *'");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedRuntimeABIValue(
+          body.getN(),
+          "pre-realized RVV f32 clamp/select runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  mlir::Operation *unexpectedRVVOp = nullptr;
+  variant.getBody().walk([&](mlir::Operation *op) {
+    if (unexpectedRVVOp || op->getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::RuntimeABIValueOp,
+                  tcrv::rvv::TypedF32ClampSelectPreRealizedBodyOp>(op))
+      return;
+    unexpectedRVVOp = op;
+  });
+  if (unexpectedRVVOp)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV selected f32 clamp/select body must not "
+                    "be mixed with already realized RVV route body op '") +
+        unexpectedRVVOp->getName().getStringRef() + "'");
+
+  auto variantRequires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+  if (!variantRequires || variantRequires.empty())
+    return makeRVVPluginError(
+        "pre-realized RVV selected f32 clamp/select realization requires "
+        "non-empty selected variant requires metadata");
+
+  return llvm::Error::success();
+}
+
 llvm::Expected<mlir::Operation *>
 findUniquePreRealizedRVVElementwiseCompareSelectBody(
     tcrv::exec::VariantOp variant) {
@@ -1188,7 +1365,8 @@ bool isPreRealizedRVVElementwiseCompareSelectClusterOp(mlir::Operation *op) {
                    tcrv::rvv::
                        TypedRuntimeScalarCompareSelectPreRealizedBodyOp,
                    tcrv::rvv::
-                       TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp>(
+                       TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp,
+                   tcrv::rvv::TypedF32ClampSelectPreRealizedBodyOp>(
       op);
 }
 
@@ -1608,6 +1786,74 @@ realizePreRealizedRVVElementwiseCompareSelectCluster(
                                runtimeScalarDualCompareBody.getOut(),
                                select.getSelected(), setvl.getVl());
     runtimeScalarDualCompareBody->erase();
+    result.boundary = withVL;
+    return result;
+  }
+
+  if (auto f32ClampSelectBody =
+          llvm::dyn_cast<tcrv::rvv::TypedF32ClampSelectPreRealizedBodyOp>(
+              bodyOp)) {
+    if (llvm::Error error = validatePreRealizedRVVSelectedF32ClampSelectBody(
+            request, f32ClampSelectBody))
+      return std::move(error);
+
+    mlir::Location loc = f32ClampSelectBody->getLoc();
+    builder.setInsertionPoint(f32ClampSelectBody.getOperation());
+
+    std::int64_t sew =
+        static_cast<std::int64_t>(f32ClampSelectBody.getSew());
+    llvm::StringRef lmul = f32ClampSelectBody.getLmul();
+    llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+        deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+            variant, f32ClampSelectBody.getN(), sew, lmul,
+            f32ClampSelectBody.getPolicy(),
+            "input,lower_bound,upper_bound,out,n",
+            "pre-realized RVV f32 clamp/select selected-body realization");
+    if (!runtimeControlPlan)
+      return runtimeControlPlan.takeError();
+
+    auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(createRealizedSetVL(
+        builder, loc, runtimeControlPlan->runtimeAVLValue,
+        runtimeControlPlan->sew, runtimeControlPlan->lmul,
+        runtimeControlPlan->policy));
+    tcrv::rvv::WithVLOp withVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires,
+                             runtimeControlPlan->sew,
+                             runtimeControlPlan->lmul,
+                             runtimeControlPlan->policy);
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto inputLoad = llvm::cast<tcrv::rvv::LoadOp>(
+        createRealizedGenericF32Load(builder, loc, f32ClampSelectBody.getInput(),
+                                     setvl.getVl(), runtimeControlPlan->lmul));
+    auto lowerSplat = llvm::cast<tcrv::rvv::SplatOp>(
+        createRealizedGenericF32Splat(
+            builder, loc, f32ClampSelectBody.getLowerBound(), setvl.getVl(),
+            runtimeControlPlan->lmul));
+    auto upperSplat = llvm::cast<tcrv::rvv::SplatOp>(
+        createRealizedGenericF32Splat(
+            builder, loc, f32ClampSelectBody.getUpperBound(), setvl.getVl(),
+            runtimeControlPlan->lmul));
+    auto lowerCompare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(
+            builder, loc, inputLoad.getLoaded(), lowerSplat.getBroadcast(),
+            setvl.getVl(), f32ClampSelectBody.getLowerPredicateKind()));
+    auto lowerSelect = llvm::cast<tcrv::rvv::SelectOp>(
+        createRealizedGenericSelect(builder, loc, lowerCompare.getMask(),
+                                    lowerSplat.getBroadcast(),
+                                    inputLoad.getLoaded(), setvl.getVl()));
+    auto upperCompare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(
+            builder, loc, upperSplat.getBroadcast(), lowerSelect.getSelected(),
+            setvl.getVl(), f32ClampSelectBody.getUpperPredicateKind()));
+    auto upperSelect = llvm::cast<tcrv::rvv::SelectOp>(
+        createRealizedGenericSelect(builder, loc, upperCompare.getMask(),
+                                    upperSplat.getBroadcast(),
+                                    lowerSelect.getSelected(), setvl.getVl()));
+    createRealizedGenericStore(builder, loc, f32ClampSelectBody.getOut(),
+                               upperSelect.getSelected(), setvl.getVl());
+    f32ClampSelectBody->erase();
     result.boundary = withVL;
     return result;
   }

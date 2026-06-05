@@ -102,9 +102,10 @@ for runtime ABI parameters exported through the generated header/prototype.
   count, and stride operands in the same provider summary.
 - The summary is mirrored as target artifact metadata and must fit the target
   export bounded single-line metadata contract. When a route family needs many
-  structural use tokens, shorten only the provider plan label (for example, an
-  abbreviated family label) rather than dropping logical operands, provider
-  `abi` markers, exported `hdr` markers, or required use tokens.
+  structural use tokens, shorten only route-family-owned spelling such as the
+  provider plan label or use-token labels (for example, `header-mirror` ->
+  `hdr`). Do not drop logical operands, provider `abi` markers, exported `hdr`
+  markers, or required use tokens.
 
 ### 4. Validation & Error Matrix
 

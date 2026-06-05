@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV-first stage order, and route authority invariants for this implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority placement, compare/select selected-body and provider preflight contracts, and fail-closed requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality, provider summaries, runtime AVL/VL contract, and compare/select target validation contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/generated-bundle evidence rules for compare/select predicate boundaries and ssh rvv claim discipline."}
+{"file": ".trellis/tasks/06-05-stage2-rvv-f32-clamp-select-route-foundation/prd.md", "reason": "Task-specific module goal, scope, requirements, acceptance criteria, and non-goals."}

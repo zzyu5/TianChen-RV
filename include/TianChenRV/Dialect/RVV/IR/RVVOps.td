@@ -624,6 +624,49 @@ def TypedRuntimeScalarDualCompareMaskAndSelectPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedF32ClampSelectPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_f32_clamp_select_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV f32 runtime-bound clamp/select body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body where a
+    typed f32 vector input is clamped by two non-AVL runtime f32 scalar bounds
+    splatted inside the selected VL scope, then stored to an f32 output buffer.
+    The op is nested directly in a selected tcrv.exec.variant and binds runtime
+    ABI values for input, lower bound, upper bound, output, and runtime n/AVL
+    together with lower/upper compare predicates, explicit bound order,
+    select layout, memory form, compile-time RVV f32 config, and policy.
+
+    This op is not a high-level activation op, q8/q4 route, one-intrinsic
+    wrapper, route label, descriptor, source-front-door marker, direct-C
+    exporter, runtime artifact, correctness evidence, or performance evidence.
+    The RVV plugin must realize it into explicit setvl/with_vl/load/splat/
+    splat/compare/select/compare/select/store tcrv_rvv body structure before
+    the provider may construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$lower_bound,
+    AnyType:$upper_bound,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    StrAttr:$lower_predicate_kind,
+    StrAttr:$upper_predicate_kind,
+    StrAttr:$bound_order,
+    StrAttr:$select_layout,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$input `,` $lower_bound `,` $upper_bound `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedRuntimeScalarComputedMaskStorePreRealizedBodyOp
     : TCRVRVV_Op<"typed_runtime_scalar_computed_mask_store_pre_realized_body"> {
   let summary =

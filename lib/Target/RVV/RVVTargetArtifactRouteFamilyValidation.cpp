@@ -476,6 +476,7 @@ bool isRVVCompareSelectMaskProducerRouteFamilyOperation(
   case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarDualCompareMaskAndSelect:
+  case plugin::rvv::RVVSelectedBodyOperationKind::F32ClampSelect:
     return true;
   default:
     return false;
@@ -494,6 +495,7 @@ bool isRVVComputedMaskSelectRouteFamilyOperation(
   case plugin::rvv::RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarDualCompareMaskAndSelect:
+  case plugin::rvv::RVVSelectedBodyOperationKind::F32ClampSelect:
     return true;
   default:
     return false;
@@ -7440,6 +7442,29 @@ llvm::Error validateRVVCompareSelectRouteValidationContract(
           require("indexed memory layout", description.indexedMemoryLayout,
                   contract.indexedMemoryLayout))
     return error;
+  if (llvm::Error error =
+          require("lower bound role", description.lowerBoundRole,
+                  contract.lowerBoundRole))
+    return error;
+  if (llvm::Error error =
+          require("upper bound role", description.upperBoundRole,
+                  contract.upperBoundRole))
+    return error;
+  if (llvm::Error error =
+          require("lower bound C type", description.lowerBoundCType,
+                  contract.lowerBoundCType))
+    return error;
+  if (llvm::Error error =
+          require("upper bound C type", description.upperBoundCType,
+                  contract.upperBoundCType))
+    return error;
+  if (llvm::Error error =
+          require("bound order", description.boundOrder, contract.boundOrder))
+    return error;
+  if (llvm::Error error = require("clamp relation",
+                                  description.clampRelation,
+                                  contract.clampRelation))
+    return error;
 
   auto rejectStaleRouteFamilyFact =
       [&](llvm::StringRef label, llvm::StringRef actual) -> llvm::Error {
@@ -9080,6 +9105,66 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
                                            "false_value_vec", "true_value_vec"))
       return error;
     return validateUnitStore(loop.bodySteps[7], "output store", outABI,
+                             description.resultName);
+  }
+  case OperationKind::F32ClampSelect: {
+    if (description.intrinsic.empty() || description.storeIntrinsic.empty() ||
+        description.rhsBroadcastIntrinsic.empty() ||
+        description.secondaryCompareIntrinsic.empty())
+      return makeRVVTargetRouteError(
+          llvm::Twine(consumerLabel) +
+          " requires provider-derived splat, dual compare, select, and store "
+          "leaves before validating f32 clamp/select statements");
+    const support::RuntimeABIParameter &inputABI =
+        description.runtimeABIParameters[0];
+    const support::RuntimeABIParameter &lowerBoundABI =
+        description.runtimeABIParameters[1];
+    const support::RuntimeABIParameter &upperBoundABI =
+        description.runtimeABIParameters[2];
+    const support::RuntimeABIParameter &outABI =
+        description.runtimeABIParameters[3];
+    if (llvm::Error error =
+            validateVectorLoad(loop.bodySteps[1], "input vector load", inputABI,
+                               "lhs_vec"))
+      return error;
+    if (llvm::Error error =
+            validateSplat(loop.bodySteps[2], "lower bound scalar splat",
+                          lowerBoundABI, "lower_bound_vec"))
+      return error;
+    if (llvm::Error error =
+            validateSplat(loop.bodySteps[3], "upper bound scalar splat",
+                          upperBoundABI, "upper_bound_vec"))
+      return error;
+    if (llvm::Error error =
+            validateCompare(loop.bodySteps[4], "lower-bound compare",
+                            description.compareIntrinsic, "lhs_vec",
+                            "lower_bound_vec", "lower_clamp_mask"))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[5], consumerLabel, "lower-bound select",
+            description.intrinsic,
+            {{"lhs_vec", description.vectorCType},
+             {"lower_bound_vec", description.vectorCType},
+             {"lower_clamp_mask", description.maskCType},
+             {emitCLoopVLName, vlCType}},
+            "lower_clamped_vec", description.vectorCType))
+      return error;
+    if (llvm::Error error =
+            validateCompare(loop.bodySteps[6], "upper-bound compare",
+                            description.secondaryCompareIntrinsic,
+                            "upper_bound_vec", "lower_clamped_vec",
+                            "upper_clamp_mask"))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[7], consumerLabel, "upper-bound select",
+            description.intrinsic,
+            {{"lower_clamped_vec", description.vectorCType},
+             {"upper_bound_vec", description.vectorCType},
+             {"upper_clamp_mask", description.maskCType},
+             {emitCLoopVLName, vlCType}},
+            description.resultName, description.vectorCType))
+      return error;
+    return validateUnitStore(loop.bodySteps[8], "output store", outABI,
                              description.resultName);
   }
   case OperationKind::RuntimeScalarDualCompareMaskAndSelect: {

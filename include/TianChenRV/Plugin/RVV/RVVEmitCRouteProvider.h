@@ -34,6 +34,7 @@ enum class RVVSelectedBodyOperationKind {
   ComputedMaskSelect,
   RuntimeScalarCompareSelect,
   RuntimeScalarDualCompareMaskAndSelect,
+  F32ClampSelect,
   RuntimeScalarComputedMaskStore,
   RuntimeScalarComputedMaskLoadStore,
   ReduceAdd,
@@ -96,6 +97,7 @@ enum class RVVSelectedBodyMemoryForm {
   RuntimeScalarSplatStore,
   RuntimeScalarCompareSelect,
   RuntimeScalarDualCompareMaskAndSelect,
+  RuntimeScalarF32ClampSelect,
   RuntimeScalarComputedMaskStore,
   RuntimeScalarComputedMaskLoadStore,
   StridedLoadStore,
@@ -206,6 +208,12 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef maskMemoryForm;
   llvm::StringRef maskComposition;
   llvm::StringRef selectLayout;
+  llvm::StringRef lowerBoundRole;
+  llvm::StringRef upperBoundRole;
+  llvm::StringRef lowerBoundCType;
+  llvm::StringRef upperBoundCType;
+  llvm::StringRef boundOrder;
+  llvm::StringRef clampRelation;
   llvm::StringRef scalarBroadcastElementwiseRouteFamilyPlanID;
   llvm::StringRef dequantizationRouteFamilyPlanID;
   llvm::StringRef plainMAccRouteFamilyPlanID;
@@ -1642,6 +1650,12 @@ struct RVVCompareSelectRouteFacts {
   llvm::StringRef selectedResultRole;
   llvm::StringRef runtimeScalarThresholdRole;
   llvm::StringRef runtimeScalarThresholdCType;
+  llvm::StringRef lowerBoundRole;
+  llvm::StringRef upperBoundRole;
+  llvm::StringRef lowerBoundCType;
+  llvm::StringRef upperBoundCType;
+  llvm::StringRef boundOrder;
+  llvm::StringRef clampRelation;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
   llvm::StringRef indexedMemoryLayout;
@@ -1676,6 +1690,7 @@ enum class RVVCompareSelectRouteValidationKind {
   ComputedMask,
   RuntimeScalar,
   RuntimeScalarDual,
+  F32Clamp,
 };
 
 struct RVVCompareSelectRouteTypeMappingContract {
@@ -1749,6 +1764,12 @@ struct RVVCompareSelectRouteValidationContract {
   std::string selectedResultRole;
   std::string runtimeScalarThresholdRole;
   std::string runtimeScalarThresholdCType;
+  std::string lowerBoundRole;
+  std::string upperBoundRole;
+  std::string lowerBoundCType;
+  std::string upperBoundCType;
+  std::string boundOrder;
+  std::string clampRelation;
   std::string sourceMemoryForm;
   std::string destinationMemoryForm;
   std::string indexedMemoryLayout;

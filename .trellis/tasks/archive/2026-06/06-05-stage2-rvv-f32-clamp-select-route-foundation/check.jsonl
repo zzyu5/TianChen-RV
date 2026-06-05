@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global invariants: C++/MLIR stack, RVV route authority, and no descriptor/common-EmitC semantic authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV compare/select route support, selected-body/provider ownership, and legacy i32 fail-closed constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route summaries, embedded runtime AVL/VL contract, and compare/select target artifact validation behavior."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused evidence, negative diagnostics, generated-bundle/lit expectations, and ssh rvv claim requirements."}
+{"file": ".trellis/tasks/06-05-stage2-rvv-f32-clamp-select-route-foundation/prd.md", "reason": "Check implementation against task-specific acceptance criteria and non-goals."}

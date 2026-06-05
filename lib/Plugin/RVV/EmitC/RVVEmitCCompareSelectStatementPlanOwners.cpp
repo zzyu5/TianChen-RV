@@ -263,8 +263,11 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
   const bool isRuntimeScalarDualCompareMaskAndSelect =
       description.operation ==
       RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect;
+  const bool isF32ClampSelect =
+      description.operation == RVVSelectedBodyOperationKind::F32ClampSelect;
   const bool isRuntimeScalarComputedMaskSelect =
-      isRuntimeScalarCompareSelect || isRuntimeScalarDualCompareMaskAndSelect;
+      isRuntimeScalarCompareSelect || isRuntimeScalarDualCompareMaskAndSelect ||
+      isF32ClampSelect;
 
   plan.plansCompareSelectRoute = true;
   plan.plansPlainCompareSelect = isPlainCompareSelect;
@@ -273,6 +276,7 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
       isRuntimeScalarComputedMaskSelect;
   plan.plansRuntimeScalarDualCompareMaskAndSelect =
       isRuntimeScalarDualCompareMaskAndSelect;
+  plan.plansF32ClampSelect = isF32ClampSelect;
   plan.plainCompareSelectPlan = materializationFacts.plainCompareSelectPlan;
   plan.computedMaskSelectPlan = materializationFacts.computedMaskSelectPlan;
 
@@ -320,7 +324,9 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
               .bindsRuntimeScalarComputedMaskSelect ||
          elementwiseSelectOperandBindingFacts
                  .bindsRuntimeScalarDualCompareMaskAndSelect !=
-             isRuntimeScalarDualCompareMaskAndSelect))
+             isRuntimeScalarDualCompareMaskAndSelect ||
+         elementwiseSelectOperandBindingFacts.bindsF32ClampSelect !=
+             isF32ClampSelect))
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " compare/select statement plan requires runtime-scalar "
@@ -366,6 +372,10 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
       elementwiseSelectOperandBindingFacts.lhsABI;
   const support::RuntimeABIParameter *rhsABI =
       elementwiseSelectOperandBindingFacts.rhsABI;
+  const support::RuntimeABIParameter *lowerBoundABI =
+      elementwiseSelectOperandBindingFacts.lowerBoundABI;
+  const support::RuntimeABIParameter *upperBoundABI =
+      elementwiseSelectOperandBindingFacts.upperBoundABI;
   const support::RuntimeABIParameter *secondaryCompareLhsABI =
       elementwiseSelectOperandBindingFacts.secondaryCompareLhsABI;
   const support::RuntimeABIParameter *secondaryCompareRhsScalarABI =
@@ -380,15 +390,26 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
       elementwiseSelectOperandBindingFacts.runtimeElementCountABI;
 
   if (llvm::Error error = requireRVVCompareSelectStatementPlanABI(
-          lhsABI, isComputedMaskSelect ? "cmp_lhs" : "lhs", description,
+          lhsABI, isComputedMaskSelect ? "cmp_lhs"
+                  : isF32ClampSelect ? "input"
+                                      : "lhs",
+          description,
           context))
     return std::move(error);
-  if (llvm::Error error = requireRVVCompareSelectStatementPlanABI(
-          rhsABI, isPlainCompareSelect ? "rhs"
-                  : isComputedMaskSelect ? "cmp_rhs"
-                                         : "rhs_scalar",
-          description, context))
+  if (isF32ClampSelect) {
+    if (llvm::Error error = requireRVVCompareSelectStatementPlanABI(
+            lowerBoundABI, "lower_bound", description, context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVCompareSelectStatementPlanABI(
+            upperBoundABI, "upper_bound", description, context))
+      return std::move(error);
+  } else if (llvm::Error error = requireRVVCompareSelectStatementPlanABI(
+                 rhsABI, isPlainCompareSelect ? "rhs"
+                         : isComputedMaskSelect ? "cmp_rhs"
+                                                : "rhs_scalar",
+                 description, context)) {
     return std::move(error);
+  }
   if (isRuntimeScalarDualCompareMaskAndSelect) {
     if (llvm::Error error = requireRVVCompareSelectStatementPlanABI(
             secondaryCompareLhsABI, "cmp_lhs_b", description, context))
@@ -398,7 +419,7 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
             context))
       return std::move(error);
   }
-  if (!isPlainCompareSelect) {
+  if (!isPlainCompareSelect && !isF32ClampSelect) {
     if (llvm::Error error = requireRVVCompareSelectStatementPlanABI(
             trueValueABI, "true_value", description, context))
       return std::move(error);
@@ -445,11 +466,13 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
             materializationFacts.rhsScalarBroadcastLeaf,
             "runtime scalar splat callee", description, context))
       return std::move(error);
-  if (isRuntimeScalarDualCompareMaskAndSelect) {
+  if (isRuntimeScalarDualCompareMaskAndSelect || isF32ClampSelect) {
     if (llvm::Error error = requireRVVCompareSelectStatementPlanLeaf(
             secondaryCompareLeaf, "secondary compare callee", description,
             context))
       return std::move(error);
+  }
+  if (isRuntimeScalarDualCompareMaskAndSelect) {
     if (llvm::Error error = requireRVVCompareSelectStatementPlanLeaf(
             maskAndLeaf, "mask-and callee", description, context))
       return std::move(error);
@@ -507,6 +530,110 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
                                     materializationFacts.resultVectorCType
                                         .str()}))
     return std::move(error);
+
+  if (isF32ClampSelect) {
+    if (llvm::Error error = addRVVCompareSelectStatementPlanLoopStep(
+            plan, slice.lowerBoundScalarSplat.getOperation(), "load",
+            materializationFacts.rhsScalarBroadcastLeaf,
+            {TCRVEmitCCallOpaqueOperand{lowerBoundABI->cName,
+                                        lowerBoundABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{"lower_bound_vec",
+                                      materializationFacts.resultVectorCType
+                                          .str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVCompareSelectStatementPlanLoopStep(
+            plan, slice.upperBoundScalarSplat.getOperation(), "load",
+            materializationFacts.rhsScalarBroadcastLeaf,
+            {TCRVEmitCCallOpaqueOperand{upperBoundABI->cName,
+                                        upperBoundABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{"upper_bound_vec",
+                                      materializationFacts.resultVectorCType
+                                          .str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVCompareSelectStatementPlanLoopStep(
+            plan, slice.compareOp.getOperation(), "compute",
+            materializationFacts.compareLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 "lhs_vec", materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 "lower_bound_vec",
+                 materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{"lower_clamp_mask",
+                                      materializationFacts.maskCType.str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVCompareSelectStatementPlanLoopStep(
+            plan, slice.selectOp.getOperation(), "compute",
+            materializationFacts.elementwiseComputeLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 "lhs_vec", materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 "lower_bound_vec",
+                 materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"lower_clamp_mask",
+                                        materializationFacts.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{"lower_clamped_vec",
+                                      materializationFacts.resultVectorCType
+                                          .str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVCompareSelectStatementPlanLoopStep(
+            plan, slice.secondaryCompareOp.getOperation(), "compute",
+            secondaryCompareLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 "upper_bound_vec",
+                 materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 "lower_clamped_vec",
+                 materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{"upper_clamp_mask",
+                                      materializationFacts.maskCType.str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVCompareSelectStatementPlanLoopStep(
+            plan, slice.secondarySelectOp.getOperation(), "compute",
+            materializationFacts.elementwiseComputeLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 "lower_clamped_vec",
+                 materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 "upper_bound_vec",
+                 materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{"upper_clamp_mask",
+                                        materializationFacts.maskCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{description.resultName.str(),
+                                      materializationFacts.resultVectorCType
+                                          .str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVCompareSelectStatementPlanLoopStep(
+            plan, slice.storeOperation, "store", materializationFacts.storeLeaf,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(outABI->cName) + " + " + inductionName).str(),
+                 outABI->cType},
+             TCRVEmitCCallOpaqueOperand{
+                 description.resultName.str(),
+                 materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context))
+      return std::move(error);
+    return plan;
+  }
 
   if (isRuntimeScalarComputedMaskSelect) {
     if (llvm::Error error = addRVVCompareSelectStatementPlanLoopStep(

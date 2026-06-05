@@ -188,6 +188,8 @@ buildRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters(
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 8>
 getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
+getRVVSelectedBodyRuntimeScalarF32ClampSelectRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>
 buildRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters(
     llvm::StringRef elementCType);
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 5>

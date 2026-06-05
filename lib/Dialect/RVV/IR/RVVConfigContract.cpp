@@ -1259,6 +1259,26 @@ getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters() {
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 5>
+getRVVSelectedBodyRuntimeScalarF32ClampSelectRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "input", "const float *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lower_bound", "float",
+      support::RuntimeABIParameterRole::LowerBoundScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "upper_bound", "float",
+      support::RuntimeABIParameterRole::UpperBoundScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "float *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 5>
 buildRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters(
     llvm::StringRef elementCType) {
   llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
@@ -1551,6 +1571,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
               "int64_t");
   if (support::runtimeABIParametersEqual(
           parameters, runtimeScalarDualCompareMaskAndSelectI64))
+    return llvm::Error::success();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 5>
+      runtimeScalarF32ClampSelect =
+          getRVVSelectedBodyRuntimeScalarF32ClampSelectRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters,
+                                         runtimeScalarF32ClampSelect))
     return llvm::Error::success();
 
   llvm::SmallVector<support::RuntimeABIParameter, 5>
