@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, authority, and RVV Stage 1/2 invariants for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, provider authority, ABI/runtime role, and executable evidence boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built EmitC route, runtime ABI, route-family plan, and generated artifact contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle dry-run/runtime evidence requirements for pre-realized selected-body RVV routes."}

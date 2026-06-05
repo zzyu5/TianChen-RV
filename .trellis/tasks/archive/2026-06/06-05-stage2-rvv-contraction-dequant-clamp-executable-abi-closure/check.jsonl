@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check against global compiler stack, RVV authority, and evidence-source invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check that realization/provider/common EmitC boundaries remain layered and fail-closed."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check of route metadata, runtime ABI, target artifact mirror, and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check of generated-bundle and ssh rvv evidence completeness."}
