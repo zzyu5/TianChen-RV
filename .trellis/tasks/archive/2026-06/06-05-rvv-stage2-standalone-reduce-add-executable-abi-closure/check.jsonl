@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global route authority and Stage2 scope"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider-derived reduction facts and no legacy authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check standalone reduction validation and runtime ABI mirror contracts"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/FileCheck, generated-bundle, and ssh rvv evidence"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected-body and metadata mirror constraints"}

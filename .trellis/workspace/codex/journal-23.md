@@ -551,3 +551,63 @@ Added provider-derived standalone reduction kind mirrors, target artifact stale-
 ### Next Steps
 
 - None - task complete
+
+
+## Session 464: Stage2 RVV standalone reduce-add executable ABI closure
+
+**Date**: 2026-06-05
+**Task**: Stage2 RVV standalone reduce-add executable ABI closure
+**Branch**: `main`
+
+### Summary
+
+Closed standalone_reduce_add executable ABI evidence with generated bundle dry-run and real ssh rvv correctness over counts 0,1,16,17,257.
+
+### Main Changes
+
+- Closed executable ABI evidence for the existing typed RVV
+  `standalone_reduce_add` route. No compiler/source edit was needed after live
+  inspection: provider facts, target validation, generated-bundle checks, and
+  the external ABI harness already carried the required standalone reduction
+  contract.
+- Generated-bundle dry-run evidence:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/standalone-reduce-add-dryrun/standalone_reduce_add/evidence.json`.
+- Real RVV evidence:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/standalone-reduce-add-ssh/standalone_reduce_add/evidence.json`.
+- Runtime command used explicit counts `0,1,16,17,257` with seeds `-11,17`
+  and patterns `0,1`.
+- Final remote marker:
+  `PASS op=standalone_reduce_add counts=0,1,16,17,257 seeds=-11,17 patterns=0,1`.
+- Harness verified scalar add-reduction reference, `acc[0]` preservation,
+  source preservation, and scalar-output sentinel preservation.
+- Archived the Trellis task for this round.
+
+### Git Commits
+
+(Recorded in the final commit for this session.)
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate`
+- [OK] Manual FileCheck for `PLAN`, `HEADER`, `STALE-REDUCTION-KIND`,
+  `STALE-REDUCTION-ACC`, `STALE-REDUCTION-BINDING`, and
+  `STALE-REDUCTION-TYPE`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Generated-bundle dry-run for `standalone_reduce_add`
+- [OK] Real `ssh rvv` run for `standalone_reduce_add`
+- [OK] Direct pre-realized route-entry negative for `standalone_reduce_add`
+- [OK] `build/bin/tcrv-opt test/Dialect/RVV/standalone-reduction-dataflow.mlir --split-input-file --verify-diagnostics`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+
+### Status
+
+[OK] **Completed** as executable ABI closure with real RVV correctness
+evidence. No `.trellis/spec/` update was needed because existing specs already
+covered the executable contract.
+
+### Next Steps
+
+- None - task complete
