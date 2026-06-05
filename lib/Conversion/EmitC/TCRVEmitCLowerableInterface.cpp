@@ -74,9 +74,78 @@ llvm::Error validateABIParameter(
 
 } // namespace
 
+TCRVEmitCLowerableRoute::TCRVEmitCLowerableRoute()
+    : routeID(), routeKind(), headers(), typeMappings(), abiMappings(),
+      functionDeclarations(), sourceOpProvenance(), localVariables(),
+      callOpaqueSteps(), forLoops(), postLoopSteps() {}
+
 TCRVEmitCLowerableRoute::TCRVEmitCLowerableRoute(llvm::StringRef routeID,
                                                  llvm::StringRef routeKind)
     : routeID(routeID.str()), routeKind(routeKind.str()) {}
+
+TCRVEmitCLowerableRoute::TCRVEmitCLowerableRoute(
+    const TCRVEmitCLowerableRoute &other) {
+  *this = other;
+}
+
+TCRVEmitCLowerableRoute &TCRVEmitCLowerableRoute::operator=(
+    const TCRVEmitCLowerableRoute &other) {
+  if (this == &other)
+    return *this;
+
+  routeID = other.routeID;
+  routeKind = other.routeKind;
+  headers.clear();
+  headers.append(other.headers.begin(), other.headers.end());
+  typeMappings.clear();
+  typeMappings.append(other.typeMappings.begin(), other.typeMappings.end());
+  abiMappings.clear();
+  abiMappings.append(other.abiMappings.begin(), other.abiMappings.end());
+  functionDeclarations.clear();
+  functionDeclarations.append(other.functionDeclarations.begin(),
+                              other.functionDeclarations.end());
+  sourceOpProvenance.clear();
+  sourceOpProvenance.append(other.sourceOpProvenance.begin(),
+                            other.sourceOpProvenance.end());
+  localVariables.clear();
+  localVariables.append(other.localVariables.begin(),
+                        other.localVariables.end());
+  callOpaqueSteps.clear();
+  callOpaqueSteps.append(other.callOpaqueSteps.begin(),
+                         other.callOpaqueSteps.end());
+  forLoops.clear();
+  forLoops.append(other.forLoops.begin(), other.forLoops.end());
+  postLoopSteps.clear();
+  postLoopSteps.append(other.postLoopSteps.begin(), other.postLoopSteps.end());
+  return *this;
+}
+
+TCRVEmitCLowerableRoute::TCRVEmitCLowerableRoute(
+    TCRVEmitCLowerableRoute &&other)
+    : TCRVEmitCLowerableRoute(
+          static_cast<const TCRVEmitCLowerableRoute &>(other)) {}
+
+TCRVEmitCLowerableRoute &TCRVEmitCLowerableRoute::operator=(
+    TCRVEmitCLowerableRoute &&other) {
+  if (this == &other)
+    return *this;
+  return *this = static_cast<const TCRVEmitCLowerableRoute &>(other);
+}
+
+void TCRVEmitCLowerableRoute::reset(llvm::StringRef routeID,
+                                    llvm::StringRef routeKind) {
+  this->routeID = routeID.str();
+  this->routeKind = routeKind.str();
+  headers.clear();
+  typeMappings.clear();
+  abiMappings.clear();
+  functionDeclarations.clear();
+  sourceOpProvenance.clear();
+  localVariables.clear();
+  callOpaqueSteps.clear();
+  forLoops.clear();
+  postLoopSteps.clear();
+}
 
 void TCRVEmitCLowerableRoute::addHeader(llvm::StringRef header) {
   headers.push_back({header.str()});

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and plugin-boundary invariants for this construction protocol repair."}
+{"file": ".trellis/spec/plugin-protocol/index.md", "reason": "Plugin protocol pre-development checklist and quality bar."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Registry orchestration, plugin lookup, route provider, and manifest/template authority boundaries."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Plugin-local responsibilities versus common/core orchestration responsibilities."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Standard extension integration flow and valid construction inputs."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Construction protocol template rules and non-authority constraints for manifests/templates."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built route contract."}
+{"file": ".trellis/tasks/06-06-extension-plugin-construction-protocol-common-repair/prd.md", "reason": "Task-specific goal, reproduced failures, boundaries, and acceptance criteria."}

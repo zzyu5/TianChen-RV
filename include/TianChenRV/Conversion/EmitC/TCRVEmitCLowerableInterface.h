@@ -80,9 +80,15 @@ struct TCRVEmitCForLoop {
 
 class TCRVEmitCLowerableRoute {
 public:
-  TCRVEmitCLowerableRoute() = default;
+  TCRVEmitCLowerableRoute();
   TCRVEmitCLowerableRoute(llvm::StringRef routeID,
                           llvm::StringRef routeKind);
+  TCRVEmitCLowerableRoute(const TCRVEmitCLowerableRoute &other);
+  TCRVEmitCLowerableRoute &operator=(const TCRVEmitCLowerableRoute &other);
+  TCRVEmitCLowerableRoute(TCRVEmitCLowerableRoute &&other);
+  TCRVEmitCLowerableRoute &operator=(TCRVEmitCLowerableRoute &&other);
+
+  void reset(llvm::StringRef routeID, llvm::StringRef routeKind);
 
   llvm::StringRef getRouteID() const { return routeID; }
   llvm::StringRef getRouteKind() const { return routeKind; }

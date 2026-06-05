@@ -65,6 +65,100 @@ The route object is provider-built. It is not reconstructed from
 emission-plan diagnostics, route ids, artifact names, source-front-door
 markers, semantic role graphs, manifests, or descriptors.
 
+## Provider-Owned Route Value Contract
+
+### 1. Scope / Trigger
+
+Use this contract whenever a plugin route provider writes a
+`TCRVEmitCLowerableRoute` through an output parameter or returns one by value.
+The route is a common value container for provider-owned facts; it is not an
+extension semantic interpreter.
+
+### 2. Signatures
+
+Current route providers use:
+
+```c++
+llvm::Error buildXEmitCLowerableRoute(
+    const VariantEmitCLowerableRequest &request,
+    TCRVEmitCLowerableRoute &out);
+```
+
+The common route value exposes:
+
+```c++
+TCRVEmitCLowerableRoute();
+TCRVEmitCLowerableRoute(llvm::StringRef routeID,
+                        llvm::StringRef routeKind);
+void reset(llvm::StringRef routeID, llvm::StringRef routeKind);
+```
+
+### 3. Contracts
+
+- A provider that writes a caller-supplied route must initialize the route
+  identity with `reset(routeID, routeKind)` and then append headers, type
+  mappings, ABI mappings, source provenance, call steps, loops, and post-loop
+  steps through the route mutators.
+- `reset` clears previous neutral materialization payload and sets only the
+  common route identity. It does not validate or invent extension semantics.
+- Copy/move construction and assignment preserve the already-built common route
+  payload. They are container operations, not route construction authority.
+- Common EmitC may consume the filled route only after the origin provider has
+  performed plugin legality and route construction.
+
+### 4. Validation & Error Matrix
+
+- Provider cannot find a selected typed body or legal selected boundary ->
+  return a plugin-owned route construction error before touching route facts.
+- Provider legality fails -> return the plugin legality error before building
+  the route.
+- Provider builds no route identity, source provenance, or required call/loop
+  steps -> common materializer verification must fail.
+- Caller reuses a route object -> provider must call `reset` before appending
+  new payload.
+
+### 5. Good/Base/Bad Cases
+
+- Good: selected Template boundary -> Template provider validates construction
+  protocol -> `out.reset(...)` -> append source provenance and call step ->
+  common materializer verifies the route.
+- Base: helper code may construct a temporary `TCRVEmitCLowerableRoute` by
+  value for local tests, as long as the provider-facing path remains explicit.
+- Bad: manifest/template/source metadata -> common code reconstructs route
+  support without plugin legality.
+- Bad: provider relies on a whole-route temporary assignment as the production
+  construction proof while the caller-supplied route is the actual API output.
+
+### 6. Tests Required
+
+- C++ route value tests should cover default construction, route construction,
+  materializer verification, and copy/move or reset behavior when used by
+  provider-facing code.
+- Plugin tests should assert that registry route construction preserves route
+  id, selected source provenance, and materialization steps.
+- Construction protocol common tests should keep route facts aligned with
+  production provider route tables.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider builds a temporary route
+  -> assigns the whole nested route into out
+  -> test treats the assignment as construction proof
+```
+
+Correct:
+
+```text
+selected typed body or boundary
+  -> plugin legality and construction protocol validation
+  -> out.reset(provider route id, provider route kind)
+  -> provider appends neutral EmitC payload facts
+  -> common materializer verifies and consumes the route
+```
+
 ## Provider Operand Binding Summary Contract
 
 ### 1. Scope / Trigger

@@ -1655,6 +1655,9 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "widening_product_reduce_add";
     const bool isWideningProductReductionDequantizationRoute =
         route.operationMnemonic == "widening_product_reduce_dequantize_f32";
+    const bool isWideningProductReductionDequantClampRoute =
+        route.operationMnemonic ==
+        "widening_product_reduce_dequant_clamp_f32";
     const bool isWideningDotReduceRoute =
         route.operationMnemonic == "widening_dot_reduce_add";
     const bool isStandaloneReduceRoute =
@@ -1680,6 +1683,10 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "computed_masked_macc_add";
     const bool isRuntimeScalarComputedMaskMAccRoute =
         route.operationMnemonic == "runtime_scalar_cmp_masked_macc_add";
+    const bool isF32ClampSelectRoute =
+        route.operationMnemonic == "f32_clamp_select";
+    const bool isDequantClampF32EpilogueRoute =
+        route.operationMnemonic == "dequant_clamp_f32_epilogue";
     const bool isScalarBroadcastMAccRoute =
         route.operationMnemonic == "scalar_broadcast_macc_add";
     const bool isMaskedElementwiseRoute =
@@ -1690,7 +1697,7 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "scalar_broadcast_add" ||
         route.operationMnemonic == "scalar_broadcast_sub" ||
         route.operationMnemonic == "scalar_broadcast_mul";
-    llvm::StringRef executableComputeOp = "tcrv_rvv.binary";
+    llvm::StringRef executableComputeOp = route.typedComputeOpName;
     if (route.operationMnemonic == "cmp_select" || isComputedMaskSelectRoute ||
         isRuntimeScalarCompareSelectRoute ||
         route.operationMnemonic == "runtime_scalar_dual_cmp_mask_and_select")
@@ -1879,6 +1886,8 @@ int runRVVCommonValidationTest() {
     const bool hasWideningProductReduction = isWideningProductReductionRoute;
     const bool hasWideningProductReductionDequantization =
         isWideningProductReductionDequantizationRoute;
+    const bool hasWideningProductReductionDequantClamp =
+        isWideningProductReductionDequantClampRoute;
     const bool hasWideningDotReduce = isWideningDotReduceRoute;
     const bool hasStridedInputWideningDotReduce =
         isStridedInputWideningDotReduceRoute;
@@ -1891,6 +1900,8 @@ int runRVVCommonValidationTest() {
         isRuntimeScalarCompareSelectRoute;
     const bool hasRuntimeScalarDualCompareMaskAndSelect =
         route.operationMnemonic == "runtime_scalar_dual_cmp_mask_and_select";
+    const bool hasF32ClampSelect = isF32ClampSelectRoute;
+    const bool hasDequantClampF32Epilogue = isDequantClampF32EpilogueRoute;
     const bool hasRuntimeScalarComputedMaskStore =
         route.operationMnemonic == "runtime_scalar_cmp_masked_store";
     const bool hasRuntimeScalarComputedMaskLoadStore =
@@ -1907,6 +1918,8 @@ int runRVVCommonValidationTest() {
         : hasComputedMaskSelect                  ? 15u
         : hasRuntimeScalarCompareSelect          ? 15u
         : hasRuntimeScalarDualCompareMaskAndSelect ? 21u
+        : hasF32ClampSelect                      ? 15u
+        : hasDequantClampF32Epilogue             ? 17u
         : hasRuntimeScalarComputedMaskStore      ? 12u
         : hasRuntimeScalarComputedMaskLoadStore  ? 13u
         : hasComputedMaskStandaloneReduction     ? 14u
@@ -1916,6 +1929,7 @@ int runRVVCommonValidationTest() {
         : hasWideningMAcc                       ? 12u
         : hasWideningProductReduction           ? 12u
         : hasWideningProductReductionDequantization ? 14u
+        : hasWideningProductReductionDequantClamp ? 22u
         : hasWideningDotReduce                  ? 11u
         : hasStridedInputWideningDotReduce      ? 13u
         : hasComputedMaskWideningDotReduce       ? 16u
@@ -2164,6 +2178,13 @@ int runRVVCommonValidationTest() {
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
+               "widening_product_reduce_dequant_clamp_f32") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyWideningProductReductionDequantClampF32RuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
                "strided_input_widening_dot_reduce_add") {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
@@ -2201,6 +2222,18 @@ int runRVVCommonValidationTest() {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "f32_clamp_select") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyRuntimeScalarF32ClampSelectRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic == "dequant_clamp_f32_epilogue") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyDequantClampF32EpilogueRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic == "runtime_scalar_cmp_masked_store" ||

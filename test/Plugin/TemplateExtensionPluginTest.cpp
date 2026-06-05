@@ -964,11 +964,16 @@ module {
           "Template registry builds EmitC lowerable route"))
     return result;
   if (int result =
-          expect(route.getRouteID() == constructionRoute.routeID &&
-                     route.getSourceOpProvenance().size() == 1 &&
-                     route.getCallOpaqueSteps().size() == 1,
-                 "Template EmitC route preserves selected source provenance "
-                 "and call step"))
+          expect(route.getRouteID() == constructionRoute.routeID,
+                 "Template EmitC route preserves route id"))
+    return result;
+  if (int result =
+          expect(route.getSourceOpProvenance().size() == 1,
+                 "Template EmitC route preserves selected source provenance"))
+    return result;
+  if (int result =
+          expect(route.getCallOpaqueSteps().size() == 1,
+                 "Template EmitC route preserves selected call step"))
     return result;
   if (int result = expectSuccess(
           verifyTCRVEmitCLowerableRouteMaterializesToEmitC(

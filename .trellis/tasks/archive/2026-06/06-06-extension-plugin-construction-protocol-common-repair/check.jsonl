@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global invariants for final spec compliance check."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify registry/common construction code did not become semantic authority."}
+{"file": ".trellis/spec/plugin-protocol/locality-contract.md", "reason": "Verify plugin-locality and no new common/core family-specific semantic branches."}
+{"file": ".trellis/spec/plugin-protocol/extension-plugin-integration.md", "reason": "Verify construction inputs and route provider boundaries remain valid."}
+{"file": ".trellis/spec/plugin-protocol/extension-family-plugin-template.md", "reason": "Verify Template/plugin construction proof does not make templates executable authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC remains neutral and provider-built routes are preserved."}
+{"file": ".trellis/tasks/06-06-extension-plugin-construction-protocol-common-repair/prd.md", "reason": "Check implementation against task acceptance criteria and evidence plan."}

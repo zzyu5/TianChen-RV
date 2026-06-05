@@ -134,23 +134,23 @@ llvm::Error buildTemplateComputeSkeletonEmitCLowerableRoute(
           constructionRoute.runtimeGlueRole))
     return error;
 
-  emitc::TCRVEmitCLowerableRoute route(
+  out.reset(
       constructionRoute.routeID,
       "extension-family-construction-template-to-emitc-call-opaque");
-  route.addHeader("stdint.h");
-  route.addFunctionDeclaration(constructionRoute.callee,
-                               constructionRoute.resultCType);
-  route.addSourceOpProvenance(*source);
+  out.addHeader("stdint.h");
+  out.addFunctionDeclaration(constructionRoute.callee,
+                             constructionRoute.resultCType);
+  const emitc::TCRVEmitCSourceOpProvenance sourceProvenance = *source;
+  out.addSourceOpProvenance(sourceProvenance);
 
   emitc::TCRVEmitCCallOpaqueStep step;
-  step.sourceOp = std::move(*source);
+  step.sourceOp = sourceProvenance;
   step.callee = constructionRoute.callee.str();
   step.result = emitc::TCRVEmitCCallOpaqueResult{
       constructionRoute.resultName.str(),
       constructionRoute.resultCType.str()};
-  route.addCallOpaqueStep(std::move(step));
+  out.addCallOpaqueStep(std::move(step));
 
-  out = std::move(route);
   return llvm::Error::success();
 }
 
