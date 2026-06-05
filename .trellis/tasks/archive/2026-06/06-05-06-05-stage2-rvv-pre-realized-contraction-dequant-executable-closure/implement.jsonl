@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Project invariants and RVV-first authority chain for this executable closure."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local realization authority, typed body facts, provider-owned route construction, and ssh rvv evidence requirement."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC/export neutrality and provider-built route payload boundary."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected variant and selected-body realization context for Stage 2 RVV work."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/C++/script and ssh rvv evidence expectations."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-stage2-rvv-contraction-dequant-realization/prd.md", "reason": "Previous completed realization task and its explicit no-ssh-evidence continuation point."}

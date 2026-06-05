@@ -5283,6 +5283,15 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
     ),
+    "widening_product_reduce_dequantize_f32": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "widening_product_reduce_dequantize_f32"
+        ],
+        input_path=Path("test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir"),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_product_reduce_dequantize",
+        function_name="tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize",
+    ),
     "strided_input_widening_dot_reduce_add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
         kind="strided_input_widening_dot_reduce_add",
@@ -27525,6 +27534,30 @@ def run_self_test() -> int:
                 "self-test direct route-entry diagnostic lost selected "
                 "widening-dot fail-closed detail"
             )
+        direct_product_dequant_error = expect_self_test_failure(
+            "unsupported direct pre-realized product-dequant route entry",
+            lambda: selected_expectations(
+                argparse.Namespace(
+                    op_kind=["widening_product_reduce_dequantize_f32"],
+                    input=None,
+                    source_seed=False,
+                    pre_realized_selected_body=True,
+                    rhs_broadcast_selected_body=False,
+                    lmul_m2_selected_body=False,
+                    direct_pre_realized_route_entry=True,
+                )
+            ),
+        )
+        if (
+            "widening_product_reduce_dequantize_f32"
+            not in direct_product_dequant_error
+            or "the direct route-entry shortcut is retired"
+            not in direct_product_dequant_error
+        ):
+            raise AssertionError(
+                "self-test direct route-entry diagnostic lost selected "
+                "product-dequant fail-closed detail"
+            )
         direct_standalone_reduction_error = expect_self_test_failure(
             "unsupported direct pre-realized standalone reduction route entry",
             lambda: selected_expectations(
@@ -29018,6 +29051,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "segment2_interleave_unit_load/"
             "lmul_m2_add/widen_i32_to_i64/widen_i16_to_i32/"
             "widening_macc_add/widening_dot_reduce_add/"
+            "widening_product_reduce_dequantize_f32/"
             "strided_input_widening_dot_reduce_add/"
             "computed_masked_widening_dot_reduce_add/"
             "computed_masked_strided_input_widening_dot_reduce_add "

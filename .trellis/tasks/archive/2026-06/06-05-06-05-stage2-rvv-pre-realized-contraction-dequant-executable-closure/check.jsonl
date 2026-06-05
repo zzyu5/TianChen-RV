@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Spec compliance review entrypoint for RVV-first work."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check that executable evidence is tied to plugin-realized typed RVV structure, not legacy authority or metadata."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC/export neutrality and provider-owned route facts."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Check selected-body realization stays Stage 2 and does not mutate envelope semantics."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused evidence, ssh rvv runtime claim, and script/lit/C++ coverage obligations."}
+{"file": ".trellis/tasks/archive/2026-06/06-05-06-05-stage2-rvv-pre-realized-contraction-dequant-executable-closure/prd.md", "reason": "Acceptance criteria and final verification scope for this task."}
