@@ -2169,6 +2169,14 @@ struct RVVConversionDtypePolicyRouteValidationContract {
   std::string emitCFullChunkVLName;
   std::string emitCLoopVLName;
   std::string emitCLoopInductionName;
+  std::string gearboxLoopStepExpression;
+  std::string gearboxSecondRemainingAVLExpression;
+  std::string gearboxSecondLoopVLName;
+  std::string gearboxSecondSourcePointerExpression;
+  std::string gearboxSecondOutPointerExpression;
+  std::string gearboxSecondSourceName;
+  std::string gearboxSecondConvertedName;
+  std::string gearboxSecondResultName;
 
   std::size_t expectedPreLoopStepCount = 0;
   std::size_t expectedLoopBodyStepCount = 0;

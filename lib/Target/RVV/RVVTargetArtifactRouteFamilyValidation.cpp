@@ -10913,10 +10913,14 @@ llvm::Error validateRVVConversionDtypePolicyRouteStatementPlan(
         " requires exactly one provider-built runtime AVL/VL loop before "
         "artifact export");
   const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
+  const std::string expectedLoopStep =
+      contract.gearboxLoopStepExpression.empty()
+          ? runtimeContract.emitCFullChunkVLName
+          : contract.gearboxLoopStepExpression;
   if (loop.inductionVarName != runtimeContract.emitCLoopInductionName ||
       loop.lowerBound.expression != "0" ||
       loop.lowerBound.cType != runtimeContract.vlCType ||
-      loop.step.expression != runtimeContract.emitCFullChunkVLName ||
+      loop.step.expression != expectedLoopStep ||
       loop.step.cType != runtimeContract.vlCType)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
@@ -11003,6 +11007,67 @@ llvm::Error validateRVVConversionDtypePolicyRouteStatementPlan(
           {{expectedOutPointer, outABI.cType},
            {contract.resultName, contract.vectorCType},
            {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}}))
+    return error;
+
+  const bool expectsGearboxTwoSlice =
+      isDequantization && contract.gearboxUnroll == 2;
+  if (!expectsGearboxTwoSlice)
+    return llvm::Error::success();
+
+  if (contract.gearboxSecondRemainingAVLExpression.empty() ||
+      contract.gearboxSecondLoopVLName.empty() ||
+      contract.gearboxSecondSourcePointerExpression.empty() ||
+      contract.gearboxSecondOutPointerExpression.empty() ||
+      contract.gearboxSecondSourceName.empty() ||
+      contract.gearboxSecondConvertedName.empty() ||
+      contract.gearboxSecondResultName.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived Gearbox u2 second-slice route-plan facts "
+        "before validating route statements");
+
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[5], contract.consumerLabel,
+          "Gearbox u2 second-slice setvl", runtimeContract.setVLIntrinsic,
+          {{contract.gearboxSecondRemainingAVLExpression,
+            runtimeContract.vlCType}},
+          contract.gearboxSecondLoopVLName, runtimeContract.vlCType))
+    return error;
+
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[6], contract.consumerLabel,
+          "Gearbox u2 second-slice source vector load",
+          contract.sourceVectorLoadIntrinsic,
+          {{contract.gearboxSecondSourcePointerExpression, sourceABI.cType},
+           {contract.gearboxSecondLoopVLName, runtimeContract.vlCType}},
+          contract.gearboxSecondSourceName, contract.sourceVectorCType))
+    return error;
+
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[7], contract.consumerLabel,
+          "Gearbox u2 second-slice dequant convert",
+          contract.dequantizeConvertIntrinsic,
+          {{contract.gearboxSecondSourceName, contract.sourceVectorCType},
+           {contract.gearboxSecondLoopVLName, runtimeContract.vlCType}},
+          contract.gearboxSecondConvertedName, contract.vectorCType))
+    return error;
+
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[8], contract.consumerLabel,
+          "Gearbox u2 second-slice dequant scale",
+          contract.dequantizeScaleIntrinsic,
+          {{contract.gearboxSecondConvertedName, contract.vectorCType},
+           {scaleABI->cName, scaleABI->cType},
+           {contract.gearboxSecondLoopVLName, runtimeContract.vlCType}},
+          contract.gearboxSecondResultName, contract.vectorCType))
+    return error;
+
+  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+          loop.bodySteps[9], contract.consumerLabel,
+          "Gearbox u2 second-slice output store", contract.storeIntrinsic,
+          {{contract.gearboxSecondOutPointerExpression, outABI.cType},
+           {contract.gearboxSecondResultName, contract.vectorCType},
+           {contract.gearboxSecondLoopVLName, runtimeContract.vlCType}}))
     return error;
 
   return llvm::Error::success();

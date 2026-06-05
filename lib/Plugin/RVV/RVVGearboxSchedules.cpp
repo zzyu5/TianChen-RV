@@ -44,7 +44,7 @@ using tianchenrv::plugin::rvv::kRVVGearboxDestLMULAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxDestSEWAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxLegalityScopeAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxOperationAttrName;
-using tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSingleSetVLPolicy;
+using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32SelectedVLPolicy;
 using tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceN;
 using tianchenrv::plugin::rvv::kRVVGearboxScheduleIDAttrName;
@@ -159,7 +159,7 @@ mlir::LogicalResult materializeGearboxAttrs(mlir::Operation *op,
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVGearboxVLPolicyAttrName,
-          kRVVGearboxRuntimeAVLSingleSetVLPolicy)))
+          kRVVGearboxDequantizeI32ToF32SelectedVLPolicy)))
     return mlir::failure();
   if (mlir::failed(requireIntegerAttr(
           op, builder, kRVVGearboxSourceSEWAttrName,

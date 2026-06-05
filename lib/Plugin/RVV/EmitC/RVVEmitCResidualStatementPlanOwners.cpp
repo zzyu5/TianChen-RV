@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
+#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 
 #include "llvm/ADT/Twine.h"
 
@@ -711,6 +712,17 @@ getRVVSelectedBodyDequantizationRouteStatementPlan(
           context))
     return std::move(error);
 
+  const RVVSelectedBodyDequantizationRouteFamilyPlan &dequantizationPlan =
+      *materializationFacts.dequantizationPlan;
+  if (dequantizationPlan.gearboxUnroll != 1 &&
+      dequantizationPlan.gearboxUnroll != 2)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization statement plan supports only bounded Gearbox "
+        "unroll 1 or 2 before route statement construction, but saw " +
+        llvm::Twine(dequantizationPlan.gearboxUnroll));
+  const bool usesTwoSliceSchedule = dequantizationPlan.gearboxUnroll == 2;
+
   using conversion::emitc::TCRVEmitCCallOpaqueOperand;
   using conversion::emitc::TCRVEmitCCallOpaqueResult;
   llvm::Expected<conversion::emitc::TCRVEmitCCallOpaqueStep> fullChunkSetVL =
@@ -736,7 +748,9 @@ getRVVSelectedBodyDequantizationRouteStatementPlan(
   plan.loop.upperBound = TCRVEmitCCallOpaqueOperand{
       runtimeElementCountABI->cName, runtimeElementCountABI->cType};
   plan.loop.step = TCRVEmitCCallOpaqueOperand{
-      fullChunkVLName.str(), materializationFacts.vlCType.str()};
+      usesTwoSliceSchedule ? (fullChunkVLName + " * 2").str()
+                           : fullChunkVLName.str(),
+      materializationFacts.vlCType.str()};
 
   if (llvm::Error error = addRVVWideningConversionStatementPlanLoopStep(
           plan, slice.setvl.getOperation(), "configure",
@@ -801,6 +815,85 @@ getRVVSelectedBodyDequantizationRouteStatementPlan(
                description.resultName.str(),
                materializationFacts.resultVectorCType.str()},
            TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                      materializationFacts.vlCType.str()}},
+          description, context))
+    return std::move(error);
+
+  if (!usesTwoSliceSchedule)
+    return plan;
+
+  const std::string secondRemainingAVL =
+      (llvm::StringRef(runtimeElementCountABI->cName) + "-" + inductionName +
+       "-" + loopVLName)
+          .str();
+  const llvm::StringRef secondLoopVLName =
+      kRVVGearboxDequantizeI32ToF32SecondLoopVLName;
+  if (llvm::Error error = addRVVWideningConversionStatementPlanLoopStep(
+          plan, slice.setvl.getOperation(), "configure",
+          materializationFacts.setVLLeaf,
+          {TCRVEmitCCallOpaqueOperand{secondRemainingAVL,
+                                      materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{secondLoopVLName.str(),
+                                    materializationFacts.vlCType.str()}))
+    return std::move(error);
+
+  const std::string secondSourcePointer =
+      (llvm::StringRef(lhsABI->cName) + "+" + inductionName + "+" +
+       loopVLName)
+          .str();
+  if (llvm::Error error = addRVVWideningConversionStatementPlanLoopStep(
+          plan, slice.lhsLoadOperation, "load",
+          materializationFacts.sourceLoadLeaf,
+          {TCRVEmitCCallOpaqueOperand{secondSourcePointer, lhsABI->cType},
+           TCRVEmitCCallOpaqueOperand{secondLoopVLName.str(),
+                                      materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{
+              kRVVGearboxDequantizeI32ToF32SecondSourceName.str(),
+              materializationFacts.sourceVectorCType.str()}))
+    return std::move(error);
+
+  if (llvm::Error error = addRVVWideningConversionStatementPlanLoopStep(
+          plan, slice.arithmeticOp, "compute",
+          materializationFacts.dequantizeConvertLeaf,
+          {TCRVEmitCCallOpaqueOperand{
+               kRVVGearboxDequantizeI32ToF32SecondSourceName.str(),
+               materializationFacts.sourceVectorCType.str()},
+           TCRVEmitCCallOpaqueOperand{secondLoopVLName.str(),
+                                      materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{
+              kRVVGearboxDequantizeI32ToF32SecondConvertedName.str(),
+              materializationFacts.resultVectorCType.str()}))
+    return std::move(error);
+
+  if (llvm::Error error = addRVVWideningConversionStatementPlanLoopStep(
+          plan, slice.arithmeticOp, "compute",
+          materializationFacts.dequantizeScaleLeaf,
+          {TCRVEmitCCallOpaqueOperand{
+               kRVVGearboxDequantizeI32ToF32SecondConvertedName.str(),
+               materializationFacts.resultVectorCType.str()},
+           TCRVEmitCCallOpaqueOperand{scaleABI->cName, scaleABI->cType},
+           TCRVEmitCCallOpaqueOperand{secondLoopVLName.str(),
+                                      materializationFacts.vlCType.str()}},
+          description, context,
+          TCRVEmitCCallOpaqueResult{
+              kRVVGearboxDequantizeI32ToF32SecondResultName.str(),
+              materializationFacts.resultVectorCType.str()}))
+    return std::move(error);
+
+  const std::string secondOutPointer =
+      (llvm::StringRef(outABI->cName) + "+" + inductionName + "+" +
+       loopVLName)
+          .str();
+  if (llvm::Error error = addRVVWideningConversionStatementPlanLoopStep(
+          plan, slice.storeOperation, "store", materializationFacts.storeLeaf,
+          {TCRVEmitCCallOpaqueOperand{secondOutPointer, outABI->cType},
+           TCRVEmitCCallOpaqueOperand{
+               kRVVGearboxDequantizeI32ToF32SecondResultName.str(),
+               materializationFacts.resultVectorCType.str()},
+           TCRVEmitCCallOpaqueOperand{secondLoopVLName.str(),
                                       materializationFacts.vlCType.str()}},
           description, context))
     return std::move(error);

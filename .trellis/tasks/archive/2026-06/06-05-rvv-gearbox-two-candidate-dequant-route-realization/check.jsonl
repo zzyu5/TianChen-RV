@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify RVV-first authority chain and no descriptor/string authority drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin-local schedule/provider ownership and fail-closed unsupported cases."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export neutrality, dequantization route facts, statement-plan contract, and provider-derived mirror validation."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Verify focused lit/C++ tests and ssh rvv applicability reporting."}
+{"file": ".trellis/tasks/06-05-rvv-gearbox-two-candidate-dequant-route-realization/prd.md", "reason": "Check implementation against this task's bounded acceptance criteria."}

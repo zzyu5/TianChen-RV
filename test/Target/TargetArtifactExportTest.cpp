@@ -1651,9 +1651,9 @@ module {
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
       tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", rvv_emitc_route_mapping = "rvv-generic-typed-body-emitc-route-family", selected_path_role = "direct variant", selected_variant = @)mlir"
        << variant
-       << R"mlir(, sew = 32 : i64, source_kernel = "rvv_dequant_body_kernel", status = "selected-lowering-boundary", tcrv_rvv.gearbox.candidate_set = "rvv-gearbox-candidate-set.v1[rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1]", tcrv_rvv.gearbox.dest_lmul = "m1", tcrv_rvv.gearbox.dest_sew = 32 : i64, tcrv_rvv.gearbox.legality_scope = "typed-dequantize-i32-to-f32-sew32-lmul-m1-runtime-avl", tcrv_rvv.gearbox.operation = "dequantize_i32_to_f32", tcrv_rvv.gearbox.runtime_avl_source = "runtime_abi:n", tcrv_rvv.gearbox.schedule_id = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1", tcrv_rvv.gearbox.selected_candidate = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1", tcrv_rvv.gearbox.selection_reason = "only-legal-candidate-for-typed-dequantize-i32-to-f32-e32-m1-runtime-avl", tcrv_rvv.gearbox.selector = "static-dequantize-i32-to-f32-e32-m1-u1", tcrv_rvv.gearbox.source = "rvv-gearbox-static-pass.v1", tcrv_rvv.gearbox.source_lmul = "m1", tcrv_rvv.gearbox.source_sew = 32 : i64, tcrv_rvv.gearbox.unroll = 1 : i64, tcrv_rvv.gearbox.vl_policy = "runtime-avl-single-setvl"} {
+       << R"mlir(, sew = 32 : i64, source_kernel = "rvv_dequant_body_kernel", status = "selected-lowering-boundary", tcrv_rvv.gearbox.candidate_set = "rvv-gearbox-candidate-set.v1[rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1,rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1]", tcrv_rvv.gearbox.dest_lmul = "m1", tcrv_rvv.gearbox.dest_sew = 32 : i64, tcrv_rvv.gearbox.legality_scope = "typed-dequantize-i32-to-f32-sew32-lmul-m1-runtime-avl", tcrv_rvv.gearbox.operation = "dequantize_i32_to_f32", tcrv_rvv.gearbox.runtime_avl_source = "runtime_abi:n", tcrv_rvv.gearbox.schedule_id = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1", tcrv_rvv.gearbox.selected_candidate = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1", tcrv_rvv.gearbox.selection_reason = "select-bounded-u2-two-slice-route-plan-for-typed-dequantize-i32-to-f32-e32-m1-runtime-avl", tcrv_rvv.gearbox.selector = "static-dequantize-i32-to-f32-e32-m1-u2", tcrv_rvv.gearbox.source = "rvv-gearbox-static-pass.v1", tcrv_rvv.gearbox.source_lmul = "m1", tcrv_rvv.gearbox.source_sew = 32 : i64, tcrv_rvv.gearbox.unroll = 2 : i64, tcrv_rvv.gearbox.vl_policy = "runtime-avl-two-slice-setvl"} {
         %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-        %dequantized_vec = tcrv_rvv.dequantize %lhs_vec, %scale, %vl {dequant_relation = "signed-i32m1-to-f32m1-scale-f32", kind = "i32_to_f32_scaled", tcrv_rvv.gearbox.candidate_set = "rvv-gearbox-candidate-set.v1[rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1]", tcrv_rvv.gearbox.dest_lmul = "m1", tcrv_rvv.gearbox.dest_sew = 32 : i64, tcrv_rvv.gearbox.legality_scope = "typed-dequantize-i32-to-f32-sew32-lmul-m1-runtime-avl", tcrv_rvv.gearbox.operation = "dequantize_i32_to_f32", tcrv_rvv.gearbox.runtime_avl_source = "runtime_abi:n", tcrv_rvv.gearbox.schedule_id = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1", tcrv_rvv.gearbox.selected_candidate = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1", tcrv_rvv.gearbox.selection_reason = "only-legal-candidate-for-typed-dequantize-i32-to-f32-e32-m1-runtime-avl", tcrv_rvv.gearbox.selector = "static-dequantize-i32-to-f32-e32-m1-u1", tcrv_rvv.gearbox.source = "rvv-gearbox-static-pass.v1", tcrv_rvv.gearbox.source_lmul = "m1", tcrv_rvv.gearbox.source_sew = 32 : i64, tcrv_rvv.gearbox.unroll = 1 : i64, tcrv_rvv.gearbox.vl_policy = "runtime-avl-single-setvl"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
+        %dequantized_vec = tcrv_rvv.dequantize %lhs_vec, %scale, %vl {dequant_relation = "signed-i32m1-to-f32m1-scale-f32", kind = "i32_to_f32_scaled", tcrv_rvv.gearbox.candidate_set = "rvv-gearbox-candidate-set.v1[rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1,rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1]", tcrv_rvv.gearbox.dest_lmul = "m1", tcrv_rvv.gearbox.dest_sew = 32 : i64, tcrv_rvv.gearbox.legality_scope = "typed-dequantize-i32-to-f32-sew32-lmul-m1-runtime-avl", tcrv_rvv.gearbox.operation = "dequantize_i32_to_f32", tcrv_rvv.gearbox.runtime_avl_source = "runtime_abi:n", tcrv_rvv.gearbox.schedule_id = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1", tcrv_rvv.gearbox.selected_candidate = "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1", tcrv_rvv.gearbox.selection_reason = "select-bounded-u2-two-slice-route-plan-for-typed-dequantize-i32-to-f32-e32-m1-runtime-avl", tcrv_rvv.gearbox.selector = "static-dequantize-i32-to-f32-e32-m1-u2", tcrv_rvv.gearbox.source = "rvv-gearbox-static-pass.v1", tcrv_rvv.gearbox.source_lmul = "m1", tcrv_rvv.gearbox.source_sew = 32 : i64, tcrv_rvv.gearbox.unroll = 2 : i64, tcrv_rvv.gearbox.vl_policy = "runtime-avl-two-slice-setvl"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
         tcrv_rvv.store %out, %dequantized_vec, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<f32, "m1">, !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
@@ -2412,6 +2412,28 @@ cloneRVVEmitCLowerableRouteWithLoopUpperBound(
       loop.upperBound.expression = expression.str();
       if (!cType.empty())
         loop.upperBound.cType = cType.str();
+    }
+    cloned.addForLoop(loop);
+  }
+  return cloned;
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+cloneRVVEmitCLowerableRouteWithLoopStep(
+    const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    std::size_t loopIndex, llvm::StringRef expression,
+    llvm::StringRef cType = {}) {
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute cloned(
+      route.getRouteID(), route.getRouteKind());
+  copyRVVEmitCLowerableRouteWithoutLoops(route, cloned);
+  for (std::size_t currentLoop = 0; currentLoop < route.getForLoops().size();
+       ++currentLoop) {
+    tianchenrv::conversion::emitc::TCRVEmitCForLoop loop =
+        route.getForLoops()[currentLoop];
+    if (currentLoop == loopIndex) {
+      loop.step.expression = expression.str();
+      if (!cType.empty())
+        loop.step.cType = cType.str();
     }
     cloned.addForLoop(loop);
   }
@@ -10066,7 +10088,28 @@ bool expectRVVTargetArtifactExporterShape(
           dequantFacts->gearboxRuntimeAVLSource ||
       dequantContract->runtimeABIOrder != dequantFacts->runtimeABIOrder ||
       dequantContract->runtimeABIParameters.size() != 4 ||
-      dequantContract->expectedLoopBodyStepCount != 5 ||
+      dequantContract->expectedLoopBodyStepCount != 10 ||
+      dequantContract->gearboxLoopStepExpression !=
+          (dequantDescription.emitCFullChunkVLName + " * 2").str() ||
+      dequantContract->gearboxSecondRemainingAVLExpression !=
+          (llvm::StringRef("n") + "-" +
+           dequantDescription.emitCLoopInductionName + "-" +
+           dequantDescription.emitCLoopVLName)
+              .str() ||
+      dequantContract->gearboxSecondLoopVLName != "gearbox_loop_vl_u1" ||
+      dequantContract->gearboxSecondSourcePointerExpression !=
+          (llvm::StringRef("lhs") + "+" +
+           dequantDescription.emitCLoopInductionName + "+" +
+           dequantDescription.emitCLoopVLName)
+              .str() ||
+      dequantContract->gearboxSecondOutPointerExpression !=
+          (llvm::StringRef("out") + "+" +
+           dequantDescription.emitCLoopInductionName + "+" +
+           dequantDescription.emitCLoopVLName)
+              .str() ||
+      dequantContract->gearboxSecondSourceName != "lhs_vec_u1" ||
+      dequantContract->gearboxSecondConvertedName != "converted_f32_vec_u1" ||
+      dequantContract->gearboxSecondResultName != "dequantized_vec_u1" ||
       !tianchenrv::support::runtimeABIParametersEqual(
           dequantContract->runtimeABIParameters,
           dequantFacts->runtimeABIParameters)) {
@@ -10166,6 +10209,24 @@ bool expectRVVTargetArtifactExporterShape(
           {"dequantization scale operand[1]", "scale", "metadata_scale"}))
     return false;
 
+  if (!expectDequantRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopStep(
+              dequantRoute, /*loopIndex=*/0,
+              dequantDescription.emitCFullChunkVLName,
+              dequantDescription.vlCType),
+          "dequantize_i32_to_f32 registry rejects stale Gearbox u2 loop step",
+          {"loop bounds and step", "runtime AVL/VL facts"}))
+    return false;
+
+  if (!expectDequantRouteFailure(
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              dequantRoute, /*loopIndex=*/0, /*stepIndex=*/5,
+              /*operandIndex=*/0, "n - i"),
+          "dequantize_i32_to_f32 registry rejects stale Gearbox u2 "
+          "second-slice AVL",
+          {"Gearbox u2 second-slice setvl operand[0]", "n - i"}))
+    return false;
+
   TargetArtifactCandidate staleDequantScaleMirror = dequantFixture.candidate;
   if (!rewriteArtifactMetadataValue(staleDequantScaleMirror,
                                     "tcrv_rvv.dequant_scale_role",
@@ -10193,7 +10254,7 @@ bool expectRVVTargetArtifactExporterShape(
           "dequantize_i32_to_f32 registry rejects stale Gearbox schedule "
           "mirror",
           {"gearbox.schedule_id",
-           "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1",
+           "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1",
            "artifact-name-derived-gear"}))
     return false;
 
@@ -10211,7 +10272,7 @@ bool expectRVVTargetArtifactExporterShape(
           "dequantize_i32_to_f32 registry rejects stale Gearbox selected "
           "candidate mirror",
           {"gearbox.selected_candidate",
-           "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1",
+           "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1",
            "artifact-name-derived-gear"}))
     return false;
 

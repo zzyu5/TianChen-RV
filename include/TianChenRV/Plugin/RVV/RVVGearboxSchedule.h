@@ -38,25 +38,41 @@ constexpr llvm::StringLiteral kRVVGearboxSelectionReasonAttrName(
 constexpr llvm::StringLiteral kRVVGearboxLegalityScopeAttrName(
     "tcrv_rvv.gearbox.legality_scope");
 
-constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32ScheduleID(
+constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32U1CandidateID(
     "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1");
+constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32U2CandidateID(
+    "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1");
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32CandidateSet(
-    "rvv-gearbox-candidate-set.v1[rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1]");
+    "rvv-gearbox-candidate-set.v1[rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1,rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1]");
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32SelectedCandidate(
-    "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1");
+    "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1");
+constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32ScheduleID(
+    "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1");
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32Selector(
-    "static-dequantize-i32-to-f32-e32-m1-u1");
+    "static-dequantize-i32-to-f32-e32-m1-u2");
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32SelectionReason(
-    "only-legal-candidate-for-typed-dequantize-i32-to-f32-e32-m1-runtime-avl");
+    "select-bounded-u2-two-slice-route-plan-for-typed-dequantize-i32-to-f32-e32-m1-runtime-avl");
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32LegalityScope(
     "typed-dequantize-i32-to-f32-sew32-lmul-m1-runtime-avl");
 constexpr llvm::StringLiteral kRVVGearboxStaticPassSource(
     "rvv-gearbox-static-pass.v1");
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32Operation(
     "dequantize_i32_to_f32");
-constexpr std::int64_t kRVVGearboxDequantizeI32ToF32Unroll = 1;
+constexpr std::int64_t kRVVGearboxDequantizeI32ToF32Unroll = 2;
 constexpr llvm::StringLiteral kRVVGearboxRuntimeAVLSingleSetVLPolicy(
     "runtime-avl-single-setvl");
+constexpr llvm::StringLiteral kRVVGearboxRuntimeAVLTwoSliceVLPolicy(
+    "runtime-avl-two-slice-setvl");
+constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32SelectedVLPolicy(
+    "runtime-avl-two-slice-setvl");
+constexpr llvm::StringLiteral
+    kRVVGearboxDequantizeI32ToF32SecondLoopVLName("gearbox_loop_vl_u1");
+constexpr llvm::StringLiteral
+    kRVVGearboxDequantizeI32ToF32SecondSourceName("lhs_vec_u1");
+constexpr llvm::StringLiteral
+    kRVVGearboxDequantizeI32ToF32SecondConvertedName("converted_f32_vec_u1");
+constexpr llvm::StringLiteral
+    kRVVGearboxDequantizeI32ToF32SecondResultName("dequantized_vec_u1");
 constexpr std::int64_t kRVVGearboxDequantizeI32ToF32SourceSEW = 32;
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32SourceLMUL("m1");
 constexpr std::int64_t kRVVGearboxDequantizeI32ToF32DestSEW = 32;

@@ -38,6 +38,56 @@ Closed generated dequant-clamp f32 epilogue executable ABI evidence with dry-run
 - None - task complete
 
 
+## Session 463: Stage2 RVV Gearbox two-candidate dequant route realization
+
+**Date**: 2026-06-05
+**Task**: Stage2 RVV Gearbox two-candidate dequant route realization
+**Branch**: `main`
+
+### Summary
+
+Expanded the existing typed RVV `dequantize_i32_to_f32` Gearbox route from a
+single legal u1 candidate to a bounded two-candidate contract with deterministic
+u2 selection and real selected-route materialization.
+
+### Main Changes
+
+- Added the legal u2 Gearbox candidate while keeping the positive proof route
+  bounded to the existing typed `dequantize_i32_to_f32` body.
+- Made the selected u2 schedule change production route planning: the loop
+  step is `full_chunk_vl * 2` and the loop body contains a second
+  runtime-VL setvl/load/convert/scale/store slice.
+- Extended provider validation to require selected-candidate membership,
+  supported unroll 1/2, u2 route-plan materialization, and second-slice
+  statement facts before route construction.
+- Extended target validation and tests so provider-derived candidate and
+  selected-schedule mirrors reject stale metadata and stale u2 route-plan
+  structure.
+
+### Git Commits
+
+(Commit created after journal entry as part of the final task commit.)
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test`
+- [OK] `lit -sv . --filter 'rvv-gearbox-dequantize-i32-to-f32|explicit-selected-body-artifact-dequantize-i32-to-f32'` from `build/test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded old-authority/q-name scan; added hits are negative fixtures only
+- [N/A] `ssh rvv`; no executable correctness, runtime, or performance claim
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 464: Stage2 RVV Gearbox bounded candidate-selection contract
 
 **Date**: 2026-06-05

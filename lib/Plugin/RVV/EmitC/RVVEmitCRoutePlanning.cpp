@@ -6549,7 +6549,7 @@ buildRVVDequantizationRouteFacts(RVVSelectedBodyOperationKind operation) {
   facts.gearboxSource = kRVVGearboxStaticPassSource;
   facts.gearboxOperation = kRVVGearboxDequantizeI32ToF32Operation;
   facts.gearboxUnroll = kRVVGearboxDequantizeI32ToF32Unroll;
-  facts.gearboxVLPolicy = kRVVGearboxRuntimeAVLSingleSetVLPolicy;
+  facts.gearboxVLPolicy = kRVVGearboxDequantizeI32ToF32SelectedVLPolicy;
   facts.gearboxSourceSEW = kRVVGearboxDequantizeI32ToF32SourceSEW;
   facts.gearboxSourceLMUL = kRVVGearboxDequantizeI32ToF32SourceLMUL;
   facts.gearboxDestSEW = kRVVGearboxDequantizeI32ToF32DestSEW;
@@ -22781,7 +22781,37 @@ static void populateRVVConversionDtypePolicyValidationContract(
   contract.emitCLoopInductionName =
       description.emitCLoopInductionName.str();
   contract.expectedPreLoopStepCount = 1;
-  contract.expectedLoopBodyStepCount = 5;
+  contract.gearboxLoopStepExpression =
+      facts.gearboxUnroll == 2
+          ? (description.emitCFullChunkVLName + " * 2").str()
+          : description.emitCFullChunkVLName.str();
+  contract.expectedLoopBodyStepCount =
+      facts.gearboxUnroll == 2 ? 10 : 5;
+  if (facts.gearboxUnroll == 2 && facts.runtimeABIParameters.size() == 4) {
+    const llvm::StringRef sourceName = facts.runtimeABIParameters[0].cName;
+    const llvm::StringRef outName = facts.runtimeABIParameters[2].cName;
+    const llvm::StringRef runtimeNName = facts.runtimeABIParameters[3].cName;
+    contract.gearboxSecondRemainingAVLExpression =
+        (runtimeNName + "-" + description.emitCLoopInductionName + "-" +
+         description.emitCLoopVLName)
+            .str();
+    contract.gearboxSecondLoopVLName =
+        kRVVGearboxDequantizeI32ToF32SecondLoopVLName.str();
+    contract.gearboxSecondSourcePointerExpression =
+        (sourceName + "+" + description.emitCLoopInductionName + "+" +
+         description.emitCLoopVLName)
+            .str();
+    contract.gearboxSecondOutPointerExpression =
+        (outName + "+" + description.emitCLoopInductionName + "+" +
+         description.emitCLoopVLName)
+            .str();
+    contract.gearboxSecondSourceName =
+        kRVVGearboxDequantizeI32ToF32SecondSourceName.str();
+    contract.gearboxSecondConvertedName =
+        kRVVGearboxDequantizeI32ToF32SecondConvertedName.str();
+    contract.gearboxSecondResultName =
+        kRVVGearboxDequantizeI32ToF32SecondResultName.str();
+  }
   contract.runtimeABIParameters.append(facts.runtimeABIParameters.begin(),
                                        facts.runtimeABIParameters.end());
   if (std::optional<RVVRuntimeAVLVLSelectedBoundaryContract> runtimeContract =
@@ -29760,6 +29790,27 @@ llvm::Error verifyRVVSelectedBodyDequantizationRouteProviderFacts(
         "dequantization statement plan before creating "
         "TCRVEmitCLowerableRoute");
 
+  const bool expectsTwoSliceSchedule = plan.gearboxUnroll == 2;
+  if (plan.gearboxUnroll != 1 && plan.gearboxUnroll != 2)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route construction requires supported selected "
+        "Gearbox unroll 1 or 2 before creating TCRVEmitCLowerableRoute");
+  const std::string expectedLoopStep =
+      expectsTwoSliceSchedule
+          ? (plan.runtimeControlPlan.emitCFullChunkVLName + " * 2").str()
+          : plan.runtimeControlPlan.emitCFullChunkVLName.str();
+  const std::size_t expectedLoopBodyStepCount =
+      expectsTwoSliceSchedule ? 10 : 5;
+  if (statementPlan.loop.step.expression != expectedLoopStep ||
+      statementPlan.loop.step.cType != plan.vlCType ||
+      statementPlan.loop.bodySteps.size() != expectedLoopBodyStepCount)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequantization route construction requires selected RVV Gearbox "
+        "schedule route-plan materialization before creating "
+        "TCRVEmitCLowerableRoute");
+
   auto preLoopHasCallee = [&](llvm::StringRef callee) {
     for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
          statementPlan.preLoopSteps)
@@ -29785,6 +29836,32 @@ llvm::Error verifyRVVSelectedBodyDequantizationRouteProviderFacts(
         " dequantization route construction requires statement/leaf facts "
         "for setvl, source load, conversion, runtime scale, and store before "
         "creating TCRVEmitCLowerableRoute");
+
+  if (expectsTwoSliceSchedule) {
+    if (statementPlan.loop.bodySteps[5].callee != plan.setVLIntrinsic ||
+        !statementPlan.loop.bodySteps[5].result ||
+        statementPlan.loop.bodySteps[5].result->name !=
+            kRVVGearboxDequantizeI32ToF32SecondLoopVLName ||
+        statementPlan.loop.bodySteps[6].callee !=
+            plan.sourceVectorLoadIntrinsic ||
+        !statementPlan.loop.bodySteps[6].result ||
+        statementPlan.loop.bodySteps[6].result->name !=
+            kRVVGearboxDequantizeI32ToF32SecondSourceName ||
+        statementPlan.loop.bodySteps[7].callee != plan.convertIntrinsic ||
+        !statementPlan.loop.bodySteps[7].result ||
+        statementPlan.loop.bodySteps[7].result->name !=
+            kRVVGearboxDequantizeI32ToF32SecondConvertedName ||
+        statementPlan.loop.bodySteps[8].callee != plan.scaleIntrinsic ||
+        !statementPlan.loop.bodySteps[8].result ||
+        statementPlan.loop.bodySteps[8].result->name !=
+            kRVVGearboxDequantizeI32ToF32SecondResultName ||
+        statementPlan.loop.bodySteps[9].callee != plan.storeIntrinsic)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " dequantization route construction requires selected RVV Gearbox "
+          "u2 second-slice statement facts before creating "
+          "TCRVEmitCLowerableRoute");
+  }
 
   return llvm::Error::success();
 }
