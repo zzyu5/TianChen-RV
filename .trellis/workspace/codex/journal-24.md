@@ -456,7 +456,17 @@ Archived the computed-masked MAcc artifact ABI task, audited the production seam
 
 ### Main Changes
 
-(Add details)
+- Created and archived the Trellis task
+  `stage2-rvv-widening-product-reduce-dequant-clamp-f32-artifact-abi`.
+- Audited the selected-body realization owner, contraction family plan owner,
+  route provider, target artifact validator, generated-bundle script, and
+  explicit/pre-realized fixtures for
+  `widening_product_reduce_dequant_clamp_f32`.
+- Made no production source changes: the audited seam was already
+  provider-owned and fail-closed.
+- Produced explicit and pre-realized generated-bundle dry-run and non-dry-run
+  `ssh rvv` evidence covering counts `0,1,16,17,257`, patterns `0,1`, scales
+  `-0.125,0.375`, and bound pairs `-1.5:2.25,-8:-0.75`.
 
 ### Git Commits
 
@@ -508,7 +518,18 @@ Hardened and proved the pre-realized compare/select generated-bundle artifact AB
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] explicit `widening_product_reduce_dequant_clamp_f32` dry-run generated-bundle command
+- [OK] pre-realized `widening_product_reduce_dequant_clamp_f32` dry-run generated-bundle command
+- [OK] explicit `widening_product_reduce_dequant_clamp_f32` non-dry-run `ssh rvv` generated-bundle command
+- [OK] pre-realized `widening_product_reduce_dequant_clamp_f32` non-dry-run `ssh rvv` generated-bundle command
+- [OK] manual stale `lower_bound` operand-binding mirror fail-closed check
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter widening-product-reduce-dequant-clamp-f32`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
 
 ### Status
 
@@ -561,6 +582,39 @@ Audited and proved pre-realized RVV widening conversion generated artifact ABI b
 ### Summary
 
 Audited and proved explicit selected-body RVV dequantize i32-to-f32 Gearbox generated artifact ABI boundary with dry-run, fail-closed, C++ checks, and ssh rvv evidence; no production source change required.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 493: Stage2 RVV widening product-reduce dequant-clamp f32 artifact ABI
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV widening product-reduce dequant-clamp f32 artifact ABI
+**Branch**: `main`
+
+### Summary
+
+Audited the product-reduce dequant-clamp f32 generated artifact ABI seam, found production code already provider-owned and fail-closed, and proved explicit plus pre-realized generated bundles on ssh rvv with dry-run, fail-closed, C++ and lit evidence.
 
 ### Main Changes
 

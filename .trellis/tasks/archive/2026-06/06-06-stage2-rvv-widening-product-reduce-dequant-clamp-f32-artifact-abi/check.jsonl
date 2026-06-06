@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Final compliance with global architecture and Stage 2 RVV authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider ownership, selected-body realization, and fail-closed validation."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC neutrality and route-fact materialization boundary."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused evidence, generated-bundle execution, ssh rvv proof, and old-authority scan coverage."}

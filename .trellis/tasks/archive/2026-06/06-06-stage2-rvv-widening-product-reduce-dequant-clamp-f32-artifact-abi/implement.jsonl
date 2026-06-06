@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage 2 RVV scope, and no descriptor/common-EmitC semantic authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned selected-body, route provider, typed body/config, fail-closed route support, and Stage 2 realization rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and common EmitC materialization boundary for provider-owned route facts."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Required lit/C++/generated-bundle/ssh-rvv evidence policy for runtime correctness claims."}
