@@ -1,6 +1,8 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
 
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -1763,6 +1765,514 @@ verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
           analysis.routeOperandBindingPlan, analysis.description, context))
     return error;
   return llvm::Error::success();
+}
+
+llvm::Error verifyRVVSelectedBodyElementwiseBroadcastRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    const RVVSelectedBodyRouteStatementPlanOwnerSelection
+        &statementPlanOwnerSelection,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  const RVVSelectedBodyOperationKind operation = description.operation;
+  const bool consumesElementwise =
+      isRVVSelectedBodyElementwiseArithmeticRouteFamilyConsumer(
+          operation, description.memoryForm);
+  const bool consumesScalarBroadcast =
+      isRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyConsumer(
+          operation);
+  const bool isConsumer = consumesElementwise || consumesScalarBroadcast;
+
+  if (!isConsumer) {
+    if (materializationFacts.elementwiseArithmeticPlan ||
+        materializationFacts.scalarBroadcastPlan ||
+        elementwiseSelectOperandBindingFacts
+            .bindsOrdinaryElementwiseArithmetic ||
+        elementwiseSelectOperandBindingFacts.bindsScalarBroadcastElementwise ||
+        residualOperandBindingFacts.bindsMaskedElementwiseArithmetic ||
+        residualOperandBindingFacts.bindsStridedElementwiseAdd ||
+        statementPlanOwnerSelection.migratedFamily ==
+            RVVSelectedBodyMigratedRouteStatementPlanFamily::
+                ElementwiseArithmetic)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " elementwise/broadcast route construction must not carry "
+          "elementwise provider facts for non-elementwise operation '" +
+          stringifyRVVSelectedBodyOperationKind(operation) +
+          "' before creating TCRVEmitCLowerableRoute");
+    return llvm::Error::success();
+  }
+
+  auto makeConstructionError = [&](llvm::Twine message) {
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " elementwise/broadcast route construction " + message +
+        " before creating TCRVEmitCLowerableRoute for operation '" +
+        stringifyRVVSelectedBodyOperationKind(operation) + "'");
+  };
+
+  if (consumesElementwise) {
+    if (llvm::Error error =
+            verifyRVVSelectedBodyElementwiseArithmeticRouteFamilyProviderPlans(
+                analysis, context))
+      return error;
+  }
+  if (consumesScalarBroadcast) {
+    if (llvm::Error error =
+            verifyRVVSelectedBodyScalarBroadcastElementwiseRouteFamilyProviderPlans(
+                analysis, context))
+      return error;
+  }
+
+  const RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan *elementwisePlan =
+      nullptr;
+  const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan *scalarPlan =
+      nullptr;
+  if (consumesElementwise) {
+    if (!analysis.elementwiseArithmeticRouteFamilyPlan ||
+        !materializationFacts.elementwiseArithmeticPlan ||
+        materializationFacts.elementwiseArithmeticPlan !=
+            &*analysis.elementwiseArithmeticRouteFamilyPlan ||
+        materializationFacts.scalarBroadcastPlan)
+      return makeConstructionError(
+          "requires the prevalidated elementwise arithmetic provider facts "
+          "from the same selected route analysis");
+    elementwisePlan = materializationFacts.elementwiseArithmeticPlan;
+  } else {
+    if (!analysis.scalarBroadcastElementwiseRouteFamilyPlan ||
+        !materializationFacts.scalarBroadcastPlan ||
+        materializationFacts.scalarBroadcastPlan !=
+            &*analysis.scalarBroadcastElementwiseRouteFamilyPlan ||
+        materializationFacts.elementwiseArithmeticPlan)
+      return makeConstructionError(
+          "requires the prevalidated scalar-broadcast elementwise provider "
+          "facts from the same selected route analysis");
+    scalarPlan = materializationFacts.scalarBroadcastPlan;
+  }
+
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      materializationFacts.typedConfigFacts;
+  if (!typedFacts.hasFacts())
+    return makeConstructionError(
+        "requires typed RVV body/config facts");
+
+  auto requireTypedFacts =
+      [&](llvm::StringRef routeName, llvm::StringRef factsID,
+          llvm::StringRef elementTypeName, std::int64_t elementBitWidth,
+          std::int64_t sew, llvm::StringRef lmul,
+          llvm::StringRef tailPolicy, llvm::StringRef maskPolicy,
+          llvm::StringRef configContractID, llvm::StringRef vlCType,
+          llvm::StringRef vectorTypeName, llvm::StringRef vectorCType,
+          llvm::StringRef maskTypeName, llvm::StringRef maskCType,
+          llvm::StringRef setVLIntrinsic, llvm::StringRef vectorLoadIntrinsic,
+          llvm::StringRef storeIntrinsic) -> llvm::Error {
+    if (factsID != typedFacts.factsID ||
+        elementTypeName != typedFacts.elementTypeName ||
+        elementBitWidth != typedFacts.elementBitWidth ||
+        sew != typedFacts.sew || lmul != typedFacts.lmul ||
+        tailPolicy != typedFacts.tailPolicy ||
+        maskPolicy != typedFacts.maskPolicy ||
+        configContractID != typedFacts.configContractID ||
+        vlCType != typedFacts.vlCType ||
+        vectorTypeName != typedFacts.vectorTypeName ||
+        vectorCType != typedFacts.vectorCType ||
+        (!maskTypeName.empty() && maskTypeName != typedFacts.maskTypeName) ||
+        (!maskCType.empty() && maskCType != typedFacts.maskCType) ||
+        setVLIntrinsic != typedFacts.setVLIntrinsic ||
+        vectorLoadIntrinsic != typedFacts.vectorLoadIntrinsic ||
+        storeIntrinsic != typedFacts.storeIntrinsic)
+      return makeConstructionError(
+          llvm::Twine("requires ") + routeName +
+          " family-plan type/config facts to mirror the selected typed RVV "
+          "body");
+    return llvm::Error::success();
+  };
+
+  auto requireMaterializedLeaf =
+      [&](llvm::StringRef leafName, llvm::StringRef actual,
+          llvm::StringRef expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeConstructionError(
+        llvm::Twine("requires materialization facts for ") + leafName +
+        " to come from the verified typed elementwise/broadcast family plan");
+  };
+
+  auto requireABI =
+      [&](const support::RuntimeABIParameter *parameter,
+          llvm::StringRef logicalName,
+          support::RuntimeABIParameterRole expectedRole) -> llvm::Error {
+    if (!parameter)
+      return makeConstructionError(llvm::Twine("requires ABI operand '") +
+                                   logicalName + "'");
+    if (parameter->role != expectedRole)
+      return makeConstructionError(
+          llvm::Twine("requires ABI role for '") + logicalName + "' to be '" +
+          support::stringifyRuntimeABIParameterRole(expectedRole) +
+          "' but saw '" +
+          support::stringifyRuntimeABIParameterRole(parameter->role) + "'");
+    return llvm::Error::success();
+  };
+
+  const RVVRuntimeAVLVLControlPlan *expectedRuntimeControlPlan = nullptr;
+  const bool isMasked =
+      isRVVSelectedBodyMaskedElementwiseArithmeticRouteOperation(operation);
+  const bool isStrided = operation == RVVSelectedBodyOperationKind::StridedAdd;
+  const bool usesRHSBroadcast =
+      consumesElementwise &&
+      description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad;
+
+  if (elementwisePlan) {
+    if (llvm::Error error = requireTypedFacts(
+            "elementwise arithmetic", elementwisePlan->typedConfigFactsID,
+            elementwisePlan->elementTypeName,
+            elementwisePlan->elementBitWidth, elementwisePlan->sew,
+            elementwisePlan->lmul, elementwisePlan->tailPolicy,
+            elementwisePlan->maskPolicy, elementwisePlan->configContractID,
+            elementwisePlan->vlCType, elementwisePlan->vectorTypeName,
+            elementwisePlan->vectorCType, elementwisePlan->maskTypeName,
+            elementwisePlan->maskCType, elementwisePlan->setVLIntrinsic,
+            elementwisePlan->vectorLoadIntrinsic,
+            elementwisePlan->storeIntrinsic))
+      return error;
+    expectedRuntimeControlPlan = &elementwisePlan->runtimeControlPlan;
+
+    if (elementwisePlan->operation != operation ||
+        elementwisePlan->memoryForm != description.memoryForm ||
+        elementwisePlan->usesMaskedArithmetic != isMasked ||
+        elementwisePlan->usesStridedInputs != isStrided)
+      return makeConstructionError(
+          "requires elementwise route classification facts from the verified "
+          "typed body plan");
+    if (llvm::Error error = requireMaterializedLeaf(
+            "setvl", materializationFacts.setVLLeaf,
+            elementwisePlan->setVLIntrinsic))
+      return error;
+    if (llvm::Error error = requireMaterializedLeaf(
+            "compute", materializationFacts.elementwiseComputeLeaf,
+            elementwisePlan->arithmeticIntrinsic))
+      return error;
+
+    if (isStrided) {
+      if (llvm::Error error = requireMaterializedLeaf(
+              "strided load", materializationFacts.stridedSourceLoadLeaf,
+              elementwisePlan->stridedLoadIntrinsic))
+        return error;
+      if (llvm::Error error = requireMaterializedLeaf(
+              "strided store", materializationFacts.stridedStoreLeaf,
+              elementwisePlan->stridedStoreIntrinsic))
+        return error;
+    } else {
+      if (llvm::Error error = requireMaterializedLeaf(
+              "vector load", materializationFacts.vectorLoadLeaf,
+              elementwisePlan->vectorLoadIntrinsic))
+        return error;
+      if (llvm::Error error = requireMaterializedLeaf(
+              "store", materializationFacts.storeLeaf,
+              elementwisePlan->storeIntrinsic))
+        return error;
+    }
+    if (usesRHSBroadcast || !elementwisePlan->rhsBroadcastIntrinsic.empty())
+      if (llvm::Error error = requireMaterializedLeaf(
+              "RHS broadcast", materializationFacts.rhsScalarBroadcastLeaf,
+              elementwisePlan->rhsBroadcastIntrinsic))
+        return error;
+    if (isMasked) {
+      if (llvm::Error error = requireMaterializedLeaf(
+              "compare", materializationFacts.compareLeaf,
+              elementwisePlan->compareIntrinsic))
+        return error;
+      if (llvm::Error error = requireMaterializedLeaf(
+              "masked merge", materializationFacts.maskedMergeLeaf,
+              elementwisePlan->maskedMergeIntrinsic))
+        return error;
+      if (materializationFacts.maskTypeName != elementwisePlan->maskTypeName ||
+          materializationFacts.maskCType != elementwisePlan->maskCType ||
+          elementwisePlan->maskRole != kRVVMaskedPredicateMaskRole ||
+          elementwisePlan->maskSource != kRVVMaskedCompareMaskSource ||
+          elementwisePlan->inactiveLaneContract !=
+              kRVVMaskedInactiveLaneContract ||
+          elementwisePlan->maskedPassthroughLayout !=
+              kRVVMaskedPassthroughLayout)
+        return makeConstructionError(
+            "requires masked elementwise mask provenance facts from the "
+            "selected typed body plan");
+    }
+  } else {
+    if (llvm::Error error = requireTypedFacts(
+            "scalar-broadcast elementwise", scalarPlan->typedConfigFactsID,
+            scalarPlan->elementTypeName, scalarPlan->elementBitWidth,
+            scalarPlan->sew, scalarPlan->lmul, scalarPlan->tailPolicy,
+            scalarPlan->maskPolicy, scalarPlan->configContractID,
+            scalarPlan->vlCType, scalarPlan->vectorTypeName,
+            scalarPlan->vectorCType, /*maskTypeName=*/{},
+            /*maskCType=*/{}, scalarPlan->setVLIntrinsic,
+            scalarPlan->vectorLoadIntrinsic, scalarPlan->storeIntrinsic))
+      return error;
+    expectedRuntimeControlPlan = &scalarPlan->runtimeControlPlan;
+
+    if (scalarPlan->operation != operation ||
+        scalarPlan->memoryForm != description.memoryForm)
+      return makeConstructionError(
+          "requires scalar-broadcast route classification facts from the "
+          "verified typed body plan");
+    if (llvm::Error error = requireMaterializedLeaf(
+            "setvl", materializationFacts.setVLLeaf,
+            scalarPlan->setVLIntrinsic))
+      return error;
+    if (llvm::Error error = requireMaterializedLeaf(
+            "vector load", materializationFacts.vectorLoadLeaf,
+            scalarPlan->vectorLoadIntrinsic))
+      return error;
+    if (llvm::Error error = requireMaterializedLeaf(
+            "RHS scalar splat", materializationFacts.rhsScalarBroadcastLeaf,
+            scalarPlan->rhsScalarSplatIntrinsic))
+      return error;
+    if (llvm::Error error = requireMaterializedLeaf(
+            "compute", materializationFacts.elementwiseComputeLeaf,
+            scalarPlan->arithmeticIntrinsic))
+      return error;
+    if (llvm::Error error = requireMaterializedLeaf(
+            "store", materializationFacts.storeLeaf,
+            scalarPlan->storeIntrinsic))
+      return error;
+  }
+
+  if (elementwiseSelectOperandBindingFacts.bindingPlan &&
+      elementwiseSelectOperandBindingFacts.bindingPlan !=
+          &analysis.routeOperandBindingPlan)
+    return makeConstructionError(
+        "requires elementwise/select operand-binding facts from the same "
+        "selected route analysis");
+  if (residualOperandBindingFacts.bindingPlan &&
+      residualOperandBindingFacts.bindingPlan !=
+          &analysis.routeOperandBindingPlan)
+    return makeConstructionError(
+        "requires residual operand-binding facts from the same selected route "
+        "analysis");
+
+  if (consumesScalarBroadcast) {
+    if (!elementwiseSelectOperandBindingFacts.bindsElementwiseSelectCluster ||
+        !elementwiseSelectOperandBindingFacts.bindsScalarBroadcastElementwise)
+      return makeConstructionError(
+          "requires scalar-broadcast elementwise operand-binding facts");
+    if (llvm::Error error = requireABI(
+            elementwiseSelectOperandBindingFacts.lhsABI, "lhs",
+            support::RuntimeABIParameterRole::LHSInputBuffer))
+      return error;
+    if (llvm::Error error = requireABI(
+            elementwiseSelectOperandBindingFacts.rhsABI, "rhs_scalar",
+            support::RuntimeABIParameterRole::RHSScalarValue))
+      return error;
+    if (llvm::Error error = requireABI(
+            elementwiseSelectOperandBindingFacts.outABI, "out",
+            support::RuntimeABIParameterRole::OutputBuffer))
+      return error;
+    if (llvm::Error error = requireABI(
+            elementwiseSelectOperandBindingFacts.runtimeElementCountABI, "n",
+            support::RuntimeABIParameterRole::RuntimeElementCount))
+      return error;
+  } else if (isMasked) {
+    if (!residualOperandBindingFacts.bindsResidualCluster ||
+        !residualOperandBindingFacts.bindsMaskedElementwiseArithmetic)
+      return makeConstructionError(
+          "requires masked elementwise residual operand-binding facts");
+    if (llvm::Error error = requireABI(residualOperandBindingFacts.lhsABI,
+                                       "lhs",
+                                       support::RuntimeABIParameterRole::
+                                           LHSInputBuffer))
+      return error;
+    if (llvm::Error error = requireABI(residualOperandBindingFacts.rhsABI,
+                                       "rhs",
+                                       support::RuntimeABIParameterRole::
+                                           RHSInputBuffer))
+      return error;
+    if (llvm::Error error = requireABI(residualOperandBindingFacts.outABI,
+                                       "out",
+                                       support::RuntimeABIParameterRole::
+                                           OutputBuffer))
+      return error;
+    if (llvm::Error error = requireABI(
+            residualOperandBindingFacts.runtimeElementCountABI, "n",
+            support::RuntimeABIParameterRole::RuntimeElementCount))
+      return error;
+  } else if (isStrided) {
+    if (!residualOperandBindingFacts.bindsResidualCluster ||
+        !residualOperandBindingFacts.bindsStridedElementwiseAdd)
+      return makeConstructionError(
+          "requires strided elementwise residual operand-binding facts");
+    if (llvm::Error error = requireABI(residualOperandBindingFacts.lhsABI,
+                                       "lhs",
+                                       support::RuntimeABIParameterRole::
+                                           LHSInputBuffer))
+      return error;
+    if (llvm::Error error = requireABI(residualOperandBindingFacts.rhsABI,
+                                       "rhs",
+                                       support::RuntimeABIParameterRole::
+                                           RHSInputBuffer))
+      return error;
+    if (llvm::Error error = requireABI(residualOperandBindingFacts.outABI,
+                                       "out",
+                                       support::RuntimeABIParameterRole::
+                                           OutputBuffer))
+      return error;
+    if (llvm::Error error = requireABI(
+            residualOperandBindingFacts.runtimeElementCountABI, "n",
+            support::RuntimeABIParameterRole::RuntimeElementCount))
+      return error;
+    if (llvm::Error error = requireABI(
+            residualOperandBindingFacts.lhsStrideABI, "lhs_stride",
+            support::RuntimeABIParameterRole::LHSInputStride))
+      return error;
+    if (llvm::Error error = requireABI(
+            residualOperandBindingFacts.rhsStrideABI, "rhs_stride",
+            support::RuntimeABIParameterRole::RHSInputStride))
+      return error;
+    if (llvm::Error error = requireABI(
+            residualOperandBindingFacts.outStrideABI, "out_stride",
+            support::RuntimeABIParameterRole::OutputStride))
+      return error;
+  } else {
+    if (!elementwiseSelectOperandBindingFacts.bindsElementwiseSelectCluster ||
+        !elementwiseSelectOperandBindingFacts
+             .bindsOrdinaryElementwiseArithmetic)
+      return makeConstructionError(
+          "requires ordinary elementwise operand-binding facts");
+    if (llvm::Error error = requireABI(
+            elementwiseSelectOperandBindingFacts.lhsABI, "lhs",
+            support::RuntimeABIParameterRole::LHSInputBuffer))
+      return error;
+    if (llvm::Error error = requireABI(
+            elementwiseSelectOperandBindingFacts.rhsABI, "rhs",
+            support::RuntimeABIParameterRole::RHSInputBuffer))
+      return error;
+    if (llvm::Error error = requireABI(
+            elementwiseSelectOperandBindingFacts.outABI, "out",
+            support::RuntimeABIParameterRole::OutputBuffer))
+      return error;
+    if (llvm::Error error = requireABI(
+            elementwiseSelectOperandBindingFacts.runtimeElementCountABI, "n",
+            support::RuntimeABIParameterRole::RuntimeElementCount))
+      return error;
+  }
+
+  const bool consumesRouteControl =
+      consumesScalarBroadcast ||
+      (consumesElementwise &&
+       description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad);
+  if (consumesRouteControl) {
+    llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+        getRVVSelectedBodyRouteControlProviderPlan(analysis,
+                                                   materializationFacts,
+                                                   context);
+    if (!routeControlPlan)
+      return routeControlPlan.takeError();
+    const bool expectedControlFlag =
+        consumesScalarBroadcast
+            ? routeControlPlan->controlsScalarBroadcastElementwise
+            : isMasked ? routeControlPlan->controlsMaskedElementwiseArithmetic
+                       : routeControlPlan
+                             ->controlsOrdinaryElementwiseArithmetic;
+    if (!routeControlPlan->plansRouteControl || !expectedControlFlag ||
+        routeControlPlan->runtimeControlPlan != expectedRuntimeControlPlan ||
+        routeControlPlan->typedConfigFacts != &analysis.typedConfigFacts ||
+        routeControlPlan->selectedTargetCapabilityFacts !=
+            &analysis.selectedTargetCapabilityFacts)
+      return makeConstructionError(
+          "requires the RVV-owned route-control provider plan");
+    if (routeControlPlan->runtimeABIOrderMirror !=
+            description.runtimeABIOrder ||
+        routeControlPlan->tailPolicyMirror != description.tailPolicy ||
+        routeControlPlan->maskPolicyMirror != description.maskPolicy ||
+        routeControlPlan->controlPlanIDMirror !=
+            description.runtimeControlPlanID)
+      return makeConstructionError(
+          "requires route-control provider mirrors from the selected typed "
+          "body plan");
+  }
+
+  if (!statementPlanOwnerSelection.plansSelectedBodyRoute ||
+      statementPlanOwnerSelection.ownerKind !=
+          RVVSelectedBodyRouteStatementPlanOwnerKind::Migrated ||
+      statementPlanOwnerSelection.migratedFamily !=
+          RVVSelectedBodyMigratedRouteStatementPlanFamily::
+              ElementwiseArithmetic ||
+      statementPlanOwnerSelection.ownerName != "elementwise arithmetic" ||
+      statementPlanOwnerSelection.preLoopSteps.empty() ||
+      statementPlanOwnerSelection.loop.bodySteps.empty())
+    return makeConstructionError(
+        "requires the migrated elementwise arithmetic statement-plan owner");
+
+  auto hasCallee = [](const auto &steps, llvm::StringRef callee) {
+    for (const auto &step : steps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  auto requireStatementLeaf = [&](llvm::StringRef leaf,
+                                  llvm::StringRef leafName) -> llvm::Error {
+    if (!leaf.empty() &&
+        (hasCallee(statementPlanOwnerSelection.preLoopSteps, leaf) ||
+         hasCallee(statementPlanOwnerSelection.loop.bodySteps, leaf) ||
+         hasCallee(statementPlanOwnerSelection.postLoopSteps, leaf)))
+      return llvm::Error::success();
+    return makeConstructionError(
+        llvm::Twine("requires elementwise owner statements for ") + leafName);
+  };
+
+  if (elementwisePlan) {
+    if (llvm::Error error =
+            requireStatementLeaf(elementwisePlan->setVLIntrinsic, "setvl"))
+      return error;
+    if (isStrided) {
+      if (llvm::Error error = requireStatementLeaf(
+              elementwisePlan->stridedLoadIntrinsic, "strided load"))
+        return error;
+      if (llvm::Error error = requireStatementLeaf(
+              elementwisePlan->stridedStoreIntrinsic, "strided store"))
+        return error;
+    } else {
+      if (llvm::Error error = requireStatementLeaf(
+              elementwisePlan->vectorLoadIntrinsic, "vector load"))
+        return error;
+      if (llvm::Error error =
+              requireStatementLeaf(elementwisePlan->storeIntrinsic, "store"))
+        return error;
+    }
+    if (!elementwisePlan->rhsBroadcastIntrinsic.empty())
+      if (llvm::Error error = requireStatementLeaf(
+              elementwisePlan->rhsBroadcastIntrinsic, "RHS broadcast"))
+        return error;
+    if (isMasked) {
+      if (llvm::Error error = requireStatementLeaf(
+              elementwisePlan->compareIntrinsic, "compare"))
+        return error;
+      if (llvm::Error error = requireStatementLeaf(
+              elementwisePlan->maskedMergeIntrinsic, "masked merge"))
+        return error;
+    }
+    return requireStatementLeaf(elementwisePlan->arithmeticIntrinsic,
+                                "elementwise compute");
+  }
+
+  if (llvm::Error error =
+          requireStatementLeaf(scalarPlan->setVLIntrinsic, "setvl"))
+    return error;
+  if (llvm::Error error =
+          requireStatementLeaf(scalarPlan->vectorLoadIntrinsic, "vector load"))
+    return error;
+  if (llvm::Error error = requireStatementLeaf(
+          scalarPlan->rhsScalarSplatIntrinsic, "RHS scalar splat"))
+    return error;
+  if (llvm::Error error =
+          requireStatementLeaf(scalarPlan->arithmeticIntrinsic, "compute"))
+    return error;
+  return requireStatementLeaf(scalarPlan->storeIntrinsic, "store");
 }
 
 llvm::ArrayRef<RVVSelectedBodyElementwiseSelectRouteFamilyOwner>

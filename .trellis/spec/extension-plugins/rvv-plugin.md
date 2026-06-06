@@ -217,6 +217,110 @@ prefetch/software-pipeline structure
 accumulator/reduction layout
 ```
 
+## Elementwise/Broadcast Route Provider Fact Contract
+
+### 1. Scope / Trigger
+
+Use this contract when the RVV provider constructs a
+`TCRVEmitCLowerableRoute` for plain elementwise, masked elementwise, strided
+elementwise, or scalar-broadcast elementwise routes. Route construction must
+fail closed before Common EmitC sees the route if provider facts no longer
+match the selected typed `tcrv_rvv` body and plugin-owned family plans.
+
+### 2. Inputs
+
+The provider-facts verifier must consume the same-analysis objects that feed
+route construction:
+
+```text
+RVVSelectedBodyRouteAnalysis
+RVVSelectedBodyRouteMaterializationFacts
+RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+RVVSelectedBodyResidualRouteOperandBindingFacts
+RVVSelectedBodyRouteStatementPlanOwnerSelection
+```
+
+The verifier may call RVV-owned route-control and family-plan validators. It
+must not reconstruct arithmetic, broadcast, mask, dtype, VL, or ABI semantics
+from route ids, artifact names, helper names, ABI strings, test names,
+descriptors, source-front-door markers, or Common EmitC metadata.
+
+### 3. Contracts
+
+- Elementwise and scalar-broadcast consumers must carry the matching
+  route-family plan from the same selected route analysis.
+- Typed config facts must mirror the selected body facts for element type,
+  SEW, LMUL, tail/mask policy, config contract, vector type/C type, setvl,
+  load, store, and any route-specific mask or scalar-splat facts.
+- Operand-binding facts must bind the required runtime ABI roles for vector
+  inputs, scalar RHS, output, runtime element count, and stride operands when
+  used.
+- Masked elementwise routes must carry provider-derived compare, merge, mask
+  type/C type, mask role/source, inactive-lane, and passthrough layout facts.
+- Scalar-broadcast elementwise routes must carry the provider-derived scalar
+  splat source and `rhs_scalar` ABI role.
+- The migrated elementwise statement-plan owner must be selected, and required
+  setvl/load/broadcast/compute/store leaves must appear in its statements
+  before route construction.
+
+### 4. Validation & Error Matrix
+
+- Missing or stale route-family plan -> provider route construction error.
+- Wrong SEW/LMUL/policy or stale typed materialization facts -> provider route
+  construction error.
+- Missing ordinary, masked, scalar, runtime-count, or stride ABI binding ->
+  provider route construction error.
+- Missing scalar broadcast source or stale scalar splat leaf -> provider route
+  construction error.
+- Missing mask provenance, compare, merge, inactive-lane, or passthrough fact
+  for masked elementwise -> provider route construction error.
+- Wrong statement owner or missing statement leaf -> provider route
+  construction error.
+- Non-elementwise route carrying stale elementwise/broadcast provider facts ->
+  provider route construction error.
+
+### 5. Good/Base/Bad Cases
+
+- Good: selected typed elementwise body -> RVV family plan and materialization
+  facts -> operand-binding facts -> migrated elementwise statement owner ->
+  verifier -> provider-built `TCRVEmitCLowerableRoute`.
+- Base: explicit and pre-realized fixtures may exercise the same verifier as
+  long as selected typed-body facts remain the authority.
+- Bad: route id, test name, helper name, artifact metadata, or Common EmitC
+  mirror chooses the arithmetic kind, scalar source, mask behavior, dtype, or
+  intrinsic spelling.
+
+### 6. Tests Required
+
+- Positive C++ coverage must include at least one plain elementwise, one masked
+  elementwise, and one scalar-broadcast elementwise route through the verifier.
+- Negative C++ coverage must fail closed for stale typed config facts, missing
+  scalar broadcast source, stale mask provenance, missing operand binding, or
+  wrong migrated statement owner.
+- If emitted route statements, ABI order, headers, artifact export, or harness
+  behavior changes, add a focused generated-bundle dry-run or real `ssh rvv`
+  evidence for the affected route before claiming runtime correctness.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+route id or metadata says add
+  -> Common EmitC or route construction infers add_i32m1 facts
+  -> generated route
+```
+
+Correct:
+
+```text
+selected typed tcrv_rvv body
+  -> RVV-owned family/materialization/operand/statement facts
+  -> elementwise/broadcast provider-facts verifier
+  -> provider-built TCRVEmitCLowerableRoute
+  -> neutral Common EmitC materialization
+```
+
 ## Explicit Widening Product Reduce Dequant-Clamp Realization Boundary
 
 ### 1. Scope / Trigger

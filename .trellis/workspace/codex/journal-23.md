@@ -62,6 +62,52 @@ Closed generated dequant-clamp f32 epilogue executable ABI evidence with dry-run
 - None - task complete
 
 
+## Session 481: Stage2 RVV elementwise/broadcast provider facts
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV elementwise/broadcast realization-provider fact-contract owner
+**Branch**: `main`
+
+### Summary
+
+Added an RVV-owned elementwise/broadcast provider-facts verifier before
+`TCRVEmitCLowerableRoute` construction, covering typed config, scalar broadcast,
+mask provenance, operand bindings, route-control ownership, and migrated
+elementwise statement owner facts.
+
+### Main Changes
+
+- Added `verifyRVVSelectedBodyElementwiseBroadcastRouteProviderFacts` in the
+  elementwise route-family owner layer.
+- Replaced the route provider's local materialization-only elementwise check
+  with the new owner-level verifier after statement owner selection.
+- Added focused C++ positive/fail-closed coverage for plain add, masked add,
+  scalar-broadcast sub, stale binding, stale statement owner, wrong SEW/LMUL,
+  stale mask provenance, and missing scalar splat.
+- Updated the RVV plugin spec with the executable elementwise/broadcast
+  provider fact contract.
+- Archived the Trellis task under
+  `.trellis/tasks/archive/2026-06/06-06-stage2-rvv-elementwise-broadcast-fact-contract-owner/`.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-06-stage2-rvv-elementwise-broadcast-fact-contract-owner`
+- [OK] `git diff --check`
+- [OK] Bounded code/test added-diff old-authority scan returned no matches.
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 479: Stage2 RVV widening-dot reduce selected-body realization
 
 **Date**: 2026-06-06

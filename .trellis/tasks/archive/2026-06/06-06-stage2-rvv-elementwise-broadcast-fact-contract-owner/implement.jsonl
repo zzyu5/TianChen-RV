@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV-first Stage2 authority rules for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected-body realization, elementwise/broadcast coverage, migrated statement-plan provider boundary, and fail-closed route authority rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/runtime evidence boundaries and old-authority scan expectations."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-06-06-stage2-rvv-base-memory-fact-contract-owner/prd.md", "reason": "Previous owner pattern for a production verifier wired after statement owner selection and before route construction."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h", "reason": "Declare the elementwise/broadcast provider-facts verifier consumed by the central route provider."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Route analysis, materialization facts, operand-binding facts, route-control plan, and migrated statement owner structs used by the verifier."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCElementwiseRouteFamilyPlanOwners.cpp", "reason": "Implement the elementwise/broadcast verifier in the RVV elementwise owner layer."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Wire the verifier into production before TCRVEmitCLowerableRoute construction."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Add focused positive and fail-closed coverage for provider-facts consumption on plain, masked, and scalar-broadcast elementwise routes."}

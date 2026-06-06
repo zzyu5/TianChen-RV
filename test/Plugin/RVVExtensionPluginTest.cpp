@@ -18193,8 +18193,12 @@ int runElementwiseArithmeticStatementPlanBoundaryTest(
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyResidualRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteStatementPlanOwnerSelection;
+  using tianchenrv::plugin::rvv::
       getRVVSelectedBodyRouteControlProviderPlan;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyDirectContractionRouteProviderPlan;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyElementwiseArithmeticRouteStatementPlan;
   using tianchenrv::plugin::rvv::
@@ -18207,6 +18211,10 @@ int runElementwiseArithmeticStatementPlanBoundaryTest(
   using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis;
   using tianchenrv::plugin::rvv::RVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyRouteStatementPlanOwnerKind;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyElementwiseBroadcastRouteProviderFacts;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyRouteFamilyProviderPlans;
   using tianchenrv::support::RuntimeABIParameterRole;
@@ -18552,6 +18560,106 @@ module {
             "migrated statement-plan boundary exposes elementwise arithmetic "
             "as one provider-neutral plan"))
       return result;
+
+    RVVSelectedBodyDirectContractionRouteProviderPlan emptyDirectProviderPlan;
+    auto selectedStatementPlan =
+        getRVVSelectedBodyRouteStatementPlanOwnerSelection(
+            *analysis, *materializationFacts, *elementwiseFacts,
+            emptyMemoryFacts, emptyMathFacts, *residualFacts,
+            emptyDirectProviderPlan,
+            "elementwise arithmetic provider-facts unit test");
+    if (!selectedStatementPlan)
+      return fail("elementwise provider-facts statement owner selection: " +
+                  llvm::toString(selectedStatementPlan.takeError()));
+    if (int result = expect(
+            selectedStatementPlan->plansSelectedBodyRoute &&
+                selectedStatementPlan->ownerKind ==
+                    RVVSelectedBodyRouteStatementPlanOwnerKind::Migrated &&
+                selectedStatementPlan->migratedFamily ==
+                    RVVSelectedBodyMigratedRouteStatementPlanFamily::
+                        ElementwiseArithmetic &&
+                selectedStatementPlan->ownerName == "elementwise arithmetic" &&
+                selectedStatementPlan->preLoopSteps.size() ==
+                    statementPlan->preLoopSteps.size() &&
+                selectedStatementPlan->loop.bodySteps.size() ==
+                    statementPlan->loop.bodySteps.size(),
+            "statement-plan owner module selects the migrated elementwise "
+            "owner and preserves provider-ready statements"))
+      return result;
+    if (int result = expectSuccess(
+            verifyRVVSelectedBodyElementwiseBroadcastRouteProviderFacts(
+                *analysis, *materializationFacts, *elementwiseFacts,
+                *residualFacts, *selectedStatementPlan,
+                "elementwise arithmetic provider-facts unit test"),
+            "elementwise provider-facts verifier accepts typed-body facts, "
+            "operand bindings, route-control facts, and owner statements"))
+      return result;
+
+    if (kernelName == "stmt_add_kernel") {
+      auto staleElementwiseFacts = *elementwiseFacts;
+      staleElementwiseFacts.bindsOrdinaryElementwiseArithmetic = false;
+      if (int result = expectErrorContains(
+              verifyRVVSelectedBodyElementwiseBroadcastRouteProviderFacts(
+                  *analysis, *materializationFacts, staleElementwiseFacts,
+                  *residualFacts, *selectedStatementPlan,
+                  "elementwise provider-facts stale binding unit test"),
+              {"elementwise/broadcast route construction requires ordinary "
+               "elementwise operand-binding facts",
+               "before creating TCRVEmitCLowerableRoute"}))
+        return result;
+
+      auto staleStatementPlan = *selectedStatementPlan;
+      staleStatementPlan.loop.bodySteps.clear();
+      if (int result = expectErrorContains(
+              verifyRVVSelectedBodyElementwiseBroadcastRouteProviderFacts(
+                  *analysis, *materializationFacts, *elementwiseFacts,
+                  *residualFacts, staleStatementPlan,
+                  "elementwise provider-facts stale statement unit test"),
+              {"elementwise/broadcast route construction requires the migrated "
+               "elementwise arithmetic statement-plan owner",
+               "before creating TCRVEmitCLowerableRoute"}))
+        return result;
+
+      auto staleTypedMaterializationFacts = *materializationFacts;
+      staleTypedMaterializationFacts.typedConfigFacts.sew = 64;
+      staleTypedMaterializationFacts.typedConfigFacts.lmul = "m2";
+      if (int result = expectErrorContains(
+              verifyRVVSelectedBodyElementwiseBroadcastRouteProviderFacts(
+                  *analysis, staleTypedMaterializationFacts, *elementwiseFacts,
+                  *residualFacts, *selectedStatementPlan,
+                  "elementwise provider-facts stale typed config unit test"),
+              {"elementwise/broadcast route construction requires elementwise "
+               "arithmetic family-plan type/config facts to mirror the "
+               "selected typed RVV body",
+               "before creating TCRVEmitCLowerableRoute"}))
+        return result;
+    }
+    if (kernelName == "stmt_masked_add_kernel") {
+      auto staleMaskedMaterializationFacts = *materializationFacts;
+      staleMaskedMaterializationFacts.compareLeaf = "";
+      if (int result = expectErrorContains(
+              verifyRVVSelectedBodyElementwiseBroadcastRouteProviderFacts(
+                  *analysis, staleMaskedMaterializationFacts,
+                  *elementwiseFacts, *residualFacts, *selectedStatementPlan,
+                  "elementwise provider-facts stale mask unit test"),
+              {"elementwise/broadcast route construction requires "
+               "materialization facts for compare",
+               "before creating TCRVEmitCLowerableRoute"}))
+        return result;
+    }
+    if (kernelName == "stmt_scalar_broadcast_sub_kernel") {
+      auto staleScalarMaterializationFacts = *materializationFacts;
+      staleScalarMaterializationFacts.rhsScalarBroadcastLeaf = "";
+      if (int result = expectErrorContains(
+              verifyRVVSelectedBodyElementwiseBroadcastRouteProviderFacts(
+                  *analysis, staleScalarMaterializationFacts,
+                  *elementwiseFacts, *residualFacts, *selectedStatementPlan,
+                  "scalar-broadcast provider-facts stale splat unit test"),
+              {"elementwise/broadcast route construction requires "
+               "materialization facts for RHS scalar splat",
+               "before creating TCRVEmitCLowerableRoute"}))
+        return result;
+    }
 
     KernelOp kernel = findKernel(*module, kernelName);
     VariantOp variant = findVariant(kernel, variantName);
