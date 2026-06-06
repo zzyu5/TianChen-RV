@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture invariants and RVV Stage 2 boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin ownership, direct contraction provider owner use, and fail-closed selected-body realization."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-owned MAcc validation contract, widening MAcc artifact facts, and Common EmitC neutrality."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-macc-add-artifact-abi/prd.md", "reason": "Check evidence pattern against the completed plain MAcc artifact ABI task without broadening scope."}
