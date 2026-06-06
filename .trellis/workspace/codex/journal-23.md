@@ -1902,3 +1902,34 @@ Moved direct contraction provider-fact verification onto the RVV direct contract
 ### Next Steps
 
 - None - task complete
+
+
+## Session 485: Stage2 RVV residual memory provider facts
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV residual memory provider facts
+**Branch**: `main`
+
+### Summary
+
+Moved residual runtime-scalar splat-store and computed-mask memory provider-fact verifiers onto RVV owner-local surfaces; rebuilt and verified focused RVV plugin, target artifact, and memory fixture checks.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

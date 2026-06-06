@@ -1,0 +1,21 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV source of truth, RVV-first authority chain, Stage2 scope, and forbidden legacy route-authority drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV runtime-scalar splat-store and computed-mask memory provider/statement owner boundaries and fail-closed requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract, Common EmitC neutrality, and memory validation contracts."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check that memory/dtype/config/control facts remain structural and plugin-owned."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check that runtime-scalar and computed-mask memory provider facts remain RVV plugin-local."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check that this remains low-level RVV execution-body work, not high-level compute IR or source-front-door authority."}
+{"file": ".trellis/tasks/06-06-06-06-stage2-rvv-residual-memory-provider-fact-surface-closure/prd.md", "reason": "This round's bounded module goal, requirements, acceptance criteria, and non-goals."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-direct-contraction-fact-contract/prd.md", "reason": "Previous owner-local provider-fact verifier relocation pattern and runtime-evidence boundary."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVRuntimeScalarMemorySelectedBodyRealizationOwner.h", "reason": "Runtime-scalar memory owner public surface for splat-store verifier relocation."}
+{"file": "lib/Plugin/RVV/RVVRuntimeScalarMemorySelectedBodyRealizationOwner.cpp", "reason": "Runtime-scalar memory owner implementation path for splat-store statement/provider fact ownership."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVComputedMaskMemorySelectedBodyRealizationOwner.h", "reason": "Computed-mask memory owner public surface and selected-body realization boundary."}
+{"file": "lib/Plugin/RVV/RVVComputedMaskMemorySelectedBodyRealizationOwner.cpp", "reason": "Computed-mask memory owner implementation boundary for route-family facts and realization facts."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h", "reason": "Computed-mask memory route-family provider plan owner public surface."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.cpp", "reason": "Computed-mask memory route-family provider plan implementation and stale fact checks."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h", "reason": "Owner-local statement-plan public surface for computed-mask memory provider-fact boundary."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCResidualStatementPlanOwners.cpp", "reason": "Runtime-scalar splat-store and computed-mask memory statement-plan owner implementation path."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Generic route-planning public surface that currently exposes the residual memory provider-fact verifier declarations."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Current generic implementation location for the residual memory provider-fact verifier implementations."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Production provider pre-route verification order before TCRVEmitCLowerableRoute construction."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused positive and fail-closed RVV plugin coverage for runtime-scalar and computed-mask memory provider facts."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Target/export regression coverage for provider-derived memory facts and mirror rejection."}

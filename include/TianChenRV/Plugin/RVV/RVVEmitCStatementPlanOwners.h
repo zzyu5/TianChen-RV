@@ -158,6 +158,15 @@ getRVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan(
         &residualOperandBindingFacts,
     llvm::StringRef context);
 
+llvm::Error verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyResidualRouteOperandBindingFacts
+        &residualOperandBindingFacts,
+    const RVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan
+        &statementPlan,
+    llvm::StringRef context);
+
 llvm::Expected<RVVSelectedBodyReductionRouteStatementPlan>
 getRVVSelectedBodyReductionRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,

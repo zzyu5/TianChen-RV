@@ -1,8 +1,10 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 
+#include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 
 #include "llvm/ADT/Twine.h"
+#include "llvm/Support/ErrorHandling.h"
 
 #include <cstdint>
 #include <optional>
@@ -205,6 +207,59 @@ llvm::Error requireComputedMaskMemorySelectedVariantRequires(
         llvm::Twine("pre-realized RVV selected ") + context +
         " realization requires non-empty selected variant requires metadata");
   return llvm::Error::success();
+}
+
+constexpr llvm::StringLiteral kRVVMaskTailPolicyRouteFamilyPlanID(
+    "rvv-mask-tail-policy-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVComputedMaskMemoryMaskTailPolicyOwner(
+    "computed-mask memory mask/tail policy");
+
+bool isRVVSelectedBodyComputedMaskMemoryLoadMergeRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
+         op ==
+             RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore ||
+         op == RVVSelectedBodyOperationKind::
+                   ComputedMaskIndexedGatherLoadUnitStore ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
+}
+
+bool isRVVSelectedBodyComputedMaskMemoryStoreOnlyRoute(
+    RVVSelectedBodyOperationKind op) {
+  return op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
+         op == RVVSelectedBodyOperationKind::
+                   ComputedMaskIndexedScatterStoreUnitLoad ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad ||
+         op == RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad;
+}
+
+RVVSelectedBodyMemoryForm getComputedMaskMemoryRouteFamilyMemoryForm(
+    RVVSelectedBodyOperationKind op) {
+  switch (op) {
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
+    return RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore;
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore:
+    return RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskLoadStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
+    return RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
+    return RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
+    return RVVSelectedBodyMemoryForm::ComputedMaskStridedLoadUnitStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+    return RVVSelectedBodyMemoryForm::ComputedMaskIndexedGatherLoadUnitStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+    return RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadIndexedScatterStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+    return RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore;
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+  case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
+    return RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store;
+  default:
+    llvm_unreachable("unsupported computed-mask memory route-family op");
+  }
 }
 
 llvm::StringRef getRuntimeScalarComputedMaskElementCType(std::int64_t sew) {
@@ -1087,6 +1142,815 @@ verifyRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyProviderPlans(
     return llvm::Error::success();
   return verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans(
       analysis, context);
+}
+
+static llvm::Error
+verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyComputedMaskMemoryRouteStatementPlan
+        &computedMaskMemoryStatementPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  const bool isRuntimeScalarStore =
+      description.operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore;
+  const bool isRuntimeScalarLoadStore =
+      description.operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore;
+  if (!isRuntimeScalarStore && !isRuntimeScalarLoadStore)
+    return llvm::Error::success();
+
+  const RVVSelectedBodyMemoryForm expectedMemoryForm =
+      isRuntimeScalarLoadStore
+          ? RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskLoadStore
+          : RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore;
+
+  if (!analysis.computedMaskMemoryRouteFamilyPlan ||
+      materializationFacts.computedMaskMemoryPlan !=
+          &*analysis.computedMaskMemoryRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask memory route construction requires "
+        "exactly the verified computed-mask memory family plan before "
+        "creating TCRVEmitCLowerableRoute");
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &plan =
+      *materializationFacts.computedMaskMemoryPlan;
+
+  if (plan.operation != description.operation ||
+      plan.memoryForm != description.memoryForm ||
+      plan.memoryForm != expectedMemoryForm || !plan.usesRuntimeScalarProducer ||
+      plan.usesVectorCompareProducer ||
+      plan.usesStoreOnly != isRuntimeScalarStore ||
+      plan.usesLoadMerge != isRuntimeScalarLoadStore ||
+      plan.usesIndexedGather || plan.usesIndexedScatter ||
+      plan.usesSegment2Load || plan.usesSegment2Store ||
+      plan.usesSegment2Update)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask memory route construction requires "
+        "runtime-scalar producer facts and the matching store/load-store "
+        "memory form before creating TCRVEmitCLowerableRoute");
+
+  if (description.computedMaskMemoryRouteFamilyPlanID != plan.familyPlanID ||
+      description.computedMaskMemoryMaskProducerSource !=
+          plan.maskProducerSource ||
+      description.maskTailPolicyRouteFamilyPlanID !=
+          kRVVMaskTailPolicyRouteFamilyPlanID ||
+      description.maskTailPolicyOwner !=
+          kRVVComputedMaskMemoryMaskTailPolicyOwner ||
+      description.maskRole != plan.maskRole ||
+      description.maskSource != plan.maskSource ||
+      description.maskMemoryForm != plan.maskMemoryForm ||
+      description.inactiveLaneContract != plan.inactiveLaneContract ||
+      description.maskedPassthroughLayout != plan.maskedPassthroughLayout ||
+      description.providerSupportedMirror != plan.providerSupportedMirror ||
+      description.runtimeABIOrder != plan.runtimeABIOrder)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask memory route construction requires "
+        "provider-built family, mask/tail, inactive-lane, provider support, "
+        "and ABI mirror facts before creating TCRVEmitCLowerableRoute");
+
+  if (!support::runtimeABIParametersEqual(description.runtimeABIParameters,
+                                          plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask memory route construction requires "
+        "runtime ABI parameters from the verified family plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context))
+    return error;
+
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      materializationFacts.typedConfigFacts;
+  if (!typedFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask memory route construction requires "
+        "typed RVV body/config facts before creating "
+        "TCRVEmitCLowerableRoute");
+  if (typedFacts.sew != plan.sew || typedFacts.lmul != plan.lmul ||
+      typedFacts.vlCType != plan.vlCType ||
+      typedFacts.vectorTypeName != plan.vectorTypeName ||
+      typedFacts.vectorCType != plan.vectorCType ||
+      typedFacts.maskTypeName != plan.maskTypeName ||
+      typedFacts.maskCType != plan.maskCType ||
+      typedFacts.setVLIntrinsic != plan.setVLIntrinsic ||
+      typedFacts.vectorLoadIntrinsic != plan.vectorLoadIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask memory route construction requires "
+        "family-plan type/config facts to mirror the selected typed RVV body "
+        "before creating TCRVEmitCLowerableRoute");
+
+  if (materializationFacts.vlCType != plan.vlCType ||
+      materializationFacts.resultVectorTypeName != plan.vectorTypeName ||
+      materializationFacts.resultVectorCType != plan.vectorCType ||
+      materializationFacts.maskTypeName != plan.maskTypeName ||
+      materializationFacts.maskCType != plan.maskCType ||
+      materializationFacts.setVLLeaf != plan.setVLIntrinsic ||
+      materializationFacts.vectorLoadLeaf != plan.vectorLoadIntrinsic ||
+      materializationFacts.rhsScalarBroadcastLeaf !=
+          plan.rhsScalarSplatIntrinsic ||
+      materializationFacts.compareLeaf != plan.compareIntrinsic ||
+      materializationFacts.storeLeaf != plan.maskedStoreIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask memory route construction requires "
+        "materialization facts to come from the verified computed-mask memory "
+        "family plan before creating TCRVEmitCLowerableRoute");
+
+  auto requireABI = [&](const support::RuntimeABIParameter *parameter,
+                        llvm::StringRef logicalName,
+                        support::RuntimeABIParameterRole expectedRole)
+      -> llvm::Error {
+    if (!parameter)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime scalar computed-mask memory route construction requires "
+          "lhs/rhs_scalar/src/dst/n operand-binding facts before creating "
+          "TCRVEmitCLowerableRoute");
+    if (parameter->role != expectedRole)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime scalar computed-mask memory route construction requires "
+          "ABI role for " +
+          logicalName + " to be '" +
+          support::stringifyRuntimeABIParameterRole(expectedRole) +
+          "' before creating TCRVEmitCLowerableRoute, but saw '" +
+          support::stringifyRuntimeABIParameterRole(parameter->role) + "'");
+    return llvm::Error::success();
+  };
+
+  if (memoryOperandBindingFacts.bindingPlan !=
+          &analysis.routeOperandBindingPlan ||
+      !memoryOperandBindingFacts.bindsMemoryCluster ||
+      !memoryOperandBindingFacts.bindsComputedMaskMemory ||
+      !memoryOperandBindingFacts.bindsRuntimeScalarComputedMaskMemory)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask memory route construction requires "
+        "memory operand-binding facts from the same selected route analysis "
+        "before creating TCRVEmitCLowerableRoute");
+
+  if (llvm::Error error = requireABI(
+          memoryOperandBindingFacts.compareLhsABI, "lhs",
+          support::RuntimeABIParameterRole::LHSInputBuffer))
+    return error;
+  if (llvm::Error error = requireABI(
+          memoryOperandBindingFacts.rhsScalarABI, "rhs_scalar",
+          support::RuntimeABIParameterRole::RHSScalarValue))
+    return error;
+  if (llvm::Error error = requireABI(
+          memoryOperandBindingFacts.sourceABI, "src",
+          support::RuntimeABIParameterRole::SourceInputBuffer))
+    return error;
+  if (llvm::Error error = requireABI(
+          memoryOperandBindingFacts.destinationABI, "dst",
+          support::RuntimeABIParameterRole::OutputBuffer))
+    return error;
+  if (llvm::Error error = requireABI(
+          memoryOperandBindingFacts.runtimeElementCountABI, "n",
+          support::RuntimeABIParameterRole::RuntimeElementCount))
+    return error;
+
+  if (isRuntimeScalarLoadStore) {
+    if (!memoryOperandBindingFacts.passthroughABI)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime_scalar_cmp_masked_load_store route construction requires "
+          "old-destination passthrough operand-binding facts before creating "
+          "TCRVEmitCLowerableRoute");
+    if (memoryOperandBindingFacts.passthroughABI->role !=
+            support::RuntimeABIParameterRole::OutputBuffer ||
+        memoryOperandBindingFacts.passthroughABI->cName !=
+            memoryOperandBindingFacts.destinationABI->cName)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime_scalar_cmp_masked_load_store route construction requires "
+          "old-destination passthrough and destination store ABI facts to "
+          "refer to the same output buffer before creating "
+          "TCRVEmitCLowerableRoute");
+  }
+
+  if (!computedMaskMemoryStatementPlan.plansComputedMaskMemoryRoute ||
+      computedMaskMemoryStatementPlan.computedMaskMemoryPlan != &plan ||
+      computedMaskMemoryStatementPlan.preLoopSteps.empty() ||
+      computedMaskMemoryStatementPlan.loop.bodySteps.empty() ||
+      computedMaskMemoryStatementPlan.plansRuntimeScalarComputedMaskStore !=
+          isRuntimeScalarStore ||
+      computedMaskMemoryStatementPlan.plansRuntimeScalarComputedMaskLoadStore !=
+          isRuntimeScalarLoadStore ||
+      computedMaskMemoryStatementPlan.plansComputedMaskUnitLoadStore ||
+      computedMaskMemoryStatementPlan.plansComputedMaskStridedStore ||
+      computedMaskMemoryStatementPlan.plansComputedMaskStridedLoadUnitStore ||
+      computedMaskMemoryStatementPlan.plansComputedMaskIndexedGatherLoadUnitStore ||
+      computedMaskMemoryStatementPlan
+          .plansComputedMaskIndexedScatterStoreUnitLoad)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask memory route construction requires the "
+        "matching runtime-scalar store/load-store statement plan before "
+        "creating TCRVEmitCLowerableRoute");
+
+  auto statementHasCallee = [&](llvm::StringRef callee) {
+    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         computedMaskMemoryStatementPlan.loop.bodySteps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  if (!statementHasCallee(plan.rhsScalarSplatIntrinsic) ||
+      !statementHasCallee(plan.compareIntrinsic) ||
+      !statementHasCallee(plan.maskedStoreIntrinsic) ||
+      (isRuntimeScalarLoadStore &&
+       !statementHasCallee(plan.maskedLoadIntrinsic)))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask memory route construction requires "
+        "statement/leaf facts for scalar splat, compare, masked memory, and "
+        "store calls from the RVV statement-plan owner before creating "
+        "TCRVEmitCLowerableRoute");
+
+  llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+      getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
+                                                 context);
+  if (!routeControlPlan)
+    return routeControlPlan.takeError();
+  if (!routeControlPlan->plansRouteControl ||
+      !routeControlPlan->controlsComputedMaskMemory ||
+      routeControlPlan->runtimeControlPlan != &plan.runtimeControlPlan ||
+      routeControlPlan->typedConfigFacts != &analysis.typedConfigFacts ||
+      routeControlPlan->selectedTargetCapabilityFacts !=
+          &analysis.selectedTargetCapabilityFacts ||
+      routeControlPlan->controlPlanIDMirror !=
+          plan.runtimeControlPlan.controlPlanID ||
+      routeControlPlan->configContractIDMirror !=
+          plan.runtimeControlPlan.configContractID ||
+      routeControlPlan->runtimeVLContractIDMirror !=
+          plan.runtimeControlPlan.runtimeVLContractID ||
+      routeControlPlan->runtimeAVLASourceMirror !=
+          plan.runtimeControlPlan.runtimeAVLASource ||
+      routeControlPlan->runtimeABIOrderMirror != plan.runtimeABIOrder ||
+      routeControlPlan->tailPolicyMirror != plan.runtimeControlPlan.tailPolicy ||
+      routeControlPlan->maskPolicyMirror != plan.runtimeControlPlan.maskPolicy)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask memory route construction requires the "
+        "RVV-owned route-control provider plan and runtime n/AVL/VL facts "
+        "before creating TCRVEmitCLowerableRoute");
+
+  const RVVSelectedBodyMaskTailPolicyProviderPlan &maskTailPlan =
+      computedMaskMemoryStatementPlan.maskTailPolicyPlan;
+  if (!maskTailPlan.plansMaskTailPolicy ||
+      !maskTailPlan.controlsComputedMaskMemory ||
+      maskTailPlan.controlsComputedMaskSelect ||
+      maskTailPlan.computedMaskMemoryPlan != &plan ||
+      maskTailPlan.typedConfigFacts != &analysis.typedConfigFacts ||
+      maskTailPlan.selectedTargetCapabilityFacts !=
+          &analysis.selectedTargetCapabilityFacts ||
+      maskTailPlan.bindingPlan != &analysis.routeOperandBindingPlan ||
+      maskTailPlan.familyPlanIDMirror != kRVVMaskTailPolicyRouteFamilyPlanID ||
+      maskTailPlan.ownerNameMirror !=
+          kRVVComputedMaskMemoryMaskTailPolicyOwner ||
+      maskTailPlan.maskProducerSourceMirror != plan.maskProducerSource ||
+      maskTailPlan.maskRoleMirror != plan.maskRole ||
+      maskTailPlan.maskSourceMirror != plan.maskSource ||
+      maskTailPlan.maskMemoryFormMirror != plan.maskMemoryForm ||
+      maskTailPlan.tailPolicyMirror != plan.runtimeControlPlan.tailPolicy ||
+      maskTailPlan.maskPolicyMirror != plan.runtimeControlPlan.maskPolicy ||
+      maskTailPlan.inactiveLaneContractMirror !=
+          plan.inactiveLaneContract ||
+      maskTailPlan.maskedPassthroughLayoutMirror !=
+          plan.maskedPassthroughLayout ||
+      maskTailPlan.runtimeABIOrderMirror != plan.runtimeABIOrder ||
+      maskTailPlan.routeOperandBindingPlanIDMirror !=
+          analysis.routeOperandBindingPlan.planID ||
+      maskTailPlan.providerSupportedMirror != plan.providerSupportedMirror ||
+      maskTailPlan.selectedProviderMirror !=
+          routeControlPlan->selectedProviderMirror ||
+      maskTailPlan.selectedLegalityMirror !=
+          routeControlPlan->selectedLegalityMirror)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask memory route construction requires the "
+        "RVV-owned mask/tail policy provider plan from the same computed-mask "
+        "memory statement plan before creating TCRVEmitCLowerableRoute");
+
+  return llvm::Error::success();
+}
+
+static llvm::Error
+verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyComputedMaskMemoryRouteStatementPlan
+        &computedMaskMemoryStatementPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  const RVVSelectedBodyOperationKind operation = description.operation;
+  const bool isUnitLoadStore =
+      operation == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore;
+  const bool isStridedStore =
+      operation == RVVSelectedBodyOperationKind::ComputedMaskStridedStore;
+  const bool isStridedLoad =
+      operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore;
+  const bool isIndexedGather =
+      operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore;
+  const bool isIndexedScatter =
+      operation ==
+      RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad;
+  const bool isRegularComputedMaskMemory =
+      isUnitLoadStore || isStridedStore || isStridedLoad || isIndexedGather ||
+      isIndexedScatter;
+  if (!isRegularComputedMaskMemory)
+    return llvm::Error::success();
+
+  const bool isLoadMerge =
+      isRVVSelectedBodyComputedMaskMemoryLoadMergeRoute(operation);
+  const bool isStoreOnly =
+      isRVVSelectedBodyComputedMaskMemoryStoreOnlyRoute(operation);
+  const bool isIndexed = isIndexedGather || isIndexedScatter;
+  const bool isStrided = isStridedStore || isStridedLoad;
+  std::optional<RVVComputedMaskStridedMemoryRouteFacts> stridedRouteFacts;
+  if (isStrided) {
+    stridedRouteFacts = getRVVComputedMaskStridedMemoryRouteFacts(operation);
+    if (!stridedRouteFacts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " regular computed-mask strided memory route construction requires "
+          "canonical provider-owned strided route facts before creating "
+          "TCRVEmitCLowerableRoute");
+  }
+  std::optional<RVVComputedMaskIndexedMemoryRouteFacts> indexedRouteFacts;
+  if (isIndexed) {
+    indexedRouteFacts = getRVVComputedMaskIndexedMemoryRouteFacts(operation);
+    if (!indexedRouteFacts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " regular computed-mask indexed memory route construction requires "
+          "canonical provider-owned indexed route facts before creating "
+          "TCRVEmitCLowerableRoute");
+  }
+
+  if (!analysis.computedMaskMemoryRouteFamilyPlan ||
+      materializationFacts.computedMaskMemoryPlan !=
+          &*analysis.computedMaskMemoryRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask memory route construction requires exactly "
+        "the verified computed-mask memory family plan before creating "
+        "TCRVEmitCLowerableRoute");
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &plan =
+      *materializationFacts.computedMaskMemoryPlan;
+
+  if (plan.operation != operation || plan.memoryForm != description.memoryForm ||
+      plan.memoryForm != getComputedMaskMemoryRouteFamilyMemoryForm(operation) ||
+      plan.usesRuntimeScalarProducer || !plan.usesVectorCompareProducer ||
+      plan.usesStoreOnly != isStoreOnly ||
+      plan.usesLoadMerge != isLoadMerge ||
+      plan.usesIndexedGather != isIndexedGather ||
+      plan.usesIndexedScatter != isIndexedScatter || plan.usesSegment2Load ||
+      plan.usesSegment2Store || plan.usesSegment2Update)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask memory route construction requires vector "
+        "compare-mask producer facts and the matching regular memory form "
+        "before creating TCRVEmitCLowerableRoute");
+
+  if (stridedRouteFacts &&
+      (plan.memoryForm != stridedRouteFacts->memoryForm ||
+       plan.sew != stridedRouteFacts->sew ||
+       plan.lmul != stridedRouteFacts->lmul ||
+       plan.runtimeControlPlan.controlPlanID !=
+           stridedRouteFacts->runtimeControlPlanID ||
+       plan.runtimeABIOrder != stridedRouteFacts->runtimeABIOrder ||
+       plan.targetLeafProfile != stridedRouteFacts->targetLeafProfile ||
+       plan.providerSupportedMirror !=
+           stridedRouteFacts->providerSupportedMirror ||
+       plan.requiredHeaderDeclarations !=
+           stridedRouteFacts->requiredHeaderDeclarations ||
+       plan.cTypeMappingSummary != stridedRouteFacts->cTypeMappingSummary ||
+       plan.familyPlanID !=
+           stridedRouteFacts->computedMaskMemoryRouteFamilyPlanID ||
+       plan.maskProducerSource !=
+           stridedRouteFacts->computedMaskMemoryMaskProducerSource ||
+       plan.vlCType != stridedRouteFacts->vlCType ||
+       plan.vectorTypeName != stridedRouteFacts->vectorTypeName ||
+       plan.vectorCType != stridedRouteFacts->vectorCType ||
+       plan.maskTypeName != stridedRouteFacts->maskTypeName ||
+       plan.maskCType != stridedRouteFacts->maskCType ||
+       plan.setVLIntrinsic != stridedRouteFacts->setVLIntrinsic ||
+       plan.vectorLoadIntrinsic != stridedRouteFacts->vectorLoadIntrinsic ||
+       plan.maskedLoadIntrinsic != stridedRouteFacts->maskedLoadIntrinsic ||
+       plan.maskedStoreIntrinsic != stridedRouteFacts->storeIntrinsic ||
+       plan.stridedStoreIntrinsic !=
+           stridedRouteFacts->stridedStoreIntrinsic ||
+       plan.compareIntrinsic != stridedRouteFacts->compareIntrinsic ||
+       plan.maskRole != stridedRouteFacts->maskRole ||
+       plan.maskSource != stridedRouteFacts->maskSource ||
+       plan.maskMemoryForm != stridedRouteFacts->maskMemoryForm ||
+       plan.inactiveLaneContract !=
+           stridedRouteFacts->inactiveLaneContract ||
+       plan.maskedPassthroughLayout !=
+           stridedRouteFacts->maskedPassthroughLayout ||
+       plan.maskedMemoryLayout != stridedRouteFacts->maskedMemoryLayout ||
+       plan.stridedMemoryLayout != stridedRouteFacts->stridedMemoryLayout ||
+       plan.sourceMemoryForm != stridedRouteFacts->sourceMemoryForm ||
+       plan.destinationMemoryForm !=
+           stridedRouteFacts->destinationMemoryForm ||
+       plan.sourceStrideSource != stridedRouteFacts->sourceStrideSource ||
+       plan.destinationStrideSource !=
+           stridedRouteFacts->destinationStrideSource ||
+       !support::runtimeABIParametersEqual(
+           plan.runtimeABIParameters,
+           stridedRouteFacts->runtimeABIParameters)))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask strided memory route construction requires "
+        "the computed-mask memory family plan to mirror canonical "
+        "provider-owned strided route facts before creating "
+        "TCRVEmitCLowerableRoute");
+
+  if (indexedRouteFacts &&
+      (plan.memoryForm != indexedRouteFacts->memoryForm ||
+       plan.sew != indexedRouteFacts->sew ||
+       plan.lmul != indexedRouteFacts->lmul ||
+       plan.runtimeControlPlan.controlPlanID !=
+           indexedRouteFacts->runtimeControlPlanID ||
+       plan.runtimeABIOrder != indexedRouteFacts->runtimeABIOrder ||
+       plan.targetLeafProfile != indexedRouteFacts->targetLeafProfile ||
+       plan.providerSupportedMirror !=
+           indexedRouteFacts->providerSupportedMirror ||
+       plan.requiredHeaderDeclarations !=
+           indexedRouteFacts->requiredHeaderDeclarations ||
+       plan.cTypeMappingSummary != indexedRouteFacts->cTypeMappingSummary ||
+       plan.familyPlanID !=
+           indexedRouteFacts->computedMaskMemoryRouteFamilyPlanID ||
+       plan.maskProducerSource !=
+           indexedRouteFacts->computedMaskMemoryMaskProducerSource ||
+       plan.vlCType != indexedRouteFacts->vlCType ||
+       plan.vectorTypeName != indexedRouteFacts->vectorTypeName ||
+       plan.vectorCType != indexedRouteFacts->vectorCType ||
+       plan.indexVectorTypeName != indexedRouteFacts->indexVectorTypeName ||
+       plan.indexVectorCType != indexedRouteFacts->indexVectorCType ||
+       plan.maskTypeName != indexedRouteFacts->maskTypeName ||
+       plan.maskCType != indexedRouteFacts->maskCType ||
+       plan.setVLIntrinsic != indexedRouteFacts->setVLIntrinsic ||
+       plan.vectorLoadIntrinsic != indexedRouteFacts->vectorLoadIntrinsic ||
+       plan.indexLoadIntrinsic != indexedRouteFacts->indexLoadIntrinsic ||
+       plan.indexScaleIntrinsic != indexedRouteFacts->indexScaleIntrinsic ||
+       plan.maskedLoadIntrinsic !=
+           indexedRouteFacts->maskedIndexedLoadIntrinsic ||
+       plan.indexedStoreIntrinsic !=
+           indexedRouteFacts->maskedIndexedStoreIntrinsic ||
+       plan.maskedStoreIntrinsic != indexedRouteFacts->maskedStoreIntrinsic ||
+       plan.compareIntrinsic != indexedRouteFacts->compareIntrinsic ||
+       plan.maskRole != indexedRouteFacts->maskRole ||
+       plan.maskSource != indexedRouteFacts->maskSource ||
+       plan.maskMemoryForm != indexedRouteFacts->maskMemoryForm ||
+       plan.inactiveLaneContract !=
+           indexedRouteFacts->inactiveLaneContract ||
+       plan.maskedPassthroughLayout !=
+           indexedRouteFacts->maskedPassthroughLayout ||
+       plan.maskedMemoryLayout != indexedRouteFacts->indexedMemoryLayout ||
+       plan.sourceMemoryForm != indexedRouteFacts->sourceMemoryForm ||
+       plan.destinationMemoryForm !=
+           indexedRouteFacts->destinationMemoryForm ||
+       plan.indexEEW != indexedRouteFacts->indexEEW ||
+       plan.offsetUnit != indexedRouteFacts->offsetUnit ||
+       plan.indexSource != indexedRouteFacts->indexSource ||
+       plan.indexUniqueness != indexedRouteFacts->indexUniqueness ||
+       plan.indexedDataMemoryForm !=
+           indexedRouteFacts->indexedDataMemoryForm ||
+       plan.indexedDestinationMemoryForm !=
+           indexedRouteFacts->indexedDestinationMemoryForm))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask indexed memory route construction requires "
+        "the computed-mask memory family plan to mirror canonical "
+        "provider-owned indexed route facts before creating "
+        "TCRVEmitCLowerableRoute");
+
+  if (description.computedMaskMemoryRouteFamilyPlanID != plan.familyPlanID ||
+      description.computedMaskMemoryMaskProducerSource !=
+          plan.maskProducerSource ||
+      description.maskTailPolicyRouteFamilyPlanID !=
+          kRVVMaskTailPolicyRouteFamilyPlanID ||
+      description.maskTailPolicyOwner !=
+          kRVVComputedMaskMemoryMaskTailPolicyOwner ||
+      description.maskRole != plan.maskRole ||
+      description.maskSource != plan.maskSource ||
+      description.maskMemoryForm != plan.maskMemoryForm ||
+      description.inactiveLaneContract != plan.inactiveLaneContract ||
+      description.maskedPassthroughLayout != plan.maskedPassthroughLayout ||
+      description.providerSupportedMirror != plan.providerSupportedMirror ||
+      description.runtimeABIOrder != plan.runtimeABIOrder ||
+      description.sourceMemoryForm != plan.sourceMemoryForm ||
+      description.destinationMemoryForm != plan.destinationMemoryForm ||
+      description.sourceStrideSource != plan.sourceStrideSource ||
+      description.outStrideSource != plan.destinationStrideSource ||
+      description.indexEEW != plan.indexEEW ||
+      description.offsetUnit != plan.offsetUnit ||
+      description.indexSource != plan.indexSource ||
+      description.indexUniqueness != plan.indexUniqueness ||
+      description.indexedDataMemoryForm != plan.indexedDataMemoryForm ||
+      description.indexedDestinationMemoryForm !=
+          plan.indexedDestinationMemoryForm)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask memory route construction requires "
+        "provider-built family, memory-form, stride/index, mask/tail, "
+        "inactive-lane, provider support, and ABI mirror facts before "
+        "creating TCRVEmitCLowerableRoute");
+
+  if (!support::runtimeABIParametersEqual(description.runtimeABIParameters,
+                                          plan.runtimeABIParameters))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask memory route construction requires runtime "
+        "ABI parameters from the verified family plan before creating "
+        "TCRVEmitCLowerableRoute");
+  if (stridedRouteFacts &&
+      (description.routeOperandBindingPlanID !=
+           stridedRouteFacts->routeOperandBindingPlanID ||
+       description.routeOperandBindingSummary !=
+           stridedRouteFacts->routeOperandBindingSummary ||
+       analysis.routeOperandBindingPlan.planID !=
+           stridedRouteFacts->routeOperandBindingPlanID))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask strided memory route construction requires "
+        "route operand binding plan and summary to mirror canonical "
+        "provider-owned strided route facts before creating "
+        "TCRVEmitCLowerableRoute");
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context))
+    return error;
+
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      materializationFacts.typedConfigFacts;
+  if (!typedFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask memory route construction requires typed RVV "
+        "body/config facts before creating TCRVEmitCLowerableRoute");
+  if (typedFacts.sew != plan.sew || typedFacts.lmul != plan.lmul ||
+      typedFacts.vlCType != plan.vlCType ||
+      typedFacts.vectorTypeName != plan.vectorTypeName ||
+      typedFacts.vectorCType != plan.vectorCType ||
+      typedFacts.maskTypeName != plan.maskTypeName ||
+      typedFacts.maskCType != plan.maskCType ||
+      typedFacts.setVLIntrinsic != plan.setVLIntrinsic ||
+      typedFacts.vectorLoadIntrinsic != plan.vectorLoadIntrinsic ||
+      (isIndexed &&
+       (typedFacts.indexVectorTypeName != plan.indexVectorTypeName ||
+        typedFacts.indexVectorCType != plan.indexVectorCType)))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask memory route construction requires "
+        "family-plan type/config facts to mirror the selected typed RVV body "
+        "before creating TCRVEmitCLowerableRoute");
+
+  if (materializationFacts.vlCType != plan.vlCType ||
+      materializationFacts.resultVectorTypeName != plan.vectorTypeName ||
+      materializationFacts.resultVectorCType != plan.vectorCType ||
+      materializationFacts.maskTypeName != plan.maskTypeName ||
+      materializationFacts.maskCType != plan.maskCType ||
+      materializationFacts.setVLLeaf != plan.setVLIntrinsic ||
+      materializationFacts.vectorLoadLeaf != plan.vectorLoadIntrinsic ||
+      materializationFacts.compareLeaf != plan.compareIntrinsic ||
+      materializationFacts.storeLeaf != plan.maskedStoreIntrinsic ||
+      materializationFacts.stridedStoreLeaf != plan.stridedStoreIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask memory route construction requires "
+        "materialization facts to come from the verified computed-mask memory "
+        "family plan before creating TCRVEmitCLowerableRoute");
+
+  auto requireABI = [&](const support::RuntimeABIParameter *parameter,
+                        llvm::StringRef logicalName,
+                        support::RuntimeABIParameterRole expectedRole)
+      -> llvm::Error {
+    if (!parameter)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " regular computed-mask memory route construction requires "
+          "cmp_lhs/cmp_rhs/src/dst/n plus stride/index operand-binding facts "
+          "before creating TCRVEmitCLowerableRoute");
+    if (parameter->role != expectedRole)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " regular computed-mask memory route construction requires ABI role "
+          "for " +
+          logicalName + " to be '" +
+          support::stringifyRuntimeABIParameterRole(expectedRole) +
+          "' before creating TCRVEmitCLowerableRoute, but saw '" +
+          support::stringifyRuntimeABIParameterRole(parameter->role) + "'");
+    return llvm::Error::success();
+  };
+
+  if (memoryOperandBindingFacts.bindingPlan !=
+          &analysis.routeOperandBindingPlan ||
+      !memoryOperandBindingFacts.bindsMemoryCluster ||
+      !memoryOperandBindingFacts.bindsComputedMaskMemory ||
+      memoryOperandBindingFacts.bindsRuntimeScalarComputedMaskMemory ||
+      memoryOperandBindingFacts.bindsSegment2Memory)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask memory route construction requires memory "
+        "operand-binding facts from the same selected route analysis before "
+        "creating TCRVEmitCLowerableRoute");
+
+  if (llvm::Error error = requireABI(
+          memoryOperandBindingFacts.compareLhsABI, "cmp_lhs",
+          support::RuntimeABIParameterRole::LHSInputBuffer))
+    return error;
+  if (llvm::Error error = requireABI(
+          memoryOperandBindingFacts.compareRhsABI, "cmp_rhs",
+          support::RuntimeABIParameterRole::RHSInputBuffer))
+    return error;
+  if (llvm::Error error = requireABI(
+          memoryOperandBindingFacts.sourceABI, "src",
+          support::RuntimeABIParameterRole::SourceInputBuffer))
+    return error;
+  if (llvm::Error error = requireABI(
+          memoryOperandBindingFacts.destinationABI, "dst/out",
+          support::RuntimeABIParameterRole::OutputBuffer))
+    return error;
+  if (llvm::Error error = requireABI(
+          memoryOperandBindingFacts.runtimeElementCountABI, "n",
+          support::RuntimeABIParameterRole::RuntimeElementCount))
+    return error;
+
+  if (isLoadMerge) {
+    if (!memoryOperandBindingFacts.passthroughABI)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " regular computed-mask load-merge route construction requires "
+          "old-destination passthrough operand-binding facts before creating "
+          "TCRVEmitCLowerableRoute");
+    if (memoryOperandBindingFacts.passthroughABI->role !=
+            support::RuntimeABIParameterRole::OutputBuffer ||
+        memoryOperandBindingFacts.passthroughABI->cName !=
+            memoryOperandBindingFacts.destinationABI->cName)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " regular computed-mask load-merge route construction requires "
+          "old-destination passthrough and destination store ABI facts to "
+          "refer to the same output buffer before creating "
+          "TCRVEmitCLowerableRoute");
+  }
+  if (isStridedLoad)
+    if (llvm::Error error = requireABI(
+            memoryOperandBindingFacts.sourceStrideABI, "src_stride_bytes",
+            support::RuntimeABIParameterRole::SourceByteStride))
+      return error;
+  if (isStridedStore)
+    if (llvm::Error error = requireABI(
+            memoryOperandBindingFacts.destinationStrideABI,
+            "dst_stride_bytes",
+            support::RuntimeABIParameterRole::DestinationByteStride))
+      return error;
+  if (isIndexed)
+    if (llvm::Error error = requireABI(
+            memoryOperandBindingFacts.indexABI, "index",
+            support::RuntimeABIParameterRole::IndexInputBuffer))
+      return error;
+
+  if (!computedMaskMemoryStatementPlan.plansComputedMaskMemoryRoute ||
+      computedMaskMemoryStatementPlan.computedMaskMemoryPlan != &plan ||
+      computedMaskMemoryStatementPlan.preLoopSteps.empty() ||
+      computedMaskMemoryStatementPlan.loop.bodySteps.empty() ||
+      computedMaskMemoryStatementPlan.plansRuntimeScalarComputedMaskStore ||
+      computedMaskMemoryStatementPlan.plansRuntimeScalarComputedMaskLoadStore ||
+      computedMaskMemoryStatementPlan.plansComputedMaskUnitLoadStore !=
+          isUnitLoadStore ||
+      computedMaskMemoryStatementPlan.plansComputedMaskStridedStore !=
+          isStridedStore ||
+      computedMaskMemoryStatementPlan.plansComputedMaskStridedLoadUnitStore !=
+          isStridedLoad ||
+      computedMaskMemoryStatementPlan.plansComputedMaskIndexedGatherLoadUnitStore !=
+          isIndexedGather ||
+      computedMaskMemoryStatementPlan
+              .plansComputedMaskIndexedScatterStoreUnitLoad !=
+          isIndexedScatter)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask memory route construction requires the "
+        "matching regular computed-mask memory statement plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  auto preLoopHasCallee = [&](llvm::StringRef callee) {
+    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         computedMaskMemoryStatementPlan.preLoopSteps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  auto statementHasCallee = [&](llvm::StringRef callee) {
+    for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+         computedMaskMemoryStatementPlan.loop.bodySteps)
+      if (step.callee == callee)
+        return true;
+    return false;
+  };
+  if (!preLoopHasCallee(plan.setVLIntrinsic) ||
+      !statementHasCallee(plan.setVLIntrinsic) ||
+      !statementHasCallee(plan.vectorLoadIntrinsic) ||
+      !statementHasCallee(plan.compareIntrinsic) ||
+      (isLoadMerge && !statementHasCallee(plan.maskedLoadIntrinsic)) ||
+      (isLoadMerge && !statementHasCallee(plan.maskedStoreIntrinsic)) ||
+      (isStridedStore && !statementHasCallee(plan.stridedStoreIntrinsic)) ||
+      (isIndexed && !statementHasCallee(plan.indexLoadIntrinsic)) ||
+      (isIndexed && !statementHasCallee(plan.indexScaleIntrinsic)) ||
+      (isIndexedScatter &&
+       !statementHasCallee(plan.indexedStoreIntrinsic)))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask memory route construction requires statement/"
+        "leaf facts for setvl, vector compare, masked load/store, stride, and "
+        "index calls from the RVV statement-plan owner before creating "
+        "TCRVEmitCLowerableRoute");
+
+  llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
+      getRVVSelectedBodyRouteControlProviderPlan(analysis, materializationFacts,
+                                                 context);
+  if (!routeControlPlan)
+    return routeControlPlan.takeError();
+  if (!routeControlPlan->plansRouteControl ||
+      !routeControlPlan->controlsComputedMaskMemory ||
+      routeControlPlan->runtimeControlPlan != &plan.runtimeControlPlan ||
+      routeControlPlan->typedConfigFacts != &analysis.typedConfigFacts ||
+      routeControlPlan->selectedTargetCapabilityFacts !=
+          &analysis.selectedTargetCapabilityFacts ||
+      routeControlPlan->controlPlanIDMirror !=
+          plan.runtimeControlPlan.controlPlanID ||
+      routeControlPlan->configContractIDMirror !=
+          plan.runtimeControlPlan.configContractID ||
+      routeControlPlan->runtimeVLContractIDMirror !=
+          plan.runtimeControlPlan.runtimeVLContractID ||
+      routeControlPlan->runtimeAVLASourceMirror !=
+          plan.runtimeControlPlan.runtimeAVLASource ||
+      routeControlPlan->runtimeABIOrderMirror != plan.runtimeABIOrder ||
+      routeControlPlan->tailPolicyMirror != plan.runtimeControlPlan.tailPolicy ||
+      routeControlPlan->maskPolicyMirror != plan.runtimeControlPlan.maskPolicy)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask memory route construction requires the "
+        "RVV-owned route-control provider plan and runtime n/AVL/VL facts "
+        "before creating TCRVEmitCLowerableRoute");
+
+  const RVVSelectedBodyMaskTailPolicyProviderPlan &maskTailPlan =
+      computedMaskMemoryStatementPlan.maskTailPolicyPlan;
+  if (!maskTailPlan.plansMaskTailPolicy ||
+      !maskTailPlan.controlsComputedMaskMemory ||
+      maskTailPlan.controlsComputedMaskSelect ||
+      maskTailPlan.computedMaskMemoryPlan != &plan ||
+      maskTailPlan.typedConfigFacts != &analysis.typedConfigFacts ||
+      maskTailPlan.selectedTargetCapabilityFacts !=
+          &analysis.selectedTargetCapabilityFacts ||
+      maskTailPlan.bindingPlan != &analysis.routeOperandBindingPlan ||
+      maskTailPlan.familyPlanIDMirror != kRVVMaskTailPolicyRouteFamilyPlanID ||
+      maskTailPlan.ownerNameMirror !=
+          kRVVComputedMaskMemoryMaskTailPolicyOwner ||
+      maskTailPlan.maskProducerSourceMirror != plan.maskProducerSource ||
+      maskTailPlan.maskRoleMirror != plan.maskRole ||
+      maskTailPlan.maskSourceMirror != plan.maskSource ||
+      maskTailPlan.maskMemoryFormMirror != plan.maskMemoryForm ||
+      maskTailPlan.tailPolicyMirror != plan.runtimeControlPlan.tailPolicy ||
+      maskTailPlan.maskPolicyMirror != plan.runtimeControlPlan.maskPolicy ||
+      maskTailPlan.inactiveLaneContractMirror !=
+          plan.inactiveLaneContract ||
+      maskTailPlan.maskedPassthroughLayoutMirror !=
+          plan.maskedPassthroughLayout ||
+      maskTailPlan.runtimeABIOrderMirror != plan.runtimeABIOrder ||
+      maskTailPlan.routeOperandBindingPlanIDMirror !=
+          analysis.routeOperandBindingPlan.planID ||
+      maskTailPlan.providerSupportedMirror != plan.providerSupportedMirror ||
+      maskTailPlan.selectedProviderMirror !=
+          routeControlPlan->selectedProviderMirror ||
+      maskTailPlan.selectedLegalityMirror !=
+          routeControlPlan->selectedLegalityMirror)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " regular computed-mask memory route construction requires the "
+        "RVV-owned mask/tail policy provider plan from the same computed-mask "
+        "memory statement plan before creating TCRVEmitCLowerableRoute");
+
+  return llvm::Error::success();
 }
 
 llvm::Error verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(

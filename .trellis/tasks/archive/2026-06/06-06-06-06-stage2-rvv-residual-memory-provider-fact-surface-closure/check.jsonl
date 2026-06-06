@@ -1,0 +1,16 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global RVV authority chain and Stage2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check runtime-scalar splat-store and computed-mask memory owner-local provider-fact boundary compliance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check Common EmitC neutrality and provider-built route contract compliance."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check memory provider facts stay local to RVV plugin owners."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no high-level compute or source-front-door route authority was introduced."}
+{"file": ".trellis/tasks/06-06-06-06-stage2-rvv-residual-memory-provider-fact-surface-closure/prd.md", "reason": "Check implementation and evidence against this round's requirements and acceptance criteria."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-direct-contraction-fact-contract/prd.md", "reason": "Check consistency with the previous owner-local provider-fact relocation pattern."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVRuntimeScalarMemorySelectedBodyRealizationOwner.h", "reason": "Verify runtime-scalar splat-store owner surface owns the verifier declaration if used."}
+{"file": "lib/Plugin/RVV/RVVRuntimeScalarMemorySelectedBodyRealizationOwner.cpp", "reason": "Verify runtime-scalar splat-store verifier implementation is owner-local if moved there."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h", "reason": "Verify computed-mask memory provider-fact boundary declaration is owner-local."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCResidualStatementPlanOwners.cpp", "reason": "Verify runtime-scalar and computed-mask memory statement-plan owner implementation owns provider-fact checks."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Verify generic route-planning surface no longer declares the residual memory provider-fact verifiers."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Verify generic route planning no longer hosts residual memory provider-fact verifier implementations."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Verify provider still calls owner-local verifier(s) before constructing TCRVEmitCLowerableRoute."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Verify focused positive and fail-closed provider-fact coverage remains passing."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Verify target/export regressions for memory facts remain passing."}

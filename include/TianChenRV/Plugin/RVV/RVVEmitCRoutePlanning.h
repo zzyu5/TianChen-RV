@@ -1875,6 +1875,9 @@ bool isRVVSelectedBodyRouteFamilyProviderConsumer(
 llvm::Error verifyRVVSelectedBodyRouteFamilyProviderPlans(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
+llvm::Error validateRVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan(
+    const RVVSelectedBodyRuntimeScalarSplatStoreRouteFamilyPlan &plan);
+
 llvm::Expected<RVVSelectedBodyRouteMaterializationFacts>
 getRVVSelectedBodyRouteMaterializationFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
@@ -1883,38 +1886,9 @@ llvm::Expected<RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts>
 getRVVSelectedBodyElementwiseSelectRouteOperandBindingFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
 
-llvm::Error verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
-    const RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    const RVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan
-        &statementPlan,
-    llvm::StringRef context);
-
 llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
 getRVVSelectedBodyMemoryRouteOperandBindingFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);
-
-llvm::Error
-verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
-    const RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyComputedMaskMemoryRouteStatementPlan
-        &computedMaskMemoryStatementPlan,
-    llvm::StringRef context);
-
-llvm::Error
-verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
-    const RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyComputedMaskMemoryRouteStatementPlan
-        &computedMaskMemoryStatementPlan,
-    llvm::StringRef context);
 
 llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
 getRVVSelectedBodyMathRouteOperandBindingFacts(
