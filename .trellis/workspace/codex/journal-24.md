@@ -1154,3 +1154,36 @@ Closed computed-masked strided-input widening dot-reduce-add executable artifact
 ### Next Steps
 
 - None - task complete
+
+
+## Session 502: Stage2 RVV direct contraction artifact contract core
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV direct contraction artifact contract core
+**Branch**: `main`
+
+### Summary
+
+Consolidated the provider-owned artifact validation core shared by MAcc and widening dot-reduce/direct-contraction paths, updated target validators to consume the core, documented the executable contract, archived the Trellis task, and passed focused C++ and lit checks.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `52bb0204` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
