@@ -24604,9 +24604,10 @@ int main(void) {{
 
 static int run_case(size_t n) {{
   size_t alloc_n = n == 0 ? 1 : n;
+  size_t out_alloc_n = alloc_n + 8;
   {expectation.element_c_type} *lhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
   {expectation.element_c_type} *rhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
-  {expectation.element_c_type} *out = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *out = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * out_alloc_n);
   if (!lhs || !rhs || !out) {{
     fprintf(stderr, "allocation failed for n=%zu\\n", n);
     free(lhs);
@@ -24615,11 +24616,13 @@ static int run_case(size_t n) {{
     return 11;
   }}
 
-  for (size_t index = 0; index < n; ++index) {{
+  for (size_t index = 0; index < alloc_n; ++index) {{
     lhs[index] = {expectation.lhs_initializer};
     rhs[index] = {expectation.rhs_initializer};
     out[index] = {expectation.out_initializer};
   }}
+  for (size_t index = alloc_n; index < out_alloc_n; ++index)
+    out[index] = {expectation.out_initializer};
 
   {expectation.function_name}(lhs, rhs, out, n);
 
@@ -24656,10 +24659,23 @@ static int run_case(size_t n) {{
     return 13;
   }}
 
+  for (size_t index = n; index < out_alloc_n; ++index) {{
+    if (out[index] != {expectation.out_initializer}) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu raw_index=%zu got={value_printf_format} sentinel={value_printf_format}\\n",
+              n, index, {value_printf_cast}out[index],
+              {value_printf_cast}{expectation.out_initializer});
+      free(lhs);
+      free(rhs);
+      free(out);
+      return 14;
+    }}
+  }}
+
   free(lhs);
   free(rhs);
   free(out);
-  printf("{expectation.kind} case n=%zu ok predicate_true_lanes=%zu predicate_false_lanes=%zu\\n",
+  printf("{expectation.kind} case n=%zu ok predicate_true_lanes=%zu predicate_false_lanes=%zu tail_preserved\\n",
          n, predicate_true_lanes, predicate_false_lanes);
   return 0;
 }}

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check for global authority chain, Stage2 scope, and forbidden metadata/legacy authority"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check for compare/select RVV plugin ownership, provider preflight, statement-plan, and fail-closed requirements"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check for common EmitC neutrality and target artifact compare/select validation contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check for generated-bundle dry-run, ssh rvv evidence, and old-authority testing constraints"}

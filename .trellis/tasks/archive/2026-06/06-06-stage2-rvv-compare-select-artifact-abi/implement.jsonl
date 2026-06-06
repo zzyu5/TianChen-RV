@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage2 RVV route surface, and invalid route-authority constraints"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV compare/select selected-body realization, provider preflight, statement-plan, and target artifact contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned TCRVEmitCLowerableRoute, ABI/header/type summaries, and compare/select target validation contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle dry-run, ssh rvv runtime evidence, and compare/select predicate evidence requirements"}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-computed-masked-macc-artifact-abi/prd.md", "reason": "Reference evidence shape and no-source-change justification pattern from previous executable artifact ABI closeout"}

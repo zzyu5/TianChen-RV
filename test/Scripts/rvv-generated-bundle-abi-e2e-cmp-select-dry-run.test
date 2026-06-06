@@ -3,6 +3,7 @@
 # RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id cmp-select --overwrite --op-kind cmp_select --runtime-count 7 --runtime-count 16 --runtime-count 23 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/cmp-select/evidence.json
 # RUN: FileCheck %s --check-prefix=CMP --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_select" < %t.artifacts/cmp-select/cmp_select/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/cmp-select/cmp_select/rvv_generated_bundle_abi_cmp_select_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
 
@@ -23,3 +24,8 @@
 # CMP-DAG: "value": "vector-rhs-load"
 # CMP-DAG: "typed_compute_op": "tcrv_rvv.select"
 # CMP-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_explicit_selected_body_cmp_select_kernel_explicit_selected_body_rvv_i32_cmp_select(lhs, rhs, out, n);
+# HARNESS: (lhs[index] == rhs[index] ? lhs[index] : rhs[index])
+# HARNESS: touched tail sentinel
+# HARNESS: tail_preserved

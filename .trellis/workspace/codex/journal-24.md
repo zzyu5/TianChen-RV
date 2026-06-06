@@ -460,3 +460,39 @@ Archived the computed-masked MAcc artifact ABI task, audited the production seam
 ### Next Steps
 
 - None - task complete
+
+
+## Session 490: Stage2 RVV compare/select artifact ABI
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV compare/select artifact ABI
+**Branch**: `main`
+
+### Summary
+
+Hardened and proved the pre-realized compare/select generated-bundle artifact ABI boundary with tail-preservation evidence.
+
+### Main Changes
+
+- Created Trellis task stage2-rvv-compare-select-artifact-abi from the Hermes direction brief.
+- Audited the production compare/select provider, route planning, statement-plan owner, and target artifact validator seam. The C++ seam already consumes structural compare predicate, mask provenance, select role, runtime AVL/VL, header/type, and ABI facts before accepting artifact routes.
+- Fixed the plain cmp_select generated-bundle harness so it allocates a guard region after runtime n, initializes tail sentinels, fails with a targeted touched-tail diagnostic if the artifact writes past n, and prints tail_preserved after verification.
+- Updated explicit and pre-realized cmp-select dry-run lit tests to assert the tail-sentinel failure diagnostic and tail_preserved success marker.
+- Verified focused dry-run, focused lit, build targets, C++ smoke tests, and non-dry-run ssh rvv evidence for plain and selected compare/select family routes.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

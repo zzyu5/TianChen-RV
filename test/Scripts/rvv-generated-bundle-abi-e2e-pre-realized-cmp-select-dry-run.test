@@ -156,6 +156,8 @@
 # HARNESS-CMP: predicate_false_lanes
 # HARNESS-CMP: (lhs[index] == rhs[index] ? lhs[index] : rhs[index])
 # HARNESS-CMP: cmp_select predicate coverage missing
+# HARNESS-CMP: touched tail sentinel
+# HARNESS-CMP: tail_preserved
 # HARNESS-CMP: const size_t counts[] = {0, 1, 7, 16, 23, 257};
 
 # HARNESS-SLE: tcrv_emitc_pre_realized_body_cmp_select_sle_kernel_pre_realized_body_rvv_cmp_select_sle(lhs, rhs, out, n);
@@ -163,4 +165,6 @@
 # HARNESS-SLE: predicate_false_lanes
 # HARNESS-SLE: (lhs[index] <= rhs[index] ? lhs[index] : rhs[index])
 # HARNESS-SLE: cmp_select_sle predicate coverage missing
+# HARNESS-SLE: touched tail sentinel
+# HARNESS-SLE: tail_preserved
 # HARNESS-SLE: const size_t counts[] = {0, 1, 7, 16, 23, 257};
