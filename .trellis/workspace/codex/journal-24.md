@@ -40,6 +40,49 @@ Expanded product-reduction-dequant-clamp generated artifact ABI binding evidence
 - None - task complete
 
 
+## Session 488: Stage2 RVV runtime-scalar compare-masked memory executable artifact ABI boundary
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV runtime scalar compare masked memory artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Audited the runtime-scalar compare-masked store/load-store memory executable artifact ABI seam and confirmed the production path is already provider-owned and fail-closed. No compiler source change was justified; this round records the precise no-source-change production justification and adds real ssh rvv generated-bundle correctness evidence for both memory operations.
+
+### Main Changes
+
+- Created and completed the Trellis task/PRD for the runtime-scalar compare-masked memory artifact ABI boundary.
+- Confirmed selected-body realization fixes ABI order `lhs,rhs_scalar,src,dst,n`, runtime setvl/VL, compare-mask provenance, source/destination memory roles, and inactive-lane preservation.
+- Confirmed RVV provider validation owns runtime-scalar producer facts, typed config, memory operand bindings, statement plans, route-control facts, mask/tail policy, and stale-fact rejection before route construction.
+- Confirmed target artifact validation checks runtime-scalar computed-mask store/load-store header/prototype, ABI parameters, scalar splat, compare, masked memory statements, runtime AVL/VL contract, and provider mirrors.
+- Produced non-dry-run generated-bundle `ssh rvv` evidence for `runtime_scalar_cmp_masked_load_store` and `runtime_scalar_cmp_masked_store`; counts `0,1,16,23,257`, rhs scalars `-37,91`, source preservation, tail preservation, mixed masks, and inactive-lane preservation were covered.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | rvv: prove runtime scalar masked memory artifact abi |
+
+### Testing
+
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] generated-bundle dry-run scripts for runtime-scalar compare-masked load-store/store
+- [OK] generated-bundle fail-closed scripts for retired direct pre-realized route-entry shortcut
+- [OK] 4/4 generated-bundle Script lit tests selected by the runtime-scalar compare-masked memory filter
+- [OK] 6/6 Target/RVV lit tests selected by the runtime-scalar compare-masked memory artifact filter
+- [OK] non-dry-run generated-bundle `ssh rvv` correctness evidence for load-store and store
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 487: Stage2 RVV runtime-scalar masked standalone reduction executable artifact ABI boundary
 
 **Date**: 2026-06-06
