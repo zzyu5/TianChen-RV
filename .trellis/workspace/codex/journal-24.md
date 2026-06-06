@@ -552,7 +552,16 @@ Audited and proved pre-realized RVV widening conversion generated artifact ABI b
 
 ### Main Changes
 
-(Add details)
+- Created and archived the Trellis task/PRD for the plain MAcc add executable
+  artifact ABI boundary.
+- Confirmed no compiler source change was required: the existing production path
+  already uses selected `tcrv_rvv.macc` body facts, provider-owned MAcc route
+  facts, `TCRVEmitCLowerableRoute`, Common EmitC materialization, and target
+  artifact validation for ABI/header/type/runtime/statement facts.
+- Produced non-dry-run `ssh rvv` evidence for explicit and pre-realized
+  generated bundles, covering counts `0,1,16,17,257`, patterns `0,1`,
+  accumulator contribution, signed products, source preservation, and tail
+  preservation.
 
 ### Git Commits
 
@@ -562,7 +571,14 @@ Audited and proved pre-realized RVV widening conversion generated artifact ABI b
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] 5/5 lit tests selected by the plain MAcc generated-bundle/fixture/fail-closed filter
+- [OK] non-dry-run generated-bundle `ssh rvv` correctness evidence for explicit and pre-realized `macc_add`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded old-authority scan over staged added lines
 
 ### Status
 
@@ -625,6 +641,39 @@ Audited the product-reduce dequant-clamp f32 generated artifact ABI seam, found 
 | Hash | Message |
 |------|---------|
 | `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 494: Stage2 RVV MAcc add executable artifact ABI boundary
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV MAcc add executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Archived the MAcc add artifact ABI task after proving explicit and pre-realized generated bundles execute on ssh rvv with accumulator/product/source/tail preservation; no compiler source change required.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `included-in-this-commit` | (see git log) |
 
 ### Testing
 

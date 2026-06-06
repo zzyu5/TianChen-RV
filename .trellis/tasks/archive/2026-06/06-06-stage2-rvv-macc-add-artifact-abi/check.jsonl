@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider ownership, selected-body realization, typed MAcc facts, fail-closed route validation, and ssh rvv evidence."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check Common EmitC neutrality and provider-owned route value contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused evidence, generated-bundle execution, ssh rvv proof, and old-authority scan coverage."}
+{"file": ".trellis/tasks/06-06-stage2-rvv-macc-add-artifact-abi/prd.md", "reason": "Check task acceptance criteria and non-goal boundaries."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCMAccRouteFamilyPlanOwners.cpp", "reason": "Check MAcc provider-owned operand binding, ABI/header/type facts, and validation."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Check target artifact MAcc route-family validation contract and stale mirror rejection."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Check generated bundle ABI evidence and ssh rvv harness correctness."}

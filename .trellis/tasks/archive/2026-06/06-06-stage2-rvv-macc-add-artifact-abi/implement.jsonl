@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned selected-body, typed body/config, MAcc route support, fail-closed validation, and ssh rvv evidence rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC must consume provider-built routes without inventing RVV semantics; ABI/header summaries remain provider-owned payloads."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h", "reason": "Contraction/MAcc validation declarations and selected-body validation boundaries."}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Pre-realized MAcc body realization into typed tcrv_rvv structure and runtime ABI consumption."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCMAccRouteFamilyPlanOwners.cpp", "reason": "Plain MAcc provider facts, operand binding, ABI order, route-family plan, and validation contract."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "Provider-owned MAcc statement plan and emitted intrinsic operand order."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target artifact consumer validation for MAcc route headers, type mappings, ABI mappings, statement facts, and stale mirrors."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated bundle ABI, harness oracle, ssh rvv execution, evidence JSON, and fail-closed self-tests."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-macc-add-dry-run.test", "reason": "Explicit selected-body MAcc generated-bundle dry-run contract."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-macc-add-dry-run.test", "reason": "Pre-realized selected-body MAcc generated-bundle dry-run contract."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-macc-add-fail-closed.test", "reason": "Focused fail-closed direct pre-realized route-entry evidence."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-macc-add.mlir", "reason": "Explicit selected-body MAcc fixture."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-macc-add.mlir", "reason": "Pre-realized selected-body MAcc fixture."}
