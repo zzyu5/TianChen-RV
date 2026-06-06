@@ -948,3 +948,62 @@ no compiler source change was required.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 499: Stage2 RVV strided-input widening dot-reduce-add executable artifact ABI boundary
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV strided-input widening dot-reduce-add executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Revalidated the RVV strided-input widening dot-reduce-add executable artifact
+ABI seam on current HEAD with explicit and pre-realized generated bundles on
+`ssh rvv`; no compiler source change was required.
+
+### Main Changes
+
+- Created and archived the Trellis task/PRD for the strided-input widening
+  dot-reduce-add executable artifact ABI boundary.
+- Audited the production contraction family provider facts, selected-body
+  realization validator, statement owner, target artifact validation contract,
+  generated bundle script, and strided explicit/pre-realized fixtures.
+- Recorded a no-source-change conclusion: current production code already
+  derives the i16/mf2 strided lhs/rhs source roles, i32/m1 accumulator/result
+  boundary, lhs/rhs stride ABI bindings, scalar seed/result semantics,
+  runtime AVL/VL, `abi|str|addr|hdr` operand bindings, and target validation
+  facts from RVV-owned typed body/config/runtime facts.
+- Re-ran current-HEAD explicit and pre-realized strided generated bundle
+  evidence on `ssh rvv`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | rvv: prove strided widening dot reduce artifact abi |
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] explicit generated bundle `ssh rvv` run for
+  `strided_input_widening_dot_reduce_add`, counts `0,1,7,16,17,23,257`,
+  stride pairs `2:3,3:2`, data patterns `0,1`
+- [OK] pre-realized generated bundle `ssh rvv` run for
+  `strided_input_widening_dot_reduce_add`, counts `0,1,7,16,17,23,257`,
+  stride pairs `2:3,3:2`, data patterns `0,1`
+- [OK] focused lit filter for strided-input widening dot-reduce target
+  artifact, dry-run, and direct pre-realized fail-closed tests: 5/5 passed
+- [OK] `git diff --check` and `git diff --cached --check`
+- [OK] bounded old-authority scan over added task diff lines found no new
+  positive legacy route authority
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
