@@ -2908,6 +2908,19 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
     llvm::StringRef context);
 ```
 
+The durable provider-fact entry point is:
+
+```c++
+llvm::Error verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyComputedMaskMemoryRouteStatementPlan
+        &computedMaskMemoryStatementPlan,
+    llvm::StringRef context);
+```
+
 `RVVEmitCRouteProvider` must call this boundary after
 `verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context)`, after
 obtaining route materialization facts, and after obtaining the memory
@@ -2916,6 +2929,13 @@ computed-mask memory routes must consume
 `RVVSelectedBodyRouteControlProviderPlan` before statement construction.
 Non-consumer route families and excluded computed-mask segment2 routes receive
 an empty/default statement plan.
+
+`RVVEmitCRouteProvider` must call
+`verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts` after obtaining the
+computed-mask memory statement plan and before constructing
+`TCRVEmitCLowerableRoute`. Runtime-scalar and regular non-segment sub-family
+checks may stay as owner-internal helpers, but the central provider must not
+dispatch directly to those split helpers as its production fact boundary.
 
 ### 3. Contracts
 

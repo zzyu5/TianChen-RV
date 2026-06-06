@@ -5,6 +5,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
@@ -239,24 +240,8 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return memoryOperandBindingFactsOrError.takeError();
   const RVVSelectedBodyMemoryRouteOperandBindingFacts
       &memoryOperandBindingFacts = *memoryOperandBindingFactsOrError;
-  const bool isRuntimeScalarComputedMaskMemory =
-      description.operation ==
-          RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
-      description.operation ==
-          RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore;
-  const bool isRegularComputedMaskMemory =
-      description.operation ==
-          RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
-      description.operation ==
-          RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
-      description.operation ==
-          RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore ||
-      description.operation ==
-          RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore ||
-      description.operation ==
-          RVVSelectedBodyOperationKind::
-              ComputedMaskIndexedScatterStoreUnitLoad;
-  if (isRuntimeScalarComputedMaskMemory || isRegularComputedMaskMemory) {
+  if (isRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyConsumer(
+          description.operation)) {
     llvm::Expected<RVVSelectedBodyComputedMaskMemoryRouteStatementPlan>
         computedMaskMemoryStatementPlanOrError =
             getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
@@ -264,21 +249,12 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                 "selected RVV EmitC route construction");
     if (!computedMaskMemoryStatementPlanOrError)
       return computedMaskMemoryStatementPlanOrError.takeError();
-    if (isRuntimeScalarComputedMaskMemory) {
-      if (llvm::Error error =
-              verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
-                  analysis, materializationFacts, memoryOperandBindingFacts,
-                  *computedMaskMemoryStatementPlanOrError,
-                  "selected RVV EmitC route construction"))
-        return error;
-    } else {
-      if (llvm::Error error =
-              verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
-                  analysis, materializationFacts, memoryOperandBindingFacts,
-                  *computedMaskMemoryStatementPlanOrError,
-                  "selected RVV EmitC route construction"))
-        return error;
-    }
+    if (llvm::Error error =
+            verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
+                analysis, materializationFacts, memoryOperandBindingFacts,
+                *computedMaskMemoryStatementPlanOrError,
+                "selected RVV EmitC route construction"))
+      return error;
   }
   llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
       mathOperandBindingFactsOrError =

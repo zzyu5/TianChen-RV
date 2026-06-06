@@ -15023,9 +15023,7 @@ int runComputedMaskMemoryRouteFamilyProviderPlanTest(
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans;
   using tianchenrv::plugin::rvv::
-      verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts;
-  using tianchenrv::plugin::rvv::
-      verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts;
+      verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts;
   using tianchenrv::support::RuntimeABIParameterRole;
 
   for (RVVSelectedBodyOperationKind op :
@@ -15471,7 +15469,7 @@ module {
     }
     if (runtimeScalarStore || runtimeScalarLoadStore)
       if (int result = expectSuccess(
-              verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+              verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
                   analysis, *materializationFacts, *memoryFacts,
                   *statementPlan,
                   "runtime scalar computed-mask memory provider-boundary "
@@ -15484,7 +15482,7 @@ module {
     if (unitLoadStore || stridedStore || stridedLoad || indexedGather ||
         indexedScatter)
       if (int result = expectSuccess(
-              verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+              verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
                   analysis, *materializationFacts, *memoryFacts,
                   *statementPlan,
                   "regular computed-mask memory provider-boundary unit test"),
@@ -15751,7 +15749,7 @@ module {
   auto missingRuntimeScalarBindingFacts = *runtimeScalarBindingFacts;
   missingRuntimeScalarBindingFacts.rhsScalarABI = nullptr;
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
               missingRuntimeScalarBindingFacts,
               *runtimeScalarProviderStatementPlan,
@@ -15765,7 +15763,7 @@ module {
   staleRuntimeScalarStatementPlan.plansRuntimeScalarComputedMaskStore = false;
   staleRuntimeScalarStatementPlan.plansRuntimeScalarComputedMaskLoadStore = true;
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
               *runtimeScalarBindingFacts, staleRuntimeScalarStatementPlan,
               "runtime scalar computed-mask memory stale statement-plan "
@@ -15778,7 +15776,7 @@ module {
   staleRuntimeScalarMaskTailPlan.maskTailPolicyPlan.maskProducerSourceMirror =
       "vector-compare-rhs-load";
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               *runtimeScalarAnalysis, *runtimeScalarMaterializationFacts,
               *runtimeScalarBindingFacts, staleRuntimeScalarMaskTailPlan,
               "runtime scalar computed-mask memory stale mask-tail "
@@ -15790,7 +15788,7 @@ module {
   auto staleRuntimeScalarTypedFacts = *runtimeScalarMaterializationFacts;
   staleRuntimeScalarTypedFacts.typedConfigFacts.lmul = "m2";
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               *runtimeScalarAnalysis, staleRuntimeScalarTypedFacts,
               *runtimeScalarBindingFacts, *runtimeScalarProviderStatementPlan,
               "runtime scalar computed-mask memory stale typed-config "
@@ -15817,7 +15815,7 @@ module {
   staleRuntimeScalarMemoryFormBindingFacts.bindingPlan =
       &staleRuntimeScalarMemoryForm.routeOperandBindingPlan;
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               staleRuntimeScalarMemoryForm, *staleRuntimeScalarMemoryFormFacts,
               staleRuntimeScalarMemoryFormBindingFacts,
               *runtimeScalarProviderStatementPlan,
@@ -15846,7 +15844,7 @@ module {
   staleRuntimeScalarRuntimeControlBindingFacts.bindingPlan =
       &staleRuntimeScalarRuntimeControl.routeOperandBindingPlan;
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               staleRuntimeScalarRuntimeControl,
               *staleRuntimeScalarRuntimeControlFacts,
               staleRuntimeScalarRuntimeControlBindingFacts,
@@ -15873,7 +15871,7 @@ module {
   staleRuntimeScalarMirrorBindingFacts.bindingPlan =
       &staleRuntimeScalarMirror.routeOperandBindingPlan;
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               staleRuntimeScalarMirror, *staleRuntimeScalarMirrorFacts,
               staleRuntimeScalarMirrorBindingFacts,
               *runtimeScalarProviderStatementPlan,
@@ -15899,7 +15897,7 @@ module {
   staleRuntimeScalarABIBindingFacts.bindingPlan =
       &staleRuntimeScalarABI.routeOperandBindingPlan;
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               staleRuntimeScalarABI, *staleRuntimeScalarABIFacts,
               staleRuntimeScalarABIBindingFacts,
               *runtimeScalarProviderStatementPlan,
@@ -16158,7 +16156,7 @@ module {
       *runtimeScalarLoadStoreBindingFacts;
   missingPassthroughLoadStoreBindingFacts.passthroughABI = nullptr;
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               *runtimeScalarLoadStoreAnalysis,
               *runtimeScalarLoadStoreMaterializationFacts,
               missingPassthroughLoadStoreBindingFacts,
@@ -16209,7 +16207,7 @@ module {
   auto missingRegularBindingFacts = *unitBindingFacts;
   missingRegularBindingFacts.compareRhsABI = nullptr;
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               *unitLoadStoreAnalysis, *unitMaterializationFacts,
               missingRegularBindingFacts, *unitStatementPlan,
               "regular computed-mask memory missing compare RHS "
@@ -16223,7 +16221,7 @@ module {
   staleRegularStatementPlan.plansComputedMaskUnitLoadStore = false;
   staleRegularStatementPlan.plansComputedMaskStridedStore = true;
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               *unitLoadStoreAnalysis, *unitMaterializationFacts,
               *unitBindingFacts, staleRegularStatementPlan,
               "regular computed-mask memory stale statement-plan "
@@ -16235,7 +16233,7 @@ module {
   auto staleRegularLeafPlan = *unitStatementPlan;
   staleRegularLeafPlan.loop.bodySteps[0].callee = "metadata-selected-setvl";
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               *unitLoadStoreAnalysis, *unitMaterializationFacts,
               *unitBindingFacts, staleRegularLeafPlan,
               "regular computed-mask memory stale statement-leaf "
@@ -16249,7 +16247,7 @@ module {
   staleRegularMaskTailPlan.maskTailPolicyPlan.maskProducerSourceMirror =
       "runtime-scalar-splat-compare-rhs";
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               *unitLoadStoreAnalysis, *unitMaterializationFacts,
               *unitBindingFacts, staleRegularMaskTailPlan,
               "regular computed-mask memory stale mask-tail "
@@ -16261,7 +16259,7 @@ module {
   auto staleRegularTypedFacts = *unitMaterializationFacts;
   staleRegularTypedFacts.typedConfigFacts.lmul = "m2";
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               *unitLoadStoreAnalysis, staleRegularTypedFacts, *unitBindingFacts,
               *unitStatementPlan,
               "regular computed-mask memory stale typed-config "
@@ -16273,7 +16271,7 @@ module {
   auto missingRegularMaterializationFacts = *unitMaterializationFacts;
   missingRegularMaterializationFacts.computedMaskMemoryPlan = nullptr;
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               *unitLoadStoreAnalysis, missingRegularMaterializationFacts,
               *unitBindingFacts, *unitStatementPlan,
               "regular computed-mask memory missing materialization "
@@ -16298,7 +16296,7 @@ module {
   staleRegularMemoryFormBindingFacts.bindingPlan =
       &staleRegularMemoryForm.routeOperandBindingPlan;
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               staleRegularMemoryForm, *staleRegularMemoryFormFacts,
               staleRegularMemoryFormBindingFacts, *unitStatementPlan,
               "regular computed-mask memory stale memory-form "
@@ -16320,7 +16318,7 @@ module {
   staleRegularMirrorBindingFacts.bindingPlan =
       &staleRegularMirror.routeOperandBindingPlan;
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               staleRegularMirror, *staleRegularMirrorFacts,
               staleRegularMirrorBindingFacts, *unitStatementPlan,
               "regular computed-mask memory stale mirror "
@@ -16446,7 +16444,7 @@ module {
   auto missingDestinationStrideFacts = *stridedStoreBindingFacts;
   missingDestinationStrideFacts.destinationStrideABI = nullptr;
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               *stridedStoreAnalysis, *stridedStoreMaterializationFacts,
               missingDestinationStrideFacts, *stridedStoreStatementPlan,
               "regular computed-mask strided-store missing stride "
@@ -16591,7 +16589,7 @@ module {
   auto missingIndexBindingFacts = *indexedBindingFacts;
   missingIndexBindingFacts.indexABI = nullptr;
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
               *indexedAnalysis, *indexedMaterializationFacts,
               missingIndexBindingFacts, *indexedStatementPlan,
               "regular computed-mask indexed missing index "

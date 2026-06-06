@@ -1089,6 +1089,52 @@ verifyRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyProviderPlans(
       analysis, context);
 }
 
+llvm::Error verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyComputedMaskMemoryRouteStatementPlan
+        &computedMaskMemoryStatementPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  if (!isRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyConsumer(
+          operation)) {
+    if (computedMaskMemoryStatementPlan.plansComputedMaskMemoryRoute ||
+        computedMaskMemoryStatementPlan.computedMaskMemoryPlan ||
+        !computedMaskMemoryStatementPlan.preLoopSteps.empty() ||
+        !computedMaskMemoryStatementPlan.loop.bodySteps.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " non computed-mask memory route construction must not carry a "
+          "computed-mask memory statement plan before creating "
+          "TCRVEmitCLowerableRoute");
+    return llvm::Error::success();
+  }
+
+  switch (operation) {
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
+  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore:
+    return verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
+        analysis, materializationFacts, memoryOperandBindingFacts,
+        computedMaskMemoryStatementPlan, context);
+  case RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+  case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+    return verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
+        analysis, materializationFacts, memoryOperandBindingFacts,
+        computedMaskMemoryStatementPlan, context);
+  default:
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask memory route construction reached an unsupported "
+        "non-segment computed-mask memory consumer before creating "
+        "TCRVEmitCLowerableRoute");
+  }
+}
+
 llvm::ArrayRef<RVVSelectedBodyMemoryRouteFamilyOwner>
 getRVVSelectedBodyComputedMaskMemoryRouteFamilyOwners() {
   static const RVVSelectedBodyMemoryRouteFamilyOwner owners[] = {

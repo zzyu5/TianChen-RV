@@ -1768,3 +1768,36 @@ Added RVV base-memory provider-facts verification before EmitC route constructio
 ### Next Steps
 
 - None - task complete
+
+
+## Session 481: Computed-mask memory provider fact contract
+
+**Date**: 2026-06-06
+**Task**: Computed-mask memory provider fact contract
+**Branch**: `main`
+
+### Summary
+
+Added a computed-mask memory owner-level provider-fact verifier entry point, wired RVVEmitCRouteProvider to use it before route construction, updated tests/spec, archived the task, and verified RVV plugin plus target artifact export tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b024a611` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
