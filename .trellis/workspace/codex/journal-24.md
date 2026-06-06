@@ -820,7 +820,10 @@ Archived the MAcc add artifact ABI task after proving explicit and pre-realized 
 
 ### Main Changes
 
-(Add details)
+- Extended `--tcrv-rvv-materialize-gearbox-schedules` to materialize bounded `tcrv_rvv.low_precision_resource.*` facts for `widening_product_reduce_dequantize_f32`.
+- Wired provider route-family planning to consume pass-produced resource facts and reject missing/stale resource candidate fields before route acceptance.
+- Copied pre-realized resource facts into realized `with_vl` bodies and allowed the new attrs on the owning RVV ops.
+- Updated generated-bundle materialization and lit/C++ fixtures for the new pass/provider contract.
 
 ### Git Commits
 
@@ -830,7 +833,12 @@ Archived the MAcc add artifact ABI task after proving explicit and pre-realized 
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] targeted lit filter for Gearbox pass and product-dequant explicit/pre-realized target fixtures
+- [OK] added-line legacy authority scan
+- [OK] `git diff --check` and `git diff --cached --check`
 
 ### Status
 
@@ -1505,6 +1513,39 @@ Classified and retained the stray RVV Gearbox wording/spec/artifact archive resi
 | Hash | Message |
 |------|---------|
 | `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 509: Stage2 RVV Gearbox low-precision resource facts
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV Gearbox low-precision resource facts
+**Branch**: `main`
+
+### Summary
+
+Implemented RVV Gearbox low-precision resource candidate facts for product-reduce-dequantize bodies, wired provider consumption/fail-closed validation, added lit/C++ coverage, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| this commit | (see git log) |
 
 ### Testing
 

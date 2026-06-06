@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV Stage order, and source-of-truth rules"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV Gearbox/product-dequant low-precision resource-aware closure contract"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "RVV plugin-local Gearbox/resource-aware pass pipeline and tuning boundary"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-derived tuning/resource facts without metadata authority"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep Gearbox/resource candidate logic RVV plugin-local"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Avoid moving compute semantics into core/common EmitC or metadata"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h", "reason": "Define RVV low-precision resource candidate attr names and bounded static candidate constants"}
+{"file": "lib/Plugin/RVV/RVVGearboxSchedules.cpp", "reason": "Materialize bounded product-reduce-dequant low-precision resource facts from selected typed RVV body facts"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Make product-reduce-dequant provider consume pass-produced resource facts and fail closed on missing or stale facts"}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Copy pass-produced low-precision resource facts from pre-realized body to realized with_vl"}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Allow low-precision resource facts on the selected body operations that own or consume them"}
+{"file": "include/TianChenRV/Transforms/Passes.td", "reason": "Document the extended Gearbox pass surface for product-reduce-dequant resource facts"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Run Gearbox pass in generated-bundle materialization for widening_product_reduce_dequantize_f32"}

@@ -277,12 +277,14 @@ def MaterializeRVVGearboxSchedules
     : Pass<"tcrv-rvv-materialize-gearbox-schedules", "::mlir::ModuleOp"> {
   let summary = "Materialize bounded RVV Gearbox schedule facts on selected typed RVV bodies";
   let description = [{
-    Runs one RVV plugin-local Stage 2 Gearbox MVP over already selected and
-    realized typed tcrv_rvv bodies. The pass recognizes the existing bounded
-    dequantize_i32_to_f32 body shape, derives a bounded one-candidate legal
-    inventory and deterministic selected schedule from typed body/config/runtime
-    facts, and materializes explicit tcrv_rvv.gearbox.* facts on the with_vl
-    boundary and dequantize operation.
+    Runs one RVV plugin-local Stage 2 Gearbox MVP over already selected typed
+    tcrv_rvv bodies. The pass recognizes the existing bounded
+    dequantize_i32_to_f32 body shape and the bounded low-precision
+    widening_product_reduce_dequantize_f32 representative, derives a bounded
+    legal candidate inventory and deterministic selected schedule/resource
+    candidate from typed body/config/runtime facts, and materializes explicit
+    tcrv_rvv.gearbox.* or tcrv_rvv.low_precision_resource.* facts on the
+    selected body boundary.
 
     The pass does not benchmark, profile, query assembly, persist tuning
     caches, infer from artifact names or route strings, change computation

@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
+#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OperationSupport.h"
@@ -26,6 +27,13 @@ llvm::Error makeRVVPluginError(llvm::Twine message) {
 mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
                                   llvm::StringRef symbol) {
   return mlir::FlatSymbolRefAttr::get(builder.getContext(), symbol);
+}
+
+void copyLowPrecisionResourceAttrs(mlir::Operation *source,
+                                   mlir::Operation *destination) {
+  for (mlir::NamedAttribute attr : source->getAttrs())
+    if (isRVVLowPrecisionResourceAttrName(attr.getName().getValue()))
+      destination->setAttr(attr.getName(), attr.getValue());
 }
 
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
@@ -591,6 +599,7 @@ realizePreRealizedRVVSelectedContractionFamily(
       createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
                            request.getRole(), requires, plan.resultSEW,
                            plan.resultLMUL, plan.policy);
+  copyLowPrecisionResourceAttrs(plan.preRealizedBody, withVL.getOperation());
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
   mlir::Value compareLHSValue;

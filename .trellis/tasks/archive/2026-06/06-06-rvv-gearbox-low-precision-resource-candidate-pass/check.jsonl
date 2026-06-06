@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Check Stage2 RVV typed-body/provider/target validation authority"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check low-precision direct-contraction resource candidate acceptance and fail-closed matrix"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check pass-pipeline/resource-aware tuning scope and non-goals"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check capability facts are constraints, not route/dtype authority"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check plugin-locality and common EmitC neutrality"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check selected-body/resource facts do not become high-level compute IR"}
+{"file": "test/Transforms/RVV/rvv-gearbox-widening-product-reduce-dequantize-f32.mlir", "reason": "Focused lit coverage for positive low-precision resource facts and stale/unsupported fail-closed pass behavior"}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir", "reason": "Target route validation coverage for explicit selected body missing/stale pass resource facts and artifact mirrors"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir", "reason": "Target route validation coverage for pre-realized body resource facts copied into realized with_vl"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "C++ provider/realization fixture coverage for pass-produced low-precision resource selection consumption"}

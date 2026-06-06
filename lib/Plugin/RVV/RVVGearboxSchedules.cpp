@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 
 namespace tianchenrv::transforms {
 
@@ -61,13 +62,41 @@ using tianchenrv::tcrv::rvv::DequantizeOp;
 using tianchenrv::tcrv::rvv::LoadOp;
 using tianchenrv::tcrv::rvv::RuntimeABIValueOp;
 using tianchenrv::tcrv::rvv::SetVLOp;
+using tianchenrv::tcrv::rvv::StandaloneReduceOp;
 using tianchenrv::tcrv::rvv::StoreOp;
+using tianchenrv::tcrv::rvv::
+    TypedWideningProductReduceDequantizePreRealizedBodyOp;
 using tianchenrv::tcrv::rvv::VectorType;
 using tianchenrv::tcrv::rvv::WithVLOp;
+using tianchenrv::tcrv::rvv::WideningProductOp;
 
 constexpr llvm::StringLiteral kDequantizationKind("i32_to_f32_scaled");
 constexpr llvm::StringLiteral kDequantizationRelation(
     "signed-i32m1-to-f32m1-scale-f32");
+constexpr llvm::StringLiteral kLowPrecisionProductDequantOpKind(
+    "widening_product_reduce_dequantize_f32");
+constexpr llvm::StringLiteral kLowPrecisionProductDequantMemoryForm(
+    "unit-stride-widening-product-reduce-dequantize-f32");
+constexpr llvm::StringLiteral kLowPrecisionProductRelation(
+    "signed-i8mf4xi8mf4-to-i16mf2");
+constexpr llvm::StringLiteral kLowPrecisionProductReductionRelation(
+    "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32");
+constexpr llvm::StringLiteral kLowPrecisionProductKind(
+    "signed_widening_product");
+constexpr llvm::StringLiteral kLowPrecisionReduceKind(
+    "signed_widening_reduce_add");
+constexpr llvm::StringLiteral kLowPrecisionAccumulatorRole(
+    "accumulator-input-buffer");
+constexpr llvm::StringLiteral kLowPrecisionAccumulatorLayout(
+    "scalar-i32-seed-lane0-from-accumulator-input");
+constexpr llvm::StringLiteral kLowPrecisionResultLayout(
+    "store-standalone-reduction-lane0-to-output-scalar");
+constexpr llvm::StringLiteral kLowPrecisionDequantStoreBoundary(
+    "store-dequantized-f32-vector-to-output-buffer");
+constexpr llvm::StringLiteral kLowPrecisionSourceDType("i8");
+constexpr llvm::StringLiteral kLowPrecisionProductDType("i16");
+constexpr llvm::StringLiteral kLowPrecisionAccumulatorDType("i32");
+constexpr llvm::StringLiteral kLowPrecisionResultDType("f32");
 
 mlir::LogicalResult requireRuntimeABIValue(RuntimeABIValueOp value,
                                            mlir::Operation *anchor,
@@ -199,6 +228,253 @@ mlir::LogicalResult requireVectorType(mlir::Value value,
   return mlir::success();
 }
 
+llvm::StringRef
+stringifyGearboxTailPolicy(tianchenrv::tcrv::rvv::TailPolicy policy) {
+  switch (policy) {
+  case tianchenrv::tcrv::rvv::TailPolicy::Agnostic:
+    return "agnostic";
+  case tianchenrv::tcrv::rvv::TailPolicy::Undisturbed:
+    return "undisturbed";
+  }
+  return "";
+}
+
+llvm::StringRef
+stringifyGearboxMaskPolicy(tianchenrv::tcrv::rvv::MaskPolicy policy) {
+  switch (policy) {
+  case tianchenrv::tcrv::rvv::MaskPolicy::Agnostic:
+    return "agnostic";
+  case tianchenrv::tcrv::rvv::MaskPolicy::Undisturbed:
+    return "undisturbed";
+  }
+  return "";
+}
+
+mlir::LogicalResult requireLowPrecisionProductDequantShape(
+    mlir::Operation *op, std::int64_t sourceSEW, llvm::StringRef sourceLMUL,
+    std::int64_t productSEW, llvm::StringRef productLMUL,
+    std::int64_t resultSEW, llvm::StringRef resultLMUL,
+    llvm::StringRef memoryForm) {
+  if (sourceSEW == 8 && sourceLMUL == "mf4" && productSEW == 16 &&
+      productLMUL == "mf2" && resultSEW == 32 && resultLMUL == "m1" &&
+      memoryForm == kLowPrecisionProductDequantMemoryForm)
+    return mlir::success();
+  return op->emitError()
+         << "RVV low-precision Gearbox resource candidate derivation supports "
+            "only "
+         << kLowPrecisionProductDequantMemoryForm
+         << " with i8mf4 sources, i16mf2 product, i32m1 accumulator, and "
+            "f32m1 result";
+}
+
+mlir::LogicalResult materializeLowPrecisionResourceAttrs(
+    mlir::Operation *op, mlir::OpBuilder &builder,
+    tianchenrv::tcrv::rvv::PolicyAttr policy, std::int64_t sourceSEW,
+    llvm::StringRef sourceLMUL, std::int64_t productSEW,
+    llvm::StringRef productLMUL, std::int64_t resultSEW,
+    llvm::StringRef resultLMUL, llvm::StringRef memoryForm) {
+  if (!policy)
+    return op->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires an explicit RVV policy";
+  if (mlir::failed(requireLowPrecisionProductDequantShape(
+          op, sourceSEW, sourceLMUL, productSEW, productLMUL, resultSEW,
+          resultLMUL, memoryForm)))
+    return mlir::failure();
+
+  using namespace tianchenrv::plugin::rvv;
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceCandidateSetAttrName,
+          kRVVLowPrecisionResourceCandidateSet)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceSelectedCandidateAttrName,
+          kRVVLowPrecisionResourceDequantCandidate)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceSelectionReasonAttrName,
+          kRVVLowPrecisionResourceDequantSelectionReason)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceLegalityScopeAttrName,
+          kRVVLowPrecisionResourceLegalityScope)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceSourceDTypeAttrName,
+          kLowPrecisionSourceDType)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceSourceSEWAttrName, sourceSEW)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceSourceLMULAttrName,
+          sourceLMUL)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceProductDTypeAttrName,
+          kLowPrecisionProductDType)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceProductSEWAttrName, productSEW)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceProductLMULAttrName,
+          productLMUL)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceProductEMULAttrName,
+          kRVVLowPrecisionResourceProductEMUL)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceAccumulatorDTypeAttrName,
+          kLowPrecisionAccumulatorDType)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceAccumulatorSEWAttrName,
+          resultSEW)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceAccumulatorLMULAttrName,
+          resultLMUL)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceAccumulatorEMULAttrName,
+          kRVVLowPrecisionResourceAccumulatorEMUL)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceResultDTypeAttrName,
+          kLowPrecisionResultDType)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceResultSEWAttrName, resultSEW)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceResultLMULAttrName,
+          resultLMUL)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceMemoryFormAttrName, memoryForm)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceTailPolicyAttrName,
+          stringifyGearboxTailPolicy(policy.getTail()))))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceMaskPolicyAttrName,
+          stringifyGearboxMaskPolicy(policy.getMask()))))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceUnrollFactorAttrName,
+          kRVVLowPrecisionResourceStaticUnroll)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceAccumulatorCountAttrName,
+          kRVVLowPrecisionResourceAccumulatorCount)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceReductionLayoutAttrName,
+          kRVVLowPrecisionResourceReductionLayout)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceVSetVLRegionCountAttrName,
+          kRVVLowPrecisionResourceVSetVLRegions)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourcePeakLiveVectorGroupsAttrName,
+          kRVVLowPrecisionResourcePeakLiveVectorGroups)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceVectorRegisterBudgetAttrName,
+          kRVVLowPrecisionResourceVectorRegisterBudget)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceRuntimeAVLSourceAttrName,
+          kRVVGearboxRuntimeAVLSourceN)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceRuntimeABIOrderAttrName,
+          kRVVLowPrecisionResourceRuntimeABIOrder)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceLegalityAttrName,
+          kRVVLowPrecisionResourceLegal)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceRejectionReasonAttrName,
+          kRVVLowPrecisionResourceNoRejectionReason)))
+    return mlir::failure();
+  return mlir::success();
+}
+
+mlir::LogicalResult validatePreRealizedLowPrecisionProductDequantBody(
+    TypedWideningProductReduceDequantizePreRealizedBodyOp body) {
+  if (body.getOpKind() != kLowPrecisionProductDequantOpKind ||
+      body.getMemoryForm() != kLowPrecisionProductDequantMemoryForm)
+    return body->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires op_kind '"
+           << kLowPrecisionProductDequantOpKind << "' and memory_form '"
+           << kLowPrecisionProductDequantMemoryForm << "'";
+  if (body.getAccumulatorRole() != kLowPrecisionAccumulatorRole ||
+      body.getAccumulatorLayout() != kLowPrecisionAccumulatorLayout ||
+      body.getResultLayout() != kLowPrecisionResultLayout)
+    return body->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires the bounded scalar i32 accumulator/result layout";
+  if (body.getProductRelation() != kLowPrecisionProductRelation ||
+      body.getProductReductionChainRelation() !=
+          kLowPrecisionProductReductionRelation ||
+      body.getDequantRelation() != kDequantizationRelation ||
+      body.getScaleRole() != "dequant-scale-value" ||
+      body.getDequantStoreBoundary() != kLowPrecisionDequantStoreBoundary)
+    return body->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires product/reduction/dequant/store boundary facts from "
+              "the selected typed body";
+
+  if (mlir::failed(requireLowPrecisionProductDequantShape(
+          body.getOperation(), body.getSourceSew(), body.getSourceLmul(),
+          body.getProductSew(), body.getProductLmul(), body.getResultSew(),
+          body.getResultLmul(), body.getMemoryForm())))
+    return mlir::failure();
+  if (mlir::failed(requireRuntimeABIValue(
+          body.getLhs().getDefiningOp<RuntimeABIValueOp>(), body,
+          "low-precision lhs", "lhs-input-buffer", "lhs")))
+    return mlir::failure();
+  if (mlir::failed(requireRuntimeABIValue(
+          body.getRhs().getDefiningOp<RuntimeABIValueOp>(), body,
+          "low-precision rhs", "rhs-input-buffer", "rhs")))
+    return mlir::failure();
+  if (mlir::failed(requireRuntimeABIValue(
+          body.getAcc().getDefiningOp<RuntimeABIValueOp>(), body,
+          "low-precision accumulator", "accumulator-input-buffer", "acc")))
+    return mlir::failure();
+  if (mlir::failed(requireRuntimeABIValue(
+          body.getScale().getDefiningOp<RuntimeABIValueOp>(), body,
+          "low-precision dequant scale", "dequant-scale-value", "scale")))
+    return mlir::failure();
+  if (mlir::failed(requireRuntimeABIValue(
+          body.getOut().getDefiningOp<RuntimeABIValueOp>(), body,
+          "low-precision output", "output-buffer", "out")))
+    return mlir::failure();
+  if (mlir::failed(requireRuntimeABIValue(
+          body.getN().getDefiningOp<RuntimeABIValueOp>(), body,
+          "low-precision runtime AVL", "runtime-element-count", "n")))
+    return mlir::failure();
+  return mlir::success();
+}
+
+mlir::LogicalResult materializeLowPrecisionResourceForPreRealizedBody(
+    TypedWideningProductReduceDequantizePreRealizedBodyOp body) {
+  if (mlir::failed(validatePreRealizedLowPrecisionProductDequantBody(body)))
+    return mlir::failure();
+  mlir::OpBuilder builder(body.getContext());
+  return materializeLowPrecisionResourceAttrs(
+      body.getOperation(), builder, body.getPolicy(), body.getSourceSew(),
+      body.getSourceLmul(), body.getProductSew(), body.getProductLmul(),
+      body.getResultSew(), body.getResultLmul(), body.getMemoryForm());
+}
+
 mlir::LogicalResult validateDequantizationGearboxBody(WithVLOp withVL,
                                                       DequantizeOp dequantize) {
   SetVLOp setvl = withVL.getVl().getDefiningOp<SetVLOp>();
@@ -283,6 +559,142 @@ mlir::LogicalResult validateDequantizationGearboxBody(WithVLOp withVL,
   return mlir::success();
 }
 
+mlir::LogicalResult
+validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
+                                              DequantizeOp dequantize) {
+  SetVLOp setvl = withVL.getVl().getDefiningOp<SetVLOp>();
+  tianchenrv::tcrv::rvv::RVVConfigContractDiagnostic config =
+      tianchenrv::tcrv::rvv::validateRVVSelectedBodyM1ConfigVLContract(setvl,
+                                                                       withVL);
+  if (!config.ok)
+    return withVL->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires selected product-dequant SEW32 LMUL m1 config: "
+           << config.message;
+
+  StandaloneReduceOp reduce =
+      dequantize.getSource().getDefiningOp<StandaloneReduceOp>();
+  if (!reduce || reduce->getParentOp() != withVL.getOperation() ||
+      reduce.getVl() != withVL.getVl())
+    return dequantize->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires dequantize source from one same-scope "
+              "tcrv_rvv.standalone_reduce";
+
+  WideningProductOp product =
+      reduce.getInput().getDefiningOp<WideningProductOp>();
+  if (!product || product->getParentOp() != withVL.getOperation() ||
+      product.getVl() != withVL.getVl())
+    return reduce->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires standalone_reduce input from one same-scope "
+              "tcrv_rvv.widening_product";
+
+  auto *context = withVL.getContext();
+  if (mlir::failed(requireVectorType(product.getLhs(), product, "lhs source",
+                                     mlir::IntegerType::get(context, 8),
+                                     "mf4")))
+    return mlir::failure();
+  if (mlir::failed(requireVectorType(product.getRhs(), product, "rhs source",
+                                     mlir::IntegerType::get(context, 8),
+                                     "mf4")))
+    return mlir::failure();
+  if (mlir::failed(requireVectorType(product.getResult(), product,
+                                     "widening product result",
+                                     mlir::IntegerType::get(context, 16),
+                                     "mf2")))
+    return mlir::failure();
+  if (mlir::failed(requireVectorType(reduce.getResult(), reduce,
+                                     "reduction accumulator/result",
+                                     mlir::IntegerType::get(context, 32),
+                                     "m1")))
+    return mlir::failure();
+  if (mlir::failed(requireVectorType(dequantize.getResult(), dequantize,
+                                     "dequantized result",
+                                     mlir::Float32Type::get(context), "m1")))
+    return mlir::failure();
+
+  if (product.getKind() != kLowPrecisionProductKind ||
+      product.getProductRelation() != kLowPrecisionProductRelation)
+    return product->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires widening_product kind '"
+           << kLowPrecisionProductKind << "' and relation '"
+           << kLowPrecisionProductRelation << "'";
+  if (reduce.getKind() != kLowPrecisionReduceKind ||
+      reduce.getAccumulatorLayout() != kLowPrecisionAccumulatorLayout ||
+      reduce.getResultLayout() != kLowPrecisionResultLayout)
+    return reduce->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires signed widening reduce and scalar i32 accumulator "
+              "layout";
+  if (dequantize.getKind() != kDequantizationKind ||
+      dequantize.getDequantRelation() != kDequantizationRelation ||
+      dequantize.getVl() != withVL.getVl())
+    return dequantize->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires dequantize kind '"
+           << kDequantizationKind << "', relation '"
+           << kDequantizationRelation << "', and the active with_vl token";
+
+  LoadOp lhsLoad = product.getLhs().getDefiningOp<LoadOp>();
+  LoadOp rhsLoad = product.getRhs().getDefiningOp<LoadOp>();
+  if (!lhsLoad || lhsLoad->getParentOp() != withVL.getOperation() ||
+      lhsLoad.getVl() != withVL.getVl() || !rhsLoad ||
+      rhsLoad->getParentOp() != withVL.getOperation() ||
+      rhsLoad.getVl() != withVL.getVl())
+    return product->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires same-scope lhs/rhs unit-stride loads";
+
+  if (mlir::failed(requireRuntimeABIValue(
+          lhsLoad.getBuffer().getDefiningOp<RuntimeABIValueOp>(), lhsLoad,
+          "low-precision lhs load", "lhs-input-buffer", "lhs")))
+    return mlir::failure();
+  if (mlir::failed(requireRuntimeABIValue(
+          rhsLoad.getBuffer().getDefiningOp<RuntimeABIValueOp>(), rhsLoad,
+          "low-precision rhs load", "rhs-input-buffer", "rhs")))
+    return mlir::failure();
+  if (mlir::failed(requireRuntimeABIValue(
+          reduce.getAccumulatorSeed().getDefiningOp<RuntimeABIValueOp>(),
+          reduce, "low-precision accumulator", "accumulator-input-buffer",
+          "acc")))
+    return mlir::failure();
+  if (mlir::failed(requireRuntimeABIValue(
+          dequantize.getScale().getDefiningOp<RuntimeABIValueOp>(), dequantize,
+          "low-precision dequant scale", "dequant-scale-value", "scale")))
+    return mlir::failure();
+  RuntimeABIValueOp avl = setvl.getAvl().getDefiningOp<RuntimeABIValueOp>();
+  if (mlir::failed(requireRuntimeABIValue(avl, setvl, "low-precision AVL",
+                                          "runtime-element-count", "n")))
+    return mlir::failure();
+
+  StoreOp store;
+  for (mlir::OpOperand &use : dequantize.getResult().getUses()) {
+    auto candidate = llvm::dyn_cast<StoreOp>(use.getOwner());
+    if (!candidate || use.getOperandNumber() != 1)
+      return dequantize->emitError()
+             << "RVV low-precision Gearbox resource candidate derivation "
+                "supports the dequantize representative only when the f32 "
+                "result feeds a direct tcrv_rvv.store";
+    if (store)
+      return dequantize->emitError()
+             << "RVV low-precision Gearbox resource candidate derivation "
+                "requires exactly one dequantized result store";
+    store = candidate;
+  }
+  if (!store || store->getParentOp() != withVL.getOperation() ||
+      store.getVl() != withVL.getVl())
+    return dequantize->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires one same-scope store of the dequantized result";
+  if (mlir::failed(requireRuntimeABIValue(
+          store.getBuffer().getDefiningOp<RuntimeABIValueOp>(), store,
+          "low-precision output", "output-buffer", "out")))
+    return mlir::failure();
+  return mlir::success();
+}
+
 mlir::LogicalResult materializeGearboxForWithVL(WithVLOp withVL) {
   llvm::SmallVector<DequantizeOp, 2> dequantizeOps;
   withVL.getBody().walk(
@@ -295,6 +707,22 @@ mlir::LogicalResult materializeGearboxForWithVL(WithVLOp withVL) {
               "per with_vl body";
 
   DequantizeOp dequantize = dequantizeOps.front();
+  if (dequantize.getSource().getDefiningOp<StandaloneReduceOp>()) {
+    if (mlir::failed(validateLowPrecisionProductDequantGearboxBody(
+            withVL, dequantize)))
+      return mlir::failure();
+    mlir::OpBuilder builder(withVL.getContext());
+    std::optional<tianchenrv::tcrv::rvv::PolicyAttr> policy =
+        withVL.getPolicy();
+    if (!policy)
+      return withVL->emitError()
+             << "RVV low-precision Gearbox resource candidate derivation "
+                "requires an explicit with_vl policy";
+    return materializeLowPrecisionResourceAttrs(
+        withVL.getOperation(), builder, *policy, 8, "mf4", 16,
+        "mf2", 32, "m1", kLowPrecisionProductDequantMemoryForm);
+  }
+
   if (mlir::failed(validateDequantizationGearboxBody(withVL, dequantize)))
     return mlir::failure();
 
@@ -311,6 +739,21 @@ class MaterializeRVVGearboxSchedulesPass final
           MaterializeRVVGearboxSchedulesPass> {
 public:
   void runOnOperation() override {
+    llvm::SmallVector<TypedWideningProductReduceDequantizePreRealizedBodyOp, 8>
+        preRealizedProductDequantBodies;
+    getOperation()->walk(
+        [&](TypedWideningProductReduceDequantizePreRealizedBodyOp body) {
+          preRealizedProductDequantBodies.push_back(body);
+        });
+    for (TypedWideningProductReduceDequantizePreRealizedBodyOp body :
+         preRealizedProductDequantBodies) {
+      if (mlir::failed(materializeLowPrecisionResourceForPreRealizedBody(
+              body))) {
+        signalPassFailure();
+        return;
+      }
+    }
+
     llvm::SmallVector<WithVLOp, 8> withVLOps;
     getOperation()->walk([&](WithVLOp withVL) { withVLOps.push_back(withVL); });
 

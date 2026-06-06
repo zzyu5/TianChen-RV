@@ -207,7 +207,9 @@ bool isAllowedWithVLAttr(llvm::StringRef name) {
          name == tianchenrv::plugin::rvv::kRVVGearboxSourceLMULAttrName ||
          name == tianchenrv::plugin::rvv::kRVVGearboxDestSEWAttrName ||
          name == tianchenrv::plugin::rvv::kRVVGearboxDestLMULAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName;
+         name ==
+             tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName ||
+         tianchenrv::plugin::rvv::isRVVLowPrecisionResourceAttrName(name);
 }
 
 bool isAllowedI32LoadAttr(llvm::StringRef) {
@@ -444,7 +446,8 @@ bool isAllowedTypedWideningProductReduceDequantizePreRealizedBodyAttr(
          name == kProductRelationAttrName ||
          name == kProductReductionChainRelationAttrName ||
          name == kDequantRelationAttrName || name == kScaleRoleAttrName ||
-         name == kDequantStoreBoundaryAttrName || name == kPolicyAttrName;
+         name == kDequantStoreBoundaryAttrName || name == kPolicyAttrName ||
+         tianchenrv::plugin::rvv::isRVVLowPrecisionResourceAttrName(name);
 }
 
 bool isAllowedTypedWideningConversionPreRealizedBodyAttr(

@@ -1,5 +1,8 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 
+#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
+
+#include "mlir/IR/Attributes.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/Twine.h"
@@ -183,35 +186,13 @@ constexpr llvm::StringLiteral
     kRVVProductReductionDequantClampStoreBoundary(
         "store-clamped-dequantized-f32-vector-to-output-buffer");
 constexpr llvm::StringLiteral
-    kRVVLowPrecisionResourceCandidateSet(
-        "rvv-low-precision-direct-contraction-resource-candidate-set.v1["
-        "i8mf4-i16mf2-i32m1-f32m1]");
-constexpr llvm::StringLiteral
-    kRVVLowPrecisionResourceDequantCandidate(
-        "rvv-low-precision-direct-contraction-resource-candidate.v1["
-        "product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]");
-constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceDequantClampCandidate(
         "rvv-low-precision-direct-contraction-resource-candidate.v1["
         "product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u1]");
 constexpr llvm::StringLiteral
-    kRVVLowPrecisionResourceDequantSelectionReason(
-        "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-"
-        "runtime-avl");
-constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceDequantClampSelectionReason(
         "static-bounded-product-reduction-dequant-clamp-i8mf4-i16mf2-i32m1-"
         "f32m1-runtime-avl");
-constexpr llvm::StringLiteral kRVVLowPrecisionResourceLegalityScope(
-    "typed-low-precision-product-reduction-dequant-resource-legality.v1");
-constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductEMUL("mf2");
-constexpr llvm::StringLiteral kRVVLowPrecisionResourceAccumulatorEMUL("m1");
-constexpr llvm::StringLiteral kRVVLowPrecisionResourceNoRejectionReason("none");
-constexpr std::int64_t kRVVLowPrecisionResourceStaticUnroll = 1;
-constexpr std::int64_t kRVVLowPrecisionResourceAccumulatorCount = 1;
-constexpr std::int64_t kRVVLowPrecisionResourceVSetVLRegions = 2;
-constexpr std::int64_t kRVVLowPrecisionResourcePeakLiveVectorGroups = 4;
-constexpr std::int64_t kRVVLowPrecisionResourceVectorRegisterBudget = 32;
 
 bool isPreRealizedWideningMAccOpKind(llvm::StringRef opKind) {
   return opKind == kRVVPreRealizedWideningMAccOpKind;
@@ -3912,6 +3893,26 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceSelectionReason(
   return {};
 }
 
+llvm::StringRef getExpectedRVVLowPrecisionResourceMemoryForm(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  if (plan.usesProductReductionDequantClamp)
+    return kRVVPreRealizedWideningProductReduceDequantClampF32MemoryForm;
+  if (plan.usesProductReductionDequantization)
+    return kRVVPreRealizedWideningProductReduceDequantizeMemoryForm;
+  return {};
+}
+
+llvm::StringRef getExpectedRVVLowPrecisionResourceMemoryForm(
+    RVVSelectedBodyOperationKind operation) {
+  if (operation ==
+      RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32)
+    return kRVVPreRealizedWideningProductReduceDequantClampF32MemoryForm;
+  if (operation ==
+      RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32)
+    return kRVVPreRealizedWideningProductReduceDequantizeMemoryForm;
+  return {};
+}
+
 RVVLowPrecisionContractionResourceSelection
 deriveRVVLowPrecisionContractionResourceSelection(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan,
@@ -3942,7 +3943,8 @@ deriveRVVLowPrecisionContractionResourceSelection(
   selection.resultSEW = plan.sew;
   selection.resultLMUL = plan.lmul.str();
 
-  selection.memoryForm = stringifyRVVSelectedBodyMemoryForm(plan.memoryForm).str();
+  selection.memoryForm =
+      getExpectedRVVLowPrecisionResourceMemoryForm(plan).str();
   selection.tailPolicy = plan.tailPolicy.str();
   selection.maskPolicy = plan.maskPolicy.str();
   selection.unrollFactor = kRVVLowPrecisionResourceStaticUnroll;
@@ -3960,6 +3962,224 @@ deriveRVVLowPrecisionContractionResourceSelection(
   selection.targetCapabilityLegalityMirror = targetFacts.legalityMirror;
   selection.isLegal = true;
   selection.rejectionReason = kRVVLowPrecisionResourceNoRejectionReason.str();
+  return selection;
+}
+
+llvm::Expected<std::string> requireRVVLowPrecisionResourcePassStringFact(
+    mlir::Operation *op, llvm::StringRef context, llvm::StringRef attrName) {
+  if (!op)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires a selected RVV with_vl body carrying pass-produced "
+        "low-precision direct-contraction resource facts");
+  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+  if (!attr)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires pass-produced low-precision direct-contraction resource "
+        "fact '" +
+        attrName + "' before route acceptance");
+  return attr.getValue().str();
+}
+
+llvm::Expected<std::int64_t> requireRVVLowPrecisionResourcePassIntegerFact(
+    mlir::Operation *op, llvm::StringRef context, llvm::StringRef attrName) {
+  if (!op)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires a selected RVV with_vl body carrying pass-produced "
+        "low-precision direct-contraction resource facts");
+  auto attr = op->getAttrOfType<mlir::IntegerAttr>(attrName);
+  if (!attr)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires pass-produced low-precision direct-contraction resource "
+        "fact '" +
+        attrName + "' before route acceptance");
+  return attr.getInt();
+}
+
+llvm::Expected<RVVLowPrecisionContractionResourceSelection>
+deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan,
+    const RVVSelectedTargetCapabilityFacts &targetFacts, mlir::Operation *op,
+    llvm::StringRef context) {
+  using namespace tianchenrv::plugin::rvv;
+  RVVLowPrecisionContractionResourceSelection selection;
+  selection.hasSelection = true;
+
+  auto readString = [&](llvm::StringRef attrName) -> llvm::Expected<std::string> {
+    return requireRVVLowPrecisionResourcePassStringFact(op, context, attrName);
+  };
+  auto readInteger =
+      [&](llvm::StringRef attrName) -> llvm::Expected<std::int64_t> {
+    return requireRVVLowPrecisionResourcePassIntegerFact(op, context, attrName);
+  };
+
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceCandidateSetAttrName))
+    selection.candidateSetID = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceSelectedCandidateAttrName))
+    selection.selectedCandidateID = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceSelectionReasonAttrName))
+    selection.selectionReason = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceLegalityScopeAttrName))
+    selection.legalityScope = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceSourceDTypeAttrName))
+    selection.sourceElementTypeName = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::int64_t> value =
+          readInteger(kRVVLowPrecisionResourceSourceSEWAttrName))
+    selection.sourceSEW = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceSourceLMULAttrName))
+    selection.sourceLMUL = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceProductDTypeAttrName))
+    selection.productElementTypeName = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::int64_t> value =
+          readInteger(kRVVLowPrecisionResourceProductSEWAttrName))
+    selection.productSEW = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceProductLMULAttrName))
+    selection.productLMUL = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceProductEMULAttrName))
+    selection.productEMUL = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceAccumulatorDTypeAttrName))
+    selection.accumulatorElementTypeName = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::int64_t> value =
+          readInteger(kRVVLowPrecisionResourceAccumulatorSEWAttrName))
+    selection.accumulatorSEW = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceAccumulatorLMULAttrName))
+    selection.accumulatorLMUL = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceAccumulatorEMULAttrName))
+    selection.accumulatorEMUL = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceResultDTypeAttrName))
+    selection.resultElementTypeName = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::int64_t> value =
+          readInteger(kRVVLowPrecisionResourceResultSEWAttrName))
+    selection.resultSEW = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceResultLMULAttrName))
+    selection.resultLMUL = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceMemoryFormAttrName))
+    selection.memoryForm = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceTailPolicyAttrName))
+    selection.tailPolicy = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceMaskPolicyAttrName))
+    selection.maskPolicy = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::int64_t> value =
+          readInteger(kRVVLowPrecisionResourceUnrollFactorAttrName))
+    selection.unrollFactor = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::int64_t> value =
+          readInteger(kRVVLowPrecisionResourceAccumulatorCountAttrName))
+    selection.accumulatorCount = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceReductionLayoutAttrName))
+    selection.reductionLayout = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::int64_t> value =
+          readInteger(kRVVLowPrecisionResourceVSetVLRegionCountAttrName))
+    selection.vsetvlRegionCount = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::int64_t> value =
+          readInteger(kRVVLowPrecisionResourcePeakLiveVectorGroupsAttrName))
+    selection.peakLiveVectorGroups = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::int64_t> value =
+          readInteger(kRVVLowPrecisionResourceVectorRegisterBudgetAttrName))
+    selection.vectorRegisterBudget = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceRuntimeAVLSourceAttrName))
+    selection.runtimeAVLSource = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceRuntimeABIOrderAttrName))
+    selection.runtimeABIOrder = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceLegalityAttrName))
+    selection.isLegal = *value == kRVVLowPrecisionResourceLegal;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceRejectionReasonAttrName))
+    selection.rejectionReason = *value;
+  else
+    return value.takeError();
+
+  selection.targetCapabilityProviderMirror = targetFacts.providerMirror;
+  selection.targetCapabilityLegalityMirror = targetFacts.legalityMirror;
+
+  RVVSelectedBodyContractionRouteFamilyPlan validatedPlan = plan;
+  validatedPlan.lowPrecisionResourceSelection = selection;
+  if (llvm::Error error = verifyRVVLowPrecisionContractionResourceSelection(
+          validatedPlan, context))
+    return std::move(error);
   return selection;
 }
 
@@ -4121,7 +4341,7 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "memory form", selection.memoryForm,
-          stringifyRVVSelectedBodyMemoryForm(plan.memoryForm)))
+          getExpectedRVVLowPrecisionResourceMemoryForm(plan)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "tail policy", selection.tailPolicy,
@@ -4296,7 +4516,7 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "memory form", selection.memoryForm,
-          stringifyRVVSelectedBodyMemoryForm(description.memoryForm)))
+          getExpectedRVVLowPrecisionResourceMemoryForm(description.operation)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "tail policy", selection.tailPolicy,
@@ -5440,10 +5660,22 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
     }
   }
 
-  if (plan.usesProductReductionDequantization)
-    plan.lowPrecisionResourceSelection =
-        deriveRVVLowPrecisionContractionResourceSelection(
-            plan, analysis.selectedTargetCapabilityFacts);
+  if (plan.usesProductReductionDequantization) {
+    if (plan.usesProductReductionDequantClamp) {
+      plan.lowPrecisionResourceSelection =
+          deriveRVVLowPrecisionContractionResourceSelection(
+              plan, analysis.selectedTargetCapabilityFacts);
+    } else {
+      llvm::Expected<RVVLowPrecisionContractionResourceSelection> selection =
+          deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
+              plan, analysis.selectedTargetCapabilityFacts,
+              analysis.slice.withVL.getOperation(),
+              "contraction route-family plan derivation");
+      if (!selection)
+        return selection.takeError();
+      plan.lowPrecisionResourceSelection = std::move(*selection);
+    }
+  }
 
   if (llvm::Error error =
           validateRVVSelectedBodyContractionRouteFamilyPlan(plan))

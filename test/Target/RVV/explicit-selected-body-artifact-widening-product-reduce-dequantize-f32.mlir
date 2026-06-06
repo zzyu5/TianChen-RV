@@ -1,14 +1,16 @@
-// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
-// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
-// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.dequant_scale_role", value = "dequant-scale-value"/s//tcrv_rvv.dequant_scale_role", value = "output-buffer"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SCALE
-// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.product_reduction_chain_relation", value = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"/s//tcrv_rvv.product_reduction_chain_relation", value = "route-string-derived-product-reduction"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRODUCT
-// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.dequantization_relation", value = "signed-i32m1-to-f32m1-scale-f32"/s//tcrv_rvv.dequantization_relation", value = "script-derived-dequant"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DEQUANT
-// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed 's/{key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "[^"]*"}/{key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "artifact-name-derived-resource-candidate"}/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE
-// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,out,n"/s//tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,out,n"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
-// RUN: sed '/c_name = "scale"/s/c_type = "float"/c_type = "float *"/;/c_name = "scale"/s/role = "dequant-scale-value"/role = "output-buffer"/' %s | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-SCALE
-// RUN: sed 's/!tcrv_rvv.vector<f32, "m1">/!tcrv_rvv.vector<i32, "m1">/g;/c_name = "out"/s/c_type = "float \*"/c_type = "int32_t *"/' %s | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=DTYPE-MISMATCH
-// RUN: sed '/c_name = "acc"/s/c_type = "const int32_t \*"/c_type = "int32_t *"/;/c_name = "acc"/s/role = "accumulator-input-buffer"/role = "output-buffer"/' %s | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-ACC
-// RUN: sed 's/lmul = "m1"/lmul = "m2"/g' %s | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-CONFIG
+// RUN: not tcrv-opt %s --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-RESOURCE-PASS
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | sed 's/tcrv_rvv.low_precision_resource.selected_candidate = "[^"]*"/tcrv_rvv.low_precision_resource.selected_candidate = "artifact-name-derived-resource-candidate"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER-RESOURCE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.dequant_scale_role", value = "dequant-scale-value"/s//tcrv_rvv.dequant_scale_role", value = "output-buffer"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SCALE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.product_reduction_chain_relation", value = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"/s//tcrv_rvv.product_reduction_chain_relation", value = "route-string-derived-product-reduction"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRODUCT
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.dequantization_relation", value = "signed-i32m1-to-f32m1-scale-f32"/s//tcrv_rvv.dequantization_relation", value = "script-derived-dequant"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DEQUANT
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans | sed 's/{key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "[^"]*"}/{key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "artifact-name-derived-resource-candidate"}/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,out,n"/s//tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,out,n"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
+// RUN: sed '/c_name = "scale"/s/c_type = "float"/c_type = "float *"/;/c_name = "scale"/s/role = "dequant-scale-value"/role = "output-buffer"/' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-SCALE
+// RUN: sed 's/!tcrv_rvv.vector<f32, "m1">/!tcrv_rvv.vector<i32, "m1">/g;/c_name = "out"/s/c_type = "float \*"/c_type = "int32_t *"/' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=DTYPE-MISMATCH
+// RUN: sed '/c_name = "acc"/s/c_type = "const int32_t \*"/c_type = "int32_t *"/;/c_name = "acc"/s/role = "accumulator-input-buffer"/role = "output-buffer"/' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-ACC
+// RUN: sed 's/lmul = "m1"/lmul = "m2"/g' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-CONFIG
 
 // Explicit selected-body input for one bounded Stage 2 signed low-precision
 // contraction-to-dequant chain. The typed tcrv_rvv body carries i8 source
@@ -92,6 +94,12 @@ module {
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:widening_product_reduce_dequantize_f32.v1
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,converted/scaled:float-e32m1,scale:float
 // HEADER: void tcrv_emitc_explicit_selected_body_product_reduce_dequantize_kernel_explicit_selected_body_rvv_product_reduce_dequantize(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float *out, size_t n);
+
+// MISSING-RESOURCE-PASS: requires pass-produced low-precision direct-contraction resource fact
+// MISSING-RESOURCE-PASS-SAME: tcrv_rvv.low_precision_resource.candidate_set
+
+// STALE-PROVIDER-RESOURCE: low-precision direct-contraction resource selection requires selected candidate
+// STALE-PROVIDER-RESOURCE-SAME: artifact-name-derived-resource-candidate
 
 // STALE-SCALE: target artifact candidate validation failed
 // STALE-SCALE-SAME: dequant

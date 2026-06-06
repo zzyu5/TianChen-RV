@@ -38,6 +38,72 @@ constexpr llvm::StringLiteral kRVVGearboxSelectionReasonAttrName(
 constexpr llvm::StringLiteral kRVVGearboxLegalityScopeAttrName(
     "tcrv_rvv.gearbox.legality_scope");
 
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceCandidateSetAttrName(
+    "tcrv_rvv.low_precision_resource.candidate_set");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceSelectedCandidateAttrName(
+    "tcrv_rvv.low_precision_resource.selected_candidate");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceSelectionReasonAttrName(
+    "tcrv_rvv.low_precision_resource.selection_reason");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceLegalityScopeAttrName(
+    "tcrv_rvv.low_precision_resource.legality_scope");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceSourceDTypeAttrName(
+    "tcrv_rvv.low_precision_resource.source_dtype");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceSourceSEWAttrName(
+    "tcrv_rvv.low_precision_resource.source_sew");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceSourceLMULAttrName(
+    "tcrv_rvv.low_precision_resource.source_lmul");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductDTypeAttrName(
+    "tcrv_rvv.low_precision_resource.product_dtype");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductSEWAttrName(
+    "tcrv_rvv.low_precision_resource.product_sew");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductLMULAttrName(
+    "tcrv_rvv.low_precision_resource.product_lmul");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductEMULAttrName(
+    "tcrv_rvv.low_precision_resource.product_emul");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceAccumulatorDTypeAttrName(
+        "tcrv_rvv.low_precision_resource.accumulator_dtype");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceAccumulatorSEWAttrName(
+    "tcrv_rvv.low_precision_resource.accumulator_sew");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceAccumulatorLMULAttrName(
+    "tcrv_rvv.low_precision_resource.accumulator_lmul");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceAccumulatorEMULAttrName(
+    "tcrv_rvv.low_precision_resource.accumulator_emul");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceResultDTypeAttrName(
+    "tcrv_rvv.low_precision_resource.result_dtype");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceResultSEWAttrName(
+    "tcrv_rvv.low_precision_resource.result_sew");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceResultLMULAttrName(
+    "tcrv_rvv.low_precision_resource.result_lmul");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceMemoryFormAttrName(
+    "tcrv_rvv.low_precision_resource.memory_form");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceTailPolicyAttrName(
+    "tcrv_rvv.low_precision_resource.tail_policy");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceMaskPolicyAttrName(
+    "tcrv_rvv.low_precision_resource.mask_policy");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceUnrollFactorAttrName(
+    "tcrv_rvv.low_precision_resource.unroll_factor");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceAccumulatorCountAttrName(
+    "tcrv_rvv.low_precision_resource.accumulator_count");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceReductionLayoutAttrName(
+    "tcrv_rvv.low_precision_resource.reduction_layout");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceVSetVLRegionCountAttrName(
+    "tcrv_rvv.low_precision_resource.vsetvl_region_count");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePeakLiveVectorGroupsAttrName(
+        "tcrv_rvv.low_precision_resource.peak_live_vector_groups");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceVectorRegisterBudgetAttrName(
+        "tcrv_rvv.low_precision_resource.vector_register_budget");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceRuntimeAVLSourceAttrName(
+    "tcrv_rvv.low_precision_resource.runtime_avl_source");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceRuntimeABIOrderAttrName(
+    "tcrv_rvv.low_precision_resource.runtime_abi_order");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceLegalityAttrName(
+    "tcrv_rvv.low_precision_resource.legality");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceRejectionReasonAttrName(
+    "tcrv_rvv.low_precision_resource.rejection_reason");
+
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32U1CandidateID(
     "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1");
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32U2CandidateID(
@@ -78,6 +144,66 @@ constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32SourceLMUL("m1");
 constexpr std::int64_t kRVVGearboxDequantizeI32ToF32DestSEW = 32;
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32DestLMUL("m1");
 constexpr llvm::StringLiteral kRVVGearboxRuntimeAVLSourceN("runtime_abi:n");
+
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceCandidateSet(
+    "rvv-low-precision-direct-contraction-resource-candidate-set.v1["
+    "i8mf4-i16mf2-i32m1-f32m1]");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantCandidate(
+    "rvv-low-precision-direct-contraction-resource-candidate.v1["
+    "product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantSelectionReason(
+    "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-"
+    "runtime-avl");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceLegalityScope(
+    "typed-low-precision-product-reduction-dequant-resource-legality.v1");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductEMUL("mf2");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceAccumulatorEMUL("m1");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceReductionLayout(
+    "scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-chunks-final-f32-"
+    "store.v1");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceRuntimeABIOrder(
+    "lhs,rhs,acc,scale,out,n");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceLegal("legal");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceNoRejectionReason("none");
+constexpr std::int64_t kRVVLowPrecisionResourceStaticUnroll = 1;
+constexpr std::int64_t kRVVLowPrecisionResourceAccumulatorCount = 1;
+constexpr std::int64_t kRVVLowPrecisionResourceVSetVLRegions = 2;
+constexpr std::int64_t kRVVLowPrecisionResourcePeakLiveVectorGroups = 4;
+constexpr std::int64_t kRVVLowPrecisionResourceVectorRegisterBudget = 32;
+
+inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
+  return name == kRVVLowPrecisionResourceCandidateSetAttrName ||
+         name == kRVVLowPrecisionResourceSelectedCandidateAttrName ||
+         name == kRVVLowPrecisionResourceSelectionReasonAttrName ||
+         name == kRVVLowPrecisionResourceLegalityScopeAttrName ||
+         name == kRVVLowPrecisionResourceSourceDTypeAttrName ||
+         name == kRVVLowPrecisionResourceSourceSEWAttrName ||
+         name == kRVVLowPrecisionResourceSourceLMULAttrName ||
+         name == kRVVLowPrecisionResourceProductDTypeAttrName ||
+         name == kRVVLowPrecisionResourceProductSEWAttrName ||
+         name == kRVVLowPrecisionResourceProductLMULAttrName ||
+         name == kRVVLowPrecisionResourceProductEMULAttrName ||
+         name == kRVVLowPrecisionResourceAccumulatorDTypeAttrName ||
+         name == kRVVLowPrecisionResourceAccumulatorSEWAttrName ||
+         name == kRVVLowPrecisionResourceAccumulatorLMULAttrName ||
+         name == kRVVLowPrecisionResourceAccumulatorEMULAttrName ||
+         name == kRVVLowPrecisionResourceResultDTypeAttrName ||
+         name == kRVVLowPrecisionResourceResultSEWAttrName ||
+         name == kRVVLowPrecisionResourceResultLMULAttrName ||
+         name == kRVVLowPrecisionResourceMemoryFormAttrName ||
+         name == kRVVLowPrecisionResourceTailPolicyAttrName ||
+         name == kRVVLowPrecisionResourceMaskPolicyAttrName ||
+         name == kRVVLowPrecisionResourceUnrollFactorAttrName ||
+         name == kRVVLowPrecisionResourceAccumulatorCountAttrName ||
+         name == kRVVLowPrecisionResourceReductionLayoutAttrName ||
+         name == kRVVLowPrecisionResourceVSetVLRegionCountAttrName ||
+         name == kRVVLowPrecisionResourcePeakLiveVectorGroupsAttrName ||
+         name == kRVVLowPrecisionResourceVectorRegisterBudgetAttrName ||
+         name == kRVVLowPrecisionResourceRuntimeAVLSourceAttrName ||
+         name == kRVVLowPrecisionResourceRuntimeABIOrderAttrName ||
+         name == kRVVLowPrecisionResourceLegalityAttrName ||
+         name == kRVVLowPrecisionResourceRejectionReasonAttrName;
+}
 
 } // namespace tianchenrv::plugin::rvv
 
