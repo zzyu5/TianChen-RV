@@ -2363,12 +2363,23 @@ static void populateRVVWideningDotValidationContract(
     const RVVWideningDotReduceRouteFacts &facts) {
   const bool isComputedMask = isRVVSelectedBodyContractionComputedMask(
       facts.operation);
+  RVVContractionArtifactContractCore core =
+      getRVVContractionArtifactContractCore(
+          description, facts.memoryForm, facts.runtimeControlPlanID,
+          facts.runtimeABIOrder, facts.targetLeafProfile,
+          facts.providerSupportedMirror, facts.requiredHeaderDeclarations,
+          facts.cTypeMappingSummary, facts.routeOperandBindingPlanID,
+          facts.routeOperandBindingSummary, facts.typedComputeOpName,
+          facts.vlCType, facts.resultVectorTypeName,
+          facts.resultVectorCType, facts.sourceVectorTypeName,
+          facts.sourceVectorCType, facts.maskTypeName, facts.maskCType,
+          facts.runtimeABIParameters);
+  contract.core = core;
   contract.kind = getRVVWideningDotValidationKind(facts.operation);
   contract.consumerLabel =
       getRVVWideningDotValidationConsumerLabel(facts.operation);
-  contract.emitCRouteID =
-      getRVVSelectedBodyEmitCRouteID(description.operation).str();
-  contract.memoryForm = facts.memoryForm;
+  contract.emitCRouteID = core.emitCRouteID;
+  contract.memoryForm = core.memoryForm;
   contract.sourceSEW = facts.sourceSEW;
   contract.sourceLMUL = facts.sourceLMUL.str();
   contract.productSEW = facts.productSEW;
@@ -2379,19 +2390,18 @@ static void populateRVVWideningDotValidationContract(
   contract.resultLMUL = facts.resultLMUL.str();
   contract.tailPolicy = facts.tailPolicy.str();
   contract.maskPolicy = facts.maskPolicy.str();
-  contract.configContractID = description.configContractID.str();
-  contract.runtimeControlPlanID = facts.runtimeControlPlanID.str();
-  contract.runtimeABIOrder = facts.runtimeABIOrder.str();
-  contract.targetLeafProfile = facts.targetLeafProfile.str();
-  contract.providerSupportedMirror = facts.providerSupportedMirror.str();
-  contract.requiredHeaderDeclarations = facts.requiredHeaderDeclarations.str();
-  contract.cTypeMappingSummary = facts.cTypeMappingSummary.str();
-  contract.routeOperandBindingPlanID =
-      facts.routeOperandBindingPlanID.str();
-  contract.routeOperandBindingSummary = facts.routeOperandBindingSummary;
+  contract.configContractID = core.configContractID;
+  contract.runtimeControlPlanID = core.runtimeControlPlanID;
+  contract.runtimeABIOrder = core.runtimeABIOrder;
+  contract.targetLeafProfile = core.targetLeafProfile;
+  contract.providerSupportedMirror = core.providerSupportedMirror;
+  contract.requiredHeaderDeclarations = core.requiredHeaderDeclarations;
+  contract.cTypeMappingSummary = core.cTypeMappingSummary;
+  contract.routeOperandBindingPlanID = core.routeOperandBindingPlanID;
+  contract.routeOperandBindingSummary = core.routeOperandBindingSummary;
   contract.contractionRouteFamilyPlanID =
       facts.contractionRouteFamilyPlanID.str();
-  contract.typedComputeOpName = facts.typedComputeOpName.str();
+  contract.typedComputeOpName = core.typedComputeOpName;
 
   contract.comparePredicateKind = facts.comparePredicateKind.str();
   contract.maskRole = facts.maskRole.str();
@@ -2449,17 +2459,17 @@ static void populateRVVWideningDotValidationContract(
   contract.inactiveLaneZeroingRequirement =
       facts.inactiveLaneZeroingRequirement.str();
 
-  contract.vlCType = facts.vlCType.str();
-  contract.sourceVectorTypeName = facts.sourceVectorTypeName.str();
-  contract.sourceVectorCType = facts.sourceVectorCType.str();
+  contract.vlCType = core.vlCType;
+  contract.sourceVectorTypeName = core.sourceVectorTypeName;
+  contract.sourceVectorCType = core.sourceVectorCType;
   contract.productVectorTypeName = facts.productVectorTypeName.str();
   contract.productVectorCType = facts.productVectorCType.str();
-  contract.resultVectorTypeName = facts.resultVectorTypeName.str();
-  contract.resultVectorCType = facts.resultVectorCType.str();
-  contract.vectorTypeName = facts.resultVectorTypeName.str();
-  contract.vectorCType = facts.resultVectorCType.str();
-  contract.maskTypeName = facts.maskTypeName.str();
-  contract.maskCType = facts.maskCType.str();
+  contract.resultVectorTypeName = core.resultVectorTypeName;
+  contract.resultVectorCType = core.resultVectorCType;
+  contract.vectorTypeName = core.resultVectorTypeName;
+  contract.vectorCType = core.resultVectorCType;
+  contract.maskTypeName = core.maskTypeName;
+  contract.maskCType = core.maskCType;
   contract.expectedPreLoopStepCount =
       (facts.operation ==
            RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
@@ -2475,8 +2485,8 @@ static void populateRVVWideningDotValidationContract(
             ? 7
         : isComputedMask ? 12
                          : 7;
-  contract.runtimeABIParameters.append(facts.runtimeABIParameters.begin(),
-                                       facts.runtimeABIParameters.end());
+  contract.runtimeABIParameters.append(core.runtimeABIParameters.begin(),
+                                       core.runtimeABIParameters.end());
   populateRVVWideningDotDynamicDescriptionPayload(contract, description);
   if (std::optional<RVVRuntimeAVLVLSelectedBoundaryContract> runtimeContract =
           getRVVRuntimeAVLVLSelectedBoundaryContract(

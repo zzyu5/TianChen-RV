@@ -3485,31 +3485,31 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "config contract",
-          description.configContractID, contract.configContractID))
+          description.configContractID, contract.core.configContractID))
     return error;
   if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
           description, contract.runtimeAVLVLContract))
     return error;
   if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
           contract.consumerLabel, contract.runtimeAVLVLContract,
-          contract.runtimeControlPlanID, contract.runtimeABIOrder,
-          contract.setVLIntrinsic, contract.vlCType,
+          contract.core.runtimeControlPlanID, contract.core.runtimeABIOrder,
+          contract.setVLIntrinsic, contract.core.vlCType,
           contract.emitCFullChunkVLName, contract.emitCLoopVLName,
           contract.emitCLoopInductionName))
     return error;
   if (description.runtimeABIParameters.size() !=
-      contract.runtimeABIParameters.size())
+      contract.core.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-owned runtime ABI parameter count " +
-        llvm::Twine(contract.runtimeABIParameters.size()) +
+        llvm::Twine(contract.core.runtimeABIParameters.size()) +
         " before artifact export");
-  for (std::size_t index = 0; index < contract.runtimeABIParameters.size();
+  for (std::size_t index = 0; index < contract.core.runtimeABIParameters.size();
        ++index) {
     const support::RuntimeABIParameter &actual =
         description.runtimeABIParameters[index];
     const support::RuntimeABIParameter &expected =
-        contract.runtimeABIParameters[index];
+        contract.core.runtimeABIParameters[index];
     if (!runtimeABIParameterEquals(actual, expected))
       return makeRVVTargetRouteError(
           llvm::Twine(contract.consumerLabel) +
@@ -3523,12 +3523,12 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "route operand binding plan",
           description.routeOperandBindingPlanID,
-          contract.routeOperandBindingPlanID))
+          contract.core.routeOperandBindingPlanID))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "route operand binding facts",
           description.routeOperandBindingSummary,
-          contract.routeOperandBindingSummary))
+          contract.core.routeOperandBindingSummary))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "contraction route-family plan",
@@ -3537,11 +3537,12 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "target leaf profile",
-          description.targetLeafProfile, contract.targetLeafProfile))
+          description.targetLeafProfile, contract.core.targetLeafProfile))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "provider-supported mirror",
-          description.providerSupportedMirror, contract.providerSupportedMirror))
+          description.providerSupportedMirror,
+          contract.core.providerSupportedMirror))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "required header declarations",
@@ -3837,7 +3838,7 @@ llvm::Error validateRVVComputedMaskWideningDotReductionRoutePayloadFacts(
 llvm::Error validateRVVWideningDotReductionRouteHeaders(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
-  if (contract.requiredHeaderDeclarations.empty() ||
+  if (contract.core.requiredHeaderDeclarations.empty() ||
       contract.requiredHeaders.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
@@ -3863,7 +3864,8 @@ llvm::Error validateRVVWideningDotReductionRouteHeaders(
 llvm::Error validateRVVWideningDotReductionRouteTypeMappings(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
-  if (contract.cTypeMappingSummary.empty() || contract.typeMappings.empty())
+  if (contract.core.cTypeMappingSummary.empty() ||
+      contract.typeMappings.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-derived route type mapping facts before artifact "
@@ -3889,24 +3891,26 @@ llvm::Error validateRVVWideningDotReductionRouteTypeMappings(
 llvm::Error validateRVVWideningDotReductionRouteABIMappings(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
-  if (contract.runtimeABIOrder.empty() || contract.runtimeABIParameters.empty())
+  if (contract.core.runtimeABIOrder.empty() ||
+      contract.core.runtimeABIParameters.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires "
         "provider-derived runtime ABI order and ABI parameters before "
         "artifact export");
-  if (route.getABIMappings().size() != contract.runtimeABIParameters.size())
+  if (route.getABIMappings().size() !=
+      contract.core.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires rebuilt provider route ABI mapping count " +
-        llvm::Twine(contract.runtimeABIParameters.size()) + " but route has " +
-        llvm::Twine(route.getABIMappings().size()));
+        llvm::Twine(contract.core.runtimeABIParameters.size()) +
+        " but route has " + llvm::Twine(route.getABIMappings().size()));
 
   for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
     const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
         route.getABIMappings()[index];
     const support::RuntimeABIParameter &expected =
-        contract.runtimeABIParameters[index];
+        contract.core.runtimeABIParameters[index];
     if (!runtimeABIParameterEquals(mapping.parameter, expected))
       return makeRVVTargetRouteError(
           llvm::Twine(contract.consumerLabel) +
@@ -4503,11 +4507,11 @@ llvm::Error validateRVVWideningDotReductionRoutePayloadFacts(
         "widening dot-reduction target artifact consumer requires "
         "provider-owned route validation contract before artifact export");
 
-  if (route.getRouteID() != contract->emitCRouteID)
+  if (route.getRouteID() != contract->core.emitCRouteID)
     return makeRVVTargetRouteError(
         llvm::Twine(contract->consumerLabel) +
-        " requires rebuilt provider route id '" + contract->emitCRouteID +
-        "' but route carried '" +
+        " requires rebuilt provider route token '" +
+        contract->core.emitCRouteID + "' but route carried '" +
         route.getRouteID() + "'");
 
   if (isRVVNonComputedMaskWideningDotReductionRouteFamilyOperation(
@@ -5112,7 +5116,7 @@ const support::RuntimeABIParameter *findRuntimeElementCountABIParameter(
 llvm::Error validateRVVMAccRouteHeaders(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVMAccRouteValidationContract &contract) {
-  if (contract.requiredHeaderDeclarations.empty() ||
+  if (contract.core.requiredHeaderDeclarations.empty() ||
       contract.requiredHeaders.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
@@ -5137,7 +5141,7 @@ llvm::Error validateRVVMAccRouteHeaders(
 llvm::Error validateRVVMAccRouteTypeMappings(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVMAccRouteValidationContract &contract) {
-  if (contract.cTypeMappingSummary.empty() || contract.typeMappings.empty())
+  if (contract.core.cTypeMappingSummary.empty() || contract.typeMappings.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-derived route type mapping facts before artifact "
@@ -5163,31 +5167,32 @@ llvm::Error validateRVVMAccRouteTypeMappings(
 llvm::Error validateRVVMAccRouteABIMappings(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVMAccRouteValidationContract &contract) {
-  if (contract.runtimeABIOrder.empty() || contract.runtimeABIParameters.empty())
+  if (contract.core.runtimeABIOrder.empty() ||
+      contract.core.runtimeABIParameters.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-derived runtime ABI order and ABI parameters "
         "before artifact export");
   const std::size_t expectedParameterCount =
       getRVVMAccContractRuntimeABIParameterCount(contract.kind);
-  if (contract.runtimeABIParameters.size() != expectedParameterCount)
+  if (contract.core.runtimeABIParameters.size() != expectedParameterCount)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-derived runtime ABI parameter count " +
         llvm::Twine(expectedParameterCount) + " but contract has " +
-        llvm::Twine(contract.runtimeABIParameters.size()));
-  if (route.getABIMappings().size() != contract.runtimeABIParameters.size())
+        llvm::Twine(contract.core.runtimeABIParameters.size()));
+  if (route.getABIMappings().size() != contract.core.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires rebuilt provider route ABI mapping count " +
-        llvm::Twine(contract.runtimeABIParameters.size()) + " but route has " +
-        llvm::Twine(route.getABIMappings().size()));
+        llvm::Twine(contract.core.runtimeABIParameters.size()) +
+        " but route has " + llvm::Twine(route.getABIMappings().size()));
 
   for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
     const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
         route.getABIMappings()[index];
     const support::RuntimeABIParameter &expected =
-        contract.runtimeABIParameters[index];
+        contract.core.runtimeABIParameters[index];
     if (!runtimeABIParameterEquals(mapping.parameter, expected))
       return makeRVVTargetRouteError(
           llvm::Twine(contract.consumerLabel) +
@@ -5235,48 +5240,49 @@ llvm::Error validateRVVMAccDescriptionAgainstContract(
     return error;
   if (llvm::Error error = requireRVVMAccContractStringField(
           contract.consumerLabel, "config contract",
-          description.configContractID, contract.configContractID))
+          description.configContractID, contract.core.configContractID))
     return error;
   if (llvm::Error error = validateRVVRuntimeAVLVLSelectedBoundaryContract(
           description, contract.runtimeAVLVLContract))
     return error;
   if (llvm::Error error = validateRVVRouteLocalRuntimeAVLVLMirrors(
           contract.consumerLabel, contract.runtimeAVLVLContract,
-          contract.runtimeControlPlanID, contract.runtimeABIOrder,
-          contract.setVLIntrinsic, contract.vlCType,
+          contract.core.runtimeControlPlanID, contract.core.runtimeABIOrder,
+          contract.setVLIntrinsic, contract.core.vlCType,
           contract.emitCFullChunkVLName, contract.emitCLoopVLName,
           contract.emitCLoopInductionName))
     return error;
   if (llvm::Error error = requireRVVMAccContractStringField(
           contract.consumerLabel, "route operand binding plan",
           description.routeOperandBindingPlanID,
-          contract.routeOperandBindingPlanID))
+          contract.core.routeOperandBindingPlanID))
     return error;
   if (llvm::Error error = requireRVVMAccContractStringField(
           contract.consumerLabel, "route operand binding facts",
           description.routeOperandBindingSummary,
-          contract.routeOperandBindingSummary))
+          contract.core.routeOperandBindingSummary))
     return error;
   if (llvm::Error error = requireRVVMAccContractStringField(
           contract.consumerLabel, "target leaf profile",
-          description.targetLeafProfile, contract.targetLeafProfile))
+          description.targetLeafProfile, contract.core.targetLeafProfile))
     return error;
   if (llvm::Error error = requireRVVMAccContractStringField(
           contract.consumerLabel, "provider-supported mirror",
-          description.providerSupportedMirror, contract.providerSupportedMirror))
+          description.providerSupportedMirror,
+          contract.core.providerSupportedMirror))
     return error;
   if (llvm::Error error = requireRVVMAccContractStringField(
           contract.consumerLabel, "required header declarations",
           description.requiredHeaderDeclarations,
-          contract.requiredHeaderDeclarations))
+          contract.core.requiredHeaderDeclarations))
     return error;
   if (llvm::Error error = requireRVVMAccContractStringField(
           contract.consumerLabel, "C type mapping summary",
-          description.cTypeMappingSummary, contract.cTypeMappingSummary))
+          description.cTypeMappingSummary, contract.core.cTypeMappingSummary))
     return error;
   if (llvm::Error error = requireRVVMAccContractStringField(
           contract.consumerLabel, "typed compute op",
-          description.typedComputeOpName, contract.typedComputeOpName))
+          description.typedComputeOpName, contract.core.typedComputeOpName))
     return error;
   if (llvm::Error error = requireRVVMAccContractStringField(
           contract.consumerLabel,
@@ -5294,18 +5300,18 @@ llvm::Error validateRVVMAccDescriptionAgainstContract(
           description.maccResultLayout, contract.maccResultLayout))
     return error;
   if (description.runtimeABIParameters.size() !=
-      contract.runtimeABIParameters.size())
+      contract.core.runtimeABIParameters.size())
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-owned runtime ABI parameter count " +
-        llvm::Twine(contract.runtimeABIParameters.size()) +
+        llvm::Twine(contract.core.runtimeABIParameters.size()) +
         " before artifact export");
-  for (std::size_t index = 0; index < contract.runtimeABIParameters.size();
+  for (std::size_t index = 0; index < contract.core.runtimeABIParameters.size();
        ++index) {
     const support::RuntimeABIParameter &actual =
         description.runtimeABIParameters[index];
     const support::RuntimeABIParameter &expected =
-        contract.runtimeABIParameters[index];
+        contract.core.runtimeABIParameters[index];
     if (!runtimeABIParameterEquals(actual, expected))
       return makeRVVTargetRouteError(
           llvm::Twine(contract.consumerLabel) +
@@ -5792,11 +5798,12 @@ llvm::Error validateRVVMAccRoutePayloadFacts(
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVMAccRouteValidationContract &contract) {
-  if (route.getRouteID() != contract.emitCRouteID)
+  if (route.getRouteID() != contract.core.emitCRouteID)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
-        " requires rebuilt provider route token '" + contract.emitCRouteID +
-        "' but route carried '" + route.getRouteID() + "'");
+        " requires rebuilt provider route token '" +
+        contract.core.emitCRouteID + "' but route carried '" +
+        route.getRouteID() + "'");
 
   if (llvm::Error error =
           validateRVVMAccDescriptionAgainstContract(description, contract))

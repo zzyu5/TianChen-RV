@@ -1919,31 +1919,41 @@ static void populateRVVMAccCommonValidationContract(
     llvm::StringRef typedComputeOpName, llvm::StringRef arithmeticKind,
     llvm::StringRef accumulatorLayout, llvm::StringRef resultLayout,
     llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters) {
+  RVVContractionArtifactContractCore core =
+      getRVVContractionArtifactContractCore(
+          description, memoryForm, runtimeControlPlanID, runtimeABIOrder,
+          targetLeafProfile, providerSupportedMirror,
+          requiredHeaderDeclarations, cTypeMappingSummary,
+          routeOperandBindingPlanID, routeOperandBindingSummary,
+          typedComputeOpName, description.vlCType, description.vectorTypeName,
+          description.vectorCType, description.sourceVectorTypeName,
+          description.sourceVectorCType, description.maskTypeName,
+          description.maskCType, runtimeABIParameters);
+  contract.core = core;
   contract.kind = kind;
   contract.consumerLabel = consumerLabel;
-  contract.memoryForm = memoryForm;
+  contract.memoryForm = core.memoryForm;
   contract.sew = sew;
   contract.lmul = lmul.str();
   contract.tailPolicy = tailPolicy.str();
   contract.maskPolicy = maskPolicy.str();
-  contract.configContractID = description.configContractID.str();
-  contract.runtimeControlPlanID = runtimeControlPlanID.str();
-  contract.runtimeABIOrder = runtimeABIOrder.str();
-  contract.targetLeafProfile = targetLeafProfile.str();
-  contract.providerSupportedMirror = providerSupportedMirror.str();
-  contract.requiredHeaderDeclarations = requiredHeaderDeclarations.str();
-  contract.cTypeMappingSummary = cTypeMappingSummary.str();
-  contract.routeOperandBindingPlanID = routeOperandBindingPlanID.str();
-  contract.routeOperandBindingSummary = routeOperandBindingSummary.str();
-  contract.typedComputeOpName = typedComputeOpName.str();
+  contract.configContractID = core.configContractID;
+  contract.runtimeControlPlanID = core.runtimeControlPlanID;
+  contract.runtimeABIOrder = core.runtimeABIOrder;
+  contract.targetLeafProfile = core.targetLeafProfile;
+  contract.providerSupportedMirror = core.providerSupportedMirror;
+  contract.requiredHeaderDeclarations = core.requiredHeaderDeclarations;
+  contract.cTypeMappingSummary = core.cTypeMappingSummary;
+  contract.routeOperandBindingPlanID = core.routeOperandBindingPlanID;
+  contract.routeOperandBindingSummary = core.routeOperandBindingSummary;
+  contract.typedComputeOpName = core.typedComputeOpName;
   contract.arithmeticKind = arithmeticKind.str();
   contract.maccAccumulatorLayout = accumulatorLayout.str();
   contract.maccResultLayout = resultLayout.str();
-  contract.runtimeABIParameters.append(runtimeABIParameters.begin(),
-                                       runtimeABIParameters.end());
+  contract.runtimeABIParameters.append(core.runtimeABIParameters.begin(),
+                                       core.runtimeABIParameters.end());
   contract.expectedPreLoopStepCount = 1;
-  contract.emitCRouteID =
-      getRVVSelectedBodyEmitCRouteID(description.operation).str();
+  contract.emitCRouteID = core.emitCRouteID;
   std::optional<std::string> runtimeSetVLIntrinsic =
       deriveMAccSetVLIntrinsic(contract.sew, contract.lmul);
   constexpr llvm::StringLiteral kRuntimeVLCType("size_t");
@@ -1958,12 +1968,19 @@ static void populateRVVMAccCommonValidationContract(
       contract.runtimeAVLVLContract = std::move(*runtimeContract);
   }
   copyRVVMAccDynamicDescriptionPayload(contract, description);
+  contract.vlCType = core.vlCType;
+  contract.vectorTypeName = core.resultVectorTypeName;
+  contract.vectorCType = core.resultVectorCType;
+  contract.sourceVectorTypeName = core.sourceVectorTypeName;
+  contract.sourceVectorCType = core.sourceVectorCType;
+  contract.maskTypeName = core.maskTypeName;
+  contract.maskCType = core.maskCType;
   appendRVVMAccValidationHeaders(contract, requiredHeaderDeclarations);
   appendRVVMAccValidationTypeMapping(contract, "!tcrv_rvv.vl",
-                                     description.vlCType,
+                                     contract.vlCType,
                                      "selected typed RVV MAcc VL type");
   appendRVVMAccValidationTypeMapping(
-      contract, description.vectorTypeName, description.vectorCType,
+      contract, contract.vectorTypeName, contract.vectorCType,
       "selected typed RVV MAcc vector type");
 }
 
@@ -2122,6 +2139,11 @@ static void populateRVVMAccWideningValidationContract(
   contract.vectorCType = facts.resultVectorCType.str();
   contract.sourceVectorTypeName = facts.sourceVectorTypeName.str();
   contract.sourceVectorCType = facts.sourceVectorCType.str();
+  contract.core.vlCType = contract.vlCType;
+  contract.core.resultVectorTypeName = contract.vectorTypeName;
+  contract.core.resultVectorCType = contract.vectorCType;
+  contract.core.sourceVectorTypeName = contract.sourceVectorTypeName;
+  contract.core.sourceVectorCType = contract.sourceVectorCType;
   contract.setVLIntrinsic = facts.setVLIntrinsic.str();
   contract.vectorLoadIntrinsic = facts.accumulatorVectorLoadIntrinsic.str();
   contract.sourceVectorLoadIntrinsic = facts.sourceVectorLoadIntrinsic.str();

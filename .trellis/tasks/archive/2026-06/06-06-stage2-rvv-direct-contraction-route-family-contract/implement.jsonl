@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV authority chain and Stage2 RVV boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV direct contraction provider-owner and target artifact mirror contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and provider-owned route value/ABI/header contracts"}

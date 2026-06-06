@@ -4475,6 +4475,142 @@ verified contraction family/materialization/math facts
   -> provider attaches returned statements
 ```
 
+## MAcc And Direct-Contraction Artifact Contract Core
+
+### 1. Scope / Trigger
+
+Use this contract when the RVV provider builds target-artifact validation
+contracts for production-active MAcc and direct-contraction families. It covers
+facts shared by `RVVMAccRouteValidationContract` and
+`RVVWideningDotReduceRouteValidationContract` before target artifact
+acceptance: route token, memory form, config contract, runtime-control and ABI
+mirrors, headers, C type mapping summary, route operand binding plan/summary,
+target leaf profile, provider-supported mirror, typed compute op, VL C type,
+source/result/mask C type names, and runtime ABI parameter order.
+
+### 2. Signatures
+
+The durable provider contract surface is:
+
+```c++
+struct RVVContractionArtifactContractCore {
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+  std::string vlCType;
+  std::string resultVectorTypeName;
+  std::string resultVectorCType;
+  std::string sourceVectorTypeName;
+  std::string sourceVectorCType;
+  std::string maskTypeName;
+  std::string maskCType;
+  llvm::SmallVector<support::RuntimeABIParameter, 9> runtimeABIParameters;
+};
+
+RVVContractionArtifactContractCore getRVVContractionArtifactContractCore(
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    RVVSelectedBodyMemoryForm memoryForm,
+    llvm::StringRef runtimeControlPlanID,
+    llvm::StringRef runtimeABIOrder,
+    llvm::StringRef targetLeafProfile,
+    llvm::StringRef providerSupportedMirror,
+    llvm::StringRef requiredHeaderDeclarations,
+    llvm::StringRef cTypeMappingSummary,
+    llvm::StringRef routeOperandBindingPlanID,
+    llvm::StringRef routeOperandBindingSummary,
+    llvm::StringRef typedComputeOpName,
+    llvm::StringRef vlCType,
+    llvm::StringRef resultVectorTypeName,
+    llvm::StringRef resultVectorCType,
+    llvm::StringRef sourceVectorTypeName,
+    llvm::StringRef sourceVectorCType,
+    llvm::StringRef maskTypeName,
+    llvm::StringRef maskCType,
+    llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters);
+```
+
+### 3. Contracts
+
+- MAcc and widening dot-reduce validation-contract builders must populate and
+  retain this core before target artifact validation.
+- Target artifact validators for these families must consume the core for
+  shared provider-owned facts instead of duplicating local target-side copies.
+- Family-specific facts stay in their owner contracts: MAcc accumulator/result,
+  arithmetic, mask/passthrough, and statement facts remain MAcc-owned;
+  dot-reduction product/reduction/dequant/clamp, strided-input, mask,
+  inactive-lane, scalar seed/result, and statement facts remain
+  contraction-owned.
+- The core is provider output after selected typed-body analysis. It is not a
+  route selector, artifact metadata authority, Common EmitC semantic branch, or
+  replacement for family-specific validation.
+
+### 4. Validation & Error Matrix
+
+- Missing core route token, header declarations, type mapping summary, runtime
+  ABI order, binding summary, or provider mirror -> target validation fails
+  before artifact acceptance.
+- Core runtime ABI parameters differ from the provider route description or
+  rebuilt `TCRVEmitCLowerableRoute` ABI mappings -> target validation fails.
+- Core runtime-control mirrors disagree with the selected-boundary runtime
+  AVL/VL contract -> target validation fails.
+- MAcc-specific or dot-specific facts are absent even when the core is valid ->
+  the relevant owner validator still fails closed.
+- Candidate metadata matching the core is insufficient if the rebuilt provider
+  route or family-specific facts disagree.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed MAcc or direct-contraction body -> route-family facts -> shared
+  artifact contract core -> family-specific validation contract -> target
+  artifact validator consumes core plus family fields.
+- Base: existing MAcc and widening dot-reduce generated-bundle fixtures keep
+  their ABI/header behavior while target validation reads the common fields
+  through the core.
+- Bad: target validation accepts a MAcc or dot-reduce artifact because metadata,
+  artifact name, test name, route id, or exact intrinsic spelling looks
+  plausible while the provider core is absent or stale.
+
+### 6. Tests Required
+
+- C++ target artifact tests must keep failing closed for stale provider mirrors,
+  header/type summaries, route operand bindings, runtime ABI order, and ABI
+  mappings on both a MAcc representative and a direct-contraction
+  representative.
+- Focused generated-bundle or target artifact dry-runs must cover at least one
+  MAcc route and one widening dot/direct-contraction route after the core is
+  changed.
+- Runtime `ssh rvv` evidence is required only when emitted code, ABI/header
+  shape, generated harness behavior, runtime correctness, or performance is
+  newly claimed.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+target artifact validator
+  -> reads route metadata / artifact name / route id
+  -> accepts MAcc or dot-reduce artifact
+```
+
+Correct:
+
+```text
+provider route description + family route facts
+  -> RVVContractionArtifactContractCore
+  -> MAcc or widening dot validation contract
+  -> target validator consumes shared core plus family-specific facts
+```
+
 ## Migrated Statement-Plan Provider Consumption Boundary
 
 ### 1. Scope / Trigger

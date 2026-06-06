@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/index.md", "reason": "global route authority and evidence rules"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "direct contraction/MAcc provider fact and artifact validation expectations"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "common EmitC neutrality and provider-owned route payload checks"}
