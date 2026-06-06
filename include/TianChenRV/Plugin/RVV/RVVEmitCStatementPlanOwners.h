@@ -102,6 +102,15 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
         &elementwiseSelectOperandBindingFacts,
     llvm::StringRef context);
 
+llvm::Error verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyCompareSelectRouteStatementPlan
+        &compareSelectStatementPlan,
+    llvm::StringRef context);
+
 llvm::Expected<RVVSelectedBodyWideningConversionRouteStatementPlan>
 getRVVSelectedBodyWideningConversionRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,

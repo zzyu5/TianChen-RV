@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV-first Stage2 authority rules for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected-body realization, compare/select statement-plan boundary, and owner/provider locality."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality, provider-built TCRVEmitCLowerableRoute contract, and compare/select validation contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/runtime evidence boundaries and old-authority scan expectations."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-segment2-memory-fact-contract/prd.md", "reason": "Previous owner-level provider-fact API pattern and completion evidence for the segment2 provider seam."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h", "reason": "Compare/select statement-plan owner API surface and intended location for provider-fact contract declaration."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Existing generic route-planning declaration for compare/select provider-fact verification."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCCompareSelectStatementPlanOwners.cpp", "reason": "Compare/select statement-plan owner implementation and likely provider-fact contract owner implementation site."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Existing compare/select provider-fact verifier implementation and generic planning helpers."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Production route provider call order before TCRVEmitCLowerableRoute construction."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused C++ positive and fail-closed compare/select provider-fact tests."}

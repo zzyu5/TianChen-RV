@@ -904,4 +904,428 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
   return plan;
 }
 
+llvm::Error verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyCompareSelectRouteStatementPlan
+        &compareSelectStatementPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyOperationKind operation = analysis.description.operation;
+  const bool consumesPlainCompareSelect =
+      isRVVSelectedBodyPlainCompareSelectRouteFamilyConsumer(operation);
+  const bool consumesComputedMaskSelect =
+      isRVVSelectedBodyComputedMaskSelectRouteFamilyConsumer(operation);
+  if (!consumesPlainCompareSelect && !consumesComputedMaskSelect)
+    return llvm::Error::success();
+
+  if (llvm::Error error =
+          verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context))
+    return error;
+
+  if (!compareSelectStatementPlan.plansCompareSelectRoute ||
+      compareSelectStatementPlan.preLoopSteps.empty() ||
+      compareSelectStatementPlan.loop.bodySteps.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " compare/select route construction requires the RVV-owned "
+        "compare/select statement plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      materializationFacts.typedConfigFacts;
+  if (!typedFacts.hasFacts())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " compare/select route construction requires typed RVV body/config "
+        "facts before creating TCRVEmitCLowerableRoute");
+
+  if (elementwiseSelectOperandBindingFacts.bindingPlan !=
+      &analysis.routeOperandBindingPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " compare/select route construction requires operand-binding facts "
+        "from the same selected route analysis before creating "
+        "TCRVEmitCLowerableRoute");
+
+  auto requireTypedConfigMirror =
+      [&](llvm::StringRef routeName, llvm::StringRef factsID,
+          llvm::StringRef elementTypeName, std::int64_t elementBitWidth,
+          std::int64_t sew, llvm::StringRef lmul,
+          llvm::StringRef tailPolicy, llvm::StringRef maskPolicy,
+          llvm::StringRef configContractID, llvm::StringRef vlCType,
+          llvm::StringRef vectorTypeName, llvm::StringRef vectorCType,
+          llvm::StringRef maskTypeName, llvm::StringRef maskCType,
+          llvm::StringRef setVLIntrinsic, llvm::StringRef vectorLoadIntrinsic,
+          llvm::StringRef storeIntrinsic) -> llvm::Error {
+    if ((!factsID.empty() && factsID != typedFacts.factsID) ||
+        elementTypeName != typedFacts.elementTypeName ||
+        elementBitWidth != typedFacts.elementBitWidth ||
+        sew != typedFacts.sew || lmul != typedFacts.lmul ||
+        tailPolicy != typedFacts.tailPolicy ||
+        maskPolicy != typedFacts.maskPolicy ||
+        configContractID != typedFacts.configContractID ||
+        vlCType != typedFacts.vlCType ||
+        vectorTypeName != typedFacts.vectorTypeName ||
+        vectorCType != typedFacts.vectorCType ||
+        maskTypeName != typedFacts.maskTypeName ||
+        maskCType != typedFacts.maskCType ||
+        setVLIntrinsic != typedFacts.setVLIntrinsic ||
+        vectorLoadIntrinsic != typedFacts.vectorLoadIntrinsic ||
+        storeIntrinsic != typedFacts.storeIntrinsic)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) + " " + routeName +
+          " route construction requires family-plan type/config facts to "
+          "mirror the selected typed RVV body before creating "
+          "TCRVEmitCLowerableRoute");
+    return llvm::Error::success();
+  };
+
+  auto requireCommonMaterializationMirror =
+      [&](llvm::StringRef routeName, llvm::StringRef vlCType,
+          llvm::StringRef vectorTypeName, llvm::StringRef vectorCType,
+          llvm::StringRef maskTypeName, llvm::StringRef maskCType,
+          llvm::StringRef setVLIntrinsic, llvm::StringRef vectorLoadIntrinsic,
+          llvm::StringRef compareIntrinsic, llvm::StringRef selectIntrinsic,
+          llvm::StringRef storeIntrinsic) -> llvm::Error {
+    if (materializationFacts.vlCType != vlCType ||
+        materializationFacts.resultVectorTypeName != vectorTypeName ||
+        materializationFacts.resultVectorCType != vectorCType ||
+        materializationFacts.maskTypeName != maskTypeName ||
+        materializationFacts.maskCType != maskCType ||
+        materializationFacts.setVLLeaf != setVLIntrinsic ||
+        materializationFacts.vectorLoadLeaf != vectorLoadIntrinsic ||
+        materializationFacts.compareLeaf != compareIntrinsic ||
+        materializationFacts.elementwiseComputeLeaf != selectIntrinsic ||
+        materializationFacts.storeLeaf != storeIntrinsic)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) + " " + routeName +
+          " route construction requires materialization facts to come from "
+          "the verified compare/select family plan before creating "
+          "TCRVEmitCLowerableRoute");
+    return llvm::Error::success();
+  };
+
+  if (consumesPlainCompareSelect) {
+    if (!analysis.plainCompareSelectRouteFamilyPlan ||
+        materializationFacts.plainCompareSelectPlan !=
+            &*analysis.plainCompareSelectRouteFamilyPlan ||
+        materializationFacts.computedMaskSelectPlan)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " plain compare-select route construction requires exactly the "
+          "verified plain compare-select family plan before creating "
+          "TCRVEmitCLowerableRoute");
+    if (!compareSelectStatementPlan.plansPlainCompareSelect ||
+        compareSelectStatementPlan.plansComputedMaskSelect ||
+        compareSelectStatementPlan.plansRuntimeScalarComputedMaskSelect ||
+        compareSelectStatementPlan
+            .plansRuntimeScalarDualCompareMaskAndSelect ||
+        compareSelectStatementPlan.plainCompareSelectPlan !=
+            materializationFacts.plainCompareSelectPlan ||
+        compareSelectStatementPlan.computedMaskSelectPlan ||
+        compareSelectStatementPlan.maskTailPolicyPlan.plansMaskTailPolicy)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " plain compare-select route construction requires the matching "
+          "plain compare/select statement plan before creating "
+          "TCRVEmitCLowerableRoute");
+    if (!elementwiseSelectOperandBindingFacts.bindsPlainCompareSelect ||
+        !elementwiseSelectOperandBindingFacts.lhsABI ||
+        !elementwiseSelectOperandBindingFacts.rhsABI ||
+        !elementwiseSelectOperandBindingFacts.outABI ||
+        !elementwiseSelectOperandBindingFacts.runtimeElementCountABI)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " plain compare-select route construction requires realized "
+          "lhs/rhs/out/n operand-binding facts before creating "
+          "TCRVEmitCLowerableRoute");
+
+    const RVVSelectedBodyPlainCompareSelectRouteFamilyPlan &plan =
+        *materializationFacts.plainCompareSelectPlan;
+    if (llvm::Error error = requireTypedConfigMirror(
+            "plain compare-select", /*factsID=*/{}, typedFacts.elementTypeName,
+            typedFacts.elementBitWidth, plan.runtimeControlPlan.sew,
+            plan.runtimeControlPlan.lmul, plan.runtimeControlPlan.tailPolicy,
+            plan.runtimeControlPlan.maskPolicy,
+            plan.runtimeControlPlan.configContractID, plan.vlCType,
+            plan.vectorTypeName, plan.vectorCType, plan.maskTypeName,
+            plan.maskCType, plan.setVLIntrinsic, plan.vectorLoadIntrinsic,
+            plan.storeIntrinsic))
+      return error;
+    if (llvm::Error error = requireCommonMaterializationMirror(
+            "plain compare-select", plan.vlCType, plan.vectorTypeName,
+            plan.vectorCType, plan.maskTypeName, plan.maskCType,
+            plan.setVLIntrinsic, plan.vectorLoadIntrinsic,
+            plan.compareIntrinsic, plan.selectIntrinsic, plan.storeIntrinsic))
+      return error;
+    return llvm::Error::success();
+  }
+
+  if (!analysis.computedMaskSelectRouteFamilyPlan ||
+      materializationFacts.computedMaskSelectPlan !=
+          &*analysis.computedMaskSelectRouteFamilyPlan ||
+      materializationFacts.plainCompareSelectPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask select route construction requires exactly the "
+        "verified computed-mask select family plan before creating "
+        "TCRVEmitCLowerableRoute");
+
+  const bool isVectorComputedMaskSelect =
+      operation == RVVSelectedBodyOperationKind::ComputedMaskSelect;
+  const bool isRuntimeScalarComputedMaskSelect =
+      operation == RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect;
+  const bool isRuntimeScalarDualComputedMaskSelect =
+      operation ==
+      RVVSelectedBodyOperationKind::RuntimeScalarDualCompareMaskAndSelect;
+  const bool isF32ClampSelect =
+      operation == RVVSelectedBodyOperationKind::F32ClampSelect;
+  const bool isDequantClampF32Epilogue =
+      operation == RVVSelectedBodyOperationKind::DequantClampF32Epilogue;
+  if (compareSelectStatementPlan.plansPlainCompareSelect ||
+      compareSelectStatementPlan.plainCompareSelectPlan ||
+      compareSelectStatementPlan.computedMaskSelectPlan !=
+          materializationFacts.computedMaskSelectPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask select route construction requires the matching "
+        "computed-mask compare/select statement plan before creating "
+        "TCRVEmitCLowerableRoute");
+  if (isVectorComputedMaskSelect) {
+    if (!compareSelectStatementPlan.plansComputedMaskSelect ||
+        compareSelectStatementPlan.plansRuntimeScalarComputedMaskSelect ||
+        compareSelectStatementPlan
+            .plansRuntimeScalarDualCompareMaskAndSelect)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed_mask_select route construction requires a vector "
+          "computed-mask compare/select statement plan before creating "
+          "TCRVEmitCLowerableRoute");
+    if (!elementwiseSelectOperandBindingFacts.bindsComputedMaskSelect ||
+        elementwiseSelectOperandBindingFacts
+            .bindsRuntimeScalarComputedMaskSelect)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " computed_mask_select route construction requires realized "
+          "vector compare-mask operand-binding facts before creating "
+          "TCRVEmitCLowerableRoute");
+  } else if (isRuntimeScalarComputedMaskSelect ||
+             isRuntimeScalarDualComputedMaskSelect || isF32ClampSelect ||
+             isDequantClampF32Epilogue) {
+    if (compareSelectStatementPlan.plansComputedMaskSelect ||
+        !compareSelectStatementPlan.plansRuntimeScalarComputedMaskSelect ||
+        compareSelectStatementPlan
+                .plansRuntimeScalarDualCompareMaskAndSelect !=
+            isRuntimeScalarDualComputedMaskSelect ||
+        compareSelectStatementPlan.plansF32ClampSelect != isF32ClampSelect ||
+        compareSelectStatementPlan.plansDequantClampF32Epilogue !=
+            isDequantClampF32Epilogue)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime scalar computed-mask select route construction requires "
+          "the matching single/dual/f32-clamp/dequant-clamp compare/select statement plan "
+          "before creating TCRVEmitCLowerableRoute");
+    if (!elementwiseSelectOperandBindingFacts
+             .bindsRuntimeScalarComputedMaskSelect ||
+        elementwiseSelectOperandBindingFacts
+                .bindsRuntimeScalarDualCompareMaskAndSelect !=
+            isRuntimeScalarDualComputedMaskSelect ||
+        elementwiseSelectOperandBindingFacts.bindsF32ClampSelect !=
+            isF32ClampSelect ||
+        elementwiseSelectOperandBindingFacts.bindsDequantClampF32Epilogue !=
+            isDequantClampF32Epilogue)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime scalar computed-mask select route construction requires "
+          "the matching single/dual/f32-clamp/dequant-clamp operand-binding facts before "
+          "creating TCRVEmitCLowerableRoute");
+  }
+  const bool hasRequiredValueBindings =
+      isDequantClampF32Epilogue
+          ? elementwiseSelectOperandBindingFacts.lhsABI &&
+                elementwiseSelectOperandBindingFacts.dequantScaleABI &&
+                elementwiseSelectOperandBindingFacts.lowerBoundABI &&
+                elementwiseSelectOperandBindingFacts.upperBoundABI &&
+                elementwiseSelectOperandBindingFacts.outABI &&
+                elementwiseSelectOperandBindingFacts.runtimeElementCountABI
+      : isF32ClampSelect
+          ? elementwiseSelectOperandBindingFacts.lhsABI &&
+                elementwiseSelectOperandBindingFacts.lowerBoundABI &&
+                elementwiseSelectOperandBindingFacts.upperBoundABI &&
+                elementwiseSelectOperandBindingFacts.outABI &&
+                elementwiseSelectOperandBindingFacts.runtimeElementCountABI
+          : elementwiseSelectOperandBindingFacts.lhsABI &&
+                elementwiseSelectOperandBindingFacts.rhsABI &&
+                elementwiseSelectOperandBindingFacts.trueValueABI &&
+                elementwiseSelectOperandBindingFacts.falseValueABI &&
+                elementwiseSelectOperandBindingFacts.outABI &&
+                elementwiseSelectOperandBindingFacts.runtimeElementCountABI;
+  if (!hasRequiredValueBindings)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask select route construction requires compare/value/out/"
+        "n operand-binding facts before creating TCRVEmitCLowerableRoute");
+
+  const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan &plan =
+      *materializationFacts.computedMaskSelectPlan;
+  const RVVSelectedBodyMaskTailPolicyProviderPlan &maskTailPlan =
+      compareSelectStatementPlan.maskTailPolicyPlan;
+  if (!maskTailPlan.plansMaskTailPolicy ||
+      !maskTailPlan.controlsComputedMaskSelect ||
+      maskTailPlan.typedConfigFacts != &analysis.typedConfigFacts ||
+      maskTailPlan.selectedTargetCapabilityFacts !=
+          &analysis.selectedTargetCapabilityFacts ||
+      maskTailPlan.bindingPlan != &analysis.routeOperandBindingPlan ||
+      maskTailPlan.computedMaskSelectPlan != &plan ||
+      maskTailPlan.maskProducerSourceMirror != plan.maskProducerSource ||
+      maskTailPlan.maskRoleMirror != plan.maskRole ||
+      maskTailPlan.maskSourceMirror != plan.maskSource ||
+      maskTailPlan.maskMemoryFormMirror != plan.maskMemoryForm ||
+      maskTailPlan.runtimeABIOrderMirror != plan.runtimeABIOrder ||
+      maskTailPlan.providerSupportedMirror != plan.providerSupportedMirror)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask select route construction requires the RVV-owned "
+        "mask/tail policy provider plan from the same computed-mask "
+        "compare/select statement plan before creating "
+        "TCRVEmitCLowerableRoute");
+  auto requireMaskTailPlanMirror =
+      [&](llvm::StringRef field, llvm::StringRef actual,
+          llvm::StringRef expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " computed-mask select route construction requires mask/tail policy "
+        "provider plan " +
+        field + " to mirror provider-derived value '" + expected +
+        "' but carried '" + actual +
+        "' before creating TCRVEmitCLowerableRoute");
+  };
+  if (llvm::Error error = requireMaskTailPlanMirror(
+          "route-family plan id", maskTailPlan.familyPlanIDMirror,
+          analysis.description.maskTailPolicyRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireMaskTailPlanMirror(
+          "owner", maskTailPlan.ownerNameMirror,
+          analysis.description.maskTailPolicyOwner))
+    return error;
+  if (llvm::Error error = requireMaskTailPlanMirror(
+          "tail policy", maskTailPlan.tailPolicyMirror,
+          typedFacts.tailPolicy))
+    return error;
+  if (llvm::Error error = requireMaskTailPlanMirror(
+          "mask policy", maskTailPlan.maskPolicyMirror,
+          typedFacts.maskPolicy))
+    return error;
+  if (llvm::Error error = requireMaskTailPlanMirror(
+          "route operand binding plan",
+          maskTailPlan.routeOperandBindingPlanIDMirror,
+          analysis.routeOperandBindingPlan.planID))
+    return error;
+  if (llvm::Error error = requireMaskTailPlanMirror(
+          "selected target provider mirror", maskTailPlan.selectedProviderMirror,
+          analysis.selectedTargetCapabilityFacts.providerMirror))
+    return error;
+  if (llvm::Error error = requireMaskTailPlanMirror(
+          "selected target legality mirror", maskTailPlan.selectedLegalityMirror,
+          analysis.selectedTargetCapabilityFacts.legalityMirror))
+    return error;
+  if ((isRuntimeScalarComputedMaskSelect ||
+       isRuntimeScalarDualComputedMaskSelect || isF32ClampSelect ||
+       isDequantClampF32Epilogue) &&
+      (!plan.usesRuntimeScalarProducer || plan.usesVectorCompareProducer ||
+       plan.usesDualCompareMaskAnd !=
+           isRuntimeScalarDualComputedMaskSelect ||
+       plan.usesF32ClampSelect != isF32ClampSelect ||
+       plan.usesDequantClampF32Epilogue != isDequantClampF32Epilogue))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask select route construction requires "
+        "runtime-scalar producer facts and the matching single/dual/f32-clamp/dequant-clamp "
+        "mask shape before creating TCRVEmitCLowerableRoute");
+  if (isRuntimeScalarComputedMaskSelect &&
+      plan.maskProducerSource != "runtime-scalar-splat-compare-rhs")
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime_scalar_cmp_select route construction requires the "
+        "runtime-scalar RHS splat producer source before creating "
+        "TCRVEmitCLowerableRoute");
+  if (isRuntimeScalarDualComputedMaskSelect &&
+      (plan.maskProducerSource !=
+           "dual-runtime-scalar-splat-compare-rhs-mask-and" ||
+       plan.maskComposition != "and" || plan.secondaryCompareIntrinsic.empty() ||
+       plan.maskAndIntrinsic.empty()))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime_scalar_dual_cmp_mask_and_select route construction "
+        "requires dual runtime-scalar mask-and producer facts before creating "
+        "TCRVEmitCLowerableRoute");
+  if (isF32ClampSelect &&
+      (plan.maskProducerSource !=
+           "two-compare-two-select-f32-clamp-same-vl-scope" ||
+       plan.selectLayout != "clamp-lower-then-upper" ||
+       plan.secondaryCompareIntrinsic.empty() || !plan.maskAndIntrinsic.empty()))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " f32_clamp_select route construction requires two-compare/two-select "
+        "f32 clamp producer facts and no mask-and leaf before creating "
+        "TCRVEmitCLowerableRoute");
+  if (isDequantClampF32Epilogue &&
+      (plan.maskProducerSource !=
+           "i32-to-f32-dequant-then-two-compare-two-select-f32-clamp-same-vl-scope" ||
+       plan.selectLayout != "clamp-lower-then-upper" ||
+       plan.secondaryCompareIntrinsic.empty() || !plan.maskAndIntrinsic.empty() ||
+       plan.sourceVectorTypeName.empty() || plan.sourceVectorCType.empty() ||
+       plan.sourceVectorLoadIntrinsic.empty() ||
+       plan.dequantizeConvertIntrinsic.empty() ||
+       plan.dequantizeScaleIntrinsic.empty()))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequant_clamp_f32_epilogue route construction requires source i32 "
+        "load, dequant convert/scale, and two-compare/two-select f32 clamp "
+        "producer facts before creating TCRVEmitCLowerableRoute");
+  if (llvm::Error error = requireTypedConfigMirror(
+          "computed-mask select", plan.typedConfigFactsID,
+          plan.elementTypeName, plan.elementBitWidth, plan.sew, plan.lmul,
+          plan.tailPolicy, plan.maskPolicy, plan.configContractID,
+          plan.vlCType, plan.vectorTypeName, plan.vectorCType,
+          plan.maskTypeName, plan.maskCType, plan.setVLIntrinsic,
+          plan.vectorLoadIntrinsic, plan.storeIntrinsic))
+    return error;
+  if (llvm::Error error = requireCommonMaterializationMirror(
+          "computed-mask select", plan.vlCType, plan.vectorTypeName,
+          plan.vectorCType, plan.maskTypeName, plan.maskCType,
+          plan.setVLIntrinsic, plan.vectorLoadIntrinsic,
+          plan.compareIntrinsic, plan.selectIntrinsic, plan.storeIntrinsic))
+    return error;
+  if (plan.usesRuntimeScalarProducer &&
+      materializationFacts.rhsScalarBroadcastLeaf !=
+          plan.rhsScalarSplatIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask select route construction requires "
+        "the RHS scalar splat leaf from the verified family plan before "
+        "creating TCRVEmitCLowerableRoute");
+  if (isDequantClampF32Epilogue &&
+      (materializationFacts.sourceVectorTypeName !=
+           plan.sourceVectorTypeName ||
+       materializationFacts.sourceVectorCType != plan.sourceVectorCType ||
+       materializationFacts.sourceLoadLeaf !=
+           plan.sourceVectorLoadIntrinsic ||
+       materializationFacts.dequantizeConvertLeaf !=
+           plan.dequantizeConvertIntrinsic ||
+       materializationFacts.dequantizeScaleLeaf !=
+           plan.dequantizeScaleIntrinsic))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " dequant_clamp_f32_epilogue route construction requires source "
+        "i32 and dequant materialization facts from the verified family plan "
+        "before creating TCRVEmitCLowerableRoute");
+
+  return llvm::Error::success();
+}
+
 } // namespace tianchenrv::plugin::rvv

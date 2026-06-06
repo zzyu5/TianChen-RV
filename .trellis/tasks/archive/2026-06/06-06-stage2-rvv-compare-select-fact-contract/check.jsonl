@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global source-of-truth, RVV-first order, and forbidden route authority drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV compare/select provider/locality, selected-body realization, statement-plan/provider contract, and owner compliance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check TCRVEmitCLowerableRoute is provider-built and Common EmitC remains neutral for compare/select routes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests, runtime evidence boundary, and old-authority scan expectations."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-compare-select-fact-contract/prd.md", "reason": "Check acceptance criteria, non-goals, completion evidence, and runtime boundary decision."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h", "reason": "Check owner-level provider-fact contract API location."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Check compare/select provider-fact API is not left as a generic planning surface."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCCompareSelectStatementPlanOwners.cpp", "reason": "Check compare/select owner-level verifier implementation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Check generic planning no longer exposes compare/select provider fact ownership."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Check production route provider consumes owner-level facts before route construction."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Check positive and fail-closed compare/select C++ coverage."}

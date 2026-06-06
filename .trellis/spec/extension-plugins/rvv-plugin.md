@@ -2600,6 +2600,15 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
     const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
         &elementwiseSelectOperandBindingFacts,
     llvm::StringRef context);
+
+llvm::Error verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+        &elementwiseSelectOperandBindingFacts,
+    const RVVSelectedBodyCompareSelectRouteStatementPlan
+        &compareSelectStatementPlan,
+    llvm::StringRef context);
 ```
 
 `RVVEmitCRouteProvider` must call this boundary after
@@ -2607,6 +2616,13 @@ getRVVSelectedBodyCompareSelectRouteStatementPlan(
 obtaining route materialization facts, and after obtaining the
 elementwise/select operand-binding facts for the same analysis. Non-consumer
 route families receive an empty/default statement plan.
+
+For active compare/select consumers, `RVVEmitCRouteProvider` must then call
+`verifyRVVSelectedBodyCompareSelectRouteProviderFacts(...)` through the
+compare/select statement-plan owner API before constructing
+`TCRVEmitCLowerableRoute`. The verifier is the provider-facing
+compare/select owner contract; it must not be declared or treated as a generic
+route-planning authority surface.
 
 ### 3. Contracts
 
@@ -2629,6 +2645,15 @@ facts, and for plain compare/select and computed-mask select the RVV-owned
 route-control provider plan. It is not a common EmitC fact, not artifact
 metadata, not an acceptance/status mirror, and not a route-support declaration
 by itself.
+
+`verifyRVVSelectedBodyCompareSelectRouteProviderFacts(...)` must consume the
+same selected route analysis, materialization facts, elementwise/select
+operand-binding facts, and compare/select statement-plan owner output that feed
+route construction. It validates that predicate, scalar operand, true/false
+value roles, selected result role, mask producer/source/form, mask/tail
+provider facts, typed SEW/LMUL/policy/config, runtime ABI order, header/type/
+intrinsic facts, and statement-plan leaves still mirror the selected typed RVV
+body and owner-built family plans before the common route value is created.
 
 ### 4. Validation & Error Matrix
 
@@ -2654,6 +2679,11 @@ by itself.
   `rhs_scalar`, `cmp_lhs_b`, `rhs_scalar_b`, `true_value`, `false_value`,
   `out`, or runtime count are absent -> fail closed with the logical operand
   name and operation/memory-form context.
+- Provider-fact verification sees a stale family plan, typed config,
+  materialization leaf, scalar operand binding, true/false value role, selected
+  result role, mask provenance, mask/tail provider mirror, runtime ABI order,
+  header/type mapping, intrinsic, or statement-plan owner leaf -> fail closed
+  before creating `TCRVEmitCLowerableRoute`.
 - Required materialization leaves such as `setvl`, vector load, runtime scalar
   splat, compare, secondary compare, mask-and, select, or store are absent ->
   fail closed before common EmitC.
