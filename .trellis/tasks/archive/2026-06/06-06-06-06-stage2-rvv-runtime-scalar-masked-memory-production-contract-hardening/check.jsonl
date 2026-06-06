@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Final compliance check against RVV-first authority, Stage2 scope, and no metadata/route-id authority drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final compliance check for computed-mask memory statement-plan/provider facts and target artifact validator boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final compliance check for common EmitC neutrality, operand-binding summaries, and runtime AVL/VL selected-boundary contract."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Required focused C++ provider/plan/fail-closed validation executable."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Required focused C++ target artifact validation executable."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-load-store-dry-run.test", "reason": "Generated-bundle positive dry-run check for load-store."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-store-dry-run.test", "reason": "Generated-bundle positive dry-run check for store."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-runtime-scalar-cmp-masked-load-store-fail-closed.test", "reason": "Generated-bundle fail-closed direct pre-realized shortcut check for load-store."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-runtime-scalar-cmp-masked-store-fail-closed.test", "reason": "Generated-bundle fail-closed direct pre-realized shortcut check for store."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-load-store.mlir", "reason": "Target/RVV lit fixture for selected-body load-store artifact behavior."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-store.mlir", "reason": "Target/RVV lit fixture for selected-body store artifact behavior."}

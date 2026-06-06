@@ -8926,6 +8926,78 @@ llvm::Error validateRVVUnitStrideMaskedMemoryCanonicalProviderFacts(
       description, *contract);
 }
 
+llvm::Error validateRVVUnitStrideMaskedMemoryRouteHeaders(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVUnitStrideMaskedMemoryRouteValidationContract
+        &contract) {
+  if (contract.requiredHeaderDeclarations.empty() ||
+      contract.requiredHeaders.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived required_header_declarations before "
+        "accepting the route artifact");
+  for (llvm::StringRef header : contract.requiredHeaders)
+    if (!routeHasHeader(route, header))
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route header '" + header + "'");
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVUnitStrideMaskedMemoryRouteTypeMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVUnitStrideMaskedMemoryRouteValidationContract
+        &contract) {
+  if (contract.cTypeMappingSummary.empty() || contract.typeMappings.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-derived c_type_mapping facts before accepting "
+        "the route artifact");
+  for (const auto &mapping : contract.typeMappings)
+    if (!routeHasTypeMapping(route, mapping.sourceType, mapping.cType))
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route type mapping '" +
+          mapping.sourceType + "' -> '" + mapping.cType + "' for " +
+          mapping.label);
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVUnitStrideMaskedMemoryRouteABIMappings(
+    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    const plugin::rvv::RVVUnitStrideMaskedMemoryRouteValidationContract
+        &contract) {
+  if (route.getABIMappings().size() != contract.runtimeABIParameters.size())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires rebuilt provider route ABI mapping count " +
+        llvm::Twine(contract.runtimeABIParameters.size()) + " but route has " +
+        llvm::Twine(route.getABIMappings().size()));
+
+  for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
+    const conversion::emitc::TCRVEmitCABIValueMapping &mapping =
+        route.getABIMappings()[index];
+    const support::RuntimeABIParameter &expected =
+        contract.runtimeABIParameters[index];
+    if (!runtimeABIParameterEquals(mapping.parameter, expected))
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route ABI mapping[" +
+          llvm::Twine(index) +
+          "] to mirror provider runtime ABI parameter '" + expected.cName +
+          "'");
+    if (mapping.valueName != expected.cName)
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires rebuilt provider route ABI mapping[" +
+          llvm::Twine(index) +
+          "] value name to use provider runtime ABI parameter '" +
+          expected.cName + "' but was '" + mapping.valueName + "'");
+  }
+
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVCompareSelectMaskDualProviderFacts(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   const bool isRuntimeScalarDualCompareSelect =
@@ -10111,15 +10183,6 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
         "compare-produced computed-mask memory");
   }
 
-  if (llvm::Error error =
-          validateRVVCompareSelectMaskRouteHeaders(route, description))
-    return error;
-  if (llvm::Error error =
-          validateRVVCompareSelectMaskRouteTypeMappings(route, description))
-    return error;
-  if (llvm::Error error =
-          validateRVVCompareSelectMaskRouteABIMappings(route, description))
-    return error;
   if (isRVVUnitStrideMaskedMemoryRouteFamilyOperation(
           description.operation)) {
     std::optional<plugin::rvv::RVVUnitStrideMaskedMemoryRouteValidationContract>
@@ -10131,11 +10194,31 @@ llvm::Error validateRVVCompareSelectMaskRoutePayloadFacts(
           "unit-stride masked memory target artifact consumer requires "
           "provider-owned route validation contract from typed "
           "body/config/runtime facts before validating route statements");
+    if (llvm::Error error =
+            validateRVVUnitStrideMaskedMemoryRouteHeaders(route, *contract))
+      return error;
+    if (llvm::Error error =
+            validateRVVUnitStrideMaskedMemoryRouteTypeMappings(route,
+                                                               *contract))
+      return error;
+    if (llvm::Error error =
+            validateRVVUnitStrideMaskedMemoryRouteABIMappings(route,
+                                                              *contract))
+      return error;
     return validateRVVCompareSelectMaskRouteStatementPlan(
         route, description, contract->expectedPreLoopStepCount,
         contract->expectedLoopBodyStepCount,
         &contract->runtimeAVLVLContract);
   }
+  if (llvm::Error error =
+          validateRVVCompareSelectMaskRouteHeaders(route, description))
+    return error;
+  if (llvm::Error error =
+          validateRVVCompareSelectMaskRouteTypeMappings(route, description))
+    return error;
+  if (llvm::Error error =
+          validateRVVCompareSelectMaskRouteABIMappings(route, description))
+    return error;
   return validateRVVCompareSelectMaskRouteStatementPlan(route, description);
 }
 

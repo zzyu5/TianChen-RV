@@ -2544,6 +2544,88 @@ void addRVVManualRouteCommonFacts(
     route.addABIValueMapping(parameter, parameter.cName);
 }
 
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+makeRVVManualRouteWithCommonFacts(
+    const RVVManualRouteDescription &description) {
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route(
+      description.emitCRouteID, "rvv-manual-target-artifact-test");
+  addRVVManualRouteCommonFacts(route, description);
+  return route;
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+makeRVVManualRouteWithCommonFactsWithoutHeader(
+    const RVVManualRouteDescription &description,
+    llvm::StringRef omittedHeader) {
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route(
+      description.emitCRouteID, "rvv-manual-target-artifact-test");
+  llvm::SmallVector<llvm::StringRef, 4> headers;
+  description.requiredHeaderDeclarations.split(headers, ',', /*MaxSplit=*/-1,
+                                               /*KeepEmpty=*/false);
+  for (llvm::StringRef header : headers) {
+    llvm::StringRef trimmed = header.trim();
+    if (!trimmed.empty() && trimmed != omittedHeader)
+      route.addHeader(trimmed);
+  }
+  route.addTypeMapping("!tcrv_rvv.vl", description.vlCType);
+  route.addTypeMapping(description.vectorTypeName, description.vectorCType);
+  route.addTypeMapping(description.maskTypeName, description.maskCType);
+  if (!description.indexVectorTypeName.empty())
+    route.addTypeMapping(description.indexVectorTypeName,
+                         description.indexVectorCType);
+  for (const RuntimeABIParameter &parameter : description.runtimeABIParameters)
+    route.addABIValueMapping(parameter, parameter.cName);
+  return route;
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+makeRVVManualRouteWithCommonFactsTypeMappingOverride(
+    const RVVManualRouteDescription &description, llvm::StringRef sourceType,
+    llvm::StringRef replacementCType) {
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route(
+      description.emitCRouteID, "rvv-manual-target-artifact-test");
+  route.addHeader("stddef.h");
+  route.addHeader("stdint.h");
+  route.addHeader("riscv_vector.h");
+  auto addMapping = [&](llvm::StringRef source, llvm::StringRef cType) {
+    route.addTypeMapping(source, source == sourceType ? replacementCType
+                                                      : cType);
+  };
+  addMapping("!tcrv_rvv.vl", description.vlCType);
+  addMapping(description.vectorTypeName, description.vectorCType);
+  addMapping(description.maskTypeName, description.maskCType);
+  if (!description.indexVectorTypeName.empty())
+    addMapping(description.indexVectorTypeName, description.indexVectorCType);
+  for (const RuntimeABIParameter &parameter : description.runtimeABIParameters)
+    route.addABIValueMapping(parameter, parameter.cName);
+  return route;
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+makeRVVManualRouteWithCommonFactsABIValueOverride(
+    const RVVManualRouteDescription &description, std::size_t abiIndex,
+    llvm::StringRef replacementValueName) {
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route =
+      makeRVVManualRouteWithCommonFacts(description);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute rewritten(
+      description.emitCRouteID, "rvv-manual-target-artifact-test");
+  for (const tianchenrv::conversion::emitc::TCRVEmitCHeaderRequirement
+           &header : route.getHeaders())
+    rewritten.addHeader(header.header);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCTypeMapping &mapping :
+       route.getTypeMappings())
+    rewritten.addTypeMapping(mapping.sourceType, mapping.cType);
+  for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
+    const tianchenrv::conversion::emitc::TCRVEmitCABIValueMapping &mapping =
+        route.getABIMappings()[index];
+    llvm::StringRef valueName =
+        index == abiIndex ? replacementValueName
+                          : llvm::StringRef(mapping.valueName);
+    rewritten.addABIValueMapping(mapping.parameter, valueName);
+  }
+  return rewritten;
+}
+
 TargetArtifactCandidate makeRVVManualTargetArtifactCandidate(
     const RVVManualRouteDescription &description) {
   TargetArtifactCandidate candidate;
@@ -20170,6 +20252,43 @@ bool expectRVVTargetArtifactExporterShape(
           "splat intrinsic",
           {"runtime scalar splat callee", "__riscv_vmv_v_x_i32m1",
            "metadata-derived-runtime-scalar-splat"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualRuntimeScalarStoreCandidate,
+          makeRVVManualRouteWithCommonFactsWithoutHeader(
+              manualRuntimeScalarStoreDescription, "riscv_vector.h"),
+          manualRuntimeScalarStoreDescription,
+          "unit-stride masked memory route rejects missing runtime-scalar "
+          "store header",
+          {"unit-stride masked memory target artifact consumer",
+           "rebuilt provider route header", "riscv_vector.h"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualRuntimeScalarLoadStoreCandidate,
+          makeRVVManualRouteWithCommonFactsTypeMappingOverride(
+              manualRuntimeScalarLoadStoreDescription, "!tcrv_rvv.vl",
+              "uint64_t"),
+          manualRuntimeScalarLoadStoreDescription,
+          "unit-stride masked memory route rejects stale runtime-scalar "
+          "load-store VL type mapping",
+          {"unit-stride masked memory target artifact consumer",
+           "route type mapping", "!tcrv_rvv.vl", "size_t"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualRuntimeScalarLoadStoreCandidate,
+          makeRVVManualRouteWithCommonFactsABIValueOverride(
+              manualRuntimeScalarLoadStoreDescription, /*abiIndex=*/1,
+              "metadata_rhs_scalar"),
+          manualRuntimeScalarLoadStoreDescription,
+          "unit-stride masked memory route rejects stale runtime-scalar "
+          "load-store ABI value mapping",
+          {"unit-stride masked memory target artifact consumer",
+           "ABI mapping[1] value name",
+           "provider runtime ABI parameter 'rhs_scalar'",
+           "metadata_rhs_scalar"}))
     return false;
 
   RVVRouteDescription staleComputedUnitRuntimeAVLSource =

@@ -119,3 +119,54 @@ Confirmed the existing runtime-scalar compare-masked standalone reduce-add selec
 ### Next Steps
 
 - None - task complete
+## Session 489: Stage2 RVV runtime-scalar masked memory production contract hardening
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV runtime-scalar masked memory production fail-closed contract hardening
+**Branch**: `main`
+
+### Summary
+
+Hardened the target artifact route payload validation contract for unit-stride
+runtime-scalar compare-masked memory. The previous task proved the generated
+bundles execute on `ssh rvv`; this round made the target consumer validate
+rebuilt route headers, type mappings, and ABI mappings directly against the
+provider-owned `RVVUnitStrideMaskedMemoryRouteValidationContract`.
+
+### Main Changes
+
+- Added unit-stride masked memory target helpers for route headers, type
+  mappings, and ABI mappings in `RVVTargetArtifactRouteFamilyValidation.cpp`.
+- Rewired the unit-stride masked memory branch in
+  `validateRVVCompareSelectMaskRoutePayloadFacts` to use those contract-bound
+  helpers before statement-plan validation.
+- Added target C++ regression checks proving runtime-scalar masked memory
+  rejects a missing `riscv_vector.h` route header, stale `!tcrv_rvv.vl` type
+  mapping, and stale `rhs_scalar` ABI value mapping before executable artifact
+  acceptance.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | rvv: harden runtime scalar masked memory artifact contract |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'runtime-scalar-cmp-masked-(load-store|store)(\\.mlir|-dry-run\\.test|.*fail-closed\\.test)'` from `build/test`: 8/8 passed
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded added-line old-authority scan over touched production/test files
+- [OK] spec update review: no `.trellis/spec/` edit needed because the change
+  implements existing contract-first target artifact rules
+
+### Status
+
+[OK] **Ready to archive and commit**
+
+### Next Steps
+
+- Archive task and create the final commit.
