@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project invariants and RVV-first authority chain for this implementation round."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local selected-body, MAcc owner, runtime-scalar computed-mask MAcc, statement-plan, and fail-closed boundary contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built EmitC route, operand binding summaries, target artifact mirror validation, runtime AVL/VL, and artifact ABI contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle and ssh rvv evidence requirements for runtime-scalar computed-mask MAcc correctness claims."}

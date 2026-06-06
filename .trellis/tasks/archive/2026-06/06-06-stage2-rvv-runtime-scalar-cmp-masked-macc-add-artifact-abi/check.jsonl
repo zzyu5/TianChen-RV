@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global RVV-first authority invariants and source-of-truth boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check runtime-scalar computed-mask MAcc route-family owner, statement-plan, and fail-closed requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-owned route values, operand/header binding summaries, target artifact mirror validation, and runtime AVL/VL contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle dry-run and ssh rvv evidence requirements for runtime-scalar computed-mask MAcc."}
