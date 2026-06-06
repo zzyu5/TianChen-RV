@@ -346,7 +346,17 @@ Hardened scalar-broadcast sub/mul operand binding from mirror-only tokens to exe
 
 ### Main Changes
 
-(Add details)
+- Created and archived Trellis task `06-06-stage2-rvv-widening-conversion-artifact-abi`.
+- Audited widening conversion selected-body realization, route-provider
+  preflight, conversion dtype-policy route-family owner, target artifact
+  validation, generated-bundle harness, and existing fail-closed fixtures.
+- Found no production source gap: provider and target code already validate
+  source/result dtype, SEW/LMUL, conversion relation, runtime AVL/VL,
+  ABI/header/type mappings, statement leaves, and stale non-conversion mirrors
+  before executable artifact acceptance.
+- Produced non-dry-run `ssh rvv` generated-bundle evidence for pre-realized
+  `widen_i16_to_i32` and `widen_i32_to_i64` over counts `0,1,16,23,257` and
+  two input patterns.
 
 ### Git Commits
 
@@ -356,7 +366,18 @@ Hardened scalar-broadcast sub/mul operand binding from mirror-only tokens to exe
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] pre-realized widening conversion generated-bundle dry-run for
+  `widen_i16_to_i32` and `widen_i32_to_i64`
+- [OK] explicit selected-body `widen_i32_to_i64` generated-bundle dry-run
+- [OK] direct pre-realized route-entry shortcut fail-closed for
+  `widen_i16_to_i32` and `widen_i32_to_i64`
+- [OK] non-dry-run `ssh rvv` generated-bundle run for pre-realized
+  `widen_i16_to_i32` and `widen_i32_to_i64`
+- [WARN] local `lit` runner is not installed; checked the relevant lit
+  command surfaces directly.
 
 ### Status
 
@@ -484,6 +505,39 @@ Hardened and proved the pre-realized compare/select generated-bundle artifact AB
 ### Git Commits
 
 (No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 491: Stage2 RVV widening conversion artifact ABI
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV widening conversion artifact ABI
+**Branch**: `main`
+
+### Summary
+
+Audited and proved pre-realized RVV widening conversion generated artifact ABI boundary with dry-run, fail-closed, C++ checks, and ssh rvv evidence; no production source change required.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
 
 ### Testing
 

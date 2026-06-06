@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check for global authority chain, Stage2 scope, and forbidden metadata/legacy authority"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check for widening conversion RVV plugin ownership, provider preflight, statement-plan, and fail-closed requirements"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check for common EmitC neutrality, provider-owned ABI/header/type summaries, runtime AVL/VL, and conversion dtype-policy target validation"}
+{"file": ".trellis/spec/testing/index.md", "reason": "Final check for generated-bundle dry-run, ssh rvv evidence, and old-authority testing constraints"}
