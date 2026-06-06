@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify no drift from global typed RVV route authority and evidence requirements"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify computed-mask MAcc selected-body, provider facts, route-control, statement-plan, and MAcc owner compliance"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC neutrality and artifact ABI binding mirror checks"}
+{"file": ".trellis/tasks/06-06-stage2-rvv-computed-masked-macc-artifact-abi/prd.md", "reason": "Verify implementation and evidence against task acceptance criteria"}

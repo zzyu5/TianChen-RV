@@ -19,7 +19,9 @@ Expanded product-reduction-dequant-clamp generated artifact ABI binding evidence
 
 ### Main Changes
 
-(Add details)
+- Archived `.trellis/tasks/archive/2026-06/06-06-stage2-rvv-computed-masked-macc-artifact-abi/`.
+- Recorded the no-source-change audit conclusion: computed-mask MAcc selected-body realization, MAcc provider facts, computed-mask accumulation statement plan, target artifact validation, and generated-bundle script support were already production-valid.
+- Closed the missing executable blocker with non-dry-run pre-realized computed-masked MAcc generated-bundle execution on `ssh rvv`.
 
 ### Git Commits
 
@@ -419,3 +421,42 @@ evidence.
 ### Next Steps
 
 - Archive task and create the final commit.
+
+
+## Session 489: Stage2 RVV computed-masked MAcc artifact ABI evidence
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV computed-masked MAcc artifact ABI evidence
+**Branch**: `main`
+
+### Summary
+
+Archived the computed-masked MAcc artifact ABI task, audited the production seam as already provider/target valid, and proved pre-realized computed-masked MAcc generated-bundle execution on ssh rvv without source changes.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | rvv: prove computed masked macc artifact abi |
+
+### Testing
+
+- [OK] `scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind computed_masked_macc_add --artifact-root artifacts/tmp/rvv_generated_bundle_abi_e2e --run-id pre-realized-computed-masked-macc-add --overwrite`
+- [OK] `ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter computed-masked-macc-add` from `build/test`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

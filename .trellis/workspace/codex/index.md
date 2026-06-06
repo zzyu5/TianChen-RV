@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-24.md`
-- **Total Sessions**: 488
+- **Total Sessions**: 489
 - **Last Active**: 2026-06-06
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-24.md` | ~365 | Active |
+| `journal-24.md` | ~454 | Active |
 | `journal-23.md` | ~1982 | Archived |
 | `journal-22.md` | ~2034 | Archived |
 | `journal-21.md` | ~1978 | Archived |
@@ -52,6 +52,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 489 | 2026-06-06 | Stage2 RVV computed-masked MAcc artifact ABI evidence | `this commit` | `main` |
 | 493 | 2026-06-06 | Stage2 RVV scalar-broadcast elementwise artifact ABI boundary | pending-final-commit | `main` |
 | 487 | 2026-06-06 | Stage2 RVV runtime-scalar masked standalone reduction executable artifact ABI boundary | included-in-this-commit | `main` |
 | 486 | 2026-06-06 | Stage2 RVV product-reduction dequant executable artifact ABI boundary | pending-final-commit | `main` |
