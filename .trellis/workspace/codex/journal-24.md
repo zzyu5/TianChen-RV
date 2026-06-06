@@ -1399,3 +1399,66 @@ construction and artifact acceptance.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 507: Stage2 RVV resource-selected dequant-clamp executable ABI
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV resource-selected dequant-clamp executable ABI
+**Branch**: `main`
+
+### Summary
+
+Closed the resource-selected widening_product_reduce_dequant_clamp_f32 executable artifact ABI boundary with focused seam audit, dry-run evidence, and explicit plus pre-realized ssh rvv correctness; no production source change required.
+
+### Main Changes
+
+### Summary
+
+Closed the Stage2 RVV resource-selected `widening_product_reduce_dequant_clamp_f32` executable artifact ABI boundary. Production code did not require changes: the current RVV provider/target path already validates typed product/reduction/dequant/clamp facts, low-precision resource selection, runtime scale/lower/upper/out/n ABI bindings, route operand bindings, header/type mappings, provider mirror facts, and target artifact mirrors before bundle acceptance.
+
+### Main Changes
+
+- Created and archived Trellis task `06-06-stage2-rvv-resource-selected-dequant-clamp-f32-executable-abi`.
+- Wrote the bounded PRD and implement/check context JSONL for this module owner.
+- Audited the RVV contraction body validator, route planning/binding path, target artifact/construction bridge, generated-bundle harness, explicit fixture, and pre-realized fixture.
+- Recorded that no `.trellis/spec/` update is needed because existing RVV plugin, EmitC route, testing, and variant-pipeline specs already cover this contract.
+
+### Evidence
+
+- Explicit dry-run: `artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-product-dequant-clamp-explicit-dry/evidence.json`
+- Pre-realized dry-run: `artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-product-dequant-clamp-prerealized-dry/evidence.json`
+- Explicit `ssh rvv`: `artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-product-dequant-clamp-explicit-ssh/evidence.json`
+- Pre-realized `ssh rvv`: `artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-product-dequant-clamp-prerealized-ssh/evidence.json`
+- Both `ssh rvv` runs reported `success`, `ssh_evidence=true`, counts `0,1,16,17,257`, patterns `0,1`, scale values `-0.125,0.375`, bound pairs `-1.5:2.25,-8:-0.75`, and `source_preserved accumulator_preserved tail_preserved`.
+
+### Testing
+
+- [OK] `ninja -C build tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `lit -sv . --filter widening-product-reduce-dequant-clamp-f32` from `build/test`: 4/4 filtered tests passed.
+- [OK] Explicit and pre-realized generated-bundle dry-runs for `widening_product_reduce_dequant_clamp_f32`
+- [OK] Explicit and pre-realized generated-bundle `ssh rvv` correctness for `widening_product_reduce_dequant_clamp_f32`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-06-stage2-rvv-resource-selected-dequant-clamp-f32-executable-abi` before archive
+- [OK] `git diff --check`
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | rvv: prove product dequant clamp executable abi |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

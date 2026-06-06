@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify dequant-clamp route facts stay provider-owned/resource-selected and stale mirrors fail closed before artifact acceptance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC neutrality, provider-built route payloads, ABI/header operand summaries, and runtime AVL/VL facts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused C++/lit/generated-bundle/ssh rvv evidence is sufficient for executable claims."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify the round does not regress into evidence-only drift or metadata-only resource selection."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Verify no family-specific semantic authority leaks into common orchestration or artifact metadata."}
