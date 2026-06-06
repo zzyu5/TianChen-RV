@@ -1933,3 +1933,50 @@ Moved residual runtime-scalar splat-store and computed-mask memory provider-fact
 ### Next Steps
 
 - None - task complete
+
+
+## Session 486: Stage2 RVV widening dot-reduce executable artifact ABI boundary
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV widening dot-reduce executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Verified the existing pre-realized selected-body `widening_dot_reduce_add`
+production artifact/ABI seam end to end through generated bundle export and
+real `ssh rvv` execution. No production code change was needed because the
+provider and target validators already consume the widening-dot contract and
+the target tests already cover stale ABI, binding, scalar store, and mirror
+fail-closed cases.
+
+### Main Changes
+
+- Created and archived the Trellis task with PRD, implement/check context, and
+  completion evidence.
+- Recorded real remote evidence:
+  `PASS op=widening_dot_reduce_add counts=0,1,16,17,257 patterns=0,1`.
+- Confirmed the generated harness validates scalar `out[0]`, preserved
+  non-scalar/tail sentinels, preserved inputs/accumulator, and multi-VL counts.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| pending | rvv: verify widening dot artifact abi evidence |
+
+### Testing
+
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused generated-bundle dry-run lit test
+- [OK] non-dry-run `ssh rvv` generated-bundle ABI evidence
+- [OK] Trellis context validation
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

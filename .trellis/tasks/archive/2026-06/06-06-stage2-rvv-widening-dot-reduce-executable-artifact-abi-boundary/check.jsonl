@@ -1,0 +1,17 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global RVV authority chain and Stage2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV typed selected-body, direct contraction provider, target artifact, and ssh evidence compliance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check Common EmitC neutrality and provider-built widening-dot route validation contract compliance."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check widening-dot provider facts remain RVV plugin/target-local."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no high-level compute or source-front-door route authority was introduced."}
+{"file": ".trellis/tasks/06-06-stage2-rvv-widening-dot-reduce-executable-artifact-abi-boundary/prd.md", "reason": "Check implementation and evidence against this round's requirements and acceptance criteria."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Verify widening-dot fact/validation contract surface if changed."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Verify provider constructs TCRVEmitCLowerableRoute only after owner-local direct contraction facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Verify canonical widening-dot facts and statement-owner inputs remain structural and provider-owned."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Verify target artifact validation consumes the provider contract and fail-closes stale ABI/header/type/statement facts."}
+{"file": "lib/Target/TargetArtifactExport.cpp", "reason": "Verify export packaging remains neutral and ABI/header candidate handling is consistent."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Verify bundle support metadata/ABI checks remain mirror-only."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Verify generated-bundle dry-run and ssh rvv executable harness behavior if changed."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-widening-dot-reduce-add-dry-run.test", "reason": "Verify focused dry-run evidence for the pre-realized widening-dot bundle."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-dot-reduce-add.mlir", "reason": "Verify fixture and FileCheck evidence for materialized selected boundary and header ABI."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Verify fail-closed target artifact/export coverage if changed."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Verify direct contraction provider-fact coverage if changed."}

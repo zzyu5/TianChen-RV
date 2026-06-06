@@ -1,0 +1,19 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV source of truth, RVV-first authority chain, Stage2 scope, and forbidden legacy route-authority drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin owner boundary for typed selected bodies, direct contraction provider facts, target artifact mirrors, and ssh evidence requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract, Common EmitC neutrality, widening-dot validation contract, and generated-bundle runtime evidence rules."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check capability/runtime/ABI facts remain structural and plugin-owned."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check widening-dot contraction facts stay local to RVV provider/target validators."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check this remains low-level RVV execution-body work, not high-level compute IR or source-front-door authority."}
+{"file": ".trellis/tasks/06-06-stage2-rvv-widening-dot-reduce-executable-artifact-abi-boundary/prd.md", "reason": "This round's bounded module goal, requirements, acceptance criteria, non-goals, and verification plan."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-06-06-stage2-rvv-residual-memory-provider-fact-surface-closure/prd.md", "reason": "Previous completed owner and evidence boundary; confirms this round starts after residual memory provider-fact closure."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "RVV selected-body route description, widening-dot route facts, validation contract, and runtime ABI payload surface."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Production provider path from analysis/facts to TCRVEmitCLowerableRoute construction."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Direct contraction/widening-dot canonical facts, validation contract, route operand binding summary, and statement owner facts."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target-owned widening-dot artifact validator, rebuilt route payload checks, ABI/header/type/statement validation, and mirror checks."}
+{"file": "lib/Target/TargetArtifactExport.cpp", "reason": "Generic target artifact export/package path and runtime ABI/header candidate handling."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "RVV target support bundle ABI and metadata validation helpers."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated bundle ABI evidence harness, dry-run/ssh rvv execution path, and widening-dot runtime correctness checks."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-widening-dot-reduce-add-dry-run.test", "reason": "Focused generated-bundle dry-run coverage for pre-realized widening-dot route facts and harness shape."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-dot-reduce-add.mlir", "reason": "Selected pre-realized widening-dot fixture and emission-plan/header FileCheck evidence."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused fail-closed target artifact/export tests if stale ABI/header/type/provider mirrors need coverage."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused provider/direct contraction tests if route/provider facts need coverage."}
