@@ -79,23 +79,14 @@ constexpr llvm::StringLiteral kRVVMaskedSubRHSBindingUses[] = {
 constexpr llvm::StringLiteral kRVVMaskedMulRHSBindingUses[] = {
     "abi", "load-base", "compare-rhs-call", "masked-mul-rhs-call"};
 
-constexpr llvm::StringLiteral kRVVScalarBroadcastAddLHSBindingUses[] = {
-    "abi", "materialized-load-base", "scalar-broadcast-lhs-call", "hdr"};
-constexpr llvm::StringLiteral kRVVScalarBroadcastAddRHSBindingUses[] = {
-    "abi", "scalar-broadcast-rhs-call", "hdr"};
-constexpr llvm::StringLiteral kRVVScalarBroadcastAddOutBindingUses[] = {
-    "abi", "materialized-store-base", "hdr"};
-constexpr llvm::StringLiteral kRVVScalarBroadcastAddNBindingUses[] = {
-    "abi", "setvl-avl", "loop-control", "hdr"};
 constexpr llvm::StringLiteral kRVVScalarBroadcastLHSBindingUses[] = {
-    "runtime-abi-mirror", "materialized-load-base",
-    "scalar-broadcast-lhs-call", "header-mirror"};
+    "abi", "materialized-load-base", "scalar-broadcast-lhs-call", "hdr"};
 constexpr llvm::StringLiteral kRVVScalarBroadcastRHSBindingUses[] = {
-    "runtime-abi-mirror", "scalar-broadcast-rhs-call", "header-mirror"};
+    "abi", "scalar-broadcast-rhs-call", "hdr"};
 constexpr llvm::StringLiteral kRVVScalarBroadcastOutBindingUses[] = {
-    "runtime-abi-mirror", "materialized-store-base", "header-mirror"};
+    "abi", "materialized-store-base", "hdr"};
 constexpr llvm::StringLiteral kRVVScalarBroadcastNBindingUses[] = {
-    "runtime-abi-mirror", "setvl-avl", "loop-control", "header-mirror"};
+    "abi", "setvl-avl", "loop-control", "hdr"};
 
 constexpr llvm::StringLiteral kRVVStridedLHSBindingUses[] = {
     "abi", "lhs-load-base", "binary-lhs-call", "hdr"};
@@ -2438,19 +2429,6 @@ getExpectedRVVSelectedBodyElementwiseRouteOperandBindingUses(
           kRVVStridedOutStrideBindingUses);
     return std::nullopt;
   case RVVSelectedBodyOperationKind::ScalarBroadcastAdd:
-    if (logicalOperand == "lhs")
-      return llvm::ArrayRef<llvm::StringLiteral>(
-          kRVVScalarBroadcastAddLHSBindingUses);
-    if (logicalOperand == "rhs_scalar")
-      return llvm::ArrayRef<llvm::StringLiteral>(
-          kRVVScalarBroadcastAddRHSBindingUses);
-    if (logicalOperand == "out")
-      return llvm::ArrayRef<llvm::StringLiteral>(
-          kRVVScalarBroadcastAddOutBindingUses);
-    if (logicalOperand == "n")
-      return llvm::ArrayRef<llvm::StringLiteral>(
-          kRVVScalarBroadcastAddNBindingUses);
-    return std::nullopt;
   case RVVSelectedBodyOperationKind::ScalarBroadcastSub:
   case RVVSelectedBodyOperationKind::ScalarBroadcastMul:
     if (logicalOperand == "lhs")
@@ -2650,38 +2628,19 @@ deriveRVVSelectedBodyElementwiseRouteOperandBindingPlan(
         (stringifyRVVSelectedBodyOperationKind(slice.arithmeticKind) + " route")
             .str();
     context = dynamicContext;
-    if (slice.arithmeticKind ==
-        RVVSelectedBodyOperationKind::ScalarBroadcastAdd) {
-      addElementwiseRouteOperandBinding(
-          plan, "lhs", slice.lhsABI,
-          {"abi", "materialized-load-base", "scalar-broadcast-lhs-call",
-           "hdr"});
-      addElementwiseRouteOperandBinding(
-          plan, "rhs_scalar", slice.rhsABI,
-          {"abi", "scalar-broadcast-rhs-call", "hdr"});
-      addElementwiseRouteOperandBinding(
-          plan, "out", slice.outABI,
-          {"abi", "materialized-store-base", "hdr"});
-      addElementwiseRouteOperandBinding(
-          plan, "n", slice.runtimeElementCountABI,
-          {"abi", "setvl-avl", "loop-control", "hdr"});
-    } else {
-      addElementwiseRouteOperandBinding(
-          plan, "lhs", slice.lhsABI,
-          {"runtime-abi-mirror", "materialized-load-base",
-           "scalar-broadcast-lhs-call", "header-mirror"});
-      addElementwiseRouteOperandBinding(
-          plan, "rhs_scalar", slice.rhsABI,
-          {"runtime-abi-mirror", "scalar-broadcast-rhs-call",
-           "header-mirror"});
-      addElementwiseRouteOperandBinding(
-          plan, "out", slice.outABI,
-          {"runtime-abi-mirror", "materialized-store-base", "header-mirror"});
-      addElementwiseRouteOperandBinding(
-          plan, "n", slice.runtimeElementCountABI,
-          {"runtime-abi-mirror", "setvl-avl", "loop-control",
-           "header-mirror"});
-    }
+    addElementwiseRouteOperandBinding(
+        plan, "lhs", slice.lhsABI,
+        {"abi", "materialized-load-base", "scalar-broadcast-lhs-call",
+         "hdr"});
+    addElementwiseRouteOperandBinding(
+        plan, "rhs_scalar", slice.rhsABI,
+        {"abi", "scalar-broadcast-rhs-call", "hdr"});
+    addElementwiseRouteOperandBinding(
+        plan, "out", slice.outABI,
+        {"abi", "materialized-store-base", "hdr"});
+    addElementwiseRouteOperandBinding(
+        plan, "n", slice.runtimeElementCountABI,
+        {"abi", "setvl-avl", "loop-control", "hdr"});
   }
 
   if (llvm::Error error = verifyRVVRouteOperandBindingPlan(

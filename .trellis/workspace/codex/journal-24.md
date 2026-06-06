@@ -330,3 +330,36 @@ route payload negative coverage for plain segment2 and collected non-dry-run
 ### Next Steps
 
 - Archive task and create the final commit.
+
+
+## Session 493: Stage2 RVV scalar-broadcast elementwise artifact ABI boundary
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV scalar-broadcast elementwise artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Hardened scalar-broadcast sub/mul operand binding from mirror-only tokens to executable abi/hdr provider facts; added fail-closed and pre-realized mul generated-bundle coverage; verified C++ tests, scalar-broadcast lit, and non-dry-run ssh rvv add/sub/mul evidence.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

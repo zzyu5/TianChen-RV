@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/06-06-stage2-rvv-scalar-broadcast-elementwise-artifact-abi/prd.md", "reason": "Verify implementation and evidence satisfy the scalar-broadcast artifact ABI PRD."}
+{"file": ".trellis/spec/index.md", "reason": "Final check: preserve RVV-first authority and avoid old route-authority drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check: scalar-broadcast elementwise provider facts remain RVV-owned."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check: operand binding/header ABI contract and Common EmitC neutrality."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Final check: focused lit/C++/ssh rvv evidence policy."}

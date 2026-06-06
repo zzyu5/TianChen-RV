@@ -974,10 +974,10 @@ def scalar_broadcast_route_operand_binding_operands(kind: str) -> str:
         return SCALAR_BROADCAST_ROUTE_OPERAND_BINDING_OPERANDS
     return (
         f"{plan};"
-        "lhs=lhs-input-buffer:lhs:runtime-abi-mirror|materialized-load-base|scalar-broadcast-lhs-call|header-mirror;"
-        "rhs_scalar=rhs-scalar-value:rhs_scalar:runtime-abi-mirror|scalar-broadcast-rhs-call|header-mirror;"
-        "out=output-buffer:out:runtime-abi-mirror|materialized-store-base|header-mirror;"
-        "n=runtime-element-count:n:runtime-abi-mirror|setvl-avl|loop-control|header-mirror"
+        "lhs=lhs-input-buffer:lhs:abi|materialized-load-base|scalar-broadcast-lhs-call|hdr;"
+        "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|scalar-broadcast-rhs-call|hdr;"
+        "out=output-buffer:out:abi|materialized-store-base|hdr;"
+        "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
     )
 
 
