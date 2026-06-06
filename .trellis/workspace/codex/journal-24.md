@@ -142,6 +142,7 @@ compiler source change required.
 ### Next Steps
 
 - None - task complete
+
 ## Session 488: Stage2 RVV runtime-scalar compare-masked memory executable artifact ABI boundary
 
 **Date**: 2026-06-06
@@ -887,6 +888,58 @@ change required.
 - [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-06-stage2-rvv-computed-masked-macc-add-artifact-abi`
 - [OK] `git diff --check`
 - [OK] `git diff --cached --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 498: Stage2 RVV widening dot-reduce-add executable artifact ABI boundary
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV widening dot-reduce-add executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Revalidated the base RVV widening dot-reduce-add executable artifact ABI seam
+on current HEAD with explicit and pre-realized generated bundles on `ssh rvv`;
+no compiler source change was required.
+
+### Main Changes
+
+- Created the Trellis task for base widening dot-reduce-add artifact ABI
+  evidence.
+- Audited the production contraction family provider facts, direct contraction
+  statement owner, target artifact validation contract, script, and fixtures.
+- Recorded a no-source-change conclusion: current production code already
+  derives the i16/mf2 lhs/rhs source roles, i32/m1 accumulator/result boundary,
+  scalar seed/result semantics, ABI/header bindings, runtime AVL/VL, and target
+  validation facts from RVV-owned typed body/config/runtime facts.
+- Re-ran current-HEAD explicit and pre-realized generated bundle evidence on
+  `ssh rvv`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | rvv: prove widening dot reduce artifact abi |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] explicit generated bundle `ssh rvv` run for
+  `widening_dot_reduce_add`, counts `0,1,7,16,17,23,257`, patterns `0,1`
+- [OK] pre-realized generated bundle `ssh rvv` run for
+  `widening_dot_reduce_add`, counts `0,1,7,16,17,23,257`, patterns `0,1`
+- [OK] focused lit filter for widening dot-reduce target artifact, dry-run,
+  and direct pre-realized fail-closed tests: 5/5 passed
 
 ### Status
 
