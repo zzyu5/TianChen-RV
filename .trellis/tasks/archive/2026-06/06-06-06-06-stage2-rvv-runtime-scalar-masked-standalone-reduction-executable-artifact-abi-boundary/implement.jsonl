@@ -1,0 +1,5 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV stage order, and compiler stack boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV runtime-scalar computed-mask standalone reduction realization, provider facts, and scalar channel boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and standalone-reduction route validation contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused generated-bundle, fail-closed, and ssh rvv evidence requirements."}
