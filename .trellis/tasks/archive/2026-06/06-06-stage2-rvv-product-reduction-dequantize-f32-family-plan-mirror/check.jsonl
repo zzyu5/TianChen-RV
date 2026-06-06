@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the implementation preserves the global RVV-first authority chain and mirror-only metadata rule."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify direct contraction route construction consumes same-analysis family-plan/provider facts derived from typed RVV body/config facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC remains a neutral consumer of provider-built route payload."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests and evidence claims match the testing contract."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-product-reduction-dequantize-f32-family-plan-mirror/prd.md", "reason": "Verify final changes against this task's scope, non-goals, and acceptance criteria."}

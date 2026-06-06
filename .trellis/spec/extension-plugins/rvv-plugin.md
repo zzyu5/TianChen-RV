@@ -4382,6 +4382,18 @@ statement owner must consume the provider plan rather than rediscovering those
 facts. Neither plan is a common EmitC fact, artifact metadata, an
 acceptance/status mirror, or a route-support declaration by itself.
 
+For product-reduction dequantization and dequant-clamp direct contraction
+routes, the selected typed body legitimately carries both an i32 accumulator
+stage and an f32 dequantized result stage. The direct contraction family plan
+must expose the provider route result element as f32, while its typed config
+mirror may accept the same-analysis selected typed config element as either the
+i32 accumulator element or the f32 result element. SEW, LMUL, tail/mask policy,
+config contract, VL C type, setvl leaf, route-control plan, materialization
+facts, and math operand-binding facts must still mirror the same selected route
+analysis exactly. Accepting f32 here is not metadata authority; rejecting stale
+family-plan element mirrors remains fail-closed before `TCRVEmitCLowerableRoute`
+construction.
+
 ### 4. Validation & Error Matrix
 
 - A non-contraction route requests the boundary -> return an empty direct
@@ -4393,6 +4405,10 @@ acceptance/status mirror, or a route-support declaration by itself.
   stale materialization/control facts, has an invalid runtime AVL/VL source, or
   has SEW/LMUL/policy/capability mirrors that disagree with the typed body/config
   and selected target facts -> fail closed before route construction.
+- A product-reduction dequantization or dequant-clamp route carries a family-plan
+  result element mirror other than f32, or typed config facts that are neither
+  the same-analysis i32 accumulator nor f32 result config -> fail closed before
+  route construction.
 - A contraction route lacks same-analysis math operand-binding facts for its
   specific sub-family -> fail closed before route construction.
 - A contraction statement owner is called without a prevalidated direct

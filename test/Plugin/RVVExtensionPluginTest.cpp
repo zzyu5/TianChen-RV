@@ -8009,18 +8009,29 @@ int runPreRealizedContractionRouteEntryOwnerTest(
   using tianchenrv::plugin::rvv::
       getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyDirectContractionRouteStatementPlan;
+  using tianchenrv::plugin::rvv::
       getRVVSelectedBodyDirectContractionRouteProviderPlan;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyMathRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwnerForBody;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRealizationOwners;
   using tianchenrv::plugin::rvv::getRVVSelectedBodyRouteMaterializationFacts;
+  using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyRouteStatementPlanOwnerSelection;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyResidualRouteOperandBindingFacts;
   using tianchenrv::support::RuntimeABIParameterRole;
   using tianchenrv::plugin::rvv::
       validateRVVSelectedBodyContractionRouteFamilyPlan;
   using tianchenrv::plugin::rvv::verifyRVVRouteOperandBindingPlan;
   using tianchenrv::plugin::rvv::
       verifyRVVSelectedBodyContractionRouteFamilyProviderPlans;
+  using tianchenrv::plugin::rvv::
+      verifyRVVSelectedBodyDirectContractionRouteProviderFacts;
   using tianchenrv::plugin::rvv::variantContainsPreRealizedRVVSelectedBody;
 
   constexpr llvm::StringLiteral source = R"mlir(
@@ -8738,6 +8749,120 @@ module {
           "selected-boundary product-reduction-dequant reaches "
           "materialization and math operand-binding facts before route "
           "construction"))
+    return result;
+  auto productDequantDirectProviderPlan =
+      getRVVSelectedBodyDirectContractionRouteProviderPlan(
+          *productDequantAnalysis, *productDequantMaterializationFacts,
+          *productDequantMathFacts,
+          "selected-boundary product-reduction-dequant test");
+  if (!productDequantDirectProviderPlan)
+    return fail("product-reduction-dequant direct contraction provider plan: " +
+                llvm::toString(productDequantDirectProviderPlan.takeError()));
+  if (int result = expect(
+          productDequantDirectProviderPlan->plansDirectContractionRoute &&
+              productDequantDirectProviderPlan
+                  ->plansProductReductionDequantization &&
+              !productDequantDirectProviderPlan
+                   ->plansProductReductionDequantClamp &&
+              productDequantDirectProviderPlan->dequantScaleABI &&
+              productDequantDirectProviderPlan->dequantizeConvertLeaf ==
+                  productDequantMaterializationFacts->dequantizeConvertLeaf &&
+              productDequantDirectProviderPlan->dequantizeScaleLeaf ==
+                  productDequantMaterializationFacts->dequantizeScaleLeaf &&
+              productDequantDirectProviderPlan->dequantResultVectorCType ==
+                  "vfloat32m1_t" &&
+              productDequantAnalysis->contractionRouteFamilyPlan
+                      ->elementTypeName == "f32" &&
+              (productDequantMaterializationFacts->typedConfigFacts
+                       .elementTypeName == "i32" ||
+               productDequantMaterializationFacts->typedConfigFacts
+                       .elementTypeName == "f32"),
+          "product-reduction-dequant direct provider plan accepts the "
+          "selected typed accumulator/result type-config mirror before route "
+          "construction"))
+    return result;
+  auto productDequantDirectStatementPlan =
+      getRVVSelectedBodyDirectContractionRouteStatementPlan(
+          *productDequantAnalysis, *productDequantDirectProviderPlan,
+          "selected-boundary product-reduction-dequant test");
+  if (!productDequantDirectStatementPlan)
+    return fail("product-reduction-dequant direct statement plan: " +
+                llvm::toString(productDequantDirectStatementPlan.takeError()));
+  if (int result = expect(
+          productDequantDirectStatementPlan->plansDirectContractionRoute &&
+              productDequantDirectStatementPlan
+                  ->plansProductReductionDequantization &&
+              productDequantDirectStatementPlan->contractionPlan ==
+                  productDequantMaterializationFacts->contractionPlan &&
+              productDequantDirectStatementPlan->postLoopSteps.size() == 4,
+          "product-reduction-dequant direct statement plan preserves "
+          "final-accumulator/dequant convert/scale/store post-loop structure"))
+    return result;
+  RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
+      emptyProductDequantElementwiseFacts;
+  RVVSelectedBodyMemoryRouteOperandBindingFacts
+      emptyProductDequantMemoryFacts;
+  RVVSelectedBodyResidualRouteOperandBindingFacts
+      emptyProductDequantResidualFacts;
+  auto productDequantSelectedStatementPlan =
+      getRVVSelectedBodyRouteStatementPlanOwnerSelection(
+          *productDequantAnalysis, *productDequantMaterializationFacts,
+          emptyProductDequantElementwiseFacts, emptyProductDequantMemoryFacts,
+          *productDequantMathFacts, emptyProductDequantResidualFacts,
+          *productDequantDirectProviderPlan,
+          "selected-boundary product-reduction-dequant test");
+  if (!productDequantSelectedStatementPlan)
+    return fail("product-reduction-dequant statement owner selection: " +
+                llvm::toString(
+                    productDequantSelectedStatementPlan.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
+              *productDequantAnalysis, *productDequantMaterializationFacts,
+              *productDequantMathFacts, *productDequantDirectProviderPlan,
+              *productDequantSelectedStatementPlan,
+              "selected-boundary product-reduction-dequant test"),
+          "product-reduction-dequant direct provider facts accept the "
+          "same-analysis i32 accumulator/f32 result type-config mirror"))
+    return result;
+
+  auto staleProductDequantAnalysis = *productDequantAnalysis;
+  staleProductDequantAnalysis.contractionRouteFamilyPlan->elementTypeName =
+      "i16";
+  auto staleProductDequantMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleProductDequantAnalysis,
+          "selected-boundary stale product-reduction-dequant test");
+  if (!staleProductDequantMaterializationFacts)
+    return fail("stale product-reduction-dequant materialization facts: " +
+                llvm::toString(
+                    staleProductDequantMaterializationFacts.takeError()));
+  auto staleProductDequantMathFacts =
+      getRVVSelectedBodyMathRouteOperandBindingFacts(
+          staleProductDequantAnalysis,
+          "selected-boundary stale product-reduction-dequant test");
+  if (!staleProductDequantMathFacts)
+    return fail("stale product-reduction-dequant math facts: " +
+                llvm::toString(staleProductDequantMathFacts.takeError()));
+  auto staleProductDequantDirectProviderPlan =
+      getRVVSelectedBodyDirectContractionRouteProviderPlan(
+          staleProductDequantAnalysis,
+          *staleProductDequantMaterializationFacts,
+          *staleProductDequantMathFacts,
+          "selected-boundary stale product-reduction-dequant test");
+  if (!staleProductDequantDirectProviderPlan)
+    return fail("stale product-reduction-dequant direct provider plan: " +
+                llvm::toString(
+                    staleProductDequantDirectProviderPlan.takeError()));
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
+              staleProductDequantAnalysis,
+              *staleProductDequantMaterializationFacts,
+              *staleProductDequantMathFacts,
+              *staleProductDequantDirectProviderPlan,
+              *productDequantSelectedStatementPlan,
+              "selected-boundary stale product-reduction-dequant test"),
+          {"family-plan type/config facts",
+           "widening_product_reduce_dequantize_f32"}))
     return result;
 
   VariantOp wideningDotVariant =

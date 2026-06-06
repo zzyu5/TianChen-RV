@@ -1521,9 +1521,20 @@ llvm::Error verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
 
   const RVVSelectedBodyTypedConfigFacts &typedFacts =
       materializationFacts.typedConfigFacts;
+  const bool hasProductReductionDequantizedF32ResultVector =
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  const bool elementTypeFactsMirror =
+      hasProductReductionDequantizedF32ResultVector
+          ? (familyPlan.elementTypeName == "f32" &&
+             (typedFacts.elementTypeName == "i32" ||
+              typedFacts.elementTypeName == "f32"))
+          : familyPlan.elementTypeName == typedFacts.elementTypeName;
   if (!typedFacts.hasFacts() ||
       familyPlan.typedConfigFactsID != typedFacts.factsID ||
-      familyPlan.elementTypeName != typedFacts.elementTypeName ||
+      !elementTypeFactsMirror ||
       familyPlan.elementBitWidth != typedFacts.elementBitWidth ||
       familyPlan.sew != typedFacts.sew ||
       familyPlan.lmul != typedFacts.lmul ||

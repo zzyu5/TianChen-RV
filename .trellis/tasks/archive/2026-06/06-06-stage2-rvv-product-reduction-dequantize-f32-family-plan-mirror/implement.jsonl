@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, C++/MLIR stack, metadata mirror-only rule, and Stage 2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body realization, direct contraction provider owner, family-plan mirror, and contraction artifact-core contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and Common EmitC neutrality constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/runtime evidence requirements and no-runtime-claim boundary."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-low-precision-widening-product-contract-core/prd.md", "reason": "Previous task completion notes and exact continuation failure for product-reduction dequantize f32 route construction."}

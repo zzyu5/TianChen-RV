@@ -3908,7 +3908,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         out_initializer=DEQUANT_F32_OUT_SENTINEL,
         lmul="m1",
         sew="32",
-        element_c_type="int32_t",
+        element_c_type="float",
         config_contract="rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
         bounded_slice="multi-vl-selected-body-sew32-lmul-m1",
     ),
