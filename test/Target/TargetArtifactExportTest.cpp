@@ -2242,6 +2242,94 @@ void copyRVVEmitCLowerableRouteWithoutLoops(
     cloned.addCallOpaqueStep(step);
 }
 
+void copyRVVEmitCLowerableRouteDeclarationsProvenanceAndStatements(
+    const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &cloned) {
+  for (const tianchenrv::conversion::emitc::TCRVEmitCFunctionDeclaration
+           &declaration : route.getFunctionDeclarations()) {
+    llvm::SmallVector<llvm::StringRef, 4> parameterCTypes;
+    for (const std::string &parameterCType : declaration.parameterCTypes)
+      parameterCTypes.push_back(parameterCType);
+    cloned.addFunctionDeclaration(declaration.name, declaration.resultCType,
+                                  parameterCTypes);
+  }
+  for (const tianchenrv::conversion::emitc::TCRVEmitCSourceOpProvenance
+           &provenance : route.getSourceOpProvenance())
+    cloned.addSourceOpProvenance(provenance);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+       route.getCallOpaqueSteps())
+    cloned.addCallOpaqueStep(step);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCForLoop &loop :
+       route.getForLoops())
+    cloned.addForLoop(loop);
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+cloneRVVEmitCLowerableRouteWithoutHeader(
+    const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    llvm::StringRef omittedHeader) {
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute cloned(
+      route.getRouteID(), route.getRouteKind());
+  for (const tianchenrv::conversion::emitc::TCRVEmitCHeaderRequirement
+           &header : route.getHeaders())
+    if (llvm::StringRef(header.header) != omittedHeader)
+      cloned.addHeader(header.header);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCTypeMapping &mapping :
+       route.getTypeMappings())
+    cloned.addTypeMapping(mapping.sourceType, mapping.cType);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCABIValueMapping
+           &mapping : route.getABIMappings())
+    cloned.addABIValueMapping(mapping.parameter, mapping.valueName);
+  copyRVVEmitCLowerableRouteDeclarationsProvenanceAndStatements(route, cloned);
+  return cloned;
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+cloneRVVEmitCLowerableRouteWithTypeMappingOverride(
+    const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    llvm::StringRef sourceType, llvm::StringRef replacementCType) {
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute cloned(
+      route.getRouteID(), route.getRouteKind());
+  for (const tianchenrv::conversion::emitc::TCRVEmitCHeaderRequirement
+           &header : route.getHeaders())
+    cloned.addHeader(header.header);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCTypeMapping &mapping :
+       route.getTypeMappings())
+    cloned.addTypeMapping(mapping.sourceType,
+                          llvm::StringRef(mapping.sourceType) == sourceType
+                              ? replacementCType
+                              : llvm::StringRef(mapping.cType));
+  for (const tianchenrv::conversion::emitc::TCRVEmitCABIValueMapping
+           &mapping : route.getABIMappings())
+    cloned.addABIValueMapping(mapping.parameter, mapping.valueName);
+  copyRVVEmitCLowerableRouteDeclarationsProvenanceAndStatements(route, cloned);
+  return cloned;
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+cloneRVVEmitCLowerableRouteWithABIValueOverride(
+    const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
+    std::size_t abiIndex, llvm::StringRef replacementValueName) {
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute cloned(
+      route.getRouteID(), route.getRouteKind());
+  for (const tianchenrv::conversion::emitc::TCRVEmitCHeaderRequirement
+           &header : route.getHeaders())
+    cloned.addHeader(header.header);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCTypeMapping &mapping :
+       route.getTypeMappings())
+    cloned.addTypeMapping(mapping.sourceType, mapping.cType);
+  for (std::size_t index = 0; index < route.getABIMappings().size(); ++index) {
+    const tianchenrv::conversion::emitc::TCRVEmitCABIValueMapping &mapping =
+        route.getABIMappings()[index];
+    cloned.addABIValueMapping(
+        mapping.parameter,
+        index == abiIndex ? replacementValueName
+                          : llvm::StringRef(mapping.valueName));
+  }
+  copyRVVEmitCLowerableRouteDeclarationsProvenanceAndStatements(route, cloned);
+  return cloned;
+}
+
 tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
 cloneRVVEmitCLowerableRouteWithLoopOperand(
     const tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute &route,
@@ -16039,6 +16127,34 @@ bool expectRVVTargetArtifactExporterShape(
           "computed-mask segment2 registry rejects wrong route type mapping",
           {"C type mapping", "masked-segment2-update-store",
            "metadata-only-type-map"}))
+    return false;
+
+  if (!expectComputedMaskSegment2RouteFailure(
+          cloneRVVEmitCLowerableRouteWithoutHeader(
+              computedMaskSegment2UpdateRoute, "riscv_vector.h"),
+          "computed-mask segment2 registry rejects missing rebuilt route "
+          "header",
+          {"rebuilt provider route header", "riscv_vector.h"}))
+    return false;
+
+  if (!expectComputedMaskSegment2RouteFailure(
+          cloneRVVEmitCLowerableRouteWithTypeMappingOverride(
+              computedMaskSegment2UpdateRoute,
+              computedMaskSegment2UpdateDescription.maskTypeName,
+              "vbool16_t"),
+          "computed-mask segment2 registry rejects stale rebuilt route mask "
+          "type mapping",
+          {"rebuilt provider route type mapping",
+           computedMaskSegment2UpdateDescription.maskTypeName,
+           computedMaskSegment2UpdateDescription.maskCType}))
+    return false;
+
+  if (!expectComputedMaskSegment2RouteFailure(
+          cloneRVVEmitCLowerableRouteWithABIValueOverride(
+              computedMaskSegment2UpdateRoute, 2, "metadata_src0"),
+          "computed-mask segment2 registry rejects stale rebuilt route ABI "
+          "value mapping",
+          {"rebuilt provider route ABI mapping[2]", "src0", "metadata_src0"}))
     return false;
 
   RVVRouteDescription wrongSegment2RuntimePlan =

@@ -170,3 +170,54 @@ provider-owned `RVVUnitStrideMaskedMemoryRouteValidationContract`.
 ### Next Steps
 
 - Archive task and create the final commit.
+
+## Session 490: Stage2 RVV computed-masked segment2 update executable artifact ABI boundary
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV computed-masked segment2 update executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Audited the computed-mask segment2 update selected-body route and found the
+production seam already goes through the RVV segment2 planning owner,
+provider-built `TCRVEmitCLowerableRoute`, and
+`RVVSegment2MemoryRouteValidationContract` target validation. This round did
+not invent a production source change; it added focused target regression
+coverage for rebuilt route payload facts and collected non-dry-run `ssh rvv`
+generated-bundle correctness evidence for the pre-realized segment2 update
+path.
+
+### Main Changes
+
+- Added target C++ route clone helpers that mutate rebuilt
+  `TCRVEmitCLowerableRoute` payloads while preserving statements/provenance.
+- Added computed-mask segment2 update negative checks proving the target
+  validator rejects a missing `riscv_vector.h` route header, stale mask type
+  mapping, and stale `src0` ABI value mapping before artifact acceptance.
+- Recorded PRD audit/evidence showing the selected executable boundary is
+  provider-owned, with metadata remaining mirror-only after route validation.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | rvv: prove segment2 update artifact abi boundary |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'computed-masked-segment2-update'` from `build/test`: 5/5 passed
+- [OK] Non-dry-run `scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind computed_masked_segment2_update_unit_load` passed with `ssh_evidence: true`
+- [OK] `ssh rvv` PASS covered counts `0,1,7,16,23,257`, patterns `0,1`, active/inactive lanes, inactive preservation, field-distinguishing lanes, source preservation, and tail preservation
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete
