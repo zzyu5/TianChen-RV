@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV-first Stage2 authority rules for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected-body realization, standalone reduction scalar channel boundary, and owner/provider locality."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality, provider-built TCRVEmitCLowerableRoute contract, and standalone reduction route validation/mirror contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit/runtime evidence boundaries and old-authority scan expectations."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-conversion-dequant-fact-contract/prd.md", "reason": "Previous owner-level provider-fact API pattern and completion evidence for conversion/dequantization provider seam."}

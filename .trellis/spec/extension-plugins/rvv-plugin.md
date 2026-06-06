@@ -1357,6 +1357,174 @@ Correct:
 typed source/result channels -> RVV family plan -> provider-built route
 ```
 
+### Standalone Reduction Route-Provider Facts Preflight
+
+#### 1. Scope / Trigger
+
+When the RVV provider is about to build a `TCRVEmitCLowerableRoute` for a
+plain, computed-mask, or runtime-scalar computed-mask standalone reduction, it
+must prove that route construction is consuming the selected typed RVV body,
+the validated standalone reduction family plan, provider materialization facts,
+math operand-binding facts, route-control facts, and the RVV-owned standalone
+reduction statement plan. This preflight is the provider-side closure for the
+existing supported selected-body standalone reduction cases; it must not add new
+reduction kinds, dtype/LMUL coverage, frontend coverage, or Common EmitC
+semantics.
+
+#### 2. Signatures
+
+The durable provider-side contract is declared by
+`RVVEmitCStatementPlanOwners.h` and implemented by the RVV residual
+statement-plan owner path:
+
+```c++
+llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyStandaloneReductionRouteStatementPlan &statementPlan,
+    llvm::StringRef context);
+```
+
+`RVVEmitCRouteProvider` must call this preflight after the top-level
+route-family verifier, after `getRVVSelectedBodyRouteMaterializationFacts(...)`,
+after `getRVVSelectedBodyMathRouteOperandBindingFacts(...)`, and after the
+RVV-owned standalone reduction statement plan has been built, but before
+constructing the `TCRVEmitCLowerableRoute`. The standalone reduction verifier
+must not be exposed as a generic `RVVEmitCRoutePlanning.h` public-surface hook.
+
+#### 3. Contracts
+
+For standalone reduction consumers, the preflight must require:
+
+- the same-analysis `RVVSelectedBodyStandaloneReductionRouteFamilyPlan`;
+- the selected standalone reduction operation kind and reduction relation from
+  the typed body/family plan, not from route ids or helper names;
+- typed source/work channel facts for source SEW/LMUL, policy, VL C type,
+  source vector type/C type, setvl leaf, source load leaf, memory form, and
+  source splat/inactive-neutral leaves when required;
+- scalar accumulator/result channel facts for seed, scalar result vector
+  type/C type, scalar C type, lane-0 scalar result store, and scalar result ABI
+  role;
+- computed-mask facts for mask provenance, compare predicate, mask type/form,
+  mask materialization, accumulation plan, inactive-lane neutralization, and
+  zeroing/merge policy when the route is masked;
+- runtime-scalar computed-mask facts for RHS scalar ABI role/type/name, scalar
+  splat leaf, compare input binding, mask source, and runtime ABI order;
+- materialization facts that mirror the family plan for required headers, VL
+  type, source/scalar-result vector types, setvl, source load, reduction,
+  scalar seed/splat, inactive neutralization, mask/compare leaves, and store;
+- math operand-binding facts from the same selected analysis for the required
+  source, accumulator, output, runtime scalar, mask, and runtime `n` roles;
+- the RVV-owned route-control provider plan for the same typed config, selected
+  target capability, runtime AVL/VL control plan, tail/mask policy, and runtime
+  ABI order;
+- the RVV-owned standalone reduction statement plan for the exact plain,
+  computed-mask, or runtime-scalar computed-mask route family.
+
+The preflight must return success without changing behavior for unrelated RVV
+families only when they carry no stale standalone reduction facts. It must not
+build statements, choose intrinsics, infer dtype/config, read artifact metadata,
+consult route ids, or call selected-body owner hooks.
+
+#### 4. Validation & Error Matrix
+
+- Standalone reduction consumer lacks the family plan -> fail closed before
+  `TCRVEmitCLowerableRoute` construction.
+- Materialization facts do not point at the same selected-analysis family plan
+  -> fail closed.
+- Operation kind, reduction kind, neutral literal, intrinsic, or memory form is
+  missing, stale, or derived from route id, helper name, metadata, artifact
+  name, exact intrinsic spelling, or Common EmitC -> fail closed.
+- Source SEW/LMUL, source vector type/C type, VL type, setvl, source load,
+  source splat, memory form, or policy disagrees with the family plan -> fail
+  closed.
+- Scalar accumulator/result vector type/C type, scalar C type, seed leaf,
+  scalar-result store, lane-0 result layout, or scalar result ABI role is absent
+  or stale -> fail closed.
+- Plain standalone reduction carries computed-mask, runtime-scalar,
+  inactive-lane, or accumulation residue -> fail closed.
+- Computed-mask standalone reduction is missing mask provenance, compare
+  predicate, mask type/form, inactive-lane neutral/zeroing policy, or shared
+  accumulation facts -> fail closed.
+- Runtime-scalar computed-mask standalone reduction is missing RHS scalar ABI,
+  scalar splat, compare binding, mask provenance, inactive-lane policy, or the
+  runtime ABI order required by the family plan -> fail closed.
+- Route-control provider plan is absent, from another analysis, or carries
+  stale target capability, runtime AVL/VL, tail/mask policy, or runtime ABI
+  mirrors -> fail closed.
+- Math operand-binding facts are absent, from another analysis, missing required
+  source/accumulator/output/runtime-scalar/runtime-`n` roles, or carry the wrong
+  ABI role/order -> fail closed.
+- Statement plan is absent, targets the wrong standalone reduction sub-family,
+  points at another family plan, or lacks required setvl/load/mask/compare/
+  inactive-neutral/reduce/store leaves -> fail closed.
+- Non-standalone routes carry standalone reduction family-plan,
+  materialization, binding, statement-plan, accumulation, mask, scalar-result,
+  or route-family mirrors -> fail closed as stale provider facts.
+
+#### 5. Good/Base/Bad Cases
+
+Good: typed `standalone_reduce_add`, computed-mask standalone reduction, or
+runtime-scalar computed-mask standalone reduction body -> standalone reduction
+family plan -> materialization facts -> math operand bindings ->
+route-control provider plan -> standalone reduction statement plan -> provider
+preflight -> provider-built `TCRVEmitCLowerableRoute`.
+
+Base: elementwise, memory, segment2, widening conversion, dequantization, MAcc,
+and direct contraction routes do not consume this standalone reduction preflight
+and must not carry standalone reduction facts.
+
+Bad: provider construction trusts route ids, generated artifact names, ABI
+strings, helper names, exact intrinsic spellings, status fields, source-front
+door markers, descriptors, or Common EmitC choices instead of the selected
+typed body and verified standalone reduction provider facts.
+
+#### 6. Tests Required
+
+- C++ positive tests or production provider tests for plain standalone
+  reduction, computed-mask standalone reduction, and runtime-scalar
+  computed-mask standalone reduction preflight success before route
+  construction.
+- C++ fail-closed tests for missing family plan, stale materialization facts,
+  wrong source/scalar-result dtype or SEW/LMUL relation, wrong reduction kind,
+  wrong scalar channel, wrong inactive-lane policy, stale mask provenance,
+  missing RHS scalar splat, wrong operand binding or ABI role, wrong runtime ABI
+  order, stale route description mirrors, stale statement leaves, and
+  non-standalone routes carrying standalone reduction facts.
+- Provider-route tests proving selected-body standalone reduction routes attach
+  only provider-built statement plans to `TCRVEmitCLowerableRoute`.
+- Focused FileCheck or `tcrv-opt` coverage for existing explicit and
+  pre-realized selected-body standalone reduction fixtures.
+- Generated-bundle or `ssh rvv` evidence only when emitted statements, runtime
+  ABI, headers, bundle content, or runtime harness behavior changes.
+- Bounded scans over touched planning/provider/test/target/script files for
+  name-, route-id-, metadata-, descriptor-, ABI-string-, script-,
+  artifact-name-, common-EmitC-, source-front-door-, exact-intrinsic-, or
+  legacy-i32-derived route authority.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider:
+  sees standalone_reduce_add route id / artifact metadata / helper name
+  -> builds TCRVEmitCLowerableRoute
+```
+
+Correct:
+
+```text
+typed standalone reduction tcrv_rvv body
+  -> verified standalone reduction family plan
+  -> materialization facts + math operand-binding facts
+  -> route-control provider plan
+  -> RVV-owned standalone reduction statement plan
+  -> verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts
+  -> provider-built TCRVEmitCLowerableRoute
+```
+
 The conversion dtype-policy cluster is a route-family owner boundary over:
 
 - widening conversion routes, where the RVV widening conversion plan owns

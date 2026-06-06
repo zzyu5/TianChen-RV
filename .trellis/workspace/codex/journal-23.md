@@ -1834,3 +1834,40 @@ Moved widening conversion and standalone dequantization provider-fact verifiers 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 483: Stage2 RVV standalone reduction fact contract
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV standalone reduction fact contract
+**Branch**: `main`
+
+### Summary
+
+Moved standalone reduction provider-fact verification onto the RVV statement-plan owner surface and preserved focused provider checks.
+
+### Main Changes
+
+- Moved `verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(...)` from the generic RVV route-planning public surface to the RVV statement-plan owner surface.
+- Preserved production provider order before `TCRVEmitCLowerableRoute` construction.
+- Added focused runtime-scalar computed-mask standalone reduction provider preflight coverage for positive route construction and fail-closed stale RHS scalar facts.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the standalone reduction route-provider facts preflight contract.
+- Archived Trellis task `stage2-rvv-standalone-reduction-fact-contract` after validation.
+- Checks: `tianchenrv-rvv-extension-plugin-test`, `tianchenrv-target-artifact-export-test`, focused `tcrv-opt` standalone reduction fixture smokes, Trellis validation, `git diff --check`, `git diff --cached --check`, and bounded old-authority added-diff scan.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

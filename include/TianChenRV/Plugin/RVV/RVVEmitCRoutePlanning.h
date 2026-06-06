@@ -1916,13 +1916,6 @@ verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
         &computedMaskMemoryStatementPlan,
     llvm::StringRef context);
 
-llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
-    const RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    const RVVSelectedBodyStandaloneReductionRouteStatementPlan &statementPlan,
-    llvm::StringRef context);
-
 llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
 getRVVSelectedBodyMathRouteOperandBindingFacts(
     const RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef context);

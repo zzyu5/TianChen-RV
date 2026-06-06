@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global source-of-truth, RVV-first order, and forbidden route authority drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check standalone reduction selected-body realization, scalar channel, provider/locality, and owner compliance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check TCRVEmitCLowerableRoute is provider-built and Common EmitC/export remains neutral for standalone reductions."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused tests, runtime evidence boundary, and old-authority scan expectations."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-standalone-reduction-fact-contract/prd.md", "reason": "Check acceptance criteria, non-goals, completion evidence, and runtime boundary decision."}

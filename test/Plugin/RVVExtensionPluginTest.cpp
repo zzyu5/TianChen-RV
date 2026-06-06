@@ -24745,6 +24745,187 @@ module {
            "int32_t *"}))
     return result;
 
+  constexpr llvm::StringLiteral runtimeScalarComputedMaskSource = R"mlir(
+module {
+  tcrv.exec.kernel @rvv_rt_scalar_cm_standalone_reduction_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @rvv_rt_scalar_cm_standalone_reduce attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:cmp_lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:rhs_scalar", role = "rhs-scalar-value"} : i32
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:src", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int32_t *", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "standalone-provider-test:n", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_rt_scalar_cm_standalone_reduce, sew = 32 : i64, source_kernel = "rvv_rt_scalar_cm_standalone_reduction_provider_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %src_vec = tcrv_rvv.load %src, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "sle"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %reduced = tcrv_rvv.masked_standalone_reduce %mask, %src_vec, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "add", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.store %out, %reduced, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+    tcrv.exec.variant @rt_scalar_cm_standalone_provider_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @rvv_rt_scalar_cm_standalone_reduce {origin = "rvv-plugin"}
+      tcrv.exec.fallback @rt_scalar_cm_standalone_provider_scalar_fallback {origin = "scalar-plugin"}
+    }
+  }
+}
+)mlir";
+  mlir::OwningOpRef<mlir::ModuleOp> runtimeScalarComputedMaskModule =
+      parseModule(context, runtimeScalarComputedMaskSource);
+  if (!runtimeScalarComputedMaskModule)
+    return fail("failed to parse runtime-scalar computed-mask standalone "
+                "reduction provider test module");
+  KernelOp runtimeScalarComputedMaskKernel = findKernel(
+      *runtimeScalarComputedMaskModule,
+      "rvv_rt_scalar_cm_standalone_reduction_provider_kernel");
+  VariantOp runtimeScalarComputedMaskVariant = findVariant(
+      runtimeScalarComputedMaskKernel,
+      "rvv_rt_scalar_cm_standalone_reduce");
+  llvm::Expected<RVVSelectedBodyRouteAnalysis>
+      runtimeScalarComputedMaskAnalysis = analyzeRVVSelectedBodyRoute(
+          VariantEmitCLowerableRequest(
+              runtimeScalarComputedMaskVariant,
+              runtimeScalarComputedMaskKernel,
+              TargetCapabilitySet::buildFromKernel(
+                  runtimeScalarComputedMaskKernel),
+              VariantEmissionRole::DirectVariant));
+  if (!runtimeScalarComputedMaskAnalysis)
+    return fail("analyze runtime-scalar computed-mask standalone reduction "
+                "provider route: " +
+                llvm::toString(runtimeScalarComputedMaskAnalysis.takeError()));
+
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              *runtimeScalarComputedMaskAnalysis,
+              "runtime-scalar computed-mask standalone reduction provider "
+              "unit test"),
+          "valid runtime-scalar computed-mask standalone reduction family "
+          "provider plan"))
+    return result;
+  if (int result = expect(
+          runtimeScalarComputedMaskAnalysis->standaloneReductionRouteFamilyPlan
+                  ->usesComputedMask &&
+              runtimeScalarComputedMaskAnalysis
+                  ->standaloneReductionRouteFamilyPlan
+                  ->usesRuntimeScalarThreshold &&
+              !runtimeScalarComputedMaskAnalysis
+                   ->standaloneReductionRouteFamilyPlan
+                   ->rhsScalarSplatIntrinsic.empty() &&
+              runtimeScalarComputedMaskAnalysis
+                      ->standaloneReductionRouteFamilyPlan->runtimeABIOrder ==
+                  "cmp_lhs,rhs_scalar,src,acc,out,n" &&
+              runtimeScalarComputedMaskAnalysis
+                      ->standaloneReductionRouteFamilyPlan
+                      ->inactiveLaneZeroingRequirement ==
+                  "masked-standalone-reduction-zero-inactive-lanes-before-reduction",
+          "runtime-scalar computed-mask standalone reduction family plan "
+          "derives RHS scalar splat, ABI order, mask source, and "
+          "inactive-lane facts"))
+    return result;
+
+  auto runtimeScalarComputedMaskMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          *runtimeScalarComputedMaskAnalysis,
+          "runtime-scalar computed-mask standalone reduction provider route "
+          "facts unit test");
+  if (!runtimeScalarComputedMaskMaterializationFacts)
+    return fail("get runtime-scalar computed-mask standalone materialization "
+                "facts: " +
+                llvm::toString(
+                    runtimeScalarComputedMaskMaterializationFacts.takeError()));
+  auto runtimeScalarComputedMaskMathFacts =
+      getRVVSelectedBodyMathRouteOperandBindingFacts(
+          *runtimeScalarComputedMaskAnalysis,
+          "runtime-scalar computed-mask standalone reduction provider route "
+          "facts unit test");
+  if (!runtimeScalarComputedMaskMathFacts)
+    return fail("get runtime-scalar computed-mask standalone math "
+                "operand-binding facts: " +
+                llvm::toString(
+                    runtimeScalarComputedMaskMathFacts.takeError()));
+  auto runtimeScalarComputedMaskStatementPlan =
+      getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
+          *runtimeScalarComputedMaskAnalysis,
+          *runtimeScalarComputedMaskMaterializationFacts,
+          *runtimeScalarComputedMaskMathFacts,
+          "runtime-scalar computed-mask standalone reduction provider route "
+          "facts unit test");
+  if (!runtimeScalarComputedMaskStatementPlan)
+    return fail("get runtime-scalar computed-mask standalone statement plan: " +
+                llvm::toString(
+                    runtimeScalarComputedMaskStatementPlan.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+              *runtimeScalarComputedMaskAnalysis,
+              *runtimeScalarComputedMaskMaterializationFacts,
+              *runtimeScalarComputedMaskMathFacts,
+              *runtimeScalarComputedMaskStatementPlan,
+              "runtime-scalar computed-mask standalone reduction provider "
+              "route facts unit test"),
+          "valid runtime-scalar computed-mask standalone reduction provider "
+          "route facts"))
+    return result;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      runtimeScalarComputedMaskRoute;
+  if (int result = expectSuccess(
+          registry.buildVariantEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(
+                  runtimeScalarComputedMaskVariant,
+                  runtimeScalarComputedMaskKernel,
+                  TargetCapabilitySet::buildFromKernel(
+                      runtimeScalarComputedMaskKernel),
+                  VariantEmissionRole::DirectVariant),
+              runtimeScalarComputedMaskRoute),
+          "build runtime-scalar computed-mask standalone reduction provider "
+          "route"))
+    return result;
+  if (int result = expect(
+          routeABIMappingsMatchDescription(
+              runtimeScalarComputedMaskRoute,
+              runtimeScalarComputedMaskAnalysis->description),
+          "runtime-scalar computed-mask standalone reduction provider route "
+          "maps cmp_lhs, rhs_scalar, src, acc, out, and n from provider "
+          "facts"))
+    return result;
+
+  auto staleRuntimeScalarComputedMaskMaterializationFacts =
+      *runtimeScalarComputedMaskMaterializationFacts;
+  staleRuntimeScalarComputedMaskMaterializationFacts.rhsScalarBroadcastLeaf =
+      "";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+              *runtimeScalarComputedMaskAnalysis,
+              staleRuntimeScalarComputedMaskMaterializationFacts,
+              *runtimeScalarComputedMaskMathFacts,
+              *runtimeScalarComputedMaskStatementPlan,
+              "runtime-scalar computed-mask standalone reduction provider "
+              "route facts unit test"),
+          {"RHS scalar splat leaf", "TCRVEmitCLowerableRoute"}))
+    return result;
+
+  auto staleRuntimeScalarComputedMaskMathFacts =
+      *runtimeScalarComputedMaskMathFacts;
+  staleRuntimeScalarComputedMaskMathFacts.rhsABI =
+      staleRuntimeScalarComputedMaskMathFacts.lhsABI;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+              *runtimeScalarComputedMaskAnalysis,
+              *runtimeScalarComputedMaskMaterializationFacts,
+              staleRuntimeScalarComputedMaskMathFacts,
+              *runtimeScalarComputedMaskStatementPlan,
+              "runtime-scalar computed-mask standalone reduction provider "
+              "route facts unit test"),
+          {"ABI role for rhs_scalar", "rhs-scalar-value",
+           "lhs-input-buffer"}))
+    return result;
+
   return 0;
 }
 
