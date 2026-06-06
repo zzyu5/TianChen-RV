@@ -40,6 +40,10 @@
 # CMSEG-DAG: "value": "rvv-computed-mask-memory-route-family-plan.v1"
 # CMSEG-DAG: "key": "tcrv_rvv.computed_mask_memory_mask_producer_source"
 # CMSEG-DAG: "value": "vector-compare-rhs-load"
+# CMSEG-DAG: "key": "tcrv_rvv.mask_tail_policy_route_family_plan"
+# CMSEG-DAG: "value": "rvv-mask-tail-policy-route-family-plan.v1"
+# CMSEG-DAG: "key": "tcrv_rvv.mask_tail_policy_owner"
+# CMSEG-DAG: "value": "computed-mask memory mask/tail policy"
 # CMSEG-DAG: "key": "tcrv_rvv.target_leaf_profile"
 # CMSEG-DAG: "value": "rvv-v1-e32m1-computed-mask-segment2-store-leaf-profile.v1"
 # CMSEG-DAG: "key": "tcrv_rvv.required_header_declarations"
@@ -87,6 +91,8 @@
 # CMSEG-DAG: "mask_coverage_contract": "multi-lane computed_masked_segment2_store_unit_load cases require compare-produced active and inactive mask lanes"
 # CMSEG-DAG: "inactive_lane_contract": "compare-false lanes must preserve both old interleaved destination field slots"
 # CMSEG-DAG: "field_order_contract": "active lanes store distinguishable field0/field1 payload vectors into even/odd interleaved destination slots while source buffers and tail slots preserve sentinels"
+# CMSEG-DAG: "mask_tail_policy_route_family_plan": "rvv-mask-tail-policy-route-family-plan.v1"
+# CMSEG-DAG: "mask_tail_policy_owner": "computed-mask memory mask/tail policy"
 # CMSEG-DAG: "status": "dry_run_success"
 
 # HARNESS: tcrv_emitc_pre_realized_body_cmseg_store_kernel_pre_realized_body_rvv_cmseg_store(cmp_lhs, cmp_rhs, src0, src1, dst, n);

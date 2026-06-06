@@ -15774,6 +15774,32 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-derived-computed-mask-plan"}))
     return false;
 
+  RVVRouteDescription wrongStoreMaskTailPlan =
+      computedMaskSegment2StoreDescription;
+  wrongStoreMaskTailPlan.maskTailPolicyRouteFamilyPlanID =
+      "metadata-derived-mask-tail-plan";
+  if (!expectComputedMaskSegment2StoreProviderFailure(
+          wrongStoreMaskTailPlan,
+          "computed-mask segment2 store validator rejects wrong mask-tail "
+          "route-family plan",
+          {"mask/tail route-family plan",
+           "rvv-mask-tail-policy-route-family-plan.v1",
+           "metadata-derived-mask-tail-plan"}))
+    return false;
+
+  RVVRouteDescription wrongStoreMaskTailOwner =
+      computedMaskSegment2StoreDescription;
+  wrongStoreMaskTailOwner.maskTailPolicyOwner =
+      "metadata-derived-mask-tail-owner";
+  if (!expectComputedMaskSegment2StoreProviderFailure(
+          wrongStoreMaskTailOwner,
+          "computed-mask segment2 store validator rejects wrong mask-tail "
+          "route-family owner",
+          {"mask/tail route-family owner",
+           "computed-mask memory mask/tail policy",
+           "metadata-derived-mask-tail-owner"}))
+    return false;
+
   RVVRouteDescription staleStorePlainSegment2Family =
       computedMaskSegment2StoreDescription;
   staleStorePlainSegment2Family.segment2MemoryRouteFamilyPlanID =
@@ -16048,6 +16074,42 @@ bool expectRVVTargetArtifactExporterShape(
           "computed-mask segment2 store validator rejects stale mask mirror",
           {"mask_role", "predicate-mask-produced-by-compare",
            "metadata-derived-mask-role"}))
+    return false;
+
+  TargetArtifactCandidate wrongStoreMaskTailPlanMirror =
+      computedMaskSegment2StoreFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongStoreMaskTailPlanMirror,
+          "tcrv_rvv.mask_tail_policy_route_family_plan",
+          "metadata-derived-mask-tail-plan")) {
+    llvm::errs() << "computed-mask segment2 store fixture did not contain "
+                    "mask-tail route-family metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2StoreCandidateFailure(
+          wrongStoreMaskTailPlanMirror,
+          "computed-mask segment2 store validator rejects stale mask-tail "
+          "plan mirror",
+          {"mask_tail_policy_route_family_plan",
+           "rvv-mask-tail-policy-route-family-plan.v1",
+           "metadata-derived-mask-tail-plan"}))
+    return false;
+
+  TargetArtifactCandidate wrongStoreMaskTailOwnerMirror =
+      computedMaskSegment2StoreFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongStoreMaskTailOwnerMirror,
+                                    "tcrv_rvv.mask_tail_policy_owner",
+                                    "metadata-derived-mask-tail-owner")) {
+    llvm::errs() << "computed-mask segment2 store fixture did not contain "
+                    "mask-tail owner metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2StoreCandidateFailure(
+          wrongStoreMaskTailOwnerMirror,
+          "computed-mask segment2 store validator rejects stale mask-tail "
+          "owner mirror",
+          {"mask_tail_policy_owner", "computed-mask memory mask/tail policy",
+           "metadata-derived-mask-tail-owner"}))
     return false;
 
   TargetArtifactCandidate wrongStoreSegmentCountMirror =

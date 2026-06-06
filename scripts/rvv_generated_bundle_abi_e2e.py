@@ -9358,6 +9358,18 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.masked_passthrough_layout": (
                     MASKED_STORE_PASSTHROUGH_LAYOUT
                 ),
+                **(
+                    {
+                        "tcrv_rvv.mask_tail_policy_route_family_plan": (
+                            COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_ROUTE_FAMILY_PLAN
+                        ),
+                        "tcrv_rvv.mask_tail_policy_owner": (
+                            COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_OWNER
+                        ),
+                    }
+                    if not is_update
+                    else {}
+                ),
                 "tcrv_rvv.source_memory_form": (
                     COMPUTED_MASK_SEGMENT2_STORE_SOURCE_MEMORY_FORM
                 ),
@@ -26300,6 +26312,81 @@ def mask_tail_policy_boundary_summary(
             "runtime_counts": runtime_counts,
             "runtime_counts_are_execution_cases_not_policy_authority": True,
         }
+    if expectation.is_computed_masked_segment2_store_unit_load:
+        route_metadata = mask_tail_policy_metadata_from_bundle(
+            bundle_checks, expectation
+        )
+        materialized_boundary = materialized_checks.get(
+            "mask_tail_policy_boundary", {}
+        )
+        emitted_boundary = emitted_cpp_checks.get("mask_tail_policy_boundary", {})
+        return {
+            "source": (
+                "typed tcrv_rvv computed-mask segment2 store body/config -> "
+                "compare-produced mask -> RVV provider segment2 memory facts "
+                "-> field payload loads -> tuple create -> masked segment2 "
+                "store"
+            ),
+            "authority": (
+                "provider-derived typed tcrv_rvv computed-mask segment2 "
+                "store body/config/runtime facts"
+            ),
+            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "selected_mask_abi": {
+                "external_mask": False,
+                "producer": "tcrv_rvv.compare",
+                "role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "mask_type": expectation.rvv_mask_type,
+                "mask_c_type": expectation.rvv_mask_c_type,
+            },
+            "tail_policy": route_metadata.get("tcrv_rvv.tail_policy"),
+            "mask_policy": route_metadata.get("tcrv_rvv.mask_policy"),
+            "mask_tail_policy_route_family_plan": route_metadata.get(
+                "tcrv_rvv.mask_tail_policy_route_family_plan"
+            ),
+            "mask_tail_policy_owner": route_metadata.get(
+                "tcrv_rvv.mask_tail_policy_owner"
+            ),
+            "active_lane_contract": (
+                "compare-true lanes store field0/field1 payloads into "
+                "even/odd interleaved destination slots"
+            ),
+            "inactive_lane_contract": route_metadata.get(
+                "tcrv_rvv.inactive_lane_contract"
+            ),
+            "masked_passthrough_layout": route_metadata.get(
+                "tcrv_rvv.masked_passthrough_layout"
+            ),
+            "segment_memory_layout": route_metadata.get(
+                "tcrv_rvv.segment_memory_layout"
+            ),
+            "segment_tuple_c_type": route_metadata.get(
+                "tcrv_rvv.segment_tuple_c_type"
+            ),
+            "field_roles": {
+                "field0": route_metadata.get("tcrv_rvv.field0_role"),
+                "field1": route_metadata.get("tcrv_rvv.field1_role"),
+            },
+            "materialized_body": {
+                "typed_compute_op": materialized_checks.get("typed_compute_op"),
+                "memory_form": materialized_checks.get("memory_form"),
+                "contains_with_vl": materialized_checks.get("contains_with_vl"),
+                "pre_realized_body_consumed": materialized_checks.get(
+                    "pre_realized_body_consumed"
+                ),
+                "mask_tail_policy_boundary": materialized_boundary,
+            },
+            "emitted_cpp": emitted_boundary,
+            "route_metadata": route_metadata,
+            "artifact_abi": {
+                "prototype": bundle_checks["header"]["prototype"],
+                "runtime_abi_order": expectation.runtime_abi_order,
+            },
+            "runtime_counts": runtime_counts,
+            "runtime_counts_are_execution_cases_not_policy_authority": True,
+        }
     if (
         expectation.is_computed_mask_standalone_reduce
         or expectation.is_runtime_scalar_computed_mask_standalone_reduce
@@ -29609,6 +29696,7 @@ def run_one_op_e2e(
             or expectation.is_masked_unit_store
             or expectation.is_computed_mask_select
             or expectation.is_computed_masked_segment2_load_unit_store
+            or expectation.is_computed_masked_segment2_store_unit_load
             or expectation.is_computed_mask_standalone_reduce
             or expectation.is_runtime_scalar_computed_mask_standalone_reduce
         ):
@@ -32537,6 +32625,34 @@ def run_self_test() -> int:
                     "self-test harness generation lost computed-mask segment2 "
                     "store mask, no-write, or field-order coverage"
                 )
+            if expectation.is_computed_masked_segment2_store_unit_load:
+                bundle_checks = verify_bundle(
+                    bundle, readobj=None, expectation=expectation
+                )
+                boundary = mask_tail_policy_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks={},
+                    emitted_cpp_checks={},
+                    bundle_checks=bundle_checks,
+                    runtime_counts=[0, 1, 16, 17, 257],
+                )
+                route_metadata = boundary.get("route_metadata", {})
+                if (
+                    route_metadata.get(
+                        "tcrv_rvv.mask_tail_policy_route_family_plan"
+                    )
+                    != COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_ROUTE_FAMILY_PLAN
+                    or route_metadata.get("tcrv_rvv.mask_tail_policy_owner")
+                    != COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_OWNER
+                    or boundary.get("mask_tail_policy_route_family_plan")
+                    != COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_ROUTE_FAMILY_PLAN
+                    or boundary.get("mask_tail_policy_owner")
+                    != COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_OWNER
+                ):
+                    raise AssertionError(
+                        "self-test fake bundle generation lost computed-mask "
+                        "segment2 store mask/tail policy route facts"
+                    )
             if expectation.is_computed_masked_segment2_update_unit_load and (
                 "computed_mask segment2_update" not in harness
                 or "src0[index] + src1[index]" not in harness

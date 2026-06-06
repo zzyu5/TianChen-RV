@@ -34,6 +34,10 @@
 # CMSEG-DAG: "value": "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1"
 # CMSEG-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
 # CMSEG-DAG: "value": "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|lhs-call|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|rhs-call|hdr;src0=segment-field0-input-buffer:src0:abi|f0-load|f0-payload|tuple0|f0-role|src0-mem|hdr;src1=segment-field1-input-buffer:src1:abi|f1-load|f1-payload|tuple1|f1-role|src1-mem|hdr;dst=segment-interleaved-output-buffer:dst:abi|mseg-store|dst-mem|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
+# CMSEG-DAG: "key": "tcrv_rvv.mask_tail_policy_route_family_plan"
+# CMSEG-DAG: "value": "rvv-mask-tail-policy-route-family-plan.v1"
+# CMSEG-DAG: "key": "tcrv_rvv.mask_tail_policy_owner"
+# CMSEG-DAG: "value": "computed-mask memory mask/tail policy"
 # CMSEG-DAG: "key": "tcrv_rvv.segment_memory_layout"
 # CMSEG-DAG: "value": "unit-stride-compare-field-payloads-segment2-masked-destination-runtime-abi"
 # CMSEG-DAG: "key": "tcrv_rvv.mask_source"
@@ -45,6 +49,8 @@
 # CMSEG-DAG: "mask_coverage_contract": "multi-lane computed_masked_segment2_store_unit_load cases require compare-produced active and inactive mask lanes"
 # CMSEG-DAG: "inactive_lane_contract": "compare-false lanes must preserve both old interleaved destination field slots"
 # CMSEG-DAG: "field_order_contract": "active lanes store distinguishable field0/field1 payload vectors into even/odd interleaved destination slots while source buffers and tail slots preserve sentinels"
+# CMSEG-DAG: "mask_tail_policy_route_family_plan": "rvv-mask-tail-policy-route-family-plan.v1"
+# CMSEG-DAG: "mask_tail_policy_owner": "computed-mask memory mask/tail policy"
 # CMSEG-DAG: "status": "dry_run_success"
 
 # HARNESS: tcrv_emitc_explicit_selected_body_cmseg_store_kernel_explicit_selected_body_rvv_cmseg_store(cmp_lhs, cmp_rhs, src0, src1, dst, n);

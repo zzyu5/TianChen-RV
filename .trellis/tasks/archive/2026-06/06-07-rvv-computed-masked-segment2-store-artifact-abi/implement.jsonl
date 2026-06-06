@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body segment2 store route-family provider authority, mask-tail, and no metadata/common EmitC authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Segment2 memory validation contract and target artifact fail-closed requirements"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle memory-writing evidence, inactive/tail preservation, and ssh rvv claim policy"}
+{"file": ".trellis/tasks/archive/2026-06/06-06-rvv-computed-masked-segment2-load-artifact-abi/prd.md", "reason": "Bounded reference for paired load mask-tail evidence hardening"}

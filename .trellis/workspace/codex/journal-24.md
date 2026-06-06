@@ -42,6 +42,52 @@ Expanded product-reduction-dequant-clamp generated artifact ABI binding evidence
 - None - task complete
 
 
+## Session 514: Stage2 RVV computed-mask segment2 store artifact ABI
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV computed-masked segment2 store executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Completed the computed-masked segment2 store executable artifact/ABI boundary for this round. The production provider/target seam already carried typed store route facts; this round closed the paired store evidence gap by requiring generated-bundle and target-artifact evidence to expose provider-owned mask-tail route-family plan/owner mirrors, and by adding stale provider/candidate fail-closed coverage for those store boundary facts.
+
+### Main Changes
+
+- Created Trellis task `06-07-rvv-computed-masked-segment2-store-artifact-abi` from the Hermes brief and bounded it to `computed_masked_segment2_store_unit_load`.
+- Hardened `scripts/rvv_generated_bundle_abi_e2e.py` so computed-masked segment2 store metadata and boundary summaries include `tcrv_rvv.mask_tail_policy_route_family_plan` and `tcrv_rvv.mask_tail_policy_owner`.
+- Added script self-test coverage so fake computed-masked segment2 store bundles fail if the store mask-tail plan/owner facts disappear or diverge.
+- Updated explicit and pre-realized generated-bundle dry-run FileCheck tests and target artifact MLIR fixtures to expose the store mask-tail plan/owner mirrors.
+- Extended `test/Target/TargetArtifactExportTest.cpp` so stale store provider and candidate mask-tail route-family plan/owner facts fail closed before artifact acceptance.
+- Produced explicit and pre-realized ssh rvv evidence under `artifacts/tmp/06-07-rvv-computed-masked-segment2-store-artifact-abi`, counts `0,1,7,16,23,257`, patterns `0,1`, with active writes, inactive old destination preservation, field0/field1 distinction, source preservation, and tail preservation.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] lit filter `computed-masked-segment2-store`: 5 passed, 495 excluded
+- [OK] explicit and pre-realized non-dry-run `ssh rvv` generated-bundle runs
+- [OK] bounded added-line old-authority scan
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 497: Stage2 RVV runtime-scalar-cmp masked MAcc LMUL m2 artifact ABI boundary
 
 **Date**: 2026-06-06

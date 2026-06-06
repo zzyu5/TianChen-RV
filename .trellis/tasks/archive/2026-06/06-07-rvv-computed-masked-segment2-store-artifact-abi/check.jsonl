@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify store route remains provider-owned and no legacy/source-front-door authority is introduced"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify segment2 validation contract and common EmitC neutrality"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify generated-bundle and ssh rvv evidence policy"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused C++ provider/candidate fail-closed checks for computed-mask segment2 store"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "py_compile and self-test after generated-bundle evidence changes"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-computed-masked-segment2-store-dry-run.test", "reason": "Explicit dry-run FileCheck evidence"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-segment2-store-dry-run.test", "reason": "Pre-realized dry-run FileCheck evidence"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-computed-masked-segment2-store-dry-run.test", "reason": "Direct pre-realized store shortcut remains fail-closed"}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "RVV extension plugin smoke test"}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Target artifact export fail-closed coverage"}
+{"file": "artifacts/tmp/06-07-rvv-computed-masked-segment2-store-artifact-abi/explicit-ssh-rvv-v1/explicit-computed-mask-segment2-store-ssh-rvv/evidence.json", "reason": "Non-dry-run ssh rvv evidence for explicit computed-mask segment2 store"}
+{"file": "artifacts/tmp/06-07-rvv-computed-masked-segment2-store-artifact-abi/pre-realized-ssh-rvv-v1/pre-realized-computed-mask-segment2-store-ssh-rvv/evidence.json", "reason": "Pre-realized non-dry-run ssh rvv evidence for computed-mask segment2 store"}
