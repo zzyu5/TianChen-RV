@@ -1081,7 +1081,16 @@ Closed computed-masked widening dot-reduce-add executable artifact ABI boundary 
 
 ### Main Changes
 
-(Add details)
+- Extended RVV contraction route-family planning so computed-mask strided
+  widening dot-reduce-add consumes a provider-selected low-precision resource
+  before `TCRVEmitCLowerableRoute` construction.
+- Added computed-mask strided resource candidate, legality, memory form,
+  dtype/SEW/LMUL/EMUL, ABI order, runtime AVL, policy, and target mirror checks.
+- Updated target artifact and generated-bundle tests for explicit and
+  pre-realized selected bodies, including stale selected-candidate fail-closed
+  coverage.
+- Archived Trellis task
+  `.trellis/tasks/archive/2026-06/06-06-06-06-rvv-computed-masked-strided-dot-resource-abi/`.
 
 ### Git Commits
 
@@ -1091,7 +1100,19 @@ Closed computed-masked widening dot-reduce-add executable artifact ABI boundary 
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] Built `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-rvv-extension-plugin-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] `tianchenrv-rvv-extension-plugin-test` and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] `scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- [OK] Focused lit filter
+  `computed-masked-strided-input-widening-dot-reduce-add` passed 5/5.
+- [OK] Explicit and pre-realized generated-bundle dry-runs passed.
+- [OK] Explicit and pre-realized `ssh rvv` runs passed for counts
+  `0,1,16,17,257`, stride pairs `2:3` and `3:2`, and two mask/input patterns.
+- [OK] `git diff --check` and bounded old-authority scan over touched files and
+  added diff lines.
 
 ### Status
 
@@ -1621,6 +1642,39 @@ Implemented provider-consumed low-precision resource selection for base strided-
 ### Git Commits
 
 (No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 512: Stage2 computed-mask strided dot resource ABI
+
+**Date**: 2026-06-06
+**Task**: Stage2 computed-mask strided dot resource ABI
+**Branch**: `main`
+
+### Summary
+
+Completed and archived the Stage2 RVV computed-mask strided-input widening dot-reduce-add resource/artifact ABI boundary. Production route planning now requires provider-owned low-precision resource selection for the computed-mask strided direct dot route; target artifact and generated-bundle checks validate resource mirrors and stale selected candidates; explicit and pre-realized dry-runs and ssh rvv runs passed for counts 0,1,16,17,257 with stride pairs 2:3 and 3:2. Final source/task/journal commit is created after this entry.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
 
 ### Testing
 

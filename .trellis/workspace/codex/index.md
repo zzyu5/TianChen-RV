@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-24.md`
-- **Total Sessions**: 511
+- **Total Sessions**: 512
 - **Last Active**: 2026-06-06
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-24.md` | ~1635 | Active |
+| `journal-24.md` | ~1689 | Active |
 | `journal-23.md` | ~1982 | Archived |
 | `journal-22.md` | ~2034 | Archived |
 | `journal-21.md` | ~1978 | Archived |
@@ -52,6 +52,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 512 | 2026-06-06 | Stage2 computed-mask strided dot resource ABI | created-after-journal-entry | `main` |
 | 511 | 2026-06-06 | Stage2 RVV strided dot resource path | - | `main` |
 | 510 | 2026-06-06 | Stage2 RVV Gearbox resource-fact artifact boundary | this commit | `main` |
 | 509 | 2026-06-06 | Stage2 RVV Gearbox low-precision resource facts | this commit | `main` |

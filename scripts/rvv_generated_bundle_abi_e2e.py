@@ -418,6 +418,22 @@ COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_RUNTIME_ABI_ORDER = (
 COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT = (
     "unit-stride-compare-element-strided-lhs-rhs-dot-source-unit-stride-output-runtime-abi"
 )
+COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET = (
+    "rvv-low-precision-direct-contraction-resource-candidate-set.v1"
+    "[computed-mask-strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]"
+)
+COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE = (
+    "rvv-low-precision-direct-contraction-resource-candidate.v1"
+    "[computed-mask-strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]"
+)
+COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON = (
+    "static-bounded-computed-mask-strided-input-widening-dot-reduce-"
+    "i16mf2-i32m1-runtime-avl"
+)
+COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE = (
+    "typed-low-precision-computed-mask-strided-input-widening-dot-resource-"
+    "legality.v1"
+)
 STRIDED_ADD_RUNTIME_ABI_ORDER = "lhs,rhs,out,n,lhs_stride,rhs_stride,out_stride"
 STRIDED_LOAD_UNIT_STORE_RUNTIME_ABI_ORDER = "src,out,n,stride_bytes"
 UNIT_LOAD_STRIDED_STORE_RUNTIME_ABI_ORDER = "src,dst,n,dst_stride_bytes"
@@ -7494,6 +7510,7 @@ COMPUTED_MASKED_WIDENING_DOT_METADATA_KEYS = (
     "tcrv_rvv.masked_widening_product_intrinsic",
     "tcrv_rvv.strided_load_intrinsic",
     "tcrv_rvv.widening_dot_reduction_store_vl",
+    *LOW_PRECISION_RESOURCE_METADATA_KEYS,
 )
 FORBIDDEN_PUBLIC_RESIDUE_TOKENS = (
     "BinarySelfCheck",
@@ -10202,6 +10219,59 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.widening_dot_reduction_store_vl": (
                     WIDENING_DOT_REDUCTION_STORE_VL
                 ),
+                "tcrv_rvv.low_precision_resource.candidate_set": (
+                    COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET
+                ),
+                "tcrv_rvv.low_precision_resource.selected_candidate": (
+                    COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
+                ),
+                "tcrv_rvv.low_precision_resource.selection_reason": (
+                    COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON
+                ),
+                "tcrv_rvv.low_precision_resource.legality_scope": (
+                    COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE
+                ),
+                "tcrv_rvv.low_precision_resource.source_dtype": "i16",
+                "tcrv_rvv.low_precision_resource.source_sew": "16",
+                "tcrv_rvv.low_precision_resource.source_lmul": "mf2",
+                "tcrv_rvv.low_precision_resource.product_dtype": "i32",
+                "tcrv_rvv.low_precision_resource.product_sew": "32",
+                "tcrv_rvv.low_precision_resource.product_lmul": "m1",
+                "tcrv_rvv.low_precision_resource.product_emul": "m1",
+                "tcrv_rvv.low_precision_resource.accumulator_dtype": "i32",
+                "tcrv_rvv.low_precision_resource.accumulator_sew": "32",
+                "tcrv_rvv.low_precision_resource.accumulator_lmul": "m1",
+                "tcrv_rvv.low_precision_resource.accumulator_emul": "m1",
+                "tcrv_rvv.low_precision_resource.result_dtype": "i32",
+                "tcrv_rvv.low_precision_resource.result_sew": "32",
+                "tcrv_rvv.low_precision_resource.result_lmul": "m1",
+                "tcrv_rvv.low_precision_resource.memory_form": (
+                    expectation.memory_form
+                ),
+                "tcrv_rvv.low_precision_resource.tail_policy": "agnostic",
+                "tcrv_rvv.low_precision_resource.mask_policy": "agnostic",
+                "tcrv_rvv.low_precision_resource.unroll_factor": "1",
+                "tcrv_rvv.low_precision_resource.accumulator_count": "1",
+                "tcrv_rvv.low_precision_resource.reduction_layout": (
+                    WIDENING_DOT_RESULT_LAYOUT
+                ),
+                "tcrv_rvv.low_precision_resource.vsetvl_region_count": "2",
+                "tcrv_rvv.low_precision_resource.peak_live_vector_groups": "4",
+                "tcrv_rvv.low_precision_resource.vector_register_budget": "32",
+                "tcrv_rvv.low_precision_resource.runtime_avl_source": (
+                    "runtime_abi:n"
+                ),
+                "tcrv_rvv.low_precision_resource.runtime_abi_order": (
+                    expectation.runtime_abi_order
+                ),
+                "tcrv_rvv.low_precision_resource.target_capability_provider_mirror": (
+                    RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
+                ),
+                "tcrv_rvv.low_precision_resource.target_capability_legality_mirror": (
+                    RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
+                ),
+                "tcrv_rvv.low_precision_resource.legality": "legal",
+                "tcrv_rvv.low_precision_resource.rejection_reason": "none",
                 "tcrv_rvv.route_operand_binding_plan": (
                     COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
                 ),
@@ -29047,6 +29117,49 @@ def computed_masked_widening_dot_reduce_boundary_summary(
                 STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
             ),
         }
+        provider_route_facts["low_precision_resource_selection"] = {
+            "candidate_set": (
+                COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET
+            ),
+            "selected_candidate": (
+                COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
+            ),
+            "selection_reason": (
+                COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON
+            ),
+            "legality_scope": (
+                COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE
+            ),
+            "source_dtype": "i16",
+            "source_sew": "16",
+            "source_lmul": "mf2",
+            "product_dtype": "i32",
+            "product_sew": expectation.sew,
+            "product_lmul": expectation.lmul,
+            "product_emul": "m1",
+            "accumulator_dtype": "i32",
+            "accumulator_sew": expectation.sew,
+            "accumulator_lmul": expectation.lmul,
+            "accumulator_emul": "m1",
+            "result_dtype": "i32",
+            "result_sew": expectation.sew,
+            "result_lmul": expectation.lmul,
+            "memory_form": expectation.memory_form,
+            "tail_policy": "agnostic",
+            "mask_policy": "agnostic",
+            "unroll_factor": "1",
+            "accumulator_count": "1",
+            "reduction_layout": WIDENING_DOT_RESULT_LAYOUT,
+            "vsetvl_region_count": "2",
+            "peak_live_vector_groups": "4",
+            "vector_register_budget": "32",
+            "runtime_avl_source": "runtime_abi:n",
+            "runtime_abi_order": expectation.runtime_abi_order,
+            "target_capability_provider_mirror": RVV_TARGET_CAPABILITY_PROVIDER_MIRROR,
+            "target_capability_legality_mirror": RVV_TARGET_CAPABILITY_LEGALITY_MIRROR,
+            "legality": "legal",
+            "rejection_reason": "none",
+        }
     else:
         provider_route_facts["strided_input_facts"] = "rejected-if-present"
     return {
@@ -29154,6 +29267,7 @@ def computed_masked_widening_dot_reduce_boundary_summary(
             "source/result dtype relation",
             "source load form",
             "strided fact presence or absence",
+            "low-precision resource candidate mirrors",
             "setvl/VL control and scalar store VL",
             "required headers and C type mapping",
             "mirror-only candidate metadata",
@@ -31738,6 +31852,7 @@ def run_self_test() -> int:
                     runtime_counts=[0, 1, 16, 17, 257],
                 )
                 selected_source_abi = boundary.get("selected_source_abi", {})
+                provider_facts = boundary.get("provider_route_facts", {})
                 statement_plan = boundary.get("statement_plan", {})
                 accumulator_policy = boundary.get("accumulator_type_policy", {})
                 result_policy = boundary.get("result_type_policy", {})
@@ -31761,6 +31876,9 @@ def run_self_test() -> int:
                         "widening dot accumulator/result ABI boundary facts"
                     )
                 if expectation.is_computed_masked_strided_input_widening_dot_reduce_add:
+                    low_precision_resource = provider_facts.get(
+                        "low_precision_resource_selection", {}
+                    )
                     if (
                         computed_masked_widening_dot_metadata.get(
                             "tcrv_rvv.source_memory_form"
@@ -31770,10 +31888,42 @@ def run_self_test() -> int:
                             "tcrv_rvv.strided_memory_layout"
                         )
                         != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT
+                        or computed_masked_widening_dot_metadata.get(
+                            "tcrv_rvv.low_precision_resource.selected_candidate"
+                        )
+                        != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
+                        or low_precision_resource.get("candidate_set")
+                        != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET
+                        or low_precision_resource.get("selected_candidate")
+                        != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
+                        or low_precision_resource.get("selection_reason")
+                        != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON
+                        or low_precision_resource.get("legality_scope")
+                        != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE
+                        or low_precision_resource.get("source_dtype") != "i16"
+                        or low_precision_resource.get("product_dtype") != "i32"
+                        or low_precision_resource.get("product_emul") != "m1"
+                        or low_precision_resource.get("accumulator_dtype")
+                        != "i32"
+                        or low_precision_resource.get("accumulator_emul")
+                        != "m1"
+                        or low_precision_resource.get("result_dtype") != "i32"
+                        or low_precision_resource.get("memory_form")
+                        != expectation.memory_form
+                        or low_precision_resource.get("runtime_avl_source")
+                        != "runtime_abi:n"
+                        or low_precision_resource.get("runtime_abi_order")
+                        != expectation.runtime_abi_order
+                        or low_precision_resource.get("vector_register_budget")
+                        != "32"
+                        or low_precision_resource.get("legality") != "legal"
+                        or low_precision_resource.get("rejection_reason")
+                        != "none"
                     ):
                         raise AssertionError(
                             "self-test fake bundle generation lost computed-mask "
-                            "strided widening dot memory-form metadata"
+                            "strided widening dot memory-form or "
+                            "low-precision resource metadata"
                         )
             if (
                 expectation.is_standalone_reduce

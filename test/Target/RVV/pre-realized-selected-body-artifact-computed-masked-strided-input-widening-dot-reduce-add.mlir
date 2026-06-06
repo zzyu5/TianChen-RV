@@ -4,6 +4,7 @@
 // RUN: sed 's/source_lmul = "mf2"/route_id = "rvv-i32m1", source_lmul = "mf2"/' %s | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-AUTH
 // RUN: sed 's/mask_source = "compare-produced-mask-same-vl-scope"/mask_source = "runtime_abi:mask"/' %s | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-MASK-PROVENANCE
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.lhs_stride_source", value = "runtime_abi:lhs_stride/s//tcrv_rvv.lhs_stride_source", value = "metadata-derived-stride/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STRIDE-SOURCE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.selected_candidate", value = "[^"]*"/s//tcrv_rvv.low_precision_resource.selected_candidate", value = "artifact-name-derived-resource-candidate"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE
 
 // Pre-realized selected-body input for one bounded Stage 2 signed computed-mask
 // runtime-strided-input widening dot-product reduction slice. The RVV plugin
@@ -80,6 +81,13 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.required_header_declarations", value = "stddef.h,stdint.h,riscv_vector.h"}
 // PLAN-SAME: {key = "tcrv_rvv.c_type_mapping", value = "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32"}
 // PLAN-SAME: {key = "tcrv_rvv.inactive_lane_zeroing_requirement", value = "masked-widening-products-zero-inactive-lanes-before-reduction"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[computed-mask-strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.product_emul", value = "m1"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.accumulator_emul", value = "m1"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.memory_form", value = "computed-mask-strided-input-widening-dot-reduce"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.mask_policy", value = "agnostic"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.vector_register_budget", value = "32"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.runtime_abi_order", value = "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride"}
 // PLAN-SAME: {key = "tcrv_rvv.source_sew", value = "16"}
 // PLAN-SAME: {key = "tcrv_rvv.source_lmul", value = "mf2"}
 // PLAN-SAME: {key = "tcrv_rvv.accumulator_sew", value = "32"}
@@ -116,6 +124,13 @@ module {
 // HEADER: tianchenrv.rvv.source_memory_form: strided-load
 // HEADER: tianchenrv.rvv.destination_memory_form: unit-stride-store
 // HEADER: tianchenrv.rvv.mask_source: compare-produced-mask-same-vl-scope
+// HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[computed-mask-strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]
+// HEADER: tianchenrv.rvv.low_precision_resource.product_emul: m1
+// HEADER: tianchenrv.rvv.low_precision_resource.accumulator_emul: m1
+// HEADER: tianchenrv.rvv.low_precision_resource.memory_form: computed-mask-strided-input-widening-dot-reduce
+// HEADER: tianchenrv.rvv.low_precision_resource.mask_policy: agnostic
+// HEADER: tianchenrv.rvv.low_precision_resource.vector_register_budget: 32
+// HEADER: tianchenrv.rvv.low_precision_resource.runtime_abi_order: cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride
 // HEADER: tianchenrv.rvv.widening_dot_relation: signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32
 // HEADER: tianchenrv.rvv.widening_dot_reduction_store_vl: 1
 // HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1
@@ -132,3 +147,6 @@ module {
 // STALE-AUTH: does not accept authority metadata attribute '"route_id"'
 // MISSING-MASK-PROVENANCE: currently supports only mask_source "compare-produced-mask-same-vl-scope"
 // STALE-STRIDE-SOURCE: candidate tcrv_rvv.lhs_stride_source provenance must mirror selected typed RVV strided widening dot lhs stride source 'runtime_abi:lhs_stride' but was 'metadata-derived-stride'
+// STALE-RESOURCE: target artifact candidate validation failed
+// STALE-RESOURCE-SAME: low_precision_resource.selected_candidate
+// STALE-RESOURCE-SAME: provider-selected low-precision direct-contraction resource selected candidate

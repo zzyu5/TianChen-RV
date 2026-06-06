@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Check changed behavior against global route authority and Stage 2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify direct-contraction/provider/resource contracts are preserved."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify target artifact validation consumes provider-owned widening dot-reduce resource facts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/C++/generated-bundle/ssh rvv evidence is sufficient and not report-only."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check no common/core semantic branch was added for RVV resource facts."}
+{"file": "build/bin/tcrv-opt", "reason": "Ran cmake build for tcrv-opt, tcrv-translate, tianchenrv-rvv-extension-plugin-test, and tianchenrv-target-artifact-export-test."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "RVV extension plugin smoke test passed."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Target artifact export smoke test exited 0."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Self-test passed; explicit and pre-realized dry-runs passed; explicit and pre-realized ssh rvv runs passed for computed_masked_strided_input_widening_dot_reduce_add."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Focused lit/FileCheck passed for explicit selected-body emission/header and stale-resource fail-closed coverage."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Focused lit/FileCheck passed for pre-realized selected-body realization, emission/header, and stale-resource fail-closed coverage."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Focused lit/FileCheck passed for explicit generated-bundle dry-run resource metadata and provider boundary evidence."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Focused lit/FileCheck passed for pre-realized generated-bundle dry-run resource metadata and provider boundary evidence."}

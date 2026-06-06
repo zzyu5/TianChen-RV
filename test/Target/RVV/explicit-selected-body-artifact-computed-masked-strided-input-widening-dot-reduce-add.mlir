@@ -10,6 +10,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.widening_dot_reduction_store_vl", value = "1"/s//tcrv_rvv.widening_dot_reduction_store_vl", value = "4"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STOREVL
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/__riscv_vlse16_v_i16mf2/s//__riscv_vle16_v_i16mf2/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STRIDE
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/__riscv_vwmul_vv_i32m1_m/s//__riscv_vwmul_vv_i32m1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-MASKPROD
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.selected_candidate", value = "[^"]*"/s//tcrv_rvv.low_precision_resource.selected_candidate", value = "artifact-name-derived-resource-candidate"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE
 
 // Explicit selected-body input for one bounded Stage 2 signed computed-mask
 // runtime-strided-input widening dot-product reduction slice. The generic
@@ -61,6 +62,13 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:masked_strided_wdot.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask|hdr;dot_lhs=dot-lhs-input-buffer:lhs:abi|sld|mlhs|i16|hdr;dot_rhs=dot-rhs-input-buffer:rhs:abi|sld|mrhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr;lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr|hdr;rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr"}
 // PLAN-SAME: {key = "tcrv_rvv.contraction_route_family_plan", value = "rvv-contraction-route-family-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.inactive_lane_zeroing_requirement", value = "masked-widening-products-zero-inactive-lanes-before-reduction"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[computed-mask-strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.product_emul", value = "m1"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.accumulator_emul", value = "m1"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.memory_form", value = "computed-mask-strided-input-widening-dot-reduce"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.mask_policy", value = "agnostic"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.vector_register_budget", value = "32"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.runtime_abi_order", value = "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride"}
 // PLAN-SAME: {key = "tcrv_rvv.strided_memory_layout", value = "unit-stride-compare-element-strided-lhs-rhs-dot-source-unit-stride-output-runtime-abi"}
 // PLAN-SAME: {key = "tcrv_rvv.lhs_stride_source", value = "runtime_abi:lhs_stride"}
 // PLAN-SAME: {key = "tcrv_rvv.rhs_stride_source", value = "runtime_abi:rhs_stride"}
@@ -87,6 +95,13 @@ module {
 // HEADER: tianchenrv.rvv.source_memory_form: strided-load
 // HEADER: tianchenrv.rvv.destination_memory_form: unit-stride-store
 // HEADER: tianchenrv.rvv.mask_source: compare-produced-mask-same-vl-scope
+// HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[computed-mask-strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]
+// HEADER: tianchenrv.rvv.low_precision_resource.product_emul: m1
+// HEADER: tianchenrv.rvv.low_precision_resource.accumulator_emul: m1
+// HEADER: tianchenrv.rvv.low_precision_resource.memory_form: computed-mask-strided-input-widening-dot-reduce
+// HEADER: tianchenrv.rvv.low_precision_resource.mask_policy: agnostic
+// HEADER: tianchenrv.rvv.low_precision_resource.vector_register_budget: 32
+// HEADER: tianchenrv.rvv.low_precision_resource.runtime_abi_order: cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride
 // HEADER: tianchenrv.rvv.widening_dot_relation: signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32
 // HEADER: tianchenrv.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:masked_strided_wdot.v1
@@ -104,3 +119,6 @@ module {
 // STALE-STOREVL: candidate tcrv_rvv.widening_dot_reduction_store_vl provenance must mirror selected typed RVV widening dot reduction store VL
 // STALE-STRIDE: candidate tcrv_rvv.strided_load_intrinsic provenance must mirror selected typed RVV strided widening dot source load intrinsic
 // STALE-MASKPROD: candidate tcrv_rvv.masked_widening_product_intrinsic provenance must mirror selected typed RVV computed-mask widening dot product intrinsic
+// STALE-RESOURCE: target artifact candidate validation failed
+// STALE-RESOURCE-SAME: low_precision_resource.selected_candidate
+// STALE-RESOURCE-SAME: provider-selected low-precision direct-contraction resource selected candidate
