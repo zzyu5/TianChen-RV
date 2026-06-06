@@ -5249,6 +5249,20 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         selected_variant="pre_realized_body_rvv_cmseg_store",
         function_name="tcrv_emitc_pre_realized_body_cmseg_store_kernel_pre_realized_body_rvv_cmseg_store",
     ),
+    "runtime_scalar_cmp_masked_segment2_store_unit_load": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "runtime_scalar_cmp_masked_segment2_store_unit_load"
+        ],
+        input_path=Path(
+            "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-segment2-store.mlir"
+        ),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_rt_scalar_cmseg_store",
+        function_name=(
+            "tcrv_emitc_pre_realized_body_rt_scalar_cmseg_store_kernel_"
+            "pre_realized_body_rvv_rt_scalar_cmseg_store"
+        ),
+    ),
     "computed_masked_segment2_update_unit_load": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
             "computed_masked_segment2_store_unit_load"
@@ -33371,6 +33385,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "runtime_scalar_cmp_masked_standalone_reduce_add/min/max/"
             "computed_masked_segment2_load_unit_store/"
             "computed_masked_segment2_store_unit_load/"
+            "runtime_scalar_cmp_masked_segment2_store_unit_load/"
             "computed_masked_segment2_update_unit_load/"
             "segment2_deinterleave_unit_store/"
             "segment2_interleave_unit_load/"

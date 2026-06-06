@@ -3424,8 +3424,9 @@ operand-binding facts, materialization facts, and route-control facts, and then
 returns one owner-built provider plan for the segment2 statement-plan boundary.
 
 The active entries are `computed-mask segment2 load`, `computed-mask segment2
-store`, `computed-mask segment2 update`, `plain segment2 deinterleave`, and
-`plain segment2 interleave`. A route may match at most one planning owner.
+store`, `runtime-scalar computed-mask segment2 store`, `computed-mask
+segment2 update`, `plain segment2 deinterleave`, and `plain segment2
+interleave`. A route may match at most one planning owner.
 
 ### 2. Signatures
 
@@ -3578,6 +3579,132 @@ verified route-family plans
   -> provider-built route
 ```
 
+## Runtime-Scalar Computed-Mask Segment2 Store Pre-Realized Boundary
+
+### 1. Scope / Trigger
+
+Use this contract when a selected RVV variant contains:
+
+```text
+tcrv_rvv.typed_runtime_scalar_computed_mask_segment2_store_pre_realized_body
+```
+
+The op represents one bounded pre-realized selected body for
+`runtime_scalar_cmp_masked_segment2_store_unit_load`. It is a selected-body
+realization boundary, not a route-entry shortcut and not a Common EmitC
+semantic branch.
+
+### 2. Signatures
+
+The pre-realized body signature is:
+
+```text
+tcrv_rvv.typed_runtime_scalar_computed_mask_segment2_store_pre_realized_body
+  %lhs, %rhs_scalar, %src0, %src1, %dst, %n
+  {
+    op_kind = "runtime_scalar_cmp_masked_segment2_store_unit_load",
+    predicate_kind = "sle",
+    memory_form = "computed-mask-unit-load-segment2-store",
+    segment_count = 2,
+    field0_role = "segment-field0-input-buffer",
+    field1_role = "segment-field1-input-buffer",
+    source0_memory_form = "unit-stride-load",
+    source1_memory_form = "unit-stride-load",
+    destination_memory_form = "segment2-interleaved-unit-stride-store",
+    mask_role = "predicate-mask-produced-by-compare",
+    mask_source = "compare-produced-mask-same-vl-scope",
+    mask_memory_form = "compare-produced-mask",
+    inactive_lane_policy = "preserve-output-on-false-lanes",
+    sew = 32, lmul = "m1",
+    policy = tail agnostic, mask agnostic
+  }
+```
+
+The runtime ABI order is:
+
+```text
+lhs, rhs_scalar, src0, src1, dst, n
+```
+
+`rhs_scalar` must be an `i32` scalar runtime ABI value with C type `int32_t`
+and role `rhs-scalar-value`.
+
+### 3. Contracts
+
+- The segment2 memory selected-body realization owner must consume the
+  pre-realized op through the public selected lowering-boundary materializer.
+- Realization must materialize the typed body sequence:
+  `setvl`, `with_vl`, lhs `load`, `rhs_scalar` `splat`, field0/field1
+  `load`, `compare`, and `masked_segment2_store`.
+- The realized compare must use the splatted runtime scalar RHS and preserve
+  `runtime-scalar-splat-compare-rhs` as the provider-derived mask producer
+  source.
+- The RVV provider, segment2 route-family planning owner, statement-plan
+  owner, target export validator, and generated bundle ABI must consume the
+  same realized typed body facts. Common EmitC remains a neutral materializer.
+
+### 4. Validation & Error Matrix
+
+- Unsupported `op_kind`, `predicate_kind`, memory form, field role, segment
+  count, source/destination form, mask role/source/form, inactive-lane policy,
+  SEW/LMUL, or policy -> fail before provider facts.
+- Missing or stale runtime ABI roles for `lhs`, `rhs_scalar`, `src0`, `src1`,
+  `dst`, or `n` -> fail before realization or provider construction.
+- `rhs_scalar` is not `i32`, lacks role `rhs-scalar-value`, or has stale C type
+  -> fail before splat realization.
+- Realized route facts report vector-compare RHS load instead of
+  `runtime-scalar-splat-compare-rhs` -> target artifact export must fail.
+- Target header/prototype ABI order, route operand binding, C type mapping, or
+  provider-supported mirror disagrees with the rebuilt provider route -> fail
+  before executable bundle acceptance.
+
+### 5. Good/Base/Bad Cases
+
+- Good: pre-realized runtime-scalar segment2 store body -> segment2 memory
+  owner realization -> realized splat/compare/masked segment2 store body ->
+  provider-built route -> Common EmitC -> target artifact -> generated bundle.
+- Base: the explicit selected-body
+  `runtime_scalar_cmp_masked_segment2_store_unit_load` route remains a
+  regression baseline with the same ABI and provider route facts.
+- Bad: the old `typed_computed_mask_segment2_store_pre_realized_body` accepts a
+  scalar RHS by role/name mutation.
+- Bad: target export accepts stale vector-compare mask producer metadata because
+  the route id or artifact name says runtime-scalar.
+
+### 6. Tests Required
+
+- A positive lit fixture must prove the pre-realized op is removed and replaced
+  with `load/splat/load/load/compare/masked_segment2_store` before emission
+  plan and target header checks.
+- Generated-bundle dry-run evidence must check pre-realized body consumption,
+  `rhs_scalar` ABI/header participation, `runtime-scalar-splat-compare-rhs`,
+  field0/field1 roles, inactive-lane preservation, segment count, and runtime
+  AVL/VL.
+- Runtime correctness claims require non-dry-run `ssh rvv` evidence for active
+  and inactive lanes, field distinction, source preservation, and tail
+  preservation.
+- Negative evidence must reject at least one stale runtime-scalar boundary fact,
+  such as stale mask producer source or stale `rhs_scalar` ABI/type binding.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+pre-realized body or artifact metadata says runtime_scalar segment2 store
+  -> target export accepts vector compare RHS load facts
+```
+
+Correct:
+
+```text
+typed_runtime_scalar_computed_mask_segment2_store_pre_realized_body
+  -> RVV segment2 selected-body realization owner
+  -> realized lhs load + rhs_scalar splat + compare + masked_segment2_store
+  -> provider-derived runtime-scalar segment2 route facts
+  -> target export mirror validation
+```
+
 ## Segment2 Memory Statement-Plan Boundary
 
 ### 1. Scope / Trigger
@@ -3643,8 +3770,8 @@ It may carry:
   plain segment2 family plan or computed-mask memory family plan that justifies
   the selected segment2 statement sequence;
 - owner-built sub-family booleans for plain deinterleave, plain interleave,
-  computed-mask segment2 load, computed-mask segment2 store, and computed-mask
-  segment2 update;
+  computed-mask segment2 load, computed-mask segment2 store, runtime-scalar
+  computed-mask segment2 store, and computed-mask segment2 update;
 - provider-ready `TCRVEmitCCallOpaqueStep` entries for full-chunk `setvl`;
 - one provider-ready `TCRVEmitCForLoop` with loop `setvl`, compare-mask
   producer steps for computed-mask segment2 routes, field payload or
@@ -5029,6 +5156,7 @@ Required target-side validations:
 - Computed-mask segment2 families
   (`computed_masked_segment2_load_unit_store`,
   `computed_masked_segment2_store_unit_load`,
+  `runtime_scalar_cmp_masked_segment2_store_unit_load`,
   `computed_masked_segment2_update_unit_load`) require
   `computedMaskMemoryRouteFamilyPlanID` /
   `tcrv_rvv.computed_mask_memory_route_family_plan` plus mask producer/role/
@@ -5048,6 +5176,10 @@ Statement-plan checks are family-specific:
 - Computed-mask segment2 store validates compare/mask construction, field
   payload loads, tuple creation, and masked segment-store statements. It must
   reject stale segment-load or field-extract facts before artifact export.
+- Runtime-scalar computed-mask segment2 store validates lhs load, runtime
+  scalar splat, compare/mask construction, field payload loads, tuple
+  creation, and masked segment-store statements. It must reject stale vector
+  RHS load, segment-load, or field-extract facts before artifact export.
 - Computed-mask segment2 update validates compare/mask construction, field
   payload loads, update arithmetic, tuple creation, and masked segment-store
   statements. It must reject stale segment-load or field-extract facts before

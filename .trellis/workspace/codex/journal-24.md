@@ -1807,3 +1807,36 @@ Completed the computed-masked segment2 load executable artifact/ABI boundary. Th
 ### Next Steps
 
 - None - task complete
+
+
+## Session 515: Stage2 RVV pre-realized runtime-scalar segment2 store ABI
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV pre-realized runtime-scalar segment2 store ABI
+**Branch**: `main`
+
+### Summary
+
+Implemented pre-realized runtime-scalar-cmp masked segment2 store selected-body realization and executable artifact ABI evidence; added typed pre-realized op, segment2 owner realization, target/generated-bundle tests, spec contract, focused C++/lit checks, and ssh rvv correctness.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

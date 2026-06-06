@@ -58,6 +58,12 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
     const VariantLoweringBoundaryRequest &request,
     tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body);
 
+llvm::Error
+validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyOp
+        body);
+
 bool preRealizedRVVSelectedComputedMaskSegment2StoreBodyUsesUpdate(
     tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body);
 
@@ -70,6 +76,12 @@ llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
     const VariantLoweringBoundaryRequest &request,
     tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp body);
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyOp
+        body);
 
 llvm::Error validatePreRealizedRVVSelectedSegment2DeinterleaveMemoryBody(
     const VariantLoweringBoundaryRequest &request,

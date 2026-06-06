@@ -149,6 +149,8 @@ void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
 bool isPreRealizedRVVSegment2MemoryOwnerOp(mlir::Operation *op) {
   return llvm::isa<tcrv::rvv::TypedComputedMaskSegment2LoadPreRealizedBodyOp,
                    tcrv::rvv::TypedComputedMaskSegment2StorePreRealizedBodyOp,
+                   tcrv::rvv::
+                       TypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyOp,
                    tcrv::rvv::TypedSegment2DeinterleaveMemoryPreRealizedBodyOp,
                    tcrv::rvv::TypedSegment2InterleaveMemoryPreRealizedBodyOp>(
       op);
@@ -185,6 +187,14 @@ realizePreRealizedRVVSegment2MemoryOwner(
           bodyOp)) {
     return realizePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
         request, computedMaskSegment2StoreBody);
+  }
+
+  if (auto runtimeScalarSegment2StoreBody = llvm::dyn_cast<
+          tcrv::rvv::
+              TypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyOp>(
+          bodyOp)) {
+    return realizePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2StoreBody(
+        request, runtimeScalarSegment2StoreBody);
   }
 
   if (auto segment2Body = llvm::dyn_cast<

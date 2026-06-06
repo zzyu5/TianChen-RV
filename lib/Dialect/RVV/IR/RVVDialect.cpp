@@ -566,6 +566,19 @@ bool isAllowedTypedComputedMaskSegment2StorePreRealizedBodyAttr(
          name == kPolicyAttrName;
 }
 
+bool isAllowedTypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return name == kOpKindAttrName || name == kPredicateKindAttrName ||
+         name == kMemoryFormAttrName || name == kSegmentCountAttrName ||
+         name == kField0RoleAttrName || name == kField1RoleAttrName ||
+         name == kSource0MemoryFormAttrName ||
+         name == kSource1MemoryFormAttrName ||
+         name == kDestinationMemoryFormAttrName || name == kMaskRoleAttrName ||
+         name == kMaskSourceAttrName || name == kMaskMemoryFormAttrName ||
+         name == kInactiveLanePolicyAttrName || name == kSEWAttrName ||
+         name == kLMULAttrName || name == kPolicyAttrName;
+}
+
 bool isAllowedTypedSegment2DeinterleaveMemoryPreRealizedBodyAttr(
     llvm::StringRef name) {
   return name == kOpKindAttrName || name == kMemoryFormAttrName ||
@@ -1545,6 +1558,11 @@ bool isSupportedTypedComputedMaskSegment2StorePreRealizedBodyOpKind(
          opKind == "computed_masked_segment2_update_unit_load";
 }
 
+bool isSupportedTypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "runtime_scalar_cmp_masked_segment2_store_unit_load";
+}
+
 bool isSupportedTypedComputedMaskStridedStorePreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-unit-load-strided-store";
@@ -1571,6 +1589,16 @@ bool isSupportedTypedComputedMaskSegment2LoadPreRealizedMemoryForm(
 }
 
 bool isSupportedTypedComputedMaskSegment2StorePreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "computed-mask-unit-load-segment2-store";
+}
+
+bool isSupportedTypedRuntimeScalarComputedMaskSegment2StorePreRealizedPredicateKind(
+    llvm::StringRef predicateKind) {
+  return predicateKind == "sle";
+}
+
+bool isSupportedTypedRuntimeScalarComputedMaskSegment2StorePreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-unit-load-segment2-store";
 }
@@ -8676,6 +8704,186 @@ TypedComputedMaskSegment2StorePreRealizedBodyOp::verify() {
           {tianchenrv::support::RuntimeABIParameterRole::
                SegmentInterleavedOutputBuffer})))
     return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult
+TypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected runtime-scalar computed-mask "
+                "segment2 store bodies carry only typed RVV lhs/runtime "
+                "scalar/source-field/destination, mask, segmented memory-form, "
+                "inactive-lane policy, config, policy, and runtime SSA facts "
+                "and must be realized by the RVV plugin before route "
+                "construction";
+
+    if (!isAllowedTypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyAttr(
+            attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kPredicateKindAttrName << "', '"
+             << kMemoryFormAttrName << "', '" << kSegmentCountAttrName
+             << "', '" << kField0RoleAttrName << "', '" << kField1RoleAttrName
+             << "', '" << kSource0MemoryFormAttrName << "', '"
+             << kSource1MemoryFormAttrName << "', '"
+             << kDestinationMemoryFormAttrName << "', '" << kMaskRoleAttrName
+             << "', '" << kMaskSourceAttrName << "', '"
+             << kMaskMemoryFormAttrName << "', '" << kInactiveLanePolicyAttrName
+             << "', '" << kSEWAttrName << "', '" << kLMULAttrName
+             << "', and '" << kPolicyAttrName << "'; unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 6 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires lhs, rhs scalar threshold, field0 source, field1 "
+              "source, interleaved destination, runtime n/AVL operands and "
+              "no results";
+
+  if (!isSupportedTypedRuntimeScalarComputedMaskSegment2StorePreRealizedBodyOpKind(
+          getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"runtime_scalar_cmp_masked_segment2_store_unit_load\" for "
+              "the bounded selected-body runtime-scalar computed-mask "
+              "segment2 store hook";
+  if (!isSupportedTypedRuntimeScalarComputedMaskSegment2StorePreRealizedPredicateKind(
+          getPredicateKind()))
+    return emitOpError()
+           << "currently supports only predicate_kind \"sle\" for the bounded "
+              "selected-body runtime-scalar computed-mask segment2 store hook";
+  if (!isSupportedTypedRuntimeScalarComputedMaskSegment2StorePreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"computed-mask-unit-load-segment2-store\" for the bounded "
+              "selected-body runtime-scalar computed-mask segment2 store hook";
+  if (static_cast<std::int64_t>(getSegmentCount()) != 2)
+    return emitOpError()
+           << "requires segment_count 2 for the bounded runtime-scalar "
+              "computed-mask segment2 store hook";
+  if (!isSupportedTypedSegment2Field0InputRole(getField0Role()))
+    return emitOpError()
+           << "requires field0_role \"segment-field0-input-buffer\"";
+  if (!isSupportedTypedSegment2Field1InputRole(getField1Role()))
+    return emitOpError()
+           << "requires field1_role \"segment-field1-input-buffer\"";
+  if (getField0Role() == getField1Role())
+    return emitOpError()
+           << "requires field0_role and field1_role to be distinct";
+  if (!isSupportedTypedSegment2FieldSourceMemoryForm(getSource0MemoryForm()))
+    return emitOpError()
+           << "currently supports only source0_memory_form "
+              "\"unit-stride-load\"";
+  if (!isSupportedTypedSegment2FieldSourceMemoryForm(getSource1MemoryForm()))
+    return emitOpError()
+           << "currently supports only source1_memory_form "
+              "\"unit-stride-load\"";
+  if (!isSupportedTypedSegment2InterleavedDestinationMemoryForm(
+          getDestinationMemoryForm()))
+    return emitOpError()
+           << "currently supports only destination_memory_form "
+              "\"segment2-interleaved-unit-stride-store\"";
+  if (!isSupportedTypedComputedMaskMemoryRole(getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-produced-by-compare\" for the bounded "
+              "selected-body runtime-scalar computed-mask segment2 store hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskSource(getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"compare-produced-mask-same-vl-scope\" for the bounded "
+              "selected-body runtime-scalar computed-mask segment2 store hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskMemoryForm(getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"compare-produced-mask\" for the bounded selected-body "
+              "runtime-scalar computed-mask segment2 store hook";
+  if (getInactiveLanePolicy() != "preserve-output-on-false-lanes")
+    return emitOpError()
+           << "requires inactive_lane_policy "
+              "\"preserve-output-on-false-lanes\" because compare-false and "
+              "masked-off lanes must not write the interleaved destination";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized runtime-scalar computed-mask "
+              "segment2 store data config to be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body runtime-scalar computed-mask segment2 store hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIScalarOperandRole(
+          op, getRhsScalar(), "rhs scalar threshold",
+          {getRVVFirstSliceSEWBits()}, "i32",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSrc0(), "field0 source",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               SegmentField0InputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSrc1(), "field1 source",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               SegmentField1InputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getDst(), "interleaved destination",
+          {tianchenrv::support::RuntimeABIParameterRole::
+               SegmentInterleavedOutputBuffer})))
+    return mlir::failure();
+
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsScalarBinding =
+      getRhsScalar().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp source0Binding =
+      getSrc0().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp source1Binding =
+      getSrc1().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp destinationBinding =
+      getDst().getDefiningOp<RuntimeABIValueOp>();
+  if (!lhsBinding || lhsBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires lhs operand C type 'const int32_t *' to match typed "
+              "runtime-scalar computed-mask segment2 store predicate dtype";
+  if (!rhsScalarBinding || rhsScalarBinding.getCType() != "int32_t")
+    return emitOpError()
+           << "requires rhs scalar threshold operand C type 'int32_t' to "
+              "match typed runtime-scalar computed-mask segment2 store "
+              "predicate dtype";
+  if (!source0Binding || source0Binding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires field0 source operand C type 'const int32_t *' to "
+              "match typed runtime-scalar computed-mask segment2 store payload "
+              "dtype";
+  if (!source1Binding || source1Binding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires field1 source operand C type 'const int32_t *' to "
+              "match typed runtime-scalar computed-mask segment2 store payload "
+              "dtype";
+  if (!destinationBinding || destinationBinding.getCType() != "int32_t *")
+    return emitOpError()
+           << "requires interleaved destination operand C type 'int32_t *' to "
+              "match typed runtime-scalar computed-mask segment2 store result "
+              "dtype";
   return verifyRuntimeElementCountOperand(op, getN());
 }
 

@@ -1,0 +1,71 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-cmp-segment2-store --overwrite --op-kind runtime_scalar_cmp_masked_segment2_store_unit_load --runtime-count 0 --runtime-count 1 --runtime-count 7 --runtime-count 16 --runtime-count 23 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-runtime-scalar-cmp-segment2-store/evidence.json
+# RUN: FileCheck %s --check-prefix=RTSEG --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-segment2-store/runtime_scalar_cmp_masked_segment2_store_unit_load/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-segment2-store/runtime_scalar_cmp_masked_segment2_store_unit_load/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_segment2_store_unit_load_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "runtime_scalar_cmp_masked_segment2_store_unit_load"
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+
+# RTSEG-DAG: "input_mode": "pre-realized-selected-body"
+# RTSEG-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-segment2-store.mlir"
+# RTSEG-DAG: "prototype": "void tcrv_emitc_pre_realized_body_rt_scalar_cmseg_store_kernel_pre_realized_body_rvv_rt_scalar_cmseg_store(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src0, const int32_t *src1, int32_t *dst, size_t n);"
+# RTSEG-DAG: "expected_function": "tcrv_emitc_pre_realized_body_rt_scalar_cmseg_store_kernel_pre_realized_body_rvv_rt_scalar_cmseg_store"
+# RTSEG-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-cmp-masked-segment2-store-unit-load-callable-c-abi.v1"
+# RTSEG-DAG: "expected_selected_variant": "pre_realized_body_rvv_rt_scalar_cmseg_store"
+# RTSEG-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# RTSEG-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# RTSEG-DAG: "route_entry_realization": false
+# RTSEG-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# RTSEG-DAG: --tcrv-materialize-selected-lowering-boundaries
+# RTSEG-DAG: "pre_realized_body_consumed": true
+# RTSEG-DAG: "typed_compute_op": "tcrv_rvv.masked_segment2_store"
+# RTSEG-DAG: "memory_form": "computed-mask-unit-load-segment2-store"
+# RTSEG-DAG: "key": "rvv_emitc_lowerable_route"
+# RTSEG-DAG: "value": "rvv-generic-runtime-scalar-cmp-masked-segment2-store-unit-load-emitc-route"
+# RTSEG-DAG: "key": "rvv_selected_body_operation"
+# RTSEG-DAG: "value": "runtime_scalar_cmp_masked_segment2_store_unit_load"
+# RTSEG-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# RTSEG-DAG: "value": "lhs,rhs_scalar,src0,src1,dst,n"
+# RTSEG-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# RTSEG-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_segment2_store_unit_load.v1"
+# RTSEG-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# RTSEG-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_segment2_store_unit_load.v1;lhs=lhs-input-buffer:lhs:abi|cmp-lhs-load|lhs-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|rhs-call|hdr;src0=segment-field0-input-buffer:src0:abi|f0-load|f0-payload|tuple0|f0-role|src0-mem|hdr;src1=segment-field1-input-buffer:src1:abi|f1-load|f1-payload|tuple1|f1-role|src1-mem|hdr;dst=segment-interleaved-output-buffer:dst:abi|mseg-store|dst-mem|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
+# RTSEG-DAG: "key": "tcrv_rvv.computed_mask_memory_route_family_plan"
+# RTSEG-DAG: "value": "rvv-computed-mask-memory-route-family-plan.v1"
+# RTSEG-DAG: "key": "tcrv_rvv.computed_mask_memory_mask_producer_source"
+# RTSEG-DAG: "value": "runtime-scalar-splat-compare-rhs"
+# RTSEG-DAG: "key": "tcrv_rvv.mask_tail_policy_route_family_plan"
+# RTSEG-DAG: "value": "rvv-mask-tail-policy-route-family-plan.v1"
+# RTSEG-DAG: "key": "tcrv_rvv.mask_tail_policy_owner"
+# RTSEG-DAG: "value": "computed-mask memory mask/tail policy"
+# RTSEG-DAG: "key": "tcrv_rvv.segment_memory_layout"
+# RTSEG-DAG: "value": "unit-stride-lhs-runtime-scalar-threshold-field-payloads-segment2-masked-destination-runtime-abi"
+# RTSEG-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# RTSEG-DAG: "value": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-segment2-store-plan-validated"
+# RTSEG-DAG: "runtime_scalar_operand": "rhs_scalar"
+# RTSEG-DAG: "runtime_scalar_realization_op": "tcrv_rvv.splat"
+# RTSEG-DAG: "runtime_scalar_producer_source": "runtime-scalar-splat-compare-rhs"
+# RTSEG-DAG: "mask_coverage_contract": "multi-lane runtime_scalar_cmp_masked_segment2_store_unit_load cases require runtime-scalar compare-produced active and inactive mask lanes"
+# RTSEG-DAG: "inactive_lane_contract": "compare-false lanes must preserve both old interleaved destination field slots"
+# RTSEG-DAG: "field_order_contract": "active lanes store distinguishable field0/field1 payload vectors into even/odd interleaved destination slots while source buffers and tail slots preserve sentinels"
+# RTSEG-DAG: "mask_tail_policy_route_family_plan": "rvv-mask-tail-policy-route-family-plan.v1"
+# RTSEG-DAG: "mask_tail_policy_owner": "computed-mask memory mask/tail policy"
+# RTSEG-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_pre_realized_body_rt_scalar_cmseg_store_kernel_pre_realized_body_rvv_rt_scalar_cmseg_store(cmp_lhs, rhs_scalar, src0, src1, dst, n);
+# HARNESS: int active = cmp_lhs[index] <= rhs_scalar;
+# HARNESS: int32_t expected0 = active ? src0[index] : old_dst[2 * index];
+# HARNESS: int32_t expected1 = active ? src1[index] : old_dst[2 * index + 1];
+# HARNESS: inactive lane failed to preserve interleaved destination
+# HARNESS: runtime_scalar_cmp segment2_store
+# HARNESS: field_distinguishing_lanes
+# HARNESS: source_preserved tail_preserved
+# HARNESS: PASS op=runtime_scalar_cmp_masked_segment2_store_unit_load counts=0,1,7,16,23,257 patterns=0,1
