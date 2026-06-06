@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body segment2 route-family provider authority and realization constraints"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Computed-mask segment2 memory fact surface and segment2 route validation contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle, mask-tail, C++ API, and ssh rvv evidence requirements"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Provider-owned computed-mask segment2 route facts, validation contracts, and metadata mirror contract"}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target validator consumes segment2 memory route validation contract and statement plan"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "C++ provider/target fail-closed coverage for computed-mask segment2 load artifact boundary"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle ABI evidence for computed-mask segment2 load"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-computed-masked-segment2-load-dry-run.test", "reason": "Explicit selected-body generated-bundle dry-run FileCheck for computed-mask segment2 load"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-segment2-load-dry-run.test", "reason": "Pre-realized selected-body generated-bundle dry-run FileCheck for computed-mask segment2 load"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-computed-masked-segment2-load-dry-run.test", "reason": "Fail-closed direct pre-realized shortcut coverage for computed-mask segment2 load"}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-segment2-load.mlir", "reason": "Target artifact metadata mirrors for explicit selected-body computed-mask segment2 load"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-load.mlir", "reason": "Target artifact metadata mirrors for pre-realized selected-body computed-mask segment2 load"}

@@ -14151,9 +14151,16 @@ bool expectRVVTargetArtifactExporterShape(
               description.computedMaskMemoryRouteFamilyPlanID ||
           contract->computedMaskMemoryMaskProducerSource !=
               description.computedMaskMemoryMaskProducerSource ||
+          contract->maskTailPolicyRouteFamilyPlanID !=
+              description.maskTailPolicyRouteFamilyPlanID ||
+          contract->maskTailPolicyOwner != description.maskTailPolicyOwner ||
           contract->maskRole != description.maskRole ||
           contract->maskSource != description.maskSource ||
           contract->maskMemoryForm != description.maskMemoryForm ||
+          contract->inactiveLaneContract !=
+              description.inactiveLaneContract ||
+          contract->maskedPassthroughLayout !=
+              description.maskedPassthroughLayout ||
           contract->comparePredicateKind !=
               description.comparePredicateKind ||
           contract->segment2UpdateArithmeticKind !=
@@ -15200,6 +15207,32 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-derived-computed-mask"}))
     return false;
 
+  RVVRouteDescription wrongLoadMaskTailPlan =
+      computedMaskSegment2LoadDescription;
+  wrongLoadMaskTailPlan.maskTailPolicyRouteFamilyPlanID =
+      "metadata-derived-mask-tail-plan";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadMaskTailPlan,
+          "computed-mask segment2 load validator rejects wrong mask-tail "
+          "route-family plan",
+          {"mask/tail route-family plan",
+           "rvv-mask-tail-policy-route-family-plan.v1",
+           "metadata-derived-mask-tail-plan"}))
+    return false;
+
+  RVVRouteDescription wrongLoadMaskTailOwner =
+      computedMaskSegment2LoadDescription;
+  wrongLoadMaskTailOwner.maskTailPolicyOwner =
+      "metadata-derived-mask-tail-owner";
+  if (!expectComputedMaskSegment2LoadProviderFailure(
+          wrongLoadMaskTailOwner,
+          "computed-mask segment2 load validator rejects wrong mask-tail "
+          "route-family owner",
+          {"mask/tail route-family owner",
+           "computed-mask memory mask/tail policy",
+           "metadata-derived-mask-tail-owner"}))
+    return false;
+
   RVVRouteDescription staleLoadPlainSegment2Plan =
       computedMaskSegment2LoadDescription;
   staleLoadPlainSegment2Plan.segment2MemoryRouteFamilyPlanID =
@@ -15431,6 +15464,42 @@ bool expectRVVTargetArtifactExporterShape(
           "computed-mask segment2 load validator rejects stale mask mirror",
           {"mask_source", "compare-produced-mask-same-vl-scope",
            "metadata-derived-mask"}))
+    return false;
+
+  TargetArtifactCandidate wrongLoadMaskTailPlanMirror =
+      computedMaskSegment2LoadFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongLoadMaskTailPlanMirror,
+          "tcrv_rvv.mask_tail_policy_route_family_plan",
+          "metadata-derived-mask-tail-plan")) {
+    llvm::errs() << "computed-mask segment2 load fixture did not contain "
+                    "mask-tail route-family metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2LoadCandidateFailure(
+          wrongLoadMaskTailPlanMirror,
+          "computed-mask segment2 load validator rejects stale mask-tail "
+          "plan mirror",
+          {"mask_tail_policy_route_family_plan",
+           "rvv-mask-tail-policy-route-family-plan.v1",
+           "metadata-derived-mask-tail-plan"}))
+    return false;
+
+  TargetArtifactCandidate wrongLoadMaskTailOwnerMirror =
+      computedMaskSegment2LoadFixture.candidate;
+  if (!rewriteArtifactMetadataValue(wrongLoadMaskTailOwnerMirror,
+                                    "tcrv_rvv.mask_tail_policy_owner",
+                                    "metadata-derived-mask-tail-owner")) {
+    llvm::errs() << "computed-mask segment2 load fixture did not contain "
+                    "mask-tail owner metadata\n";
+    return false;
+  }
+  if (!expectComputedMaskSegment2LoadCandidateFailure(
+          wrongLoadMaskTailOwnerMirror,
+          "computed-mask segment2 load validator rejects stale mask-tail "
+          "owner mirror",
+          {"mask_tail_policy_owner", "computed-mask memory mask/tail policy",
+           "metadata-derived-mask-tail-owner"}))
     return false;
 
   TargetArtifactCandidate wrongLoadSegmentCountMirror =

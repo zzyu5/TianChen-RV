@@ -1,0 +1,17 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin authority and no legacy/source-front-door route drift"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify computed-mask segment2 load contract and common EmitC neutrality"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify C++/FileCheck/generated-bundle/ssh rvv evidence policy"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused C++ provider/candidate fail-closed checks for segment2 load"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Script self-test and generated bundle ABI checks"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-computed-masked-segment2-load-dry-run.test", "reason": "Explicit dry-run FileCheck evidence"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-segment2-load-dry-run.test", "reason": "Pre-realized dry-run FileCheck evidence"}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-segment2-load.mlir", "reason": "Explicit selected-body materialization/header artifact evidence remains valid"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-load.mlir", "reason": "Pre-realized selected-boundary materialization/header artifact evidence remains valid"}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "RVV extension plugin smoke test passed"}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Target artifact export test exited 0 after mask-tail plan-owner stale provider/candidate coverage was added"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "py_compile and --self-test passed after computed-mask segment2 load mask-tail evidence changes"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-computed-masked-segment2-load-dry-run.test", "reason": "Direct pre-realized route-entry shortcut still fails closed for computed_masked_segment2_load_unit_store"}
+{"file": "/tmp/tianchenrv-rvv-cmseg-load-ssh/explicit-computed-mask-segment2-load/evidence.json", "reason": "Non-dry-run ssh rvv success for explicit selected-body computed_masked_segment2_load_unit_store counts 0,1,16,17,257 and patterns 0,1"}
+{"file": "/tmp/tianchenrv-rvv-cmseg-load-ssh/pre-realized-computed-mask-segment2-load/evidence.json", "reason": "Non-dry-run ssh rvv success for pre-realized selected-body computed_masked_segment2_load_unit_store counts 0,1,7,16,23,257 and patterns 0,1"}
+{"file": ".trellis/tasks/archive/2026-06/06-06-rvv-computed-masked-segment2-load-artifact-abi/check.jsonl", "reason": "git diff --check passed"}
+{"file": ".trellis/tasks/archive/2026-06/06-06-rvv-computed-masked-segment2-load-artifact-abi/check.jsonl", "reason": "Bounded added-line old-authority scan found no RVVI32M1, rvv-i32m1, tcrv_rvv.i32_, !tcrv_rvv.i32m, descriptor, direct-C, source-export, or source-front-door matches in touched source/test added lines"}

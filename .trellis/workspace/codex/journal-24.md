@@ -1687,3 +1687,41 @@ Completed and archived the Stage2 RVV computed-mask strided-input widening dot-r
 ### Next Steps
 
 - None - task complete
+
+
+## Session 513: Stage2 RVV computed-mask segment2 load artifact ABI
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV computed-masked segment2 load executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Completed the computed-masked segment2 load executable artifact/ABI boundary. The production provider/target seam already carried segment2 computed-mask route facts; this round closed the evidence gap by requiring mask-tail route-family plan/owner mirrors in generated-bundle evidence, adding target artifact stale mirror rejection for those fields, and proving explicit/pre-realized ssh rvv correctness.
+
+### Main Changes
+
+- Created Trellis task `06-06-rvv-computed-masked-segment2-load-artifact-abi` from the Hermes brief and bounded it to the computed-masked segment2 load seam only.
+- Hardened `scripts/rvv_generated_bundle_abi_e2e.py` so computed-masked segment2 load expects and summarizes `tcrv_rvv.mask_tail_policy_route_family_plan` and `tcrv_rvv.mask_tail_policy_owner`.
+- Updated explicit and pre-realized generated-bundle dry-run FileCheck tests and target artifact MLIR fixtures to expose the mask-tail plan/owner mirrors.
+- Extended `test/Target/TargetArtifactExportTest.cpp` so positive computed-mask segment2 load contracts compare mask-tail plan/owner fields, and stale provider/candidate mask-tail mirrors fail closed before artifact acceptance.
+- Produced fresh ssh rvv evidence under `/tmp/tianchenrv-rvv-cmseg-load-ssh`: explicit counts `0,1,16,17,257` and pre-realized counts `0,1,7,16,23,257`, both with patterns `0,1`, active/inactive lane coverage, field0/field1 distinction, old-field inactive-lane preservation, source preservation, and tail preservation.
+- Checks: focused build targets, RVV plugin C++ smoke, target artifact C++ test, three generated-bundle dry-run lit tests, two target artifact fixture lit tests, script py_compile/self-test, explicit/pre-realized ssh rvv runs, `git diff --check`, and bounded added-line old-authority scan.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] Focused checks and ssh rvv evidence passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
