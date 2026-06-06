@@ -363,3 +363,59 @@ Hardened scalar-broadcast sub/mul operand binding from mirror-only tokens to exe
 ### Next Steps
 
 - None - task complete
+
+
+## Session 494: Stage2 RVV scalar-broadcast MAcc executable artifact ABI boundary
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV scalar-broadcast MAcc executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Audited the pre-realized scalar-broadcast MAcc executable artifact ABI seam and
+confirmed the production provider/target/script path is already provider-owned,
+fail-closed, and executable. Added the missing pre-realized generated-bundle
+dry-run positive lit test and collected non-dry-run `ssh rvv` correctness
+evidence.
+
+### Main Changes
+
+- Created the Trellis PRD for the scalar-broadcast MAcc executable artifact ABI
+  boundary.
+- Confirmed no production source change was justified: the route already
+  realizes `typed_macc_pre_realized_body` into load/splat/load/MAcc/store,
+  derives runtime ABI order `lhs,rhs_scalar,acc,out,n`, emits `abi|hdr`
+  operand facts, and is validated by the MAcc target artifact family validator.
+- Added `test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-scalar-broadcast-macc-add-dry-run.test`
+  to lock positive pre-realized generated-bundle evidence.
+- Ran non-dry-run generated-bundle evidence on `ssh rvv` for
+  `scalar_broadcast_macc_add`, covering runtime counts `0,1,16,17,257`, RHS
+  scalars `-37,91`, explicit accumulator use, signed products, scalar-broadcast
+  RHS, and tail sentinel preservation.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | rvv: prove scalar broadcast macc artifact abi |
+
+### Testing
+
+- [OK] `ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter "pre-realized-scalar-broadcast-macc-add"` from `build/test`: 2/2 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter "scalar-broadcast-macc-add"` from `build/test`: 5/5 passed
+- [OK] non-dry-run `scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind scalar_broadcast_macc_add` passed with `ssh_evidence: true`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded staged added-line old-authority scan over touched files
+
+### Status
+
+[OK] **Ready to archive and commit**
+
+### Next Steps
+
+- Archive task and create the final commit.

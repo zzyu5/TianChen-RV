@@ -1,0 +1,92 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-scalar-broadcast-macc-add --overwrite --op-kind scalar_broadcast_macc_add --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-scalar-broadcast-macc-add/evidence.json
+# RUN: FileCheck %s --check-prefix=SBMACC --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="explicit-selected-body" --implicit-check-not="tcrv_rvv.typed_macc_pre_realized_body" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-scalar-broadcast-macc-add/scalar_broadcast_macc_add/evidence.json
+# RUN: FileCheck %s --check-prefix=CPP --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-scalar-broadcast-macc-add/scalar_broadcast_macc_add/materialized_rvv_emitc.cpp
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-scalar-broadcast-macc-add/scalar_broadcast_macc_add/rvv_generated_bundle_abi_scalar_broadcast_macc_add_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "pre-realized-selected-body"
+# ROOT: "scalar_broadcast_macc_add"
+# ROOT: "pre_realized_selected_body": true
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# SBMACC-DAG: "input_mode": "pre-realized-selected-body"
+# SBMACC-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# SBMACC-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# SBMACC-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-scalar-broadcast-macc-add.mlir"
+# SBMACC-DAG: "prototype": "void tcrv_emitc_pre_realized_body_scalar_broadcast_macc_add_kernel_pre_realized_body_rvv_scalar_broadcast_macc_add(const int32_t *lhs, int32_t rhs_scalar, const int32_t *acc, int32_t *out, size_t n);"
+# SBMACC-DAG: "expected_function": "tcrv_emitc_pre_realized_body_scalar_broadcast_macc_add_kernel_pre_realized_body_rvv_scalar_broadcast_macc_add"
+# SBMACC-DAG: "expected_runtime_abi_name": "rvv-generic-scalar-broadcast-macc-add-callable-c-abi.v1"
+# SBMACC-DAG: "expected_selected_variant": "pre_realized_body_rvv_scalar_broadcast_macc_add"
+# SBMACC-DAG: "key": "rvv_emitc_lowerable_route"
+# SBMACC-DAG: "value": "rvv-generic-scalar-broadcast-macc-add-emitc-route"
+# SBMACC-DAG: "key": "rvv_selected_body_operation"
+# SBMACC-DAG: "value": "scalar_broadcast_macc_add"
+# SBMACC-DAG: "key": "rvv_selected_body_typed_compute_op"
+# SBMACC-DAG: "value": "tcrv_rvv.macc"
+# SBMACC-DAG: "key": "tcrv_rvv.memory_form"
+# SBMACC-DAG: "value": "rhs-scalar-broadcast-macc"
+# SBMACC-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# SBMACC-DAG: "value": "lhs,rhs_scalar,acc,out,n"
+# SBMACC-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# SBMACC-DAG: "value": "rvv-route-operand-binding:scalar_broadcast_macc_add.v1"
+# SBMACC-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# SBMACC-DAG: "value": "rvv-route-operand-binding:scalar_broadcast_macc_add.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load|macc-lhs|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|macc-rhs|hdr;acc=accumulator-input-buffer:acc:abi|acc-load|macc-acc|macc-pass|hdr;out=output-buffer:out:abi|store|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+# SBMACC-DAG: "key": "tcrv_rvv.exec_abi_bindings"
+# SBMACC-DAG: "value": "lhs=lhs-input-buffer->@abi_lhs_input_buffer;rhs_scalar=rhs-scalar-value->@abi_rhs_scalar_value;acc=accumulator-input-buffer->@abi_accumulator_input_buffer;out=output-buffer->@abi_output_buffer;n=runtime-element-count->@abi_runtime_element_count"
+# SBMACC-DAG: "key": "tcrv_rvv.scalar_broadcast_macc_route_family_plan"
+# SBMACC-DAG: "value": "rvv-scalar-broadcast-macc-route-family-plan.v1"
+# SBMACC-DAG: "key": "tcrv_rvv.target_leaf_profile"
+# SBMACC-DAG: "value": "rvv-v1-typed-scalar-broadcast-macc-add-leaf-profile.v1"
+# SBMACC-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# SBMACC-DAG: "value": "provider_supported_mirror:rvv-scalar-broadcast-macc-add-composition-plan-validated"
+# SBMACC-DAG: "key": "tcrv_rvv.required_header_declarations"
+# SBMACC-DAG: "value": "stddef.h,stdint.h,riscv_vector.h"
+# SBMACC-DAG: "key": "tcrv_rvv.c_type_mapping"
+# SBMACC-DAG: "value": "vl:size_t,lhs/acc:typed-vector,rhs_scalar:typed-scalar,result:typed-vector"
+# SBMACC-DAG: "key": "tcrv_rvv.macc_arithmetic_kind"
+# SBMACC-DAG: "value": "add"
+# SBMACC-DAG: "key": "tcrv_rvv.macc_accumulator_layout"
+# SBMACC-DAG: "value": "separate-i32-vector-accumulator-input"
+# SBMACC-DAG: "key": "tcrv_rvv.macc_result_layout"
+# SBMACC-DAG: "value": "store-multiply-accumulate-result-to-output-buffer"
+# SBMACC-DAG: "selected_source_abi": {
+# SBMACC-DAG: "lhs": "lhs-input-buffer"
+# SBMACC-DAG: "rhs": "rhs-scalar-value"
+# SBMACC-DAG: "acc": "accumulator-input-buffer"
+# SBMACC-DAG: "out": "output-buffer"
+# SBMACC-DAG: "n": "runtime-element-count"
+# SBMACC-DAG: "multiply_accumulate_boundary": {
+# SBMACC-DAG: "authority": "provider-derived typed tcrv_rvv multiply-accumulate body/config/runtime facts"
+# SBMACC-DAG: "rhs_scalar_broadcast": true
+# SBMACC-DAG: "rhs_splat_intrinsic": "__riscv_vmv_v_x_i32m1"
+# SBMACC-DAG: "macc_intrinsic": "__riscv_vmacc_vv_i32m1"
+# SBMACC-DAG: "macc_operand_order": "acc,lhs,rhs,vl"
+# SBMACC-DAG: "macc_uses_scalar_broadcast_rhs": true
+# SBMACC-DAG: "store_advances_by_loop_induction": true
+# SBMACC-DAG: "store_pointer": "out + loop_induction"
+# SBMACC-DAG: "runtime_counts_are_execution_cases_not_macc_authority": true
+# SBMACC-DAG: --tcrv-materialize-selected-lowering-boundaries
+# SBMACC-DAG: "pre_realized_body_consumed": true
+# SBMACC-DAG: "typed_compute_op": "tcrv_rvv.macc"
+# SBMACC-DAG: "status": "dry_run_success"
+
+# CPP: extern "C" void tcrv_emitc_pre_realized_body_scalar_broadcast_macc_add_kernel_pre_realized_body_rvv_scalar_broadcast_macc_add
+# CPP-DAG: __riscv_vsetvl_e32m1
+# CPP-DAG: __riscv_vle32_v_i32m1
+# CPP-DAG: __riscv_vmv_v_x_i32m1
+# CPP-DAG: __riscv_vmacc_vv_i32m1
+# CPP-DAG: __riscv_vse32_v_i32m1
+
+# HARNESS: tcrv_emitc_pre_realized_body_scalar_broadcast_macc_add_kernel_pre_realized_body_rvv_scalar_broadcast_macc_add(lhs, rhs_scalar, acc, out, n);
+# HARNESS: int32_t expected = (int32_t)(acc[index] + (int32_t)(lhs[index] * rhs_scalar));
+# HARNESS: scalar_broadcast_macc
+# HARNESS: explicit_accumulator signed_products tail_preserved
+# HARNESS: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESS: tcrv_rvv_generated_bundle_abi_scalar_broadcast_macc_add_ok counts=0,1,16,17,257 rhs_scalars=-37,91
+# HARNESS: PASS op=scalar_broadcast_macc_add counts=0,1,16,17,257 rhs_scalars=-37,91
