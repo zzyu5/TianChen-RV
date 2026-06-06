@@ -20308,6 +20308,30 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-derived-masked-indexed-store-leaf"}))
     return false;
 
+  RVVRouteDescription staleIndexedScatterMaskedLoadResidue =
+      manualIndexedScatterDescription;
+  staleIndexedScatterMaskedLoadResidue.maskedLoadIntrinsic =
+      "__riscv_vloxei32_v_i32m1_m";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedScatterCandidate, manualIndexedScatterRoute,
+          staleIndexedScatterMaskedLoadResidue,
+          "compare/select mask registry rejects stale computed-mask indexed "
+          "scatter masked indexed load residue",
+          {"masked indexed load callee", "__riscv_vloxei32_v_i32m1_m"}))
+    return false;
+
+  RVVRouteDescription staleIndexedScatterUnitStoreResidue =
+      manualIndexedScatterDescription;
+  staleIndexedScatterUnitStoreResidue.storeIntrinsic =
+      "__riscv_vse32_v_i32m1";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualIndexedScatterCandidate, manualIndexedScatterRoute,
+          staleIndexedScatterUnitStoreResidue,
+          "compare/select mask registry rejects stale computed-mask indexed "
+          "scatter ordinary unit-store residue",
+          {"store callee", "__riscv_vse32_v_i32m1"}))
+    return false;
+
   RVVRouteDescription staleIndexedGatherUniqueness =
       manualIndexedDescription;
   staleIndexedGatherUniqueness.indexUniqueness = "unique";
@@ -20832,6 +20856,29 @@ bool expectRVVTargetArtifactExporterShape(
           "operand",
           {"output store", "operand[1]",
            "computed_masked_indexed_loaded_vec", "old_dst_vec"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualIndexedScatterCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              manualIndexedScatterRoute, /*loopIndex=*/0, /*stepIndex=*/7,
+              /*operandIndex=*/1, "dst + offset", "int32_t *"),
+          manualIndexedScatterDescription,
+          "compare/select mask registry rejects unit-stride destination "
+          "pointer on computed-mask indexed scatter store",
+          {"masked indexed store", "operand[1]", "dst", "dst + offset"}))
+    return false;
+
+  if (!expectManualCompareSelectMaskRouteFailure(
+          manualIndexedScatterCandidate,
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              manualIndexedScatterRoute, /*loopIndex=*/0, /*stepIndex=*/7,
+              /*operandIndex=*/2, "index_vec"),
+          manualIndexedScatterDescription,
+          "compare/select mask registry rejects unscaled index vector on "
+          "computed-mask indexed scatter store",
+          {"masked indexed store", "operand[2]", "byte_offsets",
+           "index_vec"}))
     return false;
 
   if (!expectManualCompareSelectMaskRouteFailure(

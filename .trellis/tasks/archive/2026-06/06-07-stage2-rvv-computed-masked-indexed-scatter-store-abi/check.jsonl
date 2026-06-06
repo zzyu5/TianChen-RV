@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/06-07-stage2-rvv-computed-masked-indexed-scatter-store-abi/prd.md", "reason": "Verify implementation and evidence against current task scope and acceptance criteria."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV-owned computed-mask memory statement-plan boundary, provider fact authority, and legacy-authority exclusions."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check computed-mask indexed scatter validation contract, header/type summary, runtime AVL/VL, metadata mirror ordering, and fail-closed matrix."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Confirm focused C++/lit/generated-bundle/runtime evidence matches project testing policy."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Confirm runtime/correctness evidence claims are interpreted only through valid artifact execution evidence."}

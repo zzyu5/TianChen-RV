@@ -42,6 +42,34 @@ Expanded product-reduction-dequant-clamp generated artifact ABI binding evidence
 - None - task complete
 
 
+## Session 516: Stage2 RVV computed-mask indexed scatter-store ABI
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV computed-masked indexed scatter-store executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Created the Trellis task from the Hermes brief, confirmed the existing
+computed-mask indexed scatter production seam already reaches provider-owned
+indexed validation plus compare/select mask statement-plan validation, and
+added focused target artifact fail-closed evidence for stale scatter residue.
+
+### Main Changes
+
+- Added target artifact tests rejecting stale scatter masked-indexed-load
+  residue, stale ordinary unit-store residue, unit-stride destination pointer
+  residue, and unscaled index-vector payload residue.
+- Verified explicit and pre-realized scatter generated bundles on `ssh rvv`
+  for counts `0,1,16,17,257` and patterns `0,1`.
+- Local readobj header/symbol checks were not covered because the host lacks
+  `llvm-readobj`; dry-run materialization/export passed with readobj skipped.
+
+### Status
+
+[OK] Completed
+
+
 ## Session 516: Stage2 RVV runtime-scalar indexed gather-load ABI
 
 **Date**: 2026-06-07
