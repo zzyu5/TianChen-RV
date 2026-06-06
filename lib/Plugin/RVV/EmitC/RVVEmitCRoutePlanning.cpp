@@ -1377,14 +1377,39 @@ getRVVRouteOperandBindingParameter(
 
 std::string
 stringifyRVVRouteOperandBindingPlan(const RVVRouteOperandBindingPlan &plan) {
-  if (plan.planID ==
-      "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1")
-    return "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1"
-           ";abi=lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
-           ";chain=i8mf4xi8mf4-i16mf2-i32m1-f32m1"
-           ";uses=src-load,wprod,wred,dequant,bounds-splat,cmp-select,store,setvl,hdr";
-
   auto stringifyUseForSummary = [&](llvm::StringRef use) -> llvm::StringRef {
+    if (plan.planID ==
+        "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1") {
+      if (use == "src-load")
+        return "ld";
+      if (use == "wprod-lhs")
+        return "wpl";
+      if (use == "wprod-rhs")
+        return "wpr";
+      if (use == "src-i8mf4")
+        return "i8mf4";
+      if (use == "runtime-scale")
+        return "scale";
+      if (use == "scale-f32")
+        return "f32";
+      if (use == "dequant")
+        return "deq";
+      if (use == "runtime-lower")
+        return "lo";
+      if (use == "runtime-upper")
+        return "up";
+      if (use == "compare")
+        return "cmp";
+      if (use == "select")
+        return "sel";
+      if (use == "clamped-dequant-result")
+        return "cdeq";
+      if (use == "res-f32m1")
+        return "f32m1";
+      if (use == "setvl-avl")
+        return "setvl";
+      return use;
+    }
     if (plan.planID ==
             "rvv-route-operand-binding:indexed_gather_unit_store.v1" ||
         plan.planID ==

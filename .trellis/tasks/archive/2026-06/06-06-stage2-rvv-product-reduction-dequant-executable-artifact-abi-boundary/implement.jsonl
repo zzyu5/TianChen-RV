@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV stage order, and compiler stack boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body, product-reduction-dequant-clamp, direct contraction provider, and artifact evidence contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider operand binding summary contract for generated artifact ABI parameters."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused MLIR/C++/generated-bundle/ssh rvv evidence requirements."}

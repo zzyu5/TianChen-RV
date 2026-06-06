@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Review global source-of-authority and RVV-first stage constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider ownership, selected-body realization, direct contraction, and no legacy route authority drift."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-owned route value and operand binding summary behavior at the EmitC/export boundary."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused test and ssh rvv evidence obligations."}

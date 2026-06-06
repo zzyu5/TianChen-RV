@@ -499,9 +499,14 @@ WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_ROUTE_OPERAND_BINDING_PLAN = (
 )
 WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_ROUTE_OPERAND_BINDING_OPERANDS = (
     "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1;"
-    "abi=lhs,rhs,acc,scale,lower_bound,upper_bound,out,n;"
-    "chain=i8mf4xi8mf4-i16mf2-i32m1-f32m1;"
-    "uses=src-load,wprod,wred,dequant,bounds-splat,cmp-select,store,setvl,hdr"
+    "lhs=lhs-input-buffer:lhs:abi|ld|wpl|i8mf4|hdr;"
+    "rhs=rhs-input-buffer:rhs:abi|ld|wpr|i8mf4|hdr;"
+    "acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;"
+    "scale=dequant-scale-value:scale:abi|scale|f32|deq|hdr;"
+    "lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel|hdr;"
+    "upper_bound=upper-bound-scalar-value:upper_bound:abi|up|splat|cmp|sel|hdr;"
+    "out=output-buffer:out:abi|cdeq|store|f32m1|hdr;"
+    "n=runtime-element-count:n:abi|setvl|loop|hdr"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_TARGET_LEAF_PROFILE = (
     "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequantization-leaf-profile.v1"
