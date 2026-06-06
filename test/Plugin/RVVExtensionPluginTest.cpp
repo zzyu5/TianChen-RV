@@ -356,7 +356,7 @@ int expectSegment2ProviderBoundaryPreflight(
                 llvm::toString(selection.takeError()));
   return expectSuccess(
       tianchenrv::plugin::rvv::
-          verifyRVVSelectedBodySegment2RouteProviderFacts(
+          verifyRVVSelectedBodySegment2MemoryRouteProviderFacts(
               analysis, materializationFacts, memoryFacts, providerPlan,
               *selection, context),
       llvm::Twine(context) +
@@ -16908,7 +16908,7 @@ module {
           std::initializer_list<llvm::StringRef> fragments) -> int {
     return expectErrorContains(
         tianchenrv::plugin::rvv::
-            verifyRVVSelectedBodySegment2RouteProviderFacts(
+            verifyRVVSelectedBodySegment2MemoryRouteProviderFacts(
                 analysis, materializationFacts, memoryFacts, providerPlan,
                 selection, context),
         fragments);

@@ -87,6 +87,17 @@ getRVVSelectedBodySegment2RouteFamilyProviderPlan(
         &memoryOperandBindingFacts,
     llvm::StringRef context);
 
+llvm::Error verifyRVVSelectedBodySegment2MemoryRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodySegment2RouteFamilyProviderPlan
+        &segment2ProviderPlan,
+    const RVVSelectedBodyRouteStatementPlanOwnerSelection
+        &statementPlanOwnerSelection,
+    llvm::StringRef context);
+
 } // namespace tianchenrv::plugin::rvv
 
 #endif // TIANCHENRV_PLUGIN_RVV_RVVEMITCSEGMENT2ROUTEFAMILYPLANOWNERS_H

@@ -415,10 +415,11 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               "selected RVV EmitC route construction"))
     return error;
   if (segment2RouteConstructionPlan) {
-    if (llvm::Error error = verifyRVVSelectedBodySegment2RouteProviderFacts(
-            analysis, materializationFacts, memoryOperandBindingFacts,
-            *segment2RouteConstructionPlan, *statementPlanOwnerSelection,
-            "selected RVV EmitC route construction"))
+    if (llvm::Error error =
+            verifyRVVSelectedBodySegment2MemoryRouteProviderFacts(
+                analysis, materializationFacts, memoryOperandBindingFacts,
+                *segment2RouteConstructionPlan, *statementPlanOwnerSelection,
+                "selected RVV EmitC route construction"))
       return error;
   }
   if (llvm::Error error =

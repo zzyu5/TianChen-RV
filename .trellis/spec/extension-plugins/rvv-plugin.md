@@ -3250,13 +3250,27 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
     const RVVSelectedBodyMemoryRouteOperandBindingFacts
         &memoryOperandBindingFacts,
     llvm::StringRef context);
+
+llvm::Error verifyRVVSelectedBodySegment2MemoryRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodySegment2RouteFamilyProviderPlan
+        &segment2ProviderPlan,
+    const RVVSelectedBodyRouteStatementPlanOwnerSelection
+        &statementPlanOwnerSelection,
+    llvm::StringRef context);
 ```
 
 `RVVEmitCRouteProvider` must call this boundary after
 `verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context)`, after
 obtaining route materialization facts, and after obtaining the memory
-operand-binding facts for the same analysis. Non-consumer route families
-receive an empty/default statement plan.
+operand-binding facts for the same analysis. It must then call
+`verifyRVVSelectedBodySegment2MemoryRouteProviderFacts(...)` with the
+owner-built segment2 route-family provider plan and migrated segment2
+statement-plan owner selection before constructing `TCRVEmitCLowerableRoute`.
+Non-consumer route families receive an empty/default statement plan.
 
 ### 3. Contracts
 
@@ -3311,6 +3325,10 @@ mirror, and not a route-support declaration by itself.
 - Required source operation provenance for configure/load/compute/store steps
   is absent or reports the wrong EmitC source role -> fail closed before
   common EmitC.
+- The central provider constructs `TCRVEmitCLowerableRoute` for a segment2
+  consumer without first passing
+  `verifyRVVSelectedBodySegment2MemoryRouteProviderFacts(...)` -> fail closed
+  as an owner/provider contract violation.
 
 ### 5. Good/Base/Bad Cases
 

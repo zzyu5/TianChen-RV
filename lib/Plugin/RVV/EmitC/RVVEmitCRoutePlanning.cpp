@@ -31397,7 +31397,7 @@ verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
   return llvm::Error::success();
 }
 
-llvm::Error verifyRVVSelectedBodySegment2RouteProviderFacts(
+llvm::Error verifyRVVSelectedBodySegment2MemoryRouteProviderFacts(
     const RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMemoryRouteOperandBindingFacts
