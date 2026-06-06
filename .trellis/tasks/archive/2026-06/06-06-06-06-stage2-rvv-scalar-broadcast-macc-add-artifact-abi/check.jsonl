@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global architecture and RVV authority invariants"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify scalar-broadcast MAcc provider-owned route family, owner, and statement-plan contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify ABI/header/type/runtime AVL/VL, target artifact, and MAcc mirror/fail-closed contracts"}
+{"file": ".trellis/spec/testing/index.md", "reason": "Verify required focused tests, dry-runs, ssh rvv evidence, and old-authority scan"}

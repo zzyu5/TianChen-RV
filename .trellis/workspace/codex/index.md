@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-24.md`
-- **Total Sessions**: 494
+- **Total Sessions**: 495
 - **Last Active**: 2026-06-06
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-24.md` | ~672 | Active |
+| `journal-24.md` | ~721 | Active |
 | `journal-23.md` | ~1982 | Archived |
 | `journal-22.md` | ~2034 | Archived |
 | `journal-21.md` | ~1978 | Archived |
@@ -52,6 +52,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 495 | 2026-06-06 | Stage2 RVV scalar-broadcast MAcc add executable artifact ABI boundary | pending-final-commit | `main` |
 | 494 | 2026-06-06 | Stage2 RVV MAcc add executable artifact ABI boundary | included-in-this-commit | `main` |
 | 493 | 2026-06-06 | Stage2 RVV widening product-reduce dequant-clamp f32 artifact ABI | pending-final-commit | `main` |
 | 492 | 2026-06-06 | Stage2 RVV dequantize i32-to-f32 Gearbox artifact ABI | pending-final-commit | `main` |

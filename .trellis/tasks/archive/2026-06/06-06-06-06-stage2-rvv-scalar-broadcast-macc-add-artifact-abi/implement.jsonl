@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain and Stage 2 boundary for typed tcrv_rvv routes"}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "RVV plugin priority, plugin locality, and Stage 1/2 quality gate"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Scalar-broadcast MAcc route-family owner, statement-plan, selected-body realization, and provider fact contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, operand-binding, runtime AVL/VL, MAcc validation, and metadata mirror contracts"}
+{"file": ".trellis/spec/testing/index.md", "reason": "Required focused compiler checks and ssh rvv evidence policy for executable RVV claims"}

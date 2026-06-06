@@ -686,3 +686,57 @@ Archived the MAcc add artifact ABI task after proving explicit and pre-realized 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 495: Stage2 RVV scalar-broadcast MAcc add executable artifact ABI boundary
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV scalar-broadcast MAcc add executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Revalidated scalar-broadcast MAcc add executable artifact ABI on current HEAD with explicit and pre-realized generated bundles on ssh rvv; no compiler source change required.
+
+### Main Changes
+
+- Created and archived the Trellis task for scalar-broadcast MAcc add artifact
+  ABI evidence.
+- Audited the production scalar-broadcast MAcc selected-body realization,
+  provider facts, statement plan, target validation, script, and fixtures.
+- Recorded a no-source-change conclusion: current production code already
+  derives scalar RHS splat, accumulator/result roles, ABI/header bindings,
+  runtime AVL/VL, and target metadata from provider-owned typed body/config/
+  runtime facts.
+- Re-ran current-HEAD explicit and pre-realized generated bundle evidence on
+  `ssh rvv`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] explicit generated bundle `ssh rvv` run for
+  `scalar_broadcast_macc_add`, counts `0,1,7,16,23,257`, RHS scalars
+  `-37,91`
+- [OK] pre-realized generated bundle `ssh rvv` run for
+  `scalar_broadcast_macc_add`, counts `0,1,7,16,23,257`, RHS scalars
+  `-37,91`
+- [OK] focused lit filter for scalar-broadcast MAcc dry-run, fail-closed,
+  target artifact, and dispatch-negative tests: 6/6 passed
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
