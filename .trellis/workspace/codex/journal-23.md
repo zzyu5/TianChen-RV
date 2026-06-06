@@ -1801,3 +1801,36 @@ Added a computed-mask memory owner-level provider-fact verifier entry point, wir
 ### Next Steps
 
 - None - task complete
+
+
+## Session 482: Stage2 RVV conversion/dequant provider facts
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV conversion/dequant provider facts
+**Branch**: `main`
+
+### Summary
+
+Moved widening conversion and standalone dequantization provider-fact verifiers onto the RVV statement-plan owner surface, updated the RVV plugin spec, archived the Trellis task, and verified focused RVV plugin, target artifact, and conversion/dequant FileCheck regressions.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a26d23f9` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

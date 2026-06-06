@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-23.md`
-- **Total Sessions**: 481
+- **Total Sessions**: 482
 - **Last Active**: 2026-06-06
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-23.md` | ~1803 | Active |
+| `journal-23.md` | ~1836 | Active |
 | `journal-22.md` | ~2034 | Archived |
 | `journal-21.md` | ~1978 | Archived |
 | `journal-20.md` | ~1977 | Archived |
@@ -51,6 +51,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 482 | 2026-06-06 | Stage2 RVV conversion/dequant provider facts | `a26d23f9` | `main` |
 | 481 | 2026-06-06 | Computed-mask memory provider fact contract | `b024a611` | `main` |
 | 480 | 2026-06-06 | Stage2 RVV base-memory provider facts | `621948e5` | `main` |
 | 479 | 2026-06-06 | Stage2 RVV contraction fact contract | - | `main` |

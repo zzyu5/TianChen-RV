@@ -849,7 +849,9 @@ are not route authority.
 
 ### 2. Signatures
 
-The durable provider-side contract is:
+The durable provider-side contract is declared by
+`RVVEmitCStatementPlanOwners.h` and implemented by the RVV compare/select
+statement-plan owner path:
 
 ```c++
 llvm::Error verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
@@ -1412,7 +1414,9 @@ coverage.
 
 #### 2. Signatures
 
-The durable provider-side contract is:
+The durable provider-side contract is declared by
+`RVVEmitCStatementPlanOwners.h` and implemented by the RVV residual
+statement-plan owner path:
 
 ```c++
 llvm::Error verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
@@ -1537,6 +1541,165 @@ typed widening conversion tcrv_rvv body
   -> route-control provider plan
   -> RVV-owned widening conversion statement plan
   -> verifyRVVSelectedBodyWideningConversionRouteProviderFacts
+  -> provider-built TCRVEmitCLowerableRoute
+```
+
+### Dequantization Route-Provider Facts Preflight
+
+#### 1. Scope / Trigger
+
+When the RVV provider is about to build a `TCRVEmitCLowerableRoute` for the
+standalone unit-stride `dequantize_i32_to_f32` route, it must prove that route
+construction is consuming the selected typed RVV body, the validated
+dequantization family plan, provider materialization facts, math
+operand-binding facts, route-control facts, and the RVV-owned dequantization
+statement plan. Product-reduction dequantization and dequant-clamp epilogues
+are separate families and must not be accepted through this standalone
+dequantization preflight.
+
+#### 2. Signatures
+
+The durable provider-side contract is declared by
+`RVVEmitCStatementPlanOwners.h` and implemented by the RVV residual
+statement-plan owner path:
+
+```c++
+llvm::Error verifyRVVSelectedBodyDequantizationRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyDequantizationRouteStatementPlan &statementPlan,
+    llvm::StringRef context);
+```
+
+`RVVEmitCRouteProvider` must call this preflight after the top-level
+route-family verifier, after `getRVVSelectedBodyRouteMaterializationFacts(...)`,
+after `getRVVSelectedBodyMathRouteOperandBindingFacts(...)`, and after the
+RVV-owned dequantization statement plan has been built, but before constructing
+the `TCRVEmitCLowerableRoute`.
+
+#### 3. Contracts
+
+For standalone dequantization consumers, the preflight must require:
+
+- the same-analysis `RVVSelectedBodyDequantizationRouteFamilyPlan`;
+- typed source config facts for source SEW/LMUL, policy, VL C type, source
+  vector type/C type, setvl leaf, and source load leaf;
+- result dtype facts for result element type, result SEW/LMUL, result vector
+  type/C type, store leaf, and result name;
+- dequantization kind/relation, convert intrinsic, scale intrinsic, and scale
+  ABI role/type/name from the family plan;
+- materialization facts that mirror the family plan for required headers, VL
+  type, source/result vector types, setvl, source load, convert, runtime scale,
+  and store;
+- math operand-binding facts from the same selected analysis for `lhs`,
+  `scale`, `out`, and runtime `n`;
+- the RVV-owned route-control provider plan for the same typed config, selected
+  target capability, runtime AVL/VL control plan, runtime ABI order
+  `lhs,scale,out,n`, and provider/legality mirrors;
+- the RVV-owned dequantization statement plan for the selected Gearbox schedule
+  and statement leaves.
+
+The preflight must return success without changing behavior for unrelated RVV
+families only when they carry no stale standalone dequantization facts. It must
+not build statements, choose intrinsics, infer dtype/config, read artifact
+metadata, consult route ids, or call selected-body owner hooks.
+
+#### 4. Validation & Error Matrix
+
+- Standalone dequantization consumer lacks the family plan -> fail closed before
+  `TCRVEmitCLowerableRoute` construction.
+- Materialization facts do not point at the same selected-analysis family plan
+  -> fail closed.
+- Product-reduction dequantization carries standalone dequantization plan,
+  materialization, binding, or statement facts -> fail closed because those
+  facts belong to the contraction route-family plan.
+- Dequant-clamp epilogue carries standalone dequantization plan,
+  materialization, binding, or statement facts -> fail closed because those
+  leaves belong to computed-mask select.
+- Non-dequantization route carries a standalone dequantization family plan,
+  materialization flag, math binding flag, statement plan, family-plan mirror,
+  dequantization relation, convert/scale intrinsic, or scale ABI mirror -> fail
+  closed as stale provider facts.
+- Source typed config disagrees with source SEW/LMUL, policy, VL type, source
+  vector type/C type, setvl, or source load facts -> fail closed.
+- Result element type, result SEW/LMUL, result vector type/C type,
+  dequantization kind/relation, convert intrinsic, scale intrinsic, scale
+  role/type/name, store intrinsic, or result name disagrees with the family plan
+  -> fail closed.
+- Route-control provider plan is absent, from another analysis, or carries
+  stale runtime ABI, target capability, tail/mask policy, runtime AVL/VL,
+  provider, or legality mirrors -> fail closed.
+- Math operand-binding facts are absent, from another analysis, missing
+  `lhs`/`scale`/`out`/`n`, or carry the wrong ABI role/order -> fail closed.
+- Statement plan is absent, targets the wrong dequantization form, points at
+  another family plan, lacks setvl/source-load/convert/scale/store leaves, or
+  carries a stale Gearbox unroll/schedule -> fail closed.
+- Route description mirrors or runtime ABI parameter mirrors disagree with the
+  family plan -> fail closed.
+- Stale widening conversion, scalar-broadcast, mask, standalone-reduction,
+  accumulation, contraction, artifact-name, route-id,
+  exact-intrinsic-as-authority, common EmitC, source-front-door, descriptor, or
+  legacy-i32 residue attempts to authorize the route -> fail closed.
+
+#### 5. Good/Base/Bad Cases
+
+Good: typed `dequantize_i32_to_f32` selected body -> dequantization family plan
+-> materialization facts -> math operand bindings -> route-control provider
+plan -> dequantization statement plan -> provider preflight -> provider-built
+`TCRVEmitCLowerableRoute`.
+
+Base: widening conversion, elementwise, reduction, memory, contraction,
+segment2, product-reduction dequantization, and dequant-clamp epilogue routes
+do not consume this standalone preflight and must not carry standalone
+dequantization facts.
+
+Bad: provider construction trusts route ids, generated artifact names, ABI
+strings, exact intrinsic spellings, script options, status fields, or common
+EmitC choices instead of the selected typed body and verified dequantization
+provider facts.
+
+#### 6. Tests Required
+
+- C++ positive tests or production provider tests for
+  `dequantize_i32_to_f32` preflight success before route construction.
+- C++ fail-closed tests for missing family plan, stale materialization facts,
+  wrong source/result dtype or SEW/LMUL relation, wrong dequantization relation,
+  wrong scale role/type/name, wrong operand binding or ABI role, wrong runtime
+  ABI order, stale route description mirrors, stale Gearbox schedule facts,
+  stale statement leaves, and non-dequantization routes carrying standalone
+  dequantization facts.
+- Provider-route tests proving the selected-body standalone dequantization
+  route attaches only provider-built statement plans to
+  `TCRVEmitCLowerableRoute`.
+- Generated-bundle dry-run or focused FileCheck coverage for existing
+  selected-boundary dequantization fixtures.
+- Runtime correctness evidence via `ssh rvv` when executable dequantization
+  correctness is claimed.
+- Bounded scans over touched planning/provider/test/target/script files for
+  name-, route-id-, metadata-, descriptor-, ABI-string-, script-,
+  artifact-name-, common-EmitC-, source-front-door-, exact-intrinsic-, or
+  legacy-i32-derived route authority.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+provider:
+  sees dequantize_i32_to_f32 route id / artifact name / scale ABI name
+  -> builds TCRVEmitCLowerableRoute
+```
+
+Correct:
+
+```text
+typed dequantization tcrv_rvv body
+  -> verified dequantization family plan
+  -> materialization facts + math operand-binding facts
+  -> route-control provider plan
+  -> RVV-owned dequantization statement plan
+  -> verifyRVVSelectedBodyDequantizationRouteProviderFacts
   -> provider-built TCRVEmitCLowerableRoute
 ```
 

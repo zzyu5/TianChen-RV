@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV-first Stage2 authority rules for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected-body realization, widening conversion provider-fact preflight, and owner/provider locality."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality, provider-built TCRVEmitCLowerableRoute contract, and conversion/dequantization dtype-policy validation contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit/runtime evidence boundaries and old-authority scan expectations."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-compare-select-fact-contract/prd.md", "reason": "Previous owner-level provider-fact API pattern and completion evidence for the compare/select provider seam."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVWideningConversionSelectedBodyRealizationOwner.h", "reason": "Pre-realized widening conversion realization owner boundary and selected-body input facts."}
+{"file": "lib/Plugin/RVV/RVVWideningConversionSelectedBodyRealizationOwner.cpp", "reason": "Pre-realized widening conversion typed-body realization and fail-closed checks for source/result config facts."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h", "reason": "Statement-plan owner API surface and intended location for conversion/dequantization provider-fact contract declarations."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Existing generic route-planning declarations for conversion/dequantization provider-fact verification."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCResidualStatementPlanOwners.cpp", "reason": "Widening conversion and dequantization statement-plan owner implementation site."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Existing conversion/dequantization provider-fact verifier implementation and generic planning helpers."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Production route provider call order before TCRVEmitCLowerableRoute construction."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused C++ positive and fail-closed conversion/dequantization provider-fact tests."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Target artifact conversion/dequantization provider fact validation and stale mirror tests."}

@@ -119,12 +119,26 @@ getRVVSelectedBodyWideningConversionRouteStatementPlan(
         &mathOperandBindingFacts,
     llvm::StringRef context);
 
+llvm::Error verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyWideningConversionRouteStatementPlan &statementPlan,
+    llvm::StringRef context);
+
 llvm::Expected<RVVSelectedBodyDequantizationRouteStatementPlan>
 getRVVSelectedBodyDequantizationRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMathRouteOperandBindingFacts
         &mathOperandBindingFacts,
+    llvm::StringRef context);
+
+llvm::Error verifyRVVSelectedBodyDequantizationRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyDequantizationRouteStatementPlan &statementPlan,
     llvm::StringRef context);
 
 llvm::Expected<RVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan>
