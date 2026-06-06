@@ -758,7 +758,18 @@ Audited the product-reduce dequant-clamp f32 generated artifact ABI seam, found 
 
 ### Main Changes
 
-(Add details)
+- Created and archived the Trellis task/PRD for the computed-masked
+  strided-input widening dot-reduce-add executable artifact ABI boundary.
+- Audited the production direct contraction provider plan, statement owner,
+  selected-body realization fixture path, target artifact validation contract,
+  generated bundle runner, and explicit/pre-realized fixtures.
+- Recorded a no-source-change conclusion: current production code already
+  derives compare mask facts, element-strided i16/mf2 dot source loads,
+  lhs/rhs stride ABI bindings, inactive-lane zeroing, i32 scalar seed/result,
+  runtime AVL/VL, route operand bindings, header/type mappings, and target
+  validation facts from RVV-owned typed body/config/runtime facts.
+- Re-ran current-HEAD explicit and pre-realized generated bundle evidence on
+  `ssh rvv`.
 
 ### Git Commits
 
@@ -768,7 +779,25 @@ Audited the product-reduce dequant-clamp f32 generated artifact ABI seam, found 
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] explicit generated bundle `ssh rvv` run for
+  `computed_masked_strided_input_widening_dot_reduce_add`, counts
+  `0,1,7,16,17,23,257`, stride pairs `2:3,3:2`, mask patterns `0,1`,
+  input patterns `0,1`
+- [OK] pre-realized generated bundle `ssh rvv` run for
+  `computed_masked_strided_input_widening_dot_reduce_add`, counts
+  `0,1,7,16,17,23,257`, stride pairs `2:3,3:2`, mask patterns `0,1`,
+  input patterns `0,1`
+- [OK] focused lit filter for computed-masked strided-input widening
+  dot-reduce target artifact, dry-run, and direct pre-realized fail-closed
+  tests: 5/5 passed
+- [OK] `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-06-stage2-rvv-computed-masked-strided-widening-dot-reduce-add-artifact-abi`
+- [OK] `git diff --check` and `git diff --cached --check`
 
 ### Status
 
@@ -1055,6 +1084,68 @@ Closed computed-masked widening dot-reduce-add executable artifact ABI boundary 
 ### Testing
 
 - [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 501: Stage2 RVV computed-masked strided-input widening dot-reduce-add executable artifact ABI boundary
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV computed-masked strided-input widening dot-reduce-add executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Closed computed-masked strided-input widening dot-reduce-add executable artifact ABI boundary with explicit and pre-realized generated bundle ssh rvv evidence; no production source change required.
+
+### Main Changes
+
+- Created and archived the Trellis task/PRD for the computed-masked
+  strided-input widening dot-reduce-add executable artifact ABI boundary.
+- Audited the production direct contraction provider plan, statement owner,
+  selected-body realization fixture path, target artifact validation contract,
+  generated bundle runner, and explicit/pre-realized fixtures.
+- Recorded a no-source-change conclusion: current production code already
+  derives compare mask facts, element-strided i16/mf2 dot source loads,
+  lhs/rhs stride ABI bindings, inactive-lane zeroing, i32 scalar seed/result,
+  runtime AVL/VL, route operand bindings, header/type mappings, and target
+  validation facts from RVV-owned typed body/config/runtime facts.
+- Re-ran current-HEAD explicit and pre-realized generated bundle evidence on
+  `ssh rvv`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] explicit generated bundle `ssh rvv` run for
+  `computed_masked_strided_input_widening_dot_reduce_add`, counts
+  `0,1,7,16,17,23,257`, stride pairs `2:3,3:2`, mask patterns `0,1`,
+  input patterns `0,1`
+- [OK] pre-realized generated bundle `ssh rvv` run for
+  `computed_masked_strided_input_widening_dot_reduce_add`, counts
+  `0,1,7,16,17,23,257`, stride pairs `2:3,3:2`, mask patterns `0,1`,
+  input patterns `0,1`
+- [OK] focused lit filter for computed-masked strided-input widening
+  dot-reduce target artifact, dry-run, and direct pre-realized fail-closed
+  tests: 5/5 passed
+- [OK] `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-06-stage2-rvv-computed-masked-strided-widening-dot-reduce-add-artifact-abi`
+- [OK] `git diff --check` and `git diff --cached --check`
 
 ### Status
 

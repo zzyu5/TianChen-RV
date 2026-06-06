@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected-body realization, direct contraction provider boundary, mask/stride/inactive-lane facts, and Stage2 route support rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route, provider operand-binding summary, computed-mask strided widening dot-reduce target artifact validation, and mirror-only metadata contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle evidence requirements for computed-mask strided-input widening dot-reduce ssh rvv correctness claims."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Confirm RVV semantics remain plugin-local and common/core code does not choose intrinsics, dtype, stride, mask, or ABI roles."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Confirm capability/profile facts constrain plugin legality rather than defining RVV dtype/config/route authority."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Confirm current work stays on low-level RVV execution bodies rather than high-level compute IR or frontend work."}
+{"file": ".trellis/tasks/06-06-stage2-rvv-computed-masked-strided-widening-dot-reduce-add-artifact-abi/prd.md", "reason": "Task-specific goal, boundaries, acceptance criteria, no-source-change decision gate, and validation plan."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-computed-masked-widening-dot-reduce-add-artifact-abi/prd.md", "reason": "Previous computed-mask widening dot-reduce executable closeout pattern and focused evidence scope."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-strided-input-widening-dot-reduce-add-artifact-abi/prd.md", "reason": "Previous strided-input widening dot-reduce executable closeout pattern and focused evidence scope."}

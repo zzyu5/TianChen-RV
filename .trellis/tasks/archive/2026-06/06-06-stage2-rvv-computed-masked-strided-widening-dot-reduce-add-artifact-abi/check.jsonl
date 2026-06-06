@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Review computed-mask strided-input widening dot-reduce against RVV-owned body/config/runtime and direct contraction provider fact authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Review TCRVEmitCLowerableRoute, operand-binding, ABI/header, stride, mask, and target artifact validation contract compliance."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/C++/ssh rvv evidence and avoid report-only or legacy-authority coverage."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check that RVV-specific semantics remain plugin-local and common materialization stays neutral."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no high-level compute IR, source-front-door positive route, descriptor, or common EmitC semantic authority was added."}
+{"file": ".trellis/tasks/06-06-stage2-rvv-computed-masked-strided-widening-dot-reduce-add-artifact-abi/prd.md", "reason": "Task-specific acceptance criteria and final no-source-change or production-seam-fix decision."}
