@@ -11,6 +11,14 @@
 
 namespace tianchenrv::plugin::rvv {
 
+llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan,
+    llvm::StringRef context);
+
+bool isRVVLowPrecisionResourceSelectionEqual(
+    const RVVLowPrecisionContractionResourceSelection &lhs,
+    const RVVLowPrecisionContractionResourceSelection &rhs);
+
 namespace {
 
 constexpr llvm::StringLiteral kRVVWideningMAccOperandBindingPlanID(
@@ -174,6 +182,36 @@ constexpr llvm::StringLiteral kRVVContractionProductReductionDequantClampRelatio
 constexpr llvm::StringLiteral
     kRVVProductReductionDequantClampStoreBoundary(
         "store-clamped-dequantized-f32-vector-to-output-buffer");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceCandidateSet(
+        "rvv-low-precision-direct-contraction-resource-candidate-set.v1["
+        "i8mf4-i16mf2-i32m1-f32m1]");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceDequantCandidate(
+        "rvv-low-precision-direct-contraction-resource-candidate.v1["
+        "product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceDequantClampCandidate(
+        "rvv-low-precision-direct-contraction-resource-candidate.v1["
+        "product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u1]");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceDequantSelectionReason(
+        "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-"
+        "runtime-avl");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceDequantClampSelectionReason(
+        "static-bounded-product-reduction-dequant-clamp-i8mf4-i16mf2-i32m1-"
+        "f32m1-runtime-avl");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceLegalityScope(
+    "typed-low-precision-product-reduction-dequant-resource-legality.v1");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductEMUL("mf2");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceAccumulatorEMUL("m1");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceNoRejectionReason("none");
+constexpr std::int64_t kRVVLowPrecisionResourceStaticUnroll = 1;
+constexpr std::int64_t kRVVLowPrecisionResourceAccumulatorCount = 1;
+constexpr std::int64_t kRVVLowPrecisionResourceVSetVLRegions = 2;
+constexpr std::int64_t kRVVLowPrecisionResourcePeakLiveVectorGroups = 4;
+constexpr std::int64_t kRVVLowPrecisionResourceVectorRegisterBudget = 32;
 
 bool isPreRealizedWideningMAccOpKind(llvm::StringRef opKind) {
   return opKind == kRVVPreRealizedWideningMAccOpKind;
@@ -962,6 +1000,30 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
         llvm::Twine(context) + " " + familyName +
         " route-family runtime ABI parameters must match the validated "
         "family plan");
+  if (llvm::Error error =
+          verifyRVVLowPrecisionContractionResourceSelection(plan, context))
+    return error;
+  if (!isRVVLowPrecisionResourceSelectionEqual(
+          analysis.description.lowPrecisionResourceSelection,
+          plan.lowPrecisionResourceSelection))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " " + familyName +
+        " low-precision direct-contraction resource selection mirrors must "
+        "come from the validated family plan before provider route "
+        "construction");
+  if (plan.lowPrecisionResourceSelection.hasSelection) {
+    if (analysis.description.lowPrecisionResourceSelection
+                .targetCapabilityProviderMirror !=
+            analysis.selectedTargetCapabilityFacts.providerMirror ||
+        analysis.description.lowPrecisionResourceSelection
+                .targetCapabilityLegalityMirror !=
+            analysis.selectedTargetCapabilityFacts.legalityMirror)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) + " " + familyName +
+          " low-precision direct-contraction resource selection target "
+          "capability mirrors must come from the selected target facts before "
+          "provider route construction");
+  }
 
   std::optional<llvm::StringRef> expectedPlanID =
       getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID(operation);
@@ -2497,6 +2559,8 @@ static void populateRVVWideningDotValidationContract(
                          : 7;
   contract.runtimeABIParameters.append(core.runtimeABIParameters.begin(),
                                        core.runtimeABIParameters.end());
+  contract.lowPrecisionResourceSelection =
+      description.lowPrecisionResourceSelection;
   populateRVVWideningDotDynamicDescriptionPayload(contract, description);
   if (std::optional<RVVRuntimeAVLVLSelectedBoundaryContract> runtimeContract =
           getRVVRuntimeAVLVLSelectedBoundaryContract(
@@ -3830,6 +3894,476 @@ llvm::Error requireRVVSelectedBodyContractionDerivedLeaf(
       " from selected typed RVV body/config facts '" + derivationInput + "'");
 }
 
+llvm::StringRef getExpectedRVVLowPrecisionResourceCandidate(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  if (plan.usesProductReductionDequantClamp)
+    return kRVVLowPrecisionResourceDequantClampCandidate;
+  if (plan.usesProductReductionDequantization)
+    return kRVVLowPrecisionResourceDequantCandidate;
+  return {};
+}
+
+llvm::StringRef getExpectedRVVLowPrecisionResourceSelectionReason(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  if (plan.usesProductReductionDequantClamp)
+    return kRVVLowPrecisionResourceDequantClampSelectionReason;
+  if (plan.usesProductReductionDequantization)
+    return kRVVLowPrecisionResourceDequantSelectionReason;
+  return {};
+}
+
+RVVLowPrecisionContractionResourceSelection
+deriveRVVLowPrecisionContractionResourceSelection(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan,
+    const RVVSelectedTargetCapabilityFacts &targetFacts) {
+  RVVLowPrecisionContractionResourceSelection selection;
+  selection.hasSelection = true;
+  selection.candidateSetID = kRVVLowPrecisionResourceCandidateSet.str();
+  selection.selectedCandidateID =
+      getExpectedRVVLowPrecisionResourceCandidate(plan).str();
+  selection.selectionReason =
+      getExpectedRVVLowPrecisionResourceSelectionReason(plan).str();
+  selection.legalityScope = kRVVLowPrecisionResourceLegalityScope.str();
+
+  selection.sourceElementTypeName = plan.sourceElementTypeName.str();
+  selection.sourceSEW = plan.sourceSEW;
+  selection.sourceLMUL = plan.sourceLMUL.str();
+  selection.productElementTypeName = plan.productElementTypeName.str();
+  selection.productSEW = plan.productSEW;
+  selection.productLMUL = plan.productLMUL.str();
+  selection.productEMUL = kRVVLowPrecisionResourceProductEMUL.str();
+  selection.accumulatorElementTypeName =
+      getContractionIntegerElementTypeName(plan.sew).str();
+  selection.accumulatorSEW = plan.sew;
+  selection.accumulatorLMUL = plan.lmul.str();
+  selection.accumulatorEMUL = kRVVLowPrecisionResourceAccumulatorEMUL.str();
+  selection.resultElementTypeName =
+      getContractionFloatElementTypeName(plan.sew).str();
+  selection.resultSEW = plan.sew;
+  selection.resultLMUL = plan.lmul.str();
+
+  selection.memoryForm = stringifyRVVSelectedBodyMemoryForm(plan.memoryForm).str();
+  selection.tailPolicy = plan.tailPolicy.str();
+  selection.maskPolicy = plan.maskPolicy.str();
+  selection.unrollFactor = kRVVLowPrecisionResourceStaticUnroll;
+  selection.accumulatorCount = kRVVLowPrecisionResourceAccumulatorCount;
+  selection.reductionLayout = kRVVProductReductionDequantLocalCarryBoundary.str();
+  selection.vsetvlRegionCount = kRVVLowPrecisionResourceVSetVLRegions;
+  selection.peakLiveVectorGroups =
+      kRVVLowPrecisionResourcePeakLiveVectorGroups;
+  selection.vectorRegisterBudget =
+      kRVVLowPrecisionResourceVectorRegisterBudget;
+
+  selection.runtimeAVLSource = plan.runtimeControlPlan.runtimeAVLASource.str();
+  selection.runtimeABIOrder = plan.runtimeABIOrder.str();
+  selection.targetCapabilityProviderMirror = targetFacts.providerMirror;
+  selection.targetCapabilityLegalityMirror = targetFacts.legalityMirror;
+  selection.isLegal = true;
+  selection.rejectionReason = kRVVLowPrecisionResourceNoRejectionReason.str();
+  return selection;
+}
+
+llvm::Error requireRVVLowPrecisionResourceStringField(
+    llvm::StringRef context,
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " low-precision direct-contraction resource selection requires " +
+      field + " '" + expected + "' but found '" + actual + "' for selected "
+      "candidate '" + selection.selectedCandidateID + "'");
+}
+
+llvm::Error requireRVVLowPrecisionResourceIntegerField(
+    llvm::StringRef context,
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    llvm::StringRef field, std::int64_t actual, std::int64_t expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " low-precision direct-contraction resource selection requires " +
+      field + " " + llvm::Twine(expected) + " but found " +
+      llvm::Twine(actual) + " for selected candidate '" +
+      selection.selectedCandidateID + "'");
+}
+
+bool isRVVLowPrecisionResourceSelectionEqual(
+    const RVVLowPrecisionContractionResourceSelection &lhs,
+    const RVVLowPrecisionContractionResourceSelection &rhs) {
+  return lhs.hasSelection == rhs.hasSelection &&
+         lhs.candidateSetID == rhs.candidateSetID &&
+         lhs.selectedCandidateID == rhs.selectedCandidateID &&
+         lhs.selectionReason == rhs.selectionReason &&
+         lhs.legalityScope == rhs.legalityScope &&
+         lhs.sourceElementTypeName == rhs.sourceElementTypeName &&
+         lhs.sourceSEW == rhs.sourceSEW && lhs.sourceLMUL == rhs.sourceLMUL &&
+         lhs.productElementTypeName == rhs.productElementTypeName &&
+         lhs.productSEW == rhs.productSEW &&
+         lhs.productLMUL == rhs.productLMUL &&
+         lhs.productEMUL == rhs.productEMUL &&
+         lhs.accumulatorElementTypeName == rhs.accumulatorElementTypeName &&
+         lhs.accumulatorSEW == rhs.accumulatorSEW &&
+         lhs.accumulatorLMUL == rhs.accumulatorLMUL &&
+         lhs.accumulatorEMUL == rhs.accumulatorEMUL &&
+         lhs.resultElementTypeName == rhs.resultElementTypeName &&
+         lhs.resultSEW == rhs.resultSEW && lhs.resultLMUL == rhs.resultLMUL &&
+         lhs.memoryForm == rhs.memoryForm && lhs.tailPolicy == rhs.tailPolicy &&
+         lhs.maskPolicy == rhs.maskPolicy &&
+         lhs.unrollFactor == rhs.unrollFactor &&
+         lhs.accumulatorCount == rhs.accumulatorCount &&
+         lhs.reductionLayout == rhs.reductionLayout &&
+         lhs.vsetvlRegionCount == rhs.vsetvlRegionCount &&
+         lhs.peakLiveVectorGroups == rhs.peakLiveVectorGroups &&
+         lhs.vectorRegisterBudget == rhs.vectorRegisterBudget &&
+         lhs.runtimeAVLSource == rhs.runtimeAVLSource &&
+         lhs.runtimeABIOrder == rhs.runtimeABIOrder &&
+         lhs.targetCapabilityProviderMirror ==
+             rhs.targetCapabilityProviderMirror &&
+         lhs.targetCapabilityLegalityMirror ==
+             rhs.targetCapabilityLegalityMirror &&
+         lhs.isLegal == rhs.isLegal &&
+         lhs.rejectionReason == rhs.rejectionReason;
+}
+
+llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan,
+    llvm::StringRef context) {
+  const bool expectsSelection = plan.usesProductReductionDequantization;
+  const RVVLowPrecisionContractionResourceSelection &selection =
+      plan.lowPrecisionResourceSelection;
+  if (!expectsSelection) {
+    if (selection.hasSelection)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " low-precision direct-contraction resource selection is only "
+          "supported for the product-reduction dequantization representative");
+    return llvm::Error::success();
+  }
+  if (!selection.hasSelection)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires a selected low-precision direct-contraction resource "
+        "candidate before route acceptance");
+
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "candidate set", selection.candidateSetID,
+          kRVVLowPrecisionResourceCandidateSet))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "selected candidate", selection.selectedCandidateID,
+          getExpectedRVVLowPrecisionResourceCandidate(plan)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "selection reason", selection.selectionReason,
+          getExpectedRVVLowPrecisionResourceSelectionReason(plan)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "legality scope", selection.legalityScope,
+          kRVVLowPrecisionResourceLegalityScope))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "source dtype", selection.sourceElementTypeName,
+          plan.sourceElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "source SEW", selection.sourceSEW,
+          plan.sourceSEW))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "source LMUL", selection.sourceLMUL,
+          plan.sourceLMUL))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "product dtype", selection.productElementTypeName,
+          plan.productElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "product SEW", selection.productSEW,
+          plan.productSEW))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "product LMUL", selection.productLMUL,
+          plan.productLMUL))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "product EMUL", selection.productEMUL,
+          kRVVLowPrecisionResourceProductEMUL))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "accumulator dtype",
+          selection.accumulatorElementTypeName,
+          getContractionIntegerElementTypeName(plan.sew)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "accumulator SEW", selection.accumulatorSEW,
+          plan.sew))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "accumulator LMUL", selection.accumulatorLMUL,
+          plan.lmul))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "accumulator EMUL", selection.accumulatorEMUL,
+          kRVVLowPrecisionResourceAccumulatorEMUL))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "result dtype", selection.resultElementTypeName,
+          getContractionFloatElementTypeName(plan.sew)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "result SEW", selection.resultSEW, plan.sew))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "result LMUL", selection.resultLMUL, plan.lmul))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "memory form", selection.memoryForm,
+          stringifyRVVSelectedBodyMemoryForm(plan.memoryForm)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "tail policy", selection.tailPolicy,
+          plan.tailPolicy))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "mask policy", selection.maskPolicy,
+          plan.maskPolicy))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "unroll factor", selection.unrollFactor,
+          kRVVLowPrecisionResourceStaticUnroll))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "accumulator count",
+          selection.accumulatorCount, kRVVLowPrecisionResourceAccumulatorCount))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "reduction layout", selection.reductionLayout,
+          kRVVProductReductionDequantLocalCarryBoundary))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "vsetvl region count",
+          selection.vsetvlRegionCount, kRVVLowPrecisionResourceVSetVLRegions))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "peak live vector-group estimate",
+          selection.peakLiveVectorGroups,
+          kRVVLowPrecisionResourcePeakLiveVectorGroups))
+    return error;
+  if (selection.vectorRegisterBudget <
+      kRVVLowPrecisionResourcePeakLiveVectorGroups)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision direct-contraction resource selection peak live "
+        "vector-group estimate " +
+        llvm::Twine(selection.peakLiveVectorGroups) +
+        " exceeds vector register budget " +
+        llvm::Twine(selection.vectorRegisterBudget));
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "vector register budget",
+          selection.vectorRegisterBudget,
+          kRVVLowPrecisionResourceVectorRegisterBudget))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "runtime AVL source",
+          selection.runtimeAVLSource,
+          plan.runtimeControlPlan.runtimeAVLASource))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "runtime ABI order", selection.runtimeABIOrder,
+          plan.runtimeABIOrder))
+    return error;
+  if (selection.targetCapabilityProviderMirror.empty() ||
+      selection.targetCapabilityLegalityMirror.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision direct-contraction resource selection requires "
+        "selected target capability provider and legality mirrors before "
+        "route acceptance");
+  if (!selection.isLegal ||
+      selection.rejectionReason != kRVVLowPrecisionResourceNoRejectionReason)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision direct-contraction resource selection must be a legal "
+        "candidate with rejection reason 'none' before route acceptance");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  const bool expectsSelection =
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  const RVVLowPrecisionContractionResourceSelection &selection =
+      description.lowPrecisionResourceSelection;
+  if (!expectsSelection) {
+    if (selection.hasSelection)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " low-precision direct-contraction resource selection must not be "
+          "attached to a non-dequant product-reduction route description");
+    return llvm::Error::success();
+  }
+  if (!selection.hasSelection)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires selected low-precision direct-contraction resource facts "
+        "before route description acceptance");
+
+  const bool isClamp =
+      description.operation ==
+      RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "candidate set", selection.candidateSetID,
+          kRVVLowPrecisionResourceCandidateSet))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "selected candidate",
+          selection.selectedCandidateID,
+          isClamp ? kRVVLowPrecisionResourceDequantClampCandidate
+                  : kRVVLowPrecisionResourceDequantCandidate))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "selection reason", selection.selectionReason,
+          isClamp ? kRVVLowPrecisionResourceDequantClampSelectionReason
+                  : kRVVLowPrecisionResourceDequantSelectionReason))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "legality scope", selection.legalityScope,
+          kRVVLowPrecisionResourceLegalityScope))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "source dtype", selection.sourceElementTypeName,
+          getContractionIntegerElementTypeName(description.sourceSEW)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "source SEW", selection.sourceSEW,
+          description.sourceSEW))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "source LMUL", selection.sourceLMUL,
+          description.sourceLMUL))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "product dtype", selection.productElementTypeName,
+          getContractionIntegerElementTypeName(description.productSEW)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "product SEW", selection.productSEW,
+          description.productSEW))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "product LMUL", selection.productLMUL,
+          description.productLMUL))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "product EMUL", selection.productEMUL,
+          kRVVLowPrecisionResourceProductEMUL))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "accumulator dtype",
+          selection.accumulatorElementTypeName,
+          getContractionIntegerElementTypeName(description.sew)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "accumulator SEW", selection.accumulatorSEW,
+          description.sew))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "accumulator LMUL", selection.accumulatorLMUL,
+          description.lmul))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "accumulator EMUL", selection.accumulatorEMUL,
+          kRVVLowPrecisionResourceAccumulatorEMUL))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "result dtype", selection.resultElementTypeName,
+          getContractionFloatElementTypeName(description.sew)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "result SEW", selection.resultSEW,
+          description.sew))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "result LMUL", selection.resultLMUL,
+          description.lmul))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "memory form", selection.memoryForm,
+          stringifyRVVSelectedBodyMemoryForm(description.memoryForm)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "tail policy", selection.tailPolicy,
+          description.tailPolicy))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "mask policy", selection.maskPolicy,
+          description.maskPolicy))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "unroll factor", selection.unrollFactor,
+          kRVVLowPrecisionResourceStaticUnroll))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "accumulator count",
+          selection.accumulatorCount, kRVVLowPrecisionResourceAccumulatorCount))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "reduction layout", selection.reductionLayout,
+          kRVVProductReductionDequantLocalCarryBoundary))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "vsetvl region count",
+          selection.vsetvlRegionCount, kRVVLowPrecisionResourceVSetVLRegions))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "peak live vector-group estimate",
+          selection.peakLiveVectorGroups,
+          kRVVLowPrecisionResourcePeakLiveVectorGroups))
+    return error;
+  if (selection.vectorRegisterBudget <
+      selection.peakLiveVectorGroups)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision direct-contraction resource selection peak live "
+        "vector-group estimate " +
+        llvm::Twine(selection.peakLiveVectorGroups) +
+        " exceeds vector register budget " +
+        llvm::Twine(selection.vectorRegisterBudget));
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "vector register budget",
+          selection.vectorRegisterBudget,
+          kRVVLowPrecisionResourceVectorRegisterBudget))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "runtime AVL source",
+          selection.runtimeAVLSource, description.runtimeAVLASource))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "runtime ABI order", selection.runtimeABIOrder,
+          description.runtimeABIOrder))
+    return error;
+  if (selection.targetCapabilityProviderMirror.empty() ||
+      selection.targetCapabilityLegalityMirror.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision direct-contraction resource selection requires "
+        "selected target capability mirrors in the route description");
+  if (!selection.isLegal ||
+      selection.rejectionReason != kRVVLowPrecisionResourceNoRejectionReason)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision direct-contraction resource selection description "
+        "requires a legal candidate with rejection reason 'none'");
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
   if (llvm::Error error = verifyRVVRuntimeAVLVLControlPlan(
@@ -4474,6 +5008,10 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       return error;
   }
 
+  if (llvm::Error error =
+          verifyRVVLowPrecisionContractionResourceSelection(
+              plan, "contraction route-family target-leaf/profile validation"))
+    return error;
   return llvm::Error::success();
 }
 
@@ -4902,6 +5440,11 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
     }
   }
 
+  if (plan.usesProductReductionDequantization)
+    plan.lowPrecisionResourceSelection =
+        deriveRVVLowPrecisionContractionResourceSelection(
+            plan, analysis.selectedTargetCapabilityFacts);
+
   if (llvm::Error error =
           validateRVVSelectedBodyContractionRouteFamilyPlan(plan))
     return std::move(error);
@@ -4933,6 +5476,8 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
   description.sourceVectorCType = plan.sourceVectorCType;
   description.sourceVectorLoadIntrinsic = plan.sourceVectorLoadIntrinsic;
   description.storeIntrinsic = plan.storeIntrinsic;
+  description.lowPrecisionResourceSelection =
+      plan.lowPrecisionResourceSelection;
   description.runtimeABIParameters.clear();
   description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
                                           plan.runtimeABIParameters.end());
@@ -5156,6 +5701,10 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
                                                   description.sourceLMUL,
                                                   description.sew,
                                                   description.lmul)))
+    return error;
+  if (llvm::Error error =
+          verifyRVVLowPrecisionContractionResourceDescriptionSelection(
+              description, context))
     return error;
   if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
           context, "source vector type", description.sourceVectorTypeName,

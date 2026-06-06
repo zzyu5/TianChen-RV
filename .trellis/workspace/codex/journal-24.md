@@ -1254,3 +1254,55 @@ Resolved prior steering/spec dirty residue, repaired product-reduction dequantiz
 ### Next Steps
 
 - None - task complete
+
+
+## Session 505: Stage2 RVV low-precision resource candidate seed
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV low-precision resource candidate seed
+**Branch**: `main`
+
+### Summary
+
+Added RVV low-precision direct-contraction resource selection contract, provider/target consumption, focused tests, and residue scanner fix.
+
+### Main Changes
+
+- Added RVV-owned low-precision direct-contraction resource selection facts to
+  the contraction family/direct provider plans, selected route description, and
+  target validation contract.
+- Threaded the selected resource candidate into provider route acceptance,
+  artifact metadata mirrors, header evidence, and stale metadata rejection.
+- Added focused C++ and lit coverage for legal candidate construction, stale
+  candidate mirrors, EMUL mismatch, vector pressure rejection, and artifact
+  mirror consumption.
+- Repaired direct-C residue scanners so `direct-contraction` is not rejected as
+  source-export authority while true `direct-C` residue remains forbidden.
+
+Final implementation commit is created after this journal entry so it can stay
+in the same coherent commit as code, task archive, and test updates.
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] `ninja -C build tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `lit -sv . --filter explicit-selected-body-artifact-widening-product-reduce-dequantize-f32`
+- [OK] `lit -sv . --filter widening-product-reduce-dequant-clamp-f32`
+- [OK] `lit -sv . --filter widening-product-reduce-dequantize-f32`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

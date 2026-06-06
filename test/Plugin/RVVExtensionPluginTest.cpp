@@ -8781,6 +8781,106 @@ module {
           "selected typed accumulator/result type-config mirror before route "
           "construction"))
     return result;
+  const auto &productDequantResourceSelection =
+      productDequantDirectProviderPlan->lowPrecisionResourceSelection;
+  if (int result = expect(
+          productDequantResourceSelection.hasSelection &&
+              productDequantResourceSelection.selectedCandidateID ==
+                  "rvv-low-precision-direct-contraction-resource-candidate.v1["
+                  "product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-"
+                  "f32m1,u1]" &&
+              productDequantResourceSelection.sourceElementTypeName == "i8" &&
+              productDequantResourceSelection.sourceSEW == 8 &&
+              productDequantResourceSelection.sourceLMUL == "mf4" &&
+              productDequantResourceSelection.productElementTypeName == "i16" &&
+              productDequantResourceSelection.productSEW == 16 &&
+              productDequantResourceSelection.productLMUL == "mf2" &&
+              productDequantResourceSelection.productEMUL == "mf2" &&
+              productDequantResourceSelection.accumulatorElementTypeName ==
+                  "i32" &&
+              productDequantResourceSelection.accumulatorSEW == 32 &&
+              productDequantResourceSelection.accumulatorLMUL == "m1" &&
+              productDequantResourceSelection.resultElementTypeName == "f32" &&
+              productDequantResourceSelection.resultSEW == 32 &&
+              productDequantResourceSelection.resultLMUL == "m1" &&
+              productDequantResourceSelection.unrollFactor == 1 &&
+              productDequantResourceSelection.accumulatorCount == 1 &&
+              productDequantResourceSelection.vsetvlRegionCount == 2 &&
+              productDequantResourceSelection.peakLiveVectorGroups == 4 &&
+              productDequantResourceSelection.vectorRegisterBudget == 32 &&
+              productDequantResourceSelection.runtimeAVLSource ==
+                  "runtime_abi:n" &&
+              productDequantResourceSelection.runtimeABIOrder ==
+                  "lhs,rhs,acc,scale,out,n" &&
+              productDequantResourceSelection.isLegal &&
+              productDequantResourceSelection.rejectionReason == "none" &&
+              productDequantAnalysis->description
+                      .lowPrecisionResourceSelection.selectedCandidateID ==
+                  productDequantResourceSelection.selectedCandidateID &&
+              productDequantAnalysis->contractionRouteFamilyPlan
+                      ->lowPrecisionResourceSelection.selectedCandidateID ==
+                  productDequantResourceSelection.selectedCandidateID,
+          "product-reduction-dequant direct provider plan consumes the "
+          "selected low-precision resource candidate before route "
+          "construction"))
+    return result;
+
+  auto staleProductDequantResourceAnalysis = *productDequantAnalysis;
+  staleProductDequantResourceAnalysis.description.lowPrecisionResourceSelection
+      .selectedCandidateID = "artifact-name-derived-resource-candidate";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              staleProductDequantResourceAnalysis,
+              "selected-boundary stale product-reduction-dequant resource "
+              "mirror test"),
+          {"low-precision direct-contraction resource selection",
+           "validated family plan"}))
+    return result;
+
+  RVVSelectedBodyContractionRouteFamilyPlan staleProductDequantResourcePlan =
+      *productDequantAnalysis->contractionRouteFamilyPlan;
+  staleProductDequantResourcePlan.lowPrecisionResourceSelection.productEMUL =
+      "m8";
+  if (int result = expectErrorContains(
+          validateRVVSelectedBodyContractionRouteFamilyPlan(
+              staleProductDequantResourcePlan),
+          {"low-precision direct-contraction resource selection",
+           "product EMUL", "mf2"}))
+    return result;
+
+  auto pressureProductDequantAnalysis = *productDequantAnalysis;
+  pressureProductDequantAnalysis.contractionRouteFamilyPlan
+      ->lowPrecisionResourceSelection.vectorRegisterBudget = 2;
+  auto pressureProductDequantMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          pressureProductDequantAnalysis,
+          "selected-boundary pressure product-reduction-dequant resource "
+          "test");
+  if (!pressureProductDequantMaterializationFacts)
+    return fail("pressure product-reduction-dequant materialization facts: " +
+                llvm::toString(
+                    pressureProductDequantMaterializationFacts.takeError()));
+  auto pressureProductDequantMathFacts =
+      getRVVSelectedBodyMathRouteOperandBindingFacts(
+          pressureProductDequantAnalysis,
+          "selected-boundary pressure product-reduction-dequant resource "
+          "test");
+  if (!pressureProductDequantMathFacts)
+    return fail("pressure product-reduction-dequant math facts: " +
+                llvm::toString(pressureProductDequantMathFacts.takeError()));
+  auto pressureProductDequantDirectProviderPlan =
+      getRVVSelectedBodyDirectContractionRouteProviderPlan(
+          pressureProductDequantAnalysis,
+          *pressureProductDequantMaterializationFacts,
+          *pressureProductDequantMathFacts,
+          "selected-boundary pressure product-reduction-dequant resource "
+          "test");
+  if (int result = expectErrorContains(
+          pressureProductDequantDirectProviderPlan.takeError(),
+          {"low-precision direct-contraction resource selection",
+           "peak live vector-group", "vector register budget"}))
+    return result;
+
   auto productDequantDirectStatementPlan =
       getRVVSelectedBodyDirectContractionRouteStatementPlan(
           *productDequantAnalysis, *productDequantDirectProviderPlan,

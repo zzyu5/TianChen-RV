@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, C++/MLIR stack boundary, Stage 2 scope, and mirror-only metadata rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Low-Precision Direct-Contraction Resource-Aware Closure contract and RVV provider authority boundaries."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Resource-Aware RVV Closure and selected-body/provider consumption rules for resource choices."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit evidence requirements and no performance claim without same-target ssh rvv timing."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-product-reduction-dequantize-f32-family-plan-mirror/prd.md", "reason": "Previous product-reduction dequantize f32 provider mirror repair and exact continuation seam."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-06-06-rvv-stage2-resource-aware-llama-parity-steering/prd.md", "reason": "Prior steering that q8/q4 are pressure examples and repeated artifact ABI evidence is not the Stage 2 endpoint."}

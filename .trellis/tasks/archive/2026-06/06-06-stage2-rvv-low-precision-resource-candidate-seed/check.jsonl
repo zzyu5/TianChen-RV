@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify changes preserve RVV-first authority chain and do not promote metadata or route ids to authority."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify resource candidate fields, fail-closed behavior, and provider/target consumption match the low-precision contract."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify any resource choice is consumed by provider planning or target validation before route acceptance."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify checks and evidence claims match focused C++/lit/runtime rules."}
+{"file": ".trellis/tasks/06-06-stage2-rvv-low-precision-resource-candidate-seed/prd.md", "reason": "Verify implementation against this task's module scope, acceptance criteria, and non-goals."}

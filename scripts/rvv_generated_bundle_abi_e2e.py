@@ -7745,6 +7745,25 @@ def require_ordered_tokens(text: str, tokens: list[str], context: str) -> None:
         cursor = next_index
 
 
+def contains_forbidden_direct_c_marker(lowered: str) -> bool:
+    if "direct_c" in lowered:
+        return True
+
+    position = lowered.find("direct-c")
+    while position >= 0:
+        if not lowered.startswith("direct-contraction", position):
+            return True
+        position = lowered.find("direct-c", position + len("direct-contraction"))
+    return False
+
+
+def contains_forbidden_public_residue_token(lowered: str, token: str) -> bool:
+    lower_token = token.lower()
+    if lower_token in {"direct-c", "direct_c"}:
+        return contains_forbidden_direct_c_marker(lowered)
+    return lower_token in lowered
+
+
 def extract_balanced_brace_block(text: str, open_brace_index: int, context: str) -> tuple[str, int]:
     if open_brace_index < 0 or open_brace_index >= len(text) or text[open_brace_index] != "{":
         raise EvidenceError(f"{context}: invalid opening brace index {open_brace_index}")
@@ -7771,7 +7790,7 @@ def extract_first_for_block(text: str, context: str) -> tuple[str, int, int]:
 def require_no_forbidden_public_residue(text: str, context: str) -> None:
     lowered = text.lower()
     for token in FORBIDDEN_PUBLIC_RESIDUE_TOKENS:
-        if token.lower() in lowered:
+        if contains_forbidden_public_residue_token(lowered, token):
             raise EvidenceError(
                 f"{context}: forbidden public residue token {token!r} present"
             )

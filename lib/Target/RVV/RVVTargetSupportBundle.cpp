@@ -448,6 +448,22 @@ validateRVVSelectedVariantRouteAgreesWithCandidate(
   return validation;
 }
 
+bool containsForbiddenDirectCMarker(llvm::StringRef lower) {
+  if (lower.contains("direct_c"))
+    return true;
+
+  std::size_t position = 0;
+  while (true) {
+    position = lower.find("direct-c", position);
+    if (position == llvm::StringRef::npos)
+      return false;
+    llvm::StringRef suffix = lower.substr(position);
+    if (!suffix.starts_with("direct-contraction"))
+      return true;
+    position += llvm::StringRef("direct-contraction").size();
+  }
+}
+
 llvm::Error rejectForbiddenRVVArtifactMetadata(
     const TargetArtifactCandidate &candidate) {
   for (const support::ArtifactMetadataEntry &entry :
@@ -460,14 +476,13 @@ llvm::Error rejectForbiddenRVVArtifactMetadata(
     if (lowerKey.contains("element_count") ||
         lowerKey.contains("element-count") ||
         lowerKey.contains("descriptor") ||
-        lowerKey.contains("direct_c") || lowerKey.contains("direct-c") ||
+        containsForbiddenDirectCMarker(lowerKey) ||
         lowerKey.contains("source_export") ||
         lowerKey.contains("source-export") ||
         lowerKey.contains("compute_body") ||
         lowerKey.contains("compute-body") ||
         lowerValue.contains("descriptor") ||
-        lowerValue.contains("direct_c") ||
-        lowerValue.contains("direct-c") ||
+        containsForbiddenDirectCMarker(lowerValue) ||
         lowerValue.contains("source_export") ||
         lowerValue.contains("source-export") ||
         lowerValue.contains("compute_body") ||
@@ -768,6 +783,105 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       {"dequant_scale_c_type", "tcrv_rvv.dequant_scale_c_type", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"dequant_scale_name", "tcrv_rvv.dequant_scale_name", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.candidate_set",
+       "tcrv_rvv.low_precision_resource.candidate_set", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selected_candidate",
+       "tcrv_rvv.low_precision_resource.selected_candidate", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selection_reason",
+       "tcrv_rvv.low_precision_resource.selection_reason", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.legality_scope",
+       "tcrv_rvv.low_precision_resource.legality_scope", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.source_dtype",
+       "tcrv_rvv.low_precision_resource.source_dtype", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.source_sew",
+       "tcrv_rvv.low_precision_resource.source_sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.source_lmul",
+       "tcrv_rvv.low_precision_resource.source_lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.product_dtype",
+       "tcrv_rvv.low_precision_resource.product_dtype", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.product_sew",
+       "tcrv_rvv.low_precision_resource.product_sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.product_lmul",
+       "tcrv_rvv.low_precision_resource.product_lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.product_emul",
+       "tcrv_rvv.low_precision_resource.product_emul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.accumulator_dtype",
+       "tcrv_rvv.low_precision_resource.accumulator_dtype", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.accumulator_sew",
+       "tcrv_rvv.low_precision_resource.accumulator_sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.accumulator_lmul",
+       "tcrv_rvv.low_precision_resource.accumulator_lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.accumulator_emul",
+       "tcrv_rvv.low_precision_resource.accumulator_emul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.result_dtype",
+       "tcrv_rvv.low_precision_resource.result_dtype", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.result_sew",
+       "tcrv_rvv.low_precision_resource.result_sew", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.result_lmul",
+       "tcrv_rvv.low_precision_resource.result_lmul", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.memory_form",
+       "tcrv_rvv.low_precision_resource.memory_form", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.tail_policy",
+       "tcrv_rvv.low_precision_resource.tail_policy", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.mask_policy",
+       "tcrv_rvv.low_precision_resource.mask_policy", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.unroll_factor",
+       "tcrv_rvv.low_precision_resource.unroll_factor", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.accumulator_count",
+       "tcrv_rvv.low_precision_resource.accumulator_count", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.reduction_layout",
+       "tcrv_rvv.low_precision_resource.reduction_layout", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.vsetvl_region_count",
+       "tcrv_rvv.low_precision_resource.vsetvl_region_count", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.peak_live_vector_groups",
+       "tcrv_rvv.low_precision_resource.peak_live_vector_groups", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.vector_register_budget",
+       "tcrv_rvv.low_precision_resource.vector_register_budget", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.runtime_avl_source",
+       "tcrv_rvv.low_precision_resource.runtime_avl_source", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.runtime_abi_order",
+       "tcrv_rvv.low_precision_resource.runtime_abi_order", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.target_capability_provider_mirror",
+       "tcrv_rvv.low_precision_resource.target_capability_provider_mirror", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.target_capability_legality_mirror",
+       "tcrv_rvv.low_precision_resource.target_capability_legality_mirror", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.legality",
+       "tcrv_rvv.low_precision_resource.legality", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.rejection_reason",
+       "tcrv_rvv.low_precision_resource.rejection_reason", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"gearbox_candidate_set", "tcrv_rvv.gearbox.candidate_set", "",
        /*allowDynamicValue=*/true, /*optional=*/true},

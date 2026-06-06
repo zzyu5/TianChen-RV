@@ -4558,6 +4558,165 @@ llvm::Error requireEmptyWideningDotReductionStaleMirror(
   return requireCandidateMetadataMirror(candidate, key, "", label);
 }
 
+llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
+    const TargetArtifactCandidate &candidate,
+    const plugin::rvv::RVVLowPrecisionContractionResourceSelection
+        &selection) {
+  if (!selection.hasSelection)
+    return makeRVVTargetRouteError(
+        "widening dot-reduction target artifact consumer requires "
+        "provider-selected low-precision direct-contraction resource facts "
+        "before validating resource candidate mirrors");
+  auto requireResourceMirror =
+      [&](llvm::StringRef key, llvm::StringRef expected,
+          llvm::StringRef label) -> llvm::Error {
+    std::string fullLabel =
+        (llvm::Twine("provider-selected low-precision direct-contraction "
+                     "resource ")
+             + label)
+            .str();
+    return requireCandidateMetadataMirror(
+        candidate, key, expected, fullLabel);
+  };
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.candidate_set",
+          selection.candidateSetID, "candidate set"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.selected_candidate",
+          selection.selectedCandidateID, "selected candidate"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.selection_reason",
+          selection.selectionReason, "selection reason"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.legality_scope",
+          selection.legalityScope, "legality scope"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.source_dtype",
+          selection.sourceElementTypeName, "source dtype"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.source_sew",
+          llvm::Twine(selection.sourceSEW).str(), "source SEW"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.source_lmul",
+          selection.sourceLMUL, "source LMUL"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.product_dtype",
+          selection.productElementTypeName, "product dtype"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.product_sew",
+          llvm::Twine(selection.productSEW).str(), "product SEW"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.product_lmul",
+          selection.productLMUL, "product LMUL"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.product_emul",
+          selection.productEMUL, "product EMUL"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.accumulator_dtype",
+          selection.accumulatorElementTypeName, "accumulator dtype"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.accumulator_sew",
+          llvm::Twine(selection.accumulatorSEW).str(), "accumulator SEW"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.accumulator_lmul",
+          selection.accumulatorLMUL, "accumulator LMUL"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.accumulator_emul",
+          selection.accumulatorEMUL, "accumulator EMUL"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.result_dtype",
+          selection.resultElementTypeName, "result dtype"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.result_sew",
+          llvm::Twine(selection.resultSEW).str(), "result SEW"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.result_lmul",
+          selection.resultLMUL, "result LMUL"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.memory_form",
+          selection.memoryForm, "memory form"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.tail_policy",
+          selection.tailPolicy, "tail policy"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.mask_policy",
+          selection.maskPolicy, "mask policy"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.unroll_factor",
+          llvm::Twine(selection.unrollFactor).str(), "unroll factor"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.accumulator_count",
+          llvm::Twine(selection.accumulatorCount).str(),
+          "accumulator count"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.reduction_layout",
+          selection.reductionLayout, "reduction layout"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.vsetvl_region_count",
+          llvm::Twine(selection.vsetvlRegionCount).str(),
+          "vsetvl region count"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.peak_live_vector_groups",
+          llvm::Twine(selection.peakLiveVectorGroups).str(),
+          "peak live vector-group estimate"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.vector_register_budget",
+          llvm::Twine(selection.vectorRegisterBudget).str(),
+          "vector register budget"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.runtime_avl_source",
+          selection.runtimeAVLSource, "runtime AVL source"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.runtime_abi_order",
+          selection.runtimeABIOrder, "runtime ABI order"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.target_capability_provider_mirror",
+          selection.targetCapabilityProviderMirror,
+          "target capability provider mirror"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.target_capability_legality_mirror",
+          selection.targetCapabilityLegalityMirror,
+          "target capability legality mirror"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.legality",
+          selection.isLegal ? "legal" : "rejected", "legality decision"))
+    return error;
+  return requireResourceMirror(
+      "tcrv_rvv.low_precision_resource.rejection_reason",
+      selection.rejectionReason, "rejection reason");
+}
+
 llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
     const RVVTargetArtifactRouteFamilyValidationContext &context) {
   const TargetArtifactCandidate &candidate = context.candidate;
@@ -4761,6 +4920,10 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
               candidate, "tcrv_rvv.dequant_scale_c_type",
               contract->dequantScaleCType,
               "selected typed RVV product-reduction dequant scale C type"))
+        return error;
+      if (llvm::Error error =
+              validateRVVLowPrecisionResourceCandidateMirrors(
+                  candidate, contract->lowPrecisionResourceSelection))
         return error;
 	      if (llvm::Error error = requireCandidateMetadataMirror(
 	              candidate, "tcrv_rvv.dequant_scale_name",

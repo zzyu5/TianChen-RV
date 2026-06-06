@@ -133,6 +133,47 @@ enum class RVVSelectedBodyMemoryForm {
   RuntimeScalarComputedMaskUnitStrideStandaloneReduction,
 };
 
+struct RVVLowPrecisionContractionResourceSelection {
+  bool hasSelection = false;
+  std::string candidateSetID;
+  std::string selectedCandidateID;
+  std::string selectionReason;
+  std::string legalityScope;
+
+  std::string sourceElementTypeName;
+  std::int64_t sourceSEW = 0;
+  std::string sourceLMUL;
+  std::string productElementTypeName;
+  std::int64_t productSEW = 0;
+  std::string productLMUL;
+  std::string productEMUL;
+  std::string accumulatorElementTypeName;
+  std::int64_t accumulatorSEW = 0;
+  std::string accumulatorLMUL;
+  std::string accumulatorEMUL;
+  std::string resultElementTypeName;
+  std::int64_t resultSEW = 0;
+  std::string resultLMUL;
+
+  std::string memoryForm;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::int64_t unrollFactor = 0;
+  std::int64_t accumulatorCount = 0;
+  std::string reductionLayout;
+  std::int64_t vsetvlRegionCount = 0;
+  std::int64_t peakLiveVectorGroups = 0;
+  std::int64_t vectorRegisterBudget = 0;
+
+  std::string runtimeAVLSource;
+  std::string runtimeABIOrder;
+  std::string targetCapabilityProviderMirror;
+  std::string targetCapabilityLegalityMirror;
+
+  bool isLegal = false;
+  std::string rejectionReason;
+};
+
 struct RVVSelectedBodyEmitCRouteDescription {
   RVVSelectedBodyOperationKind operation = RVVSelectedBodyOperationKind::Add;
   RVVSelectedBodyMemoryForm memoryForm = RVVSelectedBodyMemoryForm::VectorRHSLoad;
@@ -288,6 +329,8 @@ struct RVVSelectedBodyEmitCRouteDescription {
   std::int64_t gearboxDestSEW = 0;
   llvm::StringRef gearboxDestLMUL;
   llvm::StringRef gearboxRuntimeAVLSource;
+  RVVLowPrecisionContractionResourceSelection
+      lowPrecisionResourceSelection;
   llvm::StringRef scalarSeedSplatIntrinsic;
   llvm::StringRef productElementTypeName;
   std::int64_t productSEW = 0;
@@ -2762,6 +2805,8 @@ struct RVVWideningDotReduceRouteValidationContract {
   std::size_t expectedPreLoopStepCount = 0;
   std::size_t expectedLoopBodyStepCount = 0;
 
+  RVVLowPrecisionContractionResourceSelection
+      lowPrecisionResourceSelection;
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 9>
       runtimeABIParameters;
   RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;

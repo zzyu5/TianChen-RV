@@ -33147,6 +33147,27 @@ getRVVSelectedBodyDirectContractionRouteProviderPlan(
             materializationFacts.stridedSourceLoadLeaf,
             "strided source load leaf", description, context))
       return std::move(error);
+  if (isProductReductionDequantization) {
+    const RVVLowPrecisionContractionResourceSelection &selection =
+        materializationFacts.contractionPlan->lowPrecisionResourceSelection;
+    if (!selection.hasSelection || !selection.isLegal ||
+        selection.selectedCandidateID.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " direct contraction provider plan requires a selected legal "
+          "low-precision direct-contraction resource candidate before route "
+          "construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (selection.peakLiveVectorGroups > selection.vectorRegisterBudget)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " direct contraction provider plan rejects low-precision "
+          "direct-contraction resource candidate peak live vector-group "
+          "estimate " +
+          llvm::Twine(selection.peakLiveVectorGroups) +
+          " above vector register budget " +
+          llvm::Twine(selection.vectorRegisterBudget));
+  }
 
   plan.contractionPlan = materializationFacts.contractionPlan;
   plan.routeControlPlan = std::move(*routeControlPlan);
@@ -33193,6 +33214,8 @@ getRVVSelectedBodyDirectContractionRouteProviderPlan(
   plan.scalarSeedSplatLeaf = materializationFacts.scalarSeedSplatLeaf;
   plan.compareLeaf = materializationFacts.compareLeaf;
   plan.maskedMergeLeaf = materializationFacts.maskedMergeLeaf;
+  plan.lowPrecisionResourceSelection =
+      materializationFacts.contractionPlan->lowPrecisionResourceSelection;
   return plan;
 }
 
@@ -38704,6 +38727,79 @@ getRVVSelectedBodyConfigArtifactMetadata(
                             description.rhsBroadcastIntrinsic});
       }
     }
+  }
+  if (description.lowPrecisionResourceSelection.hasSelection) {
+    const RVVLowPrecisionContractionResourceSelection &selection =
+        description.lowPrecisionResourceSelection;
+    metadata.push_back({"tcrv_rvv.low_precision_resource.candidate_set",
+                        selection.candidateSetID});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.selected_candidate",
+                        selection.selectedCandidateID});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.selection_reason",
+                        selection.selectionReason});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.legality_scope",
+                        selection.legalityScope});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.source_dtype",
+                        selection.sourceElementTypeName});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.source_sew",
+                        llvm::Twine(selection.sourceSEW).str()});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.source_lmul",
+                        selection.sourceLMUL});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.product_dtype",
+                        selection.productElementTypeName});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.product_sew",
+                        llvm::Twine(selection.productSEW).str()});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.product_lmul",
+                        selection.productLMUL});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.product_emul",
+                        selection.productEMUL});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.accumulator_dtype",
+                        selection.accumulatorElementTypeName});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.accumulator_sew",
+                        llvm::Twine(selection.accumulatorSEW).str()});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.accumulator_lmul",
+                        selection.accumulatorLMUL});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.accumulator_emul",
+                        selection.accumulatorEMUL});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.result_dtype",
+                        selection.resultElementTypeName});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.result_sew",
+                        llvm::Twine(selection.resultSEW).str()});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.result_lmul",
+                        selection.resultLMUL});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.memory_form",
+                        selection.memoryForm});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.tail_policy",
+                        selection.tailPolicy});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.mask_policy",
+                        selection.maskPolicy});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.unroll_factor",
+                        llvm::Twine(selection.unrollFactor).str()});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.accumulator_count",
+                        llvm::Twine(selection.accumulatorCount).str()});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.reduction_layout",
+                        selection.reductionLayout});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.vsetvl_region_count",
+                        llvm::Twine(selection.vsetvlRegionCount).str()});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.peak_live_vector_groups",
+         llvm::Twine(selection.peakLiveVectorGroups).str()});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.vector_register_budget",
+                        llvm::Twine(selection.vectorRegisterBudget).str()});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.runtime_avl_source",
+                        selection.runtimeAVLSource});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.runtime_abi_order",
+                        selection.runtimeABIOrder});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.target_capability_provider_mirror",
+         selection.targetCapabilityProviderMirror});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.target_capability_legality_mirror",
+         selection.targetCapabilityLegalityMirror});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.legality",
+                        selection.isLegal ? "legal" : "rejected"});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.rejection_reason",
+                        selection.rejectionReason});
   }
   if (description.operation ==
       RVVSelectedBodyOperationKind::WideningDotReduceAdd) {

@@ -354,6 +354,8 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   llvm::StringRef rhsStrideSource;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
+  RVVLowPrecisionContractionResourceSelection
+      lowPrecisionResourceSelection;
   llvm::SmallVector<support::RuntimeABIParameter, 8> runtimeABIParameters;
 };
 
@@ -1608,6 +1610,8 @@ struct RVVSelectedBodyDirectContractionRouteProviderPlan {
   llvm::StringRef scalarSeedSplatLeaf;
   llvm::StringRef compareLeaf;
   llvm::StringRef maskedMergeLeaf;
+  RVVLowPrecisionContractionResourceSelection
+      lowPrecisionResourceSelection;
 };
 
 struct RVVSelectedBodyDirectContractionRouteStatementPlan {

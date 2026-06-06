@@ -3,6 +3,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.dequant_scale_role", value = "dequant-scale-value"/s//tcrv_rvv.dequant_scale_role", value = "output-buffer"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SCALE
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.product_reduction_chain_relation", value = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"/s//tcrv_rvv.product_reduction_chain_relation", value = "route-string-derived-product-reduction"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRODUCT
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.dequantization_relation", value = "signed-i32m1-to-f32m1-scale-f32"/s//tcrv_rvv.dequantization_relation", value = "script-derived-dequant"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DEQUANT
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed 's/{key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "[^"]*"}/{key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "artifact-name-derived-resource-candidate"}/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,out,n"/s//tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,out,n"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
 // RUN: sed '/c_name = "scale"/s/c_type = "float"/c_type = "float *"/;/c_name = "scale"/s/role = "dequant-scale-value"/role = "output-buffer"/' %s | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-SCALE
 // RUN: sed 's/!tcrv_rvv.vector<f32, "m1">/!tcrv_rvv.vector<i32, "m1">/g;/c_name = "out"/s/c_type = "float \*"/c_type = "int32_t *"/' %s | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=DTYPE-MISMATCH
@@ -59,6 +60,12 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.dequant_scale_role", value = "dequant-scale-value"}
 // PLAN-SAME: {key = "tcrv_rvv.dequant_scale_c_type", value = "float"}
 // PLAN-SAME: {key = "tcrv_rvv.dequant_scale_name", value = "scale"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.product_emul", value = "mf2"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.accumulator_emul", value = "m1"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.peak_live_vector_groups", value = "4"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.vector_register_budget", value = "32"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.runtime_avl_source", value = "runtime_abi:n"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-widening-product-reduce-dequantize-f32-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @explicit_selected_body_rvv_product_reduce_dequantize
@@ -73,6 +80,11 @@ module {
 // HEADER: tianchenrv.rvv.product_lmul: mf2
 // HEADER: tianchenrv.rvv.dequantization_relation: signed-i32m1-to-f32m1-scale-f32
 // HEADER: tianchenrv.rvv.dequant_scale_role: dequant-scale-value
+// HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]
+// HEADER: tianchenrv.rvv.low_precision_resource.product_emul: mf2
+// HEADER: tianchenrv.rvv.low_precision_resource.accumulator_emul: m1
+// HEADER: tianchenrv.rvv.low_precision_resource.peak_live_vector_groups: 4
+// HEADER: tianchenrv.rvv.low_precision_resource.vector_register_budget: 32
 // HEADER: tianchenrv.rvv.accumulator_sew: 32
 // HEADER: tianchenrv.rvv.result_sew: 32
 // HEADER: tianchenrv.rvv.product_reduction_chain_relation: signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32
@@ -89,6 +101,10 @@ module {
 
 // STALE-DEQUANT: target artifact candidate validation failed
 // STALE-DEQUANT-SAME: dequantization
+
+// STALE-RESOURCE: target artifact candidate validation failed
+// STALE-RESOURCE-SAME: low_precision_resource.selected_candidate
+// STALE-RESOURCE-SAME: provider-selected low-precision direct-contraction resource selected candidate
 
 // STALE-ABI: target artifact candidate validation failed
 // STALE-ABI-SAME: runtime_abi_order
