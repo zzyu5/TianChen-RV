@@ -42,6 +42,48 @@ Expanded product-reduction-dequant-clamp generated artifact ABI binding evidence
 - None - task complete
 
 
+## Session 497: Stage2 RVV runtime-scalar-cmp masked MAcc LMUL m2 artifact ABI boundary
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV runtime-scalar-cmp masked MAcc LMUL m2 artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Revalidated the pre-realized runtime-scalar-cmp masked MAcc add LMUL m2 executable artifact ABI boundary on current HEAD. No compiler source change was required; the production provider and target artifact validator already derive or check LMUL m2 facts from selected typed body/config/runtime facts.
+
+### Main Changes
+
+* Created the Trellis task and PRD for the LMUL m2 executable artifact ABI seam.
+* Audited the RVV MAcc owner, runtime-scalar computed-mask MAcc facts accessors, selected-body validation, route planning, target artifact validation, script expectation, and LMUL m2 fixture.
+* Recorded the no-source-change conclusion: LMUL m2 uses parameterized `sew/lmul` facts in provider and target contracts, carrying `vint32m2_t`, `vbool16_t`, m2 setvl/load/splat/compare/MAcc/merge/store intrinsics, runtime ABI order, operand binding, inactive-lane preservation, and AVL/VL facts.
+* Ran generated bundle compile/run on `ssh rvv` for counts `0,1,7,16,17,23,257`, RHS scalar values `-37,91`, and patterns `0,1`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+* [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+* [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+* [OK] `build/bin/tianchenrv-target-artifact-export-test`
+* [OK] pre-realized generated bundle `ssh rvv` run for `runtime_scalar_cmp_masked_macc_add_lmul_m2`, counts `0,1,7,16,17,23,257`, RHS scalars `-37,91`, patterns `0,1`
+* [OK] focused lit filter for LMUL m2 dry-run, direct pre-realized fail-closed, and target artifact fixture: 3/3 passed
+* [OK] `git diff --check`
+* [OK] `git diff --cached --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+* None - task complete
+
+
 ## Session 497: Stage2 RVV runtime-scalar-cmp masked MAcc add executable artifact ABI boundary
 
 **Date**: 2026-06-06

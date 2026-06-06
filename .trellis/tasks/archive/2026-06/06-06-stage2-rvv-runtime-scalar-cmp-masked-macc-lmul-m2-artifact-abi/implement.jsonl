@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV RVV-first authority chain, Stage 2 selected-body realization, and descriptor/common-EmitC red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body/config legality, route authority, selected-body realization, and fail-closed rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and common EmitC materializer boundary for plugin-owned route facts."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/C++/runtime evidence expectations for executable RVV claims."}

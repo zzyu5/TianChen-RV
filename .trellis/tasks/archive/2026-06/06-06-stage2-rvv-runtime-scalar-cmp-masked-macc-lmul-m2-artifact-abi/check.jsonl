@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global authority, Stage 2, and no descriptor/common-EmitC semantic drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin locality, typed body/config authority, LMUL/mask/route validation, and fail-closed behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and route facts remain plugin-owned."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check evidence level, generated-bundle behavior, and runtime correctness claims."}
