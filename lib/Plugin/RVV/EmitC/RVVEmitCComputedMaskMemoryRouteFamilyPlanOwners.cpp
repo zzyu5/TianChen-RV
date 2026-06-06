@@ -109,6 +109,12 @@ bool isPreRealizedComputedMaskIndexedGatherOpKind(llvm::StringRef opKind) {
   return opKind == "computed_masked_indexed_gather_load_unit_store";
 }
 
+bool isPreRealizedRuntimeScalarComputedMaskIndexedGatherOpKind(
+    llvm::StringRef opKind) {
+  return opKind ==
+         "runtime_scalar_cmp_masked_indexed_gather_load_unit_store";
+}
+
 bool isPreRealizedComputedMaskIndexedScatterOpKind(llvm::StringRef opKind) {
   return opKind == "computed_masked_indexed_scatter_store_unit_load";
 }
@@ -136,6 +142,11 @@ bool isPreRealizedComputedMaskStridedLoadMemoryForm(
 bool isPreRealizedComputedMaskIndexedGatherMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-indexed-gather-load-unit-store";
+}
+
+bool isPreRealizedRuntimeScalarComputedMaskIndexedGatherPredicateKind(
+    llvm::StringRef predicateKind) {
+  return predicateKind == "sle";
 }
 
 bool isPreRealizedComputedMaskIndexedScatterMemoryForm(
@@ -224,6 +235,8 @@ bool isRVVSelectedBodyComputedMaskMemoryLoadMergeRoute(
              RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore ||
          op == RVVSelectedBodyOperationKind::
                    ComputedMaskIndexedGatherLoadUnitStore ||
+         op == RVVSelectedBodyOperationKind::
+                   RuntimeScalarComputedMaskIndexedGatherLoadUnitStore ||
          op == RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
 }
 
@@ -253,6 +266,8 @@ RVVSelectedBodyMemoryForm getComputedMaskMemoryRouteFamilyMemoryForm(
   case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
     return RVVSelectedBodyMemoryForm::ComputedMaskStridedLoadUnitStore;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedGatherLoadUnitStore:
     return RVVSelectedBodyMemoryForm::ComputedMaskIndexedGatherLoadUnitStore;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
     return RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadIndexedScatterStore;
@@ -994,6 +1009,161 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedGatherBody(
       variant, "computed-mask indexed gather-load");
 }
 
+llvm::Error
+validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedGatherBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp
+        body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV runtime-scalar computed-mask indexed gather-load "
+        "realization requires a pre-realized runtime-scalar computed-mask "
+        "indexed gather body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask indexed "
+        "gather-load body must be a direct child of the selected "
+        "tcrv.exec.variant");
+
+  if (!isPreRealizedRuntimeScalarComputedMaskIndexedGatherOpKind(
+          body.getOpKind()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask indexed "
+        "gather-load body currently supports only op_kind "
+        "'runtime_scalar_cmp_masked_indexed_gather_load_unit_store'");
+  if (!isPreRealizedRuntimeScalarComputedMaskIndexedGatherPredicateKind(
+          body.getPredicateKind()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask indexed "
+        "gather-load body currently supports only predicate_kind 'sle'");
+  if (!isPreRealizedComputedMaskIndexedGatherMemoryForm(body.getMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask indexed "
+        "gather-load body currently supports only memory_form "
+        "'computed-mask-indexed-gather-load-unit-store'");
+  if (!isPreRealizedComputedMaskIndexedMemoryMovementIndexEEW(
+          static_cast<std::int64_t>(body.getIndexEew())))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask indexed "
+        "gather-load body currently supports only index_eew 32");
+  if (!isPreRealizedComputedMaskIndexedMemoryMovementOffsetUnit(
+          body.getOffsetUnit()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask indexed "
+        "gather-load body currently supports only offset_unit 'element'");
+  if (!isPreRealizedComputedMaskMemoryMovementMaskRole(body.getMaskRole()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask indexed "
+        "gather-load body currently supports only mask_role "
+        "'predicate-mask-produced-by-compare'");
+  if (!isPreRealizedComputedMaskMemoryMovementMaskSource(
+          body.getMaskSource()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask indexed "
+        "gather-load body currently supports only mask_source "
+        "'compare-produced-mask-same-vl-scope'");
+  if (!isPreRealizedComputedMaskMemoryMovementMaskMemoryForm(
+          body.getMaskMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask indexed "
+        "gather-load body currently supports only mask_memory_form "
+        "'compare-produced-mask'");
+  if (body.getInactiveLanePolicy() !=
+      "preserve-passthrough-on-false-lanes")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask indexed "
+        "gather-load body requires inactive_lane_policy "
+        "'preserve-passthrough-on-false-lanes'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask indexed "
+        "gather-load body requires SEW32 LMUL m1 data/mask/index config");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask indexed "
+        "gather-load body requires tail agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+      requirePreRealizedComputedMaskMemoryRuntimeABIValue(
+          body.getLhs(),
+          "pre-realized RVV runtime-scalar computed-mask indexed "
+          "gather-load lhs operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!lhs)
+    return lhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsScalar =
+      requirePreRealizedComputedMaskMemoryRuntimeABIValue(
+          body.getRhsScalar(),
+          "pre-realized RVV runtime-scalar computed-mask indexed "
+          "gather-load rhs scalar operand",
+          support::RuntimeABIParameterRole::RHSScalarValue);
+  if (!rhsScalar)
+    return rhsScalar.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+      requirePreRealizedComputedMaskMemoryRuntimeABIValue(
+          body.getSource(),
+          "pre-realized RVV runtime-scalar computed-mask indexed "
+          "gather-load source operand",
+          support::RuntimeABIParameterRole::SourceInputBuffer);
+  if (!source)
+    return source.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> index =
+      requirePreRealizedComputedMaskMemoryRuntimeABIValue(
+          body.getIndex(),
+          "pre-realized RVV runtime-scalar computed-mask indexed "
+          "gather-load index operand",
+          support::RuntimeABIParameterRole::IndexInputBuffer);
+  if (!index)
+    return index.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> destination =
+      requirePreRealizedComputedMaskMemoryRuntimeABIValue(
+          body.getDestination(),
+          "pre-realized RVV runtime-scalar computed-mask indexed "
+          "gather-load destination/passthrough operand",
+          support::RuntimeABIParameterRole::OutputBuffer);
+  if (!destination)
+    return destination.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedComputedMaskMemoryRuntimeABIValue(
+          body.getN(),
+          "pre-realized RVV runtime-scalar computed-mask indexed "
+          "gather-load runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  llvm::StringRef expectedElementCType =
+      getRuntimeScalarComputedMaskElementCType(
+          static_cast<std::int64_t>(body.getSew()));
+  std::string expectedConstPointer =
+      (llvm::Twine("const ") + expectedElementCType + " *").str();
+  std::string expectedMutablePointer =
+      (llvm::Twine(expectedElementCType) + " *").str();
+  if ((*lhs).getCType() != expectedConstPointer ||
+      (*rhsScalar).getCType() != expectedElementCType ||
+      (*source).getCType() != expectedConstPointer ||
+      (*index).getCType() != "const uint32_t *" ||
+      (*destination).getCType() != expectedMutablePointer)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("pre-realized RVV selected runtime-scalar computed-mask "
+                    "indexed gather-load body requires lhs/source ") +
+        expectedConstPointer + ", rhs scalar " + expectedElementCType +
+        ", index const uint32_t *, and destination " +
+        expectedMutablePointer + " runtime ABI bindings");
+
+  if (llvm::Error error =
+          rejectMixedPreRealizedComputedMaskMemoryBody<
+              tcrv::rvv::
+                  TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp>(
+              variant, "runtime-scalar computed-mask indexed gather-load"))
+    return error;
+  return requireComputedMaskMemorySelectedVariantRequires(
+      variant, "runtime-scalar computed-mask indexed gather-load");
+}
+
 llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
     const VariantLoweringBoundaryRequest &request,
     tcrv::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp body) {
@@ -1130,6 +1300,8 @@ bool isRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyConsumer(
   switch (operation) {
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedGatherLoadUnitStore:
   case RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
   case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
   case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
@@ -1167,13 +1339,35 @@ verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
   const bool isRuntimeScalarLoadStore =
       description.operation ==
       RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore;
-  if (!isRuntimeScalarStore && !isRuntimeScalarLoadStore)
+  const bool isRuntimeScalarIndexedGather =
+      description.operation ==
+      RVVSelectedBodyOperationKind::
+          RuntimeScalarComputedMaskIndexedGatherLoadUnitStore;
+  if (!isRuntimeScalarStore && !isRuntimeScalarLoadStore &&
+      !isRuntimeScalarIndexedGather)
     return llvm::Error::success();
 
+  const bool isRuntimeScalarLoadMerge =
+      isRuntimeScalarLoadStore || isRuntimeScalarIndexedGather;
   const RVVSelectedBodyMemoryForm expectedMemoryForm =
-      isRuntimeScalarLoadStore
-          ? RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskLoadStore
-          : RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore;
+      isRuntimeScalarIndexedGather
+          ? RVVSelectedBodyMemoryForm::ComputedMaskIndexedGatherLoadUnitStore
+          : (isRuntimeScalarLoadStore
+                 ? RVVSelectedBodyMemoryForm::
+                       RuntimeScalarComputedMaskLoadStore
+                 : RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore);
+
+  std::optional<RVVComputedMaskIndexedMemoryRouteFacts> indexedRouteFacts;
+  if (isRuntimeScalarIndexedGather) {
+    indexedRouteFacts =
+        getRVVComputedMaskIndexedMemoryRouteFacts(description.operation);
+    if (!indexedRouteFacts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " runtime scalar computed-mask indexed gather route construction "
+          "requires canonical provider-owned indexed route facts before "
+          "creating TCRVEmitCLowerableRoute");
+  }
 
   if (!analysis.computedMaskMemoryRouteFamilyPlan ||
       materializationFacts.computedMaskMemoryPlan !=
@@ -1191,15 +1385,80 @@ verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
       plan.memoryForm != expectedMemoryForm || !plan.usesRuntimeScalarProducer ||
       plan.usesVectorCompareProducer ||
       plan.usesStoreOnly != isRuntimeScalarStore ||
-      plan.usesLoadMerge != isRuntimeScalarLoadStore ||
-      plan.usesIndexedGather || plan.usesIndexedScatter ||
+      plan.usesLoadMerge != isRuntimeScalarLoadMerge ||
+      plan.usesIndexedGather != isRuntimeScalarIndexedGather ||
+      plan.usesIndexedScatter ||
       plan.usesSegment2Load || plan.usesSegment2Store ||
       plan.usesSegment2Update)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " runtime scalar computed-mask memory route construction requires "
-        "runtime-scalar producer facts and the matching store/load-store "
+        "runtime-scalar producer facts and the matching store/load-store/"
+        "indexed-gather "
         "memory form before creating TCRVEmitCLowerableRoute");
+
+  if (indexedRouteFacts &&
+      (plan.memoryForm != indexedRouteFacts->memoryForm ||
+       plan.sew != indexedRouteFacts->sew ||
+       plan.lmul != indexedRouteFacts->lmul ||
+       plan.runtimeControlPlan.controlPlanID !=
+           indexedRouteFacts->runtimeControlPlanID ||
+       plan.runtimeABIOrder != indexedRouteFacts->runtimeABIOrder ||
+       plan.targetLeafProfile != indexedRouteFacts->targetLeafProfile ||
+       plan.providerSupportedMirror !=
+           indexedRouteFacts->providerSupportedMirror ||
+       plan.requiredHeaderDeclarations !=
+           indexedRouteFacts->requiredHeaderDeclarations ||
+       plan.cTypeMappingSummary != indexedRouteFacts->cTypeMappingSummary ||
+       plan.familyPlanID !=
+           indexedRouteFacts->computedMaskMemoryRouteFamilyPlanID ||
+       plan.maskProducerSource !=
+           indexedRouteFacts->computedMaskMemoryMaskProducerSource ||
+       plan.vlCType != indexedRouteFacts->vlCType ||
+       plan.vectorTypeName != indexedRouteFacts->vectorTypeName ||
+       plan.vectorCType != indexedRouteFacts->vectorCType ||
+       plan.indexVectorTypeName != indexedRouteFacts->indexVectorTypeName ||
+       plan.indexVectorCType != indexedRouteFacts->indexVectorCType ||
+       plan.maskTypeName != indexedRouteFacts->maskTypeName ||
+       plan.maskCType != indexedRouteFacts->maskCType ||
+       plan.setVLIntrinsic != indexedRouteFacts->setVLIntrinsic ||
+       plan.vectorLoadIntrinsic != indexedRouteFacts->vectorLoadIntrinsic ||
+       plan.indexLoadIntrinsic != indexedRouteFacts->indexLoadIntrinsic ||
+       plan.indexScaleIntrinsic != indexedRouteFacts->indexScaleIntrinsic ||
+       plan.rhsScalarSplatIntrinsic !=
+           indexedRouteFacts->rhsScalarSplatIntrinsic ||
+       plan.maskedLoadIntrinsic !=
+           indexedRouteFacts->maskedIndexedLoadIntrinsic ||
+       plan.maskedStoreIntrinsic != indexedRouteFacts->maskedStoreIntrinsic ||
+       plan.compareIntrinsic != indexedRouteFacts->compareIntrinsic ||
+       plan.maskRole != indexedRouteFacts->maskRole ||
+       plan.maskSource != indexedRouteFacts->maskSource ||
+       plan.maskMemoryForm != indexedRouteFacts->maskMemoryForm ||
+       plan.inactiveLaneContract !=
+           indexedRouteFacts->inactiveLaneContract ||
+       plan.maskedPassthroughLayout !=
+           indexedRouteFacts->maskedPassthroughLayout ||
+       plan.maskedMemoryLayout != indexedRouteFacts->indexedMemoryLayout ||
+       plan.sourceMemoryForm != indexedRouteFacts->sourceMemoryForm ||
+       plan.destinationMemoryForm !=
+           indexedRouteFacts->destinationMemoryForm ||
+       plan.indexEEW != indexedRouteFacts->indexEEW ||
+       plan.offsetUnit != indexedRouteFacts->offsetUnit ||
+       plan.indexSource != indexedRouteFacts->indexSource ||
+       plan.indexUniqueness != indexedRouteFacts->indexUniqueness ||
+       plan.indexedDataMemoryForm !=
+           indexedRouteFacts->indexedDataMemoryForm ||
+       plan.indexedDestinationMemoryForm !=
+           indexedRouteFacts->indexedDestinationMemoryForm ||
+       !support::runtimeABIParametersEqual(
+           plan.runtimeABIParameters,
+           indexedRouteFacts->runtimeABIParameters)))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask indexed gather route construction "
+        "requires the computed-mask memory family plan to mirror canonical "
+        "provider-owned indexed route facts before creating "
+        "TCRVEmitCLowerableRoute");
 
   if (description.computedMaskMemoryRouteFamilyPlanID != plan.familyPlanID ||
       description.computedMaskMemoryMaskProducerSource !=
@@ -1220,6 +1479,36 @@ verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
         " runtime scalar computed-mask memory route construction requires "
         "provider-built family, mask/tail, inactive-lane, provider support, "
         "and ABI mirror facts before creating TCRVEmitCLowerableRoute");
+
+  if (isRuntimeScalarIndexedGather &&
+      (description.sourceMemoryForm != plan.sourceMemoryForm ||
+       description.destinationMemoryForm != plan.destinationMemoryForm ||
+       description.indexEEW != plan.indexEEW ||
+       description.offsetUnit != plan.offsetUnit ||
+       description.indexSource != plan.indexSource ||
+       description.indexUniqueness != plan.indexUniqueness ||
+       description.indexedDataMemoryForm != plan.indexedDataMemoryForm ||
+       description.indexedDestinationMemoryForm !=
+           plan.indexedDestinationMemoryForm))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask indexed gather route construction "
+        "requires provider-built source/index/destination memory-form mirror "
+        "facts before creating TCRVEmitCLowerableRoute");
+
+  if (indexedRouteFacts &&
+      (description.routeOperandBindingPlanID !=
+           indexedRouteFacts->routeOperandBindingPlanID ||
+       description.routeOperandBindingSummary !=
+           indexedRouteFacts->routeOperandBindingSummary ||
+       analysis.routeOperandBindingPlan.planID !=
+           indexedRouteFacts->routeOperandBindingPlanID))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime scalar computed-mask indexed gather route construction "
+        "requires route operand binding plan and summary to mirror canonical "
+        "provider-owned indexed route facts before creating "
+        "TCRVEmitCLowerableRoute");
 
   if (!support::runtimeABIParametersEqual(description.runtimeABIParameters,
                                           plan.runtimeABIParameters))
@@ -1248,7 +1537,10 @@ verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
       typedFacts.maskTypeName != plan.maskTypeName ||
       typedFacts.maskCType != plan.maskCType ||
       typedFacts.setVLIntrinsic != plan.setVLIntrinsic ||
-      typedFacts.vectorLoadIntrinsic != plan.vectorLoadIntrinsic)
+      typedFacts.vectorLoadIntrinsic != plan.vectorLoadIntrinsic ||
+      (isRuntimeScalarIndexedGather &&
+       (typedFacts.indexVectorTypeName != plan.indexVectorTypeName ||
+        typedFacts.indexVectorCType != plan.indexVectorCType)))
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " runtime scalar computed-mask memory route construction requires "
@@ -1280,7 +1572,8 @@ verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " runtime scalar computed-mask memory route construction requires "
-          "lhs/rhs_scalar/src/dst/n operand-binding facts before creating "
+          "lhs/rhs_scalar/src/dst/n plus indexed-gather operand-binding facts "
+          "before creating "
           "TCRVEmitCLowerableRoute");
     if (parameter->role != expectedRole)
       return makeRVVEmitCRouteProviderError(
@@ -1298,7 +1591,8 @@ verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
           &analysis.routeOperandBindingPlan ||
       !memoryOperandBindingFacts.bindsMemoryCluster ||
       !memoryOperandBindingFacts.bindsComputedMaskMemory ||
-      !memoryOperandBindingFacts.bindsRuntimeScalarComputedMaskMemory)
+      !memoryOperandBindingFacts.bindsRuntimeScalarComputedMaskMemory ||
+      memoryOperandBindingFacts.bindsSegment2Memory)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " runtime scalar computed-mask memory route construction requires "
@@ -1325,23 +1619,28 @@ verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
           memoryOperandBindingFacts.runtimeElementCountABI, "n",
           support::RuntimeABIParameterRole::RuntimeElementCount))
     return error;
+  if (isRuntimeScalarIndexedGather)
+    if (llvm::Error error = requireABI(
+            memoryOperandBindingFacts.indexABI, "index",
+            support::RuntimeABIParameterRole::IndexInputBuffer))
+      return error;
 
-  if (isRuntimeScalarLoadStore) {
+  if (isRuntimeScalarLoadMerge) {
     if (!memoryOperandBindingFacts.passthroughABI)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
-          " runtime_scalar_cmp_masked_load_store route construction requires "
-          "old-destination passthrough operand-binding facts before creating "
-          "TCRVEmitCLowerableRoute");
+          " runtime scalar computed-mask load-merge route construction "
+          "requires old-destination passthrough operand-binding facts before "
+          "creating TCRVEmitCLowerableRoute");
     if (memoryOperandBindingFacts.passthroughABI->role !=
             support::RuntimeABIParameterRole::OutputBuffer ||
         memoryOperandBindingFacts.passthroughABI->cName !=
             memoryOperandBindingFacts.destinationABI->cName)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
-          " runtime_scalar_cmp_masked_load_store route construction requires "
-          "old-destination passthrough and destination store ABI facts to "
-          "refer to the same output buffer before creating "
+          " runtime scalar computed-mask load-merge route construction "
+          "requires old-destination passthrough and destination store ABI "
+          "facts to refer to the same output buffer before creating "
           "TCRVEmitCLowerableRoute");
   }
 
@@ -1353,6 +1652,9 @@ verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
           isRuntimeScalarStore ||
       computedMaskMemoryStatementPlan.plansRuntimeScalarComputedMaskLoadStore !=
           isRuntimeScalarLoadStore ||
+      computedMaskMemoryStatementPlan
+              .plansRuntimeScalarComputedMaskIndexedGatherLoadUnitStore !=
+          isRuntimeScalarIndexedGather ||
       computedMaskMemoryStatementPlan.plansComputedMaskUnitLoadStore ||
       computedMaskMemoryStatementPlan.plansComputedMaskStridedStore ||
       computedMaskMemoryStatementPlan.plansComputedMaskStridedLoadUnitStore ||
@@ -1375,13 +1677,18 @@ verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
   if (!statementHasCallee(plan.rhsScalarSplatIntrinsic) ||
       !statementHasCallee(plan.compareIntrinsic) ||
       !statementHasCallee(plan.maskedStoreIntrinsic) ||
-      (isRuntimeScalarLoadStore &&
-       !statementHasCallee(plan.maskedLoadIntrinsic)))
+      (isRuntimeScalarLoadMerge &&
+       !statementHasCallee(plan.maskedLoadIntrinsic)) ||
+      (isRuntimeScalarIndexedGather &&
+       !statementHasCallee(plan.indexLoadIntrinsic)) ||
+      (isRuntimeScalarIndexedGather &&
+       !statementHasCallee(plan.indexScaleIntrinsic)))
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " runtime scalar computed-mask memory route construction requires "
-        "statement/leaf facts for scalar splat, compare, masked memory, and "
-        "store calls from the RVV statement-plan owner before creating "
+        "statement/leaf facts for scalar splat, compare, masked memory, "
+        "indexed gather, and store calls from the RVV statement-plan owner "
+        "before creating "
         "TCRVEmitCLowerableRoute");
 
   llvm::Expected<RVVSelectedBodyRouteControlProviderPlan> routeControlPlan =
@@ -1842,6 +2149,8 @@ verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
       computedMaskMemoryStatementPlan.loop.bodySteps.empty() ||
       computedMaskMemoryStatementPlan.plansRuntimeScalarComputedMaskStore ||
       computedMaskMemoryStatementPlan.plansRuntimeScalarComputedMaskLoadStore ||
+      computedMaskMemoryStatementPlan
+          .plansRuntimeScalarComputedMaskIndexedGatherLoadUnitStore ||
       computedMaskMemoryStatementPlan.plansComputedMaskUnitLoadStore !=
           isUnitLoadStore ||
       computedMaskMemoryStatementPlan.plansComputedMaskStridedStore !=
@@ -1985,6 +2294,8 @@ llvm::Error verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
   switch (operation) {
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedGatherLoadUnitStore:
     return verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
         analysis, materializationFacts, memoryOperandBindingFacts,
         computedMaskMemoryStatementPlan, context);

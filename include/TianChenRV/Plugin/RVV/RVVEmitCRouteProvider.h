@@ -66,6 +66,7 @@ enum class RVVSelectedBodyOperationKind {
   ComputedMaskStridedStore,
   ComputedMaskStridedLoadUnitStore,
   ComputedMaskIndexedGatherLoadUnitStore,
+  RuntimeScalarComputedMaskIndexedGatherLoadUnitStore,
   ComputedMaskIndexedScatterStoreUnitLoad,
   ComputedMaskSegment2LoadUnitStore,
   RuntimeScalarComputedMaskSegment2LoadUnitStore,
@@ -832,6 +833,7 @@ struct RVVComputedMaskIndexedMemoryRouteFacts {
   llvm::StringRef maskedIndexedStoreIntrinsic;
   llvm::StringRef maskedStoreIntrinsic;
   llvm::StringRef compareIntrinsic;
+  llvm::StringRef rhsScalarSplatIntrinsic;
   llvm::StringRef comparePredicateKind;
   llvm::StringRef computedMaskMemoryRouteFamilyPlanID;
   llvm::StringRef computedMaskMemoryMaskProducerSource;
@@ -863,6 +865,7 @@ getRVVComputedMaskIndexedMemoryRouteFacts(
 
 enum class RVVComputedMaskIndexedMemoryRouteValidationKind {
   IndexedGatherLoadUnitStore,
+  RuntimeScalarIndexedGatherLoadUnitStore,
   IndexedScatterStoreUnitLoad,
 };
 
@@ -936,6 +939,7 @@ struct RVVComputedMaskIndexedMemoryRouteValidationContract {
   std::string maskedIndexedStoreIntrinsic;
   std::string maskedStoreIntrinsic;
   std::string compareIntrinsic;
+  std::string rhsScalarSplatIntrinsic;
   std::string resultName;
   std::string maskName;
 

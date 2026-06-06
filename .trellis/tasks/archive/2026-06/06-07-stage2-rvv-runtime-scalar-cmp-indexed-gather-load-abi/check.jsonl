@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check that the final route remains on the typed RVV body -> provider route -> common EmitC -> artifact evidence chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV-local semantics, selected-body realization, computed-mask indexed memory route validation, runtime-scalar producer facts, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that common EmitC/export remains neutral and consumes provider-built route facts only."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused evidence, ssh rvv claim standards, and old-authority scan expectations."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Check runtime/correctness evidence interpretation."}
+{"file": ".trellis/tasks/06-07-stage2-rvv-runtime-scalar-cmp-indexed-gather-load-abi/prd.md", "reason": "Check final behavior against this task's bounded acceptance criteria."}

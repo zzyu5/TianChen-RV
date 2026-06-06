@@ -53,6 +53,12 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedGatherBody(
     const VariantLoweringBoundaryRequest &request,
     tcrv::rvv::TypedComputedMaskIndexedGatherPreRealizedBodyOp body);
 
+llvm::Error
+validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedGatherBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp
+        body);
+
 llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
     const VariantLoweringBoundaryRequest &request,
     tcrv::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp body);

@@ -1125,8 +1125,13 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
   const bool isRuntimeScalarLoadStore =
       description.operation ==
       RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore;
+  const bool isRuntimeScalarIndexedGather =
+      description.operation ==
+      RVVSelectedBodyOperationKind::
+          RuntimeScalarComputedMaskIndexedGatherLoadUnitStore;
   const bool isRuntimeScalar =
-      isRuntimeScalarStore || isRuntimeScalarLoadStore;
+      isRuntimeScalarStore || isRuntimeScalarLoadStore ||
+      isRuntimeScalarIndexedGather;
   const bool isUnitLoadStore =
       description.operation == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore;
   const bool isStridedStore =
@@ -1134,9 +1139,11 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
   const bool isStridedLoad =
       description.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore;
-  const bool isIndexedGather =
+  const bool isVectorIndexedGather =
       description.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore;
+  const bool isIndexedGather =
+      isVectorIndexedGather || isRuntimeScalarIndexedGather;
   const bool isIndexedScatter =
       description.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad;
@@ -1153,7 +1160,9 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
   plan.plansComputedMaskUnitLoadStore = isUnitLoadStore;
   plan.plansComputedMaskStridedStore = isStridedStore;
   plan.plansComputedMaskStridedLoadUnitStore = isStridedLoad;
-  plan.plansComputedMaskIndexedGatherLoadUnitStore = isIndexedGather;
+  plan.plansComputedMaskIndexedGatherLoadUnitStore = isVectorIndexedGather;
+  plan.plansRuntimeScalarComputedMaskIndexedGatherLoadUnitStore =
+      isRuntimeScalarIndexedGather;
   plan.plansComputedMaskIndexedScatterStoreUnitLoad = isIndexedScatter;
   plan.computedMaskMemoryPlan = materializationFacts.computedMaskMemoryPlan;
 

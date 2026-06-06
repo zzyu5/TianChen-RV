@@ -42,6 +42,44 @@ Expanded product-reduction-dequant-clamp generated artifact ABI binding evidence
 - None - task complete
 
 
+## Session 516: Stage2 RVV runtime-scalar indexed gather-load ABI
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV runtime-scalar-cmp masked indexed gather-load ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Completed the runtime-scalar-cmp masked indexed gather-load executable artifact/ABI boundary. The route now has an explicit and pre-realized selected-body surface, RVV plugin-local realization, provider/target validation, generated bundle ABI harness coverage, direct-pre-realized fail-closed evidence, and explicit/pre-realized `ssh rvv` correctness.
+
+### Main Changes
+
+- Added `tcrv_rvv.typed_runtime_scalar_computed_mask_indexed_gather_pre_realized_body` and runtime ABI contract for `lhs,rhs_scalar,src,index,dst,n`.
+- Realized the pre-realized body into setvl/lhs load/rhs splat/old-dst load/index load/sle compare/masked indexed load/store before route construction.
+- Extended computed-mask indexed gather planning/provider/statement/control-policy/target validation to derive runtime-scalar producer, indexed source, passthrough, ABI, header, and operand-binding facts from typed body structure.
+- Extended generated-bundle ABI tooling and tests for explicit/pre-realized dry-run, direct-pre-realized fail-closed, runtime scalar RHS value coverage, indexed gather source preservation, inactive-lane passthrough, and noncontiguous index coverage.
+
+### Testing
+
+- [OK] `scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] explicit and pre-realized generated-bundle dry-run commands with FileCheck prefix validation.
+- [OK] direct pre-realized route-entry fail-closed command and FileCheck validation.
+- [OK] explicit/pre-realized target fixture PLAN, HEADER, REALIZED, and stale producer checks with `FileCheck-20`.
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -- -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] explicit/pre-realized `ssh rvv` correctness for counts `0,1,16,17,257`, rhs scalars `-37,91`, patterns `0,1`.
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 516: Stage2 RVV runtime-scalar segment2 load ABI
 
 **Date**: 2026-06-07

@@ -523,6 +523,8 @@ bool isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
       RuntimeScalarComputedMaskStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskLoadStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedGatherLoadUnitStore:
     return true;
   default:
     return false;
@@ -7244,6 +7246,9 @@ bool isRVVCompareSelectMaskIndexedMemoryOperation(
                  ComputedMaskIndexedGatherLoadUnitStore ||
          operation ==
              plugin::rvv::RVVSelectedBodyOperationKind::
+                 RuntimeScalarComputedMaskIndexedGatherLoadUnitStore ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
                  ComputedMaskIndexedScatterStoreUnitLoad;
 }
 
@@ -9237,6 +9242,8 @@ std::size_t getRVVCompareSelectMaskExpectedLoopBodyStepCount(
     return 7;
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedGatherLoadUnitStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedGatherLoadUnitStore:
     return 9;
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedScatterStoreUnitLoad:
@@ -9830,21 +9837,26 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
       description.operation == OperationKind::RuntimeScalarComputedMaskStore;
   const bool isRuntimeScalarLoadStore =
       description.operation == OperationKind::RuntimeScalarComputedMaskLoadStore;
+  const bool isRuntimeScalarIndexedGather =
+      description.operation ==
+      OperationKind::RuntimeScalarComputedMaskIndexedGatherLoadUnitStore;
   const bool isRuntimeScalarMemory =
-      isRuntimeScalarStore || isRuntimeScalarLoadStore;
+      isRuntimeScalarStore || isRuntimeScalarLoadStore ||
+      isRuntimeScalarIndexedGather;
   const bool isStridedStore =
       description.operation == OperationKind::ComputedMaskStridedStore;
   const bool isStridedLoad =
       description.operation == OperationKind::ComputedMaskStridedLoadUnitStore;
   const bool isIndexedGather =
       description.operation ==
-      OperationKind::ComputedMaskIndexedGatherLoadUnitStore;
+          OperationKind::ComputedMaskIndexedGatherLoadUnitStore ||
+      isRuntimeScalarIndexedGather;
   const bool isIndexedScatter =
       description.operation ==
       OperationKind::ComputedMaskIndexedScatterStoreUnitLoad;
   const bool isIndexed = isIndexedGather || isIndexedScatter;
   const bool isLoadMerge =
-      isRuntimeScalarLoadStore ||
+      isRuntimeScalarLoadStore || isRuntimeScalarIndexedGather ||
       description.operation == OperationKind::ComputedMaskUnitLoadStore ||
       isStridedLoad || isIndexedGather;
   const bool isStoreOnly =

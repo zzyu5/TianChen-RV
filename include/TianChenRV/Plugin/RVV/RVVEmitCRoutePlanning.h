@@ -1469,6 +1469,7 @@ struct RVVSelectedBodyComputedMaskMemoryRouteStatementPlan {
   bool plansComputedMaskStridedStore = false;
   bool plansComputedMaskStridedLoadUnitStore = false;
   bool plansComputedMaskIndexedGatherLoadUnitStore = false;
+  bool plansRuntimeScalarComputedMaskIndexedGatherLoadUnitStore = false;
   bool plansComputedMaskIndexedScatterStoreUnitLoad = false;
   RVVSelectedBodyMaskTailPolicyProviderPlan maskTailPolicyPlan;
 

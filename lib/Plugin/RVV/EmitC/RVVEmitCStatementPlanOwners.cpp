@@ -328,6 +328,10 @@ bool isRVVSelectedBodyComputedMaskMemoryStatementPlanConsumer(
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
     return description.memoryForm ==
            RVVSelectedBodyMemoryForm::ComputedMaskIndexedGatherLoadUnitStore;
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedGatherLoadUnitStore:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::ComputedMaskIndexedGatherLoadUnitStore;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
     return description.memoryForm ==
            RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadIndexedScatterStore;

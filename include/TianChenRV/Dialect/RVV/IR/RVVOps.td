@@ -1999,6 +1999,58 @@ def TypedComputedMaskIndexedGatherPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_runtime_scalar_computed_mask_indexed_gather_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV runtime-scalar computed-mask indexed gather-load body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body where a
+    signed i32 vector lhs is compared with a runtime scalar threshold splatted
+    at the current VL to produce an in-body mask SSA value, then masked
+    indexed/gather memory movement loads active lanes from a source memory
+    window through an explicit runtime index vector into a unit-stride
+    destination while preserving inactive lanes from the old destination
+    vector. The op is nested directly in a selected tcrv.exec.variant and
+    binds explicit runtime ABI values for lhs, rhs_scalar, source, index,
+    destination/old-vector passthrough, and runtime n/AVL together with
+    compare predicate, indexed memory form, index EEW/offset unit, mask
+    role/source/config, inactive-lane preservation policy, compile-time RVV
+    data/mask/index config, and policy.
+
+    This op is not a gather/scatter framework, route label, descriptor,
+    source-front-door marker, direct-C exporter, intrinsic wrapper, runtime
+    artifact, correctness evidence, or performance evidence. The RVV plugin
+    must realize it into explicit setvl/with_vl/load/splat/load/index_load/
+    compare/masked_indexed_load/store tcrv_rvv body structure before the
+    provider may construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs_scalar,
+    AnyType:$source,
+    AnyType:$index,
+    AnyType:$destination,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$predicate_kind,
+    StrAttr:$memory_form,
+    I64Attr:$index_eew,
+    StrAttr:$offset_unit,
+    StrAttr:$mask_role,
+    StrAttr:$mask_source,
+    StrAttr:$mask_memory_form,
+    StrAttr:$inactive_lane_policy,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$lhs `,` $rhs_scalar `,` $source `,` $index `,` $destination `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedComputedMaskIndexedScatterPreRealizedBodyOp
     : TCRVRVV_Op<"typed_computed_mask_indexed_scatter_pre_realized_body"> {
   let summary =

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage 2 selected-body realization boundary, and invalid descriptor/common-EmitC authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local route ownership, selected-body realization, computed-mask indexed memory facts, runtime-scalar mask producer rules, and fail-closed contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, neutral common EmitC materialization, indexed memory validation contracts, and operand binding summary contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/C++/generated-bundle/ssh rvv evidence requirements for executable RVV claims."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Evidence interpretation rules for RVV runtime/correctness claims."}
+{"file": ".trellis/tasks/archive/2026-06/06-07-rvv-prerealized-runtime-scalar-cmp-segment2-load-abi/prd.md", "reason": "Fresh runtime-scalar-cmp masked load ABI reference for selected-body realization, provider facts, generated bundle ABI, and ssh rvv evidence."}
+{"file": ".trellis/tasks/06-07-stage2-rvv-runtime-scalar-cmp-indexed-gather-load-abi/prd.md", "reason": "Current bounded module requirements, acceptance criteria, and out-of-scope constraints."}

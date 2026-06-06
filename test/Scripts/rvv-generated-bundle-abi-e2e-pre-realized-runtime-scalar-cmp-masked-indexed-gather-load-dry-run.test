@@ -1,0 +1,78 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-cmp-indexed-gather-load --overwrite --op-kind runtime_scalar_cmp_masked_indexed_gather_load_unit_store --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-runtime-scalar-cmp-indexed-gather-load/evidence.json
+# RUN: FileCheck %s --check-prefix=RTIDX --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-indexed-gather-load/runtime_scalar_cmp_masked_indexed_gather_load_unit_store/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-indexed-gather-load/runtime_scalar_cmp_masked_indexed_gather_load_unit_store/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_indexed_gather_load_unit_store_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "runtime_scalar_cmp_masked_indexed_gather_load_unit_store"
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+
+# RTIDX-DAG: "input_mode": "pre-realized-selected-body"
+# RTIDX-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-load.mlir"
+# RTIDX-DAG: "prototype": "void tcrv_emitc_pre_realized_body_rt_scalar_cmidx_load_kernel_pre_realized_body_rvv_rt_scalar_cmidx_load(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src, const uint32_t *index, int32_t *dst, size_t n);"
+# RTIDX-DAG: "expected_function": "tcrv_emitc_pre_realized_body_rt_scalar_cmidx_load_kernel_pre_realized_body_rvv_rt_scalar_cmidx_load"
+# RTIDX-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-load-unit-store-callable-c-abi.v1"
+# RTIDX-DAG: "expected_selected_variant": "pre_realized_body_rvv_rt_scalar_cmidx_load"
+# RTIDX-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# RTIDX-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# RTIDX-DAG: --tcrv-materialize-selected-lowering-boundaries
+# RTIDX-DAG: "pre_realized_body_consumed": true
+# RTIDX-DAG: "typed_compute_op": "tcrv_rvv.masked_indexed_load"
+# RTIDX-DAG: "memory_form": "computed-mask-indexed-gather-load-unit-store"
+# RTIDX-DAG: "key": "rvv_emitc_lowerable_route"
+# RTIDX-DAG: "value": "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-load-unit-store-emitc-route"
+# RTIDX-DAG: "key": "rvv_selected_body_operation"
+# RTIDX-DAG: "value": "runtime_scalar_cmp_masked_indexed_gather_load_unit_store"
+# RTIDX-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# RTIDX-DAG: "value": "lhs,rhs_scalar,src,index,dst,n"
+# RTIDX-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# RTIDX-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_indexed_gather_load_unit_store.v1"
+# RTIDX-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# RTIDX-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_indexed_gather_load_unit_store.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load|lhs-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|rhs-call|hdr;src=source-input-buffer:src:abi|midx-base|midx-load-call|hdr;index=index-input-buffer:index:abi|materialized-index-load-base|index-offset-scale|index-source-mirror|hdr;dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
+# RTIDX-DAG: "key": "tcrv_rvv.computed_mask_memory_mask_producer_source"
+# RTIDX-DAG: "value": "runtime-scalar-splat-compare-rhs"
+# RTIDX-DAG: "key": "tcrv_rvv.target_leaf_profile"
+# RTIDX-DAG: "value": "rvv-v1-typed-runtime-scalar-cmp-masked-indexed-gather-load-leaf-profile.v1"
+# RTIDX-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# RTIDX-DAG: "value": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-gather-load-plan-validated"
+# RTIDX-DAG: "key": "tcrv_rvv.c_type_mapping"
+# RTIDX-DAG: "value": "vl:size_t,lhs/source/passthrough:signed-e32m1,rhs_scalar:signed-scalar,index:u32m1,mask:b32,result:runtime-scalar-masked-indexed-load-store"
+# RTIDX-DAG: "key": "tcrv_rvv.masked_memory_layout"
+# RTIDX-DAG: "value": "unit-stride-lhs-runtime-scalar-threshold-indexed-masked-source-old-destination-runtime-abi"
+# RTIDX-DAG: "key": "tcrv_rvv.indexed_memory_layout"
+# RTIDX-DAG: "value": "unit-stride-lhs-runtime-scalar-threshold-indexed-masked-source-old-destination-runtime-abi"
+# RTIDX-DAG: "key": "tcrv_rvv.index_source"
+# RTIDX-DAG: "value": "runtime_abi:index"
+# RTIDX-DAG: "key": "tcrv_rvv.index_eew"
+# RTIDX-DAG: "value": "32"
+# RTIDX-DAG: "key": "tcrv_rvv.offset_unit"
+# RTIDX-DAG: "value": "element"
+# RTIDX-DAG: "key": "tcrv_rvv.indexed_data_memory_form"
+# RTIDX-DAG: "value": "masked-indexed-load"
+# RTIDX-DAG: "authority": "provider-derived typed tcrv_rvv runtime-scalar computed-mask indexed gather body/config/runtime facts"
+# RTIDX-DAG: "runtime_scalar_operand": "rhs_scalar"
+# RTIDX-DAG: "runtime_scalar_realization_op": "tcrv_rvv.splat"
+# RTIDX-DAG: "runtime_scalar_producer_source": "runtime-scalar-splat-compare-rhs"
+# RTIDX-DAG: "active_lane_contract": "runtime scalar compare-true lanes gather source values from runtime index vector"
+# RTIDX-DAG: "inactive_lane_contract": "masked-off-lanes-preserve-old-destination"
+# RTIDX-DAG: "rhs_scalar_values": [
+# RTIDX-DAG: -37
+# RTIDX-DAG: 91
+# RTIDX-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_pre_realized_body_rt_scalar_cmidx_load_kernel_pre_realized_body_rvv_rt_scalar_cmidx_load(lhs, rhs_scalar, src, indices, dst, n);
+# HARNESS: int active = lhs[index] <= rhs_scalar;
+# HARNESS: int32_t expected = (lhs[index] <= rhs_scalar ? src[indices[index]] : old_dst[index]);
+# HARNESS: inactive lane did not preserve old destination
+# HARNESS: runtime_scalar_cmp indexed_gather
+# HARNESS: noncontiguous_index_lanes
+# HARNESS: source_preserved tail_preserved
+# HARNESS: const int32_t rhs_scalar_values[] = {(int32_t)-37, (int32_t)91};
+# HARNESS: PASS op=runtime_scalar_cmp_masked_indexed_gather_load_unit_store counts=0,1,16,17,257 rhs_scalars=-37,91 patterns=0,1

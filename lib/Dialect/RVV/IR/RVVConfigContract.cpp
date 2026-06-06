@@ -1429,6 +1429,29 @@ getRVVSelectedBodyComputedMaskIndexedGatherRuntimeABIParameters() {
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 6>
+getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs_scalar", "int32_t",
+      support::RuntimeABIParameterRole::RHSScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src", "const int32_t *",
+      support::RuntimeABIParameterRole::SourceInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "index", "const uint32_t *",
+      support::RuntimeABIParameterRole::IndexInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "dst", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 6>
 getRVVSelectedBodyComputedMaskIndexedScatterRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
   parameters.push_back(support::makeTargetExportABIParameter(
@@ -1715,6 +1738,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
     return llvm::Error::success();
 
   llvm::SmallVector<support::RuntimeABIParameter, 6>
+      runtimeScalarComputedMaskIndexedGather =
+          getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(
+          parameters, runtimeScalarComputedMaskIndexedGather))
+    return llvm::Error::success();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 6>
       computedMaskIndexedScatter =
           getRVVSelectedBodyComputedMaskIndexedScatterRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters,
@@ -1942,6 +1972,9 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "unit-store route with compare producer; or cmp_lhs, cmp_rhs, src, "
       "index, dst, n for the bounded int32_t computed-mask indexed "
       "masked-gather-load to unit-store route with compare producer; or "
+      "lhs, rhs_scalar, src, index, dst, n for the bounded int32_t "
+      "runtime-scalar computed-mask indexed masked-gather-load to "
+      "unit-store route; or "
       "cmp_lhs, cmp_rhs, "
       "true_value, false_value, out, n "
       "for the bounded typed int32_t/int64_t computed-mask select route with compare "
