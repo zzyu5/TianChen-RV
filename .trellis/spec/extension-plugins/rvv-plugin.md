@@ -4611,6 +4611,140 @@ provider route description + family route facts
   -> target validator consumes shared core plus family-specific facts
 ```
 
+## Low-Precision Direct-Contraction Resource-Aware Closure
+
+### 1. Scope / Trigger
+
+Use this contract when RVV Stage 2 work claims that low-precision contraction,
+Gearbox scheduling, q8/q4-like examples, or llama.cpp parity/performance is the
+current bottleneck. This contract does not make q8, q4, llama.cpp, route ids,
+artifact names, test names, or handwritten intrinsic spellings authoritative.
+They are pressure tests for whether typed low-precision `tcrv_rvv` bodies,
+RVV-local realization/provider facts, and real runtime evidence exist.
+
+The bounded Gearbox schedule materialization pass is only an MVP unless it
+enumerates legal candidates, estimates resource pressure, rejects impossible or
+unsafe candidates, and consumes the selected schedule into realized `tcrv_rvv`
+structure or provider-owned plans before route construction.
+
+### 2. Signatures
+
+Resource-aware low-precision contraction work must introduce or preserve a
+provider-local contract equivalent to:
+
+```c++
+struct RVVLowPrecisionContractionResourceCandidate {
+  element/source/result dtype facts;
+  product and accumulator dtype facts;
+  SEW, LMUL, product EMUL, accumulator EMUL;
+  memory form, stride facts, mask/tail policy;
+  unroll factor, accumulator count, reduction layout;
+  vsetvl placement / region count;
+  estimated peak live vector groups;
+  estimated load/store/mask/accumulator live ranges;
+  legality decision and rejection reason when not legal;
+};
+
+struct RVVLowPrecisionContractionResourceSelection {
+  selected candidate id;
+  selected resource candidate;
+  selected-body realization or provider-consumed owner plan;
+  runtime AVL/VL and ABI parameter mapping;
+  target capability/profile facts used by the selector;
+};
+```
+
+Exact C++ names may differ, but these fields must have a structural home before
+the route provider claims resource-aware tuning.
+
+### 3. Contracts
+
+- Candidate facts must be derived from typed selected-body/config/runtime facts
+  and target capability facts. They must not be inferred from q8/q4 names,
+  benchmark names, route ids, generated artifact names, or C ABI strings.
+- The first competitive low-precision target should be one narrow,
+  apples-to-apples direct-contraction kernel such as q8_0_q8_0-equivalent int8
+  widening dot/reduce. If the typed surface cannot express it, the task must
+  fail closed with the exact missing primitive surface.
+- Resource pruning must consider at least SEW/LMUL/EMUL legality, widening
+  pressure, accumulator count, mask/v0 usage, peak live vector groups, memory
+  form/stride, and vsetvl region count.
+- A selected candidate must be consumed by selected-body realization, provider
+  planning, or target artifact validation before route construction. Mirroring a
+  candidate in artifact metadata is insufficient.
+- Runtime/performance parity claims require generated TianChen-RV output and the
+  baseline RVV implementation to run on the same named `ssh rvv` environment with
+  correctness checked before timing.
+- Full runtime autotuning caches are not required for the first closure. A
+  bounded static resource model is acceptable if it is explicit, tested, and
+  consumed by provider/target contracts.
+
+### 4. Validation & Error Matrix
+
+- A low-precision contraction route lacks typed source/product/accumulator/result
+  dtype facts -> fail closed before provider route construction.
+- Widening product or accumulator EMUL exceeds legal RVV limits for the selected
+  LMUL -> reject the candidate before materialization.
+- Estimated peak live vector groups exceed the target vector register budget
+  after reserved mask/v0 usage -> reject or choose a smaller unroll/LMUL.
+- Candidate selection exists only as artifact metadata, test name, route token,
+  benchmark name, or emitted C spelling -> fail closed as non-authoritative.
+- A performance comparison omits baseline identity, target profile, compile
+  flags, input sizes, correctness check, timing method, or raw `ssh rvv` evidence
+  -> it is not performance evidence.
+- A q8/q4-named path bypasses typed `tcrv_rvv` body authority or RVV provider
+  validation -> fail closed.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed int8/u8 low-precision selected body -> widening product and
+  reduction/accumulator facts -> bounded resource candidate set -> legal selected
+  candidate -> realized `tcrv_rvv` body or provider-consumed owner plan ->
+  provider route -> generated RVV C/C++ -> same-target correctness/timing
+  comparison against a named llama.cpp RVV baseline.
+- Base: existing MAcc, widening dot-reduce, dequant, and Gearbox MVP routes keep
+  their current route-support contracts without claiming performance parity.
+- Bad: q8_0_q8_0 appears in a test or artifact name -> route provider emits a
+  handwritten intrinsic sequence and claims llama.cpp parity without typed body
+  facts, resource estimates, correctness checks, or timing evidence.
+
+### 6. Tests Required
+
+- lit/FileCheck coverage for selected-body realization or provider-consumed owner
+  schedule facts when resource choices affect generated code.
+- C++ tests for resource candidate legality and rejection diagnostics covering
+  EMUL overflow, live-vector-group pressure, missing low-precision dtype facts,
+  stale candidate mirrors, and invalid ABI/runtime AVL facts.
+- Provider/target artifact validation proving selected candidate facts are
+  consumed before artifact acceptance and stale metadata-only candidates fail.
+- A focused generated-bundle or benchmark harness for the first comparable
+  low-precision direct-contraction kernel.
+- Real `ssh rvv` correctness evidence for executable claims and real same-target
+  timing evidence for performance or llama.cpp-parity claims.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+benchmark name says q8_0_q8_0
+  -> emit fixed RVV intrinsic C
+  -> artifact metadata says selected=u2
+  -> claim Gearbox/performance maturity
+```
+
+Correct:
+
+```text
+typed low-precision tcrv_rvv body
+  -> RVV resource candidate set
+  -> legality/resource pruning
+  -> selected-body realization or provider-consumed owner plan
+  -> provider-built route
+  -> generated RVV artifact
+  -> same-target correctness and timing against named baseline
+```
+
 ## Migrated Statement-Plan Provider Consumption Boundary
 
 ### 1. Scope / Trigger

@@ -9,6 +9,9 @@ This layer defines how high-level MLIR enters TianChen-RV and becomes execution 
 - [ ] Are core legality and plugin legality both applied?
 - [ ] Does selection explain why it chose static variant, dispatch, or fallback?
 - [ ] Is tuning represented as capability-aware selection and variant-local metadata?
+- [ ] For RVV performance-sensitive work, does tuning include resource-aware
+  selected-body realization or a measured runtime comparison path rather than
+  another artifact-evidence-only closeout?
 - [ ] Does RVV Stage1/Stage2 work use typed `tcrv_rvv` body authority rather than legacy i32 route tables or source-front-door metadata?
 - [ ] Are emission plans, selected-path metadata, route ids, and artifact names mirrors only?
 
@@ -23,4 +26,7 @@ This layer defines how high-level MLIR enters TianChen-RV and becomes execution 
 - Same high-level op should produce different variants under different capability profiles.
 - Illegal variants should fail before emission.
 - Diagnostics must explain unsupported plugin, unsatisfied capability, legality failure, missing emission path, dispatch retention, and fallback choice.
-- Stage 1 resets RVV route authority; Stage 2 expands corrected typed-body coverage and selected-body realization; Stage 3 handles second-family/source-front-door positives after RVV maturity.
+- Stage 1 resets RVV route authority; Stage 2 expands corrected typed-body
+  coverage, selected-body realization, resource-aware tuning, and measured RVV
+  evidence where runtime/performance is claimed; Stage 3 handles
+  second-family/source-front-door positives after RVV maturity.

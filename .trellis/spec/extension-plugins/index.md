@@ -33,7 +33,9 @@ backend dialects.
 - Stage 1 resets RVV route authority and fail-closes legacy `RVVI32M1*` /
   `rvv-i32m1-*` executable routes.
 - Stage 2 expands coverage and selected-body realization on the corrected typed
-  `tcrv_rvv` surface.
+  `tcrv_rvv` surface. For performance-sensitive RVV work, Stage 2 also requires
+  resource-aware selected-body realization or measured same-target evidence
+  before claiming tuning or parity with handwritten kernels.
 - Scalar fallback has no active executable scalar body unless rebuilt later.
 - IME and Offload executable integration are Stage3/later unless explicitly
   selected after RVV maturity.

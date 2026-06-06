@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify the Stage 2 tuning contract distinguishes evidence closure from resource-aware realization."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify low-precision direct-contraction resource-aware closure preserves typed body/provider authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify runtime/performance comparison evidence requirements are explicit and testable."}
+{"file": ".trellis/spec/index.md", "reason": "Verify top-level Stage 2 summary reflects resource-aware/performance closure."}

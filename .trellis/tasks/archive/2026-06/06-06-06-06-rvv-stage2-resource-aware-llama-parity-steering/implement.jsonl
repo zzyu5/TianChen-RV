@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Stage 2 tuning and selected-body realization contract for redirecting away from repeated artifact-only closeouts."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin contract for low-precision direct-contraction resource-aware closure and provider authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Evidence requirements for RVV runtime/performance and same-target comparisons."}
+{"file": "artifacts/tianchenrv_rvv_gearbox_autotuning_pass_v3.md", "reason": "Reference-only Gearbox design artifact; not binding spec authority."}

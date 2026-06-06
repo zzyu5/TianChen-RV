@@ -81,6 +81,22 @@ Runtime, correctness, or performance claims require actual execution evidence.
 For RVV claims, use real `ssh rvv` output. Local compile-only, static MLIR
 checks, or Python smoke tests are not RVV runtime evidence.
 
+Performance-comparison claims require more than executable artifact ABI proof.
+For RVV comparisons against a handwritten or external baseline such as
+llama.cpp, evidence must include:
+
+- the baseline implementation identity and version/path;
+- the generated TianChen-RV artifact identity;
+- the same named `ssh rvv` target/profile for both sides;
+- compile flags, input sizes, data initialization, warmup/repetition policy, and
+  timing method;
+- correctness checks before timing;
+- raw output or evidence JSON that contains both correctness and timing results.
+
+An artifact ABI closeout, generated-bundle dry-run, local compile-only test, or
+single success marker is not performance evidence and must not be described as
+llama.cpp parity.
+
 For RVV generated-bundle evidence over runtime `n`, memory-writing routes must
 check both active-lane arithmetic/data movement and guard/tail preservation.
 Harnesses should initialize output storage beyond `n` (or inactive/passthrough

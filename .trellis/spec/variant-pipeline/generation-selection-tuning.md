@@ -87,6 +87,13 @@ selected pre-realized tcrv_rvv body
 Hints/config/profile are not final products. If they affect generated code,
 they must be consumed into body structure before route construction.
 
+After a route family is production-validated, Stage 2 progress must not degrade
+into an unbounded sequence of artifact ABI evidence closeouts. A generated-bundle
+or `ssh rvv` proof is useful when emitted code, ABI/header behavior, runtime
+correctness, or performance is newly claimed. It is not a substitute for
+advancing typed primitive coverage, selected-body realization, resource-aware
+tuning, or a measured performance comparison path.
+
 ### Stage 3: Extension Generalization
 
 IME, Offload, TensorExtLite, Template/Toy source-front-door examples, and
@@ -142,6 +149,42 @@ mask/tail behavior
 unroll/prefetch structure
 accumulator/reduction layout
 ```
+
+### Resource-Aware RVV Closure
+
+For performance-sensitive RVV Stage 2 families, especially low-precision
+direct-contraction paths, tuning must be resource-aware before it is described as
+autotuning or performance maturity. The resource model may start static and
+bounded, but it must reason over compiler-visible body facts such as:
+
+```text
+target VLEN / ELEN / vector register budget
+reserved mask / v0 usage
+SEW / LMUL / EMUL
+widening or narrowing pressure
+peak live vector groups
+load/store and mask live ranges
+accumulator count and reduction layout
+vsetvl region count
+memory form / stride
+tail and mask policy
+```
+
+A selector may keep schedule facts as owner-local metadata only when the facts
+are consumed by RVV selected-body realization, provider planning, or target
+artifact validation. If a choice changes generated code, it must be realized into
+`tcrv_rvv` structure or a provider-consumed owner-local plan before
+`TCRVEmitCLowerableRoute` construction.
+
+The current bounded Gearbox schedule materialization style is an MVP unless it
+enumerates and prunes candidates with such resource facts. A fixed static
+candidate, fixed unroll, or fixed LMUL schedule is not a completed
+resource-aware autotuning pass.
+
+llama.cpp q8/q4 examples are representative pressure tests for this contract.
+They must be treated as low-precision direct-contraction maturity signals, not
+as q8-named route authority, benchmark-name authority, or permission to bypass
+typed `tcrv_rvv` body/provider facts.
 
 For future IME/Offload/family work, analogous tuning remains plugin-local and
 Stage3-gated unless explicitly selected.

@@ -113,6 +113,11 @@ selected pre-realized tcrv_rvv body
 Hints/config are not final products. If they affect generated code, they must
 be consumed into real `tcrv_rvv` structure.
 
+After a route family has production route/provider/target validation, repeated
+artifact ABI evidence alone is not a Stage 2 endpoint. Performance-sensitive RVV
+work must advance resource-aware selected-body realization, typed low-precision
+coverage, or measured same-target runtime/performance evidence.
+
 ### Stage 3: Second-Family Integration After RVV Maturity
 
 IME, Offload, TensorExtLite, Template/Toy examples, source-front-door
