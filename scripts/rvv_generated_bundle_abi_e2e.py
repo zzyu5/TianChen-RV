@@ -24900,12 +24900,11 @@ def generate_bundle(
         )
     materialized_path = bundle_dir.parent / "materialized_selected_body.mlir"
     materialize_command = [tcrv_opt, str(expectation.input_path)]
+    if expectation.is_widening_product_reduce_dequantize_f32:
+        materialize_command.append("--tcrv-rvv-materialize-gearbox-schedules")
     if expectation.requires_selected_lowering_boundary_materialization:
         materialize_command.append("--tcrv-materialize-selected-lowering-boundaries")
-    if (
-        expectation.is_dequantize_i32_to_f32
-        or expectation.is_widening_product_reduce_dequantize_f32
-    ):
+    if expectation.is_dequantize_i32_to_f32:
         materialize_command.append("--tcrv-rvv-materialize-gearbox-schedules")
     materialize_command.extend(
         ["--tcrv-materialize-emission-plans", "-o", str(materialized_path)]

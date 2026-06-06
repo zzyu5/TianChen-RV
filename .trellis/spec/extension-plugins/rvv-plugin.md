@@ -4720,6 +4720,15 @@ the route provider claims resource-aware tuning.
 - A selected candidate must be consumed by selected-body realization, provider
   planning, or target artifact validation before route construction. Mirroring a
   candidate in artifact metadata is insufficient.
+- For generated-bundle evidence on pre-realized
+  `widening_product_reduce_dequantize_f32`, the Gearbox resource-fact pass must
+  run before selected-body realization so `tcrv_rvv.low_precision_resource.*`
+  facts are attached to the pre-realized body and copied into the realized
+  `with_vl` operation before provider planning. Running selected-body
+  realization first is a fail-closed missing-resource-fact path, not a valid
+  executable pipeline. Plain `dequantize_i32_to_f32` Gearbox evidence may still
+  run the Gearbox pass after selected-boundary materialization because that MVP
+  schedule pass consumes the realized `with_vl`/`dequantize` structure.
 - Runtime/performance parity claims require generated TianChen-RV output and the
   baseline RVV implementation to run on the same named `ssh rvv` environment with
   correctness checked before timing.

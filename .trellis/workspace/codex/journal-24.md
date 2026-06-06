@@ -1558,3 +1558,47 @@ Implemented RVV Gearbox low-precision resource candidate facts for product-reduc
 ### Next Steps
 
 - None - task complete
+
+
+## Session 510: Stage2 RVV Gearbox resource-fact artifact boundary
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV Gearbox resource-fact artifact boundary
+**Branch**: `main`
+
+### Summary
+
+Repaired generated-bundle materialization order so pre-realized widening_product_reduce_dequantize_f32 runs the Gearbox resource-fact pass before selected-body realization, then proved explicit and pre-realized generated bundles through dry-run and non-dry-run ssh rvv correctness.
+
+### Main Changes
+
+- Created Trellis task `06-06-rvv-gearbox-resource-fact-artifact-boundary` from the Hermes brief and bounded it to the existing Gearbox low-precision resource-fact artifact/runtime boundary.
+- Found a real production script seam bug: pre-realized `widening_product_reduce_dequantize_f32` generated-bundle evidence ran `--tcrv-materialize-selected-lowering-boundaries` before `--tcrv-rvv-materialize-gearbox-schedules`, so provider planning failed closed on missing pass-produced `tcrv_rvv.low_precision_resource.*` facts.
+- Reordered `scripts/rvv_generated_bundle_abi_e2e.py` so product-dequant Gearbox resource facts are materialized before selected-body realization; kept plain `dequantize_i32_to_f32` ordering unchanged because that MVP path consumes realized `with_vl` structure.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the generated-bundle pass-order contract.
+- Produced fresh evidence:
+  - `artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-gearbox-resource-fact-product-dequant-explicit-dry/evidence.json`
+  - `artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-gearbox-resource-fact-product-dequant-prerealized-dry/evidence.json`
+  - `artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-gearbox-resource-fact-product-dequant-explicit-ssh/evidence.json`
+  - `artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-gearbox-resource-fact-product-dequant-prerealized-ssh/evidence.json`
+- Both non-dry-run ssh runs reported `status=success`, `ssh_evidence=true`, `ssh_target=rvv`, remote compile/run success, counts `1,7,16,17,257`, scales `-0.125,0.375`, two data patterns, and `source_preserved accumulator_preserved tail_preserved`.
+- Checks: build targets, RVV plugin C++ smoke, target artifact C++ smoke, three focused lit filters via `/usr/lib/llvm-20/build/utils/lit/lit.py`, script self-test, explicit/pre-realized dry-runs, explicit/pre-realized ssh rvv runs, task validate, `git diff --check`, `git diff --cached --check`, and bounded added-line old-authority scan.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

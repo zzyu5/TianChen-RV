@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV Stage order, and artifact evidence boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local selected-body, resource fact, provider validation, and fail-closed rules"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route materialization boundary and no common RVV semantic authority"}
+{"file": ".trellis/tasks/archive/2026-06/06-06-rvv-gearbox-low-precision-resource-candidate-pass/prd.md", "reason": "Previous resource-fact pass/provider seam goals and completed non-runtime scope"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h", "reason": "Low-precision resource fact names and schedule/resource constants"}
+{"file": "lib/Plugin/RVV/RVVGearboxSchedules.cpp", "reason": "Gearbox pass production and stale/unsupported resource fact diagnostics"}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Pre-realized selected-body fact propagation into realized RVV body"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Provider-owned low-precision resource validation and route construction"}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Resource attributes allowed on selected-body operations"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated bundle ABI pipeline and ssh rvv execution evidence for product-dequant"}

@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Check Stage2 RVV artifact/runtime evidence stays on the corrected typed-body/provider chain"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check resource-fact production/consumption, selected-body realization, and fail-closed diagnostics"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check EmitC materialization remains neutral and provider-built routes own RVV semantics"}
+{"file": "test/Transforms/RVV/rvv-gearbox-widening-product-reduce-dequantize-f32.mlir", "reason": "Focused pass coverage for positive and stale/unsupported resource-fact behavior"}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir", "reason": "Explicit selected-body artifact/provider mirror validation"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir", "reason": "Pre-realized selected-body realization propagation and artifact/provider mirror validation"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated bundle ABI and non-dry-run ssh rvv correctness evidence path"}
