@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check against RVV-first authority chain and Stage2 scope"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check for RVV plugin-owned dequantization, Gearbox, ABI, and executable evidence requirements"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check that common EmitC/export only carries provider-built route facts"}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-widening-conversion-artifact-abi/prd.md", "reason": "Compare final dequant evidence and fail-closed posture against prior conversion closeout shape"}

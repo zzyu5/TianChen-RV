@@ -550,3 +550,36 @@ Audited and proved pre-realized RVV widening conversion generated artifact ABI b
 ### Next Steps
 
 - None - task complete
+
+
+## Session 492: Stage2 RVV dequantize i32-to-f32 Gearbox artifact ABI
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV dequantize i32-to-f32 Gearbox artifact ABI
+**Branch**: `main`
+
+### Summary
+
+Audited and proved explicit selected-body RVV dequantize i32-to-f32 Gearbox generated artifact ABI boundary with dry-run, fail-closed, C++ checks, and ssh rvv evidence; no production source change required.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

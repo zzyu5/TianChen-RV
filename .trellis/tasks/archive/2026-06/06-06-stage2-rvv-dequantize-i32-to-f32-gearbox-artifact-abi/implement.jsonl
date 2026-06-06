@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage2 boundary, and common stack constraints"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership for typed body facts, runtime scale, Gearbox schedule, route provider, and ssh evidence"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary and provider-owned route/operand binding contracts"}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-widening-conversion-artifact-abi/prd.md", "reason": "Prior conversion artifact ABI evidence shape and no-source-change audit precedent"}
