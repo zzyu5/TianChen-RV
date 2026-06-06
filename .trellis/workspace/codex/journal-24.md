@@ -1306,3 +1306,96 @@ in the same coherent commit as code, task archive, and test updates.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 506: Stage2 RVV resource-selected product dequant executable ABI
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV resource-selected product dequant executable ABI
+**Branch**: `main`
+
+### Summary
+
+Closed widening_product_reduce_dequantize_f32 executable artifact ABI boundary with explicit and pre-realized generated-bundle ssh rvv correctness evidence; no production source change required.
+
+### Main Changes
+
+### Summary
+
+Closed the Stage2 RVV resource-selected
+`widening_product_reduce_dequantize_f32` executable artifact ABI boundary with
+focused production seam audit, generated-bundle dry-run evidence, and explicit
+plus pre-realized `ssh rvv` correctness evidence. No production source change
+was required because the current provider/target path already consumes and
+validates provider-selected low-precision resource facts before route
+construction and artifact acceptance.
+
+### Main Changes
+
+- Created and completed the Trellis task
+  `06-06-stage2-rvv-resource-selected-dequantize-f32-executable-abi`.
+- Wrote the bounded PRD for this module owner, including non-goals, executable
+  evidence requirements, and evidence artifact paths.
+- Audited the RVV provider, direct-contraction resource selection, target
+  artifact validation, support bundle export, and generated-bundle script seam.
+- Recorded that no `.trellis/spec/` update is needed: the existing RVV
+  low-precision resource-aware closure, EmitC route, emission runtime, and
+  testing contracts already cover this round's evidence path.
+
+### Evidence
+
+- Explicit selected-body dry-run evidence:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-product-dequant-explicit-dry/evidence.json`
+- Pre-realized selected-body dry-run evidence:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-product-dequant-prerealized-dry/evidence.json`
+- Explicit selected-body `ssh rvv` correctness evidence:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-product-dequant-explicit-ssh/evidence.json`
+- Pre-realized selected-body `ssh rvv` correctness evidence:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-product-dequant-prerealized-ssh/evidence.json`
+- Both `ssh rvv` runs reported `success`, `ssh_evidence=true`, remote compile
+  and run success, runtime counts `1,7,16,17,257`, two data patterns, scale
+  values `-0.125,0.375`, and `source_preserved accumulator_preserved
+  tail_preserved`.
+
+### Testing
+
+- [OK] `ninja -C build tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `lit -sv . --filter explicit-selected-body-artifact-widening-product-reduce-dequantize-f32`
+- [OK] `lit -sv . --filter pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Explicit and pre-realized generated-bundle dry-runs for
+  `widening_product_reduce_dequantize_f32`
+- [OK] Explicit and pre-realized generated-bundle `ssh rvv` correctness runs
+  for `widening_product_reduce_dequantize_f32`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Bounded added-diff old-authority scan
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

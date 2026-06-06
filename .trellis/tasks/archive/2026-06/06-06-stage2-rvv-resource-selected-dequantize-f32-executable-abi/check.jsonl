@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check resource candidate facts, direct-contraction provider ownership, and fail-closed behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route, Common EmitC neutrality, ABI binding, product-reduction, and dequantization mirrors."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact export consumes materialized provider route and does not trust metadata-only authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused C++/lit/generated-bundle/ssh rvv evidence satisfies executable claim requirements."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check this round advances resource-aware Stage2 closure rather than evidence-only drift."}
