@@ -40,8 +40,6 @@ Expanded product-reduction-dequant-clamp generated artifact ABI binding evidence
 ### Next Steps
 
 - None - task complete
-
-
 ## Session 488: Stage2 RVV runtime-scalar compare-masked memory executable artifact ABI boundary
 
 **Date**: 2026-06-06
@@ -730,6 +728,61 @@ Revalidated scalar-broadcast MAcc add executable artifact ABI on current HEAD wi
   `-37,91`
 - [OK] focused lit filter for scalar-broadcast MAcc dry-run, fail-closed,
   target artifact, and dispatch-negative tests: 6/6 passed
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 496: Stage2 RVV computed-masked MAcc add executable artifact ABI boundary
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV computed-masked MAcc add executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Revalidated computed-masked MAcc add executable artifact ABI on current HEAD
+with explicit and pre-realized generated bundles on ssh rvv; no compiler source
+change required.
+
+### Main Changes
+
+- Created the Trellis task for computed-masked MAcc add artifact ABI evidence.
+- Audited the production computed-mask MAcc selected-body realization, provider
+  facts, computed-mask accumulation statement plan, target validation, script,
+  and fixtures.
+- Recorded a no-source-change conclusion: current production code already
+  derives compare mask, active MAcc, inactive accumulator preservation,
+  accumulator/result roles, ABI/header bindings, runtime AVL/VL, and target
+  metadata from provider-owned typed body/config/runtime facts.
+- Re-ran current-HEAD explicit and pre-realized generated bundle evidence on
+  `ssh rvv`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | rvv: prove computed masked macc add artifact abi |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] explicit generated bundle `ssh rvv` run for
+  `computed_masked_macc_add`, counts `0,1,7,16,23,257`, patterns `0,1`
+- [OK] pre-realized generated bundle `ssh rvv` run for
+  `computed_masked_macc_add`, counts `0,1,7,16,23,257`, patterns `0,1`
+- [OK] focused lit filter for computed-masked MAcc dry-run, fail-closed, and
+  target artifact fixtures: 6/6 passed
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-06-stage2-rvv-computed-masked-macc-add-artifact-abi`
 - [OK] `git diff --check`
 - [OK] `git diff --cached --check`
 
