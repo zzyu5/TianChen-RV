@@ -4643,6 +4643,36 @@ enumerates legal candidates, estimates resource pressure, rejects impossible or
 unsafe candidates, and consumes the selected schedule into realized `tcrv_rvv`
 structure or provider-owned plans before route construction.
 
+Current implementation calibration:
+
+- `--tcrv-rvv-materialize-gearbox-schedules` is the currently registered RVV
+  Gearbox MVP pass. It materializes bounded static schedule facts for selected
+  typed `dequantize_i32_to_f32` bodies and must not be described as the completed
+  resource-aware autotuner.
+- The low-precision direct-contraction resource candidate seed introduced after
+  the product-dequant route repairs is a provider/target-validation contract for
+  future pass output. It is a structural home for resource candidate and selected
+  candidate facts, not yet a separately registered MLIR pass.
+- Product-dequant and product-dequant-clamp executable ABI evidence proves route
+  and artifact behavior for those representatives. It is not a performance or
+  llama.cpp parity claim.
+
+The target RVV plugin-local pass pipeline is:
+
+```text
+selected typed tcrv_rvv body
+  -> build resource candidates
+  -> prune by legality/resource model
+  -> select resource candidate
+  -> realize selected candidate into tcrv_rvv structure
+     or transitional provider-owned plan
+  -> provider-built TCRVEmitCLowerableRoute
+```
+
+During the transitional period, provider-owned plans are acceptable only when
+they are validated and consumed before route construction. They must not become
+metadata authority.
+
 ### 2. Signatures
 
 Resource-aware low-precision contraction work must introduce or preserve a
@@ -4685,6 +4715,8 @@ the route provider claims resource-aware tuning.
 - Resource pruning must consider at least SEW/LMUL/EMUL legality, widening
   pressure, accumulator count, mask/v0 usage, peak live vector groups, memory
   form/stride, and vsetvl region count.
+- Resource-aware pruning happens before optional profile/runtime feedback. It is
+  not pure black-box benchmarking after code generation.
 - A selected candidate must be consumed by selected-body realization, provider
   planning, or target artifact validation before route construction. Mirroring a
   candidate in artifact metadata is insufficient.

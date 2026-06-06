@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Classify and, if retained, verify RVV Gearbox/resource-aware wording preserves plugin authority and current implementation status."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Classify and, if retained, verify pass-pipeline/tuning wording does not claim route or completed autotuner authority."}
+{"file": "artifacts/tianchenrv_rvv_gearbox_autotuning_pass_v3.md", "reason": "Classify and repair current-state calibration in the Gearbox interpretation artifact."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-06-06-rvv-gearbox-pass-pipeline-wording/prd.md", "reason": "Repair stale archived wording-task evidence references if retaining and committing the archive."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-rvv-gearbox-worktree-coherence/prd.md", "reason": "Record the redirect coherence task boundary, classification, acceptance criteria, and completion notes."}

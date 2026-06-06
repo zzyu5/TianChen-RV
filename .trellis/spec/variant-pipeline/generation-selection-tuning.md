@@ -139,6 +139,20 @@ Selection must not:
 Tuning is capability-aware and variant-local. It may propose hints/policy, but
 code-affecting choices must be realized into body structure.
 
+For RVV, Gearbox/resource-aware selected-body realization is implemented as an
+RVV plugin-local MLIR pass pipeline. "Realization" names the compiler
+transformation result and stage:
+
+```text
+selected pre-realized typed tcrv_rvv body
+  -> RVV plugin-local Gearbox/resource-aware pass pipeline
+  -> realized typed tcrv_rvv body
+     or transitional provider-owned plan consumed before route construction
+```
+
+It does not mean this logic lives outside MLIR passes, and it must not be moved
+into Common EmitC or target artifact metadata.
+
 For RVV, realization may materialize:
 
 ```text
@@ -180,6 +194,46 @@ The current bounded Gearbox schedule materialization style is an MVP unless it
 enumerates and prunes candidates with such resource facts. A fixed static
 candidate, fixed unroll, or fixed LMUL schedule is not a completed
 resource-aware autotuning pass.
+
+Current implementation calibration:
+
+```text
+--tcrv-rvv-materialize-gearbox-schedules
+  = current MVP static Gearbox schedule materialization pass
+  = bounded dequantize_i32_to_f32 candidate_set / selected_candidate facts
+  != full resource-aware autotuner
+
+low-precision direct-contraction resource candidate seed
+  = provider/target validation contract for future pass output
+  != separately registered MLIR pass yet
+```
+
+The target pass evolution may be split as:
+
+```text
+tcrv-rvv-build-resource-candidates
+tcrv-rvv-prune-resource-candidates
+tcrv-rvv-select-resource-candidate
+tcrv-rvv-realize-selected-candidate
+```
+
+or initially implemented as one bounded pass such as
+`tcrv-rvv-realize-gearbox`, provided the internal build/prune/select/realize
+phases remain explicit and testable.
+
+Autotuning modes are layered:
+
+- Static/AOT mode: select by deterministic legality/resource/cost model.
+- Offline profile mode: generate candidates, compile, optionally inspect
+  assembly or run on `ssh rvv`, then cache the winner for a tuning key.
+- JIT/runtime mode: tune the first occurrence of a key, reuse the cached gear for
+  matching keys, and fall back to the static selector when runtime tuning is not
+  available.
+
+The tuning key may include target identity, VLEN/ELEN, operation signature,
+dtype/quantization scheme, memory form, and shape buckets such as `N` or
+`M/N/K`. Data values are not part of the key unless a data-dependent property is
+explicitly modeled.
 
 llama.cpp q8/q4 examples are representative pressure tests for this contract.
 They must be treated as low-precision direct-contraction maturity signals, not

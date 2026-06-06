@@ -22,6 +22,63 @@ TianChen-RV RVV Gearbox Autotuning Pass
 
 这就是 RISC-V/RVV 版的 Triton-style autotuning：Triton 面向 GPU 调 BLOCK_SIZE、num_warps、num_stages；TianChen-RV 面向 RVV/RV 变体调 `e32,m1`、`e32,m2`、`e32,m4`、`e32,m8`、tile、unroll、vsetvl region、accumulator layout、pipeline、prefetch、remat 策略。
 
+## 0.1. 2026-06-06 当前实现状态校准
+
+这份 v3 文档描述的是目标方向，不等于当前实现已经完成完整
+autotuner。按当前仓库状态应该这样理解：
+
+```text
+已注册 MLIR pass:
+  --tcrv-rvv-materialize-gearbox-schedules
+
+当前成熟度:
+  Gearbox MVP static schedule materialization pass
+
+当前覆盖:
+  selected typed dequantize_i32_to_f32 body
+    -> bounded candidate_set
+    -> deterministic selected_candidate u2
+    -> tcrv_rvv.gearbox.* facts
+    -> provider / target validation consumes facts
+
+当前没有完成:
+  broad low-precision contraction autotune
+  dynamic LMUL/EMUL/unroll search
+  full resource pruning pass
+  asm/runtime feedback cache
+  llama.cpp parity timing claim
+```
+
+另外，`31bbcade rvv: seed low precision resource candidate` 已经把
+`widening_product_reduce_dequantize_f32` 这类低精度 direct-contraction 的
+resource candidate / selection facts 放进 provider/target validation seam，
+但它目前是 **future pass 的结构合同**，不是一个已经注册的独立 MLIR pass。
+`6877677e` 和 `ccd029b2` 证明的是 product-dequant/product-dequant-clamp 的
+executable ABI evidence，不是性能或 llama.cpp parity。
+
+所以现在最准确的说法是：
+
+```text
+current implementation:
+  tcrv-rvv-materialize-gearbox-schedules
+    = static Gearbox MVP pass
+
+current resource-aware foundation:
+  low-precision resource candidate/selection provider contract
+    = future resource-aware pass 的数据与验证基础
+
+target evolution:
+  tcrv-rvv-build-resource-candidates
+  tcrv-rvv-prune-resource-candidates
+  tcrv-rvv-select-resource-candidate
+  tcrv-rvv-realize-selected-candidate
+```
+
+这不是退回“metadata tuning”。Gearbox facts 或 resource candidate facts
+只有在被 selected-body realization、provider planning 或 target artifact
+validation 消费时才有意义；artifact name、route id、test name、q8/q4 名字
+和 llama.cpp kernel 名字都不能成为 route authority。
+
 ---
 
 ## 1. 为什么它必须是 pass

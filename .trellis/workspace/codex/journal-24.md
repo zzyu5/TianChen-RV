@@ -1462,3 +1462,58 @@ Closed the Stage2 RVV resource-selected `widening_product_reduce_dequant_clamp_f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 508: Redirect RVV Gearbox wording worktree coherence
+
+**Date**: 2026-06-06
+**Task**: Redirect RVV Gearbox wording worktree coherence
+**Branch**: `main`
+
+### Summary
+
+Classified and retained the stray RVV Gearbox wording/spec/artifact archive residue as a bounded coherence cleanup; repaired stale clamp evidence commit references to ccd029b2 and preserved route-authority boundaries.
+
+### Main Changes
+
+### Main Changes
+
+- Created and archived Trellis task `06-06-rvv-gearbox-worktree-coherence`.
+- Classified the dirty RVV Gearbox wording/spec/artifact/archive paths as valid to retain after fact repair.
+- Corrected stale product-dequant-clamp evidence references from non-current `dec212f4` to current branch commit `ccd029b2` in the Gearbox artifact and archived wording PRD.
+- Kept the retained wording bounded to current implementation calibration: Gearbox MVP pass, future resource-aware pass contract, provider/target validation consumption, and no completed-autotuner/performance/llama.cpp parity claim.
+- Did not modify compiler source, tests, pass registration, route providers, artifact generation, runtime scripts, or ssh rvv evidence.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/get_context.py --mode packages`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-06-rvv-gearbox-worktree-coherence`
+- [OK] retained wording stale-hash scan for `dec212f4`
+- [OK] bounded added-line old-authority scan; matches were negative authority wording only
+- [OK] `git diff --check`
+- [FIXED] Post-archive `task.py validate` initially found redirect task JSONL
+  entries pointing at the pre-archive PRD path; corrected them to the archive
+  path and reran validation successfully before amending the commit.
+
+### Status
+
+[OK] **Archived; ready for one coherent commit**
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

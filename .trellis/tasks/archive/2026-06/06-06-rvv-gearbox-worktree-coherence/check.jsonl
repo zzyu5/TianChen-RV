@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check retained wording does not create route support, executable support, metadata authority, or completed-autotuner claims."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check pass-pipeline wording remains plugin-local and keeps tuning modes layered by implementation maturity."}
+{"file": "artifacts/tianchenrv_rvv_gearbox_autotuning_pass_v3.md", "reason": "Check artifact current-state calibration uses current HEAD evidence and mirror/authority language correctly."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-06-06-rvv-gearbox-pass-pipeline-wording/prd.md", "reason": "Check archived wording-task notes no longer point at stale non-current clamp evidence."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-rvv-gearbox-worktree-coherence/prd.md", "reason": "Check the redirect task remains bounded to worktree coherence and final clean-status evidence."}
