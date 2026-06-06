@@ -2264,7 +2264,49 @@ struct RVVWideningProductRouteTypeMappingContract {
   llvm::StringRef label;
 };
 
+struct RVVContractionArtifactContractCore {
+  std::string emitCRouteID;
+  RVVSelectedBodyMemoryForm memoryForm =
+      RVVSelectedBodyMemoryForm::VectorRHSLoad;
+  std::string configContractID;
+  std::string runtimeControlPlanID;
+  std::string runtimeABIOrder;
+  std::string targetLeafProfile;
+  std::string providerSupportedMirror;
+  std::string requiredHeaderDeclarations;
+  std::string cTypeMappingSummary;
+  std::string routeOperandBindingPlanID;
+  std::string routeOperandBindingSummary;
+  std::string typedComputeOpName;
+  std::string vlCType;
+  std::string resultVectorTypeName;
+  std::string resultVectorCType;
+  std::string sourceVectorTypeName;
+  std::string sourceVectorCType;
+  std::string maskTypeName;
+  std::string maskCType;
+  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 9>
+      runtimeABIParameters;
+};
+
+RVVContractionArtifactContractCore getRVVContractionArtifactContractCore(
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    RVVSelectedBodyMemoryForm memoryForm, llvm::StringRef runtimeControlPlanID,
+    llvm::StringRef runtimeABIOrder, llvm::StringRef targetLeafProfile,
+    llvm::StringRef providerSupportedMirror,
+    llvm::StringRef requiredHeaderDeclarations,
+    llvm::StringRef cTypeMappingSummary,
+    llvm::StringRef routeOperandBindingPlanID,
+    llvm::StringRef routeOperandBindingSummary,
+    llvm::StringRef typedComputeOpName, llvm::StringRef vlCType,
+    llvm::StringRef resultVectorTypeName, llvm::StringRef resultVectorCType,
+    llvm::StringRef sourceVectorTypeName, llvm::StringRef sourceVectorCType,
+    llvm::StringRef maskTypeName, llvm::StringRef maskCType,
+    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter>
+        runtimeABIParameters);
+
 struct RVVWideningProductRouteValidationContract {
+  RVVContractionArtifactContractCore core;
   llvm::StringRef consumerLabel;
 
   std::string emitCRouteID;
@@ -2397,47 +2439,6 @@ struct RVVMAccRouteMetadataMirrorContractSet {
 std::optional<RVVMAccRouteMetadataMirrorContractSet>
 getRVVMAccRouteMetadataMirrorContract(
     const RVVSelectedBodyEmitCRouteDescription &description);
-
-struct RVVContractionArtifactContractCore {
-  std::string emitCRouteID;
-  RVVSelectedBodyMemoryForm memoryForm =
-      RVVSelectedBodyMemoryForm::VectorRHSLoad;
-  std::string configContractID;
-  std::string runtimeControlPlanID;
-  std::string runtimeABIOrder;
-  std::string targetLeafProfile;
-  std::string providerSupportedMirror;
-  std::string requiredHeaderDeclarations;
-  std::string cTypeMappingSummary;
-  std::string routeOperandBindingPlanID;
-  std::string routeOperandBindingSummary;
-  std::string typedComputeOpName;
-  std::string vlCType;
-  std::string resultVectorTypeName;
-  std::string resultVectorCType;
-  std::string sourceVectorTypeName;
-  std::string sourceVectorCType;
-  std::string maskTypeName;
-  std::string maskCType;
-  llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 9>
-      runtimeABIParameters;
-};
-
-RVVContractionArtifactContractCore getRVVContractionArtifactContractCore(
-    const RVVSelectedBodyEmitCRouteDescription &description,
-    RVVSelectedBodyMemoryForm memoryForm, llvm::StringRef runtimeControlPlanID,
-    llvm::StringRef runtimeABIOrder, llvm::StringRef targetLeafProfile,
-    llvm::StringRef providerSupportedMirror,
-    llvm::StringRef requiredHeaderDeclarations,
-    llvm::StringRef cTypeMappingSummary,
-    llvm::StringRef routeOperandBindingPlanID,
-    llvm::StringRef routeOperandBindingSummary,
-    llvm::StringRef typedComputeOpName, llvm::StringRef vlCType,
-    llvm::StringRef resultVectorTypeName, llvm::StringRef resultVectorCType,
-    llvm::StringRef sourceVectorTypeName, llvm::StringRef sourceVectorCType,
-    llvm::StringRef maskTypeName, llvm::StringRef maskCType,
-    llvm::ArrayRef<tianchenrv::support::RuntimeABIParameter>
-        runtimeABIParameters);
 
 enum class RVVMAccRouteValidationKind {
   Plain,

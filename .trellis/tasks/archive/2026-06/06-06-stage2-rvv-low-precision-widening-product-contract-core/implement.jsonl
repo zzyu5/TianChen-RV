@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project boundary: RVV-first authority chain, C++/MLIR stack, metadata mirror-only rule."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, contraction artifact core, low-precision/product-reduction boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary and product-reduction chain contract."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-low-precision-widening-product-contract-core/prd.md", "reason": "Current task PRD, scoped requirements, acceptance criteria, and non-goals."}

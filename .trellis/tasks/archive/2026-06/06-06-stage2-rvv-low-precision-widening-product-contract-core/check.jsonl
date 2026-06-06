@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global authority and stack constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV provider-owned contract-core and low-precision owner boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC remains neutral and target validation consumes provider facts."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-low-precision-widening-product-contract-core/prd.md", "reason": "Verify implementation against the scoped acceptance criteria."}

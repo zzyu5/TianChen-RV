@@ -10623,6 +10623,55 @@ bool expectRVVTargetArtifactExporterShape(
           {"runtime ABI parameter 0", "lhs", "const int8_t *"}))
     return false;
 
+  RVVRouteDescription staleWideningProductABIOrder =
+      wideningProductDescription;
+  staleWideningProductABIOrder.runtimeABIOrder = "lhs,out,rhs,n";
+  if (!expectWideningProductProviderFailure(
+          staleWideningProductABIOrder,
+          "low-precision widening-product registry rejects stale runtime ABI "
+          "order",
+          {"runtime ABI order", "lhs,rhs,out,n", "lhs,out,rhs,n"}))
+    return false;
+
+  RVVRouteDescription staleWideningProductBinding =
+      wideningProductDescription;
+  staleWideningProductBinding.routeOperandBindingSummary =
+      "rvv-route-operand-binding:widening_product_i8_i16.v1;"
+      "lhs=lhs-input-buffer:lhs:abi|src-load;"
+      "rhs=rhs-input-buffer:rhs:abi|src-load;"
+      "out=metadata-derived-buffer:out:abi|res-store;"
+      "n=runtime-element-count:n:abi|setvl-avl";
+  if (!expectWideningProductProviderFailure(
+          staleWideningProductBinding,
+          "low-precision widening-product registry rejects stale operand "
+          "binding facts",
+          {"route operand binding facts", "src-i8mf4", "res-i16mf2"}))
+    return false;
+
+  RVVRouteDescription staleWideningProductHeader =
+      wideningProductDescription;
+  staleWideningProductHeader.requiredHeaderDeclarations =
+      "stddef.h,stdint.h";
+  if (!expectWideningProductProviderFailure(
+          staleWideningProductHeader,
+          "low-precision widening-product registry rejects stale header "
+          "facts",
+          {"required header declarations", "stddef.h,stdint.h,riscv_vector.h",
+           "stddef.h,stdint.h"}))
+    return false;
+
+  RVVRouteDescription staleWideningProductCTypeMapping =
+      wideningProductDescription;
+  staleWideningProductCTypeMapping.cTypeMappingSummary =
+      "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b64";
+  if (!expectWideningProductProviderFailure(
+          staleWideningProductCTypeMapping,
+          "low-precision widening-product registry rejects stale C type "
+          "mapping facts",
+          {"C type mapping summary", "source:signed-e8mf4",
+           "result:signed-e16mf2"}))
+    return false;
+
   RVVRouteDescription staleWideningProductRelation =
       wideningProductDescription;
   staleWideningProductRelation.wideningProductRelation =
@@ -10689,6 +10738,24 @@ bool expectRVVTargetArtifactExporterShape(
           {"tcrv_rvv.widening_product_relation",
            "signed-i8mf4xi8mf4-to-i16mf2",
            "metadata-derived-widening-product-relation"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningProductCTypeMappingMirror =
+      wideningProductFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleWideningProductCTypeMappingMirror,
+          "tcrv_rvv.c_type_mapping",
+          "vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b64")) {
+    llvm::errs() << "test fixture did not contain widening-product C type "
+                    "mapping metadata\n";
+    return false;
+  }
+  if (!expectWideningProductCandidateFailure(
+          staleWideningProductCTypeMappingMirror,
+          "low-precision widening-product registry rejects stale C type "
+          "mapping mirror",
+          {"tcrv_rvv.c_type_mapping", "source:signed-e8mf4",
+           "result:signed-e16mf2"}))
     return false;
 
   TargetArtifactCandidate staleWideningProductMaskedIntrinsicMirror =
