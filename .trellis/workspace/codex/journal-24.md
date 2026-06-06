@@ -221,3 +221,58 @@ path.
 ### Next Steps
 
 - None - task complete
+
+## Session 491: Stage2 RVV segment2 unit-memory executable artifact ABI boundary
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV segment2 unit-memory artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Hardened focused target artifact evidence for the plain segment2 unit-memory
+interleave/deinterleave executable ABI seam. The production validator already
+consumes `RVVSegment2MemoryRouteValidationContract`; this round added rebuilt
+route payload negative coverage for plain segment2 and collected non-dry-run
+`ssh rvv` generated-bundle correctness evidence for both routes.
+
+### Main Changes
+
+- Created the Trellis PRD for the segment2 unit-memory artifact ABI boundary.
+- Added target C++ checks proving plain segment2 deinterleave rejects a missing
+  rebuilt `riscv_vector.h` header, stale vector type mapping, and stale `src`
+  ABI value mapping.
+- Added target C++ checks proving plain segment2 interleave rejects a missing
+  rebuilt `riscv_vector.h` header, stale vector type mapping, and stale `src0`
+  ABI value mapping.
+- Ran non-dry-run generated-bundle evidence on `ssh rvv` for
+  `segment2_interleave_unit_load` and `segment2_deinterleave_unit_store`,
+  covering runtime counts `0,1,7,16,23,257` for interleave and
+  `0,1,7,16,17,23,257` for deinterleave.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | rvv: prove segment2 unit memory artifact abi |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'segment2-(interleave-unit-load|deinterleave-unit-store)'` from `build/test`: 8/8 passed
+- [OK] Non-dry-run `scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind segment2_interleave_unit_load` passed with `ssh_evidence: true`
+- [OK] Non-dry-run `scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind segment2_deinterleave_unit_store` passed with `ssh_evidence: true`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded staged added-line old-authority scan over the touched C++ test
+
+### Status
+
+[OK] **Ready to archive and commit**
+
+### Next Steps
+
+- Archive task and create the final commit.

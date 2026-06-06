@@ -14497,6 +14497,34 @@ bool expectRVVTargetArtifactExporterShape(
            "header/prototype marker 'hdr'"}))
     return false;
 
+  if (!expectPlainDeinterleaveRouteFailure(
+          cloneRVVEmitCLowerableRouteWithoutHeader(segment2DeinterleaveRoute,
+                                                   "riscv_vector.h"),
+          "plain segment2 deinterleave validator rejects missing rebuilt route "
+          "header",
+          {"rebuilt provider route header", "riscv_vector.h"}))
+    return false;
+
+  if (!expectPlainDeinterleaveRouteFailure(
+          cloneRVVEmitCLowerableRouteWithTypeMappingOverride(
+              segment2DeinterleaveRoute,
+              segment2DeinterleaveDescription.vectorTypeName,
+              "metadata_vector_t"),
+          "plain segment2 deinterleave validator rejects stale rebuilt route "
+          "vector type mapping",
+          {"rebuilt provider route type mapping",
+           segment2DeinterleaveDescription.vectorTypeName,
+           segment2DeinterleaveDescription.vectorCType}))
+    return false;
+
+  if (!expectPlainDeinterleaveRouteFailure(
+          cloneRVVEmitCLowerableRouteWithABIValueOverride(
+              segment2DeinterleaveRoute, 0, "metadata_src"),
+          "plain segment2 deinterleave validator rejects stale rebuilt route "
+          "ABI value mapping",
+          {"rebuilt provider route ABI mapping[0]", "src", "metadata_src"}))
+    return false;
+
   TargetArtifactCandidate wrongDeinterleaveProviderMirrorCandidate =
       segment2DeinterleaveFixture.candidate;
   if (!rewriteArtifactMetadataValue(
@@ -14816,6 +14844,35 @@ bool expectRVVTargetArtifactExporterShape(
           "binding markers",
           {"logical operand 'src0'", "provider ABI marker 'abi'",
            "header/prototype marker 'hdr'"}))
+    return false;
+
+  if (!expectPlainInterleaveRouteFailure(
+          cloneRVVEmitCLowerableRouteWithoutHeader(segment2InterleaveRoute,
+                                                   "riscv_vector.h"),
+          "plain segment2 interleave validator rejects missing rebuilt route "
+          "header",
+          {"rebuilt provider route header", "riscv_vector.h"}))
+    return false;
+
+  if (!expectPlainInterleaveRouteFailure(
+          cloneRVVEmitCLowerableRouteWithTypeMappingOverride(
+              segment2InterleaveRoute,
+              segment2InterleaveDescription.vectorTypeName,
+              "metadata_vector_t"),
+          "plain segment2 interleave validator rejects stale rebuilt route "
+          "vector type mapping",
+          {"rebuilt provider route type mapping",
+           segment2InterleaveDescription.vectorTypeName,
+           segment2InterleaveDescription.vectorCType}))
+    return false;
+
+  if (!expectPlainInterleaveRouteFailure(
+          cloneRVVEmitCLowerableRouteWithABIValueOverride(
+              segment2InterleaveRoute, 0, "metadata_src0"),
+          "plain segment2 interleave validator rejects stale rebuilt route ABI "
+          "value mapping",
+          {"rebuilt provider route ABI mapping[0]", "src0",
+           "metadata_src0"}))
     return false;
 
   TargetArtifactCandidate wrongInterleaveProviderMirrorCandidate =
