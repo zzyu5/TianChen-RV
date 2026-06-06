@@ -702,7 +702,19 @@ Audited and proved explicit selected-body RVV dequantize i32-to-f32 Gearbox gene
 
 ### Main Changes
 
-(Add details)
+- Created and archived the Trellis task/PRD for the computed-masked widening
+  dot-reduce-add executable artifact ABI boundary.
+- Audited the RVV contraction selected-body realization validator, direct
+  contraction provider facts, direct statement-plan owner, route provider,
+  target artifact validation, generated-bundle runner, and explicit/pre-realized
+  computed-mask fixtures.
+- Recorded a no-source-change conclusion: current production code already
+  derives compare-produced mask facts, inactive-lane zeroing, i16/mf2 dot
+  source roles, i32/m1 scalar seed/result boundary, runtime AVL/VL,
+  `cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n` ABI order, provider operand bindings,
+  and target validation facts from RVV-owned typed body/config/runtime facts.
+- Re-ran explicit and pre-realized computed-mask generated bundle evidence on
+  `ssh rvv`.
 
 ### Git Commits
 
@@ -712,7 +724,18 @@ Audited and proved explicit selected-body RVV dequantize i32-to-f32 Gearbox gene
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] explicit generated bundle `ssh rvv` run for
+  `computed_masked_widening_dot_reduce_add`, counts `0,1,7,16,17,23,257`
+- [OK] pre-realized generated bundle `ssh rvv` run for
+  `computed_masked_widening_dot_reduce_add`, counts `0,1,7,16,17,23,257`
+- [OK] focused lit filter for computed-mask widening dot-reduce target
+  artifact, dry-run, and direct pre-realized fail-closed tests: 5/5 passed
+- [OK] `git diff --check` and `git diff --cached --check`
+- [OK] bounded old-authority scan found no production source changes and no
+  positive legacy route authority in added task notes
 
 ### Status
 
@@ -999,6 +1022,39 @@ ABI seam on current HEAD with explicit and pre-realized generated bundles on
 - [OK] `git diff --check` and `git diff --cached --check`
 - [OK] bounded old-authority scan over added task diff lines found no new
   positive legacy route authority
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 500: Stage2 RVV computed-mask widening dot reduce artifact ABI
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV computed-mask widening dot reduce artifact ABI
+**Branch**: `main`
+
+### Summary
+
+Closed computed-masked widening dot-reduce-add executable artifact ABI boundary with explicit and pre-realized generated bundle ssh rvv evidence; no production source change required.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
 
 ### Status
 
