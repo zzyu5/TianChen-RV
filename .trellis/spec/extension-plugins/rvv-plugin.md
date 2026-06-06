@@ -2266,6 +2266,14 @@ fields only after provider route construction.
   field-role, mask-producer where applicable, and runtime-control facts ->
   materialization facts -> memory operand-binding facts -> route-control
   provider plan -> segment2 memory statement plan -> provider-built route.
+- Good: typed runtime-scalar computed-mask segment2 load `tcrv_rvv` body ->
+  runtime scalar ABI binding for `lhs` and `rhs_scalar` -> RVV-local scalar
+  splat/compare producer facts -> segment2 masked-load facts with interleaved
+  `src`, old `out0`/`out1` passthrough loads, `out0`/`out1` stores, runtime
+  `n`, and field ordering -> provider-built route. Missing or stale
+  runtime-scalar producer source, ABI order, mask provenance, inactive-lane
+  passthrough, or field role facts must fail closed before common EmitC or
+  target artifact export.
 - Good: typed runtime scalar splat-store `tcrv_rvv` body -> runtime scalar
   splat-store family plan verifier with scalar input, vector result, memory-form,
   splat/store leaves, and runtime-control facts -> materialization facts ->

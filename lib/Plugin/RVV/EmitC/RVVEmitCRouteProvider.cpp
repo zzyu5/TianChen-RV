@@ -86,6 +86,7 @@ llvm::Error addSegment2RouteTypeMappingsFromProviderPlan(
   route.addTypeMapping(plan.vlTypeName, plan.vlCType);
   route.addTypeMapping(plan.vectorTypeName, plan.vectorCType);
   if (plan.plansComputedMaskSegment2LoadUnitStore ||
+      plan.plansRuntimeScalarComputedMaskSegment2LoadUnitStore ||
       plan.plansComputedMaskSegment2StoreUnitLoad ||
       plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad ||
       plan.plansComputedMaskSegment2UpdateUnitLoad) {
@@ -121,10 +122,12 @@ llvm::Error addSegment2RouteABIMappingsFromProviderPlan(
     llvm::StringRef context) {
   llvm::SmallVector<const support::RuntimeABIParameter *, 6> parameters;
   if (plan.plansComputedMaskSegment2LoadUnitStore ||
+      plan.plansRuntimeScalarComputedMaskSegment2LoadUnitStore ||
       plan.plansComputedMaskSegment2StoreUnitLoad ||
       plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad ||
       plan.plansComputedMaskSegment2UpdateUnitLoad) {
-    if (plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad) {
+    if (plan.plansRuntimeScalarComputedMaskSegment2LoadUnitStore ||
+        plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad) {
       if (llvm::Error error = appendSegment2RouteABIParameter(
               parameters, plan.compareLhsABI, "lhs", plan, context))
         return error;
@@ -142,14 +145,16 @@ llvm::Error addSegment2RouteABIMappingsFromProviderPlan(
   }
 
   if (plan.plansPlainSegment2DeinterleaveUnitStore ||
-      plan.plansComputedMaskSegment2LoadUnitStore) {
+      plan.plansComputedMaskSegment2LoadUnitStore ||
+      plan.plansRuntimeScalarComputedMaskSegment2LoadUnitStore) {
     if (llvm::Error error = appendSegment2RouteABIParameter(
             parameters, plan.sourceABI, "src", plan, context))
       return error;
   }
 
   if (plan.plansPlainSegment2DeinterleaveUnitStore ||
-      plan.plansComputedMaskSegment2LoadUnitStore) {
+      plan.plansComputedMaskSegment2LoadUnitStore ||
+      plan.plansRuntimeScalarComputedMaskSegment2LoadUnitStore) {
     if (llvm::Error error = appendSegment2RouteABIParameter(
             parameters, plan.field0ABI, "out0", plan, context))
       return error;

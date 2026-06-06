@@ -1,0 +1,29 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage 2 selected-body realization boundary, and invalid descriptor/common-EmitC authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local route ownership, selected-body realization, segment2 route-family facts, and fail-closed contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and neutral common EmitC materialization contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/C++/generated-bundle/ssh rvv evidence requirements for executable RVV claims."}
+{"file": ".trellis/tasks/archive/2026-06/06-07-rvv-prerealized-runtime-scalar-cmp-segment2-store-abi/prd.md", "reason": "Bounded store-side reference for runtime scalar cmp selected-body realization, route facts, generated bundle ABI, and ssh rvv evidence."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Added the typed runtime-scalar computed-mask segment2 load pre-realized body op as the selected-body source."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Added verifier coverage for runtime scalar comparison operands, mask facts, segment2 source, old field passthroughs, output roles, dtype/config, policy, and runtime AVL."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVConfigContract.h", "reason": "Declared the runtime ABI parameter contract for runtime-scalar computed-mask segment2 load."}
+{"file": "lib/Dialect/RVV/IR/RVVConfigContract.cpp", "reason": "Defined ABI order lhs,rhs_scalar,src,out0,out1,n for the generated artifact boundary."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h", "reason": "Exposed RVV owner-local validation and realization entry points for the pre-realized runtime-scalar segment2 load body."}
+{"file": "lib/Plugin/RVV/RVVSegment2MemorySelectedBodyRealizationOwner.cpp", "reason": "Registered the RVV selected-body realization owner for the new pre-realized body."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Extended provider-local runtime ABI binding slots for runtime-scalar segment2 load/store route construction."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Added planning flags for runtime-scalar computed-mask segment2 load statement families."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Added route analysis, materialization facts, ABI binding, metadata mirrors, and fail-closed validation for runtime-scalar computed-mask segment2 load."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Mapped the runtime-scalar segment2 load provider route to lhs/rhs_scalar/src/out0/out1/n ABI parameters before common EmitC materialization."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCControlPolicyPlanOwners.cpp", "reason": "Classified runtime-scalar segment2 load as a computed-mask segment2 load-merge consumer and split stale route-control diagnostics by operation, producer, direction, and segment count."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCMemoryStatementPlanOwners.cpp", "reason": "Routed runtime-scalar segment2 load through the computed-mask memory statement planning surface."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "Adopted runtime-scalar segment2 load as a segment2 memory statement-plan consumer."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCSegment2RouteFamilyPlanOwners.cpp", "reason": "Implemented segment2 family owner validation/realization, provider facts, route operand binding, metadata, and runtime-scalar producer-source checks for the load seam."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Extended target artifact validation so runtime-scalar segment2 load consumes the same provider fact surface and rejects stale metadata."}
+{"file": "lib/Plugin/RVV/Construction/RVVConstructionProtocol.cpp", "reason": "Added construction protocol recognition for the runtime-scalar computed-mask segment2 load route family."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Added explicit and pre-realized generated bundle support, harness oracle, dry-run evidence, and ssh rvv runtime checks for runtime-scalar masked segment2 load."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Updated owner registry and fail-closed route-control diagnostics for the expanded segment2 owner surface."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-segment2-load.mlir", "reason": "Added explicit selected-body positive and stale-producer fail-closed artifact fixture."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-segment2-load.mlir", "reason": "Added pre-realized selected-body realization, artifact export, metadata, and stale-producer fail-closed fixture."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-segment2-load-dry-run.test", "reason": "Added dry-run generated-bundle evidence for explicit selected-body runtime-scalar segment2 load."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-segment2-load-dry-run.test", "reason": "Added dry-run generated-bundle evidence for pre-realized runtime-scalar segment2 load."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Captured the RVV plugin owner boundary for runtime-scalar computed-mask segment2 load."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Captured the provider-owned EmitC route and target artifact fact surface for runtime-scalar computed-mask segment2 load."}

@@ -27,6 +27,9 @@ constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskSegment2StoreOperandBindingPlanID(
         "rvv-route-operand-binding:runtime_scalar_cmp_masked_segment2_store_unit_load.v1");
 constexpr llvm::StringLiteral
+    kRVVRuntimeScalarComputedMaskSegment2LoadOperandBindingPlanID(
+        "rvv-route-operand-binding:runtime_scalar_cmp_masked_segment2_load_unit_store.v1");
+constexpr llvm::StringLiteral
     kRVVComputedMaskSegment2UpdateOperandBindingPlanID(
         "rvv-route-operand-binding:cmseg2_update_unit_load.v1");
 constexpr llvm::StringLiteral
@@ -43,6 +46,9 @@ constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreRuntimeABIOrder(
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskSegment2StoreRuntimeABIOrder(
         "lhs,rhs_scalar,src0,src1,dst,n");
+constexpr llvm::StringLiteral
+    kRVVRuntimeScalarComputedMaskSegment2LoadRuntimeABIOrder(
+        "lhs,rhs_scalar,src,out0,out1,n");
 constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateRuntimeABIOrder(
     "cmp_lhs,cmp_rhs,src0,src1,dst,n");
 constexpr llvm::StringLiteral kRVVSegment2DeinterleaveRuntimeABIOrder(
@@ -224,6 +230,11 @@ bool isPreRealizedComputedMaskSegment2LoadOpKind(llvm::StringRef opKind) {
   return opKind == "computed_masked_segment2_load_unit_store";
 }
 
+bool isPreRealizedRuntimeScalarComputedMaskSegment2LoadOpKind(
+    llvm::StringRef opKind) {
+  return opKind == "runtime_scalar_cmp_masked_segment2_load_unit_store";
+}
+
 bool isPreRealizedComputedMaskSegment2StoreOpKind(llvm::StringRef opKind) {
   return opKind == "computed_masked_segment2_store_unit_load" ||
          opKind == "computed_masked_segment2_update_unit_load";
@@ -261,6 +272,11 @@ bool isPreRealizedComputedMaskSegment2StoreMemoryForm(
 bool isPreRealizedRuntimeScalarComputedMaskSegment2StoreMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-unit-load-segment2-store";
+}
+
+bool isPreRealizedRuntimeScalarComputedMaskSegment2LoadMemoryForm(
+    llvm::StringRef memoryForm) {
+  return memoryForm == "computed-mask-segment2-load-unit-store";
 }
 
 bool isPreRealizedComputedMaskSegment2MaskRole(llvm::StringRef role) {
@@ -496,6 +512,9 @@ getExpectedRVVSelectedBodySegment2RouteOperandBindingPlanIDImpl(
   switch (operation) {
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
     return kRVVComputedMaskSegment2LoadOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskSegment2LoadUnitStore:
+    return kRVVRuntimeScalarComputedMaskSegment2LoadOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
     return kRVVComputedMaskSegment2StoreOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::
@@ -521,6 +540,20 @@ getExpectedRVVSelectedBodySegment2RouteOperandBindingRoleImpl(
       return RuntimeABIParameterRole::LHSInputBuffer;
     if (logicalOperand == "cmp_rhs")
       return RuntimeABIParameterRole::RHSInputBuffer;
+    if (logicalOperand == "src")
+      return RuntimeABIParameterRole::SourceInputBuffer;
+    if (logicalOperand == "out0")
+      return RuntimeABIParameterRole::SegmentField0OutputBuffer;
+    if (logicalOperand == "out1")
+      return RuntimeABIParameterRole::SegmentField1OutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVRuntimeScalarComputedMaskSegment2LoadOperandBindingPlanID) {
+    if (logicalOperand == "lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "rhs_scalar")
+      return RuntimeABIParameterRole::RHSScalarValue;
     if (logicalOperand == "src")
       return RuntimeABIParameterRole::SourceInputBuffer;
     if (logicalOperand == "out0")
@@ -602,6 +635,34 @@ deriveRVVSelectedBodySegment2RouteOperandBindingPlanImpl(
     addSegment2RouteOperandBinding(
         plan, "cmp_rhs", analysis.slice.rhsABI,
         {"abi", "cmp-rhs-load", "rhs-call", "hdr"});
+    addSegment2RouteOperandBinding(
+        plan, "src", analysis.slice.sourceABI,
+        {"abi", "mseg-base", "mseg-call", "src-mem", "hdr"});
+    addSegment2RouteOperandBinding(
+        plan, "out0", analysis.slice.field0ABI,
+        {"abi", "old0-load", "f0-pass", "f0-store", "f0-role", "dst-mem",
+         "hdr"});
+    addSegment2RouteOperandBinding(
+        plan, "out1", analysis.slice.field1ABI,
+        {"abi", "old1-load", "f1-pass", "f1-store", "f1-role", "dst-mem",
+         "hdr"});
+    addSegment2RouteOperandBinding(
+        plan, "n", analysis.slice.runtimeElementCountABI,
+        {"abi", "setvl-avl", "loop-control", "hdr"});
+    break;
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskSegment2LoadUnitStore:
+    plan.planID =
+        kRVVRuntimeScalarComputedMaskSegment2LoadOperandBindingPlanID.str();
+    expectedRuntimeABIOrder =
+        kRVVRuntimeScalarComputedMaskSegment2LoadRuntimeABIOrder;
+    context = "runtime_scalar_cmp_masked_segment2_load_unit_store route";
+    addSegment2RouteOperandBinding(
+        plan, "lhs", analysis.slice.lhsABI,
+        {"abi", "cmp-lhs-load", "lhs-call", "hdr"});
+    addSegment2RouteOperandBinding(
+        plan, "rhs_scalar", analysis.slice.rhsABI,
+        {"abi", "splat", "rhs-call", "hdr"});
     addSegment2RouteOperandBinding(
         plan, "src", analysis.slice.sourceABI,
         {"abi", "mseg-base", "mseg-call", "src-mem", "hdr"});
@@ -766,6 +827,15 @@ bool isRVVSelectedBodyComputedMaskSegment2LoadRouteFamilyPlanningConsumer(
              RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore;
 }
 
+bool isRVVSelectedBodyRuntimeScalarComputedMaskSegment2LoadRouteFamilyPlanningConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return description.operation ==
+             RVVSelectedBodyOperationKind::
+                 RuntimeScalarComputedMaskSegment2LoadUnitStore &&
+         description.memoryForm ==
+             RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore;
+}
+
 bool isRVVSelectedBodyComputedMaskSegment2StoreRouteFamilyPlanningConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return description.operation ==
@@ -870,6 +940,9 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
   const bool isComputedMaskSegment2Load =
       expectedOperation ==
       RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
+  const bool isRuntimeScalarComputedMaskSegment2Load =
+      expectedOperation == RVVSelectedBodyOperationKind::
+                               RuntimeScalarComputedMaskSegment2LoadUnitStore;
   const bool isComputedMaskSegment2Store =
       expectedOperation ==
       RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
@@ -882,15 +955,22 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
   const bool isComputedMaskSegment2StoreLike =
       isComputedMaskSegment2Store ||
       isRuntimeScalarComputedMaskSegment2Store || isComputedMaskSegment2Update;
+  const bool isComputedMaskSegment2LoadLike =
+      isComputedMaskSegment2Load || isRuntimeScalarComputedMaskSegment2Load;
+  const bool isRuntimeScalarComputedMaskSegment2 =
+      isRuntimeScalarComputedMaskSegment2Load ||
+      isRuntimeScalarComputedMaskSegment2Store;
   const bool isPlainSegment2 = isPlainDeinterleave || isPlainInterleave;
   const bool isComputedMaskSegment2 =
-      isComputedMaskSegment2Load || isComputedMaskSegment2StoreLike;
+      isComputedMaskSegment2LoadLike || isComputedMaskSegment2StoreLike;
 
   plan.plansSegment2MemoryRoute = true;
   plan.selectedBodyFamilyName = familyName;
   plan.plansPlainSegment2DeinterleaveUnitStore = isPlainDeinterleave;
   plan.plansPlainSegment2InterleaveUnitLoad = isPlainInterleave;
   plan.plansComputedMaskSegment2LoadUnitStore = isComputedMaskSegment2Load;
+  plan.plansRuntimeScalarComputedMaskSegment2LoadUnitStore =
+      isRuntimeScalarComputedMaskSegment2Load;
   plan.plansComputedMaskSegment2StoreUnitLoad = isComputedMaskSegment2Store;
   plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad =
       isRuntimeScalarComputedMaskSegment2Store;
@@ -956,12 +1036,12 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
     if (computedPlan.operation != description.operation ||
         computedPlan.memoryForm != description.memoryForm ||
         computedPlan.usesRuntimeScalarProducer !=
-            isRuntimeScalarComputedMaskSegment2Store ||
+            isRuntimeScalarComputedMaskSegment2 ||
         computedPlan.usesVectorCompareProducer !=
-            !isRuntimeScalarComputedMaskSegment2Store ||
-        computedPlan.usesLoadMerge != isComputedMaskSegment2Load ||
+            !isRuntimeScalarComputedMaskSegment2 ||
+        computedPlan.usesLoadMerge != isComputedMaskSegment2LoadLike ||
         computedPlan.usesStoreOnly != isComputedMaskSegment2StoreLike ||
-        computedPlan.usesSegment2Load != isComputedMaskSegment2Load ||
+        computedPlan.usesSegment2Load != isComputedMaskSegment2LoadLike ||
         computedPlan.usesSegment2Store != isComputedMaskSegment2StoreLike ||
         computedPlan.usesSegment2Update != isComputedMaskSegment2Update)
       return makeRVVEmitCRouteProviderError(
@@ -1005,7 +1085,7 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
     plan.vectorLoadIntrinsic = computedPlan.vectorLoadIntrinsic;
     plan.storeIntrinsic = computedPlan.maskedStoreIntrinsic;
     plan.rhsScalarSplatIntrinsic =
-        isRuntimeScalarComputedMaskSegment2Store
+        isRuntimeScalarComputedMaskSegment2
             ? computedPlan.rhsScalarSplatIntrinsic
             : llvm::StringRef();
     plan.compareIntrinsic = computedPlan.compareIntrinsic;
@@ -1154,10 +1234,10 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
   if (isComputedMaskSegment2) {
     if (llvm::Error error = requireRVVSegment2RouteFamilyProviderPlanABI(
             plan.compareLhsABI,
-            isRuntimeScalarComputedMaskSegment2Store ? "lhs" : "cmp_lhs",
+            isRuntimeScalarComputedMaskSegment2 ? "lhs" : "cmp_lhs",
             description, context))
       return std::move(error);
-    if (isRuntimeScalarComputedMaskSegment2Store) {
+    if (isRuntimeScalarComputedMaskSegment2) {
       if (llvm::Error error = requireRVVSegment2RouteFamilyProviderPlanABI(
               plan.rhsScalarABI, "rhs_scalar", description, context))
         return std::move(error);
@@ -1167,7 +1247,7 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
         return std::move(error);
     }
   }
-  if (isPlainDeinterleave || isComputedMaskSegment2Load)
+  if (isPlainDeinterleave || isComputedMaskSegment2LoadLike)
     if (llvm::Error error = requireRVVSegment2RouteFamilyProviderPlanABI(
             plan.sourceABI, "src", description, context))
       return std::move(error);
@@ -1203,7 +1283,7 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
     if (llvm::Error error = requireRVVSegment2RouteFamilyProviderPlanLeaf(
             plan.compareIntrinsic, "compare callee", description, context))
       return std::move(error);
-  if (isRuntimeScalarComputedMaskSegment2Store)
+  if (isRuntimeScalarComputedMaskSegment2)
     if (llvm::Error error = requireRVVSegment2RouteFamilyProviderPlanLeaf(
             plan.rhsScalarSplatIntrinsic, "runtime scalar splat callee",
             description, context))
@@ -1213,7 +1293,7 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
             plan.arithmeticIntrinsic, "arithmetic callee", description,
             context))
       return std::move(error);
-  if (isPlainDeinterleave || isComputedMaskSegment2Load)
+  if (isPlainDeinterleave || isComputedMaskSegment2LoadLike)
     if (llvm::Error error = requireRVVSegment2RouteFamilyProviderPlanLeaf(
             plan.segmentLoadIntrinsic, "segment load callee", description,
             context))
@@ -1227,7 +1307,7 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
           plan.segmentFieldExtractIntrinsic, "segment field/tuple callee",
           description, context))
     return std::move(error);
-  if (isPlainDeinterleave || isComputedMaskSegment2Load)
+  if (isPlainDeinterleave || isComputedMaskSegment2LoadLike)
     if (llvm::Error error = requireRVVSegment2RouteFamilyProviderPlanLeaf(
             plan.storeIntrinsic, "field store callee", description, context))
       return std::move(error);
@@ -1259,6 +1339,21 @@ llvm::Error buildComputedMaskSegment2LoadRouteFamilyProviderPlan(
       analysis, materializationFacts, memoryOperandBindingFacts, plan, context,
       "computed-mask segment2 load",
       RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore,
+      RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore);
+}
+
+llvm::Error buildRuntimeScalarComputedMaskSegment2LoadRouteFamilyProviderPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    RVVSelectedBodySegment2RouteFamilyProviderPlan &plan,
+    llvm::StringRef context) {
+  return buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
+      analysis, materializationFacts, memoryOperandBindingFacts, plan, context,
+      "runtime-scalar computed-mask segment2 load",
+      RVVSelectedBodyOperationKind::
+          RuntimeScalarComputedMaskSegment2LoadUnitStore,
       RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore);
 }
 
@@ -1469,6 +1564,166 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
     return error;
   return requireComputedMaskSegment2SelectedVariantRequires(
       variant, "computed-mask segment2 load");
+}
+
+llvm::Error
+validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedRuntimeScalarComputedMaskSegment2LoadPreRealizedBodyOp
+        body) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!body)
+    return makeRVVEmitCRouteProviderError(
+        "selected RVV runtime-scalar computed-mask segment2 load realization "
+        "requires a pre-realized runtime-scalar computed-mask segment2 load "
+        "body op");
+  if (body->getParentOp() != variant.getOperation())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body must be a direct child of the selected tcrv.exec.variant");
+
+  if (!isPreRealizedRuntimeScalarComputedMaskSegment2LoadOpKind(
+          body.getOpKind()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body currently supports only op_kind "
+        "'runtime_scalar_cmp_masked_segment2_load_unit_store'");
+  if (!isPreRealizedRuntimeScalarComputedMaskSegment2PredicateKind(
+          body.getPredicateKind()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body currently supports only predicate_kind 'sle'");
+  if (!isPreRealizedRuntimeScalarComputedMaskSegment2LoadMemoryForm(
+          body.getMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body currently supports only memory_form "
+        "'computed-mask-segment2-load-unit-store'");
+  if (static_cast<std::int64_t>(body.getSegmentCount()) != 2)
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body requires segment_count 2");
+  if (!isPreRealizedComputedMaskSegment2DeinterleaveField0Role(
+          body.getField0Role()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body requires field0_role 'segment-field0-output-buffer'");
+  if (!isPreRealizedComputedMaskSegment2DeinterleaveField1Role(
+          body.getField1Role()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body requires field1_role 'segment-field1-output-buffer'");
+  if (body.getField0Role() == body.getField1Role())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body requires distinct field0_role and field1_role");
+  if (!isPreRealizedComputedMaskSegment2DeinterleaveSourceMemoryForm(
+          body.getSourceMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body currently supports only source_memory_form "
+        "'segment2-interleaved-unit-stride-load'");
+  if (!isPreRealizedComputedMaskSegment2DeinterleaveDestinationMemoryForm(
+          body.getDestinationMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body currently supports only destination_memory_form "
+        "'unit-stride-store'");
+  if (!isPreRealizedComputedMaskSegment2MaskRole(body.getMaskRole()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body currently supports only mask_role "
+        "'predicate-mask-produced-by-compare'");
+  if (!isPreRealizedComputedMaskSegment2MaskSource(body.getMaskSource()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body currently supports only mask_source "
+        "'compare-produced-mask-same-vl-scope'");
+  if (!isPreRealizedComputedMaskSegment2MaskMemoryForm(
+          body.getMaskMemoryForm()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body currently supports only mask_memory_form 'compare-produced-mask'");
+  if (body.getInactiveLanePolicy() != "preserve-passthrough-on-false-lanes")
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body requires inactive_lane_policy "
+        "'preserve-passthrough-on-false-lanes'");
+  if (static_cast<std::int64_t>(body.getSew()) !=
+          tcrv::rvv::getRVVFirstSliceSEWBits() ||
+      body.getLmul() != tcrv::rvv::getRVVLMULM1())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body requires SEW32 LMUL m1 data/mask config");
+  if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "body requires tail agnostic, mask agnostic policy");
+
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> lhs =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getLhs(),
+          "pre-realized RVV runtime-scalar computed-mask segment2 load lhs "
+          "operand",
+          support::RuntimeABIParameterRole::LHSInputBuffer);
+  if (!lhs)
+    return lhs.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> rhsScalar =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getRhsScalar(),
+          "pre-realized RVV runtime-scalar computed-mask segment2 load rhs "
+          "scalar operand",
+          support::RuntimeABIParameterRole::RHSScalarValue);
+  if (!rhsScalar)
+    return rhsScalar.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> source =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getSource(),
+          "pre-realized RVV runtime-scalar computed-mask segment2 load "
+          "source operand",
+          support::RuntimeABIParameterRole::SourceInputBuffer);
+  if (!source)
+    return source.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field0 =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getOut0(),
+          "pre-realized RVV runtime-scalar computed-mask segment2 load "
+          "field0 output operand",
+          support::RuntimeABIParameterRole::SegmentField0OutputBuffer);
+  if (!field0)
+    return field0.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> field1 =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getOut1(),
+          "pre-realized RVV runtime-scalar computed-mask segment2 load "
+          "field1 output operand",
+          support::RuntimeABIParameterRole::SegmentField1OutputBuffer);
+  if (!field1)
+    return field1.takeError();
+  llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
+      requirePreRealizedComputedMaskSegment2RuntimeABIValue(
+          body.getN(),
+          "pre-realized RVV runtime-scalar computed-mask segment2 load "
+          "runtime n/AVL operand",
+          support::RuntimeABIParameterRole::RuntimeElementCount);
+  if (!n)
+    return n.takeError();
+
+  auto rhsType = llvm::dyn_cast<mlir::IntegerType>(body.getRhsScalar().getType());
+  if (!rhsType ||
+      rhsType.getWidth() != tcrv::rvv::getRVVFirstSliceSEWBits())
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected runtime-scalar computed-mask segment2 load "
+        "rhs scalar operand must be i32 before splat realization");
+
+  if (llvm::Error error =
+          rejectMixedPreRealizedComputedMaskSegment2Body<
+              tcrv::rvv::
+                  TypedRuntimeScalarComputedMaskSegment2LoadPreRealizedBodyOp>(
+              variant, "runtime-scalar computed-mask segment2 load"))
+    return error;
+  return requireComputedMaskSegment2SelectedVariantRequires(
+      variant, "runtime-scalar computed-mask segment2 load");
 }
 
 llvm::Error validatePreRealizedRVVSelectedComputedMaskSegment2StoreBody(
@@ -2044,6 +2299,9 @@ getRVVSelectedBodySegment2RouteFamilyPlanningOwners() {
       {"computed-mask segment2 load",
        isRVVSelectedBodyComputedMaskSegment2LoadRouteFamilyPlanningConsumer,
        buildComputedMaskSegment2LoadRouteFamilyProviderPlan},
+      {"runtime-scalar computed-mask segment2 load",
+       isRVVSelectedBodyRuntimeScalarComputedMaskSegment2LoadRouteFamilyPlanningConsumer,
+       buildRuntimeScalarComputedMaskSegment2LoadRouteFamilyProviderPlan},
       {"computed-mask segment2 store",
        isRVVSelectedBodyComputedMaskSegment2StoreRouteFamilyPlanningConsumer,
        buildComputedMaskSegment2StoreRouteFamilyProviderPlan},
@@ -2180,6 +2438,79 @@ realizePreRealizedRVVSelectedComputedMaskSegment2LoadBody(
       createRealizedGenericCompare(builder, loc, compareLhsLoad.getLoaded(),
                                    compareRhsLoad.getLoaded(),
                                    setvl.getVl(), body.getPredicateKind()));
+  auto maskedSegmentLoad = llvm::cast<tcrv::rvv::MaskedSegment2LoadOp>(
+      createRealizedGenericMaskedSegment2Load(
+          builder, loc, body.getSource(), compare.getMask(),
+          oldField0Load.getLoaded(), oldField1Load.getLoaded(),
+          setvl.getVl(), static_cast<std::int64_t>(body.getSegmentCount()),
+          body.getSourceMemoryForm(), body.getField0Role(),
+          body.getField1Role(), body.getInactiveLanePolicy()));
+  createRealizedGenericStore(builder, loc, body.getOut0(),
+                             maskedSegmentLoad.getField0(), setvl.getVl());
+  createRealizedGenericStore(builder, loc, body.getOut1(),
+                             maskedSegmentLoad.getField1(), setvl.getVl());
+  body->erase();
+  return withVL;
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedRuntimeScalarComputedMaskSegment2LoadPreRealizedBodyOp
+        body) {
+  if (llvm::Error error =
+          validatePreRealizedRVVSelectedRuntimeScalarComputedMaskSegment2LoadBody(
+              request, body))
+    return std::move(error);
+
+  tcrv::exec::VariantOp variant = request.getVariant();
+  tcrv::exec::KernelOp kernel = request.getKernel();
+  auto requires = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+
+  mlir::Location loc = body->getLoc();
+  mlir::OpBuilder &builder = request.getBuilder();
+  builder.setInsertionPoint(body.getOperation());
+
+  std::int64_t sew = static_cast<std::int64_t>(body.getSew());
+  llvm::StringRef lmul = body.getLmul();
+  llvm::Expected<RVVRuntimeAVLVLControlPlan> runtimeControlPlan =
+      deriveRVVRuntimeAVLVLControlPlanForPreRealizedBody(
+          variant, body.getN(), sew, lmul, body.getPolicy(),
+          "lhs,rhs_scalar,src,out0,out1,n",
+          "pre-realized RVV runtime-scalar computed-mask segment2 load "
+          "selected-body realization");
+  if (!runtimeControlPlan)
+    return runtimeControlPlan.takeError();
+
+  auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
+      createRealizedSetVL(builder, loc, runtimeControlPlan->runtimeAVLValue,
+                          runtimeControlPlan->sew, runtimeControlPlan->lmul,
+                          runtimeControlPlan->policy));
+  tcrv::rvv::WithVLOp withVL =
+      createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                           request.getRole(), requires,
+                           runtimeControlPlan->sew, runtimeControlPlan->lmul,
+                           runtimeControlPlan->policy);
+
+  builder.setInsertionPointToStart(&withVL.getBody().front());
+  auto lhsLoad = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+      builder, loc, body.getLhs(), setvl.getVl(), runtimeControlPlan->sew,
+      runtimeControlPlan->lmul));
+  auto rhsSplat = llvm::cast<tcrv::rvv::SplatOp>(createRealizedGenericSplat(
+      builder, loc, body.getRhsScalar(), setvl.getVl(),
+      runtimeControlPlan->sew, runtimeControlPlan->lmul));
+  auto oldField0Load = llvm::cast<tcrv::rvv::LoadOp>(
+      createRealizedGenericLoad(builder, loc, body.getOut0(), setvl.getVl(),
+                                runtimeControlPlan->sew,
+                                runtimeControlPlan->lmul));
+  auto oldField1Load = llvm::cast<tcrv::rvv::LoadOp>(
+      createRealizedGenericLoad(builder, loc, body.getOut1(), setvl.getVl(),
+                                runtimeControlPlan->sew,
+                                runtimeControlPlan->lmul));
+  auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+      createRealizedGenericCompare(builder, loc, lhsLoad.getLoaded(),
+                                   rhsSplat.getBroadcast(), setvl.getVl(),
+                                   body.getPredicateKind()));
   auto maskedSegmentLoad = llvm::cast<tcrv::rvv::MaskedSegment2LoadOp>(
       createRealizedGenericMaskedSegment2Load(
           builder, loc, body.getSource(), compare.getMask(),

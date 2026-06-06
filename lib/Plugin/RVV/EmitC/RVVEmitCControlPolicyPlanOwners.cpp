@@ -39,6 +39,8 @@ bool isRVVSelectedBodyScalarBroadcastElementwiseRouteOperation(
 bool isRVVSelectedBodyComputedMaskMemoryLoadMergeRoute(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore ||
+         op == RVVSelectedBodyOperationKind::
+                   RuntimeScalarComputedMaskSegment2LoadUnitStore ||
          op == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore ||
          op ==
              RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore ||
@@ -64,6 +66,8 @@ llvm::StringRef getComputedMaskMemoryProducerSource(
   switch (op) {
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskSegment2LoadUnitStore:
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskSegment2StoreUnitLoad:
     return "runtime-scalar-splat-compare-rhs";
@@ -325,6 +329,8 @@ static bool isRVVSelectedBodySegment2MemoryRouteControlConsumer(
     return description.memoryForm ==
            RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskSegment2LoadUnitStore:
     return description.memoryForm ==
            RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore;
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
@@ -939,6 +945,9 @@ static llvm::Error buildSegment2MemoryRouteControlProviderPlan(
   const bool isComputedMaskSegment2Load =
       description.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore;
+  const bool isRuntimeScalarComputedMaskSegment2Load =
+      description.operation == RVVSelectedBodyOperationKind::
+                               RuntimeScalarComputedMaskSegment2LoadUnitStore;
   const bool isComputedMaskSegment2Store =
       description.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
@@ -951,6 +960,11 @@ static llvm::Error buildSegment2MemoryRouteControlProviderPlan(
   const bool isComputedMaskSegment2StoreLike =
       isComputedMaskSegment2Store ||
       isRuntimeScalarComputedMaskSegment2Store || isComputedMaskSegment2Update;
+  const bool isComputedMaskSegment2LoadLike =
+      isComputedMaskSegment2Load || isRuntimeScalarComputedMaskSegment2Load;
+  const bool isRuntimeScalarComputedMaskSegment2 =
+      isRuntimeScalarComputedMaskSegment2Load ||
+      isRuntimeScalarComputedMaskSegment2Store;
 
   if (isPlainSegment2) {
     if (!materializationFacts.segment2MemoryPlan)
@@ -1005,25 +1019,42 @@ static llvm::Error buildSegment2MemoryRouteControlProviderPlan(
     const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &computedPlan =
         *materializationFacts.computedMaskMemoryPlan;
     if (computedPlan.operation != description.operation ||
-        computedPlan.memoryForm != description.memoryForm ||
-        computedPlan.usesRuntimeScalarProducer !=
-            isRuntimeScalarComputedMaskSegment2Store ||
-        computedPlan.usesVectorCompareProducer !=
-            !isRuntimeScalarComputedMaskSegment2Store ||
-        computedPlan.usesLoadMerge != isComputedMaskSegment2Load ||
-        computedPlan.usesStoreOnly != isComputedMaskSegment2StoreLike ||
-        computedPlan.usesSegment2Load != isComputedMaskSegment2Load ||
-        computedPlan.usesSegment2Store != isComputedMaskSegment2StoreLike ||
-        computedPlan.usesSegment2Update != isComputedMaskSegment2Update ||
-        computedPlan.maskProducerSource !=
-            getComputedMaskMemoryProducerSource(description.operation) ||
-        computedPlan.segmentCount != 2)
+        computedPlan.memoryForm != description.memoryForm)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " route-control provider plan requires computed-mask segment2 "
-          "mask-producer, direction, and memory-form facts from the "
-          "verified route-family plan before provider route construction "
-          "for operation '" +
+          "operation and memory-form facts from the verified route-family "
+          "plan before provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (computedPlan.usesRuntimeScalarProducer !=
+            isRuntimeScalarComputedMaskSegment2 ||
+        computedPlan.usesVectorCompareProducer !=
+            !isRuntimeScalarComputedMaskSegment2 ||
+        computedPlan.maskProducerSource !=
+            getComputedMaskMemoryProducerSource(description.operation))
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires computed-mask segment2 "
+          "mask-producer facts from the verified route-family plan before "
+          "provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (computedPlan.usesLoadMerge != isComputedMaskSegment2LoadLike ||
+        computedPlan.usesStoreOnly != isComputedMaskSegment2StoreLike ||
+        computedPlan.usesSegment2Load != isComputedMaskSegment2LoadLike ||
+        computedPlan.usesSegment2Store != isComputedMaskSegment2StoreLike ||
+        computedPlan.usesSegment2Update != isComputedMaskSegment2Update)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires computed-mask segment2 "
+          "direction facts from the verified route-family plan before "
+          "provider route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+    if (computedPlan.segmentCount != 2)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " route-control provider plan requires computed-mask segment2 "
+          "segment-count facts from the verified route-family plan before "
+          "provider route construction for operation '" +
           stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
     runtimeControlPlan = &computedPlan.runtimeControlPlan;
   }

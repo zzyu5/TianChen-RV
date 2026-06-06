@@ -3084,14 +3084,16 @@ typed tcrv_rvv body/config/runtime facts
 #### 1. Scope / Trigger
 
 For `computed_masked_segment2_load_unit_store`,
-`computed_masked_segment2_store_unit_load`, and
+`runtime_scalar_cmp_masked_segment2_load_unit_store`,
+`computed_masked_segment2_store_unit_load`,
+`runtime_scalar_cmp_masked_segment2_store_unit_load`, and
 `computed_masked_segment2_update_unit_load`, provider/target shared constants
 must use a provider-owned fact surface. Target artifact validation consumes
 that surface after rebuilding the provider route; it must not reconstruct
-segment2, compare/mask, field, update, header/type, ABI, target-profile, or
-provider-support facts from route ids, artifact names, fixture names,
-descriptors, scripts, common EmitC, candidate metadata mirrors, or exact RVV
-intrinsic spellings.
+segment2, compare/mask, runtime scalar binding, field, update, header/type,
+ABI, target-profile, or provider-support facts from route ids, artifact names,
+fixture names, descriptors, scripts, common EmitC, candidate metadata mirrors,
+or exact RVV intrinsic spellings.
 
 #### 2. Signatures
 
@@ -3160,6 +3162,14 @@ getRVVComputedMaskSegment2MemoryRouteFacts(
   `tcrv_rvv.masked_segment2_load`, interleaved segment2 source memory, unit
   destination field stores, a masked segment-load callee, tuple-create
   passthrough, and field-extract facts.
+- Runtime-scalar load uses runtime ABI order `lhs,rhs_scalar,src,out0,out1,n`,
+  typed op `tcrv_rvv.masked_segment2_load`, producer source
+  `runtime-scalar-splat-compare-rhs`, interleaved segment2 `src`, old
+  `out0`/`out1` passthrough loads, unit destination field stores, a masked
+  segment-load callee, tuple-create passthrough, and field-extract facts.
+  `rhs_scalar` is an ABI scalar threshold that must be realized by the RVV
+  plugin as a scalar splat before compare; common EmitC and target export only
+  carry the provider-built route and mirrors.
 - Store and update use runtime ABI order `cmp_lhs,cmp_rhs,src0,src1,dst,n`.
   Store uses typed op `tcrv_rvv.masked_segment2_store`; update uses typed op
   `tcrv_rvv.binary` plus update arithmetic kind `add` and its provider-derived
@@ -3168,13 +3178,17 @@ getRVVComputedMaskSegment2MemoryRouteFacts(
   carry a segment-load or field-extract fact. Load carries segment-load,
   tuple-create passthrough, and field-extract facts and must not carry a
   segment-store mirror.
-- All three routes require SEW/LMUL/policy `32/m1/agnostic/agnostic`,
-  compare predicate `slt`, compare-produced mask role/source/form, computed
-  mask memory route-family plan, mask/tail policy plan and owner, inactive
+- These routes require SEW/LMUL/policy `32/m1/agnostic/agnostic`,
+  provider-declared compare predicate, compare-produced mask role/source/form,
+  computed mask memory route-family plan, mask/tail policy plan and owner, inactive
   lane contract, segment count `2`, segment tuple C type, field roles/names,
   source/destination memory forms, target leaf profile, provider-supported
   mirror, required headers, C type summary, runtime ABI parameters, route
-  operand binding plan, and exact route operand binding summary.
+  operand binding plan, and exact route operand binding summary. Runtime-scalar
+  variants additionally require the RHS scalar ABI role/name/type, scalar splat
+  realization fact, runtime-scalar producer-source mirror, and route operand
+  binding summary entries for `lhs`, `rhs_scalar`, `src`, `out0`, `out1`, and
+  `n`.
 - Route-description/provider validation must classify these three operations as
   segment2 consumers before applying generic computed-mask memory validation.
   Generic computed-mask memory checks may verify the shared computed-mask family
@@ -3192,12 +3206,12 @@ getRVVComputedMaskSegment2MemoryRouteFacts(
   fail on memory form, typed compute op, runtime ABI order, field roles,
   segment load/store/tuple/extract facts, target profile, provider mirror, or
   binding summary.
-- Missing or stale mask facts, compare predicate, inactive-lane contract,
-  passthrough/no-write layout, segment memory layout, source/destination memory
-  form, field role/name, field source/destination form, segment count, route
-  family plan, runtime control plan, header/type summary, target profile,
-  provider mirror, runtime ABI order/parameters, or binding summary -> fail
-  before target artifact acceptance.
+- Missing or stale mask facts, runtime-scalar producer facts, compare predicate,
+  inactive-lane contract, passthrough/no-write layout, segment memory layout,
+  source/destination memory form, field role/name, field source/destination
+  form, segment count, route family plan, runtime control plan, header/type
+  summary, target profile, provider mirror, runtime ABI order/parameters, or
+  binding summary -> fail before target artifact acceptance.
 - A computed-mask segment2 route that falls through to the non-segment
   computed-mask memory expectation set, or receives an empty segment2 canonical
   fact set while carrying computed-mask segment2 route metadata -> fail closed
@@ -3222,6 +3236,11 @@ getRVVComputedMaskSegment2MemoryRouteFacts(
 - Good: computed-mask segment2 load accepts a provider-derived masked
   segment-load with old-field passthrough tuple and field stores, and rejects
   any stale store/update-only fact.
+- Good: runtime-scalar computed-mask segment2 load accepts provider-derived
+  `lhs/rhs_scalar/src/out0/out1/n` ABI binding, scalar splat compare mask,
+  old field passthrough tuple, masked segment-load, and field stores, and
+  rejects stale vector-compare producer, field-order, passthrough, ABI, or
+  header/prototype facts.
 - Good: computed-mask segment2 store accepts field payload loads, tuple create,
   and masked segment-store, and rejects segment-load or field-extract residue.
 - Base: plain segment2 deinterleave/interleave continue to use the plain

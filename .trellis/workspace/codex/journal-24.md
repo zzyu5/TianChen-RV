@@ -42,6 +42,48 @@ Expanded product-reduction-dequant-clamp generated artifact ABI binding evidence
 - None - task complete
 
 
+## Session 516: Stage2 RVV runtime-scalar segment2 load ABI
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV runtime-scalar-cmp masked segment2 load executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Implemented the read-side runtime-scalar-cmp masked segment2 load selected-body route family through typed/pre-realized RVV body realization, provider-owned route facts, common EmitC materialization, target artifact validation, generated bundle ABI, and real `ssh rvv` correctness evidence.
+
+### Main Changes
+
+- Added `tcrv_rvv.typed_runtime_scalar_computed_mask_segment2_load_pre_realized_body` and verifier/config-contract support for `lhs,rhs_scalar,src,out0,out1,n`.
+- Wired RVV owner-local selected-body realization, route-family planning, route-control facts, memory/segment2 statement planning, route provider ABI binding, construction protocol recognition, and target artifact validation for runtime-scalar masked segment2 load.
+- Extended generated-bundle support and dry-run lit tests for explicit and pre-realized selected bodies, including runtime scalar producer source, mask provenance, old field passthrough preservation, field0/field1 order, header prototype, and provider-supported mirrors.
+- Added explicit and pre-realized artifact fixtures with positive materialization/export checks and stale mask-producer fail-closed coverage.
+- Updated RVV plugin and EmitC route specs with the runtime-scalar segment2 load owner/fact-surface boundary.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] Built `tcrv-opt`, `tcrv-translate`, `tianchenrv-rvv-extension-plugin-test`, and `tianchenrv-target-artifact-export-test`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test` and `build/bin/tianchenrv-target-artifact-export-test`.
+- [OK] `scripts/rvv_generated_bundle_abi_e2e.py` `py_compile` and `--self-test`.
+- [OK] Focused lit 4/4 for explicit/pre-realized runtime-scalar segment2 load MLIR fixtures and generated-bundle dry-run tests.
+- [OK] Non-dry-run `ssh rvv` generated-bundle evidence for counts `0,1,16,17,257` and RHS scalars `-37,91`, proving active/inactive lanes, old-field passthrough preservation, field ordering, source preservation, and tail preservation.
+- [OK] `git diff --check` and bounded old-authority scan.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 514: Stage2 RVV runtime-scalar-cmp segment2 store ABI
 
 **Date**: 2026-06-07

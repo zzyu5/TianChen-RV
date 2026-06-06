@@ -1660,6 +1660,8 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
       providerPlan->plansPlainSegment2InterleaveUnitLoad;
   const bool isComputedMaskSegment2Load =
       providerPlan->plansComputedMaskSegment2LoadUnitStore;
+  const bool isRuntimeScalarComputedMaskSegment2Load =
+      providerPlan->plansRuntimeScalarComputedMaskSegment2LoadUnitStore;
   const bool isComputedMaskSegment2Store =
       providerPlan->plansComputedMaskSegment2StoreUnitLoad;
   const bool isRuntimeScalarComputedMaskSegment2Store =
@@ -1669,13 +1671,20 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
   const bool isComputedMaskSegment2StoreLike =
       isComputedMaskSegment2Store ||
       isRuntimeScalarComputedMaskSegment2Store || isComputedMaskSegment2Update;
+  const bool isComputedMaskSegment2LoadLike =
+      isComputedMaskSegment2Load || isRuntimeScalarComputedMaskSegment2Load;
+  const bool isRuntimeScalarComputedMaskSegment2 =
+      isRuntimeScalarComputedMaskSegment2Load ||
+      isRuntimeScalarComputedMaskSegment2Store;
   const bool isComputedMaskSegment2 =
-      isComputedMaskSegment2Load || isComputedMaskSegment2StoreLike;
+      isComputedMaskSegment2LoadLike || isComputedMaskSegment2StoreLike;
 
   plan.plansSegment2MemoryRoute = true;
   plan.plansPlainSegment2DeinterleaveUnitStore = isPlainDeinterleave;
   plan.plansPlainSegment2InterleaveUnitLoad = isPlainInterleave;
   plan.plansComputedMaskSegment2LoadUnitStore = isComputedMaskSegment2Load;
+  plan.plansRuntimeScalarComputedMaskSegment2LoadUnitStore =
+      isRuntimeScalarComputedMaskSegment2Load;
   plan.plansComputedMaskSegment2StoreUnitLoad = isComputedMaskSegment2Store;
   plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad =
       isRuntimeScalarComputedMaskSegment2Store;
@@ -1808,7 +1817,7 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
             description, context,
             TCRVEmitCCallOpaqueResult{"cmp_lhs_vec", vectorCType.str()}))
       return std::move(error);
-    if (isRuntimeScalarComputedMaskSegment2Store) {
+    if (isRuntimeScalarComputedMaskSegment2) {
       if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
               plan, slice.rhsLoadOperation, "load", rhsScalarSplatIntrinsic,
               {TCRVEmitCCallOpaqueOperand{rhsScalarABI->cName,
@@ -1840,6 +1849,7 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
             description, context,
             TCRVEmitCCallOpaqueResult{
                 isComputedMaskSegment2Load ? "field0_old_vec"
+                : isRuntimeScalarComputedMaskSegment2Load ? "field0_old_vec"
                 : isComputedMaskSegment2Update
                     ? "segment2_update_field0_src_vec"
                                            : description.field0Name.str(),
@@ -1855,6 +1865,7 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
             description, context,
             TCRVEmitCCallOpaqueResult{
                 isComputedMaskSegment2Load ? "field1_old_vec"
+                : isRuntimeScalarComputedMaskSegment2Load ? "field1_old_vec"
                                            : description.field1Name.str(),
                 vectorCType.str()}))
       return std::move(error);
@@ -1868,7 +1879,7 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
                                       maskCType.str()}))
       return std::move(error);
 
-    if (isComputedMaskSegment2Load) {
+    if (isComputedMaskSegment2LoadLike) {
       if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
               plan, slice.maskedSegment2LoadOperation, "load",
               segmentStoreIntrinsic,

@@ -1487,6 +1487,7 @@ struct RVVSelectedBodySegment2MemoryRouteStatementPlan {
   bool plansPlainSegment2DeinterleaveUnitStore = false;
   bool plansPlainSegment2InterleaveUnitLoad = false;
   bool plansComputedMaskSegment2LoadUnitStore = false;
+  bool plansRuntimeScalarComputedMaskSegment2LoadUnitStore = false;
   bool plansComputedMaskSegment2StoreUnitLoad = false;
   bool plansRuntimeScalarComputedMaskSegment2StoreUnitLoad = false;
   bool plansComputedMaskSegment2UpdateUnitLoad = false;
@@ -1510,6 +1511,7 @@ struct RVVSelectedBodySegment2RouteFamilyProviderPlan {
   bool plansPlainSegment2DeinterleaveUnitStore = false;
   bool plansPlainSegment2InterleaveUnitLoad = false;
   bool plansComputedMaskSegment2LoadUnitStore = false;
+  bool plansRuntimeScalarComputedMaskSegment2LoadUnitStore = false;
   bool plansComputedMaskSegment2StoreUnitLoad = false;
   bool plansRuntimeScalarComputedMaskSegment2StoreUnitLoad = false;
   bool plansComputedMaskSegment2UpdateUnitLoad = false;

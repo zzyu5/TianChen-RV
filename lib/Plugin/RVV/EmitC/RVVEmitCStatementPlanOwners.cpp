@@ -346,6 +346,8 @@ bool isRVVSelectedBodySegment2MemoryStatementPlanConsumer(
     return description.memoryForm ==
            RVVSelectedBodyMemoryForm::UnitLoadSegment2Store;
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskSegment2LoadUnitStore:
     return description.memoryForm ==
            RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore;
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:

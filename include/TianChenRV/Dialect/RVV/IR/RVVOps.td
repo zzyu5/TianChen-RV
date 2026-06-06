@@ -2104,6 +2104,61 @@ def TypedComputedMaskSegment2LoadPreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedRuntimeScalarComputedMaskSegment2LoadPreRealizedBodyOp
+    : TCRVRVV_Op<"typed_runtime_scalar_computed_mask_segment2_load_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV runtime-scalar computed-mask segment2 load body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body where a
+    signed i32 vector lhs is compared with a runtime scalar threshold splatted
+    at the current VL to produce an in-body mask SSA value, then masked
+    segment2 memory movement loads two active fields from an interleaved source
+    memory window into two unit-stride destination fields while preserving
+    inactive lanes from the old destination vectors. The op is nested directly
+    in a selected tcrv.exec.variant and binds explicit runtime ABI values for
+    lhs, rhs_scalar, interleaved source, field0 destination/old-vector
+    passthrough, field1 destination/old-vector passthrough, and runtime n/AVL
+    together with compare predicate, segment count, source/destination memory
+    forms, field roles, mask role/source/config, inactive-lane preservation
+    policy, compile-time RVV data/mask config, and policy.
+
+    This op is not a segmented-memory framework, route label, descriptor,
+    source-front-door marker, direct-C exporter, intrinsic wrapper, runtime
+    artifact, correctness evidence, or performance evidence. The RVV plugin
+    must realize it into explicit setvl/with_vl/load/splat/load/load/compare/
+    masked_segment2_load/store/store tcrv_rvv body structure before the
+    provider may construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs_scalar,
+    AnyType:$source,
+    AnyType:$out0,
+    AnyType:$out1,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$predicate_kind,
+    StrAttr:$memory_form,
+    I64Attr:$segment_count,
+    StrAttr:$field0_role,
+    StrAttr:$field1_role,
+    StrAttr:$source_memory_form,
+    StrAttr:$destination_memory_form,
+    StrAttr:$mask_role,
+    StrAttr:$mask_source,
+    StrAttr:$mask_memory_form,
+    StrAttr:$inactive_lane_policy,
+    I64Attr:$sew,
+    StrAttr:$lmul,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$lhs `,` $rhs_scalar `,` $source `,` $out0 `,` $out1 `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedComputedMaskSegment2StorePreRealizedBodyOp
     : TCRVRVV_Op<"typed_computed_mask_segment2_store_pre_realized_body"> {
   let summary =

@@ -1,0 +1,92 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.artifacts --run-id runtime-scalar-cmp-segment2-load --overwrite --op-kind runtime_scalar_cmp_masked_segment2_load_unit_store --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/runtime-scalar-cmp-segment2-load/evidence.json
+# RUN: FileCheck %s --check-prefix=RTSEG --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/runtime-scalar-cmp-segment2-load/runtime_scalar_cmp_masked_segment2_load_unit_store/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/runtime-scalar-cmp-segment2-load/runtime_scalar_cmp_masked_segment2_load_unit_store/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_segment2_load_unit_store_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "explicit-selected-body"
+# ROOT-DAG: "runtime_scalar_cmp_masked_segment2_load_unit_store"
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+
+# RTSEG-DAG: "input_mode": "explicit-selected-body"
+# RTSEG-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-segment2-load.mlir"
+# RTSEG-DAG: "prototype": "void tcrv_emitc_explicit_selected_body_rt_scalar_cmseg_load_kernel_explicit_selected_body_rvv_rt_scalar_cmseg_load(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src, int32_t *out0, int32_t *out1, size_t n);"
+# RTSEG-DAG: "expected_function": "tcrv_emitc_explicit_selected_body_rt_scalar_cmseg_load_kernel_explicit_selected_body_rvv_rt_scalar_cmseg_load"
+# RTSEG-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-cmp-masked-segment2-load-unit-store-callable-c-abi.v1"
+# RTSEG-DAG: "expected_selected_variant": "explicit_selected_body_rvv_rt_scalar_cmseg_load"
+# RTSEG-DAG: "front_door": "explicit-selected-tcrv-exec-rvv-body"
+# RTSEG-DAG: "materializer": "none-selected-body-already-explicit"
+# RTSEG-DAG: "typed_compute_op": "tcrv_rvv.masked_segment2_load"
+# RTSEG-DAG: "memory_form": "computed-mask-segment2-load-unit-store"
+# RTSEG-DAG: "key": "rvv_emitc_lowerable_route"
+# RTSEG-DAG: "value": "rvv-generic-runtime-scalar-cmp-masked-segment2-load-unit-store-emitc-route"
+# RTSEG-DAG: "key": "rvv_selected_body_operation"
+# RTSEG-DAG: "value": "runtime_scalar_cmp_masked_segment2_load_unit_store"
+# RTSEG-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# RTSEG-DAG: "value": "lhs,rhs_scalar,src,out0,out1,n"
+# RTSEG-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# RTSEG-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_segment2_load_unit_store.v1"
+# RTSEG-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# RTSEG-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_segment2_load_unit_store.v1;lhs=lhs-input-buffer:lhs:abi|cmp-lhs-load|lhs-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|rhs-call|hdr;src=source-input-buffer:src:abi|mseg-base|mseg-call|src-mem|hdr;out0=segment-field0-output-buffer:out0:abi|old0-load|f0-pass|f0-store|f0-role|dst-mem|hdr;out1=segment-field1-output-buffer:out1:abi|old1-load|f1-pass|f1-store|f1-role|dst-mem|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
+# RTSEG-DAG: "key": "tcrv_rvv.computed_mask_memory_route_family_plan"
+# RTSEG-DAG: "value": "rvv-computed-mask-memory-route-family-plan.v1"
+# RTSEG-DAG: "key": "tcrv_rvv.computed_mask_memory_mask_producer_source"
+# RTSEG-DAG: "value": "runtime-scalar-splat-compare-rhs"
+# RTSEG-DAG: "key": "tcrv_rvv.mask_tail_policy_route_family_plan"
+# RTSEG-DAG: "value": "rvv-mask-tail-policy-route-family-plan.v1"
+# RTSEG-DAG: "key": "tcrv_rvv.mask_tail_policy_owner"
+# RTSEG-DAG: "value": "computed-mask memory mask/tail policy"
+# RTSEG-DAG: "key": "tcrv_rvv.target_leaf_profile"
+# RTSEG-DAG: "value": "rvv-v1-typed-runtime-scalar-cmp-masked-segment2-load-leaf-profile.v1"
+# RTSEG-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# RTSEG-DAG: "value": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-segment2-load-plan-validated"
+# RTSEG-DAG: "key": "tcrv_rvv.c_type_mapping"
+# RTSEG-DAG: "value": "vl:size_t,lhs/source/passthrough-fields:signed-e32m1,rhs_scalar:signed-scalar,mask:b32,segment2:vint32m1x2,result:runtime-scalar-masked-segment2-load-store"
+# RTSEG-DAG: "key": "tcrv_rvv.masked_memory_layout"
+# RTSEG-DAG: "value": "unit-stride-lhs-runtime-scalar-threshold-segment2-masked-source-old-fields-destination-runtime-abi"
+# RTSEG-DAG: "key": "tcrv_rvv.mask_role"
+# RTSEG-DAG: "value": "predicate-mask-produced-by-compare"
+# RTSEG-DAG: "key": "tcrv_rvv.mask_source"
+# RTSEG-DAG: "value": "compare-produced-mask-same-vl-scope"
+# RTSEG-DAG: "key": "tcrv_rvv.mask_memory_form"
+# RTSEG-DAG: "value": "compare-produced-mask"
+# RTSEG-DAG: "key": "tcrv_rvv.source_memory_form"
+# RTSEG-DAG: "value": "segment2-interleaved-unit-stride-load"
+# RTSEG-DAG: "key": "tcrv_rvv.destination_memory_form"
+# RTSEG-DAG: "value": "unit-stride-store"
+# RTSEG-DAG: "key": "tcrv_rvv.segment_memory_layout"
+# RTSEG-DAG: "value": "unit-stride-lhs-runtime-scalar-threshold-segment2-masked-source-old-fields-destination-runtime-abi"
+# RTSEG-DAG: "key": "tcrv_rvv.segment_load_intrinsic"
+# RTSEG-DAG: "value": "__riscv_vlseg2e32_v_i32m1x2_tumu"
+# RTSEG-DAG: "key": "tcrv_rvv.segment_tuple_create_intrinsic"
+# RTSEG-DAG: "value": "__riscv_vcreate_v_i32m1x2"
+# RTSEG-DAG: "key": "tcrv_rvv.segment_field_extract_intrinsic"
+# RTSEG-DAG: "value": "__riscv_vget_v_i32m1x2_i32m1"
+# RTSEG-DAG: "key": "tcrv_rvv.field0_role"
+# RTSEG-DAG: "value": "segment-field0-output-buffer"
+# RTSEG-DAG: "key": "tcrv_rvv.field1_role"
+# RTSEG-DAG: "value": "segment-field1-output-buffer"
+# RTSEG-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# RTSEG-DAG: "authority": "provider-derived typed tcrv_rvv runtime-scalar computed-mask segment2 body/config/runtime facts"
+# RTSEG-DAG: "runtime_scalar_operand": "rhs_scalar"
+# RTSEG-DAG: "runtime_scalar_realization_op": "tcrv_rvv.splat"
+# RTSEG-DAG: "runtime_scalar_producer_source": "runtime-scalar-splat-compare-rhs"
+# RTSEG-DAG: "mask_coverage_contract": "multi-lane runtime_scalar_cmp_masked_segment2_load_unit_store cases require runtime-scalar compare-produced active and inactive mask lanes"
+# RTSEG-DAG: "inactive_lane_contract": "compare-false lanes must preserve both old destination field passthrough vectors"
+# RTSEG-DAG: "field_order_contract": "active lanes load distinguishable even/odd interleaved segment fields into out0/out1 while source and tail slots preserve sentinels"
+# RTSEG-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_explicit_selected_body_rt_scalar_cmseg_load_kernel_explicit_selected_body_rvv_rt_scalar_cmseg_load(cmp_lhs, rhs_scalar, src, out0, out1, n);
+# HARNESS: int active = cmp_lhs[index] <= rhs_scalar;
+# HARNESS: int32_t expected0 = active ? src[2 * index] : old0[index];
+# HARNESS: int32_t expected1 = active ? src[2 * index + 1] : old1[index];
+# HARNESS: inactive lane failed to preserve old fields
+# HARNESS: runtime_scalar_cmp segment2_load
+# HARNESS: field_distinguishing_lanes
+# HARNESS: source_preserved tail_preserved
+# HARNESS: PASS op=runtime_scalar_cmp_masked_segment2_load_unit_store counts=0,1,16,17,257 patterns=0,1

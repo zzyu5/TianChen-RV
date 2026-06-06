@@ -115,6 +115,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "computed_masked_indexed_gather_load_unit_store",
     "computed_masked_indexed_scatter_store_unit_load",
     "computed_masked_segment2_load_unit_store",
+    "runtime_scalar_cmp_masked_segment2_load_unit_store",
     "computed_masked_segment2_store_unit_load",
     "runtime_scalar_cmp_masked_segment2_store_unit_load",
     "computed_masked_segment2_update_unit_load",
@@ -848,6 +849,18 @@ COMPUTED_MASK_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_OPERANDS = (
     "f1-store|f1-role|dst-mem|hdr;"
     "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
 )
+RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:runtime_scalar_cmp_masked_segment2_load_unit_store.v1"
+)
+RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:runtime_scalar_cmp_masked_segment2_load_unit_store.v1;"
+    "lhs=lhs-input-buffer:lhs:abi|cmp-lhs-load|lhs-call|hdr;"
+    "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|rhs-call|hdr;"
+    "src=source-input-buffer:src:abi|mseg-base|mseg-call|src-mem|hdr;"
+    "out0=segment-field0-output-buffer:out0:abi|old0-load|f0-pass|f0-store|f0-role|dst-mem|hdr;"
+    "out1=segment-field1-output-buffer:out1:abi|old1-load|f1-pass|f1-store|f1-role|dst-mem|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
+)
 COMPUTED_MASK_SEGMENT2_STORE_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1"
 )
@@ -1505,6 +1518,20 @@ COMPUTED_MASK_SEGMENT2_LOAD_C_TYPE_MAPPING = (
     "vl:size_t,compare/source/passthrough-fields:signed-e32m1,mask:b32,"
     "segment2:vint32m1x2,result:masked-segment2-load-store"
 )
+RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_TARGET_LEAF_PROFILE = (
+    "rvv-v1-typed-runtime-scalar-cmp-masked-segment2-load-leaf-profile.v1"
+)
+RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-segment2-load-plan-validated"
+)
+RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_C_TYPE_MAPPING = (
+    "vl:size_t,lhs/source/passthrough-fields:signed-e32m1,"
+    "rhs_scalar:signed-scalar,mask:b32,segment2:vint32m1x2,"
+    "result:runtime-scalar-masked-segment2-load-store"
+)
 COMPUTED_MASK_SEGMENT2_STORE_TARGET_LEAF_PROFILE = (
     "rvv-v1-e32m1-computed-mask-segment2-store-leaf-profile.v1"
 )
@@ -1651,6 +1678,9 @@ COMPUTED_MASK_INDEXED_SCATTER_RUNTIME_ABI_ORDER = (
 COMPUTED_MASK_SEGMENT2_LOAD_RUNTIME_ABI_ORDER = (
     "cmp_lhs,cmp_rhs,src,out0,out1,n"
 )
+RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_RUNTIME_ABI_ORDER = (
+    "lhs,rhs_scalar,src,out0,out1,n"
+)
 COMPUTED_MASK_SEGMENT2_STORE_RUNTIME_ABI_ORDER = (
     "cmp_lhs,cmp_rhs,src0,src1,dst,n"
 )
@@ -1692,6 +1722,9 @@ COMPUTED_MASK_INDEXED_SCATTER_INDEXED_DESTINATION_MEMORY_FORM = (
 )
 COMPUTED_MASK_SEGMENT2_SOURCE_MEMORY_FORM = "segment2-interleaved-unit-stride-load"
 COMPUTED_MASK_SEGMENT2_DESTINATION_MEMORY_FORM = "unit-stride-store"
+RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_MEMORY_LAYOUT = (
+    "unit-stride-lhs-runtime-scalar-threshold-segment2-masked-source-old-fields-destination-runtime-abi"
+)
 COMPUTED_MASK_SEGMENT2_STORE_MEMORY_LAYOUT = (
     "unit-stride-compare-field-payloads-segment2-masked-destination-runtime-abi"
 )
@@ -2316,6 +2349,12 @@ class OpExpectation:
                 "const int32_t *cmp_rhs, const int32_t *src, "
                 "int32_t *out0, int32_t *out1, size_t n);"
             )
+        if self.is_runtime_scalar_cmp_masked_segment2_load_unit_store:
+            return (
+                f"void {self.function_name}(const int32_t *lhs, "
+                "int32_t rhs_scalar, const int32_t *src, "
+                "int32_t *out0, int32_t *out1, size_t n);"
+            )
         if (
             self.is_computed_masked_segment2_store_unit_load
             or self.is_computed_masked_segment2_update_unit_load
@@ -2518,6 +2557,8 @@ class OpExpectation:
             return EXPECTED_COMPUTED_MASK_INDEXED_SCATTER_RUNTIME_PARAMETERS
         if self.is_computed_masked_segment2_load_unit_store:
             return EXPECTED_COMPUTED_MASK_SEGMENT2_LOAD_RUNTIME_PARAMETERS
+        if self.is_runtime_scalar_cmp_masked_segment2_load_unit_store:
+            return EXPECTED_RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_RUNTIME_PARAMETERS
         if (
             self.is_computed_masked_segment2_store_unit_load
             or self.is_computed_masked_segment2_update_unit_load
@@ -2670,6 +2711,8 @@ class OpExpectation:
             return COMPUTED_MASK_INDEXED_SCATTER_RUNTIME_ABI_ORDER
         if self.is_computed_masked_segment2_load_unit_store:
             return COMPUTED_MASK_SEGMENT2_LOAD_RUNTIME_ABI_ORDER
+        if self.is_runtime_scalar_cmp_masked_segment2_load_unit_store:
+            return RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_RUNTIME_ABI_ORDER
         if (
             self.is_computed_masked_segment2_store_unit_load
             or self.is_computed_masked_segment2_update_unit_load
@@ -2959,6 +3002,10 @@ class OpExpectation:
     @property
     def is_computed_masked_segment2_load_unit_store(self) -> bool:
         return self.kind == "computed_masked_segment2_load_unit_store"
+
+    @property
+    def is_runtime_scalar_cmp_masked_segment2_load_unit_store(self) -> bool:
+        return self.kind == "runtime_scalar_cmp_masked_segment2_load_unit_store"
 
     @property
     def is_computed_masked_segment2_store_unit_load(self) -> bool:
@@ -4304,6 +4351,40 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         ),
         compare_predicate_kind="slt",
     ),
+    "runtime_scalar_cmp_masked_segment2_load_unit_store": OpExpectation(
+        kind="runtime_scalar_cmp_masked_segment2_load_unit_store",
+        input_path=Path(
+            "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-segment2-load.mlir"
+        ),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_rt_scalar_cmseg_load",
+        external_abi_name=(
+            "rvv-generic-runtime-scalar-cmp-masked-segment2-load-unit-store-callable-c-abi.v1"
+        ),
+        function_name=(
+            "tcrv_emitc_explicit_selected_body_rt_scalar_cmseg_load_kernel_"
+            "explicit_selected_body_rvv_rt_scalar_cmseg_load"
+        ),
+        emitc_route=(
+            "rvv-generic-runtime-scalar-cmp-masked-segment2-load-unit-store-emitc-route"
+        ),
+        typed_compute_op="tcrv_rvv.masked_segment2_load",
+        memory_form="computed-mask-segment2-load-unit-store",
+        lhs_initializer=(
+            "(int32_t)(((index % 5) == 0) ? -120 : "
+            "((index % 5) == 1) ? -37 : "
+            "((index % 5) == 2) ? 0 : "
+            "((index % 5) == 3) ? 91 : 130)"
+        ),
+        rhs_initializer="rhs_scalar",
+        source_initializer="(int32_t)(9100 + (int32_t)(index * 67))",
+        out_initializer="(int32_t)(-23000 - (int32_t)(index * 47))",
+        expected_expression=(
+            "lhs[index] <= rhs_scalar ? src[2 * index + field] : old_field[index]"
+        ),
+        compare_predicate_kind="sle",
+    ),
     "computed_masked_segment2_store_unit_load": OpExpectation(
         kind="computed_masked_segment2_store_unit_load",
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-computed-masked-segment2-store.mlir"),
@@ -5239,6 +5320,20 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_cmseg_load",
         function_name="tcrv_emitc_pre_realized_body_cmseg_load_kernel_pre_realized_body_rvv_cmseg_load",
+    ),
+    "runtime_scalar_cmp_masked_segment2_load_unit_store": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "runtime_scalar_cmp_masked_segment2_load_unit_store"
+        ],
+        input_path=Path(
+            "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-segment2-load.mlir"
+        ),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_rt_scalar_cmseg_load",
+        function_name=(
+            "tcrv_emitc_pre_realized_body_rt_scalar_cmseg_load_kernel_"
+            "pre_realized_body_rvv_rt_scalar_cmseg_load"
+        ),
     ),
     "computed_masked_segment2_store_unit_load": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -6466,6 +6561,39 @@ EXPECTED_COMPUTED_MASK_SEGMENT2_LOAD_RUNTIME_PARAMETERS = (
     EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[0],
     EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[1],
     EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[2],
+    {
+        "c_name": "out0",
+        "c_type": "int32_t *",
+        "role": "segment-field0-output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "out1",
+        "c_type": "int32_t *",
+        "role": "segment-field1-output-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[4],
+)
+EXPECTED_RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_RUNTIME_PARAMETERS = (
+    {
+        "c_name": "lhs",
+        "c_type": "const int32_t *",
+        "role": "lhs-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "rhs_scalar",
+        "c_type": "int32_t",
+        "role": "rhs-scalar-value",
+        "ownership": "target-export-abi-owned",
+    },
+    {
+        "c_name": "src",
+        "c_type": "const int32_t *",
+        "role": "source-input-buffer",
+        "ownership": "target-export-abi-owned",
+    },
     {
         "c_name": "out0",
         "c_type": "int32_t *",
@@ -9381,14 +9509,22 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
-    if expectation.is_computed_masked_segment2_load_unit_store:
+    if (
+        expectation.is_computed_masked_segment2_load_unit_store
+        or expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+    ):
+        is_runtime_scalar = (
+            expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+        )
         per_op_metadata.update(
             {
                 "tcrv_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
                 "tcrv_rvv.masked_memory_layout": (
-                    COMPUTED_MASK_SEGMENT2_LOAD_MEMORY_LAYOUT
+                    RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_MEMORY_LAYOUT
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_SEGMENT2_LOAD_MEMORY_LAYOUT
                 ),
                 "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
@@ -9406,7 +9542,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     COMPUTED_MASK_SEGMENT2_DESTINATION_MEMORY_FORM
                 ),
                 "tcrv_rvv.segment_memory_layout": (
-                    COMPUTED_MASK_SEGMENT2_LOAD_MEMORY_LAYOUT
+                    RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_MEMORY_LAYOUT
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_SEGMENT2_LOAD_MEMORY_LAYOUT
                 ),
                 "tcrv_rvv.segment_count": "2",
                 "tcrv_rvv.segment_tuple_c_type": SEGMENT2_TUPLE_C_TYPE,
@@ -9430,16 +9568,22 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     COMPUTED_MASK_SEGMENT2_DESTINATION_MEMORY_FORM
                 ),
                 "tcrv_rvv.route_operand_binding_plan": (
-                    COMPUTED_MASK_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_PLAN
+                    RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_PLAN
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_PLAN
                 ),
                 "tcrv_rvv.route_operand_binding_operands": (
-                    COMPUTED_MASK_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_OPERANDS
+                    RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_OPERANDS
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
                 "tcrv_rvv.computed_mask_memory_route_family_plan": (
                     COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
                 ),
                 "tcrv_rvv.computed_mask_memory_mask_producer_source": (
-                    COMPUTED_MASK_MEMORY_VECTOR_COMPARE_PRODUCER_SOURCE
+                    COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_MEMORY_VECTOR_COMPARE_PRODUCER_SOURCE
                 ),
                 "tcrv_rvv.mask_tail_policy_route_family_plan": (
                     COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_ROUTE_FAMILY_PLAN
@@ -9448,16 +9592,24 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     COMPUTED_MASK_MEMORY_MASK_TAIL_POLICY_OWNER
                 ),
                 "tcrv_rvv.target_leaf_profile": (
-                    COMPUTED_MASK_SEGMENT2_LOAD_TARGET_LEAF_PROFILE
+                    RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_TARGET_LEAF_PROFILE
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_SEGMENT2_LOAD_TARGET_LEAF_PROFILE
                 ),
                 "tcrv_rvv.provider_supported_mirror": (
-                    COMPUTED_MASK_SEGMENT2_LOAD_PROVIDER_SUPPORTED_MIRROR
+                    RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_PROVIDER_SUPPORTED_MIRROR
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_SEGMENT2_LOAD_PROVIDER_SUPPORTED_MIRROR
                 ),
                 "tcrv_rvv.required_header_declarations": (
-                    COMPUTED_MASK_SEGMENT2_LOAD_REQUIRED_HEADER_DECLARATIONS
+                    RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_REQUIRED_HEADER_DECLARATIONS
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_SEGMENT2_LOAD_REQUIRED_HEADER_DECLARATIONS
                 ),
                 "tcrv_rvv.c_type_mapping": (
-                    COMPUTED_MASK_SEGMENT2_LOAD_C_TYPE_MAPPING
+                    RUNTIME_SCALAR_CMP_MASKED_SEGMENT2_LOAD_C_TYPE_MAPPING
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_SEGMENT2_LOAD_C_TYPE_MAPPING
                 ),
             }
         )
@@ -11398,7 +11550,10 @@ def verify_emitted_rvv_cpp(
         runtime_avl_vl_boundary = mask_tail_policy_boundary[
             "runtime_avl_vl_control"
         ]
-    if expectation.is_computed_masked_segment2_load_unit_store:
+    if (
+        expectation.is_computed_masked_segment2_load_unit_store
+        or expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+    ):
         vector_c_type = expectation.rvv_vector_c_type
         intrinsics = [
             expectation.setvl_intrinsic,
@@ -11409,6 +11564,8 @@ def verify_emitted_rvv_cpp(
             SEGMENT2_FIELD_EXTRACT_INTRINSIC,
             expectation.unit_store_intrinsic,
         ]
+        if expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store:
+            intrinsics.append(expectation.scalar_splat_intrinsic)
         require_contains(
             text,
             vector_c_type,
@@ -16298,21 +16455,40 @@ def verify_materialized_selected_body(
             "tcrv_rvv.binary",
             "materialized selected-body MLIR computed-mask indexed-scatter",
         )
-    if expectation.is_computed_masked_segment2_load_unit_store:
+    if (
+        expectation.is_computed_masked_segment2_load_unit_store
+        or expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+    ):
+        segment2_load_context = (
+            "materialized selected-body MLIR runtime scalar computed-mask segment2"
+            if expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+            else "materialized selected-body MLIR computed-mask segment2"
+        )
         require_contains(
             text,
             "tcrv_rvv.compare",
-            "materialized selected-body MLIR computed-mask segment2 compare",
+            f"{segment2_load_context} compare",
         )
         require_contains(
             text,
-            'kind = "slt"',
-            "materialized selected-body MLIR computed-mask segment2 predicate",
+            f'kind = "{expectation.compare_predicate_kind}"',
+            f"{segment2_load_context} predicate",
         )
+        if expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store:
+            require_contains(
+                text,
+                "tcrv_rvv.splat",
+                f"{segment2_load_context} rhs scalar splat",
+            )
+            require_contains(
+                text,
+                'role = "rhs-scalar-value"',
+                f"{segment2_load_context} rhs scalar ABI role",
+            )
         require_contains(
             text,
             "tcrv_rvv.masked_segment2_load",
-            "materialized selected-body MLIR computed-mask masked segment2 load op",
+            f"{segment2_load_context} masked segment2 load op",
         )
         require_contains(
             text,
@@ -19150,7 +19326,47 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
-    if expectation.is_computed_masked_segment2_load_unit_store:
+    if (
+        expectation.is_computed_masked_segment2_load_unit_store
+        or expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+    ):
+        is_runtime_scalar_segment2_load = (
+            expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+        )
+        rhs_scalar_declaration = (
+            "  const int32_t rhs_scalar = pattern == 0 ? -37 : 91;\n"
+            if is_runtime_scalar_segment2_load
+            else ""
+        )
+        cmp_rhs_init_pattern0 = (
+            "cmp_rhs[index] = rhs_scalar;"
+            if is_runtime_scalar_segment2_load
+            else f"cmp_rhs[index] = {expectation.rhs_initializer};"
+        )
+        cmp_rhs_init_pattern1 = (
+            "cmp_rhs[index] = rhs_scalar;"
+            if is_runtime_scalar_segment2_load
+            else (
+                "cmp_rhs[index] = (int32_t)(((index % 5) == 1 || (index % 5) == 2)\n"
+                "                                     ? (int32_t)(80 + (int32_t)index)\n"
+                "                                     : (int32_t)(10 + (int32_t)index));"
+            )
+        )
+        function_call_args = (
+            "cmp_lhs, rhs_scalar, src, out0, out1, n"
+            if is_runtime_scalar_segment2_load
+            else "cmp_lhs, cmp_rhs, src, out0, out1, n"
+        )
+        active_expression = (
+            "cmp_lhs[index] <= rhs_scalar"
+            if is_runtime_scalar_segment2_load
+            else "cmp_lhs[index] < cmp_rhs[index]"
+        )
+        printf_case = (
+            "runtime_scalar_cmp segment2_load"
+            if is_runtime_scalar_segment2_load
+            else "computed_mask segment2_load"
+        )
         return f"""
 #include <stddef.h>
 #include <stdint.h>
@@ -19173,6 +19389,7 @@ static int run_case(size_t n, int pattern) {{
   int32_t *old0 = (int32_t *)malloc(sizeof(int32_t) * out_alloc_n);
   int32_t *old1 = (int32_t *)malloc(sizeof(int32_t) * out_alloc_n);
   int status = 0;
+{rhs_scalar_declaration}  (void)cmp_rhs;
   if (!cmp_lhs || !cmp_rhs || !src || !src_before || !out0 || !out1 || !old0 || !old1) {{
     fprintf(stderr, "allocation failed for n=%zu pattern=%d\\n", n, pattern);
     status = 11;
@@ -19181,14 +19398,12 @@ static int run_case(size_t n, int pattern) {{
 
   for (size_t index = 0; index < alloc_n; ++index) {{
     cmp_lhs[index] = {expectation.lhs_initializer};
-    cmp_rhs[index] = {expectation.rhs_initializer};
+    {cmp_rhs_init_pattern0}
     if (pattern == 1) {{
       cmp_lhs[index] = (int32_t)(((index % 5) == 1 || (index % 5) == 2)
                                      ? (int32_t)(5 + (int32_t)index)
                                      : (int32_t)(90 + (int32_t)index));
-      cmp_rhs[index] = (int32_t)(((index % 5) == 1 || (index % 5) == 2)
-                                     ? (int32_t)(80 + (int32_t)index)
-                                     : (int32_t)(10 + (int32_t)index));
+      {cmp_rhs_init_pattern1}
     }}
   }}
   for (size_t index = 0; index < src_alloc_n; ++index) {{
@@ -19210,14 +19425,14 @@ static int run_case(size_t n, int pattern) {{
     old1[index] = out1[index];
   }}
 
-  {expectation.function_name}(cmp_lhs, cmp_rhs, src, out0, out1, n);
+  {expectation.function_name}({function_call_args});
 
   size_t active_lanes = 0;
   size_t inactive_lanes = 0;
   size_t inactive_preserved_lanes = 0;
   size_t field_distinguishing_lanes = 0;
   for (size_t index = 0; index < n; ++index) {{
-    int active = cmp_lhs[index] < cmp_rhs[index];
+    int active = {active_expression};
     if (active)
       ++active_lanes;
     else
@@ -19287,7 +19502,7 @@ static int run_case(size_t n, int pattern) {{
     goto cleanup;
   }}
 
-  printf("{expectation.kind} case n=%zu pattern=%d ok computed_mask segment2_load active_lanes=%zu inactive_lanes=%zu inactive_preserved_lanes=%zu field_distinguishing_lanes=%zu source_preserved tail_preserved\\n",
+  printf("{expectation.kind} case n=%zu pattern=%d ok {printf_case} active_lanes=%zu inactive_lanes=%zu inactive_preserved_lanes=%zu field_distinguishing_lanes=%zu source_preserved tail_preserved\\n",
          n, pattern, active_lanes, inactive_lanes, inactive_preserved_lanes,
          field_distinguishing_lanes);
 
@@ -26437,7 +26652,13 @@ def mask_tail_policy_boundary_summary(
             "runtime_counts": runtime_counts,
             "runtime_counts_are_execution_cases_not_policy_authority": True,
         }
-    if expectation.is_computed_masked_segment2_load_unit_store:
+    if (
+        expectation.is_computed_masked_segment2_load_unit_store
+        or expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+    ):
+        is_runtime_scalar = (
+            expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+        )
         route_metadata = mask_tail_policy_metadata_from_bundle(
             bundle_checks, expectation
         )
@@ -26447,13 +26668,21 @@ def mask_tail_policy_boundary_summary(
         emitted_boundary = emitted_cpp_checks.get("mask_tail_policy_boundary", {})
         return {
             "source": (
-                "typed tcrv_rvv computed-mask segment2 load body/config -> "
-                "compare-produced mask -> RVV provider segment2 memory facts "
-                "-> masked segment2 load with old-field passthrough tuple -> "
-                "field stores"
+                "typed tcrv_rvv runtime-scalar computed-mask segment2 load "
+                "body/config -> runtime scalar splat compare mask -> RVV "
+                "provider segment2 memory facts -> masked segment2 load with "
+                "old-field passthrough tuple -> field stores"
+                if is_runtime_scalar
+                else "typed tcrv_rvv computed-mask segment2 load "
+                "body/config -> compare-produced mask -> RVV provider "
+                "segment2 memory facts -> masked segment2 load with "
+                "old-field passthrough tuple -> field stores"
             ),
             "authority": (
-                "provider-derived typed tcrv_rvv computed-mask segment2 "
+                "provider-derived typed tcrv_rvv runtime-scalar computed-mask "
+                "segment2 body/config/runtime facts"
+                if is_runtime_scalar
+                else "provider-derived typed tcrv_rvv computed-mask segment2 "
                 "body/config/runtime facts"
             ),
             "artifact_metadata_role": "mirror-only-after-provider-route",
@@ -26465,6 +26694,17 @@ def mask_tail_policy_boundary_summary(
                 "memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
                 "mask_type": expectation.rvv_mask_type,
                 "mask_c_type": expectation.rvv_mask_c_type,
+                **(
+                    {
+                        "runtime_scalar_operand": "rhs_scalar",
+                        "runtime_scalar_realization_op": "tcrv_rvv.splat",
+                        "runtime_scalar_producer_source": (
+                            COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
+                        ),
+                    }
+                    if is_runtime_scalar
+                    else {}
+                ),
             },
             "tail_policy": route_metadata.get("tcrv_rvv.tail_policy"),
             "mask_policy": route_metadata.get("tcrv_rvv.mask_policy"),
@@ -26475,7 +26715,10 @@ def mask_tail_policy_boundary_summary(
                 "tcrv_rvv.mask_tail_policy_owner"
             ),
             "active_lane_contract": (
-                "compare-true lanes load field0/field1 from interleaved "
+                "runtime-scalar compare-true lanes load field0/field1 from "
+                "interleaved segment2 source"
+                if is_runtime_scalar
+                else "compare-true lanes load field0/field1 from interleaved "
                 "segment2 source"
             ),
             "inactive_lane_contract": route_metadata.get(
@@ -29924,6 +30167,7 @@ def run_one_op_e2e(
             or expectation.is_masked_unit_store
             or expectation.is_computed_mask_select
             or expectation.is_computed_masked_segment2_load_unit_store
+            or expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
             or expectation.is_computed_masked_segment2_store_unit_load
             or expectation.is_runtime_scalar_cmp_masked_segment2_store_unit_load
             or expectation.is_computed_mask_standalone_reduce
@@ -30491,10 +30735,18 @@ def run_one_op_e2e(
                 "lanes, source buffers, and destination tail slots preserve "
                 "sentinels"
             )
-        if expectation.is_computed_masked_segment2_load_unit_store:
+        if (
+            expectation.is_computed_masked_segment2_load_unit_store
+            or expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+        ):
             evidence["harness"]["mask_coverage_contract"] = (
-                "multi-lane computed_masked_segment2_load_unit_store cases "
-                "require compare-produced active and inactive mask lanes"
+                f"multi-lane {expectation.kind} cases require "
+                + (
+                    "runtime-scalar compare-produced active and inactive mask "
+                    "lanes"
+                    if expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+                    else "compare-produced active and inactive mask lanes"
+                )
             )
             evidence["harness"]["inactive_lane_contract"] = (
                 "compare-false lanes must preserve both old destination field "
@@ -30970,6 +31222,7 @@ def run_e2e(args: argparse.Namespace) -> int:
             or expectation.is_runtime_scalar_dual_compare_mask_and_select
             or expectation.is_runtime_scalar_computed_mask_store
             or expectation.is_runtime_scalar_computed_mask_load_store
+            or expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
             or expectation.is_runtime_scalar_cmp_masked_segment2_store_unit_load
             or expectation.is_runtime_scalar_computed_masked_macc_add
             or expectation.is_runtime_scalar_computed_mask_standalone_reduce
@@ -31004,6 +31257,7 @@ def run_e2e(args: argparse.Namespace) -> int:
                 "runtime_scalar_cmp_select/runtime_scalar_cmp_masked_store/"
                 "runtime_scalar_dual_cmp_mask_and_select/"
                 "runtime_scalar_cmp_masked_load_store/"
+                "runtime_scalar_cmp_masked_segment2_load_unit_store/"
                 "runtime_scalar_cmp_masked_segment2_store_unit_load/"
                 "runtime_scalar_cmp_masked_macc_add/"
                 "runtime_scalar_cmp_masked_standalone_reduce_add/min/max"
@@ -32806,21 +33060,44 @@ def run_self_test() -> int:
                     "self-test harness generation lost computed-mask indexed "
                     "scatter mask, no-write, or index coverage"
                 )
-            if expectation.is_computed_masked_segment2_load_unit_store and (
-                "computed_mask segment2_load" not in harness
+            if (
+                expectation.is_computed_masked_segment2_load_unit_store
+                or expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+            ) and (
+                (
+                    "runtime_scalar_cmp segment2_load"
+                    if expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+                    else "computed_mask segment2_load"
+                )
+                not in harness
                 or "src[2 * index]" not in harness
                 or "src[2 * index + 1]" not in harness
                 or "for (int pattern = 0; pattern < 2; ++pattern)" not in harness
-                or "pattern=%d ok computed_mask segment2_load" not in harness
+                or (
+                    "pattern=%d ok runtime_scalar_cmp segment2_load"
+                    if expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+                    else "pattern=%d ok computed_mask segment2_load"
+                )
+                not in harness
                 or "patterns=0,1" not in harness
                 or "inactive lane failed to preserve old fields" not in harness
                 or "field_distinguishing_lanes" not in harness
+                or (
+                    expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+                    and (
+                        "rhs_scalar" not in harness
+                        or "<= rhs_scalar" not in harness
+                    )
+                )
             ):
                 raise AssertionError(
                     "self-test harness generation lost computed-mask segment2 "
                     "mask, passthrough, or field-order coverage"
                 )
-            if expectation.is_computed_masked_segment2_load_unit_store:
+            if (
+                expectation.is_computed_masked_segment2_load_unit_store
+                or expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
+            ):
                 bundle_checks = verify_bundle(
                     bundle, readobj=None, expectation=expectation
                 )
@@ -33384,6 +33661,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "runtime_scalar_cmp_masked_macc_add/"
             "runtime_scalar_cmp_masked_standalone_reduce_add/min/max/"
             "computed_masked_segment2_load_unit_store/"
+            "runtime_scalar_cmp_masked_segment2_load_unit_store/"
             "computed_masked_segment2_store_unit_load/"
             "runtime_scalar_cmp_masked_segment2_store_unit_load/"
             "computed_masked_segment2_update_unit_load/"
@@ -33476,6 +33754,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "runtime_scalar_dual_cmp_mask_and_select, or "
             "runtime_scalar_cmp_masked_store/"
             "runtime_scalar_cmp_masked_load_store/"
+            "runtime_scalar_cmp_masked_segment2_load_unit_store/"
             "runtime_scalar_cmp_masked_segment2_store_unit_load/"
             "runtime_scalar_cmp_masked_macc_add/"
             "runtime_scalar_cmp_masked_standalone_reduce_add/min/max; may be "

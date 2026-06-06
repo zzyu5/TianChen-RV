@@ -1476,6 +1476,30 @@ getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters() {
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 6>
+getRVVSelectedBodyRuntimeScalarComputedMaskSegment2LoadRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs_scalar", "int32_t",
+      support::RuntimeABIParameterRole::RHSScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src", "const int32_t *",
+      support::RuntimeABIParameterRole::SourceInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out0", "int32_t *",
+      support::RuntimeABIParameterRole::SegmentField0OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out1", "int32_t *",
+      support::RuntimeABIParameterRole::SegmentField1OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 6>
 getRVVSelectedBodyComputedMaskSegment2StoreRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
   parameters.push_back(support::makeTargetExportABIParameter(
@@ -1701,6 +1725,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       computedMaskSegment2Load =
           getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, computedMaskSegment2Load))
+    return llvm::Error::success();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 6>
+      runtimeScalarComputedMaskSegment2Load =
+          getRVVSelectedBodyRuntimeScalarComputedMaskSegment2LoadRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(
+          parameters, runtimeScalarComputedMaskSegment2Load))
     return llvm::Error::success();
 
   llvm::SmallVector<support::RuntimeABIParameter, 6>

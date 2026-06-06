@@ -13278,13 +13278,15 @@ int runSegment2RouteFamilyPlanningOwnerRegistryTest() {
                      RVVSelectedBodySegment2RouteFamilyPlanningOwner>
       owners = getRVVSelectedBodySegment2RouteFamilyPlanningOwners();
   if (int result = expect(
-          owners.size() == 6,
-          "segment2 route-family planning owner registry has exactly six "
+          owners.size() == 7,
+          "segment2 route-family planning owner registry has exactly seven "
           "active segment2 family entries"))
     return result;
 
   const llvm::StringRef expectedOwnerNames[] = {
-      "computed-mask segment2 load", "computed-mask segment2 store",
+      "computed-mask segment2 load",
+      "runtime-scalar computed-mask segment2 load",
+      "computed-mask segment2 store",
       "runtime-scalar computed-mask segment2 store",
       "computed-mask segment2 update",
       "plain segment2 deinterleave", "plain segment2 interleave"};
@@ -13311,6 +13313,10 @@ int runSegment2RouteFamilyPlanningOwnerRegistryTest() {
       {RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore,
        RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore,
        "computed-mask segment2 load"},
+      {RVVSelectedBodyOperationKind::
+           RuntimeScalarComputedMaskSegment2LoadUnitStore,
+       RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore,
+       "runtime-scalar computed-mask segment2 load"},
       {RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad,
        RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store,
        "computed-mask segment2 store"},
@@ -17349,7 +17355,7 @@ module {
               "computed-mask segment2 route-control stale direction unit test")
               .takeError(),
           {"route-control provider plan requires computed-mask segment2 "
-           "mask-producer, direction, and memory-form facts",
+           "direction facts from the verified route-family plan",
            "before provider route construction"}))
     return result;
 
@@ -17371,7 +17377,8 @@ module {
               "test")
               .takeError(),
           {"route-control provider plan requires computed-mask segment2 "
-           "mask-producer, direction, and memory-form facts",
+           "operation and memory-form facts from the verified route-family "
+           "plan",
            "before provider route construction"}))
     return result;
 
