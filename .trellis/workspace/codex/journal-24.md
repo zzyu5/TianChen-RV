@@ -171,6 +171,60 @@ provider-owned `RVVUnitStrideMaskedMemoryRouteValidationContract`.
 
 - Archive task and create the final commit.
 
+## Session 492: Stage2 RVV computed-masked segment2 executable artifact ABI boundary
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV computed-masked segment2 artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Proved the existing pre-realized computed-masked segment2 load/store artifact
+ABI seam with non-dry-run `ssh rvv` generated-bundle evidence. The production
+audit found the code path already goes through RVV plugin-local selected-body
+realization, computed-mask/segment2 provider plans, provider-built
+`TCRVEmitCLowerableRoute`, and segment2 target validation contracts, so this
+round did not require production source changes.
+
+### Main Changes
+
+- Created and archived the Trellis PRD for the computed-masked segment2
+  load/store executable artifact ABI boundary.
+- Recorded that existing target artifact C++ coverage already validates
+  computed-mask segment2 load/store/update provider facts, route statement
+  shape, ABI/header/type/binding facts, mask facts, field facts, and metadata
+  mirror rejection.
+- Ran non-dry-run generated-bundle evidence on `ssh rvv` for
+  `computed_masked_segment2_load_unit_store` and
+  `computed_masked_segment2_store_unit_load`, covering runtime counts
+  `0,1,7,16,23,257`, two compare-mask patterns, active/inactive lanes,
+  inactive-lane preservation, field-order distinguishing lanes, source
+  preservation, and tail preservation.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | rvv: prove computed masked segment2 artifact abi |
+
+### Testing
+
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'computed-masked-segment2-(load|store)'` from `build/test`: 10/10 passed
+- [OK] Non-dry-run `scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind computed_masked_segment2_load_unit_store --op-kind computed_masked_segment2_store_unit_load` passed with `ssh_evidence: true`
+- [OK] `ssh rvv` PASS covered counts `0,1,7,16,23,257`, patterns `0,1`, active/inactive lanes, inactive preservation, field-distinguishing lanes, source preservation, and tail preservation for both load and store
+- [OK] `git diff --check`
+- [OK] bounded old-authority scan over the touched Trellis task files
+
+### Status
+
+[OK] **Ready to commit**
+
+### Next Steps
+
+- Create the final commit.
+
 ## Session 490: Stage2 RVV computed-masked segment2 update executable artifact ABI boundary
 
 **Date**: 2026-06-06

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final changes preserve RVV-first authority and avoid descriptor/source-front-door route drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin-owned computed-mask/segment2 facts remain the route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC neutrality and target artifact validation against computed-mask segment2 contracts."}
+{"file": ".trellis/tasks/06-06-stage2-rvv-computed-masked-segment2-artifact-abi/prd.md", "reason": "Verify implemented behavior and evidence satisfy the bounded task acceptance criteria."}
