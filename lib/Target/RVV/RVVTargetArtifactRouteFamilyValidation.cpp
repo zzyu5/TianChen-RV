@@ -649,6 +649,8 @@ bool isRVVSegment2MemoryRouteFamilyOperation(
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskSegment2StoreUnitLoad:
   case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskSegment2StoreUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskSegment2UpdateUnitLoad:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       Segment2DeinterleaveUnitStore:
@@ -12072,6 +12074,15 @@ llvm::Error validateRVVSegment2MemoryProviderFactsFromContract(
           "segment tuple create callee", actualTupleCreateIntrinsic,
           contract.segmentTupleCreateIntrinsic))
     return error;
+  llvm::StringRef actualRHSScalarSplatIntrinsic =
+      contract.kind == plugin::rvv::RVVSegment2MemoryRouteValidationKind::
+                           RuntimeScalarComputedMaskStoreUnitLoad
+          ? description.rhsBroadcastIntrinsic
+          : llvm::StringRef();
+  if (llvm::Error error = requireRVVSegment2MemoryProviderField(
+          "runtime scalar splat callee", actualRHSScalarSplatIntrinsic,
+          contract.rhsScalarSplatIntrinsic))
+    return error;
   llvm::StringRef actualFieldExtractIntrinsic =
       (contract.usesDeinterleaveLoad || contract.usesComputedMaskLoad)
           ? description.segmentFieldExtractIntrinsic
@@ -12355,6 +12366,48 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
          {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
         description.maskName, description.maskCType);
   };
+  auto validateRuntimeScalarComputedMaskPrefix =
+      [&](const support::RuntimeABIParameter &compareLhsABI,
+          const support::RuntimeABIParameter &rhsScalarABI,
+          const support::RuntimeABIParameter &field0ABI,
+          const support::RuntimeABIParameter &field1ABI,
+          llvm::StringRef field0ResultName,
+          llvm::StringRef field1ResultName) -> llvm::Error {
+    if (description.compareIntrinsic.empty() || description.maskName.empty() ||
+        description.maskCType.empty() ||
+        contract.rhsScalarSplatIntrinsic.empty())
+      return makeRVVTargetRouteError(
+          llvm::Twine(consumerLabel) +
+          " requires provider-derived runtime scalar splat, computed-mask "
+          "compare, mask name, and mask C type facts before validating route "
+          "statements");
+    if (llvm::Error error = validateVectorLoad(
+            loop.bodySteps[1], "compare lhs vector load", compareLhsABI,
+            "cmp_lhs_vec"))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[2], consumerLabel, "rhs scalar splat",
+            contract.rhsScalarSplatIntrinsic,
+            {{rhsScalarABI.cName, rhsScalarABI.cType},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+            "cmp_rhs_vec", description.vectorCType))
+      return error;
+    if (llvm::Error error = validateVectorLoad(
+            loop.bodySteps[3], "field0 payload vector load", field0ABI,
+            field0ResultName))
+      return error;
+    if (llvm::Error error = validateVectorLoad(
+            loop.bodySteps[4], "field1 payload vector load", field1ABI,
+            field1ResultName))
+      return error;
+    return validateRVVProviderBuiltRouteStep(
+        loop.bodySteps[5], consumerLabel, "compare/mask",
+        description.compareIntrinsic,
+        {{"cmp_lhs_vec", description.vectorCType},
+         {"cmp_rhs_vec", description.vectorCType},
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+        description.maskName, description.maskCType);
+  };
 
   switch (description.operation) {
   case plugin::rvv::RVVSelectedBodyOperationKind::
@@ -12424,6 +12477,38 @@ llvm::Error validateRVVSegment2MemoryRouteStatementPlan(
             validateComputedMaskPrefix(compareLhsABI, compareRhsABI, field0ABI,
                                        field1ABI, description.field0Name,
                                        description.field1Name))
+      return error;
+    if (llvm::Error error =
+            validateTupleCreate(loop.bodySteps[6], "segment2 tuple create",
+                                description.field0Name, description.field1Name,
+                                "segment2_tuple"))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[7], consumerLabel, "masked segment2 store",
+            description.segmentStoreIntrinsic,
+            {{description.maskName, description.maskCType},
+             {interleavedPointerAtInduction(destinationABI),
+              destinationABI.cType},
+             {"segment2_tuple", description.segmentTupleCType},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}}))
+      return error;
+    break;
+  }
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskSegment2StoreUnitLoad: {
+    const support::RuntimeABIParameter &compareLhsABI =
+        description.runtimeABIParameters[0];
+    const support::RuntimeABIParameter &rhsScalarABI =
+        description.runtimeABIParameters[1];
+    const support::RuntimeABIParameter &field0ABI =
+        description.runtimeABIParameters[2];
+    const support::RuntimeABIParameter &field1ABI =
+        description.runtimeABIParameters[3];
+    const support::RuntimeABIParameter &destinationABI =
+        description.runtimeABIParameters[4];
+    if (llvm::Error error = validateRuntimeScalarComputedMaskPrefix(
+            compareLhsABI, rhsScalarABI, field0ABI, field1ABI,
+            description.field0Name, description.field1Name))
       return error;
     if (llvm::Error error =
             validateTupleCreate(loop.bodySteps[6], "segment2 tuple create",
@@ -12702,8 +12787,11 @@ bool isRVVSegment2LoadTargetArtifactFamilyConsumer(
 
 bool isRVVSegment2StoreTargetArtifactFamilyConsumer(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
-  return description.operation == plugin::rvv::RVVSelectedBodyOperationKind::
-                                      ComputedMaskSegment2StoreUnitLoad;
+  return description.operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 ComputedMaskSegment2StoreUnitLoad ||
+         description.operation == plugin::rvv::RVVSelectedBodyOperationKind::
+                                      RuntimeScalarComputedMaskSegment2StoreUnitLoad;
 }
 
 bool isRVVSegment2UpdateTargetArtifactFamilyConsumer(

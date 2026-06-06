@@ -13278,15 +13278,16 @@ int runSegment2RouteFamilyPlanningOwnerRegistryTest() {
                      RVVSelectedBodySegment2RouteFamilyPlanningOwner>
       owners = getRVVSelectedBodySegment2RouteFamilyPlanningOwners();
   if (int result = expect(
-          owners.size() == 5,
-          "segment2 route-family planning owner registry has exactly five "
+          owners.size() == 6,
+          "segment2 route-family planning owner registry has exactly six "
           "active segment2 family entries"))
     return result;
 
   const llvm::StringRef expectedOwnerNames[] = {
       "computed-mask segment2 load", "computed-mask segment2 store",
-      "computed-mask segment2 update", "plain segment2 deinterleave",
-      "plain segment2 interleave"};
+      "runtime-scalar computed-mask segment2 store",
+      "computed-mask segment2 update",
+      "plain segment2 deinterleave", "plain segment2 interleave"};
   for (std::size_t i = 0; i < owners.size(); ++i) {
     if (int result = expect(
             owners[i].familyName == expectedOwnerNames[i],
@@ -13316,6 +13317,10 @@ int runSegment2RouteFamilyPlanningOwnerRegistryTest() {
       {RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad,
        RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store,
        "computed-mask segment2 update"},
+      {RVVSelectedBodyOperationKind::
+           RuntimeScalarComputedMaskSegment2StoreUnitLoad,
+       RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store,
+       "runtime-scalar computed-mask segment2 store"},
       {RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore,
        RVVSelectedBodyMemoryForm::Segment2LoadUnitStore,
        "plain segment2 deinterleave"},

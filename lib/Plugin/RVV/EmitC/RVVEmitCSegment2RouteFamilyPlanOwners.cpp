@@ -23,6 +23,9 @@ constexpr llvm::StringLiteral
     kRVVComputedMaskSegment2StoreOperandBindingPlanID(
         "rvv-route-operand-binding:computed_masked_segment2_store_unit_load.v1");
 constexpr llvm::StringLiteral
+    kRVVRuntimeScalarComputedMaskSegment2StoreOperandBindingPlanID(
+        "rvv-route-operand-binding:runtime_scalar_cmp_masked_segment2_store_unit_load.v1");
+constexpr llvm::StringLiteral
     kRVVComputedMaskSegment2UpdateOperandBindingPlanID(
         "rvv-route-operand-binding:cmseg2_update_unit_load.v1");
 constexpr llvm::StringLiteral
@@ -36,6 +39,9 @@ constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadRuntimeABIOrder(
     "cmp_lhs,cmp_rhs,src,out0,out1,n");
 constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreRuntimeABIOrder(
     "cmp_lhs,cmp_rhs,src0,src1,dst,n");
+constexpr llvm::StringLiteral
+    kRVVRuntimeScalarComputedMaskSegment2StoreRuntimeABIOrder(
+        "lhs,rhs_scalar,src0,src1,dst,n");
 constexpr llvm::StringLiteral kRVVComputedMaskSegment2UpdateRuntimeABIOrder(
     "cmp_lhs,cmp_rhs,src0,src1,dst,n");
 constexpr llvm::StringLiteral kRVVSegment2DeinterleaveRuntimeABIOrder(
@@ -465,6 +471,9 @@ getExpectedRVVSelectedBodySegment2RouteOperandBindingPlanIDImpl(
     return kRVVComputedMaskSegment2LoadOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
     return kRVVComputedMaskSegment2StoreOperandBindingPlanID;
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskSegment2StoreUnitLoad:
+    return kRVVRuntimeScalarComputedMaskSegment2StoreOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
     return kRVVComputedMaskSegment2UpdateOperandBindingPlanID;
   case RVVSelectedBodyOperationKind::Segment2DeinterleaveUnitStore:
@@ -500,6 +509,20 @@ getExpectedRVVSelectedBodySegment2RouteOperandBindingRoleImpl(
       return RuntimeABIParameterRole::LHSInputBuffer;
     if (logicalOperand == "cmp_rhs")
       return RuntimeABIParameterRole::RHSInputBuffer;
+    if (logicalOperand == "src0")
+      return RuntimeABIParameterRole::SegmentField0InputBuffer;
+    if (logicalOperand == "src1")
+      return RuntimeABIParameterRole::SegmentField1InputBuffer;
+    if (logicalOperand == "dst")
+      return RuntimeABIParameterRole::SegmentInterleavedOutputBuffer;
+    if (logicalOperand == "n")
+      return RuntimeABIParameterRole::RuntimeElementCount;
+  }
+  if (planID == kRVVRuntimeScalarComputedMaskSegment2StoreOperandBindingPlanID) {
+    if (logicalOperand == "lhs")
+      return RuntimeABIParameterRole::LHSInputBuffer;
+    if (logicalOperand == "rhs_scalar")
+      return RuntimeABIParameterRole::RHSScalarValue;
     if (logicalOperand == "src0")
       return RuntimeABIParameterRole::SegmentField0InputBuffer;
     if (logicalOperand == "src1")
@@ -577,6 +600,34 @@ deriveRVVSelectedBodySegment2RouteOperandBindingPlanImpl(
     addSegment2RouteOperandBinding(
         plan, "cmp_rhs", analysis.slice.rhsABI,
         {"abi", "cmp-rhs-load", "rhs-call", "hdr"});
+    addSegment2RouteOperandBinding(
+        plan, "src0", analysis.slice.field0ABI,
+        {"abi", "f0-load", "f0-payload", "tuple0", "f0-role", "src0-mem",
+         "hdr"});
+    addSegment2RouteOperandBinding(
+        plan, "src1", analysis.slice.field1ABI,
+        {"abi", "f1-load", "f1-payload", "tuple1", "f1-role", "src1-mem",
+         "hdr"});
+    addSegment2RouteOperandBinding(
+        plan, "dst", analysis.slice.outABI,
+        {"abi", "mseg-store", "dst-mem", "hdr"});
+    addSegment2RouteOperandBinding(
+        plan, "n", analysis.slice.runtimeElementCountABI,
+        {"abi", "setvl-avl", "loop-control", "hdr"});
+    break;
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskSegment2StoreUnitLoad:
+    plan.planID =
+        kRVVRuntimeScalarComputedMaskSegment2StoreOperandBindingPlanID.str();
+    expectedRuntimeABIOrder =
+        kRVVRuntimeScalarComputedMaskSegment2StoreRuntimeABIOrder;
+    context = "runtime_scalar_cmp_masked_segment2_store_unit_load route";
+    addSegment2RouteOperandBinding(
+        plan, "lhs", analysis.slice.lhsABI,
+        {"abi", "cmp-lhs-load", "lhs-call", "hdr"});
+    addSegment2RouteOperandBinding(
+        plan, "rhs_scalar", analysis.slice.rhsABI,
+        {"abi", "splat", "rhs-call", "hdr"});
     addSegment2RouteOperandBinding(
         plan, "src0", analysis.slice.field0ABI,
         {"abi", "f0-load", "f0-payload", "tuple0", "f0-role", "src0-mem",
@@ -696,6 +747,15 @@ bool isRVVSelectedBodyComputedMaskSegment2StoreRouteFamilyPlanningConsumer(
              RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store;
 }
 
+bool isRVVSelectedBodyRuntimeScalarComputedMaskSegment2StoreRouteFamilyPlanningConsumer(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  return description.operation ==
+             RVVSelectedBodyOperationKind::
+                 RuntimeScalarComputedMaskSegment2StoreUnitLoad &&
+         description.memoryForm ==
+             RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store;
+}
+
 bool isRVVSelectedBodyComputedMaskSegment2UpdateRouteFamilyPlanningConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return description.operation ==
@@ -786,11 +846,15 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
   const bool isComputedMaskSegment2Store =
       expectedOperation ==
       RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
+  const bool isRuntimeScalarComputedMaskSegment2Store =
+      expectedOperation == RVVSelectedBodyOperationKind::
+                               RuntimeScalarComputedMaskSegment2StoreUnitLoad;
   const bool isComputedMaskSegment2Update =
       expectedOperation ==
       RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad;
   const bool isComputedMaskSegment2StoreLike =
-      isComputedMaskSegment2Store || isComputedMaskSegment2Update;
+      isComputedMaskSegment2Store ||
+      isRuntimeScalarComputedMaskSegment2Store || isComputedMaskSegment2Update;
   const bool isPlainSegment2 = isPlainDeinterleave || isPlainInterleave;
   const bool isComputedMaskSegment2 =
       isComputedMaskSegment2Load || isComputedMaskSegment2StoreLike;
@@ -801,6 +865,8 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
   plan.plansPlainSegment2InterleaveUnitLoad = isPlainInterleave;
   plan.plansComputedMaskSegment2LoadUnitStore = isComputedMaskSegment2Load;
   plan.plansComputedMaskSegment2StoreUnitLoad = isComputedMaskSegment2Store;
+  plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad =
+      isRuntimeScalarComputedMaskSegment2Store;
   plan.plansComputedMaskSegment2UpdateUnitLoad = isComputedMaskSegment2Update;
   plan.segment2MemoryPlan = materializationFacts.segment2MemoryPlan;
   plan.computedMaskMemoryPlan = materializationFacts.computedMaskMemoryPlan;
@@ -862,8 +928,10 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
         *materializationFacts.computedMaskMemoryPlan;
     if (computedPlan.operation != description.operation ||
         computedPlan.memoryForm != description.memoryForm ||
-        computedPlan.usesRuntimeScalarProducer ||
-        !computedPlan.usesVectorCompareProducer ||
+        computedPlan.usesRuntimeScalarProducer !=
+            isRuntimeScalarComputedMaskSegment2Store ||
+        computedPlan.usesVectorCompareProducer !=
+            !isRuntimeScalarComputedMaskSegment2Store ||
         computedPlan.usesLoadMerge != isComputedMaskSegment2Load ||
         computedPlan.usesStoreOnly != isComputedMaskSegment2StoreLike ||
         computedPlan.usesSegment2Load != isComputedMaskSegment2Load ||
@@ -909,6 +977,10 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
     plan.setVLIntrinsic = computedPlan.setVLIntrinsic;
     plan.vectorLoadIntrinsic = computedPlan.vectorLoadIntrinsic;
     plan.storeIntrinsic = computedPlan.maskedStoreIntrinsic;
+    plan.rhsScalarSplatIntrinsic =
+        isRuntimeScalarComputedMaskSegment2Store
+            ? computedPlan.rhsScalarSplatIntrinsic
+            : llvm::StringRef();
     plan.compareIntrinsic = computedPlan.compareIntrinsic;
     plan.arithmeticKind =
         isComputedMaskSegment2Update ? computedPlan.arithmeticKind
@@ -1044,6 +1116,7 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
 
   plan.compareLhsABI = memoryOperandBindingFacts.compareLhsABI;
   plan.compareRhsABI = memoryOperandBindingFacts.compareRhsABI;
+  plan.rhsScalarABI = memoryOperandBindingFacts.rhsScalarABI;
   plan.sourceABI = memoryOperandBindingFacts.sourceABI;
   plan.destinationABI = memoryOperandBindingFacts.destinationABI;
   plan.field0ABI = memoryOperandBindingFacts.field0ABI;
@@ -1053,11 +1126,19 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
 
   if (isComputedMaskSegment2) {
     if (llvm::Error error = requireRVVSegment2RouteFamilyProviderPlanABI(
-            plan.compareLhsABI, "cmp_lhs", description, context))
+            plan.compareLhsABI,
+            isRuntimeScalarComputedMaskSegment2Store ? "lhs" : "cmp_lhs",
+            description, context))
       return std::move(error);
-    if (llvm::Error error = requireRVVSegment2RouteFamilyProviderPlanABI(
-            plan.compareRhsABI, "cmp_rhs", description, context))
-      return std::move(error);
+    if (isRuntimeScalarComputedMaskSegment2Store) {
+      if (llvm::Error error = requireRVVSegment2RouteFamilyProviderPlanABI(
+              plan.rhsScalarABI, "rhs_scalar", description, context))
+        return std::move(error);
+    } else {
+      if (llvm::Error error = requireRVVSegment2RouteFamilyProviderPlanABI(
+              plan.compareRhsABI, "cmp_rhs", description, context))
+        return std::move(error);
+    }
   }
   if (isPlainDeinterleave || isComputedMaskSegment2Load)
     if (llvm::Error error = requireRVVSegment2RouteFamilyProviderPlanABI(
@@ -1094,6 +1175,11 @@ llvm::Error buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
   if (isComputedMaskSegment2)
     if (llvm::Error error = requireRVVSegment2RouteFamilyProviderPlanLeaf(
             plan.compareIntrinsic, "compare callee", description, context))
+      return std::move(error);
+  if (isRuntimeScalarComputedMaskSegment2Store)
+    if (llvm::Error error = requireRVVSegment2RouteFamilyProviderPlanLeaf(
+            plan.rhsScalarSplatIntrinsic, "runtime scalar splat callee",
+            description, context))
       return std::move(error);
   if (isComputedMaskSegment2Update)
     if (llvm::Error error = requireRVVSegment2RouteFamilyProviderPlanLeaf(
@@ -1160,6 +1246,21 @@ llvm::Error buildComputedMaskSegment2StoreRouteFamilyProviderPlan(
       analysis, materializationFacts, memoryOperandBindingFacts, plan, context,
       "computed-mask segment2 store",
       RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad,
+      RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store);
+}
+
+llvm::Error buildRuntimeScalarComputedMaskSegment2StoreRouteFamilyProviderPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    RVVSelectedBodySegment2RouteFamilyProviderPlan &plan,
+    llvm::StringRef context) {
+  return buildRVVSelectedBodySegment2RouteFamilyProviderPlanForOperation(
+      analysis, materializationFacts, memoryOperandBindingFacts, plan, context,
+      "runtime-scalar computed-mask segment2 store",
+      RVVSelectedBodyOperationKind::
+          RuntimeScalarComputedMaskSegment2StoreUnitLoad,
       RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store);
 }
 
@@ -1747,6 +1848,9 @@ getRVVSelectedBodySegment2RouteFamilyPlanningOwners() {
       {"computed-mask segment2 store",
        isRVVSelectedBodyComputedMaskSegment2StoreRouteFamilyPlanningConsumer,
        buildComputedMaskSegment2StoreRouteFamilyProviderPlan},
+      {"runtime-scalar computed-mask segment2 store",
+       isRVVSelectedBodyRuntimeScalarComputedMaskSegment2StoreRouteFamilyPlanningConsumer,
+       buildRuntimeScalarComputedMaskSegment2StoreRouteFamilyProviderPlan},
       {"computed-mask segment2 update",
        isRVVSelectedBodyComputedMaskSegment2UpdateRouteFamilyPlanningConsumer,
        buildComputedMaskSegment2UpdateRouteFamilyProviderPlan},

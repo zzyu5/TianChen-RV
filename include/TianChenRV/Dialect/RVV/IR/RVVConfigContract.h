@@ -210,6 +210,8 @@ llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
 getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
 getRVVSelectedBodyComputedMaskSegment2StoreRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
+getRVVSelectedBodyRuntimeScalarComputedMaskSegment2StoreRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
 getRVVSelectedBodySegment2DeinterleaveRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>

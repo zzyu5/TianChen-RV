@@ -69,6 +69,7 @@ enum class RVVSelectedBodyOperationKind {
   ComputedMaskIndexedScatterStoreUnitLoad,
   ComputedMaskSegment2LoadUnitStore,
   ComputedMaskSegment2StoreUnitLoad,
+  RuntimeScalarComputedMaskSegment2StoreUnitLoad,
   ComputedMaskSegment2UpdateUnitLoad,
   Segment2DeinterleaveUnitStore,
   Segment2InterleaveUnitLoad,
@@ -346,6 +347,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef segmentLoadIntrinsic;
   llvm::StringRef segmentStoreIntrinsic;
   llvm::StringRef segmentFieldExtractIntrinsic;
+  llvm::StringRef rhsScalarSplatIntrinsic;
   llvm::StringRef segment2UpdateArithmeticKind;
   llvm::StringRef segment2UpdateArithmeticIntrinsic;
   llvm::StringRef field0Role;
@@ -1187,6 +1189,7 @@ struct RVVComputedMaskSegment2MemoryRouteFacts {
   llvm::StringRef segmentLoadIntrinsic;
   llvm::StringRef segmentStoreIntrinsic;
   llvm::StringRef segmentFieldExtractIntrinsic;
+  llvm::StringRef rhsScalarSplatIntrinsic;
   llvm::StringRef segment2UpdateArithmeticKind;
   llvm::StringRef segment2UpdateArithmeticIntrinsic;
   llvm::StringRef field0Role;
@@ -1212,6 +1215,7 @@ enum class RVVSegment2MemoryRouteValidationKind {
   PlainInterleaveUnitLoad,
   ComputedMaskLoadUnitStore,
   ComputedMaskStoreUnitLoad,
+  RuntimeScalarComputedMaskStoreUnitLoad,
   ComputedMaskUpdateUnitLoad,
 };
 
@@ -1278,6 +1282,7 @@ struct RVVSegment2MemoryRouteValidationContract {
   std::string segmentStoreIntrinsic;
   std::string segmentFieldExtractIntrinsic;
   std::string segmentTupleCreateIntrinsic;
+  std::string rhsScalarSplatIntrinsic;
   std::string segment2UpdateArithmeticKind;
   std::string segment2UpdateArithmeticIntrinsic;
   std::string field0Role;

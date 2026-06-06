@@ -1488,6 +1488,7 @@ struct RVVSelectedBodySegment2MemoryRouteStatementPlan {
   bool plansPlainSegment2InterleaveUnitLoad = false;
   bool plansComputedMaskSegment2LoadUnitStore = false;
   bool plansComputedMaskSegment2StoreUnitLoad = false;
+  bool plansRuntimeScalarComputedMaskSegment2StoreUnitLoad = false;
   bool plansComputedMaskSegment2UpdateUnitLoad = false;
 
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
@@ -1510,6 +1511,7 @@ struct RVVSelectedBodySegment2RouteFamilyProviderPlan {
   bool plansPlainSegment2InterleaveUnitLoad = false;
   bool plansComputedMaskSegment2LoadUnitStore = false;
   bool plansComputedMaskSegment2StoreUnitLoad = false;
+  bool plansRuntimeScalarComputedMaskSegment2StoreUnitLoad = false;
   bool plansComputedMaskSegment2UpdateUnitLoad = false;
 
   llvm::StringRef emitCRouteID;
@@ -1520,6 +1522,7 @@ struct RVVSelectedBodySegment2RouteFamilyProviderPlan {
 
   const support::RuntimeABIParameter *compareLhsABI = nullptr;
   const support::RuntimeABIParameter *compareRhsABI = nullptr;
+  const support::RuntimeABIParameter *rhsScalarABI = nullptr;
   const support::RuntimeABIParameter *sourceABI = nullptr;
   const support::RuntimeABIParameter *destinationABI = nullptr;
   const support::RuntimeABIParameter *field0ABI = nullptr;
@@ -1537,6 +1540,7 @@ struct RVVSelectedBodySegment2RouteFamilyProviderPlan {
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic;
   llvm::StringRef storeIntrinsic;
+  llvm::StringRef rhsScalarSplatIntrinsic;
   llvm::StringRef compareIntrinsic;
   llvm::StringRef arithmeticKind;
   llvm::StringRef arithmeticIntrinsic;

@@ -50,6 +50,8 @@ bool isRVVSelectedBodyComputedMaskMemoryLoadMergeRoute(
 bool isRVVSelectedBodyComputedMaskMemoryStoreOnlyRoute(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
+         op == RVVSelectedBodyOperationKind::
+                   RuntimeScalarComputedMaskSegment2StoreUnitLoad ||
          op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
          op == RVVSelectedBodyOperationKind::
                    ComputedMaskIndexedScatterStoreUnitLoad ||
@@ -62,6 +64,8 @@ llvm::StringRef getComputedMaskMemoryProducerSource(
   switch (op) {
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskSegment2StoreUnitLoad:
     return "runtime-scalar-splat-compare-rhs";
   default:
     return "vector-compare-rhs-load";
@@ -324,6 +328,8 @@ static bool isRVVSelectedBodySegment2MemoryRouteControlConsumer(
     return description.memoryForm ==
            RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore;
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskSegment2StoreUnitLoad:
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
     return description.memoryForm ==
            RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store;
@@ -936,11 +942,15 @@ static llvm::Error buildSegment2MemoryRouteControlProviderPlan(
   const bool isComputedMaskSegment2Store =
       description.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad;
+  const bool isRuntimeScalarComputedMaskSegment2Store =
+      description.operation == RVVSelectedBodyOperationKind::
+                               RuntimeScalarComputedMaskSegment2StoreUnitLoad;
   const bool isComputedMaskSegment2Update =
       description.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad;
   const bool isComputedMaskSegment2StoreLike =
-      isComputedMaskSegment2Store || isComputedMaskSegment2Update;
+      isComputedMaskSegment2Store ||
+      isRuntimeScalarComputedMaskSegment2Store || isComputedMaskSegment2Update;
 
   if (isPlainSegment2) {
     if (!materializationFacts.segment2MemoryPlan)
@@ -996,8 +1006,10 @@ static llvm::Error buildSegment2MemoryRouteControlProviderPlan(
         *materializationFacts.computedMaskMemoryPlan;
     if (computedPlan.operation != description.operation ||
         computedPlan.memoryForm != description.memoryForm ||
-        computedPlan.usesRuntimeScalarProducer ||
-        !computedPlan.usesVectorCompareProducer ||
+        computedPlan.usesRuntimeScalarProducer !=
+            isRuntimeScalarComputedMaskSegment2Store ||
+        computedPlan.usesVectorCompareProducer !=
+            !isRuntimeScalarComputedMaskSegment2Store ||
         computedPlan.usesLoadMerge != isComputedMaskSegment2Load ||
         computedPlan.usesStoreOnly != isComputedMaskSegment2StoreLike ||
         computedPlan.usesSegment2Load != isComputedMaskSegment2Load ||

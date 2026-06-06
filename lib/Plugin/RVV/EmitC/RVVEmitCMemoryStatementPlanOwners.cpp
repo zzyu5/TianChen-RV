@@ -1662,10 +1662,13 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
       providerPlan->plansComputedMaskSegment2LoadUnitStore;
   const bool isComputedMaskSegment2Store =
       providerPlan->plansComputedMaskSegment2StoreUnitLoad;
+  const bool isRuntimeScalarComputedMaskSegment2Store =
+      providerPlan->plansRuntimeScalarComputedMaskSegment2StoreUnitLoad;
   const bool isComputedMaskSegment2Update =
       providerPlan->plansComputedMaskSegment2UpdateUnitLoad;
   const bool isComputedMaskSegment2StoreLike =
-      isComputedMaskSegment2Store || isComputedMaskSegment2Update;
+      isComputedMaskSegment2Store ||
+      isRuntimeScalarComputedMaskSegment2Store || isComputedMaskSegment2Update;
   const bool isComputedMaskSegment2 =
       isComputedMaskSegment2Load || isComputedMaskSegment2StoreLike;
 
@@ -1674,6 +1677,8 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
   plan.plansPlainSegment2InterleaveUnitLoad = isPlainInterleave;
   plan.plansComputedMaskSegment2LoadUnitStore = isComputedMaskSegment2Load;
   plan.plansComputedMaskSegment2StoreUnitLoad = isComputedMaskSegment2Store;
+  plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad =
+      isRuntimeScalarComputedMaskSegment2Store;
   plan.plansComputedMaskSegment2UpdateUnitLoad = isComputedMaskSegment2Update;
   plan.segment2MemoryPlan = providerPlan->segment2MemoryPlan;
   plan.computedMaskMemoryPlan = providerPlan->computedMaskMemoryPlan;
@@ -1682,6 +1687,8 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
       providerPlan->compareLhsABI;
   const support::RuntimeABIParameter *compareRhsABI =
       providerPlan->compareRhsABI;
+  const support::RuntimeABIParameter *rhsScalarABI =
+      providerPlan->rhsScalarABI;
   const support::RuntimeABIParameter *sourceABI = providerPlan->sourceABI;
   const support::RuntimeABIParameter *destinationABI =
       providerPlan->destinationABI;
@@ -1693,6 +1700,8 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
   llvm::StringRef setVLIntrinsic = providerPlan->setVLIntrinsic;
   llvm::StringRef vectorLoadIntrinsic = providerPlan->vectorLoadIntrinsic;
   llvm::StringRef storeIntrinsic = providerPlan->storeIntrinsic;
+  llvm::StringRef rhsScalarSplatIntrinsic =
+      providerPlan->rhsScalarSplatIntrinsic;
   llvm::StringRef compareIntrinsic = providerPlan->compareIntrinsic;
   llvm::StringRef arithmeticIntrinsic = providerPlan->arithmeticIntrinsic;
   llvm::StringRef segmentLoadIntrinsic = providerPlan->segmentLoadIntrinsic;
@@ -1799,17 +1808,28 @@ getRVVSelectedBodySegment2MemoryRouteStatementPlan(
             description, context,
             TCRVEmitCCallOpaqueResult{"cmp_lhs_vec", vectorCType.str()}))
       return std::move(error);
-    if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
-            plan, slice.rhsLoadOperation, "load", vectorLoadIntrinsic,
-            {TCRVEmitCCallOpaqueOperand{
-                 (llvm::StringRef(compareRhsABI->cName) + " + " +
-                  inductionName)
-                     .str(),
-                 compareRhsABI->cType},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
-            description, context,
-            TCRVEmitCCallOpaqueResult{"cmp_rhs_vec", vectorCType.str()}))
+    if (isRuntimeScalarComputedMaskSegment2Store) {
+      if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+              plan, slice.rhsLoadOperation, "load", rhsScalarSplatIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{rhsScalarABI->cName,
+                                          rhsScalarABI->cType},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{"cmp_rhs_vec", vectorCType.str()}))
+        return std::move(error);
+    } else if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
+                   plan, slice.rhsLoadOperation, "load", vectorLoadIntrinsic,
+                   {TCRVEmitCCallOpaqueOperand{
+                        (llvm::StringRef(compareRhsABI->cName) + " + " +
+                         inductionName)
+                            .str(),
+                        compareRhsABI->cType},
+                    TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+                   description, context,
+                   TCRVEmitCCallOpaqueResult{"cmp_rhs_vec",
+                                             vectorCType.str()})) {
       return std::move(error);
+    }
     if (llvm::Error error = addRVVSegment2MemoryStatementPlanLoopStep(
             plan, slice.field0LoadOperation, "load", vectorLoadIntrinsic,
             {TCRVEmitCCallOpaqueOperand{

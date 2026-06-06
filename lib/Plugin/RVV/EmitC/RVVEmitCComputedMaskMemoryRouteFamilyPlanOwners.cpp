@@ -18,6 +18,8 @@ bool isComputedMaskSegment2MemoryRouteOperation(
   switch (operation) {
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskSegment2StoreUnitLoad:
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
     return true;
   default:
@@ -228,6 +230,8 @@ bool isRVVSelectedBodyComputedMaskMemoryLoadMergeRoute(
 bool isRVVSelectedBodyComputedMaskMemoryStoreOnlyRoute(
     RVVSelectedBodyOperationKind op) {
   return op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
+         op == RVVSelectedBodyOperationKind::
+                   RuntimeScalarComputedMaskSegment2StoreUnitLoad ||
          op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
          op == RVVSelectedBodyOperationKind::
                    ComputedMaskIndexedScatterStoreUnitLoad ||
@@ -255,6 +259,8 @@ RVVSelectedBodyMemoryForm getComputedMaskMemoryRouteFamilyMemoryForm(
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
     return RVVSelectedBodyMemoryForm::ComputedMaskSegment2LoadUnitStore;
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskSegment2StoreUnitLoad:
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2UpdateUnitLoad:
     return RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadSegment2Store;
   default:

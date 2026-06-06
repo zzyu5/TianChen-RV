@@ -87,6 +87,7 @@ llvm::Error addSegment2RouteTypeMappingsFromProviderPlan(
   route.addTypeMapping(plan.vectorTypeName, plan.vectorCType);
   if (plan.plansComputedMaskSegment2LoadUnitStore ||
       plan.plansComputedMaskSegment2StoreUnitLoad ||
+      plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad ||
       plan.plansComputedMaskSegment2UpdateUnitLoad) {
     if (plan.maskTypeName.empty() || plan.maskCType.empty())
       return makeRVVEmitCRouteProviderError(
@@ -121,13 +122,23 @@ llvm::Error addSegment2RouteABIMappingsFromProviderPlan(
   llvm::SmallVector<const support::RuntimeABIParameter *, 6> parameters;
   if (plan.plansComputedMaskSegment2LoadUnitStore ||
       plan.plansComputedMaskSegment2StoreUnitLoad ||
+      plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad ||
       plan.plansComputedMaskSegment2UpdateUnitLoad) {
-    if (llvm::Error error = appendSegment2RouteABIParameter(
-            parameters, plan.compareLhsABI, "cmp_lhs", plan, context))
-      return error;
-    if (llvm::Error error = appendSegment2RouteABIParameter(
-            parameters, plan.compareRhsABI, "cmp_rhs", plan, context))
-      return error;
+    if (plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad) {
+      if (llvm::Error error = appendSegment2RouteABIParameter(
+              parameters, plan.compareLhsABI, "lhs", plan, context))
+        return error;
+      if (llvm::Error error = appendSegment2RouteABIParameter(
+              parameters, plan.rhsScalarABI, "rhs_scalar", plan, context))
+        return error;
+    } else {
+      if (llvm::Error error = appendSegment2RouteABIParameter(
+              parameters, plan.compareLhsABI, "cmp_lhs", plan, context))
+        return error;
+      if (llvm::Error error = appendSegment2RouteABIParameter(
+              parameters, plan.compareRhsABI, "cmp_rhs", plan, context))
+        return error;
+    }
   }
 
   if (plan.plansPlainSegment2DeinterleaveUnitStore ||
@@ -156,6 +167,7 @@ llvm::Error addSegment2RouteABIMappingsFromProviderPlan(
 
   if (plan.plansPlainSegment2InterleaveUnitLoad ||
       plan.plansComputedMaskSegment2StoreUnitLoad ||
+      plan.plansRuntimeScalarComputedMaskSegment2StoreUnitLoad ||
       plan.plansComputedMaskSegment2UpdateUnitLoad) {
     if (llvm::Error error = appendSegment2RouteABIParameter(
             parameters, plan.destinationABI, "dst", plan, context))

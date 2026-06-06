@@ -42,6 +42,42 @@ Expanded product-reduction-dequant-clamp generated artifact ABI binding evidence
 - None - task complete
 
 
+## Session 514: Stage2 RVV runtime-scalar-cmp segment2 store ABI
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV runtime-scalar-cmp masked segment2 store executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Completed the explicit selected-body runtime-scalar compare masked segment2 store executable artifact/ABI boundary. The production path now carries `lhs,rhs_scalar,src0,src1,dst,n` through typed `tcrv_rvv` body facts, runtime scalar splat mask construction, provider-owned segment2 store route planning, common EmitC materialization, target artifact validation, generated-bundle ABI evidence, and ssh rvv correctness.
+
+### Main Changes
+
+- Added the `runtime_scalar_cmp_masked_segment2_store_unit_load` selected-body operation and runtime ABI contract.
+- Extended RVV construction protocol, computed-mask memory owner classification, segment2 route-family provider plans, statement plans, route provider ABI/type mappings, and target artifact route-family validation.
+- Added generated-bundle script support, dry-run lit coverage, explicit target artifact fixture coverage, and a stale producer-source mirror fail-closed test.
+- Proved ssh rvv correctness for runtime counts `0,1,16,17,257` with two runtime scalar patterns, active/inactive lane coverage, inactive-lane preservation, source preservation, field distinction, and tail preservation.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] Focused build, C++ plugin/target tests, focused lit, script py_compile, ssh rvv generated-bundle run, whitespace checks, and old-authority added-line scan passed.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Optional continuation: pre-realized runtime-scalar-cmp masked segment2 store realization/evidence.
+
+
 ## Session 514: Stage2 RVV computed-mask segment2 store artifact ABI
 
 **Date**: 2026-06-07
