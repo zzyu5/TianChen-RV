@@ -4843,6 +4843,10 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
           candidate, "tcrv_rvv.result_lmul", contract->resultLMUL,
           "selected typed RVV widening dot result LMUL"))
     return error;
+  if (contract->lowPrecisionResourceSelection.hasSelection)
+    if (llvm::Error error = validateRVVLowPrecisionResourceCandidateMirrors(
+            candidate, contract->lowPrecisionResourceSelection))
+      return error;
   if (isProductReductionChain) {
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.reduction_accumulator_layout",
@@ -4920,10 +4924,6 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
               candidate, "tcrv_rvv.dequant_scale_c_type",
               contract->dequantScaleCType,
               "selected typed RVV product-reduction dequant scale C type"))
-        return error;
-      if (llvm::Error error =
-              validateRVVLowPrecisionResourceCandidateMirrors(
-                  candidate, contract->lowPrecisionResourceSelection))
         return error;
 	      if (llvm::Error error = requireCandidateMetadataMirror(
 	              candidate, "tcrv_rvv.dequant_scale_name",

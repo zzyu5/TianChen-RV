@@ -1,0 +1,16 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage 1/2 boundaries, and metadata/source-front-door red lines."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV direct-contraction provider plan contract and low-precision resource-aware closure rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned widening dot-reduce validation contract and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle, fail-closed, and ssh rvv evidence policy for RVV executable claims."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability/profile facts constrain plugin legality; they do not define RVV dtype or route authority."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep resource/stride/contraction semantics inside RVV plugin/provider/target validation."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Maintain selected typed tcrv_rvv body -> RVV provider -> common EmitC route shape."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-rvv-gearbox-resource-fact-artifact-boundary/prd.md", "reason": "Previous Gearbox-before-realization artifact-boundary contract and evidence baseline."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Extended low-precision resource selection derivation/verification to base strided-input widening dot-reduce-add with typed source/product/accumulator/result, memory, ABI, AVL, and capability facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Made direct-contraction route provider planning require the strided-dot low-precision resource selection before route construction."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Validated provider-selected low-precision resource mirrors for any route contract carrying a resource selection, including strided-dot."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Recorded strided-dot low-precision resource metadata in generated-bundle expected metadata, provider boundary summaries, and self-test assertions."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-strided-input-widening-dot-reduce-add.mlir", "reason": "Added emission-plan/header checks for strided-dot resource mirrors and a stale selected-candidate fail-closed target artifact case."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-strided-input-widening-dot-reduce-add.mlir", "reason": "Added pre-realized selected-body emission-plan/header checks proving provider-consumed strided-dot resource mirrors after realization."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Added generated-bundle evidence checks for explicit strided-dot low-precision resource metadata and provider boundary facts."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Added generated-bundle evidence checks for pre-realized strided-dot low-precision resource metadata and provider boundary facts."}

@@ -1,0 +1,18 @@
+{"file": ".trellis/spec/index.md", "reason": "Check changed behavior against global authority and Stage 2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify direct-contraction/resource selected-body/provider contracts are preserved."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify target artifact validation consumes provider-owned widening dot-reduce contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/C++/generated-bundle/ssh rvv evidence is sufficient and not report-only."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check no common/core semantic branch was added for RVV resource facts."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Full RVV extension plugin smoke test passed after strided-dot resource path changes."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Full target artifact export smoke test exited 0 after resource mirror validation changes."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "`python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test` passed after adding strided-dot resource metadata and boundary assertions."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-strided-input-widening-dot-reduce-add.mlir", "reason": "Manual FileCheck covered PLAN, HEADER, and stale low_precision_resource.selected_candidate fail-closed target artifact validation."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-strided-input-widening-dot-reduce-add.mlir", "reason": "Manual FileCheck covered REALIZED, PLAN, and HEADER for pre-realized strided-dot resource mirrors."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Explicit generated-bundle dry-run succeeded and ROOT/SDOT/HARNESS FileCheck checks passed with resource metadata."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Pre-realized generated-bundle dry-run succeeded and ROOT/SDOT/HARNESS FileCheck checks passed with resource metadata."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-strided-input-widening-dot-reduce-add-fail-closed.test", "reason": "Direct pre-realized route-entry fail-closed check passed for strided-input widening dot-reduce-add."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-strided-input-widening-dot-resource-explicit-ssh/evidence.json", "reason": "Explicit selected-body generated bundle ran on ssh rvv and passed counts 0,1,16,17,257 with stride pairs 2:3 and 3:2."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/stage2-strided-input-widening-dot-resource-prerealized-ssh/evidence.json", "reason": "Pre-realized selected-body generated bundle ran on ssh rvv and passed counts 0,1,16,17,257 with stride pairs 2:3 and 3:2."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-rvv-strided-input-widening-dot-resource-path/check.jsonl", "reason": "`git diff --check` passed for whitespace hygiene."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-rvv-strided-input-widening-dot-resource-path/check.jsonl", "reason": "`git diff --cached --check` passed with no staged changes at check time."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-rvv-strided-input-widening-dot-resource-path/check.jsonl", "reason": "`git diff --unified=0` bounded added-line scan over touched files found no new positive legacy i32m1, descriptor, source-export, direct-C, or old route-authority residue."}

@@ -388,6 +388,27 @@ STRIDED_INPUT_WIDENING_DOT_RHS_STRIDE_SOURCE = "runtime_abi:rhs_stride"
 STRIDED_INPUT_WIDENING_DOT_SOURCE_MEMORY_FORM = "strided-load"
 STRIDED_INPUT_WIDENING_DOT_DESTINATION_MEMORY_FORM = "unit-stride-store"
 STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC = "__riscv_vlse16_v_i16mf2"
+STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET = (
+    "rvv-low-precision-direct-contraction-resource-candidate-set.v1"
+    "[strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]"
+)
+STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE = (
+    "rvv-low-precision-direct-contraction-resource-candidate.v1"
+    "[strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]"
+)
+STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON = (
+    "static-bounded-strided-input-widening-dot-reduce-i16mf2-i32m1-runtime-avl"
+)
+STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE = (
+    "typed-low-precision-strided-input-widening-dot-resource-legality.v1"
+)
+RVV_TARGET_CAPABILITY_PROVIDER_MIRROR = (
+    "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
+)
+RVV_TARGET_CAPABILITY_LEGALITY_MIRROR = (
+    "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;"
+    "rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
+)
 COMPUTED_MASK_WIDENING_DOT_RUNTIME_ABI_ORDER = (
     "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n"
 )
@@ -7244,6 +7265,41 @@ WIDENING_MACC_METADATA_KEYS = (
     "tcrv_rvv.widening_macc_result_layout",
     "tcrv_rvv.widening_macc_relation",
 )
+LOW_PRECISION_RESOURCE_METADATA_KEYS = (
+    "tcrv_rvv.low_precision_resource.candidate_set",
+    "tcrv_rvv.low_precision_resource.selected_candidate",
+    "tcrv_rvv.low_precision_resource.selection_reason",
+    "tcrv_rvv.low_precision_resource.legality_scope",
+    "tcrv_rvv.low_precision_resource.source_dtype",
+    "tcrv_rvv.low_precision_resource.source_sew",
+    "tcrv_rvv.low_precision_resource.source_lmul",
+    "tcrv_rvv.low_precision_resource.product_dtype",
+    "tcrv_rvv.low_precision_resource.product_sew",
+    "tcrv_rvv.low_precision_resource.product_lmul",
+    "tcrv_rvv.low_precision_resource.product_emul",
+    "tcrv_rvv.low_precision_resource.accumulator_dtype",
+    "tcrv_rvv.low_precision_resource.accumulator_sew",
+    "tcrv_rvv.low_precision_resource.accumulator_lmul",
+    "tcrv_rvv.low_precision_resource.accumulator_emul",
+    "tcrv_rvv.low_precision_resource.result_dtype",
+    "tcrv_rvv.low_precision_resource.result_sew",
+    "tcrv_rvv.low_precision_resource.result_lmul",
+    "tcrv_rvv.low_precision_resource.memory_form",
+    "tcrv_rvv.low_precision_resource.tail_policy",
+    "tcrv_rvv.low_precision_resource.mask_policy",
+    "tcrv_rvv.low_precision_resource.unroll_factor",
+    "tcrv_rvv.low_precision_resource.accumulator_count",
+    "tcrv_rvv.low_precision_resource.reduction_layout",
+    "tcrv_rvv.low_precision_resource.vsetvl_region_count",
+    "tcrv_rvv.low_precision_resource.peak_live_vector_groups",
+    "tcrv_rvv.low_precision_resource.vector_register_budget",
+    "tcrv_rvv.low_precision_resource.runtime_avl_source",
+    "tcrv_rvv.low_precision_resource.runtime_abi_order",
+    "tcrv_rvv.low_precision_resource.target_capability_provider_mirror",
+    "tcrv_rvv.low_precision_resource.target_capability_legality_mirror",
+    "tcrv_rvv.low_precision_resource.legality",
+    "tcrv_rvv.low_precision_resource.rejection_reason",
+)
 WIDENING_DOT_REDUCTION_METADATA_KEYS = (
     "tcrv_rvv.config_contract",
     "tcrv_rvv.element_type",
@@ -7287,6 +7343,7 @@ WIDENING_DOT_REDUCTION_METADATA_KEYS = (
     "tcrv_rvv.widening_product_intrinsic",
     "tcrv_rvv.strided_load_intrinsic",
     "tcrv_rvv.widening_dot_reduction_store_vl",
+    *LOW_PRECISION_RESOURCE_METADATA_KEYS,
 )
 WIDENING_PRODUCT_REDUCTION_METADATA_KEYS = (
     "tcrv_rvv.config_contract",
@@ -9998,6 +10055,59 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.widening_dot_reduction_store_vl": (
                     WIDENING_DOT_REDUCTION_STORE_VL
                 ),
+                "tcrv_rvv.low_precision_resource.candidate_set": (
+                    STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET
+                ),
+                "tcrv_rvv.low_precision_resource.selected_candidate": (
+                    STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
+                ),
+                "tcrv_rvv.low_precision_resource.selection_reason": (
+                    STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON
+                ),
+                "tcrv_rvv.low_precision_resource.legality_scope": (
+                    STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE
+                ),
+                "tcrv_rvv.low_precision_resource.source_dtype": "i16",
+                "tcrv_rvv.low_precision_resource.source_sew": "16",
+                "tcrv_rvv.low_precision_resource.source_lmul": "mf2",
+                "tcrv_rvv.low_precision_resource.product_dtype": "i32",
+                "tcrv_rvv.low_precision_resource.product_sew": "32",
+                "tcrv_rvv.low_precision_resource.product_lmul": "m1",
+                "tcrv_rvv.low_precision_resource.product_emul": "m1",
+                "tcrv_rvv.low_precision_resource.accumulator_dtype": "i32",
+                "tcrv_rvv.low_precision_resource.accumulator_sew": "32",
+                "tcrv_rvv.low_precision_resource.accumulator_lmul": "m1",
+                "tcrv_rvv.low_precision_resource.accumulator_emul": "m1",
+                "tcrv_rvv.low_precision_resource.result_dtype": "i32",
+                "tcrv_rvv.low_precision_resource.result_sew": "32",
+                "tcrv_rvv.low_precision_resource.result_lmul": "m1",
+                "tcrv_rvv.low_precision_resource.memory_form": (
+                    expectation.memory_form
+                ),
+                "tcrv_rvv.low_precision_resource.tail_policy": "agnostic",
+                "tcrv_rvv.low_precision_resource.mask_policy": "agnostic",
+                "tcrv_rvv.low_precision_resource.unroll_factor": "1",
+                "tcrv_rvv.low_precision_resource.accumulator_count": "1",
+                "tcrv_rvv.low_precision_resource.reduction_layout": (
+                    WIDENING_DOT_RESULT_LAYOUT
+                ),
+                "tcrv_rvv.low_precision_resource.vsetvl_region_count": "2",
+                "tcrv_rvv.low_precision_resource.peak_live_vector_groups": "4",
+                "tcrv_rvv.low_precision_resource.vector_register_budget": "32",
+                "tcrv_rvv.low_precision_resource.runtime_avl_source": (
+                    "runtime_abi:n"
+                ),
+                "tcrv_rvv.low_precision_resource.runtime_abi_order": (
+                    expectation.runtime_abi_order
+                ),
+                "tcrv_rvv.low_precision_resource.target_capability_provider_mirror": (
+                    RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
+                ),
+                "tcrv_rvv.low_precision_resource.target_capability_legality_mirror": (
+                    RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
+                ),
+                "tcrv_rvv.low_precision_resource.legality": "legal",
+                "tcrv_rvv.low_precision_resource.rejection_reason": "none",
                 "tcrv_rvv.route_operand_binding_plan": (
                     STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN
                 ),
@@ -28247,6 +28357,9 @@ def widening_dot_reduction_boundary_summary(
     ):
         return {}
     is_strided = expectation.is_strided_input_widening_dot_reduce_add
+    route_metadata = widening_dot_reduction_metadata_from_bundle(
+        bundle_checks, expectation
+    )
     source_load_intrinsic = (
         STRIDED_INPUT_WIDENING_DOT_STRIDED_LOAD_INTRINSIC
         if is_strided
@@ -28327,6 +28440,65 @@ def widening_dot_reduction_boundary_summary(
                 "data_pattern": "swapped stride signed large i16 products",
             },
         ]
+        provider_route_facts["low_precision_resource_selection"] = {
+            "candidate_set": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.candidate_set"
+            ),
+            "selected_candidate": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.selected_candidate"
+            ),
+            "selection_reason": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.selection_reason"
+            ),
+            "legality_scope": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.legality_scope"
+            ),
+            "source_dtype": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.source_dtype"
+            ),
+            "product_dtype": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.product_dtype"
+            ),
+            "product_emul": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.product_emul"
+            ),
+            "accumulator_dtype": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.accumulator_dtype"
+            ),
+            "accumulator_emul": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.accumulator_emul"
+            ),
+            "result_dtype": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.result_dtype"
+            ),
+            "memory_form": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.memory_form"
+            ),
+            "reduction_layout": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.reduction_layout"
+            ),
+            "runtime_avl_source": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.runtime_avl_source"
+            ),
+            "runtime_abi_order": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.runtime_abi_order"
+            ),
+            "vector_register_budget": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.vector_register_budget"
+            ),
+            "target_capability_provider_mirror": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.target_capability_provider_mirror"
+            ),
+            "target_capability_legality_mirror": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.target_capability_legality_mirror"
+            ),
+            "legality": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.legality"
+            ),
+            "rejection_reason": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.rejection_reason"
+            ),
+        }
     else:
         provider_route_facts["strided_input_facts"] = "rejected-if-present"
     return {
@@ -28408,6 +28580,7 @@ def widening_dot_reduction_boundary_summary(
             "source/result dtype relation",
             "source load form",
             "strided fact presence or absence",
+            "low-precision resource selection mirrors",
             "setvl/VL control and scalar store VL",
             "required headers and C type mapping",
             "mirror-only candidate metadata",
@@ -28419,9 +28592,7 @@ def widening_dot_reduction_boundary_summary(
         "emitted_cpp": emitted_cpp_checks.get(
             "widening_dot_reduction_boundary", {}
         ),
-        "route_metadata": widening_dot_reduction_metadata_from_bundle(
-            bundle_checks, expectation
-        ),
+        "route_metadata": route_metadata,
         "artifact_abi": {
             "prototype": bundle_checks["header"]["prototype"],
             "runtime_abi_order": expectation.runtime_abi_order,
@@ -31271,6 +31442,9 @@ def run_self_test() -> int:
                 strided_input_cases = provider_facts.get(
                     "runtime_strided_input_cases", []
                 )
+                low_precision_resource = provider_facts.get(
+                    "low_precision_resource_selection", {}
+                )
                 statement_plan = widening_dot_boundary.get("statement_plan", {})
                 if (
                     widening_dot_metadata.get("tcrv_rvv.widening_dot_relation")
@@ -31320,6 +31494,44 @@ def run_self_test() -> int:
                                 ),
                             },
                         ]
+                    )
+                    or (
+                        expectation.is_strided_input_widening_dot_reduce_add
+                        and (
+                            widening_dot_metadata.get(
+                                "tcrv_rvv.low_precision_resource.selected_candidate"
+                            )
+                            != STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
+                            or low_precision_resource.get("candidate_set")
+                            != STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_CANDIDATE_SET
+                            or low_precision_resource.get("selected_candidate")
+                            != STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTED_CANDIDATE
+                            or low_precision_resource.get("selection_reason")
+                            != STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_SELECTION_REASON
+                            or low_precision_resource.get("legality_scope")
+                            != STRIDED_INPUT_WIDENING_DOT_LOW_PRECISION_RESOURCE_LEGALITY_SCOPE
+                            or low_precision_resource.get("source_dtype") != "i16"
+                            or low_precision_resource.get("product_dtype") != "i32"
+                            or low_precision_resource.get("product_emul") != "m1"
+                            or low_precision_resource.get("accumulator_dtype")
+                            != "i32"
+                            or low_precision_resource.get("accumulator_emul")
+                            != "m1"
+                            or low_precision_resource.get("result_dtype") != "i32"
+                            or low_precision_resource.get("memory_form")
+                            != expectation.memory_form
+                            or low_precision_resource.get("runtime_avl_source")
+                            != "runtime_abi:n"
+                            or low_precision_resource.get("runtime_abi_order")
+                            != expectation.runtime_abi_order
+                            or low_precision_resource.get(
+                                "vector_register_budget"
+                            )
+                            != "32"
+                            or low_precision_resource.get("legality") != "legal"
+                            or low_precision_resource.get("rejection_reason")
+                            != "none"
+                        )
                     )
                     or provider_facts.get("widening_product_intrinsic")
                     != "__riscv_vwmul_vv_i32m1"

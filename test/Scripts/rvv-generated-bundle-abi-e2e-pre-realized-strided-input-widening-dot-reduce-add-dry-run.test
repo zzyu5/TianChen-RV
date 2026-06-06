@@ -64,10 +64,25 @@
 # SDOT-DAG: "value": "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"
 # SDOT-DAG: "key": "tcrv_rvv.strided_load_intrinsic"
 # SDOT-DAG: "value": "__riscv_vlse16_v_i16mf2"
+# SDOT-DAG: "key": "tcrv_rvv.low_precision_resource.selected_candidate"
+# SDOT-DAG: "value": "rvv-low-precision-direct-contraction-resource-candidate.v1[strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]"
+# SDOT-DAG: "key": "tcrv_rvv.low_precision_resource.product_emul"
+# SDOT-DAG: "value": "m1"
+# SDOT-DAG: "key": "tcrv_rvv.low_precision_resource.memory_form"
+# SDOT-DAG: "value": "strided-input-widening-dot-reduce"
+# SDOT-DAG: "key": "tcrv_rvv.low_precision_resource.runtime_abi_order"
+# SDOT-DAG: "value": "lhs,rhs,acc,out,n,lhs_stride,rhs_stride"
+# SDOT-DAG: "key": "tcrv_rvv.low_precision_resource.vector_register_budget"
+# SDOT-DAG: "value": "32"
 # SDOT-DAG: "widening_dot_reduction_boundary":
 # SDOT-DAG: "target_artifact_validator": "RVVTargetArtifactRouteFamilyValidation.cpp:widening-dot-reduction target-owned consumer"
 # SDOT-DAG: "provider_route_facts":
+# SDOT-DAG: "low_precision_resource_selection":
+# SDOT-DAG: "selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]"
+# SDOT-DAG: "product_emul": "m1"
+# SDOT-DAG: "runtime_avl_source": "runtime_abi:n"
 # SDOT-DAG: "target_validator_consumed_facts":
+# SDOT-DAG: "low-precision resource selection mirrors"
 # SDOT-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
 # SDOT-DAG: "direct_pre_realized_route_entry_supported": false
 # SDOT-DAG: "runtime_counts_are_execution_cases_not_widening_dot_authority": true

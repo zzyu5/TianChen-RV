@@ -33147,7 +33147,11 @@ getRVVSelectedBodyDirectContractionRouteProviderPlan(
             materializationFacts.stridedSourceLoadLeaf,
             "strided source load leaf", description, context))
       return std::move(error);
-  if (isProductReductionDequantization) {
+  const bool needsLowPrecisionResourceSelection =
+      isProductReductionDequantization ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd;
+  if (needsLowPrecisionResourceSelection) {
     const RVVLowPrecisionContractionResourceSelection &selection =
         materializationFacts.contractionPlan->lowPrecisionResourceSelection;
     if (!selection.hasSelection || !selection.isLegal ||

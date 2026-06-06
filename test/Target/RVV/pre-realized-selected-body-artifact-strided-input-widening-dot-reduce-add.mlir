@@ -60,6 +60,12 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:strided_widening_dot_reduce.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_operands", value = "rvv-route-operand-binding:strided_widening_dot_reduce.v1;lhs=lhs-input-buffer:lhs:abi|sld|dot-lhs|i16|hdr;rhs=rhs-input-buffer:rhs:abi|sld|dot-rhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr;lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr|hdr;rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr"}
 // PLAN-SAME: {key = "tcrv_rvv.contraction_route_family_plan", value = "rvv-contraction-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.product_emul", value = "m1"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.accumulator_emul", value = "m1"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.memory_form", value = "strided-input-widening-dot-reduce"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.vector_register_budget", value = "32"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.runtime_abi_order", value = "lhs,rhs,acc,out,n,lhs_stride,rhs_stride"}
 // PLAN-SAME: {key = "tcrv_rvv.source_sew", value = "16"}
 // PLAN-SAME: {key = "tcrv_rvv.source_lmul", value = "mf2"}
 // PLAN-SAME: {key = "tcrv_rvv.accumulator_sew", value = "32"}
@@ -91,6 +97,12 @@ module {
 // HEADER: tianchenrv.rvv.rhs_stride_source: runtime_abi:rhs_stride
 // HEADER: tianchenrv.rvv.source_memory_form: strided-load
 // HEADER: tianchenrv.rvv.destination_memory_form: unit-stride-store
+// HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]
+// HEADER: tianchenrv.rvv.low_precision_resource.product_emul: m1
+// HEADER: tianchenrv.rvv.low_precision_resource.accumulator_emul: m1
+// HEADER: tianchenrv.rvv.low_precision_resource.memory_form: strided-input-widening-dot-reduce
+// HEADER: tianchenrv.rvv.low_precision_resource.vector_register_budget: 32
+// HEADER: tianchenrv.rvv.low_precision_resource.runtime_abi_order: lhs,rhs,acc,out,n,lhs_stride,rhs_stride
 // HEADER: tianchenrv.rvv.widening_dot_relation: signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32
 // HEADER: tianchenrv.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:strided_widening_dot_reduce.v1
