@@ -1871,3 +1871,34 @@ Moved standalone reduction provider-fact verification onto the RVV statement-pla
 ### Next Steps
 
 - None - task complete
+
+
+## Session 484: Stage2 RVV direct contraction fact contract
+
+**Date**: 2026-06-06
+**Task**: Stage2 RVV direct contraction fact contract
+**Branch**: `main`
+
+### Summary
+
+Moved direct contraction provider-fact verification onto the RVV direct contraction statement/provider owner surface; kept provider pre-route call order and focused contraction checks passing.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV-first Stage2 authority chain, and forbidden legacy route-authority drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV direct contraction selected-body realization, direct-provider owner boundary, fail-closed requirements, and plugin locality."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality, provider-built TCRVEmitCLowerableRoute contract, and provider-owned contraction fact surfaces."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check that RVV dtype/config/control facts remain structural and plugin-owned."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check that direct contraction provider facts remain RVV plugin-local and do not move into common/core logic."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check that the task stays on typed RVV execution body and does not introduce high-level compute semantics."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-standalone-reduction-fact-contract/prd.md", "reason": "Previous owner-local provider-fact verifier pattern and completion evidence for a neighboring RVV seam."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h", "reason": "Direct contraction owner public surface that should own the provider-fact verifier declaration."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Generic route-planning public surface that currently exposes the direct contraction provider-fact verifier."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "Direct contraction statement/provider owner implementation path that should host the verifier implementation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Current generic implementation location for the direct contraction provider-fact verifier."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Production provider call order before TCRVEmitCLowerableRoute construction."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused direct contraction provider-plan, statement-plan, positive, and fail-closed C++ coverage."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Target/export regression coverage for provider-derived contraction facts and mirrors."}

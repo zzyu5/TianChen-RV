@@ -40,6 +40,15 @@ getRVVSelectedBodyDirectContractionRouteStatementPlan(
     const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
     llvm::StringRef context);
 
+llvm::Error verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
+    const RVVSelectedBodyRouteStatementPlanOwnerSelection
+        &statementPlanOwnerSelection,
+    llvm::StringRef context);
+
 struct RVVSelectedBodyMigratedRouteStatementPlanOwner {
   using ConsumerPredicate =
       bool (*)(const RVVSelectedBodyEmitCRouteDescription &);

@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global source-of-truth, RVV-first order, and no legacy route-authority drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check direct contraction provider-owner boundary and fail-closed owner-local fact contract compliance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check TCRVEmitCLowerableRoute remains provider-built and Common EmitC/export remains neutral."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check direct contraction facts stay local to RVV plugin owners."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no high-level compute or source-front-door route authority was introduced."}
+{"file": ".trellis/tasks/06-06-stage2-rvv-direct-contraction-fact-contract/prd.md", "reason": "Check implementation and verification against this round's bounded requirements and acceptance criteria."}
+{"file": ".trellis/tasks/archive/2026-06/06-06-stage2-rvv-standalone-reduction-fact-contract/prd.md", "reason": "Check consistency with the previous owner-local provider-fact verifier pattern and runtime evidence boundary."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h", "reason": "Verify direct contraction owner surface owns the verifier declaration."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Verify generic route-planning surface no longer owns the verifier declaration."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "Verify verifier implementation is owner-local and preserves fail-closed checks."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Verify generic route planning no longer hosts the verifier implementation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Verify provider still calls verifier before constructing TCRVEmitCLowerableRoute."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Verify focused positive and fail-closed direct contraction coverage."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Verify target/export regressions for provider facts remain passing."}
