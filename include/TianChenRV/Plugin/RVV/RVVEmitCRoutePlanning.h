@@ -1230,6 +1230,8 @@ struct RVVSelectedBodyMemoryRouteOperandBindingFacts {
   const support::RuntimeABIParameter *compareRhsABI = nullptr;
   const support::RuntimeABIParameter *rhsScalarABI = nullptr;
   const support::RuntimeABIParameter *sourceABI = nullptr;
+  const support::RuntimeABIParameter *dotRHSABI = nullptr;
+  const support::RuntimeABIParameter *accumulatorABI = nullptr;
   const support::RuntimeABIParameter *destinationABI = nullptr;
   const support::RuntimeABIParameter *passthroughABI = nullptr;
   const support::RuntimeABIParameter *indexABI = nullptr;
@@ -1472,6 +1474,7 @@ struct RVVSelectedBodyComputedMaskMemoryRouteStatementPlan {
   bool plansComputedMaskStridedLoadUnitStore = false;
   bool plansComputedMaskIndexedGatherLoadUnitStore = false;
   bool plansRuntimeScalarComputedMaskIndexedGatherLoadUnitStore = false;
+  bool plansRuntimeScalarComputedMaskIndexedGatherMAccScatter = false;
   bool plansComputedMaskIndexedScatterStoreUnitLoad = false;
   bool plansRuntimeScalarComputedMaskIndexedScatterStoreUnitLoad = false;
   RVVSelectedBodyMaskTailPolicyProviderPlan maskTailPolicyPlan;

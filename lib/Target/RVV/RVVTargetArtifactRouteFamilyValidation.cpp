@@ -14378,6 +14378,72 @@ bool isRVVWideningProductTargetArtifactRouteFamilyConsumer(
          plugin::rvv::RVVSelectedBodyOperationKind::WideningProduct;
 }
 
+bool
+isRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterTargetArtifactRouteFamilyConsumer(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  return description.operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 RuntimeScalarComputedMaskIndexedGatherMAccScatter &&
+         description.memoryForm ==
+             plugin::rvv::RVVSelectedBodyMemoryForm::
+                 RuntimeScalarComputedMaskIndexedGatherMAccScatter;
+}
+
+llvm::Error
+validateRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterTargetArtifactProviderFacts(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  std::optional<
+      plugin::rvv::RVVComputedMaskIndexedMemoryRouteValidationContract>
+      contract =
+          plugin::rvv::getRVVComputedMaskIndexedMemoryRouteValidationContract(
+              context.description);
+  if (!contract)
+    return makeRVVTargetRouteError(
+        "runtime-scalar indexed gather-MAcc-scatter target artifact consumer "
+        "requires provider-owned route validation contract before artifact "
+        "export");
+  if (context.route.getRouteID() != contract->emitCRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract->consumerLabel) +
+        " requires rebuilt provider route id '" + contract->emitCRouteID +
+        "' but route carried '" + context.route.getRouteID() + "'");
+  if (llvm::Error error =
+          validateRVVComputedMaskIndexedMemoryDescriptionAgainstContract(
+              context.description, *contract))
+    return error;
+  if (llvm::Error error =
+          validateRVVComputedMaskIndexedMemoryRouteHeaders(context.route,
+                                                          *contract))
+    return error;
+  if (llvm::Error error =
+          validateRVVComputedMaskIndexedMemoryRouteTypeMappings(context.route,
+                                                               *contract))
+    return error;
+  if (llvm::Error error =
+          validateRVVComputedMaskIndexedMemoryRouteABIMappings(context.route,
+                                                              *contract))
+    return error;
+  return validateRVVComputedMaskIndexedMemoryRouteStatementPlanShape(
+      context.route, *contract);
+}
+
+llvm::Error
+validateRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterTargetArtifactCandidateMirrors(
+    const RVVTargetArtifactRouteFamilyValidationContext &context) {
+  std::optional<plugin::rvv::RVVMemoryRouteMetadataMirrorContractSet>
+      contract =
+          plugin::rvv::
+              getRVVComputedMaskIndexedMemoryRouteMetadataMirrorContract(
+                  context.description);
+  if (!contract)
+    return makeRVVTargetRouteError(
+        "runtime-scalar indexed gather-MAcc-scatter target artifact consumer "
+        "requires provider-owned metadata mirror contract before validating "
+        "candidate mirrors");
+  return validateRVVProviderMemoryRouteMetadataMirrorContract(
+      context.candidate, *contract);
+}
+
 bool isRVVMAccTargetArtifactRouteFamilyConsumer(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVMAccRouteFamilyOperation(description.operation);
@@ -14459,6 +14525,11 @@ getRVVTargetArtifactRouteFamilyValidators() {
        isRVVRuntimeScalarSplatStoreTargetArtifactRouteFamilyConsumer,
        validateRVVRuntimeScalarSplatStoreTargetArtifactProviderFacts,
        validateRVVRuntimeScalarSplatStoreTargetArtifactCandidateMirrors},
+      {llvm::StringLiteral(
+           "runtime-scalar-indexed-gather-macc-scatter"),
+       isRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterTargetArtifactRouteFamilyConsumer,
+       validateRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterTargetArtifactProviderFacts,
+       validateRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterTargetArtifactCandidateMirrors},
       {llvm::StringLiteral("macc"),
        isRVVMAccTargetArtifactRouteFamilyConsumer,
        validateRVVMAccTargetArtifactProviderFacts,

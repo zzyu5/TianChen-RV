@@ -5689,6 +5689,15 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
           support::runtimeABIParametersEqual(
               facts.runtimeABIParameters,
               runtimeScalarStandaloneReductionI64Parameters);
+    } else if (route->operationMnemonic ==
+               "runtime_scalar_cmp_masked_indexed_gather_macc_scatter") {
+      llvm::SmallVector<support::RuntimeABIParameter, 8>
+          runtimeScalarIndexedGatherMAccScatterParameters =
+              tcrv::rvv::
+                  getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatterRuntimeABIParameters();
+      acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
+          facts.runtimeABIParameters,
+          runtimeScalarIndexedGatherMAccScatterParameters);
     } else if (route->operationMnemonic == "widening_macc_add") {
       llvm::SmallVector<support::RuntimeABIParameter, 5>
           wideningMAccParameters =

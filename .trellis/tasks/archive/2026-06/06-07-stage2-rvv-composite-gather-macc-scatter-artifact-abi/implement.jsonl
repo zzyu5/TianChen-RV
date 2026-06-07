@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage 1/2 boundaries, and descriptor/source-front-door red lines."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "RVV plugin pre-development checklist and Stage 2 route-supported typed-body expectations."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership of selected-body realization, route provider facts, typed body authority, and evidence requirements."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Lowering/runtime checklist for plugin-owned emission and common EmitC/export neutrality."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route contract and prohibition against common emission inventing RVV semantics."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Generated artifact, runtime ABI, toolchain, and execution evidence boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused test/evidence policy, including ssh rvv requirement for runtime correctness claims."}

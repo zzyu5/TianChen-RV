@@ -75,6 +75,8 @@ llvm::StringRef getComputedMaskMemoryProducerSource(
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
   case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedGatherMAccScatter:
+  case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskSegment2LoadUnitStore:
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskSegment2StoreUnitLoad:
@@ -321,6 +323,11 @@ static bool isRVVSelectedBodyComputedMaskMemoryRouteControlConsumer(
       RuntimeScalarComputedMaskIndexedGatherLoadUnitStore:
     return description.memoryForm ==
            RVVSelectedBodyMemoryForm::ComputedMaskIndexedGatherLoadUnitStore;
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedGatherMAccScatter:
+    return description.memoryForm ==
+           RVVSelectedBodyMemoryForm::
+               RuntimeScalarComputedMaskIndexedGatherMAccScatter;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
@@ -920,7 +927,13 @@ static llvm::Error buildComputedMaskMemoryRouteControlProviderPlan(
               RuntimeScalarComputedMaskIndexedGatherLoadUnitStore ||
       description.operation ==
           RVVSelectedBodyOperationKind::
+              RuntimeScalarComputedMaskIndexedGatherMAccScatter ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::
               RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad;
+  auto boolMirror = [](bool value) -> llvm::StringRef {
+    return value ? "true" : "false";
+  };
   if (computedPlan.operation != description.operation ||
       computedPlan.memoryForm != description.memoryForm ||
       computedPlan.usesRuntimeScalarProducer != isRuntimeScalarProducer ||
@@ -939,7 +952,33 @@ static llvm::Error buildComputedMaskMemoryRouteControlProviderPlan(
         " route-control provider plan requires computed-mask memory "
         "mask-producer and memory-form facts from the verified route-family "
         "plan before provider route construction for operation '" +
-        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+        stringifyRVVSelectedBodyOperationKind(description.operation) +
+        "'; mirrors: plan_operation='" +
+        stringifyRVVSelectedBodyOperationKind(computedPlan.operation) +
+        "', plan_memory_form='" +
+        stringifyRVVSelectedBodyMemoryForm(computedPlan.memoryForm) +
+        "', description_memory_form='" +
+        stringifyRVVSelectedBodyMemoryForm(description.memoryForm) +
+        "', plan_runtime_scalar='" +
+        boolMirror(computedPlan.usesRuntimeScalarProducer) +
+        "', expected_runtime_scalar='" + boolMirror(isRuntimeScalarProducer) +
+        "', plan_vector_compare='" +
+        boolMirror(computedPlan.usesVectorCompareProducer) +
+        "', plan_segment2_load='" + boolMirror(computedPlan.usesSegment2Load) +
+        "', plan_segment2_store='" +
+        boolMirror(computedPlan.usesSegment2Store) +
+        "', plan_mask_producer='" + computedPlan.maskProducerSource +
+        "', expected_mask_producer='" +
+        getComputedMaskMemoryProducerSource(description.operation) +
+        "', plan_store_only='" + boolMirror(computedPlan.usesStoreOnly) +
+        "', expected_store_only='" +
+        boolMirror(isRVVSelectedBodyComputedMaskMemoryStoreOnlyRoute(
+            description.operation)) +
+        "', plan_load_merge='" + boolMirror(computedPlan.usesLoadMerge) +
+        "', expected_load_merge='" +
+        boolMirror(isRVVSelectedBodyComputedMaskMemoryLoadMergeRoute(
+            description.operation)) +
+        "'");
   runtimeControlPlan = &computedPlan.runtimeControlPlan;
   plan.controlsComputedMaskMemory = true;
   return llvm::Error::success();

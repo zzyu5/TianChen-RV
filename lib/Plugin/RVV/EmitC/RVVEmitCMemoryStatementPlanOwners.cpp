@@ -1133,9 +1133,14 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
       description.operation ==
       RVVSelectedBodyOperationKind::
           RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad;
+  const bool isRuntimeScalarIndexedGatherMAccScatter =
+      description.operation ==
+      RVVSelectedBodyOperationKind::
+          RuntimeScalarComputedMaskIndexedGatherMAccScatter;
   const bool isRuntimeScalar =
       isRuntimeScalarStore || isRuntimeScalarLoadStore ||
-      isRuntimeScalarIndexedGather || isRuntimeScalarIndexedScatter;
+      isRuntimeScalarIndexedGather || isRuntimeScalarIndexedScatter ||
+      isRuntimeScalarIndexedGatherMAccScatter;
   const bool isUnitLoadStore =
       description.operation == RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore;
   const bool isStridedStore =
@@ -1147,17 +1152,21 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
       description.operation ==
       RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore;
   const bool isIndexedGather =
-      isVectorIndexedGather || isRuntimeScalarIndexedGather;
+      isVectorIndexedGather || isRuntimeScalarIndexedGather ||
+      isRuntimeScalarIndexedGatherMAccScatter;
   const bool isIndexedScatter =
       description.operation ==
           RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad ||
-      isRuntimeScalarIndexedScatter;
+      isRuntimeScalarIndexedScatter || isRuntimeScalarIndexedGatherMAccScatter;
   const bool isIndexed = isIndexedGather || isIndexedScatter;
   const bool isLoadMerge =
       isRuntimeScalarLoadStore || isUnitLoadStore || isStridedLoad ||
-      isIndexedGather;
+      isVectorIndexedGather || isRuntimeScalarIndexedGather;
   const bool isStoreOnly =
-      isRuntimeScalarStore || isStridedStore || isIndexedScatter;
+      isRuntimeScalarStore || isStridedStore ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad ||
+      isRuntimeScalarIndexedScatter;
 
   plan.plansComputedMaskMemoryRoute = true;
   plan.plansRuntimeScalarComputedMaskStore = isRuntimeScalarStore;
@@ -1168,6 +1177,8 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
   plan.plansComputedMaskIndexedGatherLoadUnitStore = isVectorIndexedGather;
   plan.plansRuntimeScalarComputedMaskIndexedGatherLoadUnitStore =
       isRuntimeScalarIndexedGather;
+  plan.plansRuntimeScalarComputedMaskIndexedGatherMAccScatter =
+      isRuntimeScalarIndexedGatherMAccScatter;
   plan.plansComputedMaskIndexedScatterStoreUnitLoad = isIndexedScatter;
   plan.plansRuntimeScalarComputedMaskIndexedScatterStoreUnitLoad =
       isRuntimeScalarIndexedScatter;
@@ -1269,6 +1280,10 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
       memoryOperandBindingFacts.rhsScalarABI;
   const support::RuntimeABIParameter *sourceABI =
       memoryOperandBindingFacts.sourceABI;
+  const support::RuntimeABIParameter *dotRHSABI =
+      memoryOperandBindingFacts.dotRHSABI;
+  const support::RuntimeABIParameter *accumulatorABI =
+      memoryOperandBindingFacts.accumulatorABI;
   const support::RuntimeABIParameter *destinationABI =
       memoryOperandBindingFacts.destinationABI;
   const support::RuntimeABIParameter *indexABI =
@@ -1292,10 +1307,24 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
     return std::move(error);
   }
   if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanABI(
-          sourceABI, "src", description, context))
+          sourceABI,
+          isRuntimeScalarIndexedGatherMAccScatter ? "gather_src" : "src",
+          description, context))
     return std::move(error);
+  if (isRuntimeScalarIndexedGatherMAccScatter) {
+    if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanABI(
+            dotRHSABI, "payload", description, context))
+      return std::move(error);
+    if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanABI(
+            accumulatorABI, "acc", description, context))
+      return std::move(error);
+  }
   if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanABI(
-          destinationABI, isIndexedScatter || isStridedStore ? "dst" : "out",
+          destinationABI,
+          isIndexedScatter || isStridedStore ||
+                  isRuntimeScalarIndexedGatherMAccScatter
+              ? "dst"
+              : "out",
           description, context))
     return std::move(error);
   if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanABI(
@@ -1329,7 +1358,7 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
   if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanLeaf(
           computedPlan.compareIntrinsic, "compare callee", description, context))
     return std::move(error);
-  if (isLoadMerge)
+  if (isLoadMerge || isRuntimeScalarIndexedGatherMAccScatter)
     if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanLeaf(
             computedPlan.maskedLoadIntrinsic, "masked load callee", description,
             context))
@@ -1358,6 +1387,11 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
     if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanLeaf(
             computedPlan.indexedStoreIntrinsic, "indexed store callee",
             description, context))
+      return std::move(error);
+  if (isRuntimeScalarIndexedGatherMAccScatter)
+    if (llvm::Error error = requireRVVComputedMaskMemoryStatementPlanLeaf(
+            computedPlan.arithmeticIntrinsic, "arithmetic callee", description,
+            context))
       return std::move(error);
 
   using conversion::emitc::TCRVEmitCCallOpaqueOperand;
@@ -1499,6 +1533,48 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
             TCRVEmitCCallOpaqueResult{
                 "old_dst_vec", materializationFacts.resultVectorCType.str()}))
       return std::move(error);
+  } else if (isRuntimeScalarIndexedGatherMAccScatter) {
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan, slice.dotRHSLoadOperation, "load",
+            computedPlan.vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(dotRHSABI->cName) + " + " + inductionName)
+                     .str(),
+                 dotRHSABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                "payload_vec", materializationFacts.resultVectorCType.str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan, slice.accumulatorLoadOperation, "load",
+            computedPlan.vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(accumulatorABI->cName) + " + " +
+                  inductionName)
+                     .str(),
+                 accumulatorABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                "acc_vec", materializationFacts.resultVectorCType.str()}))
+      return std::move(error);
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan, slice.oldDestinationLoadOperation, "load",
+            computedPlan.vectorLoadIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 (llvm::StringRef(destinationABI->cName) + " + " +
+                  inductionName)
+                     .str(),
+                 destinationABI->cType},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                "old_dst_vec", materializationFacts.resultVectorCType.str()}))
+      return std::move(error);
   }
 
   if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
@@ -1530,7 +1606,9 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
                                         materializationFacts.vlCType.str()}},
             description, context,
             TCRVEmitCCallOpaqueResult{
-                description.resultName.str(),
+                isRuntimeScalarIndexedGatherMAccScatter
+                    ? "gathered_vec"
+                    : description.resultName.str(),
                 materializationFacts.resultVectorCType.str()}))
       return std::move(error);
   } else if (isStridedLoad) {
@@ -1576,6 +1654,25 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
       return std::move(error);
   }
 
+  if (isRuntimeScalarIndexedGatherMAccScatter) {
+    if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
+            plan, slice.maskedMAccOp.getOperation(), "compute",
+            computedPlan.arithmeticIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{
+                 "acc_vec", materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 "gathered_vec", materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{
+                 "payload_vec", materializationFacts.resultVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                        materializationFacts.vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{
+                description.resultName.str(),
+                materializationFacts.resultVectorCType.str()}))
+      return std::move(error);
+  }
+
   if (isStridedStore) {
     if (llvm::Error error = addRVVComputedMaskMemoryStatementPlanLoopStep(
             plan, slice.storeOperation, "store",
@@ -1607,7 +1704,10 @@ getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
              TCRVEmitCCallOpaqueOperand{"byte_offsets",
                                         computedPlan.indexVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{
-                 "source_vec", materializationFacts.resultVectorCType.str()},
+                 isRuntimeScalarIndexedGatherMAccScatter
+                     ? description.resultName.str()
+                     : "source_vec",
+                 materializationFacts.resultVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(),
                                         materializationFacts.vlCType.str()}},
             description, context))

@@ -602,7 +602,7 @@ constexpr llvm::StringLiteral
         "rvv-route-operand-binding:runtime_scalar_cmp_masked_indexed_scatter_store_unit_load.v1");
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterOperandBindingPlanID(
-        "rvv-route-operand-binding:runtime_scalar_cmp_masked_indexed_gather_macc_scatter.v1");
+        "rvv-route-operand-binding:rt_scmp_gather_macc_scatter.v1");
 constexpr llvm::StringLiteral kRVVStandaloneReductionOperandBindingPlanID(
     "rvv-route-operand-binding:standalone_reduce_add.v1");
 constexpr llvm::StringLiteral kRVVStandaloneReductionMinOperandBindingPlanID(
@@ -15370,32 +15370,25 @@ buildComputedMaskIndexedMemoryRouteOperandBindingPlanFromFacts(
     break;
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskIndexedGatherMAccScatter:
-    addRouteOperandBinding(
-        plan, "cmp_lhs", parameter(0),
-        {"abi", "cmp-lhs-load", "lhs-call", "hdr-mirror"});
+    addRouteOperandBinding(plan, "cmp_lhs", parameter(0),
+                           {"abi", "ld", "cmp-lhs", "hdr"});
     addRouteOperandBinding(
         plan, "rhs_scalar", parameter(1),
-        {"abi", "splat", "rhs-call", "hdr-mirror"});
+        {"abi", "splat", "cmp-rhs", "hdr"});
     addRouteOperandBinding(
         plan, "gather_src", parameter(2),
-        {"abi", "midx-base", "midx-load-call", "hdr-mirror"});
-    addRouteOperandBinding(
-        plan, "payload", parameter(3),
-        {"abi", "payload-load", "macc-rhs", "hdr-mirror"});
-    addRouteOperandBinding(
-        plan, "acc", parameter(4),
-        {"abi", "acc-load", "macc-acc", "hdr-mirror"});
+        {"abi", "gbase", "gather", "hdr"});
+    addRouteOperandBinding(plan, "payload", parameter(3),
+                           {"abi", "ld", "macc-rhs", "hdr"});
+    addRouteOperandBinding(plan, "acc", parameter(4),
+                           {"abi", "ld", "macc-acc", "hdr"});
     addRouteOperandBinding(
         plan, "index", parameter(5),
-        {"abi", "materialized-index-load-base", "index-offset-scale",
-         "index-source-mirror", "hdr-mirror"});
-    addRouteOperandBinding(
-        plan, "dst", parameter(6),
-        {"abi", "old-dst-load", "passthru-call", "mistore-base",
-         "hdr-mirror"});
-    addRouteOperandBinding(
-        plan, "n", parameter(7),
-        {"abi", "setvl-avl", "loop-control", "hdr-mirror"});
+        {"abi", "idxld", "idxscale", "idxmirror", "hdr"});
+    addRouteOperandBinding(plan, "dst", parameter(6),
+                           {"abi", "olddst", "gpass", "scatter", "hdr"});
+    addRouteOperandBinding(plan, "n", parameter(7),
+                           {"abi", "setvl-avl", "loop", "hdr"});
     break;
   default:
     break;
@@ -16274,31 +16267,24 @@ deriveRVVRouteOperandBindingPlan(const RVVSelectedBodyRouteAnalysis &analysis) {
         kRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterRuntimeABIOrder;
     context = "runtime_scalar_cmp_masked_indexed_gather_macc_scatter route";
     addRouteOperandBinding(
-        plan, "cmp_lhs", slice.lhsABI,
-        {"abi", "cmp-lhs-load", "cmp-lhs-call", "hdr-mirror"});
+        plan, "cmp_lhs", slice.lhsABI, {"abi", "ld", "cmp-lhs", "hdr"});
     addRouteOperandBinding(
         plan, "rhs_scalar", slice.rhsABI,
-        {"abi", "splat", "cmp-rhs-call", "hdr-mirror"});
+        {"abi", "splat", "cmp-rhs", "hdr"});
     addRouteOperandBinding(
         plan, "gather_src", slice.sourceABI,
-        {"abi", "midx-base", "gather-call", "hdr-mirror"});
-    addRouteOperandBinding(
-        plan, "payload", slice.dotRHSABI,
-        {"abi", "payload-load", "macc-rhs-call", "hdr-mirror"});
-    addRouteOperandBinding(
-        plan, "acc", slice.accumulatorABI,
-        {"abi", "acc-load", "macc-acc-call", "hdr-mirror"});
+        {"abi", "gbase", "gather", "hdr"});
+    addRouteOperandBinding(plan, "payload", slice.dotRHSABI,
+                           {"abi", "ld", "macc-rhs", "hdr"});
+    addRouteOperandBinding(plan, "acc", slice.accumulatorABI,
+                           {"abi", "ld", "macc-acc", "hdr"});
     addRouteOperandBinding(
         plan, "index", slice.indexABI,
-        {"abi", "materialized-index-load-base", "index-offset-scale",
-         "index-source-mirror", "hdr-mirror"});
-    addRouteOperandBinding(
-        plan, "dst", slice.outABI,
-        {"abi", "old-dst-load", "gather-passthru-call", "mistore-base",
-         "hdr-mirror"});
-    addRouteOperandBinding(
-        plan, "n", slice.runtimeElementCountABI,
-        {"abi", "setvl-avl", "loop-control", "hdr-mirror"});
+        {"abi", "idxld", "idxscale", "idxmirror", "hdr"});
+    addRouteOperandBinding(plan, "dst", slice.outABI,
+                           {"abi", "olddst", "gpass", "scatter", "hdr"});
+    addRouteOperandBinding(plan, "n", slice.runtimeElementCountABI,
+                           {"abi", "setvl-avl", "loop", "hdr"});
   }
 
   if (plan.planID.empty())
@@ -25327,7 +25313,7 @@ static std::size_t getComputedMaskIndexedMemoryExpectedLoopBodyStepCount(
     return 8;
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskIndexedGatherMAccScatter:
-    return 10;
+    return 12;
   default:
     return 0;
   }
@@ -27949,6 +27935,8 @@ bool isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedGatherMAccScatter:
   case RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore:
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskSegment2LoadUnitStore:
@@ -28057,8 +28045,12 @@ verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans(
         " computed-mask memory mask-producer mirror must match the "
         "validated family plan");
 
+  const bool isCompositeGatherMAccScatter =
+      operation == RVVSelectedBodyOperationKind::
+                       RuntimeScalarComputedMaskIndexedGatherMAccScatter;
   const llvm::StringRef expectedPrimaryIntrinsic =
-      plan.usesSegment2Store ? plan.segmentStoreIntrinsic
+      isCompositeGatherMAccScatter ? plan.arithmeticIntrinsic
+      : plan.usesSegment2Store ? plan.segmentStoreIntrinsic
       : !plan.maskedLoadIntrinsic.empty()
           ? plan.maskedLoadIntrinsic
       : !plan.stridedStoreIntrinsic.empty()
@@ -32273,6 +32265,8 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskIndexedGatherLoadUnitStore:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedGatherMAccScatter:
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
@@ -32307,9 +32301,13 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
         description.operation ==
         RVVSelectedBodyOperationKind::
             RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad;
+    const bool isRuntimeScalarIndexedGatherMAccScatter =
+        description.operation ==
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarComputedMaskIndexedGatherMAccScatter;
     const bool isRuntimeScalarComputedMaskMemory =
         isRuntimeScalarSegment2 || isRuntimeScalarIndexedGather ||
-        isRuntimeScalarIndexedScatter;
+        isRuntimeScalarIndexedScatter || isRuntimeScalarIndexedGatherMAccScatter;
     if (llvm::Error error = requirePlanFlag(
             isRuntimeScalarComputedMaskMemory ? plan.usesRuntimeScalarProducer
                                               : plan.usesVectorCompareProducer,
@@ -32665,6 +32663,137 @@ getRVVSelectedBodyMemoryRouteOperandBindingFacts(
       if (llvm::Error error = bindRuntimeCount(
               "loop-control", "hdr-mirror",
               "runtime_scalar_cmp_masked_indexed_gather"))
+        return std::move(error);
+      return facts;
+
+    case RVVSelectedBodyOperationKind::
+        RuntimeScalarComputedMaskIndexedGatherMAccScatter:
+      if (llvm::Error error = requirePlanFlag(
+              plan.usesIndexedGather && plan.usesIndexedScatter &&
+                  !plan.usesLoadMerge && !plan.usesStoreOnly,
+              "runtime_scalar_cmp_masked_indexed_gather_macc_scatter "
+              "requires a composite indexed gather/MAcc/scatter "
+              "computed-mask memory plan before binding memory operands"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.compareLhsABI, "cmp_lhs", "ld",
+                          "runtime_scalar_cmp_masked_indexed_gather_macc_"
+                          "scatter compare lhs load operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("cmp_lhs", "cmp-lhs",
+                                "runtime_scalar_cmp_masked_indexed_gather_"
+                                "macc_scatter compare lhs operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("cmp_lhs", "hdr",
+                                "runtime_scalar_cmp_masked_indexed_gather_"
+                                "macc_scatter compare lhs header"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.rhsScalarABI, "rhs_scalar", "splat",
+                          "runtime_scalar_cmp_masked_indexed_gather_macc_"
+                          "scatter runtime scalar threshold"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("rhs_scalar", "cmp-rhs",
+                                "runtime_scalar_cmp_masked_indexed_gather_"
+                                "macc_scatter compare rhs scalar operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("rhs_scalar", "hdr",
+                                "runtime_scalar_cmp_masked_indexed_gather_"
+                                "macc_scatter rhs scalar header"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.sourceABI, "gather_src", "gbase",
+                          "runtime_scalar_cmp_masked_indexed_gather_macc_"
+                          "scatter gather source base"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("gather_src", "gather",
+                                "runtime_scalar_cmp_masked_indexed_gather_"
+                                "macc_scatter gather source operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("gather_src", "hdr",
+                                "runtime_scalar_cmp_masked_indexed_gather_"
+                                "macc_scatter gather source header"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.dotRHSABI, "payload", "ld",
+                          "runtime_scalar_cmp_masked_indexed_gather_macc_"
+                          "scatter payload load operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("payload", "macc-rhs",
+                                "runtime_scalar_cmp_masked_indexed_gather_"
+                                "macc_scatter payload MAcc rhs operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("payload", "hdr",
+                                "runtime_scalar_cmp_masked_indexed_gather_"
+                                "macc_scatter payload header"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.accumulatorABI, "acc", "ld",
+                          "runtime_scalar_cmp_masked_indexed_gather_macc_"
+                          "scatter accumulator load operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("acc", "macc-acc",
+                                "runtime_scalar_cmp_masked_indexed_gather_"
+                                "macc_scatter accumulator MAcc operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("acc", "hdr",
+                                "runtime_scalar_cmp_masked_indexed_gather_"
+                                "macc_scatter accumulator header"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.indexABI, "index", "idxld",
+                          "runtime_scalar_cmp_masked_indexed_gather_macc_"
+                          "scatter index operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("index", "idxscale",
+                                "runtime_scalar_cmp_masked_indexed_gather_"
+                                "macc_scatter offset scale"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("index", "idxmirror",
+                                "runtime_scalar_cmp_masked_indexed_gather_"
+                                "macc_scatter index mirror"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("index", "hdr",
+                                "runtime_scalar_cmp_masked_indexed_gather_"
+                                "macc_scatter index header"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.passthroughABI, "dst", "olddst",
+                          "runtime_scalar_cmp_masked_indexed_gather_macc_"
+                          "scatter old destination"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("dst", "gpass",
+                                "runtime_scalar_cmp_masked_indexed_gather_"
+                                "macc_scatter gather passthrough"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.destinationABI, "dst", "scatter",
+                          "runtime_scalar_cmp_masked_indexed_gather_macc_"
+                          "scatter destination"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("dst", "hdr",
+                                "runtime_scalar_cmp_masked_indexed_gather_"
+                                "macc_scatter destination header"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindRuntimeCount("loop", "hdr",
+                               "runtime_scalar_cmp_masked_indexed_gather_"
+                               "macc_scatter"))
         return std::move(error);
       return facts;
 
@@ -40748,7 +40877,7 @@ getRVVSelectedBodyConfigArtifactMetadata(
               RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad ||
       description.operation ==
           RVVSelectedBodyOperationKind::
-              RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad ||
+              RuntimeScalarComputedMaskIndexedGatherMAccScatter ||
       description.operation ==
           RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore ||
       description.operation ==
@@ -41089,6 +41218,9 @@ getRVVSelectedBodyConfigArtifactMetadata(
       description.operation ==
           RVVSelectedBodyOperationKind::
               RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::
+              RuntimeScalarComputedMaskIndexedGatherMAccScatter ||
       description.operation ==
           RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore ||
       description.operation ==
@@ -41600,6 +41732,22 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back({"tcrv_rvv.offset_unit", description.offsetUnit});
     metadata.push_back({"tcrv_rvv.index_uniqueness",
                         description.indexUniqueness});
+    metadata.push_back({"tcrv_rvv.indexed_destination_memory_form",
+                        description.indexedDestinationMemoryForm});
+  }
+  if (description.operation ==
+      RVVSelectedBodyOperationKind::
+          RuntimeScalarComputedMaskIndexedGatherMAccScatter) {
+    metadata.push_back({"tcrv_rvv.indexed_memory_layout",
+                        description.indexedMemoryLayout});
+    metadata.push_back({"tcrv_rvv.index_source", description.indexSource});
+    metadata.push_back({"tcrv_rvv.index_eew",
+                        llvm::Twine(description.indexEEW).str()});
+    metadata.push_back({"tcrv_rvv.offset_unit", description.offsetUnit});
+    metadata.push_back({"tcrv_rvv.index_uniqueness",
+                        description.indexUniqueness});
+    metadata.push_back({"tcrv_rvv.indexed_data_memory_form",
+                        description.indexedDataMemoryForm});
     metadata.push_back({"tcrv_rvv.indexed_destination_memory_form",
                         description.indexedDestinationMemoryForm});
   }

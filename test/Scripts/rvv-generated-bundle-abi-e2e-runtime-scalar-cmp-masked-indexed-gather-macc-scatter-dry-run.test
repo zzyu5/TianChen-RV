@@ -1,0 +1,97 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.exp.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --artifact-root %t.exp.artifacts --run-id explicit-composite-gms --overwrite --op-kind runtime_scalar_cmp_masked_indexed_gather_macc_scatter --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=EXPLROOT < %t.exp.artifacts/explicit-composite-gms/evidence.json
+# RUN: FileCheck %s --check-prefix=EXPL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.exp.artifacts/explicit-composite-gms/runtime_scalar_cmp_masked_indexed_gather_macc_scatter/evidence.json
+# RUN: FileCheck %s --check-prefix=EXPLH --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.exp.artifacts/explicit-composite-gms/runtime_scalar_cmp_masked_indexed_gather_macc_scatter/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_indexed_gather_macc_scatter_harness.c
+
+# RUN: rm -rf %t.pre.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.pre.artifacts --run-id pre-composite-gms --overwrite --op-kind runtime_scalar_cmp_masked_indexed_gather_macc_scatter --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --rhs-scalar -37 --rhs-scalar 91 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=PREROOT < %t.pre.artifacts/pre-composite-gms/evidence.json
+# RUN: FileCheck %s --check-prefix=PRE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.pre.artifacts/pre-composite-gms/runtime_scalar_cmp_masked_indexed_gather_macc_scatter/evidence.json
+# RUN: FileCheck %s --check-prefix=PREH --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.pre.artifacts/pre-composite-gms/runtime_scalar_cmp_masked_indexed_gather_macc_scatter/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_indexed_gather_macc_scatter_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# EXPLROOT: "input_mode": "explicit-selected-body"
+# EXPLROOT: "runtime_scalar_cmp_masked_indexed_gather_macc_scatter"
+# EXPLROOT: "ssh_evidence": false
+# EXPLROOT: "status": "dry_run_success"
+
+# EXPL-DAG: "input_mode": "explicit-selected-body"
+# EXPL-DAG: "path": "{{.*}}test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter.mlir"
+# EXPL-DAG: "expected_function": "tcrv_emitc_explicit_composite_masked_indexed_gather_macc_scatter_kernel_rvv_explicit_composite"
+# EXPL-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-callable-c-abi.v1"
+# EXPL-DAG: "expected_selected_variant": "rvv_explicit_composite"
+# EXPL-DAG: "front_door": "explicit-selected-tcrv-exec-rvv-body"
+# EXPL-DAG: "pre_realized_body_consumed": false
+# EXPL-DAG: "prototype": "void tcrv_emitc_explicit_composite_masked_indexed_gather_macc_scatter_kernel_rvv_explicit_composite(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *gather_src, const int32_t *payload, const int32_t *acc, const uint32_t *index, int32_t *dst, size_t n);"
+# EXPL-DAG: "key": "rvv_emitc_lowerable_route"
+# EXPL-DAG: "value": "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-emitc-route"
+# EXPL-DAG: "key": "rvv_selected_body_operation"
+# EXPL-DAG: "value": "runtime_scalar_cmp_masked_indexed_gather_macc_scatter"
+# EXPL-DAG: "key": "rvv_selected_body_typed_compute_op"
+# EXPL-DAG: "value": "tcrv_rvv.masked_indexed_load+tcrv_rvv.masked_macc+tcrv_rvv.masked_indexed_store"
+# EXPL-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# EXPL-DAG: "value": "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n"
+# EXPL-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# EXPL-DAG: "value": "rvv-route-operand-binding:rt_scmp_gather_macc_scatter.v1"
+# EXPL-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# EXPL-DAG: "value": "rvv-route-operand-binding:rt_scmp_gather_macc_scatter.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|ld|cmp-lhs|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs|hdr;gather_src=source-input-buffer:gather_src:abi|gbase|gather|hdr;payload=dot-rhs-input-buffer:payload:abi|ld|macc-rhs|hdr;acc=accumulator-input-buffer:acc:abi|ld|macc-acc|hdr;index=index-input-buffer:index:abi|idxld|idxscale|idxmirror|hdr;dst=output-buffer:dst:abi|olddst|gpass|scatter|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+# EXPL-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# EXPL-DAG: "value": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-plan-validated"
+# EXPL-DAG: "key": "tcrv_rvv.computed_mask_memory_mask_producer_source"
+# EXPL-DAG: "value": "runtime-scalar-splat-compare-rhs"
+# EXPL-DAG: "key": "tcrv_rvv.indexed_data_memory_form"
+# EXPL-DAG: "value": "masked-indexed-load"
+# EXPL-DAG: "key": "tcrv_rvv.indexed_destination_memory_form"
+# EXPL-DAG: "value": "masked-indexed-store"
+# EXPL-DAG: "indexed_gather_scatter_contract": "active lanes gather gather_src[index[i]], compute acc[i] + gathered * payload[i], and scatter to dst[index[i]] with unique noncontiguous permuted indices"
+# EXPL-DAG: "abi_order_contract": "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n"
+# EXPL-DAG: "macc_intrinsic": "__riscv_vmacc_vv_i32m1"
+# EXPL-DAG: "status": "dry_run_success"
+
+# EXPLH: tcrv_emitc_explicit_composite_masked_indexed_gather_macc_scatter_kernel_rvv_explicit_composite(cmp_lhs, rhs_scalar, gather_src, payload, acc,
+# EXPLH: indices, dst, n);
+# EXPLH: int32_t expected = (cmp_lhs[index] <= rhs_scalar ? (int32_t)(acc[index] + (int32_t)gather_src[indices[index]] * (int32_t)payload[index]) : old_dst[indices[index]]);
+# EXPLH: inactive lane did not preserve destination
+# EXPLH: noncontiguous_index_lanes
+# EXPLH: signed_product_lanes
+# EXPLH: source_preserved payload_acc_preserved tail_preserved
+# EXPLH: PASS op=runtime_scalar_cmp_masked_indexed_gather_macc_scatter counts=0,1,16,17,257 rhs_scalars=-37,91 patterns=0,1
+
+# PREROOT: "input_mode": "pre-realized-selected-body"
+# PREROOT: "runtime_scalar_cmp_masked_indexed_gather_macc_scatter"
+# PREROOT: "pre_realized_selected_body": true
+# PREROOT: "ssh_evidence": false
+# PREROOT: "status": "dry_run_success"
+
+# PRE-DAG: "input_mode": "pre-realized-selected-body"
+# PRE-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter.mlir"
+# PRE-DAG: "expected_function": "tcrv_emitc_pre_realized_composite_masked_indexed_gather_macc_scatter_kernel_rvv_pre_composite"
+# PRE-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-callable-c-abi.v1"
+# PRE-DAG: "expected_selected_variant": "rvv_pre_composite"
+# PRE-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# PRE-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# PRE-DAG: "pre_realized_body_consumed": true
+# PRE-DAG: "prototype": "void tcrv_emitc_pre_realized_composite_masked_indexed_gather_macc_scatter_kernel_rvv_pre_composite(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *gather_src, const int32_t *payload, const int32_t *acc, const uint32_t *index, int32_t *dst, size_t n);"
+# PRE-DAG: "key": "rvv_emitc_lowerable_route"
+# PRE-DAG: "value": "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-emitc-route"
+# PRE-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# PRE-DAG: "value": "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n"
+# PRE-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# PRE-DAG: "value": "rvv-route-operand-binding:rt_scmp_gather_macc_scatter.v1"
+# PRE-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# PRE-DAG: "value": "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-plan-validated"
+# PRE-DAG: "indexed_gather_scatter_contract": "active lanes gather gather_src[index[i]], compute acc[i] + gathered * payload[i], and scatter to dst[index[i]] with unique noncontiguous permuted indices"
+# PRE-DAG: "status": "dry_run_success"
+
+# PREH: tcrv_emitc_pre_realized_composite_masked_indexed_gather_macc_scatter_kernel_rvv_pre_composite(cmp_lhs, rhs_scalar, gather_src, payload, acc,
+# PREH: indices, dst, n);
+# PREH: int32_t expected = (cmp_lhs[index] <= rhs_scalar ? (int32_t)(acc[index] + (int32_t)gather_src[indices[index]] * (int32_t)payload[index]) : old_dst[indices[index]]);
+# PREH: inactive lane did not preserve destination
+# PREH: noncontiguous_index_lanes
+# PREH: signed_product_lanes
+# PREH: source_preserved payload_acc_preserved tail_preserved
+# PREH: PASS op=runtime_scalar_cmp_masked_indexed_gather_macc_scatter counts=0,1,16,17,257 rhs_scalars=-37,91 patterns=0,1

@@ -28664,11 +28664,11 @@ module {
           "plugin-owned operation, memory form, and typed compute chain"))
     return result;
   if (int result = expect(
-          explicitDescription.runtimeABIOrder ==
+              explicitDescription.runtimeABIOrder ==
                   "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n" &&
               explicitDescription.routeOperandBindingPlanID ==
                   "rvv-route-operand-binding:"
-                  "runtime_scalar_cmp_masked_indexed_gather_macc_scatter.v1" &&
+                  "rt_scmp_gather_macc_scatter.v1" &&
               llvm::StringRef(explicitDescription.routeOperandBindingSummary)
                   .contains("gather_src=source-input-buffer:gather_src") &&
               llvm::StringRef(explicitDescription.routeOperandBindingSummary)

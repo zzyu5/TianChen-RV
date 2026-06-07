@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final work preserves RVV-first authority chain and Stage 2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify composite route/export support remains plugin-owned and typed-body-derived."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export stays neutral and consumes provider-built routes."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify generated artifact ABI/header/runtime evidence contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests and ssh rvv evidence policy."}
