@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, RVV authority chain, and metadata mirror boundaries."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Selected dispatch/fallback, mem_window/runtime_param ABI declarations, and fallback role boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected body/provider/resource contract for the composite route."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Current scalar fallback unsupported emission boundary and no executable scalar body rule."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC/export neutrality and provider-built route handoff rules."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selection, dispatch, fallback, and unsupported diagnostic behavior."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++/runtime evidence expectations for selected dispatch generated-bundle and fallback claims."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability absence and fallback/export diagnostics must remain capability-driven."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Common/export changes must not add extension-specific semantic branches."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Do not move fallback compute semantics into tcrv.exec or common export."}

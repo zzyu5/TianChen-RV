@@ -14,6 +14,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.selected_dispatch_fallback_mirror/s//tcrv_rvv.selected_dispatch_fallback_mirror_removed/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-DISPATCH-FALLBACK-MIRROR
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.composite_resource.selected_candidate\", value = \"rvv-composite-gather-macc-scatter-resource-candidate.v1\[rt-scmp-indexed-gather-macc-scatter,e32m1,u1\]\"/s//tcrv_rvv.composite_resource.selected_candidate\", value = \"artifact-name-derived-composite-resource\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-COMPOSITE-RESOURCE
 // RUN: sed '/^      tcrv_rvv.with_vl/s/tcrv_rvv.composite_resource.vl_policy = "runtime-avl-single-setvl", //' %s | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-COMPOSITE-RESOURCE
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/status = "supported"/s//status = "unsupported"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-FALLBACK-EXPORT
 
 // Hand-authored explicit selected-body input for the Stage2 runtime scalar
 // compare, masked indexed gather, masked MAcc, and masked indexed scatter
@@ -162,3 +163,8 @@ module {
 // STALE-COMPOSITE-RESOURCE-SAME: artifact-name-derived-composite-resource
 
 // MISSING-COMPOSITE-RESOURCE: requires realized composite resource string fact 'tcrv_rvv.composite_resource.vl_policy' before provider route construction
+
+// UNSUPPORTED-FALLBACK-EXPORT: selected target artifact export requires at least one supported executable artifact candidate
+// UNSUPPORTED-FALLBACK-EXPORT-SAME: @rvv_explicit_composite as dispatch case status 'unsupported'
+// UNSUPPORTED-FALLBACK-EXPORT-SAME: @explicit_composite_scalar_fallback as dispatch fallback status 'unsupported'
+// UNSUPPORTED-FALLBACK-EXPORT-SAME: scalar-fallback-unsupported-emission

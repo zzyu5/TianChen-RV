@@ -135,6 +135,98 @@ Target export must not synthesize C bodies, headers, objects, bundles, runtime
 ABI, dispatch source, or self-checks from descriptors, route ids, selected
 metadata, artifact names, or family records.
 
+## Selected Path Artifact Candidate Gate
+
+### 1. Scope / Trigger
+
+Use this contract when target artifact export consumes selected-path
+`tcrv.exec` surfaces and their emission-plan diagnostics. It applies to static
+selected variants, selected dispatch cases, dispatch fallbacks, and
+fallback-only selections.
+
+### 2. Signatures
+
+The target export collector consumes:
+
+```text
+tcrv.exec.dispatch / selected diagnostic marker
+emission_plan diagnostic keyed by selected variant symbol + selected path role
+status = supported | unsupported
+origin
+role = direct variant | dispatch case | dispatch fallback
+emission_kind
+artifact_kind
+```
+
+It produces zero or more `TargetArtifactCandidate` values only from
+`status = supported` diagnostics.
+
+### 3. Contracts
+
+- Every selected path must have exactly one emission-plan diagnostic before
+  target artifact export.
+- A selected kernel must produce at least one supported executable target
+  artifact candidate before export can continue.
+- Unsupported selected paths are diagnostics only. They must not become target
+  candidates, runtime ABI authority, headers, objects, bundles, or executable
+  fallback evidence.
+- If a selected dispatch case is unsupported and the dispatch fallback is also
+  unsupported, export must fail closed at candidate collection and report the
+  unsupported selected paths.
+- If a selected dispatch case is supported and its scalar fallback is currently
+  unsupported, export may continue for the supported selected case only. The
+  fallback remains a mirror/diagnostic boundary, not executable fallback
+  evidence.
+
+### 4. Validation & Error Matrix
+
+- Missing selected-path emission-plan diagnostic -> fail before target artifact
+  candidate construction.
+- Selected kernel has no supported candidates -> fail with the selected
+  variant symbols, path roles, statuses, origins, emission kinds, and artifact
+  kinds for the unsupported paths.
+- Unsupported scalar fallback diagnostic attempts to produce a header/object ->
+  fail; scalar fallback has no current executable body or route.
+- Supported candidate has stale origin, role, runtime ABI, metadata, or
+  provider mirrors -> fail in target artifact validation before packaging.
+
+### 5. Good/Base/Bad Cases
+
+- Good: selected RVV dispatch case supported, scalar fallback unsupported ->
+  export the RVV artifact; record fallback only as validated mirror metadata.
+- Base: fallback-only scalar selection with unsupported scalar emission ->
+  export fails with an unsupported selected-path diagnostic.
+- Bad: unsupported RVV case plus unsupported scalar fallback -> empty bundle or
+  generic "found none" result.
+
+### 6. Tests Required
+
+- Add lit/FileCheck coverage for at least one selected dispatch route where all
+  selected paths are unsupported and export rejects the executable artifact
+  claim.
+- Keep positive selected-case artifact tests proving that an unsupported
+  fallback mirror does not block a supported selected case.
+- Use C++ target artifact tests when the behavior is not visible through MLIR
+  diagnostics.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+selected dispatch case unsupported
+  + scalar fallback unsupported
+  -> target export returns no candidates or an empty artifact result
+```
+
+Correct:
+
+```text
+selected paths all unsupported
+  -> target export rejects the kernel
+  -> diagnostic lists @variant, role, status, origin, emission_kind, artifact_kind
+```
+
 ## Runtime ABI Boundary
 
 `tcrv.exec.mem_window` and `tcrv.exec.runtime_param` declare ABI roles and C

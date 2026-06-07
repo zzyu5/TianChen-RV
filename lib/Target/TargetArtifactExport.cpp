@@ -942,6 +942,66 @@ buildSupportedCandidate(KernelOp kernel, const SelectedPath &path,
   return std::optional<TargetArtifactCandidate>(std::move(candidate));
 }
 
+struct UnsupportedSelectedPathSummary {
+  std::string selectedVariant;
+  std::string role;
+  std::string status;
+  std::string origin;
+  std::string emissionKind;
+  std::string artifactKind;
+};
+
+llvm::Expected<UnsupportedSelectedPathSummary>
+buildUnsupportedSelectedPathSummary(KernelOp kernel, const SelectedPath &path,
+                                    DiagnosticOp diagnostic) {
+  UnsupportedSelectedPathSummary summary;
+  summary.selectedVariant = getPathVariantSymbol(path).str();
+  summary.role = path.role;
+
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kStatusAttrName,
+                                "unsupported selected emission-plan",
+                                summary.status))
+    return std::move(error);
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kOriginAttrName,
+                                "unsupported selected emission-plan",
+                                summary.origin))
+    return std::move(error);
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kEmissionKindAttrName,
+                                "unsupported selected emission-plan",
+                                summary.emissionKind))
+    return std::move(error);
+  if (llvm::Error error =
+          requireSafeStringAttr(kernel, diagnostic.getOperation(),
+                                execDiagnostic::kArtifactKindAttrName,
+                                "unsupported selected emission-plan",
+                                summary.artifactKind))
+    return std::move(error);
+
+  return summary;
+}
+
+std::string formatUnsupportedSelectedPathSummaries(
+    llvm::ArrayRef<UnsupportedSelectedPathSummary> summaries) {
+  std::string text;
+  llvm::raw_string_ostream stream(text);
+  for (auto [index, summary] : llvm::enumerate(summaries)) {
+    if (index != 0)
+      stream << "; ";
+    stream << "@" << summary.selectedVariant << " as " << summary.role
+           << " status '" << summary.status << "' origin '" << summary.origin
+           << "' emission_kind '" << summary.emissionKind
+           << "' artifact_kind '" << summary.artifactKind << "'";
+  }
+  stream.flush();
+  return text;
+}
+
 llvm::Expected<const TargetArtifactCompositeExporter *>
 selectCompositeExporter(llvm::ArrayRef<TargetArtifactCandidate> candidates,
                         const TargetArtifactExporterRegistry &registry,
@@ -2105,6 +2165,7 @@ llvm::Error collectTargetArtifactCandidates(
             "target artifact export surface");
     }
 
+    std::size_t supportedCandidateCountBeforeKernel = out.size();
     for (const SelectedPath &path : selectedPaths) {
       std::string key = makePathKey(getPathVariantSymbol(path), path.role);
       auto diagnosticIt = diagnosticsByPathKey.find(key);
@@ -2121,6 +2182,34 @@ llvm::Error collectTargetArtifactCandidates(
         return candidate.takeError();
       if (*candidate)
         out.push_back(std::move(**candidate));
+    }
+
+    if (out.size() == supportedCandidateCountBeforeKernel) {
+      llvm::SmallVector<UnsupportedSelectedPathSummary, 4> summaries;
+      for (const SelectedPath &path : selectedPaths) {
+        std::string key = makePathKey(getPathVariantSymbol(path), path.role);
+        auto diagnosticIt = diagnosticsByPathKey.find(key);
+        if (diagnosticIt == diagnosticsByPathKey.end())
+          return makeArtifactExportError(
+              kernel, llvm::Twine("selected path @") +
+                          getPathVariantSymbol(path) + " as " + path.role +
+                          " requires exactly one emission-plan diagnostic "
+                          "before target artifact export");
+
+        llvm::Expected<UnsupportedSelectedPathSummary> summary =
+            buildUnsupportedSelectedPathSummary(kernel, path,
+                                                diagnosticIt->getValue());
+        if (!summary)
+          return summary.takeError();
+        summaries.push_back(std::move(*summary));
+      }
+
+      return makeArtifactExportError(
+          kernel,
+          llvm::Twine("selected target artifact export requires at least one "
+                      "supported executable artifact candidate; selected "
+                      "paths are unsupported: ") +
+              formatUnsupportedSelectedPathSummaries(summaries));
     }
   }
   return llvm::Error::success();

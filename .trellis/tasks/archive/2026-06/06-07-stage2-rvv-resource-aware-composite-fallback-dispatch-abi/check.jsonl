@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check against global project invariants and RVV-first stage order."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify dispatch/fallback remains structural and target-neutral."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify selected RVV composite route/provider/resource facts remain plugin-owned."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify fallback executable claims fail closed while scalar fallback remains unsupported."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify target/export hardening does not invent EmitC or fallback semantics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/C++ checks match the claimed behavior."}

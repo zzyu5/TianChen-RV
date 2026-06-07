@@ -49,6 +49,68 @@ Hardened runtime-scalar-cmp masked indexed gather-load target artifact ABI valid
 - None - task complete
 
 
+## Session 530: Stage2 RVV resource-aware composite fallback dispatch ABI boundary
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV resource-aware composite fallback dispatch ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Hardened the target artifact export boundary so the resource-aware composite
+dispatch fallback cannot be claimed as executable when both the selected RVV
+case and scalar fallback path are unsupported.
+
+### Main Changes
+
+- Created Trellis task
+  `stage2-rvv-resource-aware-composite-fallback-dispatch-abi` with a bounded
+  PRD for the fallback executable ABI boundary.
+- Updated `lib/Target/TargetArtifactExport.cpp` so each selected kernel must
+  produce at least one supported executable target artifact candidate. If all
+  selected paths are unsupported, export now fails closed and lists the
+  selected variant, role, status, origin, emission kind, and artifact kind for
+  each unsupported path.
+- Extended the explicit
+  `runtime_scalar_cmp_masked_indexed_gather_macc_scatter` target artifact
+  fixture with a fallback-boundary negative check: mutating the RVV dispatch
+  case to unsupported while scalar fallback remains unsupported now produces a
+  targeted export diagnostic instead of a generic no-route result.
+- Recorded the reusable selected-path artifact candidate gate in
+  `.trellis/spec/lowering-runtime/emission-runtime-contract.md`.
+- No scalar fallback compute, scalar EmitC route, descriptor-driven fallback,
+  source-front-door path, or common EmitC semantic branch was added.
+
+### Checks
+
+- `ninja -C build tcrv-translate tcrv-opt tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test`
+- Focused lit:
+  `explicit-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter`,
+  `pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter`,
+  `selected-dispatch-fallback-envelope-scalar-broadcast-macc-negative`,
+  and `rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-dry-run`
+- `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test --op-kind runtime_scalar_cmp_masked_indexed_gather_macc_scatter`
+- `build/bin/tianchenrv-rvv-extension-plugin-test`
+- `build/bin/tianchenrv-target-artifact-export-test`
+- `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-07-stage2-rvv-resource-aware-composite-fallback-dispatch-abi`
+- `git diff --check`
+- Bounded old-authority scan over touched files and added diff lines
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 528: Stage2 RVV selected-dispatch composite executable bundle boundary
 
 **Date**: 2026-06-07
