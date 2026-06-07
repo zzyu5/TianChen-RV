@@ -28599,6 +28599,116 @@ int runRouteOperandBindingPlanValidationTest() {
   return 0;
 }
 
+int runCompositeMaskedIndexedGatherMAccScatterFailClosedBoundaryTest(
+    mlir::MLIRContext &context) {
+  constexpr llvm::StringLiteral explicitCompositeSource = R"mlir(
+module {
+  tcrv.exec.kernel @composite_masked_indexed_gather_macc_scatter_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_composite attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %gather_src = tcrv_rvv.runtime_abi_value {c_name = "gather_src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %payload = tcrv_rvv.runtime_abi_value {c_name = "payload", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %index = tcrv_rvv.runtime_abi_value {c_name = "index", c_type = "const uint32_t *", ownership = "target-export-abi-owned", role = "index-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_composite, sew = 32 : i64, source_kernel = "composite_masked_indexed_gather_macc_scatter_kernel", status = "selected-lowering-boundary"} {
+        %cmp_lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %threshold_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %payload_vec = tcrv_rvv.load %payload, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %acc_vec = tcrv_rvv.load %acc, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %old_dst = tcrv_rvv.load %dst, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %indices = tcrv_rvv.index_load %index, %vl {index_eew = 32 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.index_vector<i32, "m1">
+        %mask = tcrv_rvv.compare %cmp_lhs_vec, %threshold_vec, %vl {kind = "sle"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        %gathered = tcrv_rvv.masked_indexed_load %gather_src, %indices, %mask, %old_dst, %vl {inactive_lane_policy = "preserve-passthrough-on-false-lanes", index_eew = 32 : i64, memory_form = "masked-indexed-load", offset_unit = "element"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.index_vector<i32, "m1">, !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %sum = tcrv_rvv.masked_macc %mask, %gathered, %payload_vec, %acc_vec, %vl {accumulator_layout = "separate-i32-vector-accumulator-input", kind = "add", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", result_layout = "store-multiply-accumulate-result-to-output-buffer"} : !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        tcrv_rvv.masked_indexed_store %dst, %indices, %mask, %sum, %vl {inactive_lane_policy = "preserve-output-on-false-lanes", index_eew = 32 : i64, index_uniqueness = "unique", memory_form = "masked-indexed-store", offset_unit = "element"} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.index_vector<i32, "m1">, !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> explicitModule =
+      parseModule(context, explicitCompositeSource);
+  if (!explicitModule)
+    return fail("failed to parse explicit composite masked indexed "
+                "gather-MAcc-scatter module");
+  llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis>
+      explicitAnalysis = analyzeRouteInModule(
+          *explicitModule,
+          "composite_masked_indexed_gather_macc_scatter_kernel",
+          "rvv_composite");
+  if (explicitAnalysis)
+    return fail("explicit composite masked indexed gather-MAcc-scatter "
+                "unexpectedly reached route facts");
+  if (int result = expectErrorContains(
+          explicitAnalysis.takeError(),
+          {"Stage2 RVV composite runtime-scalar computed-mask indexed "
+           "gather-MAcc-scatter route is fail-closed",
+           "masked_indexed_load", "masked_macc", "masked_indexed_store",
+           "composite selected-body realization, migrated statement-plan, and "
+           "provider contract"}))
+    return result;
+
+  constexpr llvm::StringLiteral preRealizedCompositeSource = R"mlir(
+module {
+  tcrv.exec.kernel @pre_realized_composite_masked_indexed_gather_macc_scatter_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_pre_composite attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %gather_src = tcrv_rvv.runtime_abi_value {c_name = "gather_src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dot_lhs = tcrv_rvv.runtime_abi_value {c_name = "dot_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dot-lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %payload = tcrv_rvv.runtime_abi_value {c_name = "payload", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "dot-rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %index = tcrv_rvv.runtime_abi_value {c_name = "index", c_type = "const uint32_t *", ownership = "target-export-abi-owned", role = "index-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %scatter_src = tcrv_rvv.runtime_abi_value {c_name = "scatter_src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_runtime_scalar_computed_mask_indexed_gather_pre_realized_body %cmp_lhs, %rhs_scalar, %gather_src, %index, %dst, %n {inactive_lane_policy = "preserve-passthrough-on-false-lanes", index_eew = 32 : i64, lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-indexed-gather-load-unit-store", offset_unit = "element", op_kind = "runtime_scalar_cmp_masked_indexed_gather_load_unit_store", predicate_kind = "sle", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+      tcrv_rvv.typed_runtime_scalar_computed_mask_macc_pre_realized_body %cmp_lhs, %rhs_scalar, %dot_lhs, %payload, %acc, %dst, %n {accumulator_layout = "separate-i32-vector-accumulator-input", accumulator_role = "accumulator-input-buffer", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "runtime-scalar-computed-mask-unit-stride-macc", op_kind = "runtime_scalar_cmp_masked_macc_add", predicate_kind = "sle", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, result_layout = "store-multiply-accumulate-result-to-output-buffer", sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+      tcrv_rvv.typed_runtime_scalar_computed_mask_indexed_scatter_pre_realized_body %cmp_lhs, %rhs_scalar, %scatter_src, %index, %dst, %n {inactive_lane_policy = "preserve-output-on-false-lanes", index_eew = 32 : i64, index_uniqueness = "unique", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-unit-load-indexed-scatter-store", offset_unit = "element", op_kind = "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load", predicate_kind = "sle", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+  }
+}
+)mlir";
+
+  mlir::OwningOpRef<mlir::ModuleOp> preRealizedModule =
+      parseModule(context, preRealizedCompositeSource);
+  if (!preRealizedModule)
+    return fail("failed to parse pre-realized composite masked indexed "
+                "gather-MAcc-scatter module");
+  KernelOp preRealizedKernel = findKernel(
+      *preRealizedModule,
+      "pre_realized_composite_masked_indexed_gather_macc_scatter_kernel");
+  VariantOp preRealizedVariant =
+      findVariant(preRealizedKernel, "rvv_pre_composite");
+  TargetCapabilitySet capabilities =
+      TargetCapabilitySet::buildFromKernel(preRealizedKernel);
+  mlir::OpBuilder builder(preRealizedModule->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> realized =
+      tianchenrv::plugin::rvv::realizePreRealizedRVVSelectedBody(
+          VariantLoweringBoundaryRequest(
+              preRealizedVariant, preRealizedKernel, capabilities,
+              VariantEmissionRole::DirectVariant, builder));
+  if (realized)
+    return fail("pre-realized composite masked indexed gather-MAcc-scatter "
+                "unexpectedly materialized");
+  if (int result = expectErrorContains(
+          realized.takeError(),
+          {"Stage2 runtime-scalar computed-mask indexed gather-MAcc-scatter "
+           "pre-realized composite",
+           "separate gather, MAcc, and scatter family bodies",
+           "one composite selected-body realization owner"}))
+    return result;
+
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -28741,6 +28851,10 @@ int main() {
   if (int result = runOutOfOrderSelectedRoleSequenceRejectionTest(context))
     return result;
   if (int result = runRouteOperandBindingPlanValidationTest())
+    return result;
+  if (int result =
+          runCompositeMaskedIndexedGatherMAccScatterFailClosedBoundaryTest(
+              context))
     return result;
 
   llvm::outs() << "RVV extension plugin smoke test passed\n";

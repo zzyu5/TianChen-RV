@@ -132,6 +132,34 @@ findUniquePreRealizedRVVSelectedBody(tcrv::exec::VariantOp variant) {
         "pre-realized tcrv_rvv body when no realized setvl/with_vl body is "
         "present");
 
+  bool hasRuntimeScalarIndexedGather = false;
+  bool hasRuntimeScalarComputedMaskMAcc = false;
+  bool hasRuntimeScalarIndexedScatter = false;
+  for (mlir::Operation *body : bodies) {
+    llvm::StringRef opName = body->getName().getStringRef();
+    hasRuntimeScalarIndexedGather |=
+        opName ==
+        "tcrv_rvv.typed_runtime_scalar_computed_mask_indexed_gather_"
+        "pre_realized_body";
+    hasRuntimeScalarComputedMaskMAcc |=
+        opName ==
+        "tcrv_rvv.typed_runtime_scalar_computed_mask_macc_pre_realized_body";
+    hasRuntimeScalarIndexedScatter |=
+        opName ==
+        "tcrv_rvv.typed_runtime_scalar_computed_mask_indexed_scatter_"
+        "pre_realized_body";
+  }
+  if (hasRuntimeScalarIndexedGather && hasRuntimeScalarComputedMaskMAcc &&
+      hasRuntimeScalarIndexedScatter)
+    return makeRVVPluginError(
+        "selected RVV realization found a Stage2 runtime-scalar computed-mask "
+        "indexed gather-MAcc-scatter pre-realized composite assembled from "
+        "separate gather, MAcc, and scatter family bodies; this is "
+        "fail-closed until one composite selected-body realization owner "
+        "imports the typed gather, accumulator/MAcc, scatter, mask, index, "
+        "runtime ABI, and AVL/VL facts into one realized tcrv_rvv body before "
+        "provider route construction");
+
   return makeRVVPluginError(
       "selected RVV realization requires exactly one registry-owned "
       "pre-realized tcrv_rvv body when no realized setvl/with_vl body is "

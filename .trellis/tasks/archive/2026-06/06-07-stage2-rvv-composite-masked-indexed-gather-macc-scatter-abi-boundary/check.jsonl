@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global route authority and Stage2 non-executable claim boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin ownership, computed-mask indexed memory, computed-mask MAcc, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check Common EmitC remains neutral and no route support is inferred from metadata."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused test evidence and runtime evidence claim policy."}

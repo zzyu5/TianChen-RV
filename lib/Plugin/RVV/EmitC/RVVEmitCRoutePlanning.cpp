@@ -17193,6 +17193,36 @@ getRVVScalarBroadcastOperationKind(RVVSelectedBodyOperationKind binaryKind) {
   }
 }
 
+bool isRuntimeScalarComputedMaskIndexedGatherMAccScatterCompositeCandidate(
+    tcrv::rvv::WithVLOp withVL) {
+  tcrv::rvv::SplatOp runtimeScalarSplat;
+  tcrv::rvv::CompareOp compare;
+  tcrv::rvv::IndexLoadOp indexLoad;
+  tcrv::rvv::MaskedIndexedLoadOp indexedGather;
+  tcrv::rvv::MaskedMAccOp maskedMAcc;
+  tcrv::rvv::MaskedIndexedStoreOp indexedScatter;
+
+  for (mlir::Operation &op : withVL.getBody().front()) {
+    if (auto candidate = llvm::dyn_cast<tcrv::rvv::SplatOp>(op))
+      runtimeScalarSplat = candidate;
+    if (auto candidate = llvm::dyn_cast<tcrv::rvv::CompareOp>(op))
+      compare = candidate;
+    if (auto candidate = llvm::dyn_cast<tcrv::rvv::IndexLoadOp>(op))
+      indexLoad = candidate;
+    if (auto candidate = llvm::dyn_cast<tcrv::rvv::MaskedIndexedLoadOp>(op))
+      indexedGather = candidate;
+    if (auto candidate = llvm::dyn_cast<tcrv::rvv::MaskedMAccOp>(op))
+      maskedMAcc = candidate;
+    if (auto candidate = llvm::dyn_cast<tcrv::rvv::MaskedIndexedStoreOp>(op))
+      indexedScatter = candidate;
+  }
+
+  if (!runtimeScalarSplat || !compare || !indexLoad || !indexedGather ||
+      !maskedMAcc || !indexedScatter)
+    return false;
+  return true;
+}
+
 llvm::Expected<RVVSelectedBodyRouteSlice>
 collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   llvm::SmallVector<tcrv::rvv::SetVLOp, 2> setvls;
@@ -17231,6 +17261,19 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           {support::RuntimeABIParameterRole::RuntimeElementCount});
   if (!runtimeElementCountABI)
     return runtimeElementCountABI.takeError();
+
+  if (isRuntimeScalarComputedMaskIndexedGatherMAccScatterCompositeCandidate(
+          slice.withVL))
+    return makeRVVEmitCRouteProviderError(
+        "Stage2 RVV composite runtime-scalar computed-mask indexed "
+        "gather-MAcc-scatter route is fail-closed before route construction: "
+        "the selected typed tcrv_rvv body carries tcrv_rvv.masked_indexed_load, "
+        "tcrv_rvv.masked_macc, and tcrv_rvv.masked_indexed_store in one "
+        "tcrv_rvv.with_vl scope, but the RVV plugin does not yet have a "
+        "composite selected-body realization, migrated statement-plan, and "
+        "provider contract that derives one TCRVEmitCLowerableRoute from "
+        "gather, accumulator/MAcc, scatter, mask, index, runtime ABI, and "
+        "AVL/VL facts");
 
   llvm::SmallVector<tcrv::rvv::LoadOp, 2> genericLoads;
   llvm::SmallVector<tcrv::rvv::StridedLoadOp, 2> genericStridedLoads;

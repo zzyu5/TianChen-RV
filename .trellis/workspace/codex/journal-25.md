@@ -146,3 +146,43 @@ Added runtime-scalar-cmp masked indexed scatter-store target artifact fail-close
 ### Next Steps
 
 - None - task complete
+
+
+## Session 522: Stage2 RVV composite masked indexed gather-MAcc-scatter fail-closed boundary
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV composite masked indexed gather-MAcc-scatter fail-closed boundary
+**Branch**: `main`
+
+### Summary
+
+Added RVV plugin-owned fail-closed diagnostics and focused C++ coverage for explicit and pre-realized runtime-scalar computed-mask indexed gather-MAcc-scatter composite bodies; no executable artifact or ssh rvv claim is made until a composite owner/provider route exists.
+
+### Main Changes
+
+- Added an explicit realized-body route-analysis fail-closed seam for a runtime-scalar computed-mask indexed gather -> masked MAcc -> indexed scatter body in one `tcrv_rvv.with_vl` scope.
+- Added a selected-body realization registry fail-closed seam for the corresponding pre-realized multi-family composite assembled from separate indexed gather, computed-mask MAcc, and indexed scatter body ops.
+- Added focused C++ smoke coverage that proves both diagnostics name the missing composite selected-body realization / migrated statement-plan / provider contract rather than falling into generic single-route or multiple-body errors.
+- Did not add a Common EmitC semantic branch, target artifact mirror, generated bundle, source-front-door route, or runtime correctness claim for the composite.
+
+### Git Commits
+
+pending-in-this-commit
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Bounded added-diff old-authority scan found no descriptor/direct-C/source-front-door/source-export/legacy `tcrv_rvv.i32_*`/`RVVI32M1`/`rvv-i32m1` matches.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Replace the fail-closed seam with a plugin-local composite owner that imports typed gather, MAcc, scatter, mask, index, accumulator, ABI, and AVL/VL facts into one realized body and one provider-built `TCRVEmitCLowerableRoute`, then add target artifact/generated-bundle/`ssh rvv` evidence.

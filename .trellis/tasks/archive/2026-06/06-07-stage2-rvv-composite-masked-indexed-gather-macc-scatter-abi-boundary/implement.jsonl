@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain and RVV Stage2 boundaries for this composite fail-closed seam."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, route provider, computed-mask memory, and computed-mask MAcc boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute constraints for composite routes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit evidence expectations and runtime evidence boundaries for RVV compiler behavior."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected variant and mirror-only metadata constraints for route/provider diagnostics."}
