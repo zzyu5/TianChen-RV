@@ -5539,10 +5539,12 @@ typed low-precision tcrv_rvv body
 
 Use this contract when `widening_product_reduce_dequantize_f32` claims that
 Gearbox `vsetvl` placement has progressed beyond marker-only evidence. The
-handoff is still bounded to one selected `with_vl` body, but product/reduction
-values, dequant input, runtime AVL, active VL, phase ordering, region count, and
-resource decision must be represented as `tcrv_rvv` structure before route
-support.
+handoff is bounded to one selected producer/consumer `with_vl` pair in the
+selected RVV body: the product/reduction phase is a producer `with_vl`, and the
+dequant/store phase is a nested consumer `with_vl` after the handoff. Product
+and reduction values, dequant input, runtime AVL, active VL, phase ordering,
+region count, and resource decision must be represented as `tcrv_rvv`
+structure before route support.
 
 ### 2. Signatures
 
@@ -5573,9 +5575,10 @@ setvl %n -> with_vl %vl
   widening_product
   standalone_reduce -> !tcrv_rvv.vector<i32, "m1">
   gearbox_cross_region_handoff %reduced, %vl, %n
-  vsetvl_region_marker phase=dequant-store index=2 count=2
-  dequantize %handoff, %scale, %vl
-  store
+  with_vl %vl
+    vsetvl_region_marker phase=dequant-store index=2 count=2
+    dequantize %handoff, %scale, %vl
+    store
 ```
 
 The construction-protocol typed compute chain for this non-clamp route is:
@@ -5594,10 +5597,14 @@ tcrv_rvv.widening_product
 - `dequantize` must consume the handoff result for
   `widening_product_reduce_dequantize_f32`. Direct
   `standalone_reduce -> dequantize` is fail-closed for this route.
+- The producer `with_vl` must contain the product/reduction chain and the
+  direct handoff. The consumer `with_vl` must be nested under the producer,
+  structurally after the handoff, use the same `!tcrv_rvv.vl`, and contain the
+  dequant-store marker, handoff-consuming `dequantize`, and final store.
 - The handoff input must be the selected `standalone_reduce` i32 result; the
   reduction input must be the selected `widening_product` result.
-- The handoff must consume the same `!tcrv_rvv.vl` token as `with_vl`, product,
-  reduction, and dequantize.
+- The handoff must consume the same `!tcrv_rvv.vl` token as the producer
+  `with_vl`, consumer `with_vl`, product, reduction, and dequantize.
 - The handoff runtime AVL operand must be the same SSA value consumed by
   `setvl`, and `runtime_avl_source` must be `runtime_abi:n`.
 - The handoff `contract`, `from_phase`, `to_phase`, `region_count`, and
@@ -5605,8 +5612,9 @@ tcrv_rvv.widening_product
   facts.
 - The RVV schedule pass, selected-body realizer, construction protocol, route
   planner, provider family plan, and target artifact/header validation must all
-  agree on the four-op typed compute chain. Common EmitC must not infer or
-  invent this handoff.
+  agree on the four-op typed compute chain and producer/consumer scope facts.
+  Common EmitC must not infer or invent this handoff, scope pairing, region
+  order, or resource decision.
 
 ### 4. Validation & Error Matrix
 
@@ -5617,6 +5625,9 @@ tcrv_rvv.widening_product
   resource decision -> dialect verifier or provider fails closed.
 - Handoff consumes a different VL token or runtime AVL SSA value than `setvl` /
   `with_vl` -> verifier/provider fails closed.
+- Missing, sibling, unordered, or wrong-VL consumer `with_vl` for the
+  dequant-store phase -> selected-boundary collection or provider planning
+  fails closed before route support.
 - Marker count/order/phase/resource decision diverges from the handoff/resource
   facts -> fail closed; markers remain transitional evidence, not route
   authority.
@@ -5624,8 +5635,9 @@ tcrv_rvv.widening_product
 ### 5. Good/Base/Bad Cases
 
 - Good: pre-realized product-reduce-dequant body -> Gearbox resource pass ->
-  selected-body realization emits handoff -> provider validates handoff and
-  markers -> route plan/header export.
+  selected-body realization emits producer/consumer `with_vl` scopes and
+  handoff -> provider validates handoff, scope order, markers, and resource
+  facts -> route plan/header export.
 - Base: dequant-clamp keeps its existing direct reduction-to-dequant epilogue
   until a separate handoff contract is defined for that family.
 - Bad: only `vsetvl_region_marker` or artifact metadata says two regions while
@@ -5636,12 +5648,13 @@ tcrv_rvv.widening_product
 - Dialect/verifier evidence for stale handoff attrs, VL/runtime AVL mismatch,
   and invalid source chain.
 - Selected-body realization FileCheck showing
-  `standalone_reduce -> gearbox_cross_region_handoff -> dequantize` with
-  `runtime_abi:n` and matching marker phases.
+  `standalone_reduce -> gearbox_cross_region_handoff -> nested consumer with_vl
+  -> dequantize -> store` with `runtime_abi:n` and matching marker phases.
 - Explicit already-realized fixture containing the same handoff as the authority
   for route planning.
-- Provider fail-closed evidence for missing handoff and stale dequantize
-  consumer after schedule/resource facts exist.
+- Provider fail-closed evidence for missing handoff, stale dequantize consumer,
+  stale scope facts, and stale realized region/resource facts after
+  schedule/resource facts exist.
 - Header/artifact export evidence showing the four-op typed compute chain is
   accepted by construction and target validation.
 
@@ -5660,8 +5673,10 @@ Correct:
 ```text
 standalone_reduce
   -> gearbox_cross_region_handoff(%reduced, %vl, %n)
-  -> dequantize(%handoff, %scale, %vl)
-  -> provider validates handoff + resource facts before route support
+  -> nested consumer with_vl(%vl)
+       -> dequantize(%handoff, %scale, %vl)
+       -> store
+  -> provider validates handoff + scope + resource facts before route support
 ```
 
 ## Migrated Statement-Plan Provider Consumption Boundary

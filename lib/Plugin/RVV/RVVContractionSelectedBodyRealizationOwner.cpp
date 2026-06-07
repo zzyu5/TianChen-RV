@@ -860,11 +860,22 @@ realizePreRealizedRVVSelectedContractionFamily(
             product.getResult(), plan.acc, setvl.getVl(), plan.resultSEW,
             plan.resultLMUL));
     mlir::Value dequantSource = reduced.getResult();
+    tcrv::rvv::WithVLOp consumerWithVL;
     if (!plan.usesProductReductionDequantClamp) {
       auto handoff = llvm::cast<tcrv::rvv::GearboxCrossRegionHandoffOp>(
           createRealizedGearboxCrossRegionHandoff(
               builder, loc, reduced.getResult(), setvl.getVl(), plan.n));
       dequantSource = handoff.getOutput();
+      consumerWithVL =
+          createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                               request.getRole(), requires, plan.resultSEW,
+                               plan.resultLMUL, plan.policy);
+      copyLowPrecisionResourceAttrs(plan.preRealizedBody,
+                                    consumerWithVL.getOperation());
+      if (llvm::Error error = materializeLowPrecisionResourceRealizationAttrs(
+              builder, plan.preRealizedBody, consumerWithVL.getOperation()))
+        return std::move(error);
+      builder.setInsertionPointToStart(&consumerWithVL.getBody().front());
       createRealizedVSetVLRegionMarker(
           builder, loc, setvl.getVl(), "dequant-store", 2,
           kRVVLowPrecisionResourceVSetVLRegions);
@@ -902,6 +913,8 @@ realizePreRealizedRVVSelectedContractionFamily(
     }
     createRealizedGenericStore(builder, loc, plan.out, valueToStore,
                                setvl.getVl());
+    if (consumerWithVL)
+      builder.setInsertionPointAfter(consumerWithVL);
   } else if (plan.usesWideningMAcc) {
     auto accumulatorLoad =
         llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(

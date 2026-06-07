@@ -79,6 +79,15 @@ module {
 // REALIZED-SAME: runtime_avl_source = "runtime_abi:n"
 // REALIZED-SAME: to_phase = "dequant-store"
 // REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m1">
+// REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
+// REALIZED-SAME: selected_variant = @pre_realized_body_rvv_product_reduce_dequantize
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.realization_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.realization_producer = "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups = 4 : i64
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_unroll_factor = 1 : i64
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 2 : i64
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64
 // REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
 // REALIZED-SAME: phase = "dequant-store"
 // REALIZED-SAME: region_count = 2 : i64
@@ -135,7 +144,8 @@ module {
 
 // STALE-REALIZED-REGION: 'tcrv_rvv.gearbox_cross_region_handoff' op requires to_phase 'dequant-store'
 
-// STALE-HANDOFF-CONSUMER: tcrv_rvv.dequantize source to consume the selected tcrv_rvv.gearbox_cross_region_handoff output
+// STALE-HANDOFF-CONSUMER: requires a preceding load-product-reduce tcrv_rvv.vsetvl_region_marker in the producer scope
+// STALE-HANDOFF-CONSUMER-SAME: handoff-consuming dequant/store chain in the consumer tcrv_rvv.with_vl scope
 
 // STALE-GEARBOX-SCOPE: requires consumer_scope 'gearbox-scope:dequant-store'
 

@@ -18,8 +18,9 @@
 // Explicit selected-body input for one bounded Stage 2 signed low-precision
 // contraction-to-dequant chain. The typed tcrv_rvv body carries i8 source
 // loads, an i16 product, an i16-to-i32 standalone reduction boundary, a
-// structural Gearbox cross-region handoff carrying runtime AVL/VL facts, the
-// runtime scale, the f32 dequantized result, and the f32 store boundary.
+// structural Gearbox cross-region handoff carrying runtime AVL/VL facts, and
+// a nested consumer tcrv_rvv.with_vl region carrying runtime scale, f32
+// dequantization, and the f32 store boundary.
 
 module {
   tcrv.exec.kernel @explicit_selected_body_product_reduce_dequantize_kernel {
@@ -40,9 +41,11 @@ module {
         %product = tcrv_rvv.widening_product %lhs_vec, %rhs_vec, %vl {kind = "signed_widening_product", product_relation = "signed-i8mf4xi8mf4-to-i16mf2"} : !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
         %reduced = tcrv_rvv.standalone_reduce %product, %acc, %vl {accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", kind = "signed_widening_reduce_add", result_layout = "store-standalone-reduction-lane0-to-output-scalar"} : !tcrv_rvv.vector<i16, "mf2">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
         %handoff = tcrv_rvv.gearbox_cross_region_handoff %reduced, %vl, %n {consumer_scope = "gearbox-scope:dequant-store", contract = "gearbox-product-reduce-to-dequant-cross-region-handoff.v1", from_phase = "load-product-reduce", producer_scope = "gearbox-scope:product-reduction", region_count = 2 : i64, resource_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1", runtime_avl_source = "runtime_abi:n", to_phase = "dequant-store"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl, index -> !tcrv_rvv.vector<i32, "m1">
-        tcrv_rvv.vsetvl_region_marker %vl {phase = "dequant-store", region_count = 2 : i64, region_index = 2 : i64, resource_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"} : !tcrv_rvv.vl
-        %dequantized = tcrv_rvv.dequantize %handoff, %scale, %vl {dequant_relation = "signed-i32m1-to-f32m1-scale-f32", kind = "i32_to_f32_scaled"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
-        tcrv_rvv.store %out, %dequantized, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<f32, "m1">, !tcrv_rvv.vl
+        tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "dispatch case", selected_variant = @explicit_selected_body_rvv_product_reduce_dequantize, sew = 32 : i64, source_kernel = "explicit_selected_body_product_reduce_dequantize_kernel", status = "selected-lowering-boundary", tcrv_rvv.low_precision_resource.realization_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1", tcrv_rvv.low_precision_resource.realization_producer = "rvv-plugin-local-selected-body-realization-resource-consumer.v1", tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups = 4 : i64, tcrv_rvv.low_precision_resource.realized_unroll_factor = 1 : i64, tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 2 : i64} {
+          tcrv_rvv.vsetvl_region_marker %vl {phase = "dequant-store", region_count = 2 : i64, region_index = 2 : i64, resource_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"} : !tcrv_rvv.vl
+          %dequantized = tcrv_rvv.dequantize %handoff, %scale, %vl {dequant_relation = "signed-i32m1-to-f32m1-scale-f32", kind = "i32_to_f32_scaled"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<f32, "m1">
+          tcrv_rvv.store %out, %dequantized, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<f32, "m1">, !tcrv_rvv.vl
+        } : !tcrv_rvv.vl
       } : !tcrv_rvv.vl
     }
     tcrv.exec.variant @explicit_selected_body_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
@@ -112,9 +115,10 @@ module {
 // STALE-PROVIDER-RESOURCE: low-precision direct-contraction resource selection requires selected candidate
 // STALE-PROVIDER-RESOURCE-SAME: artifact-name-derived-resource-candidate
 
-// MISSING-HANDOFF: requires source-producing Gearbox handoff
+// MISSING-HANDOFF: requires source-producing product-reduction chain to be in the same tcrv_rvv.with_vl body as tcrv_rvv.dequantize
 
-// STALE-HANDOFF-CONSUMER: requires source-producing Gearbox handoff
+// STALE-HANDOFF-CONSUMER: requires a preceding load-product-reduce tcrv_rvv.vsetvl_region_marker in the producer scope
+// STALE-HANDOFF-CONSUMER-SAME: handoff-consuming dequant/store chain in the consumer tcrv_rvv.with_vl scope
 
 // STALE-GEARBOX-SCOPE: requires producer_scope 'gearbox-scope:product-reduction'
 

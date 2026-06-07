@@ -8,6 +8,7 @@
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
+#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h"
 #include "TianChenRV/Target/RVV/RVVTargetSupportBundle.h"
@@ -19,6 +20,7 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/Pass/Pass.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
@@ -87,6 +89,100 @@ llvm::Error requireRVVSelectedVariant(tcrv::exec::VariantOp variant) {
   return requireExplicitTypedRVVBody(variant);
 }
 
+bool isRVVGearboxProductReduceDequantConsumerScope(
+    tcrv::rvv::WithVLOp producerWithVL, tcrv::rvv::WithVLOp candidate) {
+  if (!producerWithVL || !candidate || producerWithVL == candidate ||
+      candidate.getVl() != producerWithVL.getVl() ||
+      !producerWithVL->isProperAncestor(candidate.getOperation()))
+    return false;
+
+  bool hasRegionMarker = false;
+  bool hasHandoffDequantize = false;
+  bool hasStore = false;
+  for (mlir::Operation &op : candidate.getBody().front()) {
+    if (auto marker = llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(op)) {
+      hasRegionMarker =
+          marker.getPhase() == "dequant-store" &&
+          static_cast<std::int64_t>(marker.getRegionIndex()) == 2 &&
+          static_cast<std::int64_t>(marker.getRegionCount()) == 2 &&
+          marker.getResourceDecision() ==
+              rvv::kRVVLowPrecisionResourceRealizationDecision &&
+          marker.getVl() == producerWithVL.getVl();
+      continue;
+    }
+    if (auto dequantize = llvm::dyn_cast<tcrv::rvv::DequantizeOp>(op)) {
+      auto handoff = dequantize.getSource()
+                         .getDefiningOp<tcrv::rvv::GearboxCrossRegionHandoffOp>();
+      if (handoff && handoff->getParentOp() == producerWithVL.getOperation() &&
+          dequantize.getVl() == producerWithVL.getVl())
+        hasHandoffDequantize = true;
+      continue;
+    }
+    if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(op)) {
+      auto dequantize =
+          store.getValue().getDefiningOp<tcrv::rvv::DequantizeOp>();
+      if (store.getVl() == producerWithVL.getVl() && dequantize &&
+          dequantize->getParentOp() == candidate.getOperation())
+        hasStore = true;
+      continue;
+    }
+  }
+  return hasRegionMarker && hasHandoffDequantize && hasStore;
+}
+
+bool hasDirectRVVGearboxCrossRegionHandoff(tcrv::rvv::WithVLOp withVL) {
+  bool found = false;
+  for (mlir::Operation &op : withVL.getBody().front()) {
+    if (llvm::isa<tcrv::rvv::GearboxCrossRegionHandoffOp>(op)) {
+      if (found)
+        return false;
+      found = true;
+    }
+  }
+  return found;
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp> findSelectedRVVGearboxProducerBoundary(
+    llvm::ArrayRef<tcrv::rvv::WithVLOp> withVLs) {
+  if (withVLs.size() != 2)
+    return makeRVVPluginError(
+        "selected RVV typed lowering boundary requires exactly one "
+        "tcrv_rvv.with_vl op, or a bounded Gearbox producer/consumer "
+        "two-with_vl body");
+
+  tcrv::rvv::WithVLOp producerWithVL;
+  for (tcrv::rvv::WithVLOp withVL : withVLs) {
+    if (!hasDirectRVVGearboxCrossRegionHandoff(withVL))
+      continue;
+    if (producerWithVL)
+      return makeRVVPluginError(
+          "selected RVV Gearbox typed lowering boundary requires a unique "
+          "producer tcrv_rvv.with_vl with a direct "
+          "tcrv_rvv.gearbox_cross_region_handoff");
+    producerWithVL = withVL;
+  }
+  if (!producerWithVL)
+    return makeRVVPluginError(
+        "selected RVV Gearbox typed lowering boundary requires a producer "
+        "tcrv_rvv.with_vl with a direct "
+        "tcrv_rvv.gearbox_cross_region_handoff");
+
+  tcrv::rvv::WithVLOp consumerWithVL;
+  for (tcrv::rvv::WithVLOp withVL : withVLs) {
+    if (withVL == producerWithVL)
+      continue;
+    if (isRVVGearboxProductReduceDequantConsumerScope(producerWithVL, withVL))
+      consumerWithVL = withVL;
+  }
+  if (!consumerWithVL)
+    return makeRVVPluginError(
+        "selected RVV Gearbox typed lowering boundary requires a nested "
+        "consumer tcrv_rvv.with_vl with matching VL, dequant-store marker, "
+        "handoff-consuming dequantize, and store facts");
+
+  return producerWithVL;
+}
+
 llvm::Expected<tcrv::rvv::WithVLOp>
 findSelectedRVVSelectedBodyBoundary(tcrv::exec::VariantOp variant) {
   if (!variant)
@@ -107,18 +203,24 @@ findSelectedRVVSelectedBodyBoundary(tcrv::exec::VariantOp variant) {
     return makeRVVPluginError(
         "selected RVV typed lowering boundary requires exactly one "
         "tcrv_rvv.setvl op");
-  if (withVLs.size() != 1)
-    return makeRVVPluginError(
-        "selected RVV typed lowering boundary requires exactly one "
-        "tcrv_rvv.with_vl op");
+  tcrv::rvv::WithVLOp selectedWithVL;
+  if (withVLs.size() == 1) {
+    selectedWithVL = withVLs.front();
+  } else {
+    llvm::Expected<tcrv::rvv::WithVLOp> gearboxProducer =
+        findSelectedRVVGearboxProducerBoundary(withVLs);
+    if (!gearboxProducer)
+      return gearboxProducer.takeError();
+    selectedWithVL = *gearboxProducer;
+  }
 
   tcrv::rvv::RVVConfigContractDiagnostic configDiagnostic =
       tcrv::rvv::validateRVVSelectedBodyConfigVLStructure(setvls.front(),
-                                                          withVLs.front());
+                                                          selectedWithVL);
   if (!configDiagnostic.ok)
     return makeRVVPluginError(configDiagnostic.message);
 
-  return withVLs.front();
+  return selectedWithVL;
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>

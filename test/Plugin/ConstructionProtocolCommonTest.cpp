@@ -1970,7 +1970,7 @@ int runRVVCommonValidationTest() {
         : isStandaloneReduceRoute                ? 9u
         : hasWideningMAcc                       ? 12u
         : hasWideningProductReduction           ? 12u
-        : hasWideningProductReductionDequantization ? 15u
+        : hasWideningProductReductionDequantization ? 16u
         : hasWideningProductReductionDequantClamp ? 22u
         : hasWideningDotReduce                  ? 11u
         : hasStridedInputWideningDotReduce      ? 13u

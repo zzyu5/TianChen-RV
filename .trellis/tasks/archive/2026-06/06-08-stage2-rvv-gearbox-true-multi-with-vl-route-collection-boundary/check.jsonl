@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "global source-of-truth and RVV Stage1/Stage2 quality gate"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "check RVV plugin locality, typed body authority, and fail-closed provider diagnostics"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "check Common EmitC route remains a neutral provider payload consumer"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "check focused lit/C++ coverage and no unclaimed runtime evidence"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "check no RVV semantics leak into common/core code"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "check no high-level compute or source-front-door authority is introduced"}

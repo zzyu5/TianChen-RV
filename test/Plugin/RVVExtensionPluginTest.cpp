@@ -1211,8 +1211,9 @@ module {
                                          VariantEmissionRole::DirectVariant,
                                          builder),
           boundaryResult),
-      {"selected RVV typed lowering boundary requires exactly one "
-       "tcrv_rvv.with_vl op"});
+      {"selected RVV Gearbox typed lowering boundary requires a producer "
+       "tcrv_rvv.with_vl with a direct "
+       "tcrv_rvv.gearbox_cross_region_handoff"});
 }
 
 int runElementwiseCompareSelectRealizationBoundaryTest(
@@ -8795,22 +8796,26 @@ module {
                 "failed: " +
                 llvm::toString(realizedProductDequant.takeError()));
   if (int result = expect(
-          countNestedOps(productDequantVariant,
+              countNestedOps(productDequantVariant,
                          "tcrv_rvv.typed_widening_product_reduce_dequantize_"
                          "pre_realized_body") == 0 &&
               countNestedOps(productDequantVariant, "tcrv_rvv.setvl") == 1 &&
-              countNestedOps(productDequantVariant, "tcrv_rvv.with_vl") == 1 &&
+              countNestedOps(productDequantVariant, "tcrv_rvv.with_vl") == 2 &&
+              countNestedOps(productDequantVariant,
+                             "tcrv_rvv.vsetvl_region_marker") == 2 &&
               countNestedOps(productDequantVariant, "tcrv_rvv.load") == 2 &&
               countNestedOps(productDequantVariant,
                              "tcrv_rvv.widening_product") == 1 &&
               countNestedOps(productDequantVariant,
                              "tcrv_rvv.standalone_reduce") == 1 &&
+              countNestedOps(productDequantVariant,
+                             "tcrv_rvv.gearbox_cross_region_handoff") == 1 &&
               countNestedOps(productDequantVariant, "tcrv_rvv.dequantize") ==
                   1 &&
               countNestedOps(productDequantVariant, "tcrv_rvv.store") == 1,
           "selected-boundary product-reduction-dequant consumes shorthand "
-          "into setvl/with_vl/load/load/widening_product/standalone_reduce/"
-          "dequantize/store IR"))
+          "into setvl/producer-with_vl/load/load/widening_product/"
+          "standalone_reduce/handoff/consumer-with_vl/dequantize/store IR"))
     return result;
 
   auto productDequantAnalysis = analyzeRVVSelectedBodyRoute(

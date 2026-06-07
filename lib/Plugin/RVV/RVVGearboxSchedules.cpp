@@ -601,31 +601,57 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
 
   GearboxCrossRegionHandoffOp handoff =
       dequantize.getSource().getDefiningOp<GearboxCrossRegionHandoffOp>();
-  if (!handoff || handoff->getParentOp() != withVL.getOperation())
+  if (!handoff)
     return dequantize->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
-              "requires dequantize source from one same-scope "
+              "requires dequantize source from one provider-collected "
               "tcrv_rvv.gearbox_cross_region_handoff";
   if (handoff.getVl() != withVL.getVl() || handoff.getRuntimeAvl() != setvl.getAvl())
     return handoff->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
               "requires tcrv_rvv.gearbox_cross_region_handoff to consume the "
               "active with_vl token and runtime AVL";
+  auto producerWithVL =
+      llvm::dyn_cast_or_null<WithVLOp>(handoff->getParentOp());
+  if (!producerWithVL)
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires handoff to be nested directly in a producer "
+              "tcrv_rvv.with_vl";
+  if (producerWithVL == withVL)
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires a true multi-with_vl producer/consumer boundary";
+  if (!producerWithVL->isProperAncestor(withVL.getOperation()))
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires producer tcrv_rvv.with_vl to enclose the consumer "
+              "tcrv_rvv.with_vl scope";
+
+  tianchenrv::tcrv::rvv::RVVConfigContractDiagnostic producerConfig =
+      tianchenrv::tcrv::rvv::validateRVVSelectedBodyM1ConfigVLContract(
+          setvl, producerWithVL);
+  if (!producerConfig.ok)
+    return producerWithVL->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires producer product/reduction SEW32 LMUL m1 config: "
+           << producerConfig.message;
+
   StandaloneReduceOp reduce = handoff.getInput().getDefiningOp<StandaloneReduceOp>();
-  if (!reduce || reduce->getParentOp() != withVL.getOperation() ||
+  if (!reduce || reduce->getParentOp() != producerWithVL.getOperation() ||
       reduce.getVl() != withVL.getVl())
     return handoff->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
-              "requires handoff input from one same-scope "
+              "requires handoff input from one producer-scope "
               "tcrv_rvv.standalone_reduce";
 
   WideningProductOp product =
       reduce.getInput().getDefiningOp<WideningProductOp>();
-  if (!product || product->getParentOp() != withVL.getOperation() ||
+  if (!product || product->getParentOp() != producerWithVL.getOperation() ||
       product.getVl() != withVL.getVl())
     return reduce->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
-              "requires standalone_reduce input from one same-scope "
+              "requires standalone_reduce input from one producer-scope "
               "tcrv_rvv.widening_product";
 
   auto *context = withVL.getContext();
@@ -703,13 +729,13 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
 
   LoadOp lhsLoad = product.getLhs().getDefiningOp<LoadOp>();
   LoadOp rhsLoad = product.getRhs().getDefiningOp<LoadOp>();
-  if (!lhsLoad || lhsLoad->getParentOp() != withVL.getOperation() ||
+  if (!lhsLoad || lhsLoad->getParentOp() != producerWithVL.getOperation() ||
       lhsLoad.getVl() != withVL.getVl() || !rhsLoad ||
-      rhsLoad->getParentOp() != withVL.getOperation() ||
+      rhsLoad->getParentOp() != producerWithVL.getOperation() ||
       rhsLoad.getVl() != withVL.getVl())
     return product->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
-              "requires same-scope lhs/rhs unit-stride loads";
+              "requires producer-scope lhs/rhs unit-stride loads";
 
   if (mlir::failed(requireRuntimeABIValue(
           lhsLoad.getBuffer().getDefiningOp<RuntimeABIValueOp>(), lhsLoad,
@@ -751,7 +777,7 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
       store.getVl() != withVL.getVl())
     return dequantize->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
-              "requires one same-scope store of the dequantized result";
+              "requires one consumer-scope store of the dequantized result";
   if (mlir::failed(requireRuntimeABIValue(
           store.getBuffer().getDefiningOp<RuntimeABIValueOp>(), store,
           "low-precision output", "output-buffer", "out")))
@@ -761,8 +787,9 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
 
 mlir::LogicalResult materializeGearboxForWithVL(WithVLOp withVL) {
   llvm::SmallVector<DequantizeOp, 2> dequantizeOps;
-  withVL.getBody().walk(
-      [&](DequantizeOp op) { dequantizeOps.push_back(op); });
+  for (mlir::Operation &op : withVL.getBody().front())
+    if (auto dequantize = llvm::dyn_cast<DequantizeOp>(op))
+      dequantizeOps.push_back(dequantize);
   if (dequantizeOps.empty())
     return mlir::success();
   if (dequantizeOps.size() != 1)
@@ -782,9 +809,21 @@ mlir::LogicalResult materializeGearboxForWithVL(WithVLOp withVL) {
       return withVL->emitError()
              << "RVV low-precision Gearbox resource candidate derivation "
                 "requires an explicit with_vl policy";
+    auto handoff =
+        dequantize.getSource().getDefiningOp<GearboxCrossRegionHandoffOp>();
+    auto producerWithVL =
+        llvm::dyn_cast_or_null<WithVLOp>(handoff->getParentOp());
+    if (!producerWithVL)
+      return handoff->emitError()
+             << "RVV low-precision Gearbox resource candidate derivation "
+                "requires handoff producer tcrv_rvv.with_vl";
+    if (mlir::failed(materializeLowPrecisionResourceAttrs(
+            producerWithVL.getOperation(), builder, *policy, 8, "mf4", 16,
+            "mf2", 32, "m1", kLowPrecisionProductDequantMemoryForm)))
+      return mlir::failure();
     return materializeLowPrecisionResourceAttrs(
-        withVL.getOperation(), builder, *policy, 8, "mf4", 16,
-        "mf2", 32, "m1", kLowPrecisionProductDequantMemoryForm);
+        withVL.getOperation(), builder, *policy, 8, "mf4", 16, "mf2", 32,
+        "m1", kLowPrecisionProductDequantMemoryForm);
   }
   if (dequantize.getSource().getDefiningOp<StandaloneReduceOp>())
     return dequantize->emitError()

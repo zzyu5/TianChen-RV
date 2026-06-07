@@ -38,6 +38,8 @@ struct RVVRouteOperandBindingPlan {
 struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::SetVLOp setvl;
   tcrv::rvv::WithVLOp withVL;
+  tcrv::rvv::WithVLOp gearboxProducerWithVL;
+  tcrv::rvv::WithVLOp gearboxConsumerWithVL;
   llvm::SmallVector<tcrv::rvv::VSetVLRegionMarkerOp, 4>
       vsetvlRegionMarkers;
   tcrv::rvv::GearboxCrossRegionHandoffOp gearboxCrossRegionHandoffOp;

@@ -1686,3 +1686,39 @@ Modeled Gearbox producer/consumer scope facts through RVV verifier, selected-bod
 ### Next Steps
 
 - None - task complete
+
+
+## Session 544: Stage2 RVV Gearbox multi-with_vl route collection
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV Gearbox multi-with_vl route collection
+**Branch**: `main`
+
+### Summary
+
+Implemented RVV-owned Gearbox producer/consumer with_vl route collection, fail-closed provider validation, header mirror validation, tests, and spec contract update.
+
+### Main Changes
+
+- Added provider route-slice collection for bounded Gearbox producer/consumer `with_vl` bodies.
+- Updated dialect verification, selected-body realization, Gearbox resource scheduling, selected lowering boundary collection, construction protocol ordering, and target artifact adapter handling.
+- Updated explicit and pre-realized widening-product-reduce-dequantize-f32 fixtures with positive plan/header evidence and fail-closed stale scope/handoff/resource/header coverage.
+- Updated RVV plugin spec to record the producer/consumer `with_vl` contract.
+- Verification run: ninja targets, RVV extension plugin FileCheck, construction protocol test, target artifact export test, full manual FileCheck replay for explicit and pre-realized Gearbox fixtures, git diff checks, and bounded old-authority diff scan.
+
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

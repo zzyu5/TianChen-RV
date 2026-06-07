@@ -10,6 +10,7 @@
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/SymbolTable.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/raw_ostream.h"
@@ -3309,6 +3310,40 @@ mlir::FailureOr<WithVLOp> verifyNestedDataflowOp(mlir::Operation *op) {
   return withVL;
 }
 
+bool isAncestorWithVL(WithVLOp ancestor, mlir::Operation *op) {
+  if (!ancestor || !op)
+    return false;
+  for (mlir::Operation *parent = op->getParentOp(); parent;
+       parent = parent->getParentOp())
+    if (parent == ancestor.getOperation())
+      return true;
+  return false;
+}
+
+mlir::FailureOr<WithVLOp> findNestedWithVLConsumerAfter(
+    mlir::Operation *anchor, mlir::Value vl,
+    llvm::function_ref<bool(WithVLOp)> predicate) {
+  if (!anchor || !anchor->getParentRegion())
+    return mlir::failure();
+
+  bool sawAnchor = false;
+  for (mlir::Operation &nested : anchor->getParentRegion()->front()) {
+    if (&nested == anchor) {
+      sawAnchor = true;
+      continue;
+    }
+    if (!sawAnchor)
+      continue;
+
+    auto withVL = llvm::dyn_cast<WithVLOp>(nested);
+    if (!withVL || withVL.getVl() != vl)
+      continue;
+    if (predicate(withVL))
+      return withVL;
+  }
+  return mlir::failure();
+}
+
 mlir::LogicalResult verifyDataflowVLOperandMatchesWithVL(mlir::Operation *op,
                                                          mlir::Value vl) {
   auto withVL = llvm::dyn_cast_or_null<WithVLOp>(op->getParentOp());
@@ -3912,10 +3947,11 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return emitOpError()
            << "requires source-producing tcrv_rvv.standalone_reduce to "
               "consume the same !tcrv_rvv.vl token as the handoff";
-  if (reduction->getParentOp() != op->getParentOp())
+  WithVLOp producerWithVL = *withVL;
+  if (reduction->getParentOp() != producerWithVL.getOperation())
     return emitOpError()
            << "requires source-producing tcrv_rvv.standalone_reduce to be "
-              "in the same tcrv_rvv.with_vl body as the handoff";
+              "in the same producer tcrv_rvv.with_vl body as the handoff";
   auto product = reduction.getInput().getDefiningOp<WideningProductOp>();
   if (!product)
     return emitOpError()
@@ -3926,10 +3962,11 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return emitOpError()
            << "requires source-producing tcrv_rvv.widening_product to carry "
               "the bounded signed i8mf4 to i16mf2 product relation";
-  if (product.getVl() != getVl() || product->getParentOp() != op->getParentOp())
+  if (product.getVl() != getVl() ||
+      product->getParentOp() != producerWithVL.getOperation())
     return emitOpError()
            << "requires source-producing tcrv_rvv.widening_product to be in "
-              "the same tcrv_rvv.with_vl body and consume the same "
+              "the same producer tcrv_rvv.with_vl body and consume the same "
               "!tcrv_rvv.vl token as the handoff";
 
   tcrv::rvv::VSetVLRegionMarkerOp firstMarker;
@@ -3959,11 +3996,57 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
       break;
     }
   }
-  if (!firstMarker || !secondMarker)
+  if (!firstMarker)
     return emitOpError()
            << "requires a preceding load-product-reduce "
-              "tcrv_rvv.vsetvl_region_marker and a following dequant-store "
-              "tcrv_rvv.vsetvl_region_marker with matching VL/resource facts";
+              "tcrv_rvv.vsetvl_region_marker in the producer scope with "
+              "matching VL/resource facts";
+  if (!secondMarker)
+    if (mlir::failed(findNestedWithVLConsumerAfter(
+            op, getVl(), [&](WithVLOp consumerWithVL) {
+              tcrv::rvv::VSetVLRegionMarkerOp nestedSecondMarker;
+              tcrv::rvv::DequantizeOp consumerDequantize;
+              tcrv::rvv::StoreOp consumerStore;
+              for (mlir::Operation &consumerNested :
+                   consumerWithVL.getBody().front()) {
+                if (auto marker =
+                        llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(
+                            consumerNested)) {
+                  if (marker.getVl() == getVl() &&
+                      marker.getRegionIndex() == 2 &&
+                      marker.getRegionCount() == getRegionCount() &&
+                      marker.getPhase() == getToPhase() &&
+                      marker.getResourceDecision() == getResourceDecision())
+                    nestedSecondMarker = marker;
+                  continue;
+                }
+                if (auto dequantize =
+                        llvm::dyn_cast<tcrv::rvv::DequantizeOp>(
+                            consumerNested)) {
+                  if (dequantize.getSource() == getOutput() &&
+                      dequantize.getVl() == getVl())
+                    consumerDequantize = dequantize;
+                  continue;
+                }
+                if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(
+                        consumerNested)) {
+                  if (consumerDequantize &&
+                      store.getValue() == consumerDequantize.getResult() &&
+                      store.getVl() == getVl())
+                    consumerStore = store;
+                  continue;
+                }
+              }
+              return static_cast<bool>(nestedSecondMarker) &&
+                     static_cast<bool>(consumerDequantize) &&
+                     static_cast<bool>(consumerStore);
+            })))
+      return emitOpError()
+             << "requires a preceding load-product-reduce "
+                "tcrv_rvv.vsetvl_region_marker in the producer scope and a "
+                "following dequant-store tcrv_rvv.vsetvl_region_marker plus "
+                "handoff-consuming dequant/store chain in the consumer "
+                "tcrv_rvv.with_vl scope with matching VL/resource facts";
 
   if (getContract() !=
       "gearbox-product-reduce-to-dequant-cross-region-handoff.v1")
@@ -12357,12 +12440,18 @@ mlir::LogicalResult DequantizeOp::verify() {
              << "requires source-producing Gearbox handoff, product, and "
                 "standalone reduction to consume the same !tcrv_rvv.vl token "
                 "as tcrv_rvv.dequantize";
-    if (sourceHandoff->getParentOp() != op->getParentOp() ||
-        reduction->getParentOp() != op->getParentOp() ||
-        product->getParentOp() != op->getParentOp())
+    WithVLOp producerWithVL =
+        llvm::dyn_cast_or_null<WithVLOp>(sourceHandoff->getParentOp());
+    if (!producerWithVL ||
+        reduction->getParentOp() != producerWithVL.getOperation() ||
+        product->getParentOp() != producerWithVL.getOperation() ||
+        (!isAncestorWithVL(producerWithVL, op) &&
+         producerWithVL.getOperation() != op->getParentOp()))
       return emitOpError()
              << "requires source-producing Gearbox handoff chain to be in "
-                "the same tcrv_rvv.with_vl body as tcrv_rvv.dequantize";
+                "the same producer tcrv_rvv.with_vl body as the handoff, and "
+                "that producer scope must enclose or match the dequantize "
+                "consumer scope";
   }
 
   if (mlir::failed(verifyGenericVectorTypeForWithVL(op, getSource(),

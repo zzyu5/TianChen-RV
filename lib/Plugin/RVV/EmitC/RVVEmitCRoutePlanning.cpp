@@ -17423,6 +17423,320 @@ llvm::Error recordRVVSelectedBodyDequantize(
 }
 
 llvm::Error recordRVVSelectedBodyMove(RVVSelectedBodyRouteSlice &slice,
+                                      tcrv::rvv::MoveOp move);
+llvm::Error recordRVVSelectedBodyMaskedMove(RVVSelectedBodyRouteSlice &slice,
+                                            tcrv::rvv::MaskedMoveOp move);
+llvm::Error recordRVVSelectedBodyMaskedLoad(RVVSelectedBodyRouteSlice &slice,
+                                            tcrv::rvv::MaskedLoadOp load);
+llvm::Error
+recordRVVSelectedBodyMaskedStridedLoad(RVVSelectedBodyRouteSlice &slice,
+                                       tcrv::rvv::MaskedStridedLoadOp load);
+llvm::Error
+recordRVVSelectedBodyMaskedIndexedLoad(RVVSelectedBodyRouteSlice &slice,
+                                       tcrv::rvv::MaskedIndexedLoadOp load);
+llvm::Error
+recordRVVSelectedBodyMaskedIndexedStore(RVVSelectedBodyRouteSlice &slice,
+                                        tcrv::rvv::MaskedIndexedStoreOp store);
+llvm::Error
+recordRVVSelectedBodyMaskedSegment2Load(RVVSelectedBodyRouteSlice &slice,
+                                        tcrv::rvv::MaskedSegment2LoadOp load);
+llvm::Error
+recordRVVSelectedBodyMaskedSegment2Store(RVVSelectedBodyRouteSlice &slice,
+                                         tcrv::rvv::MaskedSegment2StoreOp store);
+llvm::Error recordRVVSelectedBodyMaskedStore(RVVSelectedBodyRouteSlice &slice,
+                                             tcrv::rvv::MaskedStoreOp store);
+llvm::Error
+recordRVVSelectedBodyMaskedStridedStore(RVVSelectedBodyRouteSlice &slice,
+                                        tcrv::rvv::MaskedStridedStoreOp store);
+llvm::Expected<RVVSelectedBodyOperationKind>
+parseRVVSelectedBodyBinaryKind(llvm::StringRef kind);
+
+bool isRVVGearboxProductReduceDequantConsumerScope(
+    tcrv::rvv::WithVLOp producerWithVL, tcrv::rvv::WithVLOp candidate) {
+  if (!producerWithVL || !candidate || producerWithVL == candidate ||
+      candidate.getVl() != producerWithVL.getVl() ||
+      !producerWithVL->isProperAncestor(candidate.getOperation()))
+    return false;
+
+  bool hasRegionMarker = false;
+  bool hasHandoffDequantize = false;
+  bool hasStore = false;
+  for (mlir::Operation &op : candidate.getBody().front()) {
+    if (auto marker = llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(op)) {
+      hasRegionMarker =
+          marker.getVl() == producerWithVL.getVl() &&
+          marker.getPhase() == "dequant-store" &&
+          static_cast<std::int64_t>(marker.getRegionIndex()) == 2 &&
+          static_cast<std::int64_t>(marker.getRegionCount()) ==
+              kRVVLowPrecisionResourceVSetVLRegions &&
+          marker.getResourceDecision() ==
+              kRVVLowPrecisionResourceRealizationDecision;
+      continue;
+    }
+    if (auto dequantize = llvm::dyn_cast<tcrv::rvv::DequantizeOp>(op)) {
+      auto handoff = dequantize.getSource()
+                         .getDefiningOp<tcrv::rvv::GearboxCrossRegionHandoffOp>();
+      if (handoff && handoff->getParentOp() == producerWithVL.getOperation() &&
+          dequantize.getVl() == producerWithVL.getVl())
+        hasHandoffDequantize = true;
+      continue;
+    }
+    if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(op)) {
+      auto dequantize =
+          store.getValue().getDefiningOp<tcrv::rvv::DequantizeOp>();
+      if (store.getVl() == producerWithVL.getVl() &&
+          dequantize &&
+          dequantize->getParentOp() == candidate.getOperation())
+        hasStore = true;
+      continue;
+    }
+  }
+  return hasRegionMarker && hasHandoffDequantize && hasStore;
+}
+
+tcrv::rvv::GearboxCrossRegionHandoffOp
+findDirectRVVGearboxCrossRegionHandoff(tcrv::rvv::WithVLOp withVL) {
+  tcrv::rvv::GearboxCrossRegionHandoffOp handoff;
+  if (!withVL)
+    return handoff;
+  for (mlir::Operation &op : withVL.getBody().front()) {
+    auto candidate =
+        llvm::dyn_cast<tcrv::rvv::GearboxCrossRegionHandoffOp>(op);
+    if (!candidate)
+      continue;
+    if (handoff)
+      return {};
+    handoff = candidate;
+  }
+  return handoff;
+}
+
+bool isRVVGearboxConsumerScopeOrderedAfterHandoff(
+    tcrv::rvv::WithVLOp producerWithVL, tcrv::rvv::WithVLOp consumerWithVL,
+    tcrv::rvv::GearboxCrossRegionHandoffOp handoff) {
+  if (!producerWithVL || !consumerWithVL || !handoff)
+    return false;
+  bool sawHandoff = false;
+  for (mlir::Operation &op : producerWithVL.getBody().front()) {
+    if (&op == handoff.getOperation()) {
+      sawHandoff = true;
+      continue;
+    }
+    if (&op == consumerWithVL.getOperation())
+      return sawHandoff;
+  }
+  return false;
+}
+
+llvm::Error recordRVVSelectedBodyScopedRouteOp(
+    RVVSelectedBodyRouteSlice &slice, mlir::Operation &op,
+    llvm::SmallVectorImpl<tcrv::rvv::LoadOp> &genericLoads,
+    llvm::SmallVectorImpl<tcrv::rvv::StridedLoadOp> &genericStridedLoads,
+    llvm::SmallVectorImpl<tcrv::rvv::IndexLoadOp> &genericIndexLoads,
+    llvm::SmallVectorImpl<tcrv::rvv::IndexedLoadOp> &genericIndexedLoads,
+    llvm::SmallVectorImpl<tcrv::rvv::IndexedStoreOp> &genericIndexedStores,
+    llvm::SmallVectorImpl<tcrv::rvv::MaskLoadOp> &genericMaskLoads,
+    llvm::SmallVectorImpl<tcrv::rvv::MaskedLoadOp> &genericMaskedLoads,
+    llvm::SmallVectorImpl<tcrv::rvv::MaskedStridedLoadOp>
+        &genericMaskedStridedLoads,
+    llvm::SmallVectorImpl<tcrv::rvv::MaskedIndexedLoadOp>
+        &genericMaskedIndexedLoads,
+    llvm::SmallVectorImpl<tcrv::rvv::MaskedIndexedStoreOp>
+        &genericMaskedIndexedStores,
+    llvm::SmallVectorImpl<tcrv::rvv::MaskedSegment2LoadOp>
+        &genericMaskedSegment2Loads,
+    llvm::SmallVectorImpl<tcrv::rvv::MaskedSegment2StoreOp>
+        &genericMaskedSegment2Stores,
+    llvm::SmallVectorImpl<tcrv::rvv::Segment2LoadOp> &genericSegment2Loads,
+    llvm::SmallVectorImpl<tcrv::rvv::Segment2StoreOp> &genericSegment2Stores,
+    llvm::SmallVectorImpl<tcrv::rvv::VSetVLRegionMarkerOp>
+        &vsetvlRegionMarkers,
+    llvm::SmallVectorImpl<tcrv::rvv::BroadcastLoadOp> &genericBroadcastLoads,
+    llvm::SmallVectorImpl<tcrv::rvv::SplatOp> &genericScalarSplats,
+    llvm::SmallVectorImpl<tcrv::rvv::StoreOp> &genericStores,
+    unsigned &storeCount, unsigned &stridedStoreCount,
+    const support::RuntimeABIParameter &runtimeElementCountABI) {
+  if (auto marker = llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(op)) {
+    vsetvlRegionMarkers.push_back(marker);
+    return llvm::Error::success();
+  }
+  if (auto handoff =
+          llvm::dyn_cast<tcrv::rvv::GearboxCrossRegionHandoffOp>(op))
+    return recordRVVSelectedBodyGearboxCrossRegionHandoff(
+        slice, handoff, runtimeElementCountABI);
+  if (auto load = llvm::dyn_cast<tcrv::rvv::LoadOp>(op)) {
+    genericLoads.push_back(load);
+    return llvm::Error::success();
+  }
+  if (auto stridedLoad = llvm::dyn_cast<tcrv::rvv::StridedLoadOp>(op)) {
+    genericStridedLoads.push_back(stridedLoad);
+    return llvm::Error::success();
+  }
+  if (auto indexLoad = llvm::dyn_cast<tcrv::rvv::IndexLoadOp>(op)) {
+    genericIndexLoads.push_back(indexLoad);
+    return llvm::Error::success();
+  }
+  if (auto indexedLoad = llvm::dyn_cast<tcrv::rvv::IndexedLoadOp>(op)) {
+    genericIndexedLoads.push_back(indexedLoad);
+    return llvm::Error::success();
+  }
+  if (auto indexedStore = llvm::dyn_cast<tcrv::rvv::IndexedStoreOp>(op)) {
+    genericIndexedStores.push_back(indexedStore);
+    return llvm::Error::success();
+  }
+  if (auto maskLoad = llvm::dyn_cast<tcrv::rvv::MaskLoadOp>(op)) {
+    genericMaskLoads.push_back(maskLoad);
+    return llvm::Error::success();
+  }
+  if (auto maskedLoad = llvm::dyn_cast<tcrv::rvv::MaskedLoadOp>(op)) {
+    genericMaskedLoads.push_back(maskedLoad);
+    return recordRVVSelectedBodyMaskedLoad(slice, maskedLoad);
+  }
+  if (auto maskedStridedLoad =
+          llvm::dyn_cast<tcrv::rvv::MaskedStridedLoadOp>(op)) {
+    genericMaskedStridedLoads.push_back(maskedStridedLoad);
+    return recordRVVSelectedBodyMaskedStridedLoad(slice, maskedStridedLoad);
+  }
+  if (auto maskedIndexedLoad =
+          llvm::dyn_cast<tcrv::rvv::MaskedIndexedLoadOp>(op)) {
+    genericMaskedIndexedLoads.push_back(maskedIndexedLoad);
+    return recordRVVSelectedBodyMaskedIndexedLoad(slice, maskedIndexedLoad);
+  }
+  if (auto maskedIndexedStore =
+          llvm::dyn_cast<tcrv::rvv::MaskedIndexedStoreOp>(op)) {
+    genericMaskedIndexedStores.push_back(maskedIndexedStore);
+    return recordRVVSelectedBodyMaskedIndexedStore(slice, maskedIndexedStore);
+  }
+  if (auto maskedSegment2Load =
+          llvm::dyn_cast<tcrv::rvv::MaskedSegment2LoadOp>(op)) {
+    genericMaskedSegment2Loads.push_back(maskedSegment2Load);
+    return recordRVVSelectedBodyMaskedSegment2Load(slice, maskedSegment2Load);
+  }
+  if (auto maskedSegment2Store =
+          llvm::dyn_cast<tcrv::rvv::MaskedSegment2StoreOp>(op)) {
+    genericMaskedSegment2Stores.push_back(maskedSegment2Store);
+    return recordRVVSelectedBodyMaskedSegment2Store(slice, maskedSegment2Store);
+  }
+  if (auto segment2Load = llvm::dyn_cast<tcrv::rvv::Segment2LoadOp>(op)) {
+    genericSegment2Loads.push_back(segment2Load);
+    return llvm::Error::success();
+  }
+  if (auto segment2Store = llvm::dyn_cast<tcrv::rvv::Segment2StoreOp>(op)) {
+    genericSegment2Stores.push_back(segment2Store);
+    return llvm::Error::success();
+  }
+  if (auto broadcast = llvm::dyn_cast<tcrv::rvv::BroadcastLoadOp>(op)) {
+    genericBroadcastLoads.push_back(broadcast);
+    return llvm::Error::success();
+  }
+  if (auto splat = llvm::dyn_cast<tcrv::rvv::SplatOp>(op)) {
+    genericScalarSplats.push_back(splat);
+    return llvm::Error::success();
+  }
+  if (auto binary = llvm::dyn_cast<tcrv::rvv::BinaryOp>(op)) {
+    llvm::Expected<RVVSelectedBodyOperationKind> kind =
+        parseRVVSelectedBodyBinaryKind(binary.getKind());
+    if (!kind)
+      return kind.takeError();
+    return recordRVVSelectedBodyOperation(slice, binary.getOperation(), *kind,
+                                          binary.getLhs(), binary.getRhs(),
+                                          binary.getResult());
+  }
+  if (auto compare = llvm::dyn_cast<tcrv::rvv::CompareOp>(op))
+    return recordRVVSelectedBodyCompare(slice, compare);
+  if (auto maskAnd = llvm::dyn_cast<tcrv::rvv::MaskAndOp>(op))
+    return recordRVVSelectedBodyMaskAnd(slice, maskAnd);
+  if (auto maskedBinary = llvm::dyn_cast<tcrv::rvv::MaskedBinaryOp>(op))
+    return recordRVVSelectedBodyMaskedBinary(slice, maskedBinary);
+  if (auto select = llvm::dyn_cast<tcrv::rvv::SelectOp>(op))
+    return recordRVVSelectedBodySelect(slice, select);
+  if (auto reduce = llvm::dyn_cast<tcrv::rvv::ReduceOp>(op))
+    return recordRVVSelectedBodyReduction(slice, reduce);
+  if (auto standaloneReduce =
+          llvm::dyn_cast<tcrv::rvv::StandaloneReduceOp>(op))
+    return recordRVVSelectedBodyStandaloneReduction(slice, standaloneReduce);
+  if (auto maskedStandaloneReduce =
+          llvm::dyn_cast<tcrv::rvv::MaskedStandaloneReduceOp>(op))
+    return recordRVVSelectedBodyMaskedStandaloneReduction(slice,
+                                                          maskedStandaloneReduce);
+  if (auto macc = llvm::dyn_cast<tcrv::rvv::MAccOp>(op))
+    return recordRVVSelectedBodyMAcc(slice, macc);
+  if (auto maskedMAcc = llvm::dyn_cast<tcrv::rvv::MaskedMAccOp>(op))
+    return recordRVVSelectedBodyMaskedMAcc(slice, maskedMAcc);
+  if (auto wideningMAcc = llvm::dyn_cast<tcrv::rvv::WideningMAccOp>(op))
+    return recordRVVSelectedBodyWideningMAcc(slice, wideningMAcc);
+  if (auto product = llvm::dyn_cast<tcrv::rvv::WideningProductOp>(op))
+    return recordRVVSelectedBodyWideningProduct(slice, product);
+  if (auto dotReduce = llvm::dyn_cast<tcrv::rvv::WideningDotReduceOp>(op))
+    return recordRVVSelectedBodyWideningDotReduce(slice, dotReduce);
+  if (auto maskedDotReduce =
+          llvm::dyn_cast<tcrv::rvv::MaskedWideningDotReduceOp>(op))
+    return recordRVVSelectedBodyMaskedWideningDotReduce(slice, maskedDotReduce);
+  if (auto conversion = llvm::dyn_cast<tcrv::rvv::WideningConvertOp>(op))
+    return recordRVVSelectedBodyWideningConvert(slice, conversion);
+  if (auto dequantize = llvm::dyn_cast<tcrv::rvv::DequantizeOp>(op))
+    return recordRVVSelectedBodyDequantize(slice, dequantize);
+  if (auto move = llvm::dyn_cast<tcrv::rvv::MoveOp>(op))
+    return recordRVVSelectedBodyMove(slice, move);
+  if (auto maskedMove = llvm::dyn_cast<tcrv::rvv::MaskedMoveOp>(op))
+    return recordRVVSelectedBodyMaskedMove(slice, maskedMove);
+  if (auto maskedStore = llvm::dyn_cast<tcrv::rvv::MaskedStoreOp>(op))
+    return recordRVVSelectedBodyMaskedStore(slice, maskedStore);
+  if (auto maskedStridedStore =
+          llvm::dyn_cast<tcrv::rvv::MaskedStridedStoreOp>(op))
+    return recordRVVSelectedBodyMaskedStridedStore(slice, maskedStridedStore);
+  if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(op)) {
+    slice.genericStore = store;
+    genericStores.push_back(store);
+    ++storeCount;
+    return llvm::Error::success();
+  }
+  if (auto stridedStore = llvm::dyn_cast<tcrv::rvv::StridedStoreOp>(op)) {
+    slice.stridedStore = stridedStore;
+    ++stridedStoreCount;
+    return llvm::Error::success();
+  }
+  if (op.getName().getStringRef().starts_with("tcrv_rvv.i32_"))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("legacy selected-body op '") + op.getName().getStringRef() +
+        "' is fail-closed during RVV Stage1; Stage2 routes must use generic "
+        "tcrv_rvv.load, tcrv_rvv.broadcast_load, "
+        "tcrv_rvv.splat, tcrv_rvv.strided_load, tcrv_rvv.binary, "
+        "tcrv_rvv.index_load, tcrv_rvv.indexed_load, tcrv_rvv.segment2_load, "
+        "tcrv_rvv.segment2_store, "
+        "tcrv_rvv.indexed_store, tcrv_rvv.mask_load, tcrv_rvv.compare, "
+        "tcrv_rvv.masked_binary, tcrv_rvv.select, tcrv_rvv.reduce, "
+        "tcrv_rvv.standalone_reduce, tcrv_rvv.masked_standalone_reduce, "
+        "tcrv_rvv.macc, tcrv_rvv.masked_macc, "
+        "tcrv_rvv.widening_product, tcrv_rvv.widening_convert, "
+        "tcrv_rvv.gearbox_cross_region_handoff, "
+        "tcrv_rvv.move, "
+        "tcrv_rvv.widening_dot_reduce, "
+        "tcrv_rvv.masked_widening_dot_reduce, "
+        "tcrv_rvv.masked_move, tcrv_rvv.masked_load, "
+        "tcrv_rvv.masked_strided_load, tcrv_rvv.masked_indexed_load, "
+        "tcrv_rvv.masked_indexed_store, "
+        "tcrv_rvv.masked_segment2_load, tcrv_rvv.masked_store, "
+        "tcrv_rvv.masked_strided_store, "
+        "tcrv_rvv.store, and "
+        "tcrv_rvv.strided_store body structure");
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine("bounded RVV EmitC route does not support op '") +
+      op.getName().getStringRef() +
+      "' inside tcrv_rvv.with_vl; expected generic load, broadcast_load, "
+      "splat, strided_load, index_load, indexed_load, indexed_store, "
+      "mask_load, segment2_load, segment2_store, binary, compare, "
+      "masked_binary, select, reduce, standalone_reduce, "
+      "masked_standalone_reduce, macc, masked_macc, "
+      "widening_product, widening_convert, gearbox_cross_region_handoff, "
+      "widening_dot_reduce, "
+      "masked_widening_dot_reduce, move, masked_move, masked_load, "
+      "masked_strided_load, masked_indexed_load, masked_indexed_store, "
+      "masked_segment2_load, "
+      "masked_store, masked_strided_store, store, and strided_store only");
+}
+
+llvm::Error recordRVVSelectedBodyMove(RVVSelectedBodyRouteSlice &slice,
                                       tcrv::rvv::MoveOp move) {
   if (auto segment2Load =
           move.getSource().getDefiningOp<tcrv::rvv::Segment2LoadOp>()) {
@@ -18351,19 +18665,76 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   if (setvls.size() != 1)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one tcrv_rvv.setvl op");
-  if (withVLs.size() != 1)
-    return makeRVVEmitCRouteProviderError(
-        "bounded RVV EmitC route requires exactly one tcrv_rvv.with_vl op");
 
   RVVSelectedBodyRouteSlice slice;
   slice.setvl = setvls.front();
-  slice.withVL = withVLs.front();
+  if (withVLs.size() == 1) {
+    slice.withVL = withVLs.front();
+  } else if (withVLs.size() == 2) {
+    tcrv::rvv::GearboxCrossRegionHandoffOp producerHandoff;
+    for (tcrv::rvv::WithVLOp withVL : withVLs) {
+      tcrv::rvv::GearboxCrossRegionHandoffOp handoff =
+          findDirectRVVGearboxCrossRegionHandoff(withVL);
+      if (!handoff)
+        continue;
+      if (producerHandoff)
+        return makeRVVEmitCRouteProviderError(
+            "bounded Gearbox multi-with_vl RVV route requires a unique "
+            "producer tcrv_rvv.with_vl with a direct "
+            "tcrv_rvv.gearbox_cross_region_handoff");
+      slice.gearboxProducerWithVL = withVL;
+      producerHandoff = handoff;
+    }
+    if (!slice.gearboxProducerWithVL)
+      return makeRVVEmitCRouteProviderError(
+          "bounded RVV EmitC route supports multiple tcrv_rvv.with_vl ops "
+          "only for Gearbox product-reduction/dequant producer-consumer "
+          "route collection with a direct "
+          "tcrv_rvv.gearbox_cross_region_handoff");
+
+    for (tcrv::rvv::WithVLOp withVL : withVLs) {
+      if (withVL == slice.gearboxProducerWithVL)
+        continue;
+      if (!isRVVGearboxProductReduceDequantConsumerScope(
+              slice.gearboxProducerWithVL, withVL))
+        continue;
+      if (slice.gearboxConsumerWithVL)
+        return makeRVVEmitCRouteProviderError(
+            "bounded Gearbox multi-with_vl RVV route requires a unique "
+            "consumer tcrv_rvv.with_vl carrying the dequant-store scope");
+      slice.gearboxConsumerWithVL = withVL;
+    }
+    if (!slice.gearboxConsumerWithVL)
+      return makeRVVEmitCRouteProviderError(
+          "bounded Gearbox multi-with_vl RVV route requires a nested consumer "
+          "tcrv_rvv.with_vl that consumes the same VL and carries "
+          "dequant-store marker/dequant/store facts");
+    if (!isRVVGearboxConsumerScopeOrderedAfterHandoff(
+            slice.gearboxProducerWithVL, slice.gearboxConsumerWithVL,
+            producerHandoff))
+      return makeRVVEmitCRouteProviderError(
+          "bounded Gearbox multi-with_vl RVV route requires the consumer "
+          "tcrv_rvv.with_vl to be structurally ordered after the producer "
+          "tcrv_rvv.gearbox_cross_region_handoff");
+    slice.withVL = slice.gearboxProducerWithVL;
+  } else {
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route requires exactly one tcrv_rvv.with_vl op, "
+        "or exactly two Gearbox producer/consumer tcrv_rvv.with_vl ops");
+  }
 
   tcrv::rvv::RVVConfigContractDiagnostic configDiagnostic =
       tcrv::rvv::validateRVVSelectedBodyConfigVLStructure(slice.setvl,
                                                           slice.withVL);
   if (!configDiagnostic.ok)
     return makeRVVEmitCRouteProviderError(configDiagnostic.message);
+  if (slice.gearboxConsumerWithVL) {
+    tcrv::rvv::RVVConfigContractDiagnostic consumerConfigDiagnostic =
+        tcrv::rvv::validateRVVSelectedBodyConfigVLStructure(
+            slice.setvl, slice.gearboxConsumerWithVL);
+    if (!consumerConfigDiagnostic.ok)
+      return makeRVVEmitCRouteProviderError(consumerConfigDiagnostic.message);
+  }
 
   llvm::Expected<support::RuntimeABIParameter> runtimeElementCountABI =
       getRuntimeABIParameterBindingFromValue(
@@ -18372,7 +18743,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   if (!runtimeElementCountABI)
     return runtimeElementCountABI.takeError();
 
-  if (isRuntimeScalarComputedMaskIndexedGatherMAccScatterCompositeCandidate(
+  if (!slice.gearboxConsumerWithVL &&
+      isRuntimeScalarComputedMaskIndexedGatherMAccScatterCompositeCandidate(
           slice.withVL)) {
     if (llvm::Error error =
             recordRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatter(
@@ -18407,6 +18779,51 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   llvm::SmallVector<tcrv::rvv::StoreOp, 2> genericStores;
   unsigned storeCount = 0;
   unsigned stridedStoreCount = 0;
+  auto recordScopedRouteOp = [&](mlir::Operation &op) -> llvm::Error {
+    return recordRVVSelectedBodyScopedRouteOp(
+        slice, op, genericLoads, genericStridedLoads, genericIndexLoads,
+        genericIndexedLoads, genericIndexedStores, genericMaskLoads,
+        genericMaskedLoads, genericMaskedStridedLoads,
+        genericMaskedIndexedLoads, genericMaskedIndexedStores,
+        genericMaskedSegment2Loads, genericMaskedSegment2Stores,
+        genericSegment2Loads, genericSegment2Stores, vsetvlRegionMarkers,
+        genericBroadcastLoads, genericScalarSplats, genericStores, storeCount,
+        stridedStoreCount, *runtimeElementCountABI);
+  };
+  if (slice.gearboxConsumerWithVL) {
+    bool sawHandoff = false;
+    bool sawConsumerScope = false;
+    for (mlir::Operation &op : slice.gearboxProducerWithVL.getBody().front()) {
+      if (auto nestedWithVL = llvm::dyn_cast<tcrv::rvv::WithVLOp>(op)) {
+        if (nestedWithVL != slice.gearboxConsumerWithVL)
+          return makeRVVEmitCRouteProviderError(
+              "bounded Gearbox multi-with_vl RVV route does not support "
+              "unrelated nested tcrv_rvv.with_vl scopes in the producer body");
+        if (!sawHandoff)
+          return makeRVVEmitCRouteProviderError(
+              "bounded Gearbox multi-with_vl RVV route requires the consumer "
+              "tcrv_rvv.with_vl to appear after the producer handoff");
+        sawConsumerScope = true;
+        continue;
+      }
+      if (llvm::Error error = recordScopedRouteOp(op))
+        return std::move(error);
+      if (llvm::isa<tcrv::rvv::GearboxCrossRegionHandoffOp>(op))
+        sawHandoff = true;
+    }
+    if (!sawHandoff || !sawConsumerScope)
+      return makeRVVEmitCRouteProviderError(
+          "bounded Gearbox multi-with_vl RVV route requires direct producer "
+          "handoff and nested consumer scope in structural order");
+    for (mlir::Operation &op : slice.gearboxConsumerWithVL.getBody().front()) {
+      if (llvm::isa<tcrv::rvv::WithVLOp>(op))
+        return makeRVVEmitCRouteProviderError(
+            "bounded Gearbox multi-with_vl RVV route does not support nested "
+            "tcrv_rvv.with_vl below the consumer dequant-store scope");
+      if (llvm::Error error = recordScopedRouteOp(op))
+        return std::move(error);
+    }
+  } else {
   for (mlir::Operation &op : slice.withVL.getBody().front()) {
     if (auto marker = llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(op)) {
       vsetvlRegionMarkers.push_back(marker);
@@ -18684,6 +19101,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "masked_strided_load, masked_indexed_load, masked_indexed_store, "
         "masked_segment2_load, "
         "masked_store, masked_strided_store, store, and strided_store only");
+  }
   }
   slice.vsetvlRegionMarkers = std::move(vsetvlRegionMarkers);
 
@@ -19172,6 +19590,15 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "bounded RVV EmitC route requires "
         "tcrv_rvv.gearbox_cross_region_handoff for low-precision "
         "product-reduction dequantization selected-body realization");
+  if (isWideningProductReduceDequantize && !slice.gearboxConsumerWithVL)
+    return makeRVVEmitCRouteProviderError(
+        "bounded Gearbox product-reduction dequantization RVV route requires "
+        "true multi-with_vl producer/consumer scope collection; a single "
+        "tcrv_rvv.with_vl marker mirror is not route authority");
+  if (slice.gearboxConsumerWithVL && !isWideningProductReduceDequantize)
+    return makeRVVEmitCRouteProviderError(
+        "bounded Gearbox multi-with_vl RVV route collection is currently "
+        "supported only for low-precision product-reduction dequantization");
   if (hasIndexedMemory && isIndexedGatherUnitStore &&
       (!genericStridedLoads.empty() || stridedStoreCount != 0 ||
        !genericLoads.empty() || !genericBroadcastLoads.empty() ||
@@ -20419,7 +20846,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
                  ? 13
                  : ((isCompareSelect || isMaskedArithmetic) ? 11 : 10))));
   const unsigned expectedRVVOpsWithMarkers =
-      expectedRVVOps + slice.vsetvlRegionMarkers.size();
+      expectedRVVOps + slice.vsetvlRegionMarkers.size() +
+      (slice.gearboxConsumerWithVL ? 1 : 0);
   if (rvvOpCount != expectedRVVOpsWithMarkers)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route supports only runtime_abi_value/"
@@ -23683,11 +24111,14 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
         slice.gearboxCrossRegionHandoffOp &&
         op == slice.gearboxCrossRegionHandoffOp.getOperation())
       return 12;
+    if (isWideningProductReduceDequantize && slice.gearboxConsumerWithVL &&
+        op == slice.gearboxConsumerWithVL.getOperation())
+      return 13;
     if (op == slice.arithmeticOp)
-      return isWideningProductReduceDequantize ? 13 : 10;
+      return isWideningProductReduceDequantize ? 14 : 10;
     if (op == slice.storeOperation)
-      return isWideningProductReduceDequantize ? 14 : 11;
-    return isWideningProductReduceDequantize ? 15 : 12;
+      return isWideningProductReduceDequantize ? 15 : 11;
+    return isWideningProductReduceDequantize ? 16 : 12;
   }
   if (isComputedMaskStandaloneReduction) {
     if (rhsABI && op == rhsABI.getOperation())
@@ -24296,21 +24727,31 @@ collectRVVRoleOperationsInBodyOrder(tcrv::exec::VariantOp variant,
   if (!variant || variant.getBody().empty())
     return ordered;
 
+  auto recordRoleOp = [&](mlir::Operation &op) {
+    if (op.getName().getDialectNamespace() != "tcrv_rvv")
+      return;
+    if (llvm::isa<tcrv::rvv::VSetVLRegionMarkerOp>(op))
+      return;
+    ordered.operations.push_back(&op);
+    ordered.constructionOrders.push_back(getRVVCanonicalRoleOrder(slice, &op));
+  };
+
   for (mlir::Operation &op : variant.getBody().front()) {
     if (op.getName().getDialectNamespace() != "tcrv_rvv")
       continue;
     if (llvm::isa<tcrv::rvv::VSetVLRegionMarkerOp>(op))
       continue;
-    ordered.operations.push_back(&op);
-    ordered.constructionOrders.push_back(getRVVCanonicalRoleOrder(slice, &op));
-    if (auto withVL = llvm::dyn_cast<tcrv::rvv::WithVLOp>(op))
-      for (mlir::Operation &nested : withVL.getBody().front())
-        if (nested.getName().getDialectNamespace() == "tcrv_rvv" &&
-            !llvm::isa<tcrv::rvv::VSetVLRegionMarkerOp>(nested)) {
-          ordered.operations.push_back(&nested);
-          ordered.constructionOrders.push_back(
-              getRVVCanonicalRoleOrder(slice, &nested));
-        }
+    recordRoleOp(op);
+    if (auto withVL = llvm::dyn_cast<tcrv::rvv::WithVLOp>(op)) {
+      for (mlir::Operation &nested : withVL.getBody().front()) {
+        recordRoleOp(nested);
+        if (slice.gearboxConsumerWithVL &&
+            &nested == slice.gearboxConsumerWithVL.getOperation())
+          for (mlir::Operation &consumerNested :
+               slice.gearboxConsumerWithVL.getBody().front())
+            recordRoleOp(consumerNested);
+      }
+    }
   }
   return ordered;
 }

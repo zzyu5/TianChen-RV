@@ -1384,6 +1384,7 @@ getRVVSelectedBodyArtifactAdapterConfig() {
   config.selectedLoweringBoundary.extraStringAttributes =
       kBoundaryAttributeExpectations;
   config.selectedLoweringBoundary.searchSelectedVariantBody = true;
+  config.selectedLoweringBoundary.countOnlyDirectVariantBodyBoundaries = true;
   config.objectPackagerFn = compileRVVGeneratedSourceToObject;
   return config;
 }

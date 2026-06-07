@@ -2802,12 +2802,15 @@ buildRVVSelectedBodyExecutableRoleSteps(
                      route->typedRoleID, "TCRVComputeOpInterface",
                      "TCRVEmitCLowerableInterface",
                      "gearbox_cross_region_handoff", 12});
+    steps.push_back({"scope", "tcrv_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "consumer_with_vl", 13});
     steps.push_back({"compute", "tcrv_rvv.dequantize", route->typedRoleID,
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
-                     route->operationMnemonic, 13});
+                     route->operationMnemonic, 14});
     steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                     "store", 14});
+                     "store", 15});
     return steps;
   }
   if (isWideningProductReduceDequantClampF32) {

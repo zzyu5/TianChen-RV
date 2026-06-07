@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV architecture and RVV stage authority rules"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, and route provider contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider-built TCRVEmitCLowerableRoute and Common EmitC neutrality contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "required lit/C++ and RVV evidence boundaries"}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Stage2 selected-body realization and mirror-only route metadata constraints"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "ensure Gearbox semantics remain RVV plugin-local"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "avoid moving compute semantics into core/common layers"}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-gearbox-multiregion-with-vl-boundary/prd.md", "reason": "previous bounded two-scope Gearbox handoff limitations and continuation point"}
