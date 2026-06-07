@@ -614,6 +614,10 @@ WIDENING_PRODUCT_REDUCE_C_TYPE_MAPPING = (
 WIDENING_PRODUCT_REDUCE_RELATION = (
     "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
 )
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_TYPED_COMPUTE_OP = (
+    "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
+    "tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize"
+)
 WIDENING_PRODUCT_RELATION_I8_I16 = "signed-i8mf4xi8mf4-to-i16mf2"
 WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT = (
     "scalar-i32-seed-lane0-from-accumulator-input"
@@ -634,6 +638,41 @@ WIDENING_PRODUCT_REDUCE_SCALAR_RESULT_BOUNDARY = (
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY = (
     "scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-chunks-final-f32-store.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET = (
+    "rvv-low-precision-direct-contraction-resource-candidate-set.v1"
+    "[i8mf4-i16mf2-i32m1-f32m1]"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE = (
+    "rvv-low-precision-direct-contraction-resource-candidate.v1"
+    "[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON = (
+    "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-runtime-avl"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE = (
+    "typed-low-precision-product-reduction-dequant-resource-legality.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION = (
+    "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM = (
+    "unit-stride-widening-product-reduce-dequantize-f32"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE = (
+    "gearbox-scope:product-reduction"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE = (
+    "gearbox-scope:dequant-store"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT = (
+    "gearbox-product-reduce-to-dequant-cross-region-handoff.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_PHASE = (
+    "load-product-reduce"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE = (
+    "dequant-store"
 )
 STRIDED_INPUT_WIDENING_DOT_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:strided_widening_dot_reduce.v1"
@@ -4232,10 +4271,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
             "explicit_selected_body_rvv_product_reduce_dequantize"
         ),
         emitc_route="rvv-generic-widening-product-reduce-dequantize-f32-emitc-route",
-        typed_compute_op=(
-            "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
-            "tcrv_rvv.dequantize"
-        ),
+        typed_compute_op=WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_TYPED_COMPUTE_OP,
         memory_form="vector-rhs-load",
         lhs_initializer=(
             "(int8_t)(((index % 4) < 2) ? -((int)(index % 47) + 12) "
@@ -8206,6 +8242,10 @@ LOW_PRECISION_RESOURCE_METADATA_KEYS = (
     "tcrv_rvv.low_precision_resource.legality",
     "tcrv_rvv.low_precision_resource.rejection_reason",
 )
+GEARBOX_SCOPE_METADATA_KEYS = (
+    "tcrv_rvv.gearbox.producer_scope",
+    "tcrv_rvv.gearbox.consumer_scope",
+)
 COMPOSITE_RESOURCE_METADATA_KEYS = (
     "tcrv_rvv.composite_resource.candidate_set",
     "tcrv_rvv.composite_resource.selected_candidate",
@@ -8324,6 +8364,8 @@ WIDENING_PRODUCT_REDUCTION_METADATA_KEYS = (
     "tcrv_rvv.scalar_seed_splat_intrinsic",
     "tcrv_rvv.reduction_store_vl",
     "tcrv_rvv.scalar_result_runtime_boundary",
+    *LOW_PRECISION_RESOURCE_METADATA_KEYS,
+    *GEARBOX_SCOPE_METADATA_KEYS,
 )
 MULTIPLY_ACCUMULATE_METADATA_KEYS = (
     "tcrv_rvv.config_contract",
@@ -11384,6 +11426,70 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.dequant_scale_role": "dequant-scale-value",
                 "tcrv_rvv.dequant_scale_c_type": "float",
                 "tcrv_rvv.dequant_scale_name": "scale",
+            }
+        )
+    if expectation.is_widening_product_reduce_dequantize_f32:
+        per_op_metadata.update(
+            {
+                "tcrv_rvv.low_precision_resource.candidate_set": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
+                ),
+                "tcrv_rvv.low_precision_resource.selected_candidate": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
+                ),
+                "tcrv_rvv.low_precision_resource.selection_reason": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
+                ),
+                "tcrv_rvv.low_precision_resource.legality_scope": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE
+                ),
+                "tcrv_rvv.low_precision_resource.source_dtype": "i8",
+                "tcrv_rvv.low_precision_resource.source_sew": "8",
+                "tcrv_rvv.low_precision_resource.source_lmul": "mf4",
+                "tcrv_rvv.low_precision_resource.product_dtype": "i16",
+                "tcrv_rvv.low_precision_resource.product_sew": "16",
+                "tcrv_rvv.low_precision_resource.product_lmul": "mf2",
+                "tcrv_rvv.low_precision_resource.product_emul": "mf2",
+                "tcrv_rvv.low_precision_resource.accumulator_dtype": "i32",
+                "tcrv_rvv.low_precision_resource.accumulator_sew": "32",
+                "tcrv_rvv.low_precision_resource.accumulator_lmul": "m1",
+                "tcrv_rvv.low_precision_resource.accumulator_emul": "m1",
+                "tcrv_rvv.low_precision_resource.result_dtype": "f32",
+                "tcrv_rvv.low_precision_resource.result_sew": "32",
+                "tcrv_rvv.low_precision_resource.result_lmul": "m1",
+                "tcrv_rvv.low_precision_resource.memory_form": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
+                ),
+                "tcrv_rvv.low_precision_resource.tail_policy": "agnostic",
+                "tcrv_rvv.low_precision_resource.mask_policy": "agnostic",
+                "tcrv_rvv.low_precision_resource.unroll_factor": "1",
+                "tcrv_rvv.low_precision_resource.accumulator_count": "1",
+                "tcrv_rvv.low_precision_resource.reduction_layout": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY
+                ),
+                "tcrv_rvv.low_precision_resource.vsetvl_region_count": "2",
+                "tcrv_rvv.low_precision_resource.peak_live_vector_groups": "4",
+                "tcrv_rvv.low_precision_resource.vector_register_budget": "32",
+                "tcrv_rvv.low_precision_resource.runtime_avl_source": (
+                    "runtime_abi:n"
+                ),
+                "tcrv_rvv.low_precision_resource.runtime_abi_order": (
+                    expectation.runtime_abi_order
+                ),
+                "tcrv_rvv.low_precision_resource.target_capability_provider_mirror": (
+                    RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
+                ),
+                "tcrv_rvv.low_precision_resource.target_capability_legality_mirror": (
+                    RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
+                ),
+                "tcrv_rvv.low_precision_resource.legality": "legal",
+                "tcrv_rvv.low_precision_resource.rejection_reason": "none",
+                "tcrv_rvv.gearbox.producer_scope": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE
+                ),
+                "tcrv_rvv.gearbox.consumer_scope": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE
+                ),
             }
         )
     if expectation.is_widening_dot_reduce_add:
@@ -15941,6 +16047,24 @@ def verify_bundle(
     }
 
 
+def require_materialized_typed_compute_chain(
+    text: str, expectation: OpExpectation
+) -> None:
+    require_contains(
+        text,
+        expectation.typed_compute_op,
+        "materialized selected-body MLIR typed compute op mirror",
+    )
+    if "+" not in expectation.typed_compute_op:
+        return
+    for op_name in expectation.typed_compute_op.split("+"):
+        require_contains(
+            text,
+            op_name,
+            "materialized selected-body MLIR typed compute op chain member",
+        )
+
+
 def verify_materialized_selected_body(
     materialized_path: Path, expectation: OpExpectation
 ) -> dict[str, Any]:
@@ -15959,11 +16083,7 @@ def verify_materialized_selected_body(
         "tcrv_rvv.with_vl",
         "materialized selected-body MLIR lowering boundary",
     )
-    require_contains(
-        text,
-        expectation.typed_compute_op,
-        "materialized selected-body MLIR typed compute op",
-    )
+    require_materialized_typed_compute_chain(text, expectation)
     require_contains(
         text,
         f'lmul = "{expectation.lmul}"',
@@ -16226,7 +16346,14 @@ def verify_materialized_selected_body(
             "materialized selected-body MLIR product-reduction result layout",
         )
         widening_product_reduction_boundary = {
-            "typed_compute_op": "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce",
+            "typed_compute_op": (
+                expectation.typed_compute_op
+                if (
+                    expectation.is_widening_product_reduce_dequantize_f32
+                    or expectation.is_widening_product_reduce_dequant_clamp_f32
+                )
+                else "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce"
+            ),
             "source_vector_type": '!tcrv_rvv.vector<i8, "mf4">',
             "product_vector_type": '!tcrv_rvv.vector<i16, "mf2">',
             "result_vector_type": '!tcrv_rvv.vector<i32, "m1">',
@@ -16257,9 +16384,153 @@ def verify_materialized_selected_body(
             expectation.is_widening_product_reduce_dequantize_f32
             or expectation.is_widening_product_reduce_dequant_clamp_f32
         ):
+            require_contains(
+                text,
+                "tcrv_rvv.gearbox_cross_region_handoff",
+                "materialized selected-body MLIR Gearbox cross-region handoff op",
+            )
+            require_contains(
+                text,
+                f'producer_scope = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE}"',
+                "materialized selected-body MLIR Gearbox handoff producer scope",
+            )
+            require_contains(
+                text,
+                f'consumer_scope = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE}"',
+                "materialized selected-body MLIR Gearbox handoff consumer scope",
+            )
+            require_contains(
+                text,
+                f'contract = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT}"',
+                "materialized selected-body MLIR Gearbox handoff contract",
+            )
+            require_contains(
+                text,
+                f'from_phase = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_PHASE}"',
+                "materialized selected-body MLIR Gearbox handoff producer phase",
+            )
+            require_contains(
+                text,
+                f'to_phase = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE}"',
+                "materialized selected-body MLIR Gearbox handoff consumer phase",
+            )
+            require_contains(
+                text,
+                'runtime_avl_source = "runtime_abi:n"',
+                "materialized selected-body MLIR Gearbox runtime AVL handoff",
+            )
+            require_contains(
+                text,
+                "region_count = 2 : i64",
+                "materialized selected-body MLIR Gearbox two-region count",
+            )
+            require_contains(
+                text,
+                "region_index = 1 : i64",
+                "materialized selected-body MLIR Gearbox producer region marker",
+            )
+            require_contains(
+                text,
+                "region_index = 2 : i64",
+                "materialized selected-body MLIR Gearbox consumer region marker",
+            )
+            require_contains(
+                text,
+                f'phase = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_PHASE}"',
+                "materialized selected-body MLIR Gearbox producer phase marker",
+            )
+            require_contains(
+                text,
+                f'phase = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE}"',
+                "materialized selected-body MLIR Gearbox consumer phase marker",
+            )
+            require_contains(
+                text,
+                f'resource_decision = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION}"',
+                "materialized selected-body MLIR Gearbox resource decision",
+            )
+            require_contains(
+                text,
+                f'tcrv_rvv.low_precision_resource.candidate_set = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET}"',
+                "materialized selected-body MLIR low-precision resource candidate set",
+            )
+            require_contains(
+                text,
+                f'tcrv_rvv.low_precision_resource.selected_candidate = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE}"',
+                "materialized selected-body MLIR low-precision selected candidate",
+            )
+            require_contains(
+                text,
+                f'tcrv_rvv.low_precision_resource.selection_reason = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON}"',
+                "materialized selected-body MLIR low-precision selection reason",
+            )
+            require_contains(
+                text,
+                f'tcrv_rvv.low_precision_resource.legality_scope = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE}"',
+                "materialized selected-body MLIR low-precision legality scope",
+            )
+            require_contains(
+                text,
+                f'tcrv_rvv.low_precision_resource.memory_form = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM}"',
+                "materialized selected-body MLIR low-precision memory form",
+            )
+            require_contains(
+                text,
+                "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 2 : i64",
+                "materialized selected-body MLIR realized Gearbox vsetvl region count",
+            )
+            require_contains(
+                text,
+                "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups = 4 : i64",
+                "materialized selected-body MLIR realized Gearbox resource budget",
+            )
             widening_product_reduction_boundary["selected_source_abi"][
                 "scale"
             ] = "dequant-scale-value"
+            widening_product_reduction_boundary["gearbox_cross_region_handoff"] = {
+                "op": "tcrv_rvv.gearbox_cross_region_handoff",
+                "contract": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT
+                ),
+                "producer_scope": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE
+                ),
+                "consumer_scope": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE
+                ),
+                "from_phase": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_PHASE
+                ),
+                "to_phase": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE
+                ),
+                "runtime_avl_source": "runtime_abi:n",
+                "region_count": 2,
+                "resource_decision": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION
+                ),
+            }
+            widening_product_reduction_boundary["low_precision_resource"] = {
+                "candidate_set": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
+                ),
+                "selected_candidate": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
+                ),
+                "selection_reason": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
+                ),
+                "legality_scope": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE
+                ),
+                "memory_form": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
+                ),
+                "vsetvl_region_count": 2,
+                "peak_live_vector_groups": 4,
+                "vector_register_budget": 32,
+                "runtime_avl_source": "runtime_abi:n",
+            }
         if expectation.is_widening_product_reduce_dequant_clamp_f32:
             widening_product_reduction_boundary["selected_source_abi"][
                 "lower_bound"
@@ -32209,6 +32480,84 @@ def widening_product_reduction_boundary_summary(
             "scale_c_type": "float",
             "scale_name": "scale",
         }
+    if is_dequant:
+        provider_route_facts["gearbox_cross_region_handoff"] = {
+            "op": "tcrv_rvv.gearbox_cross_region_handoff",
+            "contract": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT
+            ),
+            "producer_scope": route_metadata.get(
+                "tcrv_rvv.gearbox.producer_scope"
+            ),
+            "consumer_scope": route_metadata.get(
+                "tcrv_rvv.gearbox.consumer_scope"
+            ),
+            "from_phase": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_PHASE
+            ),
+            "to_phase": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE
+            ),
+            "runtime_avl_source": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.runtime_avl_source"
+            ),
+            "resource_decision": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION
+            ),
+            "region_count": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.vsetvl_region_count"
+            ),
+        }
+        provider_route_facts["low_precision_resource"] = {
+            "candidate_set": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.candidate_set"
+            ),
+            "selected_candidate": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.selected_candidate"
+            ),
+            "selection_reason": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.selection_reason"
+            ),
+            "legality_scope": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.legality_scope"
+            ),
+            "source_dtype": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.source_dtype"
+            ),
+            "product_dtype": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.product_dtype"
+            ),
+            "accumulator_dtype": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.accumulator_dtype"
+            ),
+            "result_dtype": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.result_dtype"
+            ),
+            "memory_form": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.memory_form"
+            ),
+            "vsetvl_region_count": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.vsetvl_region_count"
+            ),
+            "peak_live_vector_groups": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.peak_live_vector_groups"
+            ),
+            "vector_register_budget": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.vector_register_budget"
+            ),
+            "runtime_avl_source": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.runtime_avl_source"
+            ),
+            "runtime_abi_order": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.runtime_abi_order"
+            ),
+            "legality": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.legality"
+            ),
+            "rejection_reason": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.rejection_reason"
+            ),
+        }
     if is_dequant_clamp:
         provider_route_facts["clamp_select"] = {
             "lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
@@ -32357,6 +32706,28 @@ def widening_product_reduction_boundary_summary(
             "scalar_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
         }
     )
+    target_validator_consumed_facts = [
+        "runtime ABI order and roles",
+        "route operand binding plan and exact binding summary",
+        "i8 source / i16 product / i32 result dtype chain",
+        "product and widening reduction relation",
+        "accumulator/result layout",
+        "source/result memory form",
+        "setvl/VL control and scalar store VL",
+        "required headers and C type mapping",
+        "mirror-only candidate metadata",
+        "stale dot or non-family fact rejection",
+    ]
+    if is_dequant:
+        target_validator_consumed_facts.extend(
+            [
+                "Gearbox producer and nested consumer with_vl scopes",
+                "Gearbox cross-region handoff contract and VL/AVL source",
+                "low-precision resource selection and two-vsetvl-region budget",
+                "dequant-store consumer marker and post-loop f32 store ABI",
+                "generated header/object ABI agreement for lhs,rhs,acc,scale,out,n",
+            ]
+        )
     return {
         "source": (
             "typed tcrv_rvv.widening_product + standalone_reduce + dequantize "
@@ -32366,10 +32737,12 @@ def widening_product_reduction_boundary_summary(
             "EmitC materializer -> generated RVV C artifact"
             if is_dequant_clamp
             else
-            "typed tcrv_rvv.widening_product + standalone_reduce + dequantize "
-            "body/config/runtime-scale facts -> contraction and dequantization "
-            "route-family plans -> target-owned product-reduction/dequant "
-            "validator -> neutral EmitC materializer -> generated RVV C artifact"
+            "typed tcrv_rvv.widening_product + standalone_reduce + Gearbox "
+            "cross-region handoff + dequantize body/config/runtime-scale "
+            "facts -> contraction, dequantization, resource, and multi-with_vl "
+            "handoff route-family plans -> target-owned product-reduction/"
+            "dequant validator -> neutral EmitC materializer -> generated "
+            "RVV C artifact"
             if is_dequant
             else (
                 "typed tcrv_rvv.widening_product + standalone_reduce body/config/"
@@ -32414,18 +32787,7 @@ def widening_product_reduction_boundary_summary(
         "selected_source_abi": selected_source_abi,
         "statement_plan": statement_plan,
         "provider_route_facts": provider_route_facts,
-        "target_validator_consumed_facts": [
-            "runtime ABI order and roles",
-            "route operand binding plan and exact binding summary",
-            "i8 source / i16 product / i32 result dtype chain",
-            "product and widening reduction relation",
-            "accumulator/result layout",
-            "source/result memory form",
-            "setvl/VL control and scalar store VL",
-            "required headers and C type mapping",
-            "mirror-only candidate metadata",
-            "stale dot or non-family fact rejection",
-        ],
+        "target_validator_consumed_facts": target_validator_consumed_facts,
         "materialized_body": materialized_checks.get(
             "widening_product_reduction_boundary", {}
         ),
@@ -35385,12 +35747,66 @@ def run_self_test() -> int:
                 provider_facts = product_dequant_boundary.get(
                     "provider_route_facts", {}
                 )
+                low_precision_resource = provider_facts.get(
+                    "low_precision_resource", {}
+                )
+                gearbox_handoff = provider_facts.get(
+                    "gearbox_cross_region_handoff", {}
+                )
+                target_consumed = product_dequant_boundary.get(
+                    "target_validator_consumed_facts", []
+                )
                 statement_plan = product_dequant_boundary.get("statement_plan", {})
                 accumulator_policy = product_dequant_boundary.get(
                     "accumulator_type_policy", {}
                 )
                 result_policy = product_dequant_boundary.get(
                     "result_type_policy", {}
+                )
+                gearbox_boundary_lost = (
+                    product_dequant_metadata.get(
+                        "tcrv_rvv.low_precision_resource.selected_candidate"
+                    )
+                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
+                    or product_dequant_metadata.get(
+                        "tcrv_rvv.gearbox.producer_scope"
+                    )
+                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE
+                    or product_dequant_metadata.get(
+                        "tcrv_rvv.gearbox.consumer_scope"
+                    )
+                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE
+                    or low_precision_resource.get("candidate_set")
+                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
+                    or low_precision_resource.get("selected_candidate")
+                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
+                    or low_precision_resource.get("selection_reason")
+                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
+                    or low_precision_resource.get("legality_scope")
+                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE
+                    or low_precision_resource.get("memory_form")
+                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
+                    or low_precision_resource.get("vsetvl_region_count") != "2"
+                    or low_precision_resource.get("runtime_avl_source")
+                    != "runtime_abi:n"
+                    or low_precision_resource.get("runtime_abi_order")
+                    != expectation.runtime_abi_order
+                    or gearbox_handoff.get("contract")
+                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT
+                    or gearbox_handoff.get("producer_scope")
+                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE
+                    or gearbox_handoff.get("consumer_scope")
+                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE
+                    or gearbox_handoff.get("runtime_avl_source") != "runtime_abi:n"
+                    or gearbox_handoff.get("region_count") != "2"
+                    or (
+                        "Gearbox producer and nested consumer with_vl scopes"
+                        not in target_consumed
+                    )
+                    or (
+                        "generated header/object ABI agreement for lhs,rhs,acc,scale,out,n"
+                        not in target_consumed
+                    )
                 )
                 if (
                     product_dequant_metadata.get(
@@ -35405,6 +35821,10 @@ def run_self_test() -> int:
                         "tcrv_rvv.scalar_result_runtime_boundary"
                     )
                     != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY
+                    or (
+                        not is_product_dequant_clamp
+                        and gearbox_boundary_lost
+                    )
                     or dequant_metadata.get("tcrv_rvv.dequantization_relation")
                     != DEQUANTIZE_I32_TO_F32_RELATION
                     or dequant_metadata.get("tcrv_rvv.dequantize_scale_intrinsic")
