@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global architecture invariants, RVV stage order, source-front-door authority limits"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Bounded vector binary and compare/select source-front-door contracts plus active family registry contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and Common EmitC neutrality"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle dry-run versus ssh rvv runtime evidence requirements"}
+{"file": ".trellis/tasks/archive/2026-06/06-07-stage3-rvv-vector-source-front-door-family-registry-boundary/prd.md", "reason": "Previous completed registry-boundary scope and evidence"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h", "reason": "Public active family pass registration surface"}
+{"file": "lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp", "reason": "Registered family descriptors, marker dispatcher, and selected typed body materializers"}
+{"file": "lib/Plugin/RVV/RVVExtensionPlugin.cpp", "reason": "RVV plugin pass registration, selected boundary validation, and provider route handoff"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Selected-body route/provider facts consumed after source-front-door materialization"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle artifact bridge, evidence JSON, harness generation, and ssh rvv runner"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-source-front-door-dry-run.test", "reason": "Binary family artifact bridge dry-run expectations"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-compare-select-source-front-door-dry-run.test", "reason": "Compare/select family artifact bridge dry-run expectations"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-source-front-door-fail-closed.test", "reason": "Source-front-door generated-bundle fail-closed expectations"}

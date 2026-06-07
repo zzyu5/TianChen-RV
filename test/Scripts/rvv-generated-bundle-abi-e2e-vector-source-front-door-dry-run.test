@@ -32,6 +32,11 @@
 # ROOT-DAG: "source_front_door_artifact_boundary": {
 # ROOT-DAG: "selected_variant": "rvv_vector_add"
 # ROOT-DAG: "materializer": "tcrv-rvv-materialize-vector-binary-source-front-door"
+# ROOT-DAG: "registered_family_contract": {
+# ROOT-DAG: "family_name": "bounded-vector-binary-source-front-door"
+# ROOT-DAG: "default_artifact_front_door_policy": "eligible"
+# ROOT-DAG: "dispatch_policy_mirror": "rvv-vector-binary-source-front-door-case"
+# ROOT-DAG: "runtime_purpose_prefix": "rvv-vector-binary-source-front-door"
 # ROOT-DAG: "route_authority": "typed tcrv_rvv body/config/runtime facts consumed by the RVV provider"
 
 # ADD-DAG: "input_mode": "vector-source-front-door"
@@ -48,10 +53,23 @@
 # ADD-DAG: "marker": "tcrv_rvv.source_front_door=bounded_vector_source"
 # ADD-DAG: "marker_role": "explicit opt-in materialization boundary only"
 # ADD-DAG: "route_authority": "selected typed tcrv_rvv body plus RVV provider-built TCRVEmitCLowerableRoute"
+# ADD-DAG: "registry_owner": "rvv-plugin active source-front-door family registry"
+# ADD-DAG: "selected_variant_prefix": "rvv_vector_"
+# ADD-DAG: "selected_variant_prefix_agrees": true
+# ADD-DAG: "runtime_purposes": {
+# ADD-DAG: "lhs": "rvv-vector-binary-source-front-door:lhs"
+# ADD-DAG: "n": "rvv-vector-binary-source-front-door:n"
+# ADD-DAG: "out": "rvv-vector-binary-source-front-door:out"
+# ADD-DAG: "rhs": "rvv-vector-binary-source-front-door:rhs"
 # ADD-DAG: "source_front_door_artifact_boundary": {
 # ADD-DAG: "marker_role": "explicit opt-in only"
 # ADD-DAG: "artifact_metadata_role": "mirror-only-after-provider-route-and-target-validation"
 # ADD-DAG: "selected_variant": "rvv_vector_add"
+# ADD-DAG: "registered_family_contract": {
+# ADD-DAG: "family_name": "bounded-vector-binary-source-front-door"
+# ADD-DAG: "source_family": "bounded Vector binary source-front-door MLIR"
+# ADD-DAG: "materialized_selected_body_runtime_purposes_agree": true
+# ADD-DAG: "materialized_selected_dispatch_policy_agrees": true
 # ADD-DAG: "expected_function": "tcrv_emitc_rvv_vector_add_from_vector_source_rvv_vector_add"
 # ADD-DAG: "expected_runtime_abi_name": "rvv-generic-binary-add-callable-c-abi.v1"
 # ADD-DAG: "expected_selected_variant": "rvv_vector_add"

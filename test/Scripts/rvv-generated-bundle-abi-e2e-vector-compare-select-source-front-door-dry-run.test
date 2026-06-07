@@ -24,6 +24,11 @@
 # ROOT-DAG: "source_front_door_artifact_boundary": {
 # ROOT-DAG: "selected_variant": "rvv_vector_cmp_select_eq"
 # ROOT-DAG: "materializer": "tcrv-rvv-materialize-vector-compare-select-source-front-door"
+# ROOT-DAG: "registered_family_contract": {
+# ROOT-DAG: "family_name": "bounded-vector-compare-select-source-front-door"
+# ROOT-DAG: "default_artifact_front_door_policy": "eligible"
+# ROOT-DAG: "dispatch_policy_mirror": "rvv-vector-compare-select-source-front-door-case"
+# ROOT-DAG: "runtime_purpose_prefix": "rvv-vector-compare-select-source-front-door"
 # ROOT-DAG: "route_authority": "typed tcrv_rvv body/config/runtime facts consumed by the RVV provider"
 
 # CMP-DAG: "input_mode": "vector-source-front-door"
@@ -40,10 +45,23 @@
 # CMP-DAG: "marker": "tcrv_rvv.source_front_door=bounded_vector_compare_select_source"
 # CMP-DAG: "marker_role": "explicit opt-in materialization boundary only"
 # CMP-DAG: "route_authority": "selected typed tcrv_rvv body plus RVV provider-built TCRVEmitCLowerableRoute"
+# CMP-DAG: "registry_owner": "rvv-plugin active source-front-door family registry"
+# CMP-DAG: "selected_variant_prefix": "rvv_vector_cmp_select_"
+# CMP-DAG: "selected_variant_prefix_agrees": true
+# CMP-DAG: "runtime_purposes": {
+# CMP-DAG: "lhs": "rvv-vector-compare-select-source-front-door:lhs"
+# CMP-DAG: "n": "rvv-vector-compare-select-source-front-door:n"
+# CMP-DAG: "out": "rvv-vector-compare-select-source-front-door:out"
+# CMP-DAG: "rhs": "rvv-vector-compare-select-source-front-door:rhs"
 # CMP-DAG: "source_front_door_artifact_boundary": {
 # CMP-DAG: "source": "bounded Vector compare/select source-front-door MLIR -> RVV plugin-owned materializer -> selected typed tcrv_rvv body -> provider route -> target bundle"
 # CMP-DAG: "artifact_metadata_role": "mirror-only-after-provider-route-and-target-validation"
 # CMP-DAG: "selected_variant": "rvv_vector_cmp_select_eq"
+# CMP-DAG: "registered_family_contract": {
+# CMP-DAG: "family_name": "bounded-vector-compare-select-source-front-door"
+# CMP-DAG: "source_family": "bounded Vector compare/select source-front-door MLIR"
+# CMP-DAG: "materialized_selected_body_runtime_purposes_agree": true
+# CMP-DAG: "materialized_selected_dispatch_policy_agrees": true
 # CMP-DAG: "expected_function": "tcrv_emitc_rvv_vector_cmp_select_eq_from_vector_source_rvv_vector_cmp_select_eq"
 # CMP-DAG: "expected_runtime_abi_name": "rvv-generic-cmp-select-callable-c-abi.v1"
 # CMP-DAG: "expected_selected_variant": "rvv_vector_cmp_select_eq"

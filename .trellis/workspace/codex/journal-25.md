@@ -1042,3 +1042,36 @@ Materialized bounded Vector compare/select source forms into selected typed tcrv
 ### Next Steps
 
 - None - task complete
+
+
+## Session 534: Stage3 RVV registered source-front-door artifact bridge
+
+**Date**: 2026-06-07
+**Task**: Stage3 RVV registered source-front-door artifact bridge
+**Branch**: `main`
+
+### Summary
+
+Hardened generated-bundle evidence for registered RVV vector source-front-door families with family contract checks, materialized runtime purpose validation, dry-run FileCheck updates, self-test fail-closed cases, and ssh rvv evidence for binary add/sub/mul plus cmp_select.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| final commit | see git log / final report |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

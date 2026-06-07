@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify source-front-door bridge remains mirror-only and RVV-first"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify registered source-front-door family descriptors do not become route authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify provider-built route and Common EmitC neutrality are preserved"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify dry-run and ssh rvv evidence claims are correctly scoped"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Verify artifact bridge evidence and fail-closed descriptor validation"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-source-front-door-dry-run.test", "reason": "Verify binary family bridge evidence expectations"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-compare-select-source-front-door-dry-run.test", "reason": "Verify compare/select family bridge evidence expectations"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-source-front-door-fail-closed.test", "reason": "Verify fail-closed bridge mismatch coverage"}

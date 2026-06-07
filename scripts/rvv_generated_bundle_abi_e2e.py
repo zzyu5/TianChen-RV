@@ -8456,6 +8456,172 @@ class EvidenceError(RuntimeError):
     pass
 
 
+@dataclass(frozen=True)
+class SourceFrontDoorFamilyContract:
+    family_name: str
+    marker: str
+    materializer: str
+    selected_variant_prefix: str
+    runtime_purpose_prefix: str
+    dispatch_policy: str
+    default_artifact_front_door_policy: str
+    source_family_label: str
+    supported_kinds: tuple[str, ...]
+
+
+VECTOR_BINARY_SOURCE_FRONT_DOOR_CONTRACT = SourceFrontDoorFamilyContract(
+    family_name="bounded-vector-binary-source-front-door",
+    marker="tcrv_rvv.source_front_door=bounded_vector_source",
+    materializer="tcrv-rvv-materialize-vector-binary-source-front-door",
+    selected_variant_prefix="rvv_vector_",
+    runtime_purpose_prefix="rvv-vector-binary-source-front-door",
+    dispatch_policy="rvv-vector-binary-source-front-door-case",
+    default_artifact_front_door_policy="eligible",
+    source_family_label="bounded Vector binary source-front-door MLIR",
+    supported_kinds=("add", "sub", "mul"),
+)
+
+VECTOR_COMPARE_SELECT_SOURCE_FRONT_DOOR_CONTRACT = SourceFrontDoorFamilyContract(
+    family_name="bounded-vector-compare-select-source-front-door",
+    marker="tcrv_rvv.source_front_door=bounded_vector_compare_select_source",
+    materializer="tcrv-rvv-materialize-vector-compare-select-source-front-door",
+    selected_variant_prefix="rvv_vector_cmp_select_",
+    runtime_purpose_prefix="rvv-vector-compare-select-source-front-door",
+    dispatch_policy="rvv-vector-compare-select-source-front-door-case",
+    default_artifact_front_door_policy="eligible",
+    source_family_label="bounded Vector compare/select source-front-door MLIR",
+    supported_kinds=("cmp_select",),
+)
+
+
+def source_front_door_family_contract_for(
+    expectation: OpExpectation,
+) -> SourceFrontDoorFamilyContract:
+    if not expectation.is_vector_source_front_door:
+        raise EvidenceError(
+            f"{expectation.kind} is not a vector source-front-door expectation"
+        )
+
+    contract = (
+        VECTOR_COMPARE_SELECT_SOURCE_FRONT_DOOR_CONTRACT
+        if expectation.is_cmp_select
+        else VECTOR_BINARY_SOURCE_FRONT_DOOR_CONTRACT
+    )
+    if expectation.kind not in contract.supported_kinds:
+        raise EvidenceError(
+            f"{expectation.kind} is not supported by registered RVV "
+            f"source-front-door family {contract.family_name}; supported "
+            f"kinds are {', '.join(contract.supported_kinds)}"
+        )
+    if not expectation.selected_variant.startswith(contract.selected_variant_prefix):
+        raise EvidenceError(
+            f"{expectation.kind} source-front-door selected variant "
+            f"{expectation.selected_variant!r} does not start with registered "
+            f"family prefix {contract.selected_variant_prefix!r}"
+        )
+
+    expected_function = (
+        f"tcrv_emitc_{expectation.selected_variant}_from_vector_source_"
+        f"{expectation.selected_variant}"
+    )
+    if expectation.function_name != expected_function:
+        raise EvidenceError(
+            f"{expectation.kind} source-front-door expected function "
+            f"{expectation.function_name!r} does not match registered family "
+            f"selected-body artifact bridge function {expected_function!r}"
+        )
+
+    expected_case = (
+        f"selected_dispatch_case_mirror:@{expectation.selected_variant};"
+        "role=dispatch case;runtime_guard_required=false;"
+        "runtime_guard=none;origin=rvv-plugin;"
+        f"policy={contract.dispatch_policy}"
+    )
+    if expectation.selected_dispatch_case_mirror != expected_case:
+        raise EvidenceError(
+            f"{expectation.kind} source-front-door selected dispatch policy "
+            f"mirror does not match registered family {contract.family_name}"
+        )
+
+    expected_fallback = (
+        f"selected_dispatch_fallback_mirror:@{expectation.selected_variant}"
+        "_scalar_fallback;role=dispatch fallback;"
+        "fallback_role=conservative;origin=scalar-plugin"
+    )
+    if expectation.selected_dispatch_fallback_mirror != expected_fallback:
+        raise EvidenceError(
+            f"{expectation.kind} source-front-door fallback mirror does not "
+            f"match registered family {contract.family_name}"
+        )
+    return contract
+
+
+def source_front_door_expected_runtime_purposes(
+    contract: SourceFrontDoorFamilyContract,
+) -> dict[str, str]:
+    return {
+        role: f"{contract.runtime_purpose_prefix}:{role}"
+        for role in ("lhs", "rhs", "out", "n")
+    }
+
+
+def source_front_door_family_contract_summary(
+    expectation: OpExpectation,
+) -> dict[str, Any]:
+    contract = source_front_door_family_contract_for(expectation)
+    return {
+        "registry_owner": "rvv-plugin active source-front-door family registry",
+        "family_name": contract.family_name,
+        "marker": contract.marker,
+        "marker_role": "explicit opt-in materialization boundary only",
+        "materializer": contract.materializer,
+        "source_family": contract.source_family_label,
+        "selected_variant": expectation.selected_variant,
+        "selected_variant_prefix": contract.selected_variant_prefix,
+        "selected_variant_prefix_agrees": True,
+        "runtime_purpose_prefix": contract.runtime_purpose_prefix,
+        "runtime_purposes": source_front_door_expected_runtime_purposes(
+            contract
+        ),
+        "dispatch_policy_mirror": contract.dispatch_policy,
+        "default_artifact_front_door_policy": (
+            contract.default_artifact_front_door_policy
+        ),
+        "route_authority": (
+            "selected typed tcrv_rvv body plus RVV provider-built "
+            "TCRVEmitCLowerableRoute"
+        ),
+        "common_emitc_role": (
+            "neutral materializer for provider payload; no RVV semantic "
+            "inference"
+        ),
+    }
+
+
+def verify_source_front_door_materialized_family_contract(
+    text: str, expectation: OpExpectation
+) -> dict[str, Any]:
+    if not expectation.is_vector_source_front_door:
+        return {}
+
+    summary = source_front_door_family_contract_summary(expectation)
+    for role, purpose in summary["runtime_purposes"].items():
+        require_contains(
+            text,
+            f'purpose = "{purpose}"',
+            f"materialized selected-body MLIR source-front-door runtime "
+            f"purpose {role}",
+        )
+    require_contains(
+        text,
+        f'policy = "{summary["dispatch_policy_mirror"]}"',
+        "materialized selected-body MLIR source-front-door dispatch policy",
+    )
+    summary["materialized_selected_body_runtime_purposes_agree"] = True
+    summary["materialized_selected_dispatch_policy_agrees"] = True
+    return summary
+
+
 def utc_timestamp() -> str:
     return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -18546,6 +18712,9 @@ def verify_materialized_selected_body(
             "materialized explicit selected-body MLIR",
         )
     require_no_forbidden_public_residue(text, "materialized selected-body MLIR")
+    source_front_door_family_contract = (
+        verify_source_front_door_materialized_family_contract(text, expectation)
+    )
     return {
         "path": str(materialized_path),
         "sha256": sha256_file(materialized_path),
@@ -18559,6 +18728,7 @@ def verify_materialized_selected_body(
             expectation.input_mode == "explicit-selected-body"
             and expectation.is_widening_product_reduce_dequant_clamp_f32
         ),
+        "source_front_door_family_contract": source_front_door_family_contract,
         "runtime_avl_vl_boundary": runtime_avl_vl_boundary,
         "mask_tail_policy_boundary": mask_tail_policy_boundary,
         "compare_select_predicate_boundary": compare_select_predicate_boundary,
@@ -27684,35 +27854,10 @@ def generate_bundle(
             "construction"
         )
     elif expectation.is_vector_source_front_door:
-        if expectation.is_cmp_select:
-            result["front_door"] = (
-                "bounded-vector-compare-select-source-front-door"
-            )
-            result["materializer"] = (
-                "tcrv-rvv-materialize-vector-compare-select-source-front-door"
-            )
-            marker = (
-                "tcrv_rvv.source_front_door="
-                "bounded_vector_compare_select_source"
-            )
-        else:
-            result["front_door"] = "bounded-vector-binary-source-front-door"
-            result["materializer"] = (
-                "tcrv-rvv-materialize-vector-binary-source-front-door"
-            )
-            marker = "tcrv_rvv.source_front_door=bounded_vector_source"
-        result["source_front_door_boundary"] = {
-            "marker": marker,
-            "marker_role": "explicit opt-in materialization boundary only",
-            "route_authority": (
-                "selected typed tcrv_rvv body plus RVV provider-built "
-                "TCRVEmitCLowerableRoute"
-            ),
-            "common_emitc_role": (
-                "neutral materializer for provider payload; no RVV semantic "
-                "inference"
-            ),
-        }
+        contract = source_front_door_family_contract_summary(expectation)
+        result["front_door"] = contract["family_name"]
+        result["materializer"] = contract["materializer"]
+        result["source_front_door_boundary"] = contract
     return result
 
 
@@ -32620,14 +32765,10 @@ def run_one_op_e2e(
         )
         evidence["local_bundle_generation"] = local
         if expectation.is_vector_source_front_door:
-            source_family = (
-                "bounded Vector compare/select source-front-door MLIR"
-                if expectation.is_cmp_select
-                else "bounded Vector binary source-front-door MLIR"
-            )
+            family_contract = local["source_front_door_boundary"]
             evidence["source_front_door_artifact_boundary"] = {
                 "source": (
-                    f"{source_family} -> RVV "
+                    f"{family_contract['source_family']} -> RVV "
                     "plugin-owned materializer -> selected typed tcrv_rvv "
                     "body -> provider route -> target bundle"
                 ),
@@ -32641,6 +32782,7 @@ def run_one_op_e2e(
                 ),
                 "selected_variant": expectation.selected_variant,
                 "materializer": local["materializer"],
+                "registered_family_contract": family_contract,
             }
         evidence["materialized_selected_body_checks"] = (
             verify_materialized_selected_body(
@@ -34491,6 +34633,89 @@ def run_self_test() -> int:
                 [-37],
             ),
         )
+        source_front_door_family_contract_summary(
+            VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS["add"]
+        )
+        source_front_door_family_contract_summary(
+            VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS["cmp_select"]
+        )
+        wrong_source_variant_error = expect_self_test_failure(
+            "source-front-door selected variant prefix mismatch",
+            lambda: source_front_door_family_contract_summary(
+                replace(
+                    VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS["add"],
+                    selected_variant="stale_vector_add",
+                )
+            ),
+        )
+        if "selected variant" not in wrong_source_variant_error:
+            raise AssertionError(
+                "self-test source-front-door contract lost selected variant "
+                "prefix mismatch diagnostic"
+            )
+        wrong_dispatch_mirror_error = expect_self_test_failure(
+            "source-front-door dispatch policy mirror mismatch",
+            lambda: source_front_door_family_contract_summary(
+                replace(
+                    VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS["cmp_select"],
+                    selected_dispatch_case_mirror=(
+                        "selected_dispatch_case_mirror:"
+                        "@rvv_vector_cmp_select_eq;role=dispatch case;"
+                        "runtime_guard_required=false;runtime_guard=none;"
+                        "origin=rvv-plugin;policy=stale-source-front-door-case"
+                    ),
+                )
+            ),
+        )
+        if "dispatch policy mirror" not in wrong_dispatch_mirror_error:
+            raise AssertionError(
+                "self-test source-front-door contract lost dispatch policy "
+                "mirror mismatch diagnostic"
+            )
+        source_contract = source_front_door_family_contract_summary(
+            VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS["cmp_select"]
+        )
+        source_contract_text = "\n".join(
+            f'purpose = "{purpose}"'
+            for purpose in source_contract["runtime_purposes"].values()
+        )
+        source_contract_text += (
+            f'\npolicy = "{source_contract["dispatch_policy_mirror"]}"'
+        )
+        verify_source_front_door_materialized_family_contract(
+            source_contract_text,
+            VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS["cmp_select"],
+        )
+        wrong_runtime_purpose_error = expect_self_test_failure(
+            "source-front-door runtime purpose prefix mismatch",
+            lambda: verify_source_front_door_materialized_family_contract(
+                source_contract_text.replace(
+                    source_contract["runtime_purposes"]["lhs"],
+                    "stale-source-front-door:lhs",
+                ),
+                VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS["cmp_select"],
+            ),
+        )
+        if "runtime purpose lhs" not in wrong_runtime_purpose_error:
+            raise AssertionError(
+                "self-test source-front-door materialized contract lost "
+                "runtime purpose prefix mismatch diagnostic"
+            )
+        wrong_materialized_dispatch_error = expect_self_test_failure(
+            "source-front-door materialized dispatch policy mismatch",
+            lambda: verify_source_front_door_materialized_family_contract(
+                source_contract_text.replace(
+                    f'policy = "{source_contract["dispatch_policy_mirror"]}"',
+                    'policy = "stale-source-front-door-case"',
+                ),
+                VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS["cmp_select"],
+            ),
+        )
+        if "dispatch policy" not in wrong_materialized_dispatch_error:
+            raise AssertionError(
+                "self-test source-front-door materialized contract lost "
+                "dispatch policy mismatch diagnostic"
+            )
 
         for expectation in (
             list(EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS.values())
