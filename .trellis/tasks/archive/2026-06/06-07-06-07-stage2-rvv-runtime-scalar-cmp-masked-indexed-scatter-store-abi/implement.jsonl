@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain and Stage 2 selected-body route boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned computed-mask indexed memory facts, statement-plan, and legacy-authority boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Computed-mask indexed memory fact surface, runtime-scalar scatter validation contract, header/type/ABI/mirror ordering."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Production target-boundary test fixture changed for runtime-scalar indexed scatter provider/candidate validation."}
