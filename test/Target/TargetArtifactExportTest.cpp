@@ -20479,6 +20479,34 @@ bool expectRVVTargetArtifactExporterShape(
            "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1"}))
     return false;
 
+  RVVRouteDescription staleRuntimeScalarIndexedGatherProducer =
+      manualRuntimeScalarIndexedGatherDescription;
+  staleRuntimeScalarIndexedGatherProducer
+      .computedMaskMemoryMaskProducerSource = "vector-compare-rhs-load";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualRuntimeScalarIndexedGatherCandidate,
+          manualRuntimeScalarIndexedGatherRoute,
+          staleRuntimeScalarIndexedGatherProducer,
+          "computed-mask indexed memory registry rejects stale "
+          "runtime-scalar indexed gather mask producer",
+          {"computed-mask memory producer source",
+           "runtime-scalar-splat-compare-rhs", "vector-compare-rhs-load"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarIndexedGatherABIOrder =
+      manualRuntimeScalarIndexedGatherDescription;
+  staleRuntimeScalarIndexedGatherABIOrder.runtimeABIOrder =
+      manualIndexedDescription.runtimeABIOrder;
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualRuntimeScalarIndexedGatherCandidate,
+          manualRuntimeScalarIndexedGatherRoute,
+          staleRuntimeScalarIndexedGatherABIOrder,
+          "computed-mask indexed memory registry rejects stale "
+          "runtime-scalar indexed gather ABI order",
+          {"runtime ABI order", "lhs,rhs_scalar,src,index,dst,n",
+           "cmp_lhs,cmp_rhs,src,index,dst,n"}))
+    return false;
+
   RVVRouteDescription staleRuntimeScalarIndexedScatterBinding =
       manualRuntimeScalarIndexedScatterDescription;
   staleRuntimeScalarIndexedScatterBinding.routeOperandBindingSummary =
@@ -21615,6 +21643,69 @@ bool expectRVVTargetArtifactExporterShape(
           "gather data memory metadata",
           {"indexed_data_memory_form", "masked-indexed-load",
            "masked-indexed-store"}))
+    return false;
+
+  TargetArtifactCandidate wrongRuntimeScalarIndexedGatherBindingCandidate =
+      manualRuntimeScalarIndexedGatherCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongRuntimeScalarIndexedGatherBindingCandidate,
+          "tcrv_rvv.route_operand_binding_operands",
+          manualIndexedDescription.routeOperandBindingSummary)) {
+    llvm::errs()
+        << "runtime-scalar computed-mask indexed gather test fixture did "
+           "not contain route operand binding metadata\n";
+    return false;
+  }
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongRuntimeScalarIndexedGatherBindingCandidate,
+          manualRuntimeScalarIndexedGatherRoute,
+          manualRuntimeScalarIndexedGatherDescription,
+          "compare/select mask registry rejects stale runtime-scalar indexed "
+          "gather binding metadata",
+          {"route_operand_binding_operands",
+           "selected typed RVV computed-mask indexed binding summary",
+           "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1"}))
+    return false;
+
+  TargetArtifactCandidate wrongRuntimeScalarIndexedGatherProducerCandidate =
+      manualRuntimeScalarIndexedGatherCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongRuntimeScalarIndexedGatherProducerCandidate,
+          "tcrv_rvv.computed_mask_memory_mask_producer_source",
+          "vector-compare-rhs-load")) {
+    llvm::errs()
+        << "runtime-scalar computed-mask indexed gather test fixture did "
+           "not contain mask producer metadata\n";
+    return false;
+  }
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongRuntimeScalarIndexedGatherProducerCandidate,
+          manualRuntimeScalarIndexedGatherRoute,
+          manualRuntimeScalarIndexedGatherDescription,
+          "compare/select mask registry rejects stale runtime-scalar indexed "
+          "gather producer metadata",
+          {"computed_mask_memory_mask_producer_source",
+           "runtime-scalar-splat-compare-rhs", "vector-compare-rhs-load"}))
+    return false;
+
+  TargetArtifactCandidate wrongRuntimeScalarIndexedGatherABICandidate =
+      manualRuntimeScalarIndexedGatherCandidate;
+  if (!rewriteArtifactMetadataValue(wrongRuntimeScalarIndexedGatherABICandidate,
+                                    "tcrv_rvv.runtime_abi_order",
+                                    "cmp_lhs,cmp_rhs,src,index,dst,n")) {
+    llvm::errs()
+        << "runtime-scalar computed-mask indexed gather test fixture did "
+           "not contain runtime ABI order metadata\n";
+    return false;
+  }
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongRuntimeScalarIndexedGatherABICandidate,
+          manualRuntimeScalarIndexedGatherRoute,
+          manualRuntimeScalarIndexedGatherDescription,
+          "compare/select mask registry rejects stale runtime-scalar indexed "
+          "gather ABI metadata",
+          {"runtime_abi_order", "lhs,rhs_scalar,src,index,dst,n",
+           "cmp_lhs,cmp_rhs,src,index,dst,n"}))
     return false;
 
   TargetArtifactCandidate wrongRuntimeScalarIndexedScatterBindingCandidate =
