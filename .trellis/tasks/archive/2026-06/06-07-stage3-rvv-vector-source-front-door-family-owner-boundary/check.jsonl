@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global source-front-door and artifact metadata remain mirror-only"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin-local source-front-door boundary and typed body/provider authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify no Common EmitC semantic inference is introduced"}
+{"file": ".trellis/tasks/06-07-stage3-rvv-vector-source-front-door-family-owner-boundary/prd.md", "reason": "Verify implementation matches bounded PRD scope"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h", "reason": "Check public pass factory compatibility"}
+{"file": "lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp", "reason": "Check descriptor-driven family materializer owner boundary and fail-closed behavior"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Check registry/factory smoke coverage"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Check dry-run evidence still treats source-front-door facts as mirrors"}
+{"file": "test/Transforms/RVV/rvv-vector-binary-source-front-door.mlir", "reason": "Check binary source-front-door behavior remains intact"}
+{"file": "test/Transforms/RVV/rvv-vector-compare-select-source-front-door.mlir", "reason": "Check compare/select source-front-door behavior remains intact"}
+{"file": "test/Transforms/RVV/rvv-vector-runtime-scalar-cmp-select-source-front-door.mlir", "reason": "Check runtime-scalar compare/select source-front-door behavior remains intact"}
+{"file": "test/Transforms/RVV/rvv-vector-source-front-door-family-registry-negative.mlir", "reason": "Check fail-closed family registry behavior remains intact"}

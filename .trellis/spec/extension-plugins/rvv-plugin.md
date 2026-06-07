@@ -1601,6 +1601,7 @@ This registry currently covers exactly:
 ```text
 bounded-vector-binary-source-front-door
 bounded-vector-compare-select-source-front-door
+bounded-vector-runtime-scalar-cmp-select-source-front-door
 ```
 
 The legacy `rvv-i32m1` source-front-door pass remains an explicit-only
@@ -1631,12 +1632,24 @@ default source-artifact-front-door eligibility
 family-local diagnostic hook
 ```
 
+The active family materializer pass should also be consumed through the same
+family-owner boundary. A family descriptor or equivalent owner object must
+drive the pass argument, pass description, default artifact-front-door policy,
+factory construction, and common source-only/fail-closed dispatch entry. The
+owning family still keeps its parser and typed-body materializer local.
+
 #### 3. Contracts
 
 - RVV plugin registration must add active bounded Vector source-front-door
   family passes through `registerRVVVectorSourceFrontDoorFamilyPasses(...)`,
   not by manually duplicating sibling pass registrations in
   `RVVExtensionPlugin`.
+- Active family pass factories must create materializer passes whose public
+  pass argument and description come from the same family-owner entry used for
+  registration. A new active family must not add another sibling pass class
+  that hand-copies argument, description, dialect registration, marker dispatch,
+  and source-only cleanup boilerplate when the common family-owned pass entry
+  can consume the descriptor.
 - The marker dispatcher must return no-op for missing markers.
 - The marker dispatcher must return no-op for a known sibling marker so the
   source-artifact-front-door pipeline can reach the matching pass.
@@ -1665,6 +1678,9 @@ family-local diagnostic hook
   diagnostic before body creation.
 - Active family registry entry with a null or wrong pass factory -> C++ plugin
   registration test failure before source-artifact pipeline claims support.
+- Registry-created pass factory returns a pass whose public argument or
+  description disagrees with the family registration entry -> C++ plugin
+  registration test failure before source-artifact pipeline claims support.
 
 #### 5. Good/Base/Bad Cases
 
@@ -1677,8 +1693,14 @@ family-local diagnostic hook
 - Base: adding a third bounded Vector source-front-door family means adding one
   descriptor entry plus one family-local parser/materializer; it must not add
   marker-specific branches to `RVVExtensionPlugin`.
+- Base: an active family may keep a public compatibility factory such as
+  `createMaterializeRVVVector...SourceFrontDoorPass()`, but that factory should
+  instantiate the same family-owned materializer pass used by the registry.
 - Bad: registry infers binary kind, compare predicate, dtype, ABI order,
   intrinsic spelling, or route support from the marker or family name.
+- Bad: every new active family adds another pass class that manually duplicates
+  pass argument, pass description, dialect population, no-op behavior, matched
+  marker cleanup, and failure handling already owned by the registry boundary.
 - Bad: Common EmitC or target export owns the source-front-door family
   registry.
 
@@ -1686,9 +1708,11 @@ family-local diagnostic hook
 
 - C++ plugin test must prove the active family registry exposes exactly the
   registered active family pass arguments, default eligibility, ownership, and
-  non-null factories consumed by the RVV plugin.
+  non-null factories consumed by the RVV plugin, and that registry-created
+  materializer passes expose the same family-owned pass argument.
 - Positive lit must continue to prove binary and compare/select source
-  materialization and source-artifact-front-door sibling-marker no-op behavior.
+  materialization, runtime-scalar compare/select materialization, and
+  source-artifact-front-door sibling-marker no-op behavior.
 - Negative lit must cover unknown marker, stale matched marker, malformed
   source shape, stale selected-boundary/TCRV residue, and legacy i32m1
   source-front-door fail-closed behavior.
@@ -1702,6 +1726,7 @@ Wrong:
 ```text
 RVVExtensionPlugin manually pushes each active source-front-door pass
   -> each pass reimplements sibling/unknown marker validation
+  -> each pass class manually copies owner fields and run/cleanup boilerplate
   -> source marker text drifts into route or artifact authority
 ```
 
@@ -1709,7 +1734,8 @@ Correct:
 
 ```text
 RVV plugin active source-front-door family registry
-  -> pass registration and marker classification from family descriptors
+  -> pass registration, pass factory construction, and marker classification
+     from family-owner entries
   -> owning family parses source shape and materializes typed tcrv_rvv body
   -> RVV provider validates body/config/runtime facts
   -> provider-built TCRVEmitCLowerableRoute

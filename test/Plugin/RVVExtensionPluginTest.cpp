@@ -37,6 +37,7 @@
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OperationSupport.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Parser/Parser.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -48,6 +49,7 @@
 #include <cstdint>
 #include <initializer_list>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -584,6 +586,18 @@ int runRegistrationAndCapabilityMetadataTest() {
             expect(static_cast<bool>(registryPass.getFactory()),
                    "RVV vector source-front-door family registry exposes "
                    "non-null pass factories"))
+      return result;
+    std::unique_ptr<mlir::Pass> materializerPass =
+        registryPass.getFactory()();
+    if (int result =
+            expect(static_cast<bool>(materializerPass),
+                   "RVV vector source-front-door family registry factory "
+                   "creates a materializer pass"))
+      return result;
+    if (int result = expect(
+            materializerPass->getArgument() == registryPass.getArgument(),
+            "RVV vector source-front-door family registry factory creates a "
+            "family-owned materializer pass argument"))
       return result;
   }
   return 0;

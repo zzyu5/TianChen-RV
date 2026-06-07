@@ -1123,3 +1123,36 @@ Hardened generated-bundle evidence for registered RVV vector source-front-door f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 535: Stage3 RVV vector source-front-door family-owner boundary
+
+**Date**: 2026-06-07
+**Task**: Stage3 RVV vector source-front-door family-owner boundary
+**Branch**: `main`
+
+### Summary
+
+Consolidated active RVV vector source-front-door materializer pass ownership around the family registry, updated plugin smoke coverage and RVV spec contract, archived the Trellis task, and verified focused C++/lit/script plus ssh rvv runtime-scalar evidence.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `HEAD` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

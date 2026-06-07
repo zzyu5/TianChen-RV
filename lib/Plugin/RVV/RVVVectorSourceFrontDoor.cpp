@@ -995,11 +995,10 @@ mlir::FailureOr<bool> matchRVVVectorSourceFrontDoorFamilyMarker(
 }
 
 mlir::FailureOr<VectorBinarySourceMatch>
-matchVectorBinarySourceFrontDoor(mlir::ModuleOp module,
+matchVectorBinarySourceFrontDoor(
+    mlir::ModuleOp module,
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
                                  std::string &kernelName) {
-  const RVVVectorSourceFrontDoorFamilyDescriptor &family =
-      getRVVVectorSourceFrontDoorFamily(
-          RVVVectorSourceFrontDoorFamilyID::Binary);
   mlir::FailureOr<bool> selected =
       matchRVVVectorSourceFrontDoorFamilyMarker(module, family);
   if (mlir::failed(selected))
@@ -1034,11 +1033,10 @@ matchVectorBinarySourceFrontDoor(mlir::ModuleOp module,
 }
 
 mlir::FailureOr<VectorCompareSelectSourceMatch>
-matchVectorCompareSelectSourceFrontDoor(mlir::ModuleOp module,
-                                        std::string &kernelName) {
-  const RVVVectorSourceFrontDoorFamilyDescriptor &family =
-      getRVVVectorSourceFrontDoorFamily(
-          RVVVectorSourceFrontDoorFamilyID::CompareSelect);
+matchVectorCompareSelectSourceFrontDoor(
+    mlir::ModuleOp module,
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
+    std::string &kernelName) {
   mlir::FailureOr<bool> selected =
       matchRVVVectorSourceFrontDoorFamilyMarker(module, family);
   if (mlir::failed(selected))
@@ -1073,11 +1071,10 @@ matchVectorCompareSelectSourceFrontDoor(mlir::ModuleOp module,
 }
 
 mlir::FailureOr<VectorRuntimeScalarCompareSelectSourceMatch>
-matchVectorRuntimeScalarCompareSelectSourceFrontDoor(mlir::ModuleOp module,
-                                                    std::string &kernelName) {
-  const RVVVectorSourceFrontDoorFamilyDescriptor &family =
-      getRVVVectorSourceFrontDoorFamily(
-          RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect);
+matchVectorRuntimeScalarCompareSelectSourceFrontDoor(
+    mlir::ModuleOp module,
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
+    std::string &kernelName) {
   mlir::FailureOr<bool> selected =
       matchRVVVectorSourceFrontDoorFamilyMarker(module, family);
   if (mlir::failed(selected))
@@ -1580,6 +1577,68 @@ void materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
                  family.dispatchPolicy);
 }
 
+void populateRVVVectorSourceFrontDoorDependentDialects(
+    mlir::DialectRegistry &registry) {
+  registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
+                  mlir::memref::MemRefDialect, mlir::scf::SCFDialect,
+                  mlir::vector::VectorDialect, tcrv::exec::TCRVExecDialect,
+                  tcrv::rvv::TCRVRVVDialect>();
+}
+
+mlir::LogicalResult materializeRVVVectorSourceFrontDoorFamily(
+    mlir::ModuleOp module,
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family) {
+  std::string kernelName;
+  mlir::OpBuilder builder(module.getContext());
+
+  switch (family.id) {
+  case RVVVectorSourceFrontDoorFamilyID::Binary: {
+    mlir::FailureOr<VectorBinarySourceMatch> source =
+        matchVectorBinarySourceFrontDoor(module, family, kernelName);
+    if (mlir::failed(source))
+      return mlir::failure();
+    if (!source->func)
+      return mlir::success();
+
+    builder.setInsertionPointToStart(module.getBody());
+    materializeRVVVectorBinarySourceKernel(builder, kernelName, family,
+                                          *source);
+    break;
+  }
+  case RVVVectorSourceFrontDoorFamilyID::CompareSelect: {
+    mlir::FailureOr<VectorCompareSelectSourceMatch> source =
+        matchVectorCompareSelectSourceFrontDoor(module, family, kernelName);
+    if (mlir::failed(source))
+      return mlir::failure();
+    if (!source->func)
+      return mlir::success();
+
+    builder.setInsertionPointToStart(module.getBody());
+    materializeRVVVectorCompareSelectSourceKernel(builder, kernelName, family,
+                                                 *source);
+    break;
+  }
+  case RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect: {
+    mlir::FailureOr<VectorRuntimeScalarCompareSelectSourceMatch> source =
+        matchVectorRuntimeScalarCompareSelectSourceFrontDoor(module, family,
+                                                            kernelName);
+    if (mlir::failed(source))
+      return mlir::failure();
+    if (!source->func)
+      return mlir::success();
+
+    builder.setInsertionPointToStart(module.getBody());
+    materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
+        builder, kernelName, family, *source);
+    break;
+  }
+  }
+
+  module->removeAttr(kSourceFrontDoorAttrName);
+  module->removeAttr(kSourceKernelAttrName);
+  return mlir::success();
+}
+
 class FailClosedRVVLegacyVectorSourceFrontDoorPass final
     : public mlir::PassWrapper<
           FailClosedRVVLegacyVectorSourceFrontDoorPass,
@@ -1595,10 +1654,7 @@ public:
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
-    registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
-                    mlir::memref::MemRefDialect, mlir::scf::SCFDialect,
-                    mlir::vector::VectorDialect,
-                    tcrv::exec::TCRVExecDialect, tcrv::rvv::TCRVRVVDialect>();
+    populateRVVVectorSourceFrontDoorDependentDialects(registry);
   }
 
   void runOnOperation() final {
@@ -1634,162 +1690,47 @@ public:
   }
 };
 
-class MaterializeRVVVectorBinarySourceFrontDoorPass final
-    : public mlir::PassWrapper<MaterializeRVVVectorBinarySourceFrontDoorPass,
-                               mlir::OperationPass<mlir::ModuleOp>> {
-public:
-  llvm::StringRef getArgument() const final {
-    return getRVVVectorSourceFrontDoorFamily(
-               RVVVectorSourceFrontDoorFamilyID::Binary)
-        .passArgument;
-  }
-
-  llvm::StringRef getDescription() const final {
-    return getRVVVectorSourceFrontDoorFamily(
-               RVVVectorSourceFrontDoorFamilyID::Binary)
-        .passDescription;
-  }
-
-  void getDependentDialects(mlir::DialectRegistry &registry) const final {
-    registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
-                    mlir::memref::MemRefDialect, mlir::scf::SCFDialect,
-                    mlir::vector::VectorDialect,
-                    tcrv::exec::TCRVExecDialect, tcrv::rvv::TCRVRVVDialect>();
-  }
-
-  void runOnOperation() final {
-    mlir::ModuleOp module = getOperation();
-    const RVVVectorSourceFrontDoorFamilyDescriptor &family =
-        getRVVVectorSourceFrontDoorFamily(
-            RVVVectorSourceFrontDoorFamilyID::Binary);
-    std::string kernelName;
-    mlir::FailureOr<VectorBinarySourceMatch> source =
-        matchVectorBinarySourceFrontDoor(module, kernelName);
-    if (mlir::failed(source)) {
-      signalPassFailure();
-      return;
-    }
-    if (!source->func)
-      return;
-
-    mlir::OpBuilder builder(module.getContext());
-    builder.setInsertionPointToStart(module.getBody());
-    materializeRVVVectorBinarySourceKernel(builder, kernelName, family,
-                                          *source);
-    module->removeAttr(kSourceFrontDoorAttrName);
-    module->removeAttr(kSourceKernelAttrName);
-  }
-};
-
-class MaterializeRVVVectorCompareSelectSourceFrontDoorPass final
+class MaterializeRVVVectorSourceFrontDoorFamilyPass final
     : public mlir::PassWrapper<
-          MaterializeRVVVectorCompareSelectSourceFrontDoorPass,
+          MaterializeRVVVectorSourceFrontDoorFamilyPass,
           mlir::OperationPass<mlir::ModuleOp>> {
 public:
+  explicit MaterializeRVVVectorSourceFrontDoorFamilyPass(
+      RVVVectorSourceFrontDoorFamilyID familyID)
+      : familyID(familyID) {}
+
   llvm::StringRef getArgument() const final {
-    return getRVVVectorSourceFrontDoorFamily(
-               RVVVectorSourceFrontDoorFamilyID::CompareSelect)
-        .passArgument;
+    return getRVVVectorSourceFrontDoorFamily(familyID).passArgument;
   }
 
   llvm::StringRef getDescription() const final {
-    return getRVVVectorSourceFrontDoorFamily(
-               RVVVectorSourceFrontDoorFamilyID::CompareSelect)
-        .passDescription;
+    return getRVVVectorSourceFrontDoorFamily(familyID).passDescription;
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
-    registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
-                    mlir::memref::MemRefDialect, mlir::scf::SCFDialect,
-                    mlir::vector::VectorDialect,
-                    tcrv::exec::TCRVExecDialect, tcrv::rvv::TCRVRVVDialect>();
+    populateRVVVectorSourceFrontDoorDependentDialects(registry);
   }
 
   void runOnOperation() final {
     mlir::ModuleOp module = getOperation();
     const RVVVectorSourceFrontDoorFamilyDescriptor &family =
-        getRVVVectorSourceFrontDoorFamily(
-            RVVVectorSourceFrontDoorFamilyID::CompareSelect);
-    std::string kernelName;
-    mlir::FailureOr<VectorCompareSelectSourceMatch> source =
-        matchVectorCompareSelectSourceFrontDoor(module, kernelName);
-    if (mlir::failed(source)) {
+        getRVVVectorSourceFrontDoorFamily(familyID);
+    if (mlir::failed(
+            materializeRVVVectorSourceFrontDoorFamily(module, family))) {
       signalPassFailure();
       return;
     }
-    if (!source->func)
-      return;
-
-    mlir::OpBuilder builder(module.getContext());
-    builder.setInsertionPointToStart(module.getBody());
-    materializeRVVVectorCompareSelectSourceKernel(builder, kernelName, family,
-                                                 *source);
-    module->removeAttr(kSourceFrontDoorAttrName);
-    module->removeAttr(kSourceKernelAttrName);
-  }
-};
-
-class MaterializeRVVVectorRuntimeScalarCompareSelectSourceFrontDoorPass final
-    : public mlir::PassWrapper<
-          MaterializeRVVVectorRuntimeScalarCompareSelectSourceFrontDoorPass,
-          mlir::OperationPass<mlir::ModuleOp>> {
-public:
-  llvm::StringRef getArgument() const final {
-    return getRVVVectorSourceFrontDoorFamily(
-               RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect)
-        .passArgument;
   }
 
-  llvm::StringRef getDescription() const final {
-    return getRVVVectorSourceFrontDoorFamily(
-               RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect)
-        .passDescription;
-  }
-
-  void getDependentDialects(mlir::DialectRegistry &registry) const final {
-    registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
-                    mlir::memref::MemRefDialect, mlir::scf::SCFDialect,
-                    mlir::vector::VectorDialect,
-                    tcrv::exec::TCRVExecDialect, tcrv::rvv::TCRVRVVDialect>();
-  }
-
-  void runOnOperation() final {
-    mlir::ModuleOp module = getOperation();
-    const RVVVectorSourceFrontDoorFamilyDescriptor &family =
-        getRVVVectorSourceFrontDoorFamily(
-            RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect);
-    std::string kernelName;
-    mlir::FailureOr<VectorRuntimeScalarCompareSelectSourceMatch> source =
-        matchVectorRuntimeScalarCompareSelectSourceFrontDoor(module,
-                                                            kernelName);
-    if (mlir::failed(source)) {
-      signalPassFailure();
-      return;
-    }
-    if (!source->func)
-      return;
-
-    mlir::OpBuilder builder(module.getContext());
-    builder.setInsertionPointToStart(module.getBody());
-    materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
-        builder, kernelName, family, *source);
-    module->removeAttr(kSourceFrontDoorAttrName);
-    module->removeAttr(kSourceKernelAttrName);
-  }
+private:
+  RVVVectorSourceFrontDoorFamilyID familyID;
 };
 
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVVectorSourceFrontDoorFamilyPass(
     RVVVectorSourceFrontDoorFamilyID familyID) {
-  switch (familyID) {
-  case RVVVectorSourceFrontDoorFamilyID::Binary:
-    return createMaterializeRVVVectorBinarySourceFrontDoorPass();
-  case RVVVectorSourceFrontDoorFamilyID::CompareSelect:
-    return createMaterializeRVVVectorCompareSelectSourceFrontDoorPass();
-  case RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect:
-    return createMaterializeRVVVectorRuntimeScalarCompareSelectSourceFrontDoorPass();
-  }
-  llvm_unreachable("unknown RVV vector source-front-door family id");
+  return std::make_unique<MaterializeRVVVectorSourceFrontDoorFamilyPass>(
+      familyID);
 }
 
 } // namespace
@@ -1801,19 +1742,20 @@ createFailClosedRVVLegacyVectorSourceFrontDoorPass() {
 
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVVectorBinarySourceFrontDoorPass() {
-  return std::make_unique<MaterializeRVVVectorBinarySourceFrontDoorPass>();
+  return createMaterializeRVVVectorSourceFrontDoorFamilyPass(
+      RVVVectorSourceFrontDoorFamilyID::Binary);
 }
 
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVVectorCompareSelectSourceFrontDoorPass() {
-  return std::make_unique<
-      MaterializeRVVVectorCompareSelectSourceFrontDoorPass>();
+  return createMaterializeRVVVectorSourceFrontDoorFamilyPass(
+      RVVVectorSourceFrontDoorFamilyID::CompareSelect);
 }
 
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVVectorRuntimeScalarCompareSelectSourceFrontDoorPass() {
-  return std::make_unique<
-      MaterializeRVVVectorRuntimeScalarCompareSelectSourceFrontDoorPass>();
+  return createMaterializeRVVVectorSourceFrontDoorFamilyPass(
+      RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect);
 }
 
 llvm::Error registerRVVVectorSourceFrontDoorFamilyPasses(

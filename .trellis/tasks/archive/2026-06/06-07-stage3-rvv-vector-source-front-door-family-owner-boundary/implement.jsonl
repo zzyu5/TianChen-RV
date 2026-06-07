@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain and source-front-door mirror-only boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin owns source materialization, typed body, route provider, and fail-closed diagnostics"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC remains neutral and consumes provider-built routes only"}
+{"file": ".trellis/tasks/06-07-stage3-rvv-vector-source-front-door-family-owner-boundary/prd.md", "reason": "Current task scope, acceptance criteria, and non-goals"}
+{"file": ".trellis/tasks/archive/2026-06/06-07-stage3-rvv-vector-source-front-door-family-registry-boundary/prd.md", "reason": "Previous two-family registry boundary and evidence"}
+{"file": ".trellis/tasks/archive/2026-06/06-07-stage3-rvv-runtime-scalar-cmp-select-source-front-door/prd.md", "reason": "Third active source-front-door family and runtime evidence"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h", "reason": "Public RVV source-front-door pass factory and family registration surface"}
+{"file": "lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp", "reason": "Active family descriptors, materializer pass classes, matchers, and typed body construction"}
+{"file": "lib/Plugin/RVV/RVVExtensionPlugin.cpp", "reason": "RVV plugin source-front-door pass registration consumer"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Plugin smoke coverage for family registry, factories, and default artifact eligibility"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle source-front-door evidence mirrors and materializer dispatch"}
+{"file": "test/Transforms/RVV/rvv-vector-source-front-door-family-registry-negative.mlir", "reason": "Fail-closed marker registry coverage"}
