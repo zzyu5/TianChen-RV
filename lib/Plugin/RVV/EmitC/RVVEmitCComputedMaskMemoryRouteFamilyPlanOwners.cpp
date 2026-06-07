@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 
 #include "TianChenRV/Plugin/RVV/RVVEmitCControlPolicyPlanOwners.h"
+#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 
 #include "llvm/ADT/Twine.h"
@@ -237,6 +238,16 @@ constexpr llvm::StringLiteral kRVVMaskTailPolicyRouteFamilyPlanID(
     "rvv-mask-tail-policy-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVComputedMaskMemoryMaskTailPolicyOwner(
     "computed-mask memory mask/tail policy");
+constexpr llvm::StringLiteral kRVVCompositeGatherMAccScatterRouteFamilyPlanID(
+    "rvv-composite-gather-macc-scatter-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVCompositeGatherMAccScatterTypedComputeChain(
+    "tcrv_rvv.masked_indexed_load+tcrv_rvv.masked_macc+"
+    "tcrv_rvv.masked_indexed_store");
+constexpr llvm::StringLiteral
+    kRVVCompositeGatherMAccScatterRuntimeABIOrder(
+        "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n");
+constexpr llvm::StringLiteral kRVVCompositeGatherMAccScatterResultLayout(
+    "store-multiply-accumulate-result-to-output-buffer");
 
 bool isRVVSelectedBodyComputedMaskMemoryLoadMergeRoute(
     RVVSelectedBodyOperationKind op) {
@@ -1501,6 +1512,369 @@ verifyRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyProviderPlans(
       analysis, context);
 }
 
+static llvm::Expected<RVVCompositeGatherMAccScatterRouteFamilyPlan>
+buildRVVCompositeGatherMAccScatterRouteFamilyPlan(
+    const RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMemoryRouteOperandBindingFacts
+        &memoryOperandBindingFacts,
+    const RVVSelectedBodyComputedMaskMemoryRouteStatementPlan
+        &computedMaskMemoryStatementPlan,
+    llvm::StringRef context) {
+  const RVVSelectedBodyEmitCRouteDescription &description =
+      analysis.description;
+  if (description.operation !=
+          RVVSelectedBodyOperationKind::
+              RuntimeScalarComputedMaskIndexedGatherMAccScatter ||
+      description.memoryForm !=
+          RVVSelectedBodyMemoryForm::
+              RuntimeScalarComputedMaskIndexedGatherMAccScatter)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan owner can only "
+        "build the runtime-scalar computed-mask indexed gather-MAcc-scatter "
+        "operation/memory form");
+
+  if (!analysis.computedMaskMemoryRouteFamilyPlan ||
+      materializationFacts.computedMaskMemoryPlan !=
+          &*analysis.computedMaskMemoryRouteFamilyPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan owner requires the "
+        "verified computed-mask memory family plan before route construction");
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &computedPlan =
+      *materializationFacts.computedMaskMemoryPlan;
+
+  if (computedMaskMemoryStatementPlan.computedMaskMemoryPlan !=
+      &computedPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan owner requires the "
+        "statement plan to consume the same computed-mask memory family plan");
+  if (memoryOperandBindingFacts.bindingPlan !=
+      &analysis.routeOperandBindingPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan owner requires the "
+        "operand-binding facts to come from the selected route analysis");
+  if (description.compositeGatherMAccScatterRouteFamilyPlanID !=
+          kRVVCompositeGatherMAccScatterRouteFamilyPlanID ||
+      description.compositeGatherMAccScatterTypedComputeChain !=
+          kRVVCompositeGatherMAccScatterTypedComputeChain)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route construction requires the "
+        "provider-owned composite route-family plan id and typed compute "
+        "chain before creating TCRVEmitCLowerableRoute");
+
+  const RVVCompositeGatherMAccScatterResourceSelection &resourceSelection =
+      description.compositeGatherMAccScatterResourceSelection;
+  if (!resourceSelection.hasSelection)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan owner requires the "
+        "RVV plugin-selected resource/capability facts");
+
+  RVVCompositeGatherMAccScatterRouteFamilyPlan plan;
+  plan.computedMaskMemoryPlan = &computedPlan;
+  plan.bindingPlan = &analysis.routeOperandBindingPlan;
+  plan.runtimeControlPlan = &computedPlan.runtimeControlPlan;
+  plan.typedConfigFacts = &analysis.typedConfigFacts;
+  plan.selectedTargetCapabilityFacts = &analysis.selectedTargetCapabilityFacts;
+  plan.resourceSelection = &resourceSelection;
+
+  plan.plansCompositeGatherMAccScatter = true;
+  plan.consumesRuntimeScalarCompare = true;
+  plan.consumesComputedMask = true;
+  plan.consumesIndexedGather = true;
+  plan.consumesMaskedMAcc = true;
+  plan.consumesIndexedScatter = true;
+  plan.preservesAccumulatorAndResult = true;
+
+  plan.routeFamilyPlanID =
+      description.compositeGatherMAccScatterRouteFamilyPlanID;
+  plan.typedComputeChain =
+      description.compositeGatherMAccScatterTypedComputeChain;
+  plan.runtimeABIOrder = computedPlan.runtimeABIOrder;
+  plan.targetLeafProfile = computedPlan.targetLeafProfile;
+  plan.providerSupportedMirror = computedPlan.providerSupportedMirror;
+  plan.routeOperandBindingPlanID = description.routeOperandBindingPlanID;
+  plan.routeOperandBindingSummary = description.routeOperandBindingSummary;
+  plan.comparePredicateKind = description.comparePredicateKind;
+  plan.maskRole = computedPlan.maskRole;
+  plan.maskSource = computedPlan.maskSource;
+  plan.maskMemoryForm = computedPlan.maskMemoryForm;
+  plan.indexedMemoryLayout = computedPlan.maskedMemoryLayout;
+  plan.sourceMemoryForm = computedPlan.sourceMemoryForm;
+  plan.destinationMemoryForm = computedPlan.destinationMemoryForm;
+  plan.indexedDataMemoryForm = computedPlan.indexedDataMemoryForm;
+  plan.indexedDestinationMemoryForm =
+      computedPlan.indexedDestinationMemoryForm;
+  plan.inactiveLaneContract = computedPlan.inactiveLaneContract;
+  plan.maskedPassthroughLayout = computedPlan.maskedPassthroughLayout;
+  plan.accumulatorLayout = resourceSelection.accumulatorLayout;
+  plan.resultLayout = kRVVCompositeGatherMAccScatterResultLayout;
+  plan.sew = computedPlan.sew;
+  plan.lmul = computedPlan.lmul;
+  plan.tailPolicy = computedPlan.runtimeControlPlan.tailPolicy;
+  plan.maskPolicy = computedPlan.runtimeControlPlan.maskPolicy;
+  plan.indexEEW = computedPlan.indexEEW;
+  plan.offsetUnit = computedPlan.offsetUnit;
+  plan.indexSource = computedPlan.indexSource;
+  plan.indexUniqueness = computedPlan.indexUniqueness;
+
+  plan.cmpLhsABI = memoryOperandBindingFacts.compareLhsABI;
+  plan.rhsScalarABI = memoryOperandBindingFacts.rhsScalarABI;
+  plan.gatherSourceABI = memoryOperandBindingFacts.sourceABI;
+  plan.payloadABI = memoryOperandBindingFacts.dotRHSABI;
+  plan.accumulatorABI = memoryOperandBindingFacts.accumulatorABI;
+  plan.indexABI = memoryOperandBindingFacts.indexABI;
+  plan.destinationABI = memoryOperandBindingFacts.destinationABI;
+  plan.passthroughABI = memoryOperandBindingFacts.passthroughABI;
+  plan.runtimeElementCountABI =
+      memoryOperandBindingFacts.runtimeElementCountABI;
+  return plan;
+}
+
+static llvm::Error requireRVVCompositeRouteFamilyPlanABI(
+    const support::RuntimeABIParameter *parameter, llvm::StringRef logicalName,
+    support::RuntimeABIParameterRole expectedRole, llvm::StringRef context) {
+  if (!parameter)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan requires explicit "
+        "runtime ABI binding for " +
+        logicalName + " before creating TCRVEmitCLowerableRoute");
+  if (parameter->role != expectedRole)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan requires ABI role "
+        "for " +
+        logicalName + " to be '" +
+        support::stringifyRuntimeABIParameterRole(expectedRole) +
+        "' before creating TCRVEmitCLowerableRoute, but saw '" +
+        support::stringifyRuntimeABIParameterRole(parameter->role) + "'");
+  return llvm::Error::success();
+}
+
+static llvm::Error verifyRVVCompositeGatherMAccScatterRouteFamilyPlan(
+    const RVVCompositeGatherMAccScatterRouteFamilyPlan &plan,
+    llvm::StringRef context) {
+  if (!plan.computedMaskMemoryPlan || !plan.bindingPlan ||
+      !plan.runtimeControlPlan || !plan.typedConfigFacts ||
+      !plan.selectedTargetCapabilityFacts || !plan.resourceSelection)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan requires explicit "
+        "computed-mask, binding, runtime-control, typed-config, target, and "
+        "resource fact owners before creating TCRVEmitCLowerableRoute");
+
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &computedPlan =
+      *plan.computedMaskMemoryPlan;
+  const RVVRouteOperandBindingPlan &bindingPlan = *plan.bindingPlan;
+  const RVVRuntimeAVLVLControlPlan &runtimeControlPlan =
+      *plan.runtimeControlPlan;
+  const RVVSelectedBodyTypedConfigFacts &typedFacts =
+      *plan.typedConfigFacts;
+  const RVVSelectedTargetCapabilityFacts &targetFacts =
+      *plan.selectedTargetCapabilityFacts;
+  const RVVCompositeGatherMAccScatterResourceSelection &resourceSelection =
+      *plan.resourceSelection;
+
+  if (!plan.plansCompositeGatherMAccScatter ||
+      !plan.consumesRuntimeScalarCompare || !plan.consumesComputedMask ||
+      !plan.consumesIndexedGather || !plan.consumesMaskedMAcc ||
+      !plan.consumesIndexedScatter || !plan.preservesAccumulatorAndResult)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan must explicitly "
+        "consume runtime scalar compare, computed mask, indexed gather, "
+        "masked MAcc, indexed scatter, and accumulator/result preservation");
+
+  if (computedPlan.operation !=
+          RVVSelectedBodyOperationKind::
+              RuntimeScalarComputedMaskIndexedGatherMAccScatter ||
+      computedPlan.memoryForm !=
+          RVVSelectedBodyMemoryForm::
+              RuntimeScalarComputedMaskIndexedGatherMAccScatter ||
+      !computedPlan.usesRuntimeScalarProducer ||
+      computedPlan.usesVectorCompareProducer ||
+      computedPlan.usesStoreOnly || computedPlan.usesLoadMerge ||
+      !computedPlan.usesIndexedGather || !computedPlan.usesIndexedScatter ||
+      computedPlan.usesSegment2Load || computedPlan.usesSegment2Store ||
+      computedPlan.usesSegment2Update)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan requires the "
+        "computed-mask memory family owner to carry exactly the runtime "
+        "scalar computed-mask indexed gather-MAcc-scatter facts");
+
+  if (plan.routeFamilyPlanID !=
+          kRVVCompositeGatherMAccScatterRouteFamilyPlanID ||
+      plan.typedComputeChain !=
+          kRVVCompositeGatherMAccScatterTypedComputeChain ||
+      plan.runtimeABIOrder !=
+          kRVVCompositeGatherMAccScatterRuntimeABIOrder ||
+      computedPlan.runtimeABIOrder != plan.runtimeABIOrder)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan requires explicit "
+        "provider-owned plan id, typed compute chain, and ABI order facts");
+
+  if (plan.routeOperandBindingPlanID != bindingPlan.planID ||
+      plan.routeOperandBindingPlanID.empty() ||
+      plan.routeOperandBindingSummary.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan requires explicit "
+        "route operand-binding plan id and summary from the selected body");
+
+  if (!typedFacts.hasFacts() || typedFacts.sew != plan.sew ||
+      typedFacts.lmul != plan.lmul ||
+      typedFacts.tailPolicy != plan.tailPolicy ||
+      typedFacts.maskPolicy != plan.maskPolicy ||
+      typedFacts.vectorTypeName != computedPlan.vectorTypeName ||
+      typedFacts.vectorCType != computedPlan.vectorCType ||
+      typedFacts.indexVectorTypeName != computedPlan.indexVectorTypeName ||
+      typedFacts.indexVectorCType != computedPlan.indexVectorCType ||
+      typedFacts.maskTypeName != computedPlan.maskTypeName ||
+      typedFacts.maskCType != computedPlan.maskCType)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan requires dtype, "
+        "SEW, LMUL, policy, vector, index, and mask facts from the typed "
+        "selected tcrv_rvv body");
+
+  if (!targetFacts.hasFacts() ||
+      targetFacts.providerMirror !=
+          resourceSelection.targetCapabilityProviderMirror ||
+      targetFacts.legalityMirror !=
+          resourceSelection.targetCapabilityLegalityMirror)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan requires resource "
+        "selection facts to mirror the selected target capability provider "
+        "and legality");
+
+  if (runtimeControlPlan.sew != plan.sew ||
+      runtimeControlPlan.lmul != plan.lmul ||
+      runtimeControlPlan.tailPolicy != plan.tailPolicy ||
+      runtimeControlPlan.maskPolicy != plan.maskPolicy ||
+      runtimeControlPlan.runtimeABIOrder != plan.runtimeABIOrder)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan requires runtime "
+        "AVL/VL control facts to mirror dtype/config/policy and ABI order");
+
+  if (!resourceSelection.hasSelection || !resourceSelection.isLegal ||
+      resourceSelection.selectedCandidateID.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan requires a legal "
+        "provider-selected resource candidate");
+  if (resourceSelection.peakLiveVectorGroups >
+      resourceSelection.vectorRegisterBudget)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan rejects resource "
+        "peak live vector-group estimate " +
+        llvm::Twine(resourceSelection.peakLiveVectorGroups) +
+        " above vector register budget " +
+        llvm::Twine(resourceSelection.vectorRegisterBudget));
+  if (llvm::StringRef(resourceSelection.operation) !=
+          kRVVCompositeResourceOperation ||
+      llvm::StringRef(resourceSelection.memoryForm) !=
+          kRVVCompositeResourceMemoryForm ||
+      resourceSelection.sew != plan.sew ||
+      llvm::StringRef(resourceSelection.lmul) != plan.lmul ||
+      llvm::StringRef(resourceSelection.tailPolicy) != plan.tailPolicy ||
+      llvm::StringRef(resourceSelection.maskPolicy) != plan.maskPolicy ||
+      llvm::StringRef(resourceSelection.vlPolicy) !=
+          kRVVGearboxRuntimeAVLSingleSetVLPolicy ||
+      llvm::StringRef(resourceSelection.accumulatorLayout) !=
+          kRVVCompositeResourceAccumulatorLayout ||
+      llvm::StringRef(resourceSelection.runtimeAVLSource) !=
+          runtimeControlPlan.runtimeAVLASource ||
+      llvm::StringRef(resourceSelection.runtimeABIOrder) !=
+          plan.runtimeABIOrder)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan requires resource "
+        "selection to mirror operation, memory form, dtype/config/policy, "
+        "runtime AVL source, accumulator layout, and ABI order facts");
+
+  if (plan.comparePredicateKind != "sle" ||
+      plan.maskRole != computedPlan.maskRole ||
+      plan.maskSource != computedPlan.maskSource ||
+      plan.maskMemoryForm != computedPlan.maskMemoryForm ||
+      plan.indexedMemoryLayout != computedPlan.maskedMemoryLayout ||
+      plan.sourceMemoryForm != computedPlan.sourceMemoryForm ||
+      plan.destinationMemoryForm != computedPlan.destinationMemoryForm ||
+      plan.indexedDataMemoryForm != computedPlan.indexedDataMemoryForm ||
+      plan.indexedDestinationMemoryForm !=
+          computedPlan.indexedDestinationMemoryForm ||
+      plan.inactiveLaneContract != computedPlan.inactiveLaneContract ||
+      plan.maskedPassthroughLayout !=
+          computedPlan.maskedPassthroughLayout ||
+      plan.accumulatorLayout != kRVVCompositeResourceAccumulatorLayout ||
+      plan.resultLayout != kRVVCompositeGatherMAccScatterResultLayout ||
+      plan.indexEEW != computedPlan.indexEEW ||
+      plan.offsetUnit != computedPlan.offsetUnit ||
+      plan.indexSource != computedPlan.indexSource ||
+      plan.indexUniqueness != computedPlan.indexUniqueness)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan requires explicit "
+        "compare/mask/index/gather/MAcc/scatter layout facts from the RVV "
+        "plugin owners");
+
+  if (llvm::Error error = requireRVVCompositeRouteFamilyPlanABI(
+          plan.cmpLhsABI, "cmp_lhs",
+          support::RuntimeABIParameterRole::LHSInputBuffer, context))
+    return error;
+  if (llvm::Error error = requireRVVCompositeRouteFamilyPlanABI(
+          plan.rhsScalarABI, "rhs_scalar",
+          support::RuntimeABIParameterRole::RHSScalarValue, context))
+    return error;
+  if (llvm::Error error = requireRVVCompositeRouteFamilyPlanABI(
+          plan.gatherSourceABI, "gather_src",
+          support::RuntimeABIParameterRole::SourceInputBuffer, context))
+    return error;
+  if (llvm::Error error = requireRVVCompositeRouteFamilyPlanABI(
+          plan.payloadABI, "payload",
+          support::RuntimeABIParameterRole::DotRHSInputBuffer, context))
+    return error;
+  if (llvm::Error error = requireRVVCompositeRouteFamilyPlanABI(
+          plan.accumulatorABI, "acc",
+          support::RuntimeABIParameterRole::AccumulatorInputBuffer, context))
+    return error;
+  if (llvm::Error error = requireRVVCompositeRouteFamilyPlanABI(
+          plan.indexABI, "index",
+          support::RuntimeABIParameterRole::IndexInputBuffer, context))
+    return error;
+  if (llvm::Error error = requireRVVCompositeRouteFamilyPlanABI(
+          plan.destinationABI, "dst",
+          support::RuntimeABIParameterRole::OutputBuffer, context))
+    return error;
+  if (llvm::Error error = requireRVVCompositeRouteFamilyPlanABI(
+          plan.runtimeElementCountABI, "n",
+          support::RuntimeABIParameterRole::RuntimeElementCount, context))
+    return error;
+  if (llvm::Error error = requireRVVCompositeRouteFamilyPlanABI(
+          plan.passthroughABI, "old destination passthrough",
+          support::RuntimeABIParameterRole::OutputBuffer, context))
+    return error;
+  if (plan.passthroughABI->cName != plan.destinationABI->cName ||
+      plan.passthroughABI->cType != plan.destinationABI->cType)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite gather-MAcc-scatter route-family plan requires old "
+        "destination passthrough and scatter destination to preserve the same "
+        "output-buffer ABI value");
+
+  return llvm::Error::success();
+}
+
 static llvm::Error
 verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
     const RVVSelectedBodyRouteAnalysis &analysis,
@@ -1578,6 +1952,22 @@ verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
         "creating TCRVEmitCLowerableRoute");
   const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan &plan =
       *materializationFacts.computedMaskMemoryPlan;
+
+  std::optional<RVVCompositeGatherMAccScatterRouteFamilyPlan>
+      compositeRouteFamilyPlan;
+  if (isRuntimeScalarIndexedGatherMAccScatter) {
+    llvm::Expected<RVVCompositeGatherMAccScatterRouteFamilyPlan>
+        builtCompositePlan = buildRVVCompositeGatherMAccScatterRouteFamilyPlan(
+            analysis, materializationFacts, memoryOperandBindingFacts,
+            computedMaskMemoryStatementPlan, context);
+    if (!builtCompositePlan)
+      return builtCompositePlan.takeError();
+    compositeRouteFamilyPlan = std::move(*builtCompositePlan);
+    if (llvm::Error error =
+            verifyRVVCompositeGatherMAccScatterRouteFamilyPlan(
+                *compositeRouteFamilyPlan, context))
+      return error;
+  }
 
   if (plan.operation != description.operation ||
       plan.memoryForm != description.memoryForm ||

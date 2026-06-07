@@ -8193,6 +8193,29 @@ llvm::Error validateRVVComputedMaskIndexedMemoryDescriptionAgainstContract(
                   description.computedMaskMemoryMaskProducerSource,
                   contract.computedMaskMemoryMaskProducerSource))
     return error;
+  if (contract.kind ==
+      plugin::rvv::RVVComputedMaskIndexedMemoryRouteValidationKind::
+          RuntimeScalarIndexedGatherMAccScatter) {
+    if (llvm::Error error = require(
+            "composite gather-MAcc-scatter route-family plan",
+            description.compositeGatherMAccScatterRouteFamilyPlanID,
+            contract.compositeGatherMAccScatterRouteFamilyPlanID))
+      return error;
+    if (llvm::Error error = require(
+            "composite gather-MAcc-scatter typed compute chain",
+            description.compositeGatherMAccScatterTypedComputeChain,
+            contract.compositeGatherMAccScatterTypedComputeChain))
+      return error;
+  } else {
+    if (llvm::Error error =
+            require("composite gather-MAcc-scatter route-family plan",
+                    description.compositeGatherMAccScatterRouteFamilyPlanID, ""))
+      return error;
+    if (llvm::Error error =
+            require("composite gather-MAcc-scatter typed compute chain",
+                    description.compositeGatherMAccScatterTypedComputeChain, ""))
+      return error;
+  }
   if (llvm::Error error =
           require("mask/tail policy route-family plan",
                   description.maskTailPolicyRouteFamilyPlanID,
@@ -14393,18 +14416,27 @@ llvm::Error
 validateRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterTargetArtifactProviderFacts(
     const RVVTargetArtifactRouteFamilyValidationContext &context) {
   std::optional<
-      plugin::rvv::RVVComputedMaskIndexedMemoryRouteValidationContract>
+      plugin::rvv::RVVCompositeGatherMAccScatterRouteValidationContract>
       contract =
-          plugin::rvv::getRVVComputedMaskIndexedMemoryRouteValidationContract(
+          plugin::rvv::getRVVCompositeGatherMAccScatterRouteValidationContract(
               context.description);
   if (!contract)
     return makeRVVTargetRouteError(
         "runtime-scalar indexed gather-MAcc-scatter target artifact consumer "
-        "requires provider-owned route validation contract before artifact "
-        "export");
+        "requires provider-owned composite route-family validation contract "
+        "before artifact export");
+  const plugin::rvv::RVVComputedMaskIndexedMemoryRouteValidationContract
+      &indexedContract = contract->indexedMemoryContract;
   const plugin::rvv::RVVCompositeGatherMAccScatterResourceSelection
-      &resourceSelection =
-          context.description.compositeGatherMAccScatterResourceSelection;
+      &resourceSelection = contract->resourceSelection;
+  if (context.description.compositeGatherMAccScatterRouteFamilyPlanID !=
+          contract->routeFamilyPlanID ||
+      context.description.compositeGatherMAccScatterTypedComputeChain !=
+          contract->typedComputeChain)
+    return makeRVVTargetRouteError(
+        "runtime-scalar indexed gather-MAcc-scatter target artifact consumer "
+        "requires provider-owned composite route-family plan and typed compute "
+        "chain before artifact export");
   if (!resourceSelection.hasSelection || !resourceSelection.isLegal ||
       resourceSelection.selectedCandidateID.empty())
     return makeRVVTargetRouteError(
@@ -14420,29 +14452,54 @@ validateRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterTargetArtifactProvid
         llvm::Twine(resourceSelection.peakLiveVectorGroups) +
         " above vector register budget " +
         llvm::Twine(resourceSelection.vectorRegisterBudget));
-  if (context.route.getRouteID() != contract->emitCRouteID)
+  if (resourceSelection.operation !=
+      "runtime_scalar_cmp_masked_indexed_gather_macc_scatter")
     return makeRVVTargetRouteError(
-        llvm::Twine(contract->consumerLabel) +
-        " requires rebuilt provider route id '" + contract->emitCRouteID +
+        "runtime-scalar indexed gather-MAcc-scatter target artifact consumer "
+        "rejects composite resource facts whose operation does not match the "
+        "provider-owned composite route-family contract");
+  if (resourceSelection.memoryForm !=
+      "runtime-scalar-computed-mask-indexed-gather-macc-scatter")
+    return makeRVVTargetRouteError(
+        "runtime-scalar indexed gather-MAcc-scatter target artifact consumer "
+        "rejects composite resource facts whose memory form does not match "
+        "the provider-owned composite route-family contract");
+  if (resourceSelection.sew != indexedContract.sew ||
+      resourceSelection.lmul != indexedContract.lmul ||
+      resourceSelection.tailPolicy != indexedContract.tailPolicy ||
+      resourceSelection.maskPolicy != indexedContract.maskPolicy)
+    return makeRVVTargetRouteError(
+        "runtime-scalar indexed gather-MAcc-scatter target artifact consumer "
+        "requires composite resource dtype/config/policy facts to match the "
+        "provider route-family contract");
+  if (resourceSelection.runtimeABIOrder != indexedContract.runtimeABIOrder)
+    return makeRVVTargetRouteError(
+        "runtime-scalar indexed gather-MAcc-scatter target artifact consumer "
+        "requires composite resource runtime ABI order to match the provider "
+        "route-family contract");
+  if (context.route.getRouteID() != indexedContract.emitCRouteID)
+    return makeRVVTargetRouteError(
+        llvm::Twine(indexedContract.consumerLabel) +
+        " requires rebuilt provider route id '" + indexedContract.emitCRouteID +
         "' but route carried '" + context.route.getRouteID() + "'");
   if (llvm::Error error =
           validateRVVComputedMaskIndexedMemoryDescriptionAgainstContract(
-              context.description, *contract))
+              context.description, indexedContract))
     return error;
   if (llvm::Error error =
           validateRVVComputedMaskIndexedMemoryRouteHeaders(context.route,
-                                                          *contract))
+                                                          indexedContract))
     return error;
   if (llvm::Error error =
-          validateRVVComputedMaskIndexedMemoryRouteTypeMappings(context.route,
-                                                               *contract))
+          validateRVVComputedMaskIndexedMemoryRouteTypeMappings(
+              context.route, indexedContract))
     return error;
   if (llvm::Error error =
           validateRVVComputedMaskIndexedMemoryRouteABIMappings(context.route,
-                                                              *contract))
+                                                              indexedContract))
     return error;
   return validateRVVComputedMaskIndexedMemoryRouteStatementPlanShape(
-      context.route, *contract);
+      context.route, indexedContract);
 }
 
 llvm::Error

@@ -13,6 +13,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.selected_dispatch_case_mirror/s//tcrv_rvv.selected_dispatch_case_mirror_removed/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-DISPATCH-CASE-MIRROR
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.selected_dispatch_fallback_mirror/s//tcrv_rvv.selected_dispatch_fallback_mirror_removed/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-DISPATCH-FALLBACK-MIRROR
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.composite_resource.selected_candidate\", value = \"rvv-composite-gather-macc-scatter-resource-candidate.v1\[rt-scmp-indexed-gather-macc-scatter,e32m1,u1\]\"/s//tcrv_rvv.composite_resource.selected_candidate\", value = \"artifact-name-derived-composite-resource\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-COMPOSITE-RESOURCE
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.composite_route_family_plan\", value = \"rvv-composite-gather-macc-scatter-route-family-plan.v1\"/s//tcrv_rvv.composite_route_family_plan\", value = \"artifact-name-derived-composite-plan\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-COMPOSITE-PLAN
 // RUN: sed '/^      tcrv_rvv.with_vl/s/tcrv_rvv.composite_resource.vl_policy = "runtime-avl-single-setvl", //' %s | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-COMPOSITE-RESOURCE
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/status = "supported"/s//status = "unsupported"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-FALLBACK-EXPORT
 
@@ -96,6 +97,8 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.masked_passthrough_layout", value = "old-destination-vector-preserves-inactive-lanes"}
 // PLAN-SAME: {key = "tcrv_rvv.source_memory_form", value = "masked-indexed-load"}
 // PLAN-SAME: {key = "tcrv_rvv.destination_memory_form", value = "masked-indexed-store"}
+// PLAN-SAME: {key = "tcrv_rvv.composite_route_family_plan", value = "rvv-composite-gather-macc-scatter-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.composite_typed_compute_chain", value = "tcrv_rvv.masked_indexed_load+tcrv_rvv.masked_macc+tcrv_rvv.masked_indexed_store"}
 // PLAN-SAME: {key = "tcrv_rvv.composite_resource.selected_candidate", value = "rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]"}
 // PLAN-SAME: {key = "tcrv_rvv.composite_resource.vl_policy", value = "runtime-avl-single-setvl"}
 // PLAN-SAME: {key = "tcrv_rvv.composite_resource.peak_live_vector_groups", value = "8"}
@@ -118,6 +121,8 @@ module {
 // HEADER-DAG: tianchenrv.rvv.selected_dispatch_case_mirror: selected_dispatch_case_mirror:@rvv_explicit_composite;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=explicit-composite-gather-macc-scatter-case
 // HEADER-DAG: tianchenrv.rvv.selected_dispatch_fallback_mirror: selected_dispatch_fallback_mirror:@explicit_composite_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=explicit-composite-gather-macc-scatter-fallback-envelope
 // HEADER-DAG: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-plan-validated
+// HEADER-DAG: tianchenrv.rvv.composite_route_family_plan: rvv-composite-gather-macc-scatter-route-family-plan.v1
+// HEADER-DAG: tianchenrv.rvv.composite_typed_compute_chain: tcrv_rvv.masked_indexed_load+tcrv_rvv.masked_macc+tcrv_rvv.masked_indexed_store
 // HEADER-DAG: tianchenrv.rvv.composite_resource.selected_candidate: rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]
 // HEADER-DAG: tianchenrv.rvv.composite_resource.vector_register_budget: 32
 // HEADER-DAG: tianchenrv.rvv.composite_resource.runtime_abi_order: cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n
@@ -161,6 +166,9 @@ module {
 
 // STALE-COMPOSITE-RESOURCE: candidate tcrv_rvv.composite_resource.selected_candidate provenance must mirror provider-selected composite gather-MAcc-scatter resource selected candidate
 // STALE-COMPOSITE-RESOURCE-SAME: artifact-name-derived-composite-resource
+
+// STALE-COMPOSITE-PLAN: candidate tcrv_rvv.composite_route_family_plan provenance must mirror provider-owned composite gather-MAcc-scatter route-family plan
+// STALE-COMPOSITE-PLAN-SAME: artifact-name-derived-composite-plan
 
 // MISSING-COMPOSITE-RESOURCE: requires realized composite resource string fact 'tcrv_rvv.composite_resource.vl_policy' before provider route construction
 

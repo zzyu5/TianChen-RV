@@ -2911,6 +2911,11 @@ constexpr llvm::StringLiteral kRVVComputedMaskMemoryMaskTailPolicyOwner(
     "computed-mask memory mask/tail policy");
 constexpr llvm::StringLiteral kRVVComputedMaskMemoryRouteFamilyPlanID(
     "rvv-computed-mask-memory-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVCompositeGatherMAccScatterRouteFamilyPlanID(
+    "rvv-composite-gather-macc-scatter-route-family-plan.v1");
+constexpr llvm::StringLiteral kRVVCompositeGatherMAccScatterTypedComputeChain(
+    "tcrv_rvv.masked_indexed_load+tcrv_rvv.masked_macc+"
+    "tcrv_rvv.masked_indexed_store");
 constexpr llvm::StringLiteral
     kRVVComputedMaskMemoryVectorCompareProducerSource(
         "vector-compare-rhs-load");
@@ -25499,9 +25504,7 @@ getRVVComputedMaskIndexedMemoryRouteFacts(
       getExpectedRVVRouteOperandBindingPlanID(operation);
   facts.typedComputeOpName =
       isRuntimeScalarGatherMAccScatter
-          ? llvm::StringRef("tcrv_rvv.masked_indexed_load+"
-                            "tcrv_rvv.masked_macc+"
-                            "tcrv_rvv.masked_indexed_store")
+          ? llvm::StringRef(kRVVCompositeGatherMAccScatterTypedComputeChain)
       : (isGather || isRuntimeScalarGather)
           ? llvm::StringRef("tcrv_rvv.masked_indexed_load")
           : llvm::StringRef("tcrv_rvv.masked_indexed_store");
@@ -25704,6 +25707,14 @@ getRVVComputedMaskIndexedMemoryRouteValidationContract(
       routeFacts->computedMaskMemoryRouteFamilyPlanID.str();
   contract.computedMaskMemoryMaskProducerSource =
       routeFacts->computedMaskMemoryMaskProducerSource.str();
+  if (description.operation ==
+      RVVSelectedBodyOperationKind::
+          RuntimeScalarComputedMaskIndexedGatherMAccScatter) {
+    contract.compositeGatherMAccScatterRouteFamilyPlanID =
+        kRVVCompositeGatherMAccScatterRouteFamilyPlanID.str();
+    contract.compositeGatherMAccScatterTypedComputeChain =
+        kRVVCompositeGatherMAccScatterTypedComputeChain.str();
+  }
   contract.maskTailPolicyRouteFamilyPlanID =
       routeFacts->maskTailPolicyRouteFamilyPlanID.str();
   contract.maskTailPolicyOwner = routeFacts->maskTailPolicyOwner.str();
@@ -25790,6 +25801,37 @@ getRVVComputedMaskIndexedMemoryRouteValidationContract(
     contract.compositeGatherMAccScatterResourceSelection =
         description.compositeGatherMAccScatterResourceSelection;
 
+  return contract;
+}
+
+std::optional<RVVCompositeGatherMAccScatterRouteValidationContract>
+getRVVCompositeGatherMAccScatterRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  if (description.operation !=
+          RVVSelectedBodyOperationKind::
+              RuntimeScalarComputedMaskIndexedGatherMAccScatter ||
+      description.memoryForm !=
+          RVVSelectedBodyMemoryForm::
+              RuntimeScalarComputedMaskIndexedGatherMAccScatter)
+    return std::nullopt;
+
+  std::optional<RVVComputedMaskIndexedMemoryRouteValidationContract>
+      indexedContract =
+          getRVVComputedMaskIndexedMemoryRouteValidationContract(description);
+  if (!indexedContract ||
+      indexedContract->kind !=
+          RVVComputedMaskIndexedMemoryRouteValidationKind::
+              RuntimeScalarIndexedGatherMAccScatter)
+    return std::nullopt;
+
+  RVVCompositeGatherMAccScatterRouteValidationContract contract;
+  contract.routeFamilyPlanID =
+      kRVVCompositeGatherMAccScatterRouteFamilyPlanID.str();
+  contract.typedComputeChain =
+      kRVVCompositeGatherMAccScatterTypedComputeChain.str();
+  contract.indexedMemoryContract = std::move(*indexedContract);
+  contract.resourceSelection =
+      description.compositeGatherMAccScatterResourceSelection;
   return contract;
 }
 
@@ -26750,6 +26792,18 @@ getRVVComputedMaskIndexedMemoryRouteMetadataMirrorContract(
       contract, "tcrv_rvv.computed_mask_memory_mask_producer_source",
       validation->computedMaskMemoryMaskProducerSource,
       "selected typed RVV computed-mask indexed memory producer source");
+  if (validation->kind ==
+      RVVComputedMaskIndexedMemoryRouteValidationKind::
+          RuntimeScalarIndexedGatherMAccScatter) {
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_route_family_plan",
+        validation->compositeGatherMAccScatterRouteFamilyPlanID,
+        "provider-owned composite gather-MAcc-scatter route-family plan");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_typed_compute_chain",
+        validation->compositeGatherMAccScatterTypedComputeChain,
+        "provider-owned composite gather-MAcc-scatter typed compute chain");
+  }
   appendRVVMemoryRouteMetadataMirror(
       contract, "tcrv_rvv.mask_tail_policy_route_family_plan",
       validation->maskTailPolicyRouteFamilyPlanID,
@@ -36836,6 +36890,10 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   if (analysis.slice.arithmeticKind ==
       RVVSelectedBodyOperationKind::
           RuntimeScalarComputedMaskIndexedGatherMAccScatter) {
+    analysis.description.compositeGatherMAccScatterRouteFamilyPlanID =
+        kRVVCompositeGatherMAccScatterRouteFamilyPlanID;
+    analysis.description.compositeGatherMAccScatterTypedComputeChain =
+        kRVVCompositeGatherMAccScatterTypedComputeChain;
     llvm::Expected<RVVCompositeGatherMAccScatterResourceSelection> selection =
         deriveRVVCompositeGatherMAccScatterResourceSelectionFromRealizedFacts(
             analysis.description, analysis.selectedTargetCapabilityFacts,
@@ -42004,6 +42062,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
   if (description.compositeGatherMAccScatterResourceSelection.hasSelection) {
     const RVVCompositeGatherMAccScatterResourceSelection &selection =
         description.compositeGatherMAccScatterResourceSelection;
+    metadata.push_back({"tcrv_rvv.composite_route_family_plan",
+                        description.compositeGatherMAccScatterRouteFamilyPlanID});
+    metadata.push_back({"tcrv_rvv.composite_typed_compute_chain",
+                        description.compositeGatherMAccScatterTypedComputeChain});
     metadata.push_back({"tcrv_rvv.composite_resource.candidate_set",
                         selection.candidateSetID});
     metadata.push_back({"tcrv_rvv.composite_resource.selected_candidate",

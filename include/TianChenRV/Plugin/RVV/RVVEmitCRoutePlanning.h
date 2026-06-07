@@ -1462,6 +1462,65 @@ struct RVVSelectedBodyBaseMemoryMovementRouteProviderPlan {
   llvm::StringRef indexedDestinationMemoryFormMirror;
 };
 
+struct RVVCompositeGatherMAccScatterRouteFamilyPlan {
+  const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
+      *computedMaskMemoryPlan = nullptr;
+  const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
+  const RVVRuntimeAVLVLControlPlan *runtimeControlPlan = nullptr;
+  const RVVSelectedBodyTypedConfigFacts *typedConfigFacts = nullptr;
+  const RVVSelectedTargetCapabilityFacts *selectedTargetCapabilityFacts =
+      nullptr;
+  const RVVCompositeGatherMAccScatterResourceSelection *resourceSelection =
+      nullptr;
+
+  bool plansCompositeGatherMAccScatter = false;
+  bool consumesRuntimeScalarCompare = false;
+  bool consumesComputedMask = false;
+  bool consumesIndexedGather = false;
+  bool consumesMaskedMAcc = false;
+  bool consumesIndexedScatter = false;
+  bool preservesAccumulatorAndResult = false;
+
+  llvm::StringRef routeFamilyPlanID;
+  llvm::StringRef typedComputeChain;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef targetLeafProfile;
+  llvm::StringRef providerSupportedMirror;
+  llvm::StringRef routeOperandBindingPlanID;
+  llvm::StringRef routeOperandBindingSummary;
+  llvm::StringRef comparePredicateKind;
+  llvm::StringRef maskRole;
+  llvm::StringRef maskSource;
+  llvm::StringRef maskMemoryForm;
+  llvm::StringRef indexedMemoryLayout;
+  llvm::StringRef sourceMemoryForm;
+  llvm::StringRef destinationMemoryForm;
+  llvm::StringRef indexedDataMemoryForm;
+  llvm::StringRef indexedDestinationMemoryForm;
+  llvm::StringRef inactiveLaneContract;
+  llvm::StringRef maskedPassthroughLayout;
+  llvm::StringRef accumulatorLayout;
+  llvm::StringRef resultLayout;
+  std::int64_t sew = 0;
+  llvm::StringRef lmul;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  std::int64_t indexEEW = 0;
+  llvm::StringRef offsetUnit;
+  llvm::StringRef indexSource;
+  llvm::StringRef indexUniqueness;
+
+  const support::RuntimeABIParameter *cmpLhsABI = nullptr;
+  const support::RuntimeABIParameter *rhsScalarABI = nullptr;
+  const support::RuntimeABIParameter *gatherSourceABI = nullptr;
+  const support::RuntimeABIParameter *payloadABI = nullptr;
+  const support::RuntimeABIParameter *accumulatorABI = nullptr;
+  const support::RuntimeABIParameter *indexABI = nullptr;
+  const support::RuntimeABIParameter *destinationABI = nullptr;
+  const support::RuntimeABIParameter *passthroughABI = nullptr;
+  const support::RuntimeABIParameter *runtimeElementCountABI = nullptr;
+};
+
 struct RVVSelectedBodyComputedMaskMemoryRouteStatementPlan {
   const RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan
       *computedMaskMemoryPlan = nullptr;

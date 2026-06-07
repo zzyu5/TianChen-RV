@@ -100,6 +100,8 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.masked_passthrough_layout", value = "old-destination-vector-preserves-inactive-lanes"}
 // PLAN-SAME: {key = "tcrv_rvv.source_memory_form", value = "masked-indexed-load"}
 // PLAN-SAME: {key = "tcrv_rvv.destination_memory_form", value = "masked-indexed-store"}
+// PLAN-SAME: {key = "tcrv_rvv.composite_route_family_plan", value = "rvv-composite-gather-macc-scatter-route-family-plan.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.composite_typed_compute_chain", value = "tcrv_rvv.masked_indexed_load+tcrv_rvv.masked_macc+tcrv_rvv.masked_indexed_store"}
 // PLAN-SAME: {key = "tcrv_rvv.composite_resource.selected_candidate", value = "rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]"}
 // PLAN-SAME: {key = "tcrv_rvv.composite_resource.vl_policy", value = "runtime-avl-single-setvl"}
 // PLAN-SAME: {key = "tcrv_rvv.composite_resource.peak_live_vector_groups", value = "8"}
@@ -122,6 +124,8 @@ module {
 // HEADER-DAG: tianchenrv.rvv.selected_dispatch_case_mirror: selected_dispatch_case_mirror:@rvv_pre_composite;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-composite-gather-macc-scatter-case
 // HEADER-DAG: tianchenrv.rvv.selected_dispatch_fallback_mirror: selected_dispatch_fallback_mirror:@pre_composite_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-composite-gather-macc-scatter-fallback-envelope
 // HEADER-DAG: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-plan-validated
+// HEADER-DAG: tianchenrv.rvv.composite_route_family_plan: rvv-composite-gather-macc-scatter-route-family-plan.v1
+// HEADER-DAG: tianchenrv.rvv.composite_typed_compute_chain: tcrv_rvv.masked_indexed_load+tcrv_rvv.masked_macc+tcrv_rvv.masked_indexed_store
 // HEADER-DAG: tianchenrv.rvv.composite_resource.selected_candidate: rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]
 // HEADER-DAG: tianchenrv.rvv.composite_resource.vector_register_budget: 32
 // HEADER-DAG: tianchenrv.rvv.composite_resource.runtime_abi_order: cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n

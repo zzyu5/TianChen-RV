@@ -308,6 +308,8 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef baseMemoryMovementRouteFamilyPlanID;
   llvm::StringRef computedMaskMemoryRouteFamilyPlanID;
   llvm::StringRef computedMaskMemoryMaskProducerSource;
+  llvm::StringRef compositeGatherMAccScatterRouteFamilyPlanID;
+  llvm::StringRef compositeGatherMAccScatterTypedComputeChain;
   llvm::StringRef segment2MemoryRouteFamilyPlanID;
   llvm::StringRef computedMaskSelectRouteFamilyPlanID;
   llvm::StringRef computedMaskSelectMaskProducerSource;
@@ -945,6 +947,8 @@ struct RVVComputedMaskIndexedMemoryRouteValidationContract {
 
   std::string computedMaskMemoryRouteFamilyPlanID;
   std::string computedMaskMemoryMaskProducerSource;
+  std::string compositeGatherMAccScatterRouteFamilyPlanID;
+  std::string compositeGatherMAccScatterTypedComputeChain;
   std::string maskTailPolicyRouteFamilyPlanID;
   std::string maskTailPolicyOwner;
   std::string comparePredicateKind;
@@ -1004,6 +1008,17 @@ struct RVVComputedMaskIndexedMemoryRouteValidationContract {
 
 std::optional<RVVComputedMaskIndexedMemoryRouteValidationContract>
 getRVVComputedMaskIndexedMemoryRouteValidationContract(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
+struct RVVCompositeGatherMAccScatterRouteValidationContract {
+  std::string routeFamilyPlanID;
+  std::string typedComputeChain;
+  RVVComputedMaskIndexedMemoryRouteValidationContract indexedMemoryContract;
+  RVVCompositeGatherMAccScatterResourceSelection resourceSelection;
+};
+
+std::optional<RVVCompositeGatherMAccScatterRouteValidationContract>
+getRVVCompositeGatherMAccScatterRouteValidationContract(
     const RVVSelectedBodyEmitCRouteDescription &description);
 
 struct RVVComputedMaskStridedMemoryRouteFacts {
