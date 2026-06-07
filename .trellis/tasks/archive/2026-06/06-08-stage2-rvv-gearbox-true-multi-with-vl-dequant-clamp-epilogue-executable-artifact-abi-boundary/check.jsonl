@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check against global RVV-first authority and Stage2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify dequant-clamp Gearbox handoff, provider-owned route facts, and no legacy authority drift."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC remains neutral and consumes provider payload only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify generated-bundle and ssh rvv correctness evidence is sufficient and not overclaimed."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Verify real hardware evidence wording and limits."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify selected-body realization/resource facts are preserved through route and artifact evidence."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check capability and runtime facts remain constraints rather than route authority."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check RVV-specific logic remains local to RVV plugin/target support."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no descriptor/direct-C/high-level compute route was introduced."}
+{"file": ".trellis/tasks/06-08-stage2-rvv-gearbox-true-multi-with-vl-dequant-clamp-epilogue-executable-artifact-abi-boundary/prd.md", "reason": "Task-specific requirements, acceptance criteria, and out-of-scope boundaries."}

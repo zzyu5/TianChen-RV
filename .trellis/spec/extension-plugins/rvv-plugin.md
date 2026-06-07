@@ -5533,18 +5533,19 @@ typed low-precision tcrv_rvv body
   -> same-target correctness and timing against named baseline
 ```
 
-## Gearbox Product-Reduce-Dequant Cross-Region Handoff
+## Gearbox Product-Reduce-Dequant/Clamp Cross-Region Handoff
 
 ### 1. Scope / Trigger
 
-Use this contract when `widening_product_reduce_dequantize_f32` claims that
-Gearbox `vsetvl` placement has progressed beyond marker-only evidence. The
-handoff is bounded to one selected producer/consumer `with_vl` pair in the
-selected RVV body: the product/reduction phase is a producer `with_vl`, and the
-dequant/store phase is a nested consumer `with_vl` after the handoff. Product
-and reduction values, dequant input, runtime AVL, active VL, phase ordering,
-region count, and resource decision must be represented as `tcrv_rvv`
-structure before route support.
+Use this contract when `widening_product_reduce_dequantize_f32` or
+`widening_product_reduce_dequant_clamp_f32` claims that Gearbox `vsetvl`
+placement has progressed beyond marker-only evidence. The handoff is bounded
+to one selected producer/consumer `with_vl` pair in the selected RVV body: the
+product/reduction phase is a producer `with_vl`, and the dequant/store phase is
+a nested consumer `with_vl` after the handoff. Product and reduction values,
+dequant input, optional clamp inputs/results, runtime AVL, active VL, phase
+ordering, region count, and resource decision must be represented as
+`tcrv_rvv` structure before route support.
 
 ### 2. Signatures
 
@@ -5578,10 +5579,11 @@ setvl %n -> with_vl %vl
   with_vl %vl
     vsetvl_region_marker phase=dequant-store index=2 count=2
     dequantize %handoff, %scale, %vl
+    optional clamp: splat lower/upper -> compare/select lower -> compare/select upper
     store
 ```
 
-The construction-protocol typed compute chain for this non-clamp route is:
+The construction-protocol typed compute chain for the non-clamp route is:
 
 ```text
 tcrv_rvv.widening_product
@@ -5590,17 +5592,34 @@ tcrv_rvv.widening_product
 +tcrv_rvv.dequantize
 ```
 
+The dequant-clamp route extends the same chain with compare/select:
+
+```text
+tcrv_rvv.widening_product
++tcrv_rvv.standalone_reduce
++tcrv_rvv.gearbox_cross_region_handoff
++tcrv_rvv.dequantize
++tcrv_rvv.compare
++tcrv_rvv.select
+```
+
 ### 3. Contracts
 
 - The handoff op is a structural boundary, not a math op, intrinsic wrapper,
   route id, descriptor, artifact mirror, or executable proof.
 - `dequantize` must consume the handoff result for
-  `widening_product_reduce_dequantize_f32`. Direct
-  `standalone_reduce -> dequantize` is fail-closed for this route.
+  `widening_product_reduce_dequantize_f32` and
+  `widening_product_reduce_dequant_clamp_f32`. Direct
+  `standalone_reduce -> dequantize` is fail-closed for both routes.
 - The producer `with_vl` must contain the product/reduction chain and the
   direct handoff. The consumer `with_vl` must be nested under the producer,
   structurally after the handoff, use the same `!tcrv_rvv.vl`, and contain the
-  dequant-store marker, handoff-consuming `dequantize`, and final store.
+  dequant-store marker, handoff-consuming `dequantize`, optional lower/upper
+  clamp compare/select epilogue, and final store.
+- For the dequant-clamp route, lower/upper splats must use the runtime
+  `lower_bound`/`upper_bound` ABI values, compare/select order must be
+  lower-then-upper, and the store must consume the final clamped f32 value
+  inside the consumer `with_vl`.
 - The handoff input must be the selected `standalone_reduce` i32 result; the
   reduction input must be the selected `widening_product` result.
 - The handoff must consume the same `!tcrv_rvv.vl` token as the producer
@@ -5612,9 +5631,10 @@ tcrv_rvv.widening_product
   facts.
 - The RVV schedule pass, selected-body realizer, construction protocol, route
   planner, provider family plan, and target artifact/header validation must all
-  agree on the four-op typed compute chain and producer/consumer scope facts.
-  Common EmitC must not infer or invent this handoff, scope pairing, region
-  order, or resource decision.
+  agree on the typed compute chain, producer/consumer scope facts, resource
+  selected candidate, and runtime ABI order. Common EmitC must not infer or
+  invent this handoff, scope pairing, region order, resource decision, or clamp
+  semantics.
 
 ### 4. Validation & Error Matrix
 
@@ -5631,6 +5651,10 @@ tcrv_rvv.widening_product
 - Marker count/order/phase/resource decision diverges from the handoff/resource
   facts -> fail closed; markers remain transitional evidence, not route
   authority.
+- Dequant-clamp route missing lower/upper bound roles, lower-then-upper
+  compare/select dataflow, dequant-store marker, clamp result store, or
+  `product-reduction-dequant-clamp-f32` resource candidate -> fail closed
+  before target artifact export.
 
 ### 5. Good/Base/Bad Cases
 
@@ -5638,10 +5662,17 @@ tcrv_rvv.widening_product
   selected-body realization emits producer/consumer `with_vl` scopes and
   handoff -> provider validates handoff, scope order, markers, and resource
   facts -> route plan/header export.
-- Base: dequant-clamp keeps its existing direct reduction-to-dequant epilogue
-  until a separate handoff contract is defined for that family.
+- Good: pre-realized or explicit product-reduce-dequant-clamp body -> Gearbox
+  resource pass -> selected-body realization emits producer/consumer `with_vl`
+  scopes and handoff -> consumer dequantizes the handoff result, performs
+  lower/upper compare/select clamp, and stores the clamped f32 value -> provider
+  validates handoff, scope, resource, clamp, and ABI facts -> route plan/header
+  export.
 - Bad: only `vsetvl_region_marker` or artifact metadata says two regions while
   `dequantize` directly consumes `standalone_reduce`; route support must fail.
+- Bad: dequant-clamp direct epilogue preserves
+  `standalone_reduce -> dequantize -> compare/select -> store` without a
+  handoff-consuming nested consumer `with_vl`; route support must fail.
 
 ### 6. Tests Required
 
@@ -5650,13 +5681,17 @@ tcrv_rvv.widening_product
 - Selected-body realization FileCheck showing
   `standalone_reduce -> gearbox_cross_region_handoff -> nested consumer with_vl
   -> dequantize -> store` with `runtime_abi:n` and matching marker phases.
+- Dequant-clamp selected-body realization FileCheck must additionally show
+  lower/upper splats, lower compare/select, upper compare/select, and final
+  clamped store inside the nested consumer `with_vl`.
 - Explicit already-realized fixture containing the same handoff as the authority
   for route planning.
 - Provider fail-closed evidence for missing handoff, stale dequantize consumer,
   stale scope facts, and stale realized region/resource facts after
   schedule/resource facts exist.
-- Header/artifact export evidence showing the four-op typed compute chain is
-  accepted by construction and target validation.
+- Header/artifact export evidence showing the four-op non-clamp typed compute
+  chain, or six-op dequant-clamp typed compute chain, is accepted by
+  construction and target validation.
 
 ### 7. Wrong vs Correct
 
@@ -5675,6 +5710,7 @@ standalone_reduce
   -> gearbox_cross_region_handoff(%reduced, %vl, %n)
   -> nested consumer with_vl(%vl)
        -> dequantize(%handoff, %scale, %vl)
+       -> optional clamp compare/select using lower_bound/upper_bound
        -> store
   -> provider validates handoff + scope + resource facts before route support
 ```

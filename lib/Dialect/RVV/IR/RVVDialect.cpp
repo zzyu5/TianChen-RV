@@ -11,6 +11,8 @@
 #include "mlir/IR/SymbolTable.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/raw_ostream.h"
@@ -336,7 +338,10 @@ bool isAllowedTypedWideningProductReduceDequantClampF32BodyAttr(
          name == kLowerPredicateKindAttrName ||
          name == kUpperPredicateKindAttrName || name == kBoundOrderAttrName ||
          name == kSelectLayoutAttrName ||
-         name == kDequantStoreBoundaryAttrName || name == kPolicyAttrName;
+         name == kDequantStoreBoundaryAttrName || name == kPolicyAttrName ||
+         tianchenrv::plugin::rvv::isRVVLowPrecisionResourceAttrName(name) ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxConsumerScopeAttrName;
 }
 
 bool isAllowedTypedRuntimeScalarComputedMaskStorePreRealizedBodyAttr(
@@ -4007,6 +4012,30 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
               tcrv::rvv::VSetVLRegionMarkerOp nestedSecondMarker;
               tcrv::rvv::DequantizeOp consumerDequantize;
               tcrv::rvv::StoreOp consumerStore;
+              auto valueUsesConsumerDequantize = [&](mlir::Value value) {
+                llvm::SmallVector<mlir::Value, 4> worklist{value};
+                llvm::SmallPtrSet<mlir::Value, 4> seen;
+                while (!worklist.empty()) {
+                  mlir::Value current = worklist.pop_back_val();
+                  if (!seen.insert(current).second)
+                    continue;
+                  if (auto dequantize =
+                          current.getDefiningOp<tcrv::rvv::DequantizeOp>()) {
+                    if (dequantize == consumerDequantize)
+                      return true;
+                    continue;
+                  }
+                  auto select =
+                      current.getDefiningOp<tcrv::rvv::SelectOp>();
+                  if (!select ||
+                      select->getParentOp() != consumerWithVL.getOperation() ||
+                      select.getVl() != getVl())
+                    continue;
+                  worklist.push_back(select.getTrueValue());
+                  worklist.push_back(select.getFalseValue());
+                }
+                return false;
+              };
               for (mlir::Operation &consumerNested :
                    consumerWithVL.getBody().front()) {
                 if (auto marker =
@@ -4031,7 +4060,7 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
                 if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(
                         consumerNested)) {
                   if (consumerDequantize &&
-                      store.getValue() == consumerDequantize.getResult() &&
+                      valueUsesConsumerDequantize(store.getValue()) &&
                       store.getVl() == getVl())
                     consumerStore = store;
                   continue;
@@ -7510,7 +7539,9 @@ verifyTypedWideningProductReduceDequantClampF32Body(BodyOp body,
              << kUpperPredicateKindAttrName << "', '" << kBoundOrderAttrName
              << "', '" << kSelectLayoutAttrName << "', '"
              << kDequantStoreBoundaryAttrName << "', and '" << kPolicyAttrName
-             << "'; unexpected attribute '" << attr.getName() << "'";
+             << "', plus RVV provider-owned low-precision resource and "
+                "Gearbox scope facts; unexpected attribute '"
+             << attr.getName() << "'";
   }
 
   if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))

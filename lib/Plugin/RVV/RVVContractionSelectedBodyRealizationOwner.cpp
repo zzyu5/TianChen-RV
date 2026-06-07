@@ -18,6 +18,17 @@ namespace tianchenrv::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceDequantClampCandidate(
+        "rvv-low-precision-direct-contraction-resource-candidate.v1["
+        "product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u1]");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceDequantClampSelectionReason(
+        "static-bounded-product-reduction-dequant-clamp-i8mf4-i16mf2-i32m1-"
+        "f32m1-runtime-avl");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceDequantClampRuntimeABIOrder(
+        "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n");
 
 llvm::Error makeRVVPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -149,12 +160,25 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
 
 llvm::Error materializeLowPrecisionResourceRealizationAttrs(
     mlir::OpBuilder &builder, mlir::Operation *source,
-    mlir::Operation *destination) {
+    mlir::Operation *destination, bool usesProductReductionDequantClamp) {
   if (!destination)
     return makeRVVPluginError(
         "pre-realized RVV contraction selected-body realization requires a "
         "realized with_vl operation before consuming low-precision resource "
         "facts");
+
+  const llvm::StringRef expectedSelectedCandidate =
+      usesProductReductionDequantClamp
+          ? kRVVLowPrecisionResourceDequantClampCandidate
+          : kRVVLowPrecisionResourceDequantCandidate;
+  const llvm::StringRef expectedSelectionReason =
+      usesProductReductionDequantClamp
+          ? kRVVLowPrecisionResourceDequantClampSelectionReason
+          : kRVVLowPrecisionResourceDequantSelectionReason;
+  const llvm::StringRef expectedRuntimeABIOrder =
+      usesProductReductionDequantClamp
+          ? kRVVLowPrecisionResourceDequantClampRuntimeABIOrder
+          : kRVVLowPrecisionResourceRuntimeABIOrder;
 
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceCandidateSetAttrName,
@@ -162,11 +186,11 @@ llvm::Error materializeLowPrecisionResourceRealizationAttrs(
     return error;
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceSelectedCandidateAttrName,
-          kRVVLowPrecisionResourceDequantCandidate))
+          expectedSelectedCandidate))
     return error;
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceSelectionReasonAttrName,
-          kRVVLowPrecisionResourceDequantSelectionReason))
+          expectedSelectionReason))
     return error;
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceLegalityScopeAttrName,
@@ -193,6 +217,10 @@ llvm::Error materializeLowPrecisionResourceRealizationAttrs(
     return error;
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVGearboxConsumerScopeAttrName, kRVVGearboxConsumerScope))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceRuntimeABIOrderAttrName,
+          expectedRuntimeABIOrder))
     return error;
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceLegalityAttrName,
@@ -793,18 +821,17 @@ realizePreRealizedRVVSelectedContractionFamily(
                            request.getRole(), requires, plan.resultSEW,
                            plan.resultLMUL, plan.policy);
   copyLowPrecisionResourceAttrs(plan.preRealizedBody, withVL.getOperation());
-  if (plan.usesProductReductionDequantization &&
-      !plan.usesProductReductionDequantClamp) {
+  if (plan.usesProductReductionDequantization) {
     if (llvm::Error error = materializeLowPrecisionResourceRealizationAttrs(
-            builder, plan.preRealizedBody, withVL.getOperation()))
+            builder, plan.preRealizedBody, withVL.getOperation(),
+            plan.usesProductReductionDequantClamp))
       return std::move(error);
   }
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
   mlir::Value compareLHSValue;
   mlir::Value compareRHSValue;
-  if (plan.usesProductReductionDequantization &&
-      !plan.usesProductReductionDequantClamp)
+  if (plan.usesProductReductionDequantization)
     createRealizedVSetVLRegionMarker(
         builder, loc, setvl.getVl(), "load-product-reduce", 1,
         kRVVLowPrecisionResourceVSetVLRegions);
@@ -861,25 +888,24 @@ realizePreRealizedRVVSelectedContractionFamily(
             plan.resultLMUL));
     mlir::Value dequantSource = reduced.getResult();
     tcrv::rvv::WithVLOp consumerWithVL;
-    if (!plan.usesProductReductionDequantClamp) {
-      auto handoff = llvm::cast<tcrv::rvv::GearboxCrossRegionHandoffOp>(
-          createRealizedGearboxCrossRegionHandoff(
-              builder, loc, reduced.getResult(), setvl.getVl(), plan.n));
-      dequantSource = handoff.getOutput();
-      consumerWithVL =
-          createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                               request.getRole(), requires, plan.resultSEW,
-                               plan.resultLMUL, plan.policy);
-      copyLowPrecisionResourceAttrs(plan.preRealizedBody,
-                                    consumerWithVL.getOperation());
-      if (llvm::Error error = materializeLowPrecisionResourceRealizationAttrs(
-              builder, plan.preRealizedBody, consumerWithVL.getOperation()))
-        return std::move(error);
-      builder.setInsertionPointToStart(&consumerWithVL.getBody().front());
-      createRealizedVSetVLRegionMarker(
-          builder, loc, setvl.getVl(), "dequant-store", 2,
-          kRVVLowPrecisionResourceVSetVLRegions);
-    }
+    auto handoff = llvm::cast<tcrv::rvv::GearboxCrossRegionHandoffOp>(
+        createRealizedGearboxCrossRegionHandoff(
+            builder, loc, reduced.getResult(), setvl.getVl(), plan.n));
+    dequantSource = handoff.getOutput();
+    consumerWithVL =
+        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                             request.getRole(), requires, plan.resultSEW,
+                             plan.resultLMUL, plan.policy);
+    copyLowPrecisionResourceAttrs(plan.preRealizedBody,
+                                  consumerWithVL.getOperation());
+    if (llvm::Error error = materializeLowPrecisionResourceRealizationAttrs(
+            builder, plan.preRealizedBody, consumerWithVL.getOperation(),
+            plan.usesProductReductionDequantClamp))
+      return std::move(error);
+    builder.setInsertionPointToStart(&consumerWithVL.getBody().front());
+    createRealizedVSetVLRegionMarker(builder, loc, setvl.getVl(),
+                                     "dequant-store", 2,
+                                     kRVVLowPrecisionResourceVSetVLRegions);
     auto dequantized = llvm::cast<tcrv::rvv::DequantizeOp>(
         createRealizedGenericDequantizeCompute(
             builder, loc, plan.dequantizationRelation, dequantSource,

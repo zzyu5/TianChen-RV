@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain and Stage2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned Gearbox handoff, dequant-clamp, selected-body realization, provider, ABI, and ssh rvv evidence contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and Common EmitC neutrality contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit, C++ binary, generated-bundle, and ssh rvv evidence requirements."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Evidence posture for real RVV hardware correctness claims."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Stage2 selected-body realization and Gearbox/resource-aware realization scope."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability/runtime/toolchain facts must constrain provider routes without becoming route authority."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep RVV-specific route, clamp, handoff, ABI, and target validation logic plugin-local."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Prevent Common EmitC, tcrv.exec, descriptors, or artifact metadata from owning compute semantics."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-gearbox-true-multi-with-vl-executable-artifact-abi-boundary/prd.md", "reason": "Previous non-clamp executable Gearbox ABI boundary and evidence scope."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-gearbox-true-multi-with-vl-executable-artifact-abi-boundary/implement.jsonl", "reason": "Previous implementation context for generated bundle ABI evidence hardening."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-gearbox-true-multi-with-vl-executable-artifact-abi-boundary/check.jsonl", "reason": "Previous check context and ssh rvv evidence expectations to preserve."}

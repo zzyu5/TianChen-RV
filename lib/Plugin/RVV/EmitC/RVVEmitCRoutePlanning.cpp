@@ -16,6 +16,7 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -17458,6 +17459,36 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
       !producerWithVL->isProperAncestor(candidate.getOperation()))
     return false;
 
+  auto isHandoffConsumingDequantize = [&](tcrv::rvv::DequantizeOp dequantize) {
+    auto handoff = dequantize.getSource()
+                       .getDefiningOp<tcrv::rvv::GearboxCrossRegionHandoffOp>();
+    return handoff && handoff->getParentOp() == producerWithVL.getOperation() &&
+           dequantize->getParentOp() == candidate.getOperation() &&
+           dequantize.getVl() == producerWithVL.getVl();
+  };
+
+  auto valueUsesHandoffDequantize = [&](mlir::Value value) {
+    llvm::SmallVector<mlir::Value, 4> worklist{value};
+    llvm::SmallPtrSet<mlir::Value, 4> seen;
+    while (!worklist.empty()) {
+      mlir::Value current = worklist.pop_back_val();
+      if (!seen.insert(current).second)
+        continue;
+      if (auto dequantize = current.getDefiningOp<tcrv::rvv::DequantizeOp>()) {
+        if (isHandoffConsumingDequantize(dequantize))
+          return true;
+        continue;
+      }
+      auto select = current.getDefiningOp<tcrv::rvv::SelectOp>();
+      if (!select || select->getParentOp() != candidate.getOperation() ||
+          select.getVl() != producerWithVL.getVl())
+        continue;
+      worklist.push_back(select.getTrueValue());
+      worklist.push_back(select.getFalseValue());
+    }
+    return false;
+  };
+
   bool hasRegionMarker = false;
   bool hasHandoffDequantize = false;
   bool hasStore = false;
@@ -17474,19 +17505,13 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
       continue;
     }
     if (auto dequantize = llvm::dyn_cast<tcrv::rvv::DequantizeOp>(op)) {
-      auto handoff = dequantize.getSource()
-                         .getDefiningOp<tcrv::rvv::GearboxCrossRegionHandoffOp>();
-      if (handoff && handoff->getParentOp() == producerWithVL.getOperation() &&
-          dequantize.getVl() == producerWithVL.getVl())
+      if (isHandoffConsumingDequantize(dequantize))
         hasHandoffDequantize = true;
       continue;
     }
     if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(op)) {
-      auto dequantize =
-          store.getValue().getDefiningOp<tcrv::rvv::DequantizeOp>();
       if (store.getVl() == producerWithVL.getVl() &&
-          dequantize &&
-          dequantize->getParentOp() == candidate.getOperation())
+          valueUsesHandoffDequantize(store.getValue()))
         hasStore = true;
       continue;
     }
@@ -19438,6 +19463,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
   const bool isWideningProductReductionChain =
       isWideningProductReduceAdd || isWideningProductReduceDequantize ||
       isWideningProductReduceDequantClamp;
+  const bool isWideningProductReduceDequantGearboxRoute =
+      isWideningProductReduceDequantize ||
+      isWideningProductReduceDequantClamp;
   const bool isWideningDotReduceAdd =
       slice.arithmeticOp &&
       slice.arithmeticKind ==
@@ -19573,32 +19601,36 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     slice.arithmeticResult = splat.getBroadcast();
   }
   if (!slice.vsetvlRegionMarkers.empty() &&
-      !isWideningProductReduceDequantize)
+      !isWideningProductReduceDequantGearboxRoute)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route accepts tcrv_rvv.vsetvl_region_marker only "
-        "for low-precision product-reduction dequantization selected-body "
-        "realization");
+        "for low-precision product-reduction dequantization/dequant-clamp "
+        "selected-body realization");
   if (slice.gearboxCrossRegionHandoffOp &&
-      !isWideningProductReduceDequantize)
+      !isWideningProductReduceDequantGearboxRoute)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route accepts "
         "tcrv_rvv.gearbox_cross_region_handoff only for low-precision "
-        "product-reduction dequantization selected-body realization");
-  if (isWideningProductReduceDequantize &&
+        "product-reduction dequantization/dequant-clamp selected-body "
+        "realization");
+  if (isWideningProductReduceDequantGearboxRoute &&
       !slice.gearboxCrossRegionHandoffOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires "
         "tcrv_rvv.gearbox_cross_region_handoff for low-precision "
-        "product-reduction dequantization selected-body realization");
-  if (isWideningProductReduceDequantize && !slice.gearboxConsumerWithVL)
+        "product-reduction dequantization/dequant-clamp selected-body "
+        "realization");
+  if (isWideningProductReduceDequantGearboxRoute && !slice.gearboxConsumerWithVL)
     return makeRVVEmitCRouteProviderError(
-        "bounded Gearbox product-reduction dequantization RVV route requires "
-        "true multi-with_vl producer/consumer scope collection; a single "
-        "tcrv_rvv.with_vl marker mirror is not route authority");
-  if (slice.gearboxConsumerWithVL && !isWideningProductReduceDequantize)
+        "bounded Gearbox product-reduction dequantization/dequant-clamp RVV "
+        "route requires true multi-with_vl producer/consumer scope "
+        "collection; a single tcrv_rvv.with_vl marker mirror is not route "
+        "authority");
+  if (slice.gearboxConsumerWithVL && !isWideningProductReduceDequantGearboxRoute)
     return makeRVVEmitCRouteProviderError(
         "bounded Gearbox multi-with_vl RVV route collection is currently "
-        "supported only for low-precision product-reduction dequantization");
+        "supported only for low-precision product-reduction dequantization/"
+        "dequant-clamp");
   if (hasIndexedMemory && isIndexedGatherUnitStore &&
       (!genericStridedLoads.empty() || stridedStoreCount != 0 ||
        !genericLoads.empty() || !genericBroadcastLoads.empty() ||
@@ -20775,7 +20807,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       : isWideningDotReduceAdd
           ? 11
       : isWideningProductReduceDequantClamp
-          ? 22
+          ? 23
       : isWideningProductReduceDequantize
           ? 15
       : isWideningProductReductionChain
@@ -22524,7 +22556,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision product-reduction "
           "dequantization route requires a tcrv_rvv.dequantize consumer");
-    if (isWideningProductReduceDequantize &&
+    if (hasProductReductionDequantization &&
         !slice.gearboxCrossRegionHandoffOp)
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision product-reduction "
@@ -22558,13 +22590,11 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
             slice.wideningProductOp.getResult() ||
         slice.arithmeticAccumulator != slice.accumulatorBuffer ||
         slice.storeValue != expectedProductReductionStoreValue ||
-        (isWideningProductReduceDequantize &&
+        (hasProductReductionDequantization &&
          (slice.gearboxCrossRegionHandoffOp.getInput() !=
               slice.standaloneReduceOp.getResult() ||
           slice.gearboxCrossRegionHandoffOp.getOutput() !=
-              slice.dequantizeOp.getSource())) ||
-        (isWideningProductReduceDequantClamp &&
-         slice.dequantizeOp.getSource() != slice.standaloneReduceOp.getResult()))
+              slice.dequantizeOp.getSource())))
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision product-reduction route requires "
           "tcrv_rvv.widening_product to consume lhs/rhs i8 source loads, "
@@ -22609,7 +22639,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "runtime ABI boundary");
     if (slice.wideningProductOp.getVl() != slice.setvl.getVl() ||
         slice.standaloneReduceOp.getVl() != slice.setvl.getVl() ||
-        (isWideningProductReduceDequantize &&
+        (hasProductReductionDequantization &&
          slice.gearboxCrossRegionHandoffOp.getVl() != slice.setvl.getVl()) ||
         (hasProductReductionDequantization &&
          slice.dequantizeOp.getVl() != slice.setvl.getVl()) ||
@@ -22628,7 +22658,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "source loads, widening_product, standalone_reduce, optional "
           "gearbox_cross_region_handoff, dequantize, and store to consume "
           "the selected !tcrv_rvv.vl token");
-    if (isWideningProductReduceDequantize &&
+    if (hasProductReductionDequantization &&
         slice.gearboxCrossRegionHandoffOp.getRuntimeAvl() !=
             slice.setvl.getAvl())
       return makeRVVEmitCRouteProviderError(
@@ -24060,27 +24090,33 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
       return 12;
     if (op == slice.standaloneReduceOp.getOperation())
       return 13;
-    if (slice.dequantizeOp && op == slice.dequantizeOp.getOperation())
+    if (slice.gearboxCrossRegionHandoffOp &&
+        op == slice.gearboxCrossRegionHandoffOp.getOperation())
       return 14;
+    if (slice.gearboxConsumerWithVL &&
+        op == slice.gearboxConsumerWithVL.getOperation())
+      return 15;
+    if (slice.dequantizeOp && op == slice.dequantizeOp.getOperation())
+      return 16;
     if (slice.lowerBoundScalarSplat &&
         op == slice.lowerBoundScalarSplat.getOperation())
-      return 15;
+      return 17;
     if (slice.upperBoundScalarSplat &&
         op == slice.upperBoundScalarSplat.getOperation())
-      return 16;
-    if (op == slice.compareOp.getOperation())
-      return 17;
-    if (slice.selectOp && op == slice.selectOp.getOperation())
       return 18;
+    if (op == slice.compareOp.getOperation())
+      return 19;
+    if (slice.selectOp && op == slice.selectOp.getOperation())
+      return 20;
     if (slice.secondaryCompareOp &&
         op == slice.secondaryCompareOp.getOperation())
-      return 19;
+      return 21;
     if (slice.secondarySelectOp &&
         op == slice.secondarySelectOp.getOperation())
-      return 20;
+      return 22;
     if (op == slice.storeOperation)
-      return 21;
-    return 22;
+      return 23;
+    return 24;
   }
   if (isWideningProductReduce) {
     if (rhsABI && op == rhsABI.getOperation())

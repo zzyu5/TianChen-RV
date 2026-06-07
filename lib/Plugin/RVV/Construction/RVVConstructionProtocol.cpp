@@ -554,7 +554,8 @@ const RVVSelectedBodyConstructionRoute kRetainedSelectedBodySpecializations[] = 
      "rvv-generic-widening-product-reduce-dequantize-f32-callable-c-abi"},
     {"widening_product_reduce_dequant_clamp_f32",
      "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
-     "tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select",
+     "tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+"
+     "tcrv_rvv.compare+tcrv_rvv.select",
      "rvv.role.compute.generic_vector",
      "rvv-generic-widening-product-reduce-dequant-clamp-f32-emitc-route",
      "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1",
@@ -1302,12 +1303,14 @@ buildRVVSelectedBodyExecutableRoleSteps(
   if (isWideningProductReduceDequantClampF32 &&
       typedComputeOpName != "tcrv_rvv.widening_product+"
                             "tcrv_rvv.standalone_reduce+"
+                            "tcrv_rvv.gearbox_cross_region_handoff+"
                             "tcrv_rvv.dequantize+tcrv_rvv.compare+"
                             "tcrv_rvv.select")
     return makeRVVConstructionError(
         "RVV low-precision widening product-reduction dequant-clamp "
         "construction requires generic tcrv_rvv.widening_product followed by "
-        "tcrv_rvv.standalone_reduce, tcrv_rvv.dequantize, "
+        "tcrv_rvv.standalone_reduce, "
+        "tcrv_rvv.gearbox_cross_region_handoff, tcrv_rvv.dequantize, "
         "tcrv_rvv.compare, and tcrv_rvv.select");
   if ((isWideningDotReduceAdd || isStridedInputWideningDotReduceAdd) &&
       typedComputeOpName != "tcrv_rvv.widening_dot_reduce")
@@ -2862,32 +2865,39 @@ buildRVVSelectedBodyExecutableRoleSteps(
                      route->typedRoleID, "TCRVComputeOpInterface",
                      "TCRVEmitCLowerableInterface",
                      "widening_product_reduce", 13});
+    steps.push_back({"compute", "tcrv_rvv.gearbox_cross_region_handoff",
+                     route->typedRoleID, "TCRVComputeOpInterface",
+                     "TCRVEmitCLowerableInterface",
+                     "gearbox_cross_region_handoff", 14});
+    steps.push_back({"scope", "tcrv_rvv.with_vl",
+                     "rvv.role.scope.with_vl", "TCRVConfigOpInterface",
+                     "TCRVEmitCLowerableInterface", "consumer_with_vl", 15});
     steps.push_back({"compute", "tcrv_rvv.dequantize", route->typedRoleID,
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
-                     "dequantize", 14});
+                     "dequantize", 16});
     steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                     "lower_bound_splat", 15});
+                     "lower_bound_splat", 17});
     steps.push_back({"load", "tcrv_rvv.splat", "rvv.role.load.generic_load",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                     "upper_bound_splat", 16});
+                     "upper_bound_splat", 18});
     steps.push_back({"compute", "tcrv_rvv.compare",
                      "rvv.role.compute.generic_vector",
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
-                     "lower_compare", 17});
+                     "lower_compare", 19});
     steps.push_back({"compute", "tcrv_rvv.select", route->typedRoleID,
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
-                     "lower_select", 18});
+                     "lower_select", 20});
     steps.push_back({"compute", "tcrv_rvv.compare",
                      "rvv.role.compute.generic_vector",
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
-                     "upper_compare", 19});
+                     "upper_compare", 21});
     steps.push_back({"compute", "tcrv_rvv.select", route->typedRoleID,
                      "TCRVComputeOpInterface", "TCRVEmitCLowerableInterface",
-                     "upper_select", 20});
+                     "upper_select", 22});
     steps.push_back({"store", "tcrv_rvv.store", "rvv.role.store.generic_store",
                      "TCRVMemoryOpInterface", "TCRVEmitCLowerableInterface",
-                     "store", 21});
+                     "store", 23});
     return steps;
   }
   if (isWideningProductReduceAdd) {

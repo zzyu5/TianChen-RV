@@ -618,6 +618,11 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_TYPED_COMPUTE_OP = (
     "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
     "tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize"
 )
+WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_TYPED_COMPUTE_OP = (
+    "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
+    "tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+"
+    "tcrv_rvv.compare+tcrv_rvv.select"
+)
 WIDENING_PRODUCT_RELATION_I8_I16 = "signed-i8mf4xi8mf4-to-i16mf2"
 WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT = (
     "scalar-i32-seed-lane0-from-accumulator-input"
@@ -647,8 +652,16 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE = (
     "rvv-low-precision-direct-contraction-resource-candidate.v1"
     "[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"
 )
+WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTED_CANDIDATE = (
+    "rvv-low-precision-direct-contraction-resource-candidate.v1"
+    "[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"
+)
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON = (
     "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-runtime-avl"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON = (
+    "static-bounded-product-reduction-dequant-clamp-i8mf4-i16mf2-i32m1-"
+    "f32m1-runtime-avl"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE = (
     "typed-low-precision-product-reduction-dequant-resource-legality.v1"
@@ -658,6 +671,9 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION = (
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM = (
     "unit-stride-widening-product-reduce-dequantize-f32"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_MEMORY_FORM = (
+    "unit-stride-widening-product-reduce-dequant-clamp-f32"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_SCOPE = (
     "gearbox-scope:product-reduction"
@@ -4308,10 +4324,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         emitc_route=(
             "rvv-generic-widening-product-reduce-dequant-clamp-f32-emitc-route"
         ),
-        typed_compute_op=(
-            "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
-            "tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
-        ),
+        typed_compute_op=WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_TYPED_COMPUTE_OP,
         memory_form="unit-stride-widening-product-reduce-dequant-clamp-f32",
         lhs_initializer=(
             "(int8_t)(((index % 4) < 2) ? -((int)(index % 47) + 12) "
@@ -6387,10 +6400,7 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         emitc_route=(
             "rvv-generic-widening-product-reduce-dequant-clamp-f32-emitc-route"
         ),
-        typed_compute_op=(
-            "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+"
-            "tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
-        ),
+        typed_compute_op=WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_TYPED_COMPUTE_OP,
         memory_form="unit-stride-widening-product-reduce-dequant-clamp-f32",
         expected_expression=(
             "scaled < lower_bound ? lower_bound : "
@@ -11428,17 +11438,38 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.dequant_scale_name": "scale",
             }
         )
-    if expectation.is_widening_product_reduce_dequantize_f32:
+    if (
+        expectation.is_widening_product_reduce_dequantize_f32
+        or expectation.is_widening_product_reduce_dequant_clamp_f32
+    ):
+        is_product_dequant_clamp = (
+            expectation.is_widening_product_reduce_dequant_clamp_f32
+        )
+        expected_resource_selected_candidate = (
+            WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTED_CANDIDATE
+            if is_product_dequant_clamp
+            else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
+        )
+        expected_resource_selection_reason = (
+            WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON
+            if is_product_dequant_clamp
+            else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
+        )
+        expected_resource_memory_form = (
+            WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_MEMORY_FORM
+            if is_product_dequant_clamp
+            else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
+        )
         per_op_metadata.update(
             {
                 "tcrv_rvv.low_precision_resource.candidate_set": (
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
                 ),
                 "tcrv_rvv.low_precision_resource.selected_candidate": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
+                    expected_resource_selected_candidate
                 ),
                 "tcrv_rvv.low_precision_resource.selection_reason": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
+                    expected_resource_selection_reason
                 ),
                 "tcrv_rvv.low_precision_resource.legality_scope": (
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE
@@ -11458,7 +11489,7 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.low_precision_resource.result_sew": "32",
                 "tcrv_rvv.low_precision_resource.result_lmul": "m1",
                 "tcrv_rvv.low_precision_resource.memory_form": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
+                    expected_resource_memory_form
                 ),
                 "tcrv_rvv.low_precision_resource.tail_policy": "agnostic",
                 "tcrv_rvv.low_precision_resource.mask_policy": "agnostic",
@@ -16384,6 +16415,24 @@ def verify_materialized_selected_body(
             expectation.is_widening_product_reduce_dequantize_f32
             or expectation.is_widening_product_reduce_dequant_clamp_f32
         ):
+            is_product_dequant_clamp = (
+                expectation.is_widening_product_reduce_dequant_clamp_f32
+            )
+            expected_resource_selected_candidate = (
+                WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTED_CANDIDATE
+                if is_product_dequant_clamp
+                else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
+            )
+            expected_resource_selection_reason = (
+                WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON
+                if is_product_dequant_clamp
+                else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
+            )
+            expected_resource_memory_form = (
+                WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_MEMORY_FORM
+                if is_product_dequant_clamp
+                else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
+            )
             require_contains(
                 text,
                 "tcrv_rvv.gearbox_cross_region_handoff",
@@ -16456,12 +16505,12 @@ def verify_materialized_selected_body(
             )
             require_contains(
                 text,
-                f'tcrv_rvv.low_precision_resource.selected_candidate = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE}"',
+                f'tcrv_rvv.low_precision_resource.selected_candidate = "{expected_resource_selected_candidate}"',
                 "materialized selected-body MLIR low-precision selected candidate",
             )
             require_contains(
                 text,
-                f'tcrv_rvv.low_precision_resource.selection_reason = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON}"',
+                f'tcrv_rvv.low_precision_resource.selection_reason = "{expected_resource_selection_reason}"',
                 "materialized selected-body MLIR low-precision selection reason",
             )
             require_contains(
@@ -16471,7 +16520,7 @@ def verify_materialized_selected_body(
             )
             require_contains(
                 text,
-                f'tcrv_rvv.low_precision_resource.memory_form = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM}"',
+                f'tcrv_rvv.low_precision_resource.memory_form = "{expected_resource_memory_form}"',
                 "materialized selected-body MLIR low-precision memory form",
             )
             require_contains(
@@ -16515,16 +16564,16 @@ def verify_materialized_selected_body(
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
                 ),
                 "selected_candidate": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
+                    expected_resource_selected_candidate
                 ),
                 "selection_reason": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
+                    expected_resource_selection_reason
                 ),
                 "legality_scope": (
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE
                 ),
                 "memory_form": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
+                    expected_resource_memory_form
                 ),
                 "vsetvl_region_count": 2,
                 "peak_live_vector_groups": 4,
@@ -28125,7 +28174,10 @@ def generate_bundle(
             materialize_command.append(
                 "--tcrv-rvv-materialize-vector-binary-source-front-door"
             )
-    if expectation.is_widening_product_reduce_dequantize_f32:
+    if (
+        expectation.is_widening_product_reduce_dequantize_f32
+        or expectation.is_widening_product_reduce_dequant_clamp_f32
+    ):
         materialize_command.append("--tcrv-rvv-materialize-gearbox-schedules")
     if expectation.requires_selected_lowering_boundary_materialization:
         materialize_command.append("--tcrv-materialize-selected-lowering-boundaries")
@@ -32480,7 +32532,22 @@ def widening_product_reduction_boundary_summary(
             "scale_c_type": "float",
             "scale_name": "scale",
         }
-    if is_dequant:
+    expected_resource_selected_candidate = (
+        WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTED_CANDIDATE
+        if is_dequant_clamp
+        else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
+    )
+    expected_resource_selection_reason = (
+        WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON
+        if is_dequant_clamp
+        else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
+    )
+    expected_resource_memory_form = (
+        WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_MEMORY_FORM
+        if is_dequant_clamp
+        else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
+    )
+    if is_dequant or is_dequant_clamp:
         provider_route_facts["gearbox_cross_region_handoff"] = {
             "op": "tcrv_rvv.gearbox_cross_region_handoff",
             "contract": (
@@ -32515,9 +32582,11 @@ def widening_product_reduction_boundary_summary(
             "selected_candidate": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.selected_candidate"
             ),
+            "expected_selected_candidate": expected_resource_selected_candidate,
             "selection_reason": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.selection_reason"
             ),
+            "expected_selection_reason": expected_resource_selection_reason,
             "legality_scope": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.legality_scope"
             ),
@@ -32536,6 +32605,7 @@ def widening_product_reduction_boundary_summary(
             "memory_form": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.memory_form"
             ),
+            "expected_memory_form": expected_resource_memory_form,
             "vsetvl_region_count": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.vsetvl_region_count"
             ),
@@ -32718,21 +32788,28 @@ def widening_product_reduction_boundary_summary(
         "mirror-only candidate metadata",
         "stale dot or non-family fact rejection",
     ]
-    if is_dequant:
+    if is_dequant or is_dequant_clamp:
+        header_object_abi_fact = (
+            "generated header/object ABI agreement for "
+            "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
+            if is_dequant_clamp
+            else "generated header/object ABI agreement for lhs,rhs,acc,scale,out,n"
+        )
         target_validator_consumed_facts.extend(
             [
                 "Gearbox producer and nested consumer with_vl scopes",
                 "Gearbox cross-region handoff contract and VL/AVL source",
                 "low-precision resource selection and two-vsetvl-region budget",
                 "dequant-store consumer marker and post-loop f32 store ABI",
-                "generated header/object ABI agreement for lhs,rhs,acc,scale,out,n",
+                header_object_abi_fact,
             ]
         )
     return {
         "source": (
-            "typed tcrv_rvv.widening_product + standalone_reduce + dequantize "
-            "+ compare/select body/config/runtime-scale/runtime-bound facts -> "
-            "contraction, dequantization, and clamp route-family plans -> "
+            "typed tcrv_rvv.widening_product + standalone_reduce + Gearbox "
+            "cross-region handoff + dequantize + compare/select body/config/"
+            "runtime-scale/runtime-bound facts -> contraction, dequantization, "
+            "resource, multi-with_vl handoff, and clamp route-family plans -> "
             "target-owned product-reduction/dequant-clamp validator -> neutral "
             "EmitC materializer -> generated RVV C artifact"
             if is_dequant_clamp
@@ -35716,6 +35793,30 @@ def run_self_test() -> int:
                     if is_product_dequant_clamp
                     else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_C_TYPE_MAPPING
                 )
+                expected_resource_selected_candidate = (
+                    WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTED_CANDIDATE
+                    if is_product_dequant_clamp
+                    else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
+                )
+                expected_resource_selection_reason = (
+                    WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON
+                    if is_product_dequant_clamp
+                    else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
+                )
+                expected_resource_memory_form = (
+                    WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_MEMORY_FORM
+                    if is_product_dequant_clamp
+                    else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
+                )
+                expected_header_object_abi_fact = (
+                    "generated header/object ABI agreement for "
+                    "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
+                    if is_product_dequant_clamp
+                    else (
+                        "generated header/object ABI agreement for "
+                        "lhs,rhs,acc,scale,out,n"
+                    )
+                )
                 product_dequant_metadata = (
                     widening_product_reduction_metadata_from_bundle(
                         bundle_checks, expectation
@@ -35767,7 +35868,7 @@ def run_self_test() -> int:
                     product_dequant_metadata.get(
                         "tcrv_rvv.low_precision_resource.selected_candidate"
                     )
-                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
+                    != expected_resource_selected_candidate
                     or product_dequant_metadata.get(
                         "tcrv_rvv.gearbox.producer_scope"
                     )
@@ -35779,13 +35880,13 @@ def run_self_test() -> int:
                     or low_precision_resource.get("candidate_set")
                     != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
                     or low_precision_resource.get("selected_candidate")
-                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
+                    != expected_resource_selected_candidate
                     or low_precision_resource.get("selection_reason")
-                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
+                    != expected_resource_selection_reason
                     or low_precision_resource.get("legality_scope")
                     != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE
                     or low_precision_resource.get("memory_form")
-                    != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
+                    != expected_resource_memory_form
                     or low_precision_resource.get("vsetvl_region_count") != "2"
                     or low_precision_resource.get("runtime_avl_source")
                     != "runtime_abi:n"
@@ -35803,10 +35904,7 @@ def run_self_test() -> int:
                         "Gearbox producer and nested consumer with_vl scopes"
                         not in target_consumed
                     )
-                    or (
-                        "generated header/object ABI agreement for lhs,rhs,acc,scale,out,n"
-                        not in target_consumed
-                    )
+                    or expected_header_object_abi_fact not in target_consumed
                 )
                 if (
                     product_dequant_metadata.get(
@@ -35821,10 +35919,7 @@ def run_self_test() -> int:
                         "tcrv_rvv.scalar_result_runtime_boundary"
                     )
                     != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY
-                    or (
-                        not is_product_dequant_clamp
-                        and gearbox_boundary_lost
-                    )
+                    or gearbox_boundary_lost
                     or dequant_metadata.get("tcrv_rvv.dequantization_relation")
                     != DEQUANTIZE_I32_TO_F32_RELATION
                     or dequant_metadata.get("tcrv_rvv.dequantize_scale_intrinsic")

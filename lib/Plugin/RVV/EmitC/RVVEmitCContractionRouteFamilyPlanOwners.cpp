@@ -2067,7 +2067,7 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
   facts.contractionRouteFamilyPlanID = kRVVContractionRouteFamilyPlanID;
   facts.typedComputeOpName =
       isProductReductionDequantClamp
-          ? "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
+          ? "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
       : isProductReductionDequantization
           ? "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize"
       : isProductReductionChain
@@ -5812,8 +5812,7 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
       return makeRVVEmitCRouteProviderError(
           "product-reduction dequantization contraction route-family plan "
           "requires tcrv_rvv.dequantize in the selected RVV body");
-    if (operation == RVVSelectedBodyOperationKind::
-                         WideningProductReduceDequantizeF32 &&
+    if (isProductReductionDequantization &&
         (!analysis.slice.gearboxCrossRegionHandoffOp ||
          analysis.slice.gearboxCrossRegionHandoffOp.getInput() !=
              analysis.slice.standaloneReduceOp.getResult() ||
@@ -5829,13 +5828,6 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
           "forward the selected standalone_reduce result, bind the selected "
           "with_vl token, and consume the selected runtime n/AVL SSA value "
           "before tcrv_rvv.dequantize");
-    if (isProductReductionDequantClamp &&
-        analysis.slice.dequantizeOp.getSource() !=
-            analysis.slice.standaloneReduceOp.getResult())
-      return makeRVVEmitCRouteProviderError(
-          "product-reduction dequant-clamp contraction route-family plan "
-          "requires tcrv_rvv.dequantize to consume the selected i32 "
-          "standalone_reduce result");
     if (isProductReductionDequantization &&
         analysis.slice.dequantScaleABI.role !=
             support::RuntimeABIParameterRole::DequantScaleValue)

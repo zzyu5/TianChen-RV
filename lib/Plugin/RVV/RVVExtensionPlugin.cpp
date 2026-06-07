@@ -21,6 +21,8 @@
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/raw_ostream.h"
@@ -96,6 +98,36 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
       !producerWithVL->isProperAncestor(candidate.getOperation()))
     return false;
 
+  auto isHandoffConsumingDequantize = [&](tcrv::rvv::DequantizeOp dequantize) {
+    auto handoff = dequantize.getSource()
+                       .getDefiningOp<tcrv::rvv::GearboxCrossRegionHandoffOp>();
+    return handoff && handoff->getParentOp() == producerWithVL.getOperation() &&
+           dequantize->getParentOp() == candidate.getOperation() &&
+           dequantize.getVl() == producerWithVL.getVl();
+  };
+
+  auto valueUsesHandoffDequantize = [&](mlir::Value value) {
+    llvm::SmallVector<mlir::Value, 4> worklist{value};
+    llvm::SmallPtrSet<mlir::Value, 4> seen;
+    while (!worklist.empty()) {
+      mlir::Value current = worklist.pop_back_val();
+      if (!seen.insert(current).second)
+        continue;
+      if (auto dequantize = current.getDefiningOp<tcrv::rvv::DequantizeOp>()) {
+        if (isHandoffConsumingDequantize(dequantize))
+          return true;
+        continue;
+      }
+      auto select = current.getDefiningOp<tcrv::rvv::SelectOp>();
+      if (!select || select->getParentOp() != candidate.getOperation() ||
+          select.getVl() != producerWithVL.getVl())
+        continue;
+      worklist.push_back(select.getTrueValue());
+      worklist.push_back(select.getFalseValue());
+    }
+    return false;
+  };
+
   bool hasRegionMarker = false;
   bool hasHandoffDequantize = false;
   bool hasStore = false;
@@ -111,18 +143,13 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
       continue;
     }
     if (auto dequantize = llvm::dyn_cast<tcrv::rvv::DequantizeOp>(op)) {
-      auto handoff = dequantize.getSource()
-                         .getDefiningOp<tcrv::rvv::GearboxCrossRegionHandoffOp>();
-      if (handoff && handoff->getParentOp() == producerWithVL.getOperation() &&
-          dequantize.getVl() == producerWithVL.getVl())
+      if (isHandoffConsumingDequantize(dequantize))
         hasHandoffDequantize = true;
       continue;
     }
     if (auto store = llvm::dyn_cast<tcrv::rvv::StoreOp>(op)) {
-      auto dequantize =
-          store.getValue().getDefiningOp<tcrv::rvv::DequantizeOp>();
-      if (store.getVl() == producerWithVL.getVl() && dequantize &&
-          dequantize->getParentOp() == candidate.getOperation())
+      if (store.getVl() == producerWithVL.getVl() &&
+          valueUsesHandoffDequantize(store.getValue()))
         hasStore = true;
       continue;
     }
