@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture invariants, RVV stage ordering, and source-of-truth rules"}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "RVV plugin classification, locality, and typed-body route authority checklist"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Bounded vector binary and compare/select source-front-door contracts plus owner registry dispatch constraints"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute boundary"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit, generated-bundle, C++ test, and ssh rvv evidence policy"}

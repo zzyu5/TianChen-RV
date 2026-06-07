@@ -14,10 +14,12 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Pass/Pass.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/ErrorHandling.h"
 
 #include <cctype>
 #include <memory>
@@ -76,6 +78,107 @@ mlir::LogicalResult failVectorCompareSelectMaterializer(mlir::Operation *op,
       << "bounded RVV vector-compare-select source front door failed: "
       << message;
   return mlir::failure();
+}
+
+mlir::LogicalResult
+failVectorSourceFrontDoorFamilyRegistry(mlir::Operation *op,
+                                        llvm::Twine message) {
+  op->emitError() << "RVV vector source-front-door family registry failed: "
+                  << message;
+  return mlir::failure();
+}
+
+enum class RVVVectorSourceFrontDoorFamilyID { Binary, CompareSelect };
+
+using RVVVectorSourceFrontDoorFailFn =
+    mlir::LogicalResult (*)(mlir::Operation *, llvm::Twine);
+
+struct RVVVectorSourceFrontDoorFamilyDescriptor {
+  RVVVectorSourceFrontDoorFamilyID id;
+  llvm::StringLiteral familyName;
+  llvm::StringLiteral markerValue;
+  llvm::StringLiteral passArgument;
+  llvm::StringLiteral passDescription;
+  llvm::StringLiteral sourceFunctionCandidateDescription;
+  llvm::StringLiteral selectedVariantPrefix;
+  llvm::StringLiteral runtimePurposePrefix;
+  llvm::StringLiteral dispatchPolicy;
+  SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy
+      defaultArtifactPolicy;
+  RVVVectorSourceFrontDoorFailFn fail;
+};
+
+llvm::ArrayRef<RVVVectorSourceFrontDoorFamilyDescriptor>
+getRVVVectorSourceFrontDoorFamilyRegistry() {
+  static constexpr RVVVectorSourceFrontDoorFamilyDescriptor families[] = {
+      {RVVVectorSourceFrontDoorFamilyID::Binary,
+       "bounded-vector-binary-source-front-door",
+       kAcceptedVectorBinarySourceFrontDoorValue,
+       "tcrv-rvv-materialize-vector-binary-source-front-door",
+       "Materialize one bounded MLIR Vector-like i32 binary source pattern "
+       "into a selected generic typed RVV body",
+       "RVV vector-binary source function candidate", "rvv_vector_",
+       "rvv-vector-binary-source-front-door",
+       "rvv-vector-binary-source-front-door-case",
+       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
+           Eligible,
+       failVectorMaterializer},
+      {RVVVectorSourceFrontDoorFamilyID::CompareSelect,
+       "bounded-vector-compare-select-source-front-door",
+       kAcceptedVectorCompareSelectSourceFrontDoorValue,
+       "tcrv-rvv-materialize-vector-compare-select-source-front-door",
+       "Materialize one bounded MLIR Vector-like i32 compare/select source "
+       "pattern into a selected generic typed RVV body",
+       "RVV vector-compare-select source function candidate",
+       "rvv_vector_cmp_select_",
+       "rvv-vector-compare-select-source-front-door",
+       "rvv-vector-compare-select-source-front-door-case",
+       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
+           Eligible,
+       failVectorCompareSelectMaterializer},
+  };
+  return families;
+}
+
+const RVVVectorSourceFrontDoorFamilyDescriptor *
+findRVVVectorSourceFrontDoorFamily(RVVVectorSourceFrontDoorFamilyID id) {
+  for (const RVVVectorSourceFrontDoorFamilyDescriptor &family :
+       getRVVVectorSourceFrontDoorFamilyRegistry()) {
+    if (family.id == id)
+      return &family;
+  }
+  return nullptr;
+}
+
+const RVVVectorSourceFrontDoorFamilyDescriptor &
+getRVVVectorSourceFrontDoorFamily(RVVVectorSourceFrontDoorFamilyID id) {
+  if (const RVVVectorSourceFrontDoorFamilyDescriptor *family =
+          findRVVVectorSourceFrontDoorFamily(id))
+    return *family;
+  llvm_unreachable("unknown RVV vector source-front-door family id");
+}
+
+const RVVVectorSourceFrontDoorFamilyDescriptor *
+findRVVVectorSourceFrontDoorFamilyByMarker(llvm::StringRef markerValue) {
+  for (const RVVVectorSourceFrontDoorFamilyDescriptor &family :
+       getRVVVectorSourceFrontDoorFamilyRegistry()) {
+    if (markerValue == family.markerValue)
+      return &family;
+  }
+  return nullptr;
+}
+
+std::string describeRVVVectorSourceFrontDoorFamilyMarkers() {
+  std::string markers;
+  for (const RVVVectorSourceFrontDoorFamilyDescriptor &family :
+       getRVVVectorSourceFrontDoorFamilyRegistry()) {
+    if (!markers.empty())
+      markers += ", ";
+    markers += "'";
+    markers.append(family.markerValue.data(), family.markerValue.size());
+    markers += "'";
+  }
+  return markers;
 }
 
 bool isBoundedSymbolName(llvm::StringRef value) {
@@ -138,7 +241,9 @@ mlir::LogicalResult requireLegacySourceOnlyModule(mlir::ModuleOp module) {
       "not accepted");
 }
 
-mlir::LogicalResult requireVectorSourceOnlyModule(mlir::ModuleOp module) {
+mlir::LogicalResult requireRVVVectorSourceOnlyModule(
+    mlir::ModuleOp module,
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family) {
   mlir::Operation *staleOp = nullptr;
   module.walk([&](mlir::Operation *op) {
     if (staleOp || op == module.getOperation())
@@ -151,95 +256,45 @@ mlir::LogicalResult requireVectorSourceOnlyModule(mlir::ModuleOp module) {
   if (!staleOp)
     return mlir::success();
 
-  return failVectorMaterializer(
+  return family.fail(
       staleOp,
       "source materializer requires RVV source-only MLIR input; pre-existing "
       "tcrv.exec/tcrv_rvv/tcrv_toy/tcrv_tensorext_lite selected-boundary or "
       "variant residue is not accepted");
 }
 
-mlir::LogicalResult
-requireVectorCompareSelectSourceOnlyModule(mlir::ModuleOp module) {
-  mlir::Operation *staleOp = nullptr;
-  module.walk([&](mlir::Operation *op) {
-    if (staleOp || op == module.getOperation())
-      return;
-    llvm::StringRef dialect = op->getName().getDialectNamespace();
-    if (dialect == "tcrv" || dialect == "tcrv_rvv" ||
-        dialect == "tcrv_toy" || dialect == "tcrv_tensorext_lite")
-      staleOp = op;
-  });
-  if (!staleOp)
-    return mlir::success();
-
-  return failVectorCompareSelectMaterializer(
-      staleOp,
-      "source materializer requires RVV source-only MLIR input; pre-existing "
-      "tcrv.exec/tcrv_rvv/tcrv_toy/tcrv_tensorext_lite selected-boundary or "
-      "variant residue is not accepted");
-}
-
-std::string getDefaultVectorBinaryKernelName(llvm::StringRef binaryKind) {
-  return (llvm::Twine("rvv_vector_") + binaryKind + "_from_vector_source")
-      .str();
-}
-
-std::string
-getDefaultVectorCompareSelectKernelName(llvm::StringRef predicateKind) {
-  return (llvm::Twine("rvv_vector_cmp_select_") + predicateKind +
+std::string getDefaultRVVVectorSourceKernelName(
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
+    llvm::StringRef operationKind) {
+  return (llvm::Twine(family.selectedVariantPrefix) + operationKind +
           "_from_vector_source")
       .str();
 }
 
-std::string getVectorBinaryVariantSymbol(llvm::StringRef binaryKind) {
-  return (llvm::Twine("rvv_vector_") + binaryKind).str();
+std::string getRVVVectorSourceVariantSymbol(
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
+    llvm::StringRef operationKind) {
+  return (llvm::Twine(family.selectedVariantPrefix) + operationKind).str();
 }
 
-std::string
-getVectorCompareSelectVariantSymbol(llvm::StringRef predicateKind) {
-  return (llvm::Twine("rvv_vector_cmp_select_") + predicateKind).str();
-}
-
-std::string getVectorBinaryScalarFallbackVariantSymbol(
-    llvm::StringRef binaryKind) {
-  return (llvm::Twine("rvv_vector_") + binaryKind + "_scalar_fallback").str();
-}
-
-std::string getVectorCompareSelectScalarFallbackVariantSymbol(
-    llvm::StringRef predicateKind) {
-  return (llvm::Twine("rvv_vector_cmp_select_") + predicateKind +
+std::string getRVVVectorSourceScalarFallbackVariantSymbol(
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
+    llvm::StringRef operationKind) {
+  return (llvm::Twine(family.selectedVariantPrefix) + operationKind +
           "_scalar_fallback")
       .str();
 }
 
-mlir::FailureOr<std::string>
-getVectorBinarySourceKernelName(mlir::ModuleOp module,
-                                llvm::StringRef binaryKind) {
-  auto kernelNameAttr =
-      module->getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
-  std::string defaultKernelName;
-  llvm::StringRef kernelName;
-  if (kernelNameAttr) {
-    kernelName = kernelNameAttr.getValue().trim();
-  } else {
-    defaultKernelName = getDefaultVectorBinaryKernelName(binaryKind);
-    kernelName = defaultKernelName;
-  }
-  if (kernelName.empty()) {
-    (void)failVectorMaterializer(module, "source kernel name must be non-empty");
-    return mlir::failure();
-  }
-  if (!isBoundedSymbolName(kernelName)) {
-    (void)failVectorMaterializer(
-        module, "source kernel name must be a valid MLIR symbol");
-    return mlir::failure();
-  }
-  return kernelName.str();
+std::string getRVVVectorSourceRuntimePurpose(
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
+    llvm::StringRef role) {
+  return (llvm::Twine(family.runtimePurposePrefix) + ":" + role).str();
 }
 
-mlir::FailureOr<std::string>
-getVectorCompareSelectSourceKernelName(mlir::ModuleOp module,
-                                       llvm::StringRef predicateKind) {
+mlir::FailureOr<std::string> getRVVVectorSourceKernelName(
+    mlir::ModuleOp module,
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
+    llvm::StringRef operationKind) {
   auto kernelNameAttr =
       module->getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
   std::string defaultKernelName;
@@ -247,17 +302,16 @@ getVectorCompareSelectSourceKernelName(mlir::ModuleOp module,
   if (kernelNameAttr) {
     kernelName = kernelNameAttr.getValue().trim();
   } else {
-    defaultKernelName = getDefaultVectorCompareSelectKernelName(predicateKind);
+    defaultKernelName =
+        getDefaultRVVVectorSourceKernelName(family, operationKind);
     kernelName = defaultKernelName;
   }
   if (kernelName.empty()) {
-    (void)failVectorCompareSelectMaterializer(
-        module, "source kernel name must be non-empty");
+    (void)family.fail(module, "source kernel name must be non-empty");
     return mlir::failure();
   }
   if (!isBoundedSymbolName(kernelName)) {
-    (void)failVectorCompareSelectMaterializer(
-        module, "source kernel name must be a valid MLIR symbol");
+    (void)family.fail(module, "source kernel name must be a valid MLIR symbol");
     return mlir::failure();
   }
   return kernelName.str();
@@ -668,41 +722,64 @@ matchBoundedVectorCompareSelectSourceFunc(mlir::func::FuncOp func) {
                                         predicateKind.str()};
 }
 
-mlir::FailureOr<VectorBinarySourceMatch>
-matchVectorBinarySourceFrontDoor(mlir::ModuleOp module,
-                                 std::string &kernelName) {
+mlir::FailureOr<bool> matchRVVVectorSourceFrontDoorFamilyMarker(
+    mlir::ModuleOp module,
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family) {
   auto marker =
       module->getAttrOfType<mlir::StringAttr>(kSourceFrontDoorAttrName);
   if (!marker)
-    return VectorBinarySourceMatch{};
+    return false;
 
   llvm::StringRef markerValue = marker.getValue().trim();
-  if (markerValue == kAcceptedVectorCompareSelectSourceFrontDoorValue)
+  if (markerValue == family.markerValue) {
+    if (hasStaleRVVLoweringSeedMetadata(module)) {
+      (void)failVectorSourceFrontDoorFamilyRegistry(
+          module,
+          llvm::Twine("family '") + family.familyName +
+              "' rejected stale tcrv_rvv.lowering_seed metadata as RVV "
+              "source-route authority");
+      return mlir::failure();
+    }
+    return true;
+  }
+
+  if (findRVVVectorSourceFrontDoorFamilyByMarker(markerValue))
+    return false;
+
+  std::string registeredMarkers =
+      describeRVVVectorSourceFrontDoorFamilyMarkers();
+  (void)failVectorSourceFrontDoorFamilyRegistry(
+      module,
+      llvm::Twine("unknown tcrv_rvv.source_front_door marker '") +
+          markerValue + "'; registered RVV vector source-front-door markers "
+                        "are " +
+          registeredMarkers);
+  return mlir::failure();
+}
+
+mlir::FailureOr<VectorBinarySourceMatch>
+matchVectorBinarySourceFrontDoor(mlir::ModuleOp module,
+                                 std::string &kernelName) {
+  const RVVVectorSourceFrontDoorFamilyDescriptor &family =
+      getRVVVectorSourceFrontDoorFamily(
+          RVVVectorSourceFrontDoorFamilyID::Binary);
+  mlir::FailureOr<bool> selected =
+      matchRVVVectorSourceFrontDoorFamilyMarker(module, family);
+  if (mlir::failed(selected))
+    return mlir::failure();
+  if (!*selected)
     return VectorBinarySourceMatch{};
 
-  if (markerValue != kAcceptedVectorBinarySourceFrontDoorValue) {
-    (void)failVectorMaterializer(
-        module,
-        "tcrv_rvv.source_front_door must be 'bounded_vector_source'");
-    return mlir::failure();
-  }
-  if (hasStaleRVVLoweringSeedMetadata(module)) {
-    (void)failVectorMaterializer(
-        module,
-        "stale tcrv_rvv.lowering_seed metadata is not accepted as RVV "
-        "source-route authority");
-    return mlir::failure();
-  }
-  if (mlir::failed(requireVectorSourceOnlyModule(module)))
+  if (mlir::failed(requireRVVVectorSourceOnlyModule(module, family)))
     return mlir::failure();
 
   llvm::SmallVector<mlir::func::FuncOp, 2> funcs;
   module.walk([&](mlir::func::FuncOp func) { funcs.push_back(func); });
   if (funcs.size() != 1) {
-    (void)failVectorMaterializer(
+    (void)family.fail(
         module,
-        "source module must contain exactly one RVV vector-binary source "
-        "function candidate");
+        llvm::Twine("source module must contain exactly one ") +
+            family.sourceFunctionCandidateDescription);
     return mlir::failure();
   }
 
@@ -712,7 +789,7 @@ matchVectorBinarySourceFrontDoor(mlir::ModuleOp module,
     return mlir::failure();
 
   mlir::FailureOr<std::string> name =
-      getVectorBinarySourceKernelName(module, match->binaryKind);
+      getRVVVectorSourceKernelName(module, family, match->binaryKind);
   if (mlir::failed(name))
     return mlir::failure();
   kernelName = *name;
@@ -722,39 +799,26 @@ matchVectorBinarySourceFrontDoor(mlir::ModuleOp module,
 mlir::FailureOr<VectorCompareSelectSourceMatch>
 matchVectorCompareSelectSourceFrontDoor(mlir::ModuleOp module,
                                         std::string &kernelName) {
-  auto marker =
-      module->getAttrOfType<mlir::StringAttr>(kSourceFrontDoorAttrName);
-  if (!marker)
+  const RVVVectorSourceFrontDoorFamilyDescriptor &family =
+      getRVVVectorSourceFrontDoorFamily(
+          RVVVectorSourceFrontDoorFamilyID::CompareSelect);
+  mlir::FailureOr<bool> selected =
+      matchRVVVectorSourceFrontDoorFamilyMarker(module, family);
+  if (mlir::failed(selected))
+    return mlir::failure();
+  if (!*selected)
     return VectorCompareSelectSourceMatch{};
 
-  llvm::StringRef markerValue = marker.getValue().trim();
-  if (markerValue == kAcceptedVectorBinarySourceFrontDoorValue)
-    return VectorCompareSelectSourceMatch{};
-
-  if (markerValue != kAcceptedVectorCompareSelectSourceFrontDoorValue) {
-    (void)failVectorCompareSelectMaterializer(
-        module,
-        "tcrv_rvv.source_front_door must be "
-        "'bounded_vector_compare_select_source'");
-    return mlir::failure();
-  }
-  if (hasStaleRVVLoweringSeedMetadata(module)) {
-    (void)failVectorCompareSelectMaterializer(
-        module,
-        "stale tcrv_rvv.lowering_seed metadata is not accepted as RVV "
-        "source-route authority");
-    return mlir::failure();
-  }
-  if (mlir::failed(requireVectorCompareSelectSourceOnlyModule(module)))
+  if (mlir::failed(requireRVVVectorSourceOnlyModule(module, family)))
     return mlir::failure();
 
   llvm::SmallVector<mlir::func::FuncOp, 2> funcs;
   module.walk([&](mlir::func::FuncOp func) { funcs.push_back(func); });
   if (funcs.size() != 1) {
-    (void)failVectorCompareSelectMaterializer(
+    (void)family.fail(
         module,
-        "source module must contain exactly one RVV vector-compare-select "
-        "source function candidate");
+        llvm::Twine("source module must contain exactly one ") +
+            family.sourceFunctionCandidateDescription);
     return mlir::failure();
   }
 
@@ -764,7 +828,7 @@ matchVectorCompareSelectSourceFrontDoor(mlir::ModuleOp module,
     return mlir::failure();
 
   mlir::FailureOr<std::string> name =
-      getVectorCompareSelectSourceKernelName(module, match->predicateKind);
+      getRVVVectorSourceKernelName(module, family, match->predicateKind);
   if (mlir::failed(name))
     return mlir::failure();
   kernelName = *name;
@@ -968,15 +1032,16 @@ void createDispatch(mlir::OpBuilder &builder, mlir::Location loc,
   (void)builder.create(fallbackState);
 }
 
-void materializeRVVVectorBinarySourceKernel(mlir::OpBuilder &builder,
-                                            llvm::StringRef kernelName,
-                                            VectorBinarySourceMatch source) {
+void materializeRVVVectorBinarySourceKernel(
+    mlir::OpBuilder &builder, llvm::StringRef kernelName,
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
+    VectorBinarySourceMatch source) {
   mlir::Location loc = source.func.getLoc();
   tcrv::rvv::PolicyAttr policy = createAgnosticPolicy(builder);
   std::string selectedVariantSymbol =
-      getVectorBinaryVariantSymbol(source.binaryKind);
+      getRVVVectorSourceVariantSymbol(family, source.binaryKind);
   std::string fallbackVariantSymbol =
-      getVectorBinaryScalarFallbackVariantSymbol(source.binaryKind);
+      getRVVVectorSourceScalarFallbackVariantSymbol(family, source.binaryKind);
 
   mlir::OperationState kernelState(loc,
                                    tcrv::exec::KernelOp::getOperationName());
@@ -1002,19 +1067,21 @@ void materializeRVVVectorBinarySourceKernel(mlir::OpBuilder &builder,
 
   mlir::Type runtimeABIType =
       tcrv::rvv::RuntimeABIValueType::get(builder.getContext());
+  std::string lhsPurpose = getRVVVectorSourceRuntimePurpose(family, "lhs");
+  std::string rhsPurpose = getRVVVectorSourceRuntimePurpose(family, "rhs");
+  std::string outPurpose = getRVVVectorSourceRuntimePurpose(family, "out");
+  std::string nPurpose = getRVVVectorSourceRuntimePurpose(family, "n");
   auto lhs = createRuntimeABIValue(
-      builder, loc, "lhs-input-buffer", "lhs", "const int32_t *",
-      "rvv-vector-binary-source-front-door:lhs", runtimeABIType);
+      builder, loc, "lhs-input-buffer", "lhs", "const int32_t *", lhsPurpose,
+      runtimeABIType);
   auto rhs = createRuntimeABIValue(
-      builder, loc, "rhs-input-buffer", "rhs", "const int32_t *",
-      "rvv-vector-binary-source-front-door:rhs", runtimeABIType);
+      builder, loc, "rhs-input-buffer", "rhs", "const int32_t *", rhsPurpose,
+      runtimeABIType);
   auto out = createRuntimeABIValue(builder, loc, "output-buffer", "out",
-                                   "int32_t *",
-                                   "rvv-vector-binary-source-front-door:out",
+                                   "int32_t *", outPurpose,
                                    runtimeABIType);
   auto n = createRuntimeABIValue(builder, loc, "runtime-element-count", "n",
-                                 "size_t",
-                                 "rvv-vector-binary-source-front-door:n",
+                                 "size_t", nPurpose,
                                  builder.getIndexType());
 
   tcrv::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
@@ -1040,18 +1107,20 @@ void materializeRVVVectorBinarySourceKernel(mlir::OpBuilder &builder,
   createScalarFallbackVariant(builder, loc, fallbackVariantSymbol,
                               scalarRequires);
   createDispatch(builder, loc, selectedVariantSymbol, fallbackVariantSymbol,
-                 "rvv-vector-binary-source-front-door-case");
+                 family.dispatchPolicy);
 }
 
 void materializeRVVVectorCompareSelectSourceKernel(
     mlir::OpBuilder &builder, llvm::StringRef kernelName,
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
     VectorCompareSelectSourceMatch source) {
   mlir::Location loc = source.func.getLoc();
   tcrv::rvv::PolicyAttr policy = createAgnosticPolicy(builder);
   std::string selectedVariantSymbol =
-      getVectorCompareSelectVariantSymbol(source.predicateKind);
+      getRVVVectorSourceVariantSymbol(family, source.predicateKind);
   std::string fallbackVariantSymbol =
-      getVectorCompareSelectScalarFallbackVariantSymbol(source.predicateKind);
+      getRVVVectorSourceScalarFallbackVariantSymbol(family,
+                                                   source.predicateKind);
 
   mlir::OperationState kernelState(loc,
                                    tcrv::exec::KernelOp::getOperationName());
@@ -1077,18 +1146,21 @@ void materializeRVVVectorCompareSelectSourceKernel(
 
   mlir::Type runtimeABIType =
       tcrv::rvv::RuntimeABIValueType::get(builder.getContext());
+  std::string lhsPurpose = getRVVVectorSourceRuntimePurpose(family, "lhs");
+  std::string rhsPurpose = getRVVVectorSourceRuntimePurpose(family, "rhs");
+  std::string outPurpose = getRVVVectorSourceRuntimePurpose(family, "out");
+  std::string nPurpose = getRVVVectorSourceRuntimePurpose(family, "n");
   auto lhs = createRuntimeABIValue(
-      builder, loc, "lhs-input-buffer", "lhs", "const int32_t *",
-      "rvv-vector-compare-select-source-front-door:lhs", runtimeABIType);
+      builder, loc, "lhs-input-buffer", "lhs", "const int32_t *", lhsPurpose,
+      runtimeABIType);
   auto rhs = createRuntimeABIValue(
-      builder, loc, "rhs-input-buffer", "rhs", "const int32_t *",
-      "rvv-vector-compare-select-source-front-door:rhs", runtimeABIType);
+      builder, loc, "rhs-input-buffer", "rhs", "const int32_t *", rhsPurpose,
+      runtimeABIType);
   auto out = createRuntimeABIValue(
-      builder, loc, "output-buffer", "out", "int32_t *",
-      "rvv-vector-compare-select-source-front-door:out", runtimeABIType);
+      builder, loc, "output-buffer", "out", "int32_t *", outPurpose,
+      runtimeABIType);
   auto n = createRuntimeABIValue(
-      builder, loc, "runtime-element-count", "n", "size_t",
-      "rvv-vector-compare-select-source-front-door:n",
+      builder, loc, "runtime-element-count", "n", "size_t", nPurpose,
       builder.getIndexType());
 
   tcrv::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
@@ -1120,7 +1192,7 @@ void materializeRVVVectorCompareSelectSourceKernel(
   createScalarFallbackVariant(builder, loc, fallbackVariantSymbol,
                               scalarRequires);
   createDispatch(builder, loc, selectedVariantSymbol, fallbackVariantSymbol,
-                 "rvv-vector-compare-select-source-front-door-case");
+                 family.dispatchPolicy);
 }
 
 class FailClosedRVVLegacyVectorSourceFrontDoorPass final
@@ -1182,12 +1254,15 @@ class MaterializeRVVVectorBinarySourceFrontDoorPass final
                                mlir::OperationPass<mlir::ModuleOp>> {
 public:
   llvm::StringRef getArgument() const final {
-    return "tcrv-rvv-materialize-vector-binary-source-front-door";
+    return getRVVVectorSourceFrontDoorFamily(
+               RVVVectorSourceFrontDoorFamilyID::Binary)
+        .passArgument;
   }
 
   llvm::StringRef getDescription() const final {
-    return "Materialize one bounded MLIR Vector-like i32 binary source "
-           "pattern into a selected generic typed RVV body";
+    return getRVVVectorSourceFrontDoorFamily(
+               RVVVectorSourceFrontDoorFamilyID::Binary)
+        .passDescription;
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
@@ -1199,6 +1274,9 @@ public:
 
   void runOnOperation() final {
     mlir::ModuleOp module = getOperation();
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family =
+        getRVVVectorSourceFrontDoorFamily(
+            RVVVectorSourceFrontDoorFamilyID::Binary);
     std::string kernelName;
     mlir::FailureOr<VectorBinarySourceMatch> source =
         matchVectorBinarySourceFrontDoor(module, kernelName);
@@ -1211,7 +1289,8 @@ public:
 
     mlir::OpBuilder builder(module.getContext());
     builder.setInsertionPointToStart(module.getBody());
-    materializeRVVVectorBinarySourceKernel(builder, kernelName, *source);
+    materializeRVVVectorBinarySourceKernel(builder, kernelName, family,
+                                          *source);
     module->removeAttr(kSourceFrontDoorAttrName);
     module->removeAttr(kSourceKernelAttrName);
   }
@@ -1223,12 +1302,15 @@ class MaterializeRVVVectorCompareSelectSourceFrontDoorPass final
           mlir::OperationPass<mlir::ModuleOp>> {
 public:
   llvm::StringRef getArgument() const final {
-    return "tcrv-rvv-materialize-vector-compare-select-source-front-door";
+    return getRVVVectorSourceFrontDoorFamily(
+               RVVVectorSourceFrontDoorFamilyID::CompareSelect)
+        .passArgument;
   }
 
   llvm::StringRef getDescription() const final {
-    return "Materialize one bounded MLIR Vector-like i32 compare/select "
-           "source pattern into a selected generic typed RVV body";
+    return getRVVVectorSourceFrontDoorFamily(
+               RVVVectorSourceFrontDoorFamilyID::CompareSelect)
+        .passDescription;
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
@@ -1240,6 +1322,9 @@ public:
 
   void runOnOperation() final {
     mlir::ModuleOp module = getOperation();
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family =
+        getRVVVectorSourceFrontDoorFamily(
+            RVVVectorSourceFrontDoorFamilyID::CompareSelect);
     std::string kernelName;
     mlir::FailureOr<VectorCompareSelectSourceMatch> source =
         matchVectorCompareSelectSourceFrontDoor(module, kernelName);
@@ -1252,11 +1337,24 @@ public:
 
     mlir::OpBuilder builder(module.getContext());
     builder.setInsertionPointToStart(module.getBody());
-    materializeRVVVectorCompareSelectSourceKernel(builder, kernelName, *source);
+    materializeRVVVectorCompareSelectSourceKernel(builder, kernelName, family,
+                                                 *source);
     module->removeAttr(kSourceFrontDoorAttrName);
     module->removeAttr(kSourceKernelAttrName);
   }
 };
+
+std::unique_ptr<::mlir::Pass>
+createMaterializeRVVVectorSourceFrontDoorFamilyPass(
+    RVVVectorSourceFrontDoorFamilyID familyID) {
+  switch (familyID) {
+  case RVVVectorSourceFrontDoorFamilyID::Binary:
+    return createMaterializeRVVVectorBinarySourceFrontDoorPass();
+  case RVVVectorSourceFrontDoorFamilyID::CompareSelect:
+    return createMaterializeRVVVectorCompareSelectSourceFrontDoorPass();
+  }
+  llvm_unreachable("unknown RVV vector source-front-door family id");
+}
 
 } // namespace
 
@@ -1274,6 +1372,22 @@ std::unique_ptr<::mlir::Pass>
 createMaterializeRVVVectorCompareSelectSourceFrontDoorPass() {
   return std::make_unique<
       MaterializeRVVVectorCompareSelectSourceFrontDoorPass>();
+}
+
+llvm::Error registerRVVVectorSourceFrontDoorFamilyPasses(
+    llvm::StringRef ownerPlugin,
+    llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out) {
+  for (const RVVVectorSourceFrontDoorFamilyDescriptor &family :
+       getRVVVectorSourceFrontDoorFamilyRegistry()) {
+    RVVVectorSourceFrontDoorFamilyID familyID = family.id;
+    out.push_back(SourceFrontDoorPassRegistration(
+        ownerPlugin, family.passArgument, family.passDescription,
+        [familyID] {
+          return createMaterializeRVVVectorSourceFrontDoorFamilyPass(familyID);
+        },
+        family.defaultArtifactPolicy));
+  }
+  return llvm::Error::success();
 }
 
 } // namespace tianchenrv::plugin::rvv

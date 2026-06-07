@@ -52,7 +52,7 @@ module attributes {tcrv_rvv.source_front_door = "bounded_vector_compare_select_s
 
 // -----
 
-// expected-error@+1 {{bounded RVV vector-compare-select source front door failed: stale tcrv_rvv.lowering_seed metadata is not accepted as RVV source-route authority}}
+// expected-error@+1 {{RVV vector source-front-door family registry failed: family 'bounded-vector-compare-select-source-front-door' rejected stale tcrv_rvv.lowering_seed metadata as RVV source-route authority}}
 module attributes {tcrv_rvv.lowering_seed = "stale-route", tcrv_rvv.source_front_door = "bounded_vector_compare_select_source"} {
   func.func @stale_lowering_seed(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
     %c0 = arith.constant 0 : index

@@ -49,6 +49,21 @@ module attributes {tcrv_rvv.source_front_door = "bounded_vector_source"} {
 
 // -----
 
+// expected-error@+1 {{RVV vector source-front-door family registry failed: family 'bounded-vector-binary-source-front-door' rejected stale tcrv_rvv.lowering_seed metadata as RVV source-route authority}}
+module attributes {tcrv_rvv.lowering_seed = "stale-route", tcrv_rvv.source_front_door = "bounded_vector_source"} {
+  func.func @stale_lowering_seed(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
+    %c0 = arith.constant 0 : index
+    %pad = arith.constant 0 : i32
+    %lhs_vec = vector.transfer_read %lhs[%c0], %pad {in_bounds = [true]} : memref<?xi32>, vector<4xi32>
+    %rhs_vec = vector.transfer_read %rhs[%c0], %pad {in_bounds = [true]} : memref<?xi32>, vector<4xi32>
+    %sum = arith.addi %lhs_vec, %rhs_vec : vector<4xi32>
+    vector.transfer_write %sum, %out[%c0] {in_bounds = [true]} : vector<4xi32>, memref<?xi32>
+    return
+  }
+}
+
+// -----
+
 module attributes {tcrv_rvv.source_front_door = "bounded_vector_source"} {
   func.func @unsupported_binary(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
     %c0 = arith.constant 0 : index

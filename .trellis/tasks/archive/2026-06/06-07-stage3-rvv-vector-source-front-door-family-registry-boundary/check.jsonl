@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global architecture invariants and RVV source-front-door stage constraints"}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "Verify RVV plugin-locality and typed-body source authority"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify binary and compare/select source-front-door families consume registry/dispatcher without source-marker route authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC/export remain neutral consumers"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/script/C++ checks and evidence claims"}

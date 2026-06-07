@@ -24,6 +24,7 @@
 #include "TianChenRV/Plugin/RVV/RVVSegment2MemorySelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "TianChenRV/Plugin/RVV/RVVStandaloneReductionSelectedBodyRealizationOwner.h"
+#include "TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h"
 #include "TianChenRV/Plugin/RVV/RVVWideningConversionSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Transforms/VariantMaterialization.h"
@@ -516,10 +517,53 @@ int runRegistrationAndCapabilityMetadataTest() {
                  "RVV bounded vector-binary source front-door pass factory is "
                  "present"))
     return result;
-  return expect(
-      static_cast<bool>(sourceFrontDoorPasses[2].getFactory()),
-      "RVV bounded vector compare/select source front-door pass factory is "
-      "present");
+  if (int result = expect(
+          static_cast<bool>(sourceFrontDoorPasses[2].getFactory()),
+          "RVV bounded vector compare/select source front-door pass factory is "
+          "present"))
+    return result;
+
+  llvm::SmallVector<SourceFrontDoorPassRegistration, 2> familyRegistryPasses;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::
+              registerRVVVectorSourceFrontDoorFamilyPasses(
+                  tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
+                  familyRegistryPasses),
+          "collect RVV vector source-front-door active family registry"))
+    return result;
+  if (int result =
+          expect(familyRegistryPasses.size() == 2,
+                 "RVV vector source-front-door family registry owns exactly "
+                 "the bounded binary and compare/select active families"))
+    return result;
+  for (size_t index = 0; index < familyRegistryPasses.size(); ++index) {
+    const SourceFrontDoorPassRegistration &registryPass =
+        familyRegistryPasses[index];
+    const SourceFrontDoorPassRegistration &pluginPass =
+        sourceFrontDoorPasses[index + 1];
+    if (int result =
+            expect(registryPass.getOwnerPlugin() == pluginPass.getOwnerPlugin(),
+                   "RVV active source-front-door family registry preserves "
+                   "plugin ownership"))
+      return result;
+    if (int result =
+            expect(registryPass.getArgument() == pluginPass.getArgument(),
+                   "RVV plugin consumes active source-front-door pass "
+                   "arguments from the family registry"))
+      return result;
+    if (int result = expect(
+            registryPass.isDefaultArtifactFrontDoorEligible() ==
+                pluginPass.isDefaultArtifactFrontDoorEligible(),
+            "RVV plugin consumes active source-front-door default pipeline "
+            "eligibility from the family registry"))
+      return result;
+    if (int result =
+            expect(static_cast<bool>(registryPass.getFactory()),
+                   "RVV vector source-front-door family registry exposes "
+                   "non-null pass factories"))
+      return result;
+  }
+  return 0;
 }
 
 int runCapabilityProfileTest() {

@@ -1586,6 +1586,135 @@ bounded Vector compare/select source IR
   -> target artifact mirrors provider facts
 ```
 
+### RVV Vector Source Front-Door Family Registry
+
+#### 1. Scope / Trigger
+
+Use this contract when two or more RVV bounded Vector source-front-door
+families are active. The registry is a plugin-local dispatcher over the active
+opt-in source families. It owns marker classification and pass registration
+for those families, but each family still owns its source-shape parser and
+typed `tcrv_rvv` body materializer.
+
+This registry currently covers exactly:
+
+```text
+bounded-vector-binary-source-front-door
+bounded-vector-compare-select-source-front-door
+```
+
+The legacy `rvv-i32m1` source-front-door pass remains an explicit-only
+fail-closed guardrail, not an active family registry entry.
+
+#### 2. Signatures
+
+The public plugin-local registration surface is:
+
+```c++
+llvm::Error registerRVVVectorSourceFrontDoorFamilyPasses(
+    llvm::StringRef ownerPlugin,
+    llvm::SmallVectorImpl<SourceFrontDoorPassRegistration> &out);
+```
+
+Each active family registry entry must carry:
+
+```text
+family name
+source marker value
+pass argument
+pass description
+source function candidate description
+selected variant prefix
+runtime ABI purpose prefix
+dispatch policy mirror
+default source-artifact-front-door eligibility
+family-local diagnostic hook
+```
+
+#### 3. Contracts
+
+- RVV plugin registration must add active bounded Vector source-front-door
+  family passes through `registerRVVVectorSourceFrontDoorFamilyPasses(...)`,
+  not by manually duplicating sibling pass registrations in
+  `RVVExtensionPlugin`.
+- The marker dispatcher must return no-op for missing markers.
+- The marker dispatcher must return no-op for a known sibling marker so the
+  source-artifact-front-door pipeline can reach the matching pass.
+- Unknown RVV vector source-front-door markers must fail closed through the
+  registry before source-shape parsing or body creation.
+- Stale `tcrv_rvv.lowering_seed` metadata on a matched active family must fail
+  closed through the registry before source-shape parsing or body creation.
+- Selected variant symbols, scalar fallback symbols, runtime ABI purpose
+  strings, and dispatch policy mirrors may be generated from family descriptor
+  fields. They remain mirrors or construction names only; provider support
+  still comes from the typed `tcrv_rvv` body and RVV provider route.
+- Family-specific source-shape parsing, operation-kind derivation, compare
+  predicate derivation, selected layout validation, and typed body
+  materialization must stay in the owning family, not in the registry.
+
+#### 4. Validation & Error Matrix
+
+- Missing `tcrv_rvv.source_front_door` -> registry no-op.
+- Known sibling marker -> registry no-op in this pass; matching family owns it.
+- Unknown marker -> registry diagnostic naming the unknown marker and the
+  registered RVV vector source-front-door markers.
+- Matched active marker plus stale `tcrv_rvv.lowering_seed` -> registry
+  diagnostic naming the active family and rejecting source-route authority.
+- Matched marker plus stale TCRV residue, malformed ABI, malformed source
+  shape, unsupported op, or unsupported select layout -> family-local
+  diagnostic before body creation.
+- Active family registry entry with a null or wrong pass factory -> C++ plugin
+  registration test failure before source-artifact pipeline claims support.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: binary marker -> registry selects the binary family pass -> binary
+  family parses `arith.addi/subi/muli` -> selected typed
+  `tcrv_rvv.binary` body -> provider route.
+- Good: compare/select marker -> binary pass no-ops, compare/select pass
+  selects the compare/select family -> selected typed
+  `tcrv_rvv.compare/select` body -> provider route.
+- Base: adding a third bounded Vector source-front-door family means adding one
+  descriptor entry plus one family-local parser/materializer; it must not add
+  marker-specific branches to `RVVExtensionPlugin`.
+- Bad: registry infers binary kind, compare predicate, dtype, ABI order,
+  intrinsic spelling, or route support from the marker or family name.
+- Bad: Common EmitC or target export owns the source-front-door family
+  registry.
+
+#### 6. Tests Required
+
+- C++ plugin test must prove the active family registry exposes exactly the
+  registered active family pass arguments, default eligibility, ownership, and
+  non-null factories consumed by the RVV plugin.
+- Positive lit must continue to prove binary and compare/select source
+  materialization and source-artifact-front-door sibling-marker no-op behavior.
+- Negative lit must cover unknown marker, stale matched marker, malformed
+  source shape, stale selected-boundary/TCRV residue, and legacy i32m1
+  source-front-door fail-closed behavior.
+- Generated-bundle dry-run must continue to cover both active source-front-door
+  families and label marker/artifact metadata as mirror-only opt-in evidence.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+RVVExtensionPlugin manually pushes each active source-front-door pass
+  -> each pass reimplements sibling/unknown marker validation
+  -> source marker text drifts into route or artifact authority
+```
+
+Correct:
+
+```text
+RVV plugin active source-front-door family registry
+  -> pass registration and marker classification from family descriptors
+  -> owning family parses source shape and materializes typed tcrv_rvv body
+  -> RVV provider validates body/config/runtime facts
+  -> provider-built TCRVEmitCLowerableRoute
+```
+
 ## Route-Family Owner Boundaries
 
 When several active selected-body routes have been closed as one RVV
