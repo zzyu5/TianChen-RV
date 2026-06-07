@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage 1/2 boundaries, and runtime evidence rule."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Composite gather-MAcc-scatter route contract, RVV plugin ownership, and ssh rvv correctness requirement."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built route value and common EmitC neutrality contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Generated artifact, runtime ABI, target export, and executable evidence boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Runtime hardware evidence and generated-bundle preservation checks."}
+{"file": ".trellis/tasks/archive/2026-06/06-07-stage2-rvv-composite-gather-macc-scatter-artifact-abi/prd.md", "reason": "Immediate predecessor task: dry-run artifact ABI support and explicit no runtime correctness claim."}

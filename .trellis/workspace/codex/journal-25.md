@@ -319,3 +319,58 @@ Carried runtime-scalar composite gather-MAcc-scatter selected bodies through pro
 ### Next Steps
 
 - None - task complete
+
+
+## Session 525: Stage2 RVV composite gather-MAcc-scatter ssh rvv runtime boundary
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV composite gather-MAcc-scatter ssh rvv runtime boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the composite gather-MAcc-scatter runtime boundary with explicit and pre-realized generated-bundle ssh rvv evidence; no production source change was needed because the existing artifact/runtime seam executed correctly.
+
+### Main Changes
+
+- Created and archived the Trellis runtime-boundary task with a bounded PRD for
+  the composite gather-MAcc-scatter `ssh rvv` evidence owner.
+- Verified the existing production artifact/runtime seam without changing
+  compiler source or the generated-bundle script.
+- Collected explicit and pre-realized selected-body generated-bundle evidence
+  under `artifacts/tmp/stage2-composite-gms-ssh-rvv/`, both with remote compile
+  and remote run success on `ssh rvv`.
+- Recorded that no `.trellis/spec/` update was needed because the current RVV
+  plugin, EmitC route, emission runtime, and testing specs already cover the
+  composite runtime evidence contract.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --op-kind runtime_scalar_cmp_masked_indexed_gather_macc_scatter ...`
+  non-dry-run explicit selected-body evidence on `ssh rvv`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind runtime_scalar_cmp_masked_indexed_gather_macc_scatter ...`
+  non-dry-run pre-realized selected-body evidence on `ssh rvv`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'runtime-scalar-cmp-masked-indexed-gather-macc-scatter'`
+  from `build/test`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Bounded old-authority scan over task/journal additions found no new
+  positive legacy route authority; only historical journal text and negative
+  out-of-scope wording matched.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
