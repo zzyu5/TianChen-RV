@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV boundary and RVV Stage 2 selected-body realization authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local selected-body realization, typed body authority, and resource-aware Stage 2 rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built route contract."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Variant tuning and resource-aware selected-body realization requirements."}
+{"file": ".trellis/spec/implementation-stack/index.md", "reason": "C++/MLIR/lit implementation stack constraints."}
+{"file": ".trellis/spec/guides/index.md", "reason": "Routing for capability/plugin/compute-boundary review guides."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensure scheduling/resource behavior stays RVV plugin-local."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure performance config is consumed into realized body structure."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h", "reason": "Added low-precision selected-body realization resource fact names and decision constants."}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Selected-body realization now consumes pass resource facts and materializes provider-consumed realized resource facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Provider now requires realization-owned resource facts before accepting the low-precision direct-contraction route."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir", "reason": "Positive and stale-realization fail-closed coverage for the new resource-aware realization path."}

@@ -4198,6 +4198,124 @@ llvm::Expected<std::int64_t> requireRVVLowPrecisionResourcePassIntegerFact(
   return attr.getInt();
 }
 
+llvm::Expected<std::string>
+requireRVVLowPrecisionResourceRealizationStringFact(
+    mlir::Operation *op, llvm::StringRef context, llvm::StringRef attrName) {
+  if (!op)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires a selected RVV with_vl body carrying selected-body "
+        "realization-produced low-precision direct-contraction resource "
+        "facts");
+  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+  if (!attr)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires selected-body realization-produced low-precision "
+        "direct-contraction resource fact '" +
+        attrName + "' before route acceptance");
+  return attr.getValue().str();
+}
+
+llvm::Expected<std::int64_t>
+requireRVVLowPrecisionResourceRealizationIntegerFact(
+    mlir::Operation *op, llvm::StringRef context, llvm::StringRef attrName) {
+  if (!op)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires a selected RVV with_vl body carrying selected-body "
+        "realization-produced low-precision direct-contraction resource "
+        "facts");
+  auto attr = op->getAttrOfType<mlir::IntegerAttr>(attrName);
+  if (!attr)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires selected-body realization-produced low-precision "
+        "direct-contraction resource fact '" +
+        attrName + "' before route acceptance");
+  return attr.getInt();
+}
+
+llvm::Error requireRVVLowPrecisionResourceRealizationStringFact(
+    mlir::Operation *op, llvm::StringRef context,
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    llvm::StringRef attrName, llvm::StringRef field,
+    llvm::StringRef expected) {
+  llvm::Expected<std::string> value =
+      requireRVVLowPrecisionResourceRealizationStringFact(op, context,
+                                                          attrName);
+  if (!value)
+    return value.takeError();
+  if (*value == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " selected-body realization low-precision direct-contraction resource "
+      "fact '" +
+      attrName + "' requires " + field + " '" + expected + "' but found '" +
+      *value + "' for selected candidate '" + selection.selectedCandidateID +
+      "'");
+}
+
+llvm::Error requireRVVLowPrecisionResourceRealizationIntegerFact(
+    mlir::Operation *op, llvm::StringRef context,
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    llvm::StringRef attrName, llvm::StringRef field, std::int64_t actual,
+    std::int64_t expected) {
+  llvm::Expected<std::int64_t> value =
+      requireRVVLowPrecisionResourceRealizationIntegerFact(op, context,
+                                                           attrName);
+  if (!value)
+    return value.takeError();
+  if (*value == expected && *value == actual)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " selected-body realization low-precision direct-contraction resource "
+      "fact '" +
+      attrName + "' requires " + field + " " + llvm::Twine(expected) +
+      " matching the validated resource selection, but found " +
+      llvm::Twine(*value) + " for selected candidate '" +
+      selection.selectedCandidateID + "'");
+}
+
+llvm::Error requireRVVLowPrecisionResourceRealizationFacts(
+    mlir::Operation *op, llvm::StringRef context,
+    const RVVLowPrecisionContractionResourceSelection &selection) {
+  if (llvm::Error error = requireRVVLowPrecisionResourceRealizationStringFact(
+          op, context, selection,
+          kRVVLowPrecisionResourceRealizationProducerAttrName,
+          "realization producer",
+          kRVVLowPrecisionResourceRealizationProducer))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceRealizationStringFact(
+          op, context, selection,
+          kRVVLowPrecisionResourceRealizationDecisionAttrName,
+          "realization decision",
+          kRVVLowPrecisionResourceRealizationDecision))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceRealizationIntegerFact(
+          op, context, selection,
+          kRVVLowPrecisionResourceRealizedUnrollFactorAttrName,
+          "realized unroll factor", selection.unrollFactor,
+          kRVVLowPrecisionResourceStaticUnroll))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceRealizationIntegerFact(
+          op, context, selection,
+          kRVVLowPrecisionResourceRealizedVSetVLRegionCountAttrName,
+          "realized vsetvl region count", selection.vsetvlRegionCount,
+          kRVVLowPrecisionResourceVSetVLRegions))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceRealizationIntegerFact(
+          op, context, selection,
+          kRVVLowPrecisionResourceRealizedPeakLiveVectorGroupsAttrName,
+          "realized peak live vector-group estimate",
+          selection.peakLiveVectorGroups,
+          kRVVLowPrecisionResourcePeakLiveVectorGroups))
+    return error;
+  return llvm::Error::success();
+}
+
 llvm::Expected<RVVLowPrecisionContractionResourceSelection>
 deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan,
@@ -4378,6 +4496,9 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
   validatedPlan.lowPrecisionResourceSelection = selection;
   if (llvm::Error error = verifyRVVLowPrecisionContractionResourceSelection(
           validatedPlan, context))
+    return std::move(error);
+  if (llvm::Error error = requireRVVLowPrecisionResourceRealizationFacts(
+          op, context, selection))
     return std::move(error);
   return selection;
 }

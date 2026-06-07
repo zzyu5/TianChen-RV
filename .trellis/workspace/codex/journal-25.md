@@ -1518,3 +1518,43 @@ Hardened runtime-scalar-cmp masked segment2 load artifact ABI regression coverag
 ### Next Steps
 
 - None - task complete
+
+
+## Session 540: Stage2 RVV Gearbox resource-aware selected-body realization foundation
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV Gearbox resource-aware selected-body realization foundation
+**Branch**: `main`
+
+### Summary
+
+Completed Stage2 RVV Gearbox resource-aware selected-body realization foundation. Low-precision product-reduction-dequantization realization now consumes pass-produced resource facts, emits realized resource facts on with_vl, and the provider requires those facts before route acceptance.
+
+### Main Changes
+
+- Implemented RVV plugin-local low-precision realization facts in `RVVGearboxSchedule.h`.
+- `RVVContractionSelectedBodyRealizationOwner.cpp` now requires pass-produced low-precision direct-contraction resource facts before realizing non-clamp product-reduction-dequantization bodies, then records realization producer/decision, realized unroll, realized vsetvl region count, and realized peak-live-vector facts on the realized `tcrv_rvv.with_vl`.
+- `RVVEmitCContractionRouteFamilyPlanOwners.cpp` now rejects low-precision route acceptance unless those selected-body realization facts are present and consistent with validated resource selection.
+- Updated the product-reduction-dequantization Target/RVV lit to check the realized resource facts and fail closed when `realized_vsetvl_region_count` is stale.
+- Self-repair: first focused lit exposed that the dialect verifier did not whitelist the new RVV-owned resource facts on `with_vl`; fixed by extending `isRVVLowPrecisionResourceAttrName`. Header artifact path then used stale `tcrv-translate`; fixed by rebuilding it.
+- Checks passed: `cmake --build build --target tcrv-opt -j 8`; `cmake --build build --target tcrv-translate -j 8`; filtered lit for `pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32`; filtered lit for `rvv-gearbox-widening-product-reduce-dequantize-f32`; `./build/bin/tianchenrv-rvv-extension-plugin-test`; `git diff --check`; bounded old-authority scan found no new positive legacy authority.
+- Final coherent commit is created after this journal entry.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final behavior against RVV Stage 2 authority and anti-metadata-authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin selected-body realization and fail-closed behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and provider route facts remain provider-owned."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Check resource-aware realization is not artifact-evidence-only tuning."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/FileCheck test expectations for changed compiler behavior."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir", "reason": "Focused lit passed for positive realization, missing resource pass, stale provider resource, and stale realization resource diagnostics."}
+{"file": "test/Transforms/RVV/rvv-gearbox-widening-product-reduce-dequantize-f32.mlir", "reason": "Adjacent Gearbox resource pass lit remained passing."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "RVV extension plugin smoke test passed after rebuilding the changed plugin/provider libraries."}

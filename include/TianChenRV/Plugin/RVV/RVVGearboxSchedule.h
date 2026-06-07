@@ -103,6 +103,21 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourceLegalityAttrName(
     "tcrv_rvv.low_precision_resource.legality");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRejectionReasonAttrName(
     "tcrv_rvv.low_precision_resource.rejection_reason");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRealizationProducerAttrName(
+        "tcrv_rvv.low_precision_resource.realization_producer");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRealizationDecisionAttrName(
+        "tcrv_rvv.low_precision_resource.realization_decision");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRealizedUnrollFactorAttrName(
+        "tcrv_rvv.low_precision_resource.realized_unroll_factor");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRealizedVSetVLRegionCountAttrName(
+        "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRealizedPeakLiveVectorGroupsAttrName(
+        "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups");
 
 constexpr llvm::StringLiteral kRVVCompositeResourceCandidateSetAttrName(
     "tcrv_rvv.composite_resource.candidate_set");
@@ -218,6 +233,10 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourceRuntimeABIOrder(
     "lhs,rhs,acc,scale,out,n");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceLegal("legal");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceNoRejectionReason("none");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceRealizationProducer(
+    "rvv-plugin-local-selected-body-realization-resource-consumer.v1");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceRealizationDecision(
+    "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1");
 constexpr std::int64_t kRVVLowPrecisionResourceStaticUnroll = 1;
 constexpr std::int64_t kRVVLowPrecisionResourceAccumulatorCount = 1;
 constexpr std::int64_t kRVVLowPrecisionResourceVSetVLRegions = 2;
@@ -282,7 +301,14 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name == kRVVLowPrecisionResourceRuntimeAVLSourceAttrName ||
          name == kRVVLowPrecisionResourceRuntimeABIOrderAttrName ||
          name == kRVVLowPrecisionResourceLegalityAttrName ||
-         name == kRVVLowPrecisionResourceRejectionReasonAttrName;
+         name == kRVVLowPrecisionResourceRejectionReasonAttrName ||
+         name == kRVVLowPrecisionResourceRealizationProducerAttrName ||
+         name == kRVVLowPrecisionResourceRealizationDecisionAttrName ||
+         name == kRVVLowPrecisionResourceRealizedUnrollFactorAttrName ||
+         name ==
+             kRVVLowPrecisionResourceRealizedVSetVLRegionCountAttrName ||
+         name ==
+             kRVVLowPrecisionResourceRealizedPeakLiveVectorGroupsAttrName;
 }
 
 inline bool isRVVCompositeResourceAttrName(llvm::StringRef name) {

@@ -5,11 +5,13 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 
+#include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OperationSupport.h"
 #include "llvm/Support/Errc.h"
 
 #include <cstdint>
+#include <string>
 #include <utility>
 
 namespace tianchenrv::plugin::rvv {
@@ -34,6 +36,74 @@ void copyLowPrecisionResourceAttrs(mlir::Operation *source,
   for (mlir::NamedAttribute attr : source->getAttrs())
     if (isRVVLowPrecisionResourceAttrName(attr.getName().getValue()))
       destination->setAttr(attr.getName(), attr.getValue());
+}
+
+llvm::Expected<std::string>
+requireLowPrecisionResourceStringFact(mlir::Operation *op,
+                                      llvm::StringRef attrName) {
+  if (!op)
+    return makeRVVPluginError(
+        "pre-realized RVV contraction selected-body realization requires a "
+        "body carrying pass-produced low-precision direct-contraction resource "
+        "facts before selected-body resource realization");
+  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+  if (!attr)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV contraction selected-body realization "
+                    "requires pass-produced low-precision direct-contraction "
+                    "resource fact '") +
+        attrName + "' before selected-body resource realization");
+  return attr.getValue().str();
+}
+
+llvm::Expected<std::int64_t>
+requireLowPrecisionResourceIntegerFact(mlir::Operation *op,
+                                       llvm::StringRef attrName) {
+  if (!op)
+    return makeRVVPluginError(
+        "pre-realized RVV contraction selected-body realization requires a "
+        "body carrying pass-produced low-precision direct-contraction resource "
+        "facts before selected-body resource realization");
+  auto attr = op->getAttrOfType<mlir::IntegerAttr>(attrName);
+  if (!attr)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV contraction selected-body realization "
+                    "requires pass-produced low-precision direct-contraction "
+                    "resource fact '") +
+        attrName + "' before selected-body resource realization");
+  return attr.getInt();
+}
+
+llvm::Error requireLowPrecisionResourceExpectedStringFact(
+    mlir::Operation *op, llvm::StringRef attrName,
+    llvm::StringRef expected) {
+  llvm::Expected<std::string> value =
+      requireLowPrecisionResourceStringFact(op, attrName);
+  if (!value)
+    return value.takeError();
+  if (*value == expected)
+    return llvm::Error::success();
+  return makeRVVPluginError(
+      llvm::Twine("pre-realized RVV contraction selected-body realization "
+                  "cannot consume stale or unsupported low-precision "
+                  "direct-contraction resource fact '") +
+      attrName + "': expected '" + expected + "' but found '" + *value + "'");
+}
+
+llvm::Error requireLowPrecisionResourceExpectedIntegerFact(
+    mlir::Operation *op, llvm::StringRef attrName, std::int64_t expected) {
+  llvm::Expected<std::int64_t> value =
+      requireLowPrecisionResourceIntegerFact(op, attrName);
+  if (!value)
+    return value.takeError();
+  if (*value == expected)
+    return llvm::Error::success();
+  return makeRVVPluginError(
+      llvm::Twine("pre-realized RVV contraction selected-body realization "
+                  "cannot consume stale or unsupported low-precision "
+                  "direct-contraction resource fact '") +
+      attrName + "': expected " + llvm::Twine(expected) + " but found " +
+      llvm::Twine(*value));
 }
 
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
@@ -75,6 +145,75 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
   auto withVL = llvm::cast<tcrv::rvv::WithVLOp>(builder.create(state));
   withVL.getBody().emplaceBlock();
   return withVL;
+}
+
+llvm::Error materializeLowPrecisionResourceRealizationAttrs(
+    mlir::OpBuilder &builder, mlir::Operation *source,
+    mlir::Operation *destination) {
+  if (!destination)
+    return makeRVVPluginError(
+        "pre-realized RVV contraction selected-body realization requires a "
+        "realized with_vl operation before consuming low-precision resource "
+        "facts");
+
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceCandidateSetAttrName,
+          kRVVLowPrecisionResourceCandidateSet))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceSelectedCandidateAttrName,
+          kRVVLowPrecisionResourceDequantCandidate))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceSelectionReasonAttrName,
+          kRVVLowPrecisionResourceDequantSelectionReason))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceLegalityScopeAttrName,
+          kRVVLowPrecisionResourceLegalityScope))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
+          source, kRVVLowPrecisionResourceUnrollFactorAttrName,
+          kRVVLowPrecisionResourceStaticUnroll))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
+          source, kRVVLowPrecisionResourceVSetVLRegionCountAttrName,
+          kRVVLowPrecisionResourceVSetVLRegions))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
+          source, kRVVLowPrecisionResourcePeakLiveVectorGroupsAttrName,
+          kRVVLowPrecisionResourcePeakLiveVectorGroups))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
+          source, kRVVLowPrecisionResourceVectorRegisterBudgetAttrName,
+          kRVVLowPrecisionResourceVectorRegisterBudget))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceLegalityAttrName,
+          kRVVLowPrecisionResourceLegal))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceRejectionReasonAttrName,
+          kRVVLowPrecisionResourceNoRejectionReason))
+    return error;
+
+  destination->setAttr(
+      kRVVLowPrecisionResourceRealizationProducerAttrName,
+      builder.getStringAttr(kRVVLowPrecisionResourceRealizationProducer));
+  destination->setAttr(
+      kRVVLowPrecisionResourceRealizationDecisionAttrName,
+      builder.getStringAttr(kRVVLowPrecisionResourceRealizationDecision));
+  destination->setAttr(
+      kRVVLowPrecisionResourceRealizedUnrollFactorAttrName,
+      builder.getI64IntegerAttr(kRVVLowPrecisionResourceStaticUnroll));
+  destination->setAttr(
+      kRVVLowPrecisionResourceRealizedVSetVLRegionCountAttrName,
+      builder.getI64IntegerAttr(kRVVLowPrecisionResourceVSetVLRegions));
+  destination->setAttr(
+      kRVVLowPrecisionResourceRealizedPeakLiveVectorGroupsAttrName,
+      builder.getI64IntegerAttr(
+          kRVVLowPrecisionResourcePeakLiveVectorGroups));
+  return llvm::Error::success();
 }
 
 mlir::Type getGenericVectorType(mlir::OpBuilder &builder, std::int64_t sew,
@@ -600,6 +739,12 @@ realizePreRealizedRVVSelectedContractionFamily(
                            request.getRole(), requires, plan.resultSEW,
                            plan.resultLMUL, plan.policy);
   copyLowPrecisionResourceAttrs(plan.preRealizedBody, withVL.getOperation());
+  if (plan.usesProductReductionDequantization &&
+      !plan.usesProductReductionDequantClamp) {
+    if (llvm::Error error = materializeLowPrecisionResourceRealizationAttrs(
+            builder, plan.preRealizedBody, withVL.getOperation()))
+      return std::move(error);
+  }
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
   mlir::Value compareLHSValue;
