@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final behavior against RVV authority chain and Stage2 guardrails."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin-local structural handoff and provider fail-closed behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC did not gain RVV semantic authority."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify resource-aware realization is body/provider structure rather than metadata-only."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Verify focused lit/FileCheck and runtime evidence claims are scoped correctly."}
+{"command": "rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-dialect-test -j2", "result": "passed", "reason": "Required focused build targets for changed dialect/provider/translation behavior."}
+{"command": "rtk build/bin/tianchenrv-rvv-dialect-test", "result": "passed", "reason": "RVV dialect registration/config smoke evidence after adding handoff op/verifier."}
+{"command": "rtk build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed after updating expected fail-closed generic op text", "reason": "RVV plugin route-provider and fail-closed diagnostics evidence."}
+{"command": "rtk build/bin/tianchenrv-construction-protocol-common-test", "result": "passed", "reason": "Construction protocol role-step evidence for the four-op product-reduce-dequant chain."}
+{"command": "rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'selected-body-artifact-widening-product-reduce-dequantize-f32'", "result": "passed 2/2", "reason": "Explicit and pre-realized target fixture positive/negative/header export evidence."}
+{"command": "rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'widening-product-reduce-dequantize-f32'", "result": "passed 3/3", "reason": "Focused Gearbox transform plus target fixture regression evidence."}
+{"command": "rtk git diff --check", "result": "passed", "reason": "Whitespace diff check before staging."}
+{"command": "rtk git diff -U0 -- include lib test | rtk rg -n 'RVVI32M1|rvv-i32m1|tcrv_rvv\\.i32_|!tcrv_rvv\\.i32m|exact __riscv_.*_i32m1|source-front-door|source-artifact|descriptor-driven|descriptor ->|status = \"supported\"'", "result": "no matches", "reason": "Bounded old-authority scan over touched production/test diff lines."}

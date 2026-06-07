@@ -2069,7 +2069,7 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
       isProductReductionDequantClamp
           ? "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
       : isProductReductionDequantization
-          ? "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize"
+          ? "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize"
       : isProductReductionChain
           ? "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce"
       : isComputedMask ? "tcrv_rvv.masked_widening_dot_reduce"
@@ -3688,8 +3688,9 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
           rejectMixedPreRealizedContractionBody<
               tcrv::rvv::SetVLOp, tcrv::rvv::WithVLOp,
               tcrv::rvv::LoadOp, tcrv::rvv::WideningProductOp,
-              tcrv::rvv::StandaloneReduceOp, tcrv::rvv::DequantizeOp,
-              tcrv::rvv::StoreOp>(
+              tcrv::rvv::StandaloneReduceOp,
+              tcrv::rvv::GearboxCrossRegionHandoffOp,
+              tcrv::rvv::DequantizeOp, tcrv::rvv::StoreOp>(
               variant, body.getOperation(),
               "widening product reduction dequantization"))
     return error;
@@ -4371,6 +4372,50 @@ llvm::Error requireRVVLowPrecisionRealizedVSetVLRegionStructure(
   return llvm::Error::success();
 }
 
+llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
+    RVVSelectedBodyRouteSlice &slice, llvm::StringRef context,
+    const RVVLowPrecisionContractionResourceSelection &selection) {
+  tcrv::rvv::GearboxCrossRegionHandoffOp handoff =
+      slice.gearboxCrossRegionHandoffOp;
+  if (!handoff)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires tcrv_rvv.gearbox_cross_region_handoff between "
+        "the product/reduction and dequant/store regions");
+
+  if (handoff.getInput() != slice.standaloneReduceOp.getResult() ||
+      handoff.getOutput() != slice.dequantizeOp.getSource())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires tcrv_rvv.gearbox_cross_region_handoff to forward "
+        "the selected standalone_reduce result to tcrv_rvv.dequantize");
+  if (handoff.getVl() != slice.withVL.getVl() ||
+      handoff.getRuntimeAvl() != slice.setvl.getAvl())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires tcrv_rvv.gearbox_cross_region_handoff to consume "
+        "the selected with_vl token and runtime n/AVL SSA value");
+  if (handoff.getContract() !=
+          "gearbox-product-reduce-to-dequant-cross-region-handoff.v1" ||
+      handoff.getFromPhase() != "load-product-reduce" ||
+      handoff.getToPhase() != "dequant-store" ||
+      static_cast<std::int64_t>(handoff.getRegionCount()) !=
+          selection.vsetvlRegionCount ||
+      handoff.getRuntimeAvlSource() != selection.runtimeAVLSource ||
+      handoff.getResourceDecision() !=
+          kRVVLowPrecisionResourceRealizationDecision)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure has stale or inconsistent Gearbox cross-region handoff "
+        "contract/runtime/resource facts");
+
+  return llvm::Error::success();
+}
+
 llvm::Expected<RVVLowPrecisionContractionResourceSelection>
 deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan,
@@ -4559,6 +4604,10 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
   if (llvm::Error error =
           requireRVVLowPrecisionRealizedVSetVLRegionStructure(slice, context,
                                                               selection))
+    return std::move(error);
+  if (llvm::Error error =
+          requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
+              slice, context, selection))
     return std::move(error);
   return selection;
 }
@@ -5716,11 +5765,32 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
           "tcrv_rvv.standalone_reduce input to consume the selected "
           "tcrv_rvv.widening_product result");
     if (isProductReductionDequantization &&
-        (!analysis.slice.dequantizeOp ||
-         analysis.slice.dequantizeOp.getSource() !=
-             analysis.slice.standaloneReduceOp.getResult()))
+        !analysis.slice.dequantizeOp)
       return makeRVVEmitCRouteProviderError(
           "product-reduction dequantization contraction route-family plan "
+          "requires tcrv_rvv.dequantize in the selected RVV body");
+    if (operation == RVVSelectedBodyOperationKind::
+                         WideningProductReduceDequantizeF32 &&
+        (!analysis.slice.gearboxCrossRegionHandoffOp ||
+         analysis.slice.gearboxCrossRegionHandoffOp.getInput() !=
+             analysis.slice.standaloneReduceOp.getResult() ||
+         analysis.slice.gearboxCrossRegionHandoffOp.getOutput() !=
+             analysis.slice.dequantizeOp.getSource() ||
+         analysis.slice.gearboxCrossRegionHandoffOp.getVl() !=
+             analysis.slice.withVL.getVl() ||
+         analysis.slice.gearboxCrossRegionHandoffOp.getRuntimeAvl() !=
+             analysis.slice.setvl.getAvl()))
+      return makeRVVEmitCRouteProviderError(
+          "product-reduction dequantization contraction route-family plan "
+          "requires tcrv_rvv.gearbox_cross_region_handoff to structurally "
+          "forward the selected standalone_reduce result, bind the selected "
+          "with_vl token, and consume the selected runtime n/AVL SSA value "
+          "before tcrv_rvv.dequantize");
+    if (isProductReductionDequantClamp &&
+        analysis.slice.dequantizeOp.getSource() !=
+            analysis.slice.standaloneReduceOp.getResult())
+      return makeRVVEmitCRouteProviderError(
+          "product-reduction dequant-clamp contraction route-family plan "
           "requires tcrv_rvv.dequantize to consume the selected i32 "
           "standalone_reduce result");
     if (isProductReductionDequantization &&

@@ -3,6 +3,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.selected_candidate = "[^"]*"/tcrv_rvv.low_precision_resource.selected_candidate = "artifact-name-derived-resource-candidate"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER-RESOURCE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 2 : i64/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 1 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZATION-RESOURCE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/phase = "dequant-store"/phase = "artifact-metadata-region"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZED-REGION
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.dequantize %[^,]*/tcrv_rvv.dequantize %10/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-CONSUMER
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: sed '/c_name = "scale"/s/c_type = "float"/c_type = "float *"/;/c_name = "scale"/s/role = "dequant-scale-value"/role = "output-buffer"/' %s | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-SCALE
@@ -67,12 +68,20 @@ module {
 // REALIZED-SAME: kind = "signed_widening_reduce_add"
 // REALIZED-SAME: result_layout = "store-standalone-reduction-lane0-to-output-scalar"
 // REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m1">
+// REALIZED: %[[HANDOFF:.*]] = tcrv_rvv.gearbox_cross_region_handoff %[[REDUCED]], %[[VL]], %{{[^ ]+}}
+// REALIZED-SAME: contract = "gearbox-product-reduce-to-dequant-cross-region-handoff.v1"
+// REALIZED-SAME: from_phase = "load-product-reduce"
+// REALIZED-SAME: region_count = 2 : i64
+// REALIZED-SAME: resource_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"
+// REALIZED-SAME: runtime_avl_source = "runtime_abi:n"
+// REALIZED-SAME: to_phase = "dequant-store"
+// REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m1">
 // REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
 // REALIZED-SAME: phase = "dequant-store"
 // REALIZED-SAME: region_count = 2 : i64
 // REALIZED-SAME: region_index = 2 : i64
 // REALIZED-SAME: resource_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"
-// REALIZED: %[[DEQUANT:.*]] = tcrv_rvv.dequantize %[[REDUCED]], %{{.*}}, %[[VL]]
+// REALIZED: %[[DEQUANT:.*]] = tcrv_rvv.dequantize %[[HANDOFF]], %{{.*}}, %[[VL]]
 // REALIZED-SAME: dequant_relation = "signed-i32m1-to-f32m1-scale-f32"
 // REALIZED-SAME: kind = "i32_to_f32_scaled"
 // REALIZED-SAME: -> !tcrv_rvv.vector<f32, "m1">
@@ -82,7 +91,7 @@ module {
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "widening_product_reduce_dequantize_f32"}
-// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.dequantize"}
+// PLAN-SAME: {key = "rvv_selected_body_typed_compute_op", value = "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize"}
 // PLAN-SAME: {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,out,n"}
 // PLAN-SAME: {key = "tcrv_rvv.route_operand_binding_plan", value = "rvv-route-operand-binding:widening_product_reduce_dequantize_f32.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.product_reduction_chain_relation", value = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"}
@@ -116,9 +125,9 @@ module {
 // STALE-REALIZATION-RESOURCE-SAME: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count
 // STALE-REALIZATION-RESOURCE-SAME: requires realized vsetvl region count 2
 
-// STALE-REALIZED-REGION: selected-body realization low-precision direct-contraction structure
-// STALE-REALIZED-REGION-SAME: stale or inconsistent vsetvl region marker
-// STALE-REALIZED-REGION-SAME: expected phase 'dequant-store'
+// STALE-REALIZED-REGION: 'tcrv_rvv.gearbox_cross_region_handoff' op requires to_phase 'dequant-store'
+
+// STALE-HANDOFF-CONSUMER: tcrv_rvv.dequantize source to consume the selected tcrv_rvv.gearbox_cross_region_handoff output
 
 // MISSING-SCALE: runtime scale
 // MISSING-SCALE-SAME: dequant-scale-value

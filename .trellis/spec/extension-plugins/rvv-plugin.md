@@ -5533,6 +5533,137 @@ typed low-precision tcrv_rvv body
   -> same-target correctness and timing against named baseline
 ```
 
+## Gearbox Product-Reduce-Dequant Cross-Region Handoff
+
+### 1. Scope / Trigger
+
+Use this contract when `widening_product_reduce_dequantize_f32` claims that
+Gearbox `vsetvl` placement has progressed beyond marker-only evidence. The
+handoff is still bounded to one selected `with_vl` body, but product/reduction
+values, dequant input, runtime AVL, active VL, phase ordering, region count, and
+resource decision must be represented as `tcrv_rvv` structure before route
+support.
+
+### 2. Signatures
+
+The bounded structural op is:
+
+```mlir
+%handoff = tcrv_rvv.gearbox_cross_region_handoff
+  %reduced, %vl, %n
+  {
+    contract = "gearbox-product-reduce-to-dequant-cross-region-handoff.v1",
+    from_phase = "load-product-reduce",
+    to_phase = "dequant-store",
+    region_count = 2 : i64,
+    runtime_avl_source = "runtime_abi:n",
+    resource_decision =
+      "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"
+  }
+  : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl, index
+    -> !tcrv_rvv.vector<i32, "m1">
+```
+
+The realized body shape is:
+
+```text
+setvl %n -> with_vl %vl
+  vsetvl_region_marker phase=load-product-reduce index=1 count=2
+  load lhs/rhs
+  widening_product
+  standalone_reduce -> !tcrv_rvv.vector<i32, "m1">
+  gearbox_cross_region_handoff %reduced, %vl, %n
+  vsetvl_region_marker phase=dequant-store index=2 count=2
+  dequantize %handoff, %scale, %vl
+  store
+```
+
+The construction-protocol typed compute chain for this non-clamp route is:
+
+```text
+tcrv_rvv.widening_product
++tcrv_rvv.standalone_reduce
++tcrv_rvv.gearbox_cross_region_handoff
++tcrv_rvv.dequantize
+```
+
+### 3. Contracts
+
+- The handoff op is a structural boundary, not a math op, intrinsic wrapper,
+  route id, descriptor, artifact mirror, or executable proof.
+- `dequantize` must consume the handoff result for
+  `widening_product_reduce_dequantize_f32`. Direct
+  `standalone_reduce -> dequantize` is fail-closed for this route.
+- The handoff input must be the selected `standalone_reduce` i32 result; the
+  reduction input must be the selected `widening_product` result.
+- The handoff must consume the same `!tcrv_rvv.vl` token as `with_vl`, product,
+  reduction, and dequantize.
+- The handoff runtime AVL operand must be the same SSA value consumed by
+  `setvl`, and `runtime_avl_source` must be `runtime_abi:n`.
+- The handoff `contract`, `from_phase`, `to_phase`, `region_count`, and
+  `resource_decision` must match the RVV-owned low-precision Gearbox resource
+  facts.
+- The RVV schedule pass, selected-body realizer, construction protocol, route
+  planner, provider family plan, and target artifact/header validation must all
+  agree on the four-op typed compute chain. Common EmitC must not infer or
+  invent this handoff.
+
+### 4. Validation & Error Matrix
+
+- Missing handoff before dequantize -> fail closed before route support.
+- `dequantize` consumes the reduction result while a handoff exists -> provider
+  fails closed before route support.
+- Handoff uses stale contract, phase, region count, runtime AVL source, or
+  resource decision -> dialect verifier or provider fails closed.
+- Handoff consumes a different VL token or runtime AVL SSA value than `setvl` /
+  `with_vl` -> verifier/provider fails closed.
+- Marker count/order/phase/resource decision diverges from the handoff/resource
+  facts -> fail closed; markers remain transitional evidence, not route
+  authority.
+
+### 5. Good/Base/Bad Cases
+
+- Good: pre-realized product-reduce-dequant body -> Gearbox resource pass ->
+  selected-body realization emits handoff -> provider validates handoff and
+  markers -> route plan/header export.
+- Base: dequant-clamp keeps its existing direct reduction-to-dequant epilogue
+  until a separate handoff contract is defined for that family.
+- Bad: only `vsetvl_region_marker` or artifact metadata says two regions while
+  `dequantize` directly consumes `standalone_reduce`; route support must fail.
+
+### 6. Tests Required
+
+- Dialect/verifier evidence for stale handoff attrs, VL/runtime AVL mismatch,
+  and invalid source chain.
+- Selected-body realization FileCheck showing
+  `standalone_reduce -> gearbox_cross_region_handoff -> dequantize` with
+  `runtime_abi:n` and matching marker phases.
+- Explicit already-realized fixture containing the same handoff as the authority
+  for route planning.
+- Provider fail-closed evidence for missing handoff and stale dequantize
+  consumer after schedule/resource facts exist.
+- Header/artifact export evidence showing the four-op typed compute chain is
+  accepted by construction and target validation.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+standalone_reduce -> dequantize
+plus marker phase metadata
+plus route artifact says product-reduce-dequant
+```
+
+Correct:
+
+```text
+standalone_reduce
+  -> gearbox_cross_region_handoff(%reduced, %vl, %n)
+  -> dequantize(%handoff, %scale, %vl)
+  -> provider validates handoff + resource facts before route support
+```
+
 ## Migrated Statement-Plan Provider Consumption Boundary
 
 ### 1. Scope / Trigger

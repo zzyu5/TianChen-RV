@@ -433,6 +433,30 @@ void createRealizedVSetVLRegionMarker(mlir::OpBuilder &builder,
   (void)builder.create(state);
 }
 
+mlir::Operation *createRealizedGearboxCrossRegionHandoff(
+    mlir::OpBuilder &builder, mlir::Location loc, mlir::Value input,
+    mlir::Value vl, mlir::Value runtimeAVL) {
+  mlir::OperationState state(loc, "tcrv_rvv.gearbox_cross_region_handoff");
+  state.addOperands({input, vl, runtimeAVL});
+  state.addAttribute(
+      "contract",
+      builder.getStringAttr(
+          "gearbox-product-reduce-to-dequant-cross-region-handoff.v1"));
+  state.addAttribute("from_phase",
+                     builder.getStringAttr("load-product-reduce"));
+  state.addAttribute("to_phase", builder.getStringAttr("dequant-store"));
+  state.addAttribute(
+      "region_count",
+      builder.getI64IntegerAttr(kRVVLowPrecisionResourceVSetVLRegions));
+  state.addAttribute("runtime_avl_source",
+                     builder.getStringAttr("runtime_abi:n"));
+  state.addAttribute("resource_decision",
+                     builder.getStringAttr(
+                         kRVVLowPrecisionResourceRealizationDecision));
+  state.addTypes(input.getType());
+  return builder.create(state);
+}
+
 struct RVVSelectedBodyContractionRealizationPlan {
   mlir::Operation *preRealizedBody = nullptr;
 
@@ -821,13 +845,19 @@ realizePreRealizedRVVSelectedContractionFamily(
             builder, loc, plan.accumulatorLayout, plan.resultLayout,
             product.getResult(), plan.acc, setvl.getVl(), plan.resultSEW,
             plan.resultLMUL));
-    if (!plan.usesProductReductionDequantClamp)
+    mlir::Value dequantSource = reduced.getResult();
+    if (!plan.usesProductReductionDequantClamp) {
+      auto handoff = llvm::cast<tcrv::rvv::GearboxCrossRegionHandoffOp>(
+          createRealizedGearboxCrossRegionHandoff(
+              builder, loc, reduced.getResult(), setvl.getVl(), plan.n));
+      dequantSource = handoff.getOutput();
       createRealizedVSetVLRegionMarker(
           builder, loc, setvl.getVl(), "dequant-store", 2,
           kRVVLowPrecisionResourceVSetVLRegions);
+    }
     auto dequantized = llvm::cast<tcrv::rvv::DequantizeOp>(
         createRealizedGenericDequantizeCompute(
-            builder, loc, plan.dequantizationRelation, reduced.getResult(),
+            builder, loc, plan.dequantizationRelation, dequantSource,
             plan.scale, setvl.getVl(), plan.resultLMUL));
     mlir::Value valueToStore = dequantized.getResult();
     if (plan.usesProductReductionDequantClamp) {

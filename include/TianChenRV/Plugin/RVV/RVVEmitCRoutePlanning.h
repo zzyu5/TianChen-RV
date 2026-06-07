@@ -40,6 +40,7 @@ struct RVVSelectedBodyRouteSlice {
   tcrv::rvv::WithVLOp withVL;
   llvm::SmallVector<tcrv::rvv::VSetVLRegionMarkerOp, 4>
       vsetvlRegionMarkers;
+  tcrv::rvv::GearboxCrossRegionHandoffOp gearboxCrossRegionHandoffOp;
   tcrv::rvv::LoadOp lhsGenericLoad;
   tcrv::rvv::LoadOp rhsGenericLoad;
   tcrv::rvv::LoadOp secondaryCompareLhsGenericLoad;

@@ -26222,7 +26222,7 @@ module {
        "tcrv_rvv.masked_standalone_reduce, "
        "tcrv_rvv.macc, tcrv_rvv.masked_macc, "
        "tcrv_rvv.widening_product, tcrv_rvv.widening_convert, "
-       "tcrv_rvv.move, "
+       "tcrv_rvv.gearbox_cross_region_handoff, tcrv_rvv.move, "
        "tcrv_rvv.widening_dot_reduce, tcrv_rvv.masked_widening_dot_reduce, "
        "tcrv_rvv.masked_move, tcrv_rvv.masked_load, "
        "tcrv_rvv.masked_strided_load, tcrv_rvv.masked_indexed_load, "

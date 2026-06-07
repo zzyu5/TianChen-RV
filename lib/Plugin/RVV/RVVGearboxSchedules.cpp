@@ -59,6 +59,7 @@ using tianchenrv::plugin::rvv::kRVVGearboxStaticPassSource;
 using tianchenrv::plugin::rvv::kRVVGearboxUnrollAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxVLPolicyAttrName;
 using tianchenrv::tcrv::rvv::DequantizeOp;
+using tianchenrv::tcrv::rvv::GearboxCrossRegionHandoffOp;
 using tianchenrv::tcrv::rvv::LoadOp;
 using tianchenrv::tcrv::rvv::RuntimeABIValueOp;
 using tianchenrv::tcrv::rvv::SetVLOp;
@@ -97,6 +98,12 @@ constexpr llvm::StringLiteral kLowPrecisionSourceDType("i8");
 constexpr llvm::StringLiteral kLowPrecisionProductDType("i16");
 constexpr llvm::StringLiteral kLowPrecisionAccumulatorDType("i32");
 constexpr llvm::StringLiteral kLowPrecisionResultDType("f32");
+constexpr llvm::StringLiteral kLowPrecisionCrossRegionHandoffContract(
+    "gearbox-product-reduce-to-dequant-cross-region-handoff.v1");
+constexpr llvm::StringLiteral kLowPrecisionCrossRegionHandoffFromPhase(
+    "load-product-reduce");
+constexpr llvm::StringLiteral kLowPrecisionCrossRegionHandoffToPhase(
+    "dequant-store");
 
 mlir::LogicalResult requireRuntimeABIValue(RuntimeABIValueOp value,
                                            mlir::Operation *anchor,
@@ -572,13 +579,24 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
               "requires selected product-dequant SEW32 LMUL m1 config: "
            << config.message;
 
-  StandaloneReduceOp reduce =
-      dequantize.getSource().getDefiningOp<StandaloneReduceOp>();
-  if (!reduce || reduce->getParentOp() != withVL.getOperation() ||
-      reduce.getVl() != withVL.getVl())
+  GearboxCrossRegionHandoffOp handoff =
+      dequantize.getSource().getDefiningOp<GearboxCrossRegionHandoffOp>();
+  if (!handoff || handoff->getParentOp() != withVL.getOperation())
     return dequantize->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
               "requires dequantize source from one same-scope "
+              "tcrv_rvv.gearbox_cross_region_handoff";
+  if (handoff.getVl() != withVL.getVl() || handoff.getRuntimeAvl() != setvl.getAvl())
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires tcrv_rvv.gearbox_cross_region_handoff to consume the "
+              "active with_vl token and runtime AVL";
+  StandaloneReduceOp reduce = handoff.getInput().getDefiningOp<StandaloneReduceOp>();
+  if (!reduce || reduce->getParentOp() != withVL.getOperation() ||
+      reduce.getVl() != withVL.getVl())
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires handoff input from one same-scope "
               "tcrv_rvv.standalone_reduce";
 
   WideningProductOp product =
@@ -609,6 +627,11 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
                                      mlir::IntegerType::get(context, 32),
                                      "m1")))
     return mlir::failure();
+  if (mlir::failed(requireVectorType(handoff.getOutput(), handoff,
+                                     "cross-region handoff result",
+                                     mlir::IntegerType::get(context, 32),
+                                     "m1")))
+    return mlir::failure();
   if (mlir::failed(requireVectorType(dequantize.getResult(), dequantize,
                                      "dequantized result",
                                      mlir::Float32Type::get(context), "m1")))
@@ -636,6 +659,21 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
               "requires dequantize kind '"
            << kDequantizationKind << "', relation '"
            << kDequantizationRelation << "', and the active with_vl token";
+  if (handoff.getContract() != kLowPrecisionCrossRegionHandoffContract ||
+      handoff.getFromPhase() != kLowPrecisionCrossRegionHandoffFromPhase ||
+      handoff.getToPhase() != kLowPrecisionCrossRegionHandoffToPhase ||
+      handoff.getRegionCount() !=
+          tianchenrv::plugin::rvv::kRVVLowPrecisionResourceVSetVLRegions ||
+      handoff.getRuntimeAvlSource() !=
+          tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceN ||
+      handoff.getResourceDecision() !=
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceRealizationDecision)
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires tcrv_rvv.gearbox_cross_region_handoff to carry the "
+              "RVV-owned product/reduction-to-dequant contract, phases, "
+              "region count, runtime AVL source, and resource decision";
 
   LoadOp lhsLoad = product.getLhs().getDefiningOp<LoadOp>();
   LoadOp rhsLoad = product.getRhs().getDefiningOp<LoadOp>();
@@ -707,7 +745,7 @@ mlir::LogicalResult materializeGearboxForWithVL(WithVLOp withVL) {
               "per with_vl body";
 
   DequantizeOp dequantize = dequantizeOps.front();
-  if (dequantize.getSource().getDefiningOp<StandaloneReduceOp>()) {
+  if (dequantize.getSource().getDefiningOp<GearboxCrossRegionHandoffOp>()) {
     if (mlir::failed(validateLowPrecisionProductDequantGearboxBody(
             withVL, dequantize)))
       return mlir::failure();
@@ -722,6 +760,10 @@ mlir::LogicalResult materializeGearboxForWithVL(WithVLOp withVL) {
         withVL.getOperation(), builder, *policy, 8, "mf4", 16,
         "mf2", 32, "m1", kLowPrecisionProductDequantMemoryForm);
   }
+  if (dequantize.getSource().getDefiningOp<StandaloneReduceOp>())
+    return dequantize->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires source-producing Gearbox handoff before dequantize";
 
   if (mlir::failed(validateDequantizationGearboxBody(withVL, dequantize)))
     return mlir::failure();

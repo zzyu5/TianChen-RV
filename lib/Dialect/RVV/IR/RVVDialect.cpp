@@ -107,6 +107,13 @@ constexpr llvm::StringLiteral kAccumulatorCarryBoundaryAttrName(
     "accumulator_carry_boundary");
 constexpr llvm::StringLiteral kDequantStoreBoundaryAttrName(
     "dequant_store_boundary");
+constexpr llvm::StringLiteral kContractAttrName("contract");
+constexpr llvm::StringLiteral kFromPhaseAttrName("from_phase");
+constexpr llvm::StringLiteral kToPhaseAttrName("to_phase");
+constexpr llvm::StringLiteral kRegionCountAttrName("region_count");
+constexpr llvm::StringLiteral kRuntimeAVLSourceAttrName(
+    "runtime_avl_source");
+constexpr llvm::StringLiteral kResourceDecisionAttrName("resource_decision");
 constexpr llvm::StringLiteral kStrideUnitAttrName("stride_unit");
 constexpr llvm::StringLiteral kIndexEEWAttrName("index_eew");
 constexpr llvm::StringLiteral kOffsetUnitAttrName("offset_unit");
@@ -216,6 +223,13 @@ bool isAllowedWithVLAttr(llvm::StringRef name) {
 bool isAllowedVSetVLRegionMarkerAttr(llvm::StringRef name) {
   return name == "phase" || name == "region_index" ||
          name == "region_count" || name == "resource_decision";
+}
+
+bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
+  return name == kContractAttrName || name == kFromPhaseAttrName ||
+         name == kToPhaseAttrName || name == kRegionCountAttrName ||
+         name == kRuntimeAVLSourceAttrName ||
+         name == kResourceDecisionAttrName;
 }
 
 bool isAllowedI32LoadAttr(llvm::StringRef) {
@@ -3826,6 +3840,157 @@ mlir::LogicalResult VSetVLRegionMarkerOp::verify() {
   if (getRegionIndex() <= 0 || getRegionIndex() > getRegionCount())
     return emitOpError()
            << "requires one-based region_index within region_count";
+
+  return mlir::success();
+}
+
+mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; Gearbox cross-region handoff keeps SEW/LMUL/policy on "
+                "typed values and setvl/with_vl, and consumes runtime "
+                "n/AVL and VL as SSA operands";
+
+    if (!isAllowedGearboxCrossRegionHandoffAttr(attrName))
+      return emitOpError()
+             << "only accepts Gearbox handoff attributes 'contract', "
+                "'from_phase', 'to_phase', 'region_count', "
+                "'runtime_avl_source', and 'resource_decision'; unexpected "
+                "attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (op->getNumOperands() != 3 || op->getNumResults() != 1)
+    return emitOpError()
+           << "requires one reduced i32 vector input, one active "
+              "!tcrv_rvv.vl operand, one runtime n/AVL operand, and one "
+              "forwarded i32 vector result";
+  if (!isGenericRVVVectorI32M1(getInput().getType()) ||
+      !isGenericRVVVectorI32M1(getOutput().getType()))
+    return emitOpError()
+           << "requires input and output to have type "
+              "!tcrv_rvv.vector<i32, \"m1\"> for the bounded Gearbox "
+              "product/reduction-to-dequant handoff";
+  if (getInput().getType() != getOutput().getType())
+    return emitOpError() << "requires output type to match input type";
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError()
+           << "requires runtime VL operand to have !tcrv_rvv.vl type";
+  auto withVL = verifyNestedDataflowOp(op);
+  if (mlir::failed(withVL))
+    return mlir::failure();
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeElementCountOperand(op, getRuntimeAvl())))
+    return mlir::failure();
+
+  auto reduction = getInput().getDefiningOp<StandaloneReduceOp>();
+  if (!reduction)
+    return emitOpError()
+           << "requires input to be produced by tcrv_rvv.standalone_reduce "
+              "inside the selected Gearbox product/reduction body";
+  if (reduction.getKind() != "signed_widening_reduce_add")
+    return emitOpError()
+           << "requires source-producing tcrv_rvv.standalone_reduce to use "
+              "kind \"signed_widening_reduce_add\"";
+  if (reduction.getVl() != getVl())
+    return emitOpError()
+           << "requires source-producing tcrv_rvv.standalone_reduce to "
+              "consume the same !tcrv_rvv.vl token as the handoff";
+  if (reduction->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires source-producing tcrv_rvv.standalone_reduce to be "
+              "in the same tcrv_rvv.with_vl body as the handoff";
+  auto product = reduction.getInput().getDefiningOp<WideningProductOp>();
+  if (!product)
+    return emitOpError()
+           << "requires source-producing tcrv_rvv.standalone_reduce to "
+              "consume a bounded tcrv_rvv.widening_product result";
+  if (product.getKind() != "signed_widening_product" ||
+      product.getProductRelation() != "signed-i8mf4xi8mf4-to-i16mf2")
+    return emitOpError()
+           << "requires source-producing tcrv_rvv.widening_product to carry "
+              "the bounded signed i8mf4 to i16mf2 product relation";
+  if (product.getVl() != getVl() || product->getParentOp() != op->getParentOp())
+    return emitOpError()
+           << "requires source-producing tcrv_rvv.widening_product to be in "
+              "the same tcrv_rvv.with_vl body and consume the same "
+              "!tcrv_rvv.vl token as the handoff";
+
+  tcrv::rvv::VSetVLRegionMarkerOp firstMarker;
+  tcrv::rvv::VSetVLRegionMarkerOp secondMarker;
+  bool sawHandoff = false;
+  for (mlir::Operation &nested : op->getParentRegion()->front()) {
+    if (&nested == op) {
+      sawHandoff = true;
+      continue;
+    }
+    auto marker = llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(&nested);
+    if (!marker)
+      continue;
+    if (marker.getVl() != getVl() ||
+        marker.getRegionCount() != getRegionCount() ||
+        marker.getResourceDecision() != getResourceDecision())
+      return emitOpError()
+             << "requires surrounding tcrv_rvv.vsetvl_region_marker ops to "
+                "consume the same !tcrv_rvv.vl token and carry matching "
+                "region_count/resource_decision";
+    if (!sawHandoff && marker.getRegionIndex() == 1 &&
+        marker.getPhase() == getFromPhase())
+      firstMarker = marker;
+    if (sawHandoff && marker.getRegionIndex() == 2 &&
+        marker.getPhase() == getToPhase()) {
+      secondMarker = marker;
+      break;
+    }
+  }
+  if (!firstMarker || !secondMarker)
+    return emitOpError()
+           << "requires a preceding load-product-reduce "
+              "tcrv_rvv.vsetvl_region_marker and a following dequant-store "
+              "tcrv_rvv.vsetvl_region_marker with matching VL/resource facts";
+
+  if (getContract() !=
+      "gearbox-product-reduce-to-dequant-cross-region-handoff.v1")
+    return emitOpError()
+           << "requires contract "
+              "'gearbox-product-reduce-to-dequant-cross-region-handoff.v1'";
+  if (getFromPhase() != "load-product-reduce")
+    return emitOpError()
+           << "requires from_phase 'load-product-reduce'";
+  if (getToPhase() != "dequant-store")
+    return emitOpError() << "requires to_phase 'dequant-store'";
+  if (getRegionCount() !=
+      tianchenrv::plugin::rvv::kRVVLowPrecisionResourceVSetVLRegions)
+    return emitOpError()
+           << "requires region_count to match the bounded Gearbox two-region "
+              "resource decision";
+  if (getRuntimeAvlSource() != "runtime_abi:n")
+    return emitOpError()
+           << "requires runtime_avl_source 'runtime_abi:n'";
+  if (getResourceDecision() !=
+      tianchenrv::plugin::rvv::kRVVLowPrecisionResourceRealizationDecision)
+    return emitOpError()
+           << "requires resource_decision to match the RVV low-precision "
+              "realization decision";
+  if (mlir::failed(verifyBoundedMetadata(op, kContractAttrName, getContract())))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyBoundedMetadata(op, kFromPhaseAttrName, getFromPhase())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kToPhaseAttrName, getToPhase())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kRuntimeAVLSourceAttrName,
+                                         getRuntimeAvlSource())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kResourceDecisionAttrName,
+                                         getResourceDecision())))
+    return mlir::failure();
 
   return mlir::success();
 }
@@ -12102,12 +12267,14 @@ mlir::LogicalResult DequantizeOp::verify() {
 
   auto sourceLoad = getSource().getDefiningOp<LoadOp>();
   auto sourceReduction = getSource().getDefiningOp<StandaloneReduceOp>();
-  if (!sourceLoad && !sourceReduction)
+  auto sourceHandoff = getSource().getDefiningOp<GearboxCrossRegionHandoffOp>();
+  if (!sourceLoad && !sourceReduction && !sourceHandoff)
     return emitOpError()
            << "requires source vector to be produced by tcrv_rvv.load or by "
               "a bounded tcrv_rvv.widening_product -> "
-              "tcrv_rvv.standalone_reduce chain inside the selected RVV "
-              "typed body";
+              "tcrv_rvv.standalone_reduce chain, optionally through "
+              "tcrv_rvv.gearbox_cross_region_handoff, inside the selected "
+              "RVV typed body";
   if (sourceLoad) {
     if (sourceLoad.getVl() != getVl())
       return emitOpError()
@@ -12141,6 +12308,30 @@ mlir::LogicalResult DequantizeOp::verify() {
         product->getParentOp() != op->getParentOp())
       return emitOpError()
              << "requires source-producing product-reduction chain to be in "
+                "the same tcrv_rvv.with_vl body as tcrv_rvv.dequantize";
+  }
+  if (sourceHandoff) {
+    auto reduction = sourceHandoff.getInput().getDefiningOp<StandaloneReduceOp>();
+    if (!reduction)
+      return emitOpError()
+             << "requires source-producing Gearbox handoff to consume a "
+                "tcrv_rvv.standalone_reduce result";
+    auto product = reduction.getInput().getDefiningOp<WideningProductOp>();
+    if (!product)
+      return emitOpError()
+             << "requires source-producing Gearbox handoff reduction to "
+                "consume a bounded tcrv_rvv.widening_product result";
+    if (sourceHandoff.getVl() != getVl() || reduction.getVl() != getVl() ||
+        product.getVl() != getVl())
+      return emitOpError()
+             << "requires source-producing Gearbox handoff, product, and "
+                "standalone reduction to consume the same !tcrv_rvv.vl token "
+                "as tcrv_rvv.dequantize";
+    if (sourceHandoff->getParentOp() != op->getParentOp() ||
+        reduction->getParentOp() != op->getParentOp() ||
+        product->getParentOp() != op->getParentOp())
+      return emitOpError()
+             << "requires source-producing Gearbox handoff chain to be in "
                 "the same tcrv_rvv.with_vl body as tcrv_rvv.dequantize";
   }
 

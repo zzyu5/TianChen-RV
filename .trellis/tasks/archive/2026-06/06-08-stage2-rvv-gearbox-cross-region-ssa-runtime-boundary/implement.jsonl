@@ -1,0 +1,19 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage2 selected-body realization, and metadata-authority guardrails."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local selected-body realization, typed body authority, and fail-closed provider rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built route contract."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Stage2 resource-aware selected-body realization expectations."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Gearbox/resource-aware selected-body realization must become body structure before route construction."}
+{"file": ".trellis/spec/testing/index.md", "reason": "MLIR/lit/FileCheck and RVV evidence requirements."}
+{"file": ".trellis/spec/implementation-stack/index.md", "reason": "C++/MLIR/TableGen/CMake/lit implementation boundary."}
+{"file": ".trellis/spec/guides/index.md", "reason": "Routing guide for RVV route/lowering/performance-layer changes."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep Gearbox scheduling and provider validation RVV plugin-local."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure performance config is consumed into extension body structure, not core/high-level compute."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-gearbox-multi-region-selected-body-realization/prd.md", "reason": "Previous marker-backed vsetvl placement structure and explicit continuation point."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Added tcrv_rvv.gearbox_cross_region_handoff as the structural product/reduction-to-dequant SSA/runtime boundary."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Verified handoff source chain, VL/runtime AVL operands, phase attrs, marker ordering, and dequantize handoff source acceptance."}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Materialized handoff between standalone_reduce and dequantize for the bounded non-clamp Gearbox product-reduce-dequant path."}
+{"file": "lib/Plugin/RVV/RVVGearboxSchedules.cpp", "reason": "Made Gearbox resource schedule derivation consume the handoff instead of direct reduction-to-dequant source for this route."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Collected and validated the handoff in selected-body route slices before route support."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Required provider family-plan/resource validation to consume handoff value, VL, runtime AVL, contract, and resource facts."}
+{"file": "lib/Plugin/RVV/Construction/RVVConstructionProtocol.cpp", "reason": "Extended the non-clamp product-reduce-dequant typed compute chain to include gearbox_cross_region_handoff."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Captured the executable Gearbox cross-region handoff contract and fail-closed matrix."}

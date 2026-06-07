@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-25.md`
-- **Total Sessions**: 541
+- **Total Sessions**: 542
 - **Last Active**: 2026-06-08
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-25.md` | ~1619 | Active |
+| `journal-25.md` | ~1655 | Active |
 | `journal-24.md` | ~1991 | Archived |
 | `journal-23.md` | ~1982 | Archived |
 | `journal-22.md` | ~2034 | Archived |
@@ -53,6 +53,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 542 | 2026-06-08 | Stage2 RVV Gearbox cross-region handoff | pending-in-this-commit | `main` |
 | 541 | 2026-06-08 | Stage2 RVV Gearbox multi-region selected-body realization | created-after-journal-entry | `main` |
 | 540 | 2026-06-08 | Stage2 RVV Gearbox resource-aware selected-body realization foundation | created-after-journal-entry | `main` |
 | 539 | 2026-06-08 | Stage2 RVV runtime-scalar-cmp masked segment2 load ABI | final commit | `main` |

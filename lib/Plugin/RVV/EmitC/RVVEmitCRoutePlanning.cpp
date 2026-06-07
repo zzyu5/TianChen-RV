@@ -17271,6 +17271,63 @@ llvm::Error recordRVVSelectedBodyWideningConvert(
   return llvm::Error::success();
 }
 
+llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
+    RVVSelectedBodyRouteSlice &slice,
+    tcrv::rvv::GearboxCrossRegionHandoffOp handoff,
+    const support::RuntimeABIParameter &runtimeElementCountABI) {
+  if (slice.gearboxCrossRegionHandoffOp)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route requires exactly one "
+        "tcrv_rvv.gearbox_cross_region_handoff op for the low-precision "
+        "product-reduction dequantization cross-region boundary");
+  if (slice.arithmeticKind !=
+          RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
+      !slice.standaloneReduceOp || !slice.wideningProductOp)
+    return makeRVVEmitCRouteProviderError(
+        "low-precision product-reduction dequantization RVV route requires "
+        "tcrv_rvv.gearbox_cross_region_handoff to follow the selected "
+        "tcrv_rvv.widening_product -> tcrv_rvv.standalone_reduce chain");
+  if (handoff.getInput() != slice.standaloneReduceOp.getResult())
+    return makeRVVEmitCRouteProviderError(
+        "low-precision product-reduction dequantization RVV route requires "
+        "tcrv_rvv.gearbox_cross_region_handoff input to consume the selected "
+        "tcrv_rvv.standalone_reduce i32 result");
+  if (handoff.getVl() != slice.setvl.getVl())
+    return makeRVVEmitCRouteProviderError(
+        "low-precision product-reduction dequantization RVV route requires "
+        "tcrv_rvv.gearbox_cross_region_handoff to consume the selected "
+        "!tcrv_rvv.vl token");
+  if (handoff.getRuntimeAvl() != slice.setvl.getAvl())
+    return makeRVVEmitCRouteProviderError(
+        "low-precision product-reduction dequantization RVV route requires "
+        "tcrv_rvv.gearbox_cross_region_handoff runtime AVL operand to be the "
+        "same runtime n/AVL SSA value consumed by tcrv_rvv.setvl");
+  if (runtimeElementCountABI.role !=
+      support::RuntimeABIParameterRole::RuntimeElementCount)
+    return makeRVVEmitCRouteProviderError(
+        "low-precision product-reduction dequantization RVV route requires "
+        "tcrv_rvv.gearbox_cross_region_handoff runtime AVL source to bind "
+        "runtime-element-count");
+  if (handoff.getContract() !=
+          "gearbox-product-reduce-to-dequant-cross-region-handoff.v1" ||
+      handoff.getFromPhase() != "load-product-reduce" ||
+      handoff.getToPhase() != "dequant-store" ||
+      static_cast<std::int64_t>(handoff.getRegionCount()) !=
+          kRVVLowPrecisionResourceVSetVLRegions ||
+      handoff.getRuntimeAvlSource() != "runtime_abi:n" ||
+      handoff.getResourceDecision() !=
+          kRVVLowPrecisionResourceRealizationDecision)
+    return makeRVVEmitCRouteProviderError(
+        "low-precision product-reduction dequantization RVV route requires "
+        "tcrv_rvv.gearbox_cross_region_handoff contract/from_phase/to_phase/"
+        "region_count/runtime_avl_source/resource_decision to match the "
+        "RVV-owned Gearbox cross-region handoff contract");
+
+  slice.gearboxCrossRegionHandoffOp = handoff;
+  slice.conversionSource = handoff.getOutput();
+  return llvm::Error::success();
+}
+
 llvm::Error recordRVVSelectedBodyDequantize(
     RVVSelectedBodyRouteSlice &slice, tcrv::rvv::DequantizeOp dequantize) {
   if (dequantize.getKind() != kRVVDequantizeI32ToF32Kind)
@@ -17300,11 +17357,17 @@ llvm::Error recordRVVSelectedBodyDequantize(
           "bounded RVV EmitC route requires exactly one selected compute op "
           "unless a low-precision product-reduction result feeds a "
           "tcrv_rvv.dequantize i32-to-f32 chain");
-    if (dequantize.getSource() != slice.standaloneReduceOp.getResult())
+    if (!slice.gearboxCrossRegionHandoffOp)
+      return makeRVVEmitCRouteProviderError(
+          "low-precision product-reduction dequantization RVV route requires "
+          "a tcrv_rvv.gearbox_cross_region_handoff between the selected "
+          "tcrv_rvv.standalone_reduce i32 result and tcrv_rvv.dequantize");
+    if (dequantize.getSource() !=
+        slice.gearboxCrossRegionHandoffOp.getOutput())
       return makeRVVEmitCRouteProviderError(
           "low-precision product-reduction dequantization RVV route requires "
           "tcrv_rvv.dequantize source to consume the selected "
-          "tcrv_rvv.standalone_reduce i32 result");
+          "tcrv_rvv.gearbox_cross_region_handoff output");
     slice.dequantizeOp = dequantize;
     slice.arithmeticOp = dequantize.getOperation();
     slice.arithmeticKind =
@@ -18319,6 +18382,14 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       vsetvlRegionMarkers.push_back(marker);
       continue;
     }
+    if (auto handoff =
+            llvm::dyn_cast<tcrv::rvv::GearboxCrossRegionHandoffOp>(op)) {
+      if (llvm::Error error =
+              recordRVVSelectedBodyGearboxCrossRegionHandoff(
+                  slice, handoff, *runtimeElementCountABI))
+        return std::move(error);
+      continue;
+    }
     if (auto load = llvm::dyn_cast<tcrv::rvv::LoadOp>(op)) {
       genericLoads.push_back(load);
       continue;
@@ -18558,6 +18629,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "tcrv_rvv.standalone_reduce, tcrv_rvv.masked_standalone_reduce, "
           "tcrv_rvv.macc, tcrv_rvv.masked_macc, "
           "tcrv_rvv.widening_product, tcrv_rvv.widening_convert, "
+          "tcrv_rvv.gearbox_cross_region_handoff, "
           "tcrv_rvv.move, "
           "tcrv_rvv.widening_dot_reduce, "
           "tcrv_rvv.masked_widening_dot_reduce, "
@@ -18576,7 +18648,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "mask_load, segment2_load, segment2_store, binary, compare, "
         "masked_binary, select, reduce, standalone_reduce, "
         "masked_standalone_reduce, macc, masked_macc, "
-        "widening_product, widening_convert, widening_dot_reduce, "
+        "widening_product, widening_convert, gearbox_cross_region_handoff, "
+        "widening_dot_reduce, "
         "masked_widening_dot_reduce, move, masked_move, masked_load, "
         "masked_strided_load, masked_indexed_load, masked_indexed_store, "
         "masked_segment2_load, "
@@ -19057,6 +19130,18 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "bounded RVV EmitC route accepts tcrv_rvv.vsetvl_region_marker only "
         "for low-precision product-reduction dequantization selected-body "
         "realization");
+  if (slice.gearboxCrossRegionHandoffOp &&
+      !isWideningProductReduceDequantize)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route accepts "
+        "tcrv_rvv.gearbox_cross_region_handoff only for low-precision "
+        "product-reduction dequantization selected-body realization");
+  if (isWideningProductReduceDequantize &&
+      !slice.gearboxCrossRegionHandoffOp)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route requires "
+        "tcrv_rvv.gearbox_cross_region_handoff for low-precision "
+        "product-reduction dequantization selected-body realization");
   if (hasIndexedMemory && isIndexedGatherUnitStore &&
       (!genericStridedLoads.empty() || stridedStoreCount != 0 ||
        !genericLoads.empty() || !genericBroadcastLoads.empty() ||
@@ -20235,7 +20320,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       : isWideningProductReduceDequantClamp
           ? 22
       : isWideningProductReduceDequantize
-          ? 14
+          ? 15
       : isWideningProductReductionChain
           ? 12
       : isStridedInputWideningDotReduceAdd
@@ -20315,8 +20400,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "index_load/indexed_load/mask_load/segment2_load/segment2_store/"
         "binary/compare/select/masked_binary/reduce/macc/masked_macc/"
         "standalone_reduce/masked_standalone_reduce/widening_product/"
-        "widening_dot_reduce/widening_convert/dequantize/"
-        "vsetvl_region_marker/move/"
+        "widening_dot_reduce/widening_convert/"
+        "gearbox_cross_region_handoff/dequantize/vsetvl_region_marker/move/"
         "masked_move/masked_load/masked_strided_load/"
         "masked_indexed_load/masked_indexed_store/masked_store/"
         "masked_segment2_store/masked_strided_store/store/strided_store body "
@@ -21981,6 +22066,13 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision product-reduction "
           "dequantization route requires a tcrv_rvv.dequantize consumer");
+    if (isWideningProductReduceDequantize &&
+        !slice.gearboxCrossRegionHandoffOp)
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV low-precision product-reduction "
+          "dequantization route requires a structural "
+          "tcrv_rvv.gearbox_cross_region_handoff between product/reduction "
+          "and dequantization");
     if (hasProductReductionDequantization &&
         slice.dequantScaleABI.role !=
             support::RuntimeABIParameterRole::DequantScaleValue)
@@ -22008,15 +22100,21 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
             slice.wideningProductOp.getResult() ||
         slice.arithmeticAccumulator != slice.accumulatorBuffer ||
         slice.storeValue != expectedProductReductionStoreValue ||
-        (hasProductReductionDequantization &&
+        (isWideningProductReduceDequantize &&
+         (slice.gearboxCrossRegionHandoffOp.getInput() !=
+              slice.standaloneReduceOp.getResult() ||
+          slice.gearboxCrossRegionHandoffOp.getOutput() !=
+              slice.dequantizeOp.getSource())) ||
+        (isWideningProductReduceDequantClamp &&
          slice.dequantizeOp.getSource() != slice.standaloneReduceOp.getResult()))
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision product-reduction route requires "
           "tcrv_rvv.widening_product to consume lhs/rhs i8 source loads, "
           "tcrv_rvv.standalone_reduce to consume the product and scalar "
-          "accumulator seed boundary, optional tcrv_rvv.dequantize to consume "
-          "the i32 reduction result, and tcrv_rvv.store to store the final "
-          "chain result");
+          "accumulator seed boundary, optional "
+          "tcrv_rvv.gearbox_cross_region_handoff to forward the i32 "
+          "reduction result into tcrv_rvv.dequantize, and tcrv_rvv.store to "
+          "store the final chain result");
     if (isWideningProductReduceDequantClamp) {
       if (slice.lowerBoundABI.role !=
               support::RuntimeABIParameterRole::LowerBoundScalarValue ||
@@ -22053,6 +22151,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           "runtime ABI boundary");
     if (slice.wideningProductOp.getVl() != slice.setvl.getVl() ||
         slice.standaloneReduceOp.getVl() != slice.setvl.getVl() ||
+        (isWideningProductReduceDequantize &&
+         slice.gearboxCrossRegionHandoffOp.getVl() != slice.setvl.getVl()) ||
         (hasProductReductionDequantization &&
          slice.dequantizeOp.getVl() != slice.setvl.getVl()) ||
         (isWideningProductReduceDequantClamp &&
@@ -22068,7 +22168,16 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       return makeRVVEmitCRouteProviderError(
           "bounded generic RVV low-precision product-reduction route requires "
           "source loads, widening_product, standalone_reduce, optional "
-          "dequantize, and store to consume the selected !tcrv_rvv.vl token");
+          "gearbox_cross_region_handoff, dequantize, and store to consume "
+          "the selected !tcrv_rvv.vl token");
+    if (isWideningProductReduceDequantize &&
+        slice.gearboxCrossRegionHandoffOp.getRuntimeAvl() !=
+            slice.setvl.getAvl())
+      return makeRVVEmitCRouteProviderError(
+          "bounded generic RVV low-precision product-reduction "
+          "dequantization route requires tcrv_rvv.gearbox_cross_region_handoff "
+          "runtime AVL operand to match the selected tcrv_rvv.setvl AVL "
+          "runtime SSA value");
   } else if (isWideningDotReduceAdd || isStridedInputWideningDotReduceAdd) {
     if (slice.accumulatorABI.role !=
         support::RuntimeABIParameterRole::AccumulatorInputBuffer)
@@ -23540,11 +23649,15 @@ unsigned getRVVCanonicalRoleOrder(RVVSelectedBodyRouteSlice &slice,
     if (isWideningProductReduceDequantize &&
         op == slice.standaloneReduceOp.getOperation())
       return 11;
+    if (isWideningProductReduceDequantize &&
+        slice.gearboxCrossRegionHandoffOp &&
+        op == slice.gearboxCrossRegionHandoffOp.getOperation())
+      return 12;
     if (op == slice.arithmeticOp)
-      return isWideningProductReduceDequantize ? 12 : 10;
+      return isWideningProductReduceDequantize ? 13 : 10;
     if (op == slice.storeOperation)
-      return isWideningProductReduceDequantize ? 13 : 11;
-    return isWideningProductReduceDequantize ? 14 : 12;
+      return isWideningProductReduceDequantize ? 14 : 11;
+    return isWideningProductReduceDequantize ? 15 : 12;
   }
   if (isComputedMaskStandaloneReduction) {
     if (rhsABI && op == rhsABI.getOperation())

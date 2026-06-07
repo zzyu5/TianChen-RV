@@ -359,6 +359,42 @@ def VSetVLRegionMarkerOp : TCRVRVV_Op<"vsetvl_region_marker"> {
   let hasVerifier = 1;
 }
 
+def GearboxCrossRegionHandoffOp
+    : TCRVRVV_Op<"gearbox_cross_region_handoff"> {
+  let summary =
+      "RVV plugin-owned Gearbox value and runtime boundary handoff";
+  let description = [{
+    Records the bounded structural handoff between the low-precision Gearbox
+    product/reduction region and the dequant/store region. The op is nested
+    directly under tcrv_rvv.with_vl, consumes the reduced i32 vector value, the
+    active !tcrv_rvv.vl token, and the explicit runtime n/AVL SSA value, then
+    forwards the reduced value as an SSA result for tcrv_rvv.dequantize.
+
+    This operation is a bridge toward true multi-region selected-body
+    realization. It makes product/reduction/dequant value handoff, runtime AVL
+    source, VL token, phase ordering, region count, and resource decision
+    structural before provider route support. It is not a math op, intrinsic
+    wrapper, descriptor, route id, artifact metadata, or executable proof.
+  }];
+
+  let arguments = (ins
+    AnyType:$input,
+    AnyType:$vl,
+    AnyType:$runtime_avl,
+    StrAttr:$contract,
+    StrAttr:$from_phase,
+    StrAttr:$to_phase,
+    I64Attr:$region_count,
+    StrAttr:$runtime_avl_source,
+    StrAttr:$resource_decision
+  );
+  let results = (outs AnyType:$output);
+
+  let assemblyFormat =
+    "$input `,` $vl `,` $runtime_avl attr-dict `:` type($input) `,` type($vl) `,` type($runtime_avl) `->` type($output)";
+  let hasVerifier = 1;
+}
+
 def TypedBinaryPreRealizedBodyOp
     : TCRVRVV_Op<"typed_binary_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV binary selected body";
