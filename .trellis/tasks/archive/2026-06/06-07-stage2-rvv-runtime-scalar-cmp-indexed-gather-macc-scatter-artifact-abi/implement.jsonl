@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture invariants and RVV Stage 1/2 order."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned runtime-scalar indexed gather MAcc scatter route contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality contract."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export and selected-path artifact candidate gate."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle and ssh rvv runtime evidence requirements."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability and selected variant authority checklist."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "RVV plugin locality and common/core red flags."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute boundary and tcrv.exec envelope constraints."}
+{"file": ".trellis/tasks/archive/2026-06/06-07-stage2-rvv-resource-aware-composite-fallback-dispatch-abi/prd.md", "reason": "Predecessor fallback/export boundary completion and remaining evidence gap."}

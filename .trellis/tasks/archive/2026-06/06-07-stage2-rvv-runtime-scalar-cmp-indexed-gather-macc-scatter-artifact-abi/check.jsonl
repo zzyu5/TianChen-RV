@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global invariants and RVV-first stage constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check composite route ABI/body/provider facts against RVV plugin contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and provider-built route is authority."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check target artifact export and selected-path candidate behavior."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check ssh rvv and generated-bundle evidence quality."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check no common/core RVV semantic branch was introduced."}
