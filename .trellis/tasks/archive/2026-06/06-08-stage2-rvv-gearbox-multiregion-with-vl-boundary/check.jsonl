@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final behavior against RVV authority chain and Stage2 guardrails."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin-local boundary ownership and fail-closed behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC remains semantic-neutral."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Verify focused tests and runtime evidence claims are scoped correctly."}
+{"command": "rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-dialect-test tianchenrv-construction-protocol-common-test -j2", "reason": "Focused build targets for changed dialect/provider/translation/construction behavior."}
+{"command": "rtk build/bin/tianchenrv-rvv-dialect-test", "reason": "RVV dialect/verifier regression evidence."}
+{"command": "rtk build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "RVV provider route planning and fail-closed diagnostics evidence."}
+{"command": "rtk build/bin/tianchenrv-construction-protocol-common-test", "reason": "Construction protocol role-step evidence."}
+{"command": "rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'widening-product-reduce-dequantize-f32'", "reason": "Focused explicit/pre-realized Gearbox lit evidence."}
+{"command": "rtk git diff --check", "reason": "Whitespace diff check before staging."}
+{"command": "rtk git diff --cached --check", "reason": "Whitespace diff check after staging."}
+{"command": "rtk git diff -U0 -- include lib test | rtk rg -n 'RVVI32M1|rvv-i32m1|tcrv_rvv\\.i32_|!tcrv_rvv\\.i32m|source-front-door|source-artifact|descriptor-driven|descriptor ->|status = \"supported\"'", "reason": "Bounded old-authority scan over touched production/test diff lines."}
+{"command": "rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-rvv-dialect-test tianchenrv-construction-protocol-common-test -j2 && rtk build/bin/tianchenrv-rvv-dialect-test && rtk build/bin/tianchenrv-rvv-extension-plugin-test && rtk build/bin/tianchenrv-construction-protocol-common-test", "reason": "Final focused C++ build and test gate passed for dialect, plugin, and construction protocol coverage."}
+{"command": "rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'widening-product-reduce-dequantize-f32'", "reason": "Final focused lit filter passed: 3 tests passed, 528 excluded."}
+{"command": "rtk git diff --check && rtk git diff -U0 -- include lib test | rtk rg -n 'RVVI32M1|rvv-i32m1|tcrv_rvv\\.i32_|!tcrv_rvv\\.i32m|source-front-door|source-artifact|descriptor-driven|descriptor ->|status = \"supported\"'", "reason": "Final whitespace check passed and bounded old-authority scan produced no matches."}

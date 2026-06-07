@@ -114,6 +114,8 @@ constexpr llvm::StringLiteral kRegionCountAttrName("region_count");
 constexpr llvm::StringLiteral kRuntimeAVLSourceAttrName(
     "runtime_avl_source");
 constexpr llvm::StringLiteral kResourceDecisionAttrName("resource_decision");
+constexpr llvm::StringLiteral kProducerScopeAttrName("producer_scope");
+constexpr llvm::StringLiteral kConsumerScopeAttrName("consumer_scope");
 constexpr llvm::StringLiteral kStrideUnitAttrName("stride_unit");
 constexpr llvm::StringLiteral kIndexEEWAttrName("index_eew");
 constexpr llvm::StringLiteral kOffsetUnitAttrName("offset_unit");
@@ -216,6 +218,8 @@ bool isAllowedWithVLAttr(llvm::StringRef name) {
          name == tianchenrv::plugin::rvv::kRVVGearboxDestLMULAttrName ||
          name ==
              tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxConsumerScopeAttrName ||
          tianchenrv::plugin::rvv::isRVVLowPrecisionResourceAttrName(name) ||
          tianchenrv::plugin::rvv::isRVVCompositeResourceAttrName(name);
 }
@@ -229,7 +233,8 @@ bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
   return name == kContractAttrName || name == kFromPhaseAttrName ||
          name == kToPhaseAttrName || name == kRegionCountAttrName ||
          name == kRuntimeAVLSourceAttrName ||
-         name == kResourceDecisionAttrName;
+         name == kResourceDecisionAttrName ||
+         name == kProducerScopeAttrName || name == kConsumerScopeAttrName;
 }
 
 bool isAllowedI32LoadAttr(llvm::StringRef) {
@@ -467,7 +472,9 @@ bool isAllowedTypedWideningProductReduceDequantizePreRealizedBodyAttr(
          name == kProductReductionChainRelationAttrName ||
          name == kDequantRelationAttrName || name == kScaleRoleAttrName ||
          name == kDequantStoreBoundaryAttrName || name == kPolicyAttrName ||
-         tianchenrv::plugin::rvv::isRVVLowPrecisionResourceAttrName(name);
+         tianchenrv::plugin::rvv::isRVVLowPrecisionResourceAttrName(name) ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxConsumerScopeAttrName;
 }
 
 bool isAllowedTypedWideningConversionPreRealizedBodyAttr(
@@ -790,7 +797,9 @@ bool isAllowedDequantizeAttr(llvm::StringRef name) {
          name == tianchenrv::plugin::rvv::kRVVGearboxSourceLMULAttrName ||
          name == tianchenrv::plugin::rvv::kRVVGearboxDestSEWAttrName ||
          name == tianchenrv::plugin::rvv::kRVVGearboxDestLMULAttrName ||
-         name == tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName;
+         name == tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxProducerScopeAttrName ||
+         name == tianchenrv::plugin::rvv::kRVVGearboxConsumerScopeAttrName;
 }
 
 bool isAllowedMoveAttr(llvm::StringRef name) { return name == "kind"; }
@@ -3860,7 +3869,8 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
       return emitOpError()
              << "only accepts Gearbox handoff attributes 'contract', "
                 "'from_phase', 'to_phase', 'region_count', "
-                "'runtime_avl_source', and 'resource_decision'; unexpected "
+                "'runtime_avl_source', 'resource_decision', "
+                "'producer_scope', and 'consumer_scope'; unexpected "
                 "attribute '"
              << attr.getName() << "'";
   }
@@ -3978,6 +3988,20 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return emitOpError()
            << "requires resource_decision to match the RVV low-precision "
               "realization decision";
+  if (getProducerScope() !=
+      tianchenrv::plugin::rvv::kRVVGearboxProducerScope)
+    return emitOpError()
+           << "requires producer_scope '"
+           << tianchenrv::plugin::rvv::kRVVGearboxProducerScope << "'";
+  if (getConsumerScope() !=
+      tianchenrv::plugin::rvv::kRVVGearboxConsumerScope)
+    return emitOpError()
+           << "requires consumer_scope '"
+           << tianchenrv::plugin::rvv::kRVVGearboxConsumerScope << "'";
+  if (getProducerScope() == getConsumerScope())
+    return emitOpError()
+           << "requires producer_scope and consumer_scope to be distinct "
+              "Gearbox region scopes";
   if (mlir::failed(verifyBoundedMetadata(op, kContractAttrName, getContract())))
     return mlir::failure();
   if (mlir::failed(
@@ -3990,6 +4014,12 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyBoundedMetadata(op, kResourceDecisionAttrName,
                                          getResourceDecision())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kProducerScopeAttrName,
+                                         getProducerScope())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kConsumerScopeAttrName,
+                                         getConsumerScope())))
     return mlir::failure();
 
   return mlir::success();

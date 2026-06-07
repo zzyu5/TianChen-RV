@@ -4157,6 +4157,8 @@ deriveRVVLowPrecisionContractionResourceSelection(
       kRVVLowPrecisionResourceVectorRegisterBudget;
 
   selection.runtimeAVLSource = plan.runtimeControlPlan.runtimeAVLASource.str();
+  selection.producerScope = kRVVGearboxProducerScope.str();
+  selection.consumerScope = kRVVGearboxConsumerScope.str();
   selection.runtimeABIOrder = plan.runtimeABIOrder.str();
   selection.targetCapabilityProviderMirror = targetFacts.providerMirror;
   selection.targetCapabilityLegalityMirror = targetFacts.legalityMirror;
@@ -4406,12 +4408,15 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
           selection.vsetvlRegionCount ||
       handoff.getRuntimeAvlSource() != selection.runtimeAVLSource ||
       handoff.getResourceDecision() !=
-          kRVVLowPrecisionResourceRealizationDecision)
+          kRVVLowPrecisionResourceRealizationDecision ||
+      handoff.getProducerScope() != kRVVGearboxProducerScope ||
+      handoff.getConsumerScope() != kRVVGearboxConsumerScope ||
+      handoff.getProducerScope() == handoff.getConsumerScope())
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " selected-body realization low-precision direct-contraction "
         "structure has stale or inconsistent Gearbox cross-region handoff "
-        "contract/runtime/resource facts");
+        "contract/runtime/resource/scope facts");
 
   return llvm::Error::success();
 }
@@ -4575,6 +4580,16 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
   else
     return value.takeError();
   if (llvm::Expected<std::string> value =
+          readString(kRVVGearboxProducerScopeAttrName))
+    selection.producerScope = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVGearboxConsumerScopeAttrName))
+    selection.consumerScope = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
           readString(kRVVLowPrecisionResourceRuntimeABIOrderAttrName))
     selection.runtimeABIOrder = *value;
   else
@@ -4668,6 +4683,8 @@ bool isRVVLowPrecisionResourceSelectionEqual(
          lhs.peakLiveVectorGroups == rhs.peakLiveVectorGroups &&
          lhs.vectorRegisterBudget == rhs.vectorRegisterBudget &&
          lhs.runtimeAVLSource == rhs.runtimeAVLSource &&
+         lhs.producerScope == rhs.producerScope &&
+         lhs.consumerScope == rhs.consumerScope &&
          lhs.runtimeABIOrder == rhs.runtimeABIOrder &&
          lhs.targetCapabilityProviderMirror ==
              rhs.targetCapabilityProviderMirror &&
@@ -4823,6 +4840,19 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
           selection.runtimeAVLSource,
           plan.runtimeControlPlan.runtimeAVLASource))
     return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "producer scope", selection.producerScope,
+          kRVVGearboxProducerScope))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "consumer scope", selection.consumerScope,
+          kRVVGearboxConsumerScope))
+    return error;
+  if (selection.producerScope == selection.consumerScope)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision direct-contraction resource selection requires "
+        "distinct Gearbox producer and consumer scopes");
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "runtime ABI order", selection.runtimeABIOrder,
           plan.runtimeABIOrder))
@@ -5012,6 +5042,19 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
           context, selection, "runtime AVL source",
           selection.runtimeAVLSource, description.runtimeAVLASource))
     return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "producer scope", selection.producerScope,
+          kRVVGearboxProducerScope))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "consumer scope", selection.consumerScope,
+          kRVVGearboxConsumerScope))
+    return error;
+  if (selection.producerScope == selection.consumerScope)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision direct-contraction resource selection requires "
+        "distinct Gearbox producer and consumer scopes");
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "runtime ABI order", selection.runtimeABIOrder,
           description.runtimeABIOrder))

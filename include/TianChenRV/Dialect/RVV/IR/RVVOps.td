@@ -372,9 +372,10 @@ def GearboxCrossRegionHandoffOp
 
     This operation is a bridge toward true multi-region selected-body
     realization. It makes product/reduction/dequant value handoff, runtime AVL
-    source, VL token, phase ordering, region count, and resource decision
-    structural before provider route support. It is not a math op, intrinsic
-    wrapper, descriptor, route id, artifact metadata, or executable proof.
+    source, VL token, phase ordering, region count, resource decision, and the
+    producer/consumer region scopes structural before provider route support.
+    It is not a math op, intrinsic wrapper, descriptor, route id, artifact
+    metadata, or executable proof.
   }];
 
   let arguments = (ins
@@ -386,7 +387,9 @@ def GearboxCrossRegionHandoffOp
     StrAttr:$to_phase,
     I64Attr:$region_count,
     StrAttr:$runtime_avl_source,
-    StrAttr:$resource_decision
+    StrAttr:$resource_decision,
+    StrAttr:$producer_scope,
+    StrAttr:$consumer_scope
   );
   let results = (outs AnyType:$output);
 

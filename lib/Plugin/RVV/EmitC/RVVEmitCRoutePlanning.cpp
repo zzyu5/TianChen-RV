@@ -6916,6 +6916,8 @@ buildRVVDequantizationRouteFacts(RVVSelectedBodyOperationKind operation) {
   facts.gearboxDestSEW = kRVVGearboxDequantizeI32ToF32DestSEW;
   facts.gearboxDestLMUL = kRVVGearboxDequantizeI32ToF32DestLMUL;
   facts.gearboxRuntimeAVLSource = kRVVGearboxRuntimeAVLSourceN;
+  facts.gearboxProducerScope = kRVVGearboxProducerScope;
+  facts.gearboxConsumerScope = kRVVGearboxConsumerScope;
   facts.routeOperandBindingSummary =
       (llvm::Twine(kRVVDequantizeI32ToF32OperandBindingPlanID) +
        ";lhs=lhs-input-buffer:lhs:abi|src-load|dequant-src|src-i32m1|"
@@ -7095,6 +7097,14 @@ llvm::Error requireRVVDequantizationGearboxFactsOnOp(
   if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
           op, context, kRVVGearboxRuntimeAVLSourceAttrName,
           facts.gearboxRuntimeAVLSource))
+    return error;
+  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
+          op, context, "tcrv_rvv.gearbox.producer_scope",
+          facts.gearboxProducerScope))
+    return error;
+  if (llvm::Error error = requireRVVDequantizationGearboxStringAttr(
+          op, context, "tcrv_rvv.gearbox.consumer_scope",
+          facts.gearboxConsumerScope))
     return error;
   return llvm::Error::success();
 }
@@ -7334,6 +7344,18 @@ llvm::Error validateRVVSelectedBodyDequantizationRouteFamilyPlan(
                                        plan.gearboxRuntimeAVLSource,
                                        expectedFacts->gearboxRuntimeAVLSource))
     return error;
+  if (llvm::Error error = requireField("Gearbox producer scope",
+                                       plan.gearboxProducerScope,
+                                       expectedFacts->gearboxProducerScope))
+    return error;
+  if (llvm::Error error = requireField("Gearbox consumer scope",
+                                       plan.gearboxConsumerScope,
+                                       expectedFacts->gearboxConsumerScope))
+    return error;
+  if (plan.gearboxProducerScope == plan.gearboxConsumerScope)
+    return makeRVVEmitCRouteProviderError(
+        "dequantization route-family plan requires distinct RVV Gearbox "
+        "producer and consumer region scopes");
 
   if (llvm::Error error =
           verifyRVVSelectedBodyConstructionRuntimeABIParameters(
@@ -7473,6 +7495,8 @@ deriveRVVSelectedBodyDequantizationRouteFamilyPlan(
   plan.gearboxDestSEW = routeFacts->gearboxDestSEW;
   plan.gearboxDestLMUL = routeFacts->gearboxDestLMUL;
   plan.gearboxRuntimeAVLSource = routeFacts->gearboxRuntimeAVLSource;
+  plan.gearboxProducerScope = routeFacts->gearboxProducerScope;
+  plan.gearboxConsumerScope = routeFacts->gearboxConsumerScope;
   plan.runtimeABIParameters.push_back(analysis.slice.lhsABI);
   plan.runtimeABIParameters.push_back(analysis.slice.dequantScaleABI);
   plan.runtimeABIParameters.push_back(analysis.slice.outABI);
@@ -7540,6 +7564,8 @@ void applyRVVSelectedBodyDequantizationRouteFamilyPlan(
   description.gearboxDestSEW = plan.gearboxDestSEW;
   description.gearboxDestLMUL = plan.gearboxDestLMUL;
   description.gearboxRuntimeAVLSource = plan.gearboxRuntimeAVLSource;
+  description.gearboxProducerScope = plan.gearboxProducerScope;
+  description.gearboxConsumerScope = plan.gearboxConsumerScope;
   description.runtimeABIParameters.clear();
   description.runtimeABIParameters.append(plan.runtimeABIParameters.begin(),
                                           plan.runtimeABIParameters.end());
@@ -17316,11 +17342,15 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
           kRVVLowPrecisionResourceVSetVLRegions ||
       handoff.getRuntimeAvlSource() != "runtime_abi:n" ||
       handoff.getResourceDecision() !=
-          kRVVLowPrecisionResourceRealizationDecision)
+          kRVVLowPrecisionResourceRealizationDecision ||
+      handoff.getProducerScope() != kRVVGearboxProducerScope ||
+      handoff.getConsumerScope() != kRVVGearboxConsumerScope ||
+      handoff.getProducerScope() == handoff.getConsumerScope())
     return makeRVVEmitCRouteProviderError(
         "low-precision product-reduction dequantization RVV route requires "
         "tcrv_rvv.gearbox_cross_region_handoff contract/from_phase/to_phase/"
-        "region_count/runtime_avl_source/resource_decision to match the "
+        "region_count/runtime_avl_source/resource_decision/producer_scope/"
+        "consumer_scope to match the "
         "RVV-owned Gearbox cross-region handoff contract");
 
   slice.gearboxCrossRegionHandoffOp = handoff;
@@ -24924,6 +24954,8 @@ static void populateRVVConversionDtypePolicyValidationContract(
   contract.gearboxDestSEW = facts.gearboxDestSEW;
   contract.gearboxDestLMUL = facts.gearboxDestLMUL.str();
   contract.gearboxRuntimeAVLSource = facts.gearboxRuntimeAVLSource.str();
+  contract.gearboxProducerScope = facts.gearboxProducerScope.str();
+  contract.gearboxConsumerScope = facts.gearboxConsumerScope.str();
   contract.resultName = facts.resultName.str();
 
   contract.emitCFullChunkVLName =
@@ -38543,6 +38575,21 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
             description.gearboxRuntimeAVLSource,
             routeFacts->gearboxRuntimeAVLSource))
       return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "Gearbox producer scope",
+            description.gearboxProducerScope,
+            routeFacts->gearboxProducerScope))
+      return error;
+    if (llvm::Error error = requireRouteDescriptionField(
+            context, "Gearbox consumer scope",
+            description.gearboxConsumerScope,
+            routeFacts->gearboxConsumerScope))
+      return error;
+    if (description.gearboxProducerScope == description.gearboxConsumerScope)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " Gearbox producer and consumer scopes must be distinct provider "
+          "facts");
   } else if (isRuntimeScalarComputedMaskSelectRoute) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "target leaf profile", description.targetLeafProfile,
@@ -42178,6 +42225,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         llvm::Twine(selection.vectorRegisterBudget).str()});
     metadata.push_back({"tcrv_rvv.low_precision_resource.runtime_avl_source",
                         selection.runtimeAVLSource});
+    metadata.push_back({"tcrv_rvv.gearbox.producer_scope",
+                        selection.producerScope});
+    metadata.push_back({"tcrv_rvv.gearbox.consumer_scope",
+                        selection.consumerScope});
     metadata.push_back({"tcrv_rvv.low_precision_resource.runtime_abi_order",
                         selection.runtimeABIOrder});
     metadata.push_back(
@@ -42568,6 +42619,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         description.gearboxDestLMUL});
     metadata.push_back({"tcrv_rvv.gearbox.runtime_avl_source",
                         description.gearboxRuntimeAVLSource});
+    metadata.push_back({"tcrv_rvv.gearbox.producer_scope",
+                        description.gearboxProducerScope});
+    metadata.push_back({"tcrv_rvv.gearbox.consumer_scope",
+                        description.gearboxConsumerScope});
     metadata.push_back(
         {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
     metadata.push_back({"tcrv_rvv.destination_memory_form",

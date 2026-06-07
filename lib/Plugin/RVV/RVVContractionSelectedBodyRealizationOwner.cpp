@@ -189,6 +189,12 @@ llvm::Error materializeLowPrecisionResourceRealizationAttrs(
           kRVVLowPrecisionResourceVectorRegisterBudget))
     return error;
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVGearboxProducerScopeAttrName, kRVVGearboxProducerScope))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVGearboxConsumerScopeAttrName, kRVVGearboxConsumerScope))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceLegalityAttrName,
           kRVVLowPrecisionResourceLegal))
     return error;
@@ -203,6 +209,10 @@ llvm::Error materializeLowPrecisionResourceRealizationAttrs(
   destination->setAttr(
       kRVVLowPrecisionResourceRealizationDecisionAttrName,
       builder.getStringAttr(kRVVLowPrecisionResourceRealizationDecision));
+  destination->setAttr(kRVVGearboxProducerScopeAttrName,
+                       builder.getStringAttr(kRVVGearboxProducerScope));
+  destination->setAttr(kRVVGearboxConsumerScopeAttrName,
+                       builder.getStringAttr(kRVVGearboxConsumerScope));
   destination->setAttr(
       kRVVLowPrecisionResourceRealizedUnrollFactorAttrName,
       builder.getI64IntegerAttr(kRVVLowPrecisionResourceStaticUnroll));
@@ -453,6 +463,10 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
   state.addAttribute("resource_decision",
                      builder.getStringAttr(
                          kRVVLowPrecisionResourceRealizationDecision));
+  state.addAttribute("producer_scope",
+                     builder.getStringAttr(kRVVGearboxProducerScope));
+  state.addAttribute("consumer_scope",
+                     builder.getStringAttr(kRVVGearboxConsumerScope));
   state.addTypes(input.getType());
   return builder.create(state);
 }

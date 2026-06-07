@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage2 selected-body realization, and metadata-authority guardrails."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local selected-body realization, typed body authority, and Gearbox fail-closed rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built route contract."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Stage2 resource-aware selected-body realization expectations."}
+{"file": ".trellis/spec/testing/index.md", "reason": "MLIR/lit/FileCheck and RVV evidence requirements."}
+{"file": ".trellis/spec/implementation-stack/index.md", "reason": "C++/MLIR/TableGen/CMake/lit implementation boundary."}
+{"file": ".trellis/spec/guides/index.md", "reason": "Routing guide for RVV route/lowering/performance-layer changes."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-gearbox-cross-region-ssa-runtime-boundary/prd.md", "reason": "Previous single-with_vl handoff boundary and explicit continuation point."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h", "reason": "Added RVV-owned producer/consumer Gearbox scope constants used by verifier, realization, provider, and artifact validation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Provider route planning consumes Gearbox producer/consumer scope facts as required low-precision resource and handoff structure."}

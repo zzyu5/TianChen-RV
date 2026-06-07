@@ -29,6 +29,10 @@ constexpr llvm::StringLiteral kRVVGearboxDestLMULAttrName(
     "tcrv_rvv.gearbox.dest_lmul");
 constexpr llvm::StringLiteral kRVVGearboxRuntimeAVLSourceAttrName(
     "tcrv_rvv.gearbox.runtime_avl_source");
+constexpr llvm::StringLiteral kRVVGearboxProducerScopeAttrName(
+    "tcrv_rvv.gearbox.producer_scope");
+constexpr llvm::StringLiteral kRVVGearboxConsumerScopeAttrName(
+    "tcrv_rvv.gearbox.consumer_scope");
 constexpr llvm::StringLiteral kRVVGearboxCandidateSetAttrName(
     "tcrv_rvv.gearbox.candidate_set");
 constexpr llvm::StringLiteral kRVVGearboxSelectedCandidateAttrName(
@@ -212,6 +216,10 @@ constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32SourceLMUL("m1");
 constexpr std::int64_t kRVVGearboxDequantizeI32ToF32DestSEW = 32;
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32DestLMUL("m1");
 constexpr llvm::StringLiteral kRVVGearboxRuntimeAVLSourceN("runtime_abi:n");
+constexpr llvm::StringLiteral kRVVGearboxProducerScope(
+    "gearbox-scope:product-reduction");
+constexpr llvm::StringLiteral kRVVGearboxConsumerScope(
+    "gearbox-scope:dequant-store");
 
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceCandidateSet(
     "rvv-low-precision-direct-contraction-resource-candidate-set.v1["

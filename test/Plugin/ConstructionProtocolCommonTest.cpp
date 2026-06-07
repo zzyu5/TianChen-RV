@@ -1683,6 +1683,9 @@ int runRVVCommonValidationTest() {
         route.operationMnemonic == "computed_masked_macc_add";
     const bool isRuntimeScalarComputedMaskMAccRoute =
         route.operationMnemonic == "runtime_scalar_cmp_masked_macc_add";
+    const bool isRuntimeScalarComputedMaskIndexedGatherMAccScatterRoute =
+        route.operationMnemonic ==
+        "runtime_scalar_cmp_masked_indexed_gather_macc_scatter";
     const bool isF32ClampSelectRoute =
         route.operationMnemonic == "f32_clamp_select";
     const bool isDequantClampF32EpilogueRoute =
@@ -1717,6 +1720,10 @@ int runRVVCommonValidationTest() {
     else if (isComputedMaskMAccRoute ||
              isRuntimeScalarComputedMaskMAccRoute)
       executableComputeOp = "tcrv_rvv.masked_macc";
+    else if (isRuntimeScalarComputedMaskIndexedGatherMAccScatterRoute)
+      executableComputeOp = "tcrv_rvv.masked_indexed_load+"
+                            "tcrv_rvv.masked_macc+"
+                            "tcrv_rvv.masked_indexed_store";
     else if (isWideningMAccRoute)
       executableComputeOp = "tcrv_rvv.widening_macc";
     else if (isWideningProductRoute)
@@ -1727,6 +1734,7 @@ int runRVVCommonValidationTest() {
     else if (isWideningProductReductionDequantizationRoute)
       executableComputeOp = "tcrv_rvv.widening_product+"
                             "tcrv_rvv.standalone_reduce+"
+                            "tcrv_rvv.gearbox_cross_region_handoff+"
                             "tcrv_rvv.dequantize";
     else if (isWideningDotReduceRoute || isStridedInputWideningDotReduceRoute)
       executableComputeOp = "tcrv_rvv.widening_dot_reduce";
@@ -1743,19 +1751,29 @@ int runRVVCommonValidationTest() {
                  "runtime_scalar_cmp_masked_load_store")
       executableComputeOp = "tcrv_rvv.masked_load";
     else if (route.operationMnemonic ==
-             "computed_masked_strided_load_unit_store")
+                 "computed_masked_strided_load_unit_store" ||
+             route.operationMnemonic ==
+                 "runtime_scalar_cmp_masked_strided_load_unit_store")
       executableComputeOp = "tcrv_rvv.masked_strided_load";
     else if (route.operationMnemonic ==
-             "computed_masked_indexed_gather_load_unit_store")
+                 "computed_masked_indexed_gather_load_unit_store" ||
+             route.operationMnemonic ==
+                 "runtime_scalar_cmp_masked_indexed_gather_load_unit_store")
       executableComputeOp = "tcrv_rvv.masked_indexed_load";
     else if (route.operationMnemonic ==
-             "computed_masked_indexed_scatter_store_unit_load")
+                 "computed_masked_indexed_scatter_store_unit_load" ||
+             route.operationMnemonic ==
+                 "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load")
       executableComputeOp = "tcrv_rvv.masked_indexed_store";
     else if (route.operationMnemonic ==
-             "computed_masked_segment2_load_unit_store")
+                 "computed_masked_segment2_load_unit_store" ||
+             route.operationMnemonic ==
+                 "runtime_scalar_cmp_masked_segment2_load_unit_store")
       executableComputeOp = "tcrv_rvv.masked_segment2_load";
     else if (route.operationMnemonic ==
-             "computed_masked_segment2_store_unit_load")
+                 "computed_masked_segment2_store_unit_load" ||
+             route.operationMnemonic ==
+                 "runtime_scalar_cmp_masked_segment2_store_unit_load")
       executableComputeOp = "tcrv_rvv.masked_segment2_store";
     else if (route.operationMnemonic == "computed_masked_strided_store")
       executableComputeOp = "tcrv_rvv.masked_strided_store";
@@ -1796,11 +1814,19 @@ int runRVVCommonValidationTest() {
                route.operationMnemonic ==
                    "computed_masked_indexed_gather_load_unit_store" ||
                route.operationMnemonic ==
+                   "runtime_scalar_cmp_masked_indexed_gather_load_unit_store" ||
+               route.operationMnemonic ==
                    "computed_masked_indexed_scatter_store_unit_load" ||
+               route.operationMnemonic ==
+                   "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load" ||
                route.operationMnemonic ==
                    "computed_masked_segment2_load_unit_store" ||
                route.operationMnemonic ==
+                   "runtime_scalar_cmp_masked_segment2_load_unit_store" ||
+               route.operationMnemonic ==
                    "computed_masked_segment2_store_unit_load" ||
+               route.operationMnemonic ==
+                   "runtime_scalar_cmp_masked_segment2_store_unit_load" ||
                route.operationMnemonic ==
                    "computed_masked_segment2_update_unit_load" ||
                isComputedMaskSelectRoute ||
@@ -1808,6 +1834,7 @@ int runRVVCommonValidationTest() {
                isRuntimeScalarComputedMaskStandaloneReduceRoute ||
                isComputedMaskMAccRoute ||
                isRuntimeScalarComputedMaskMAccRoute ||
+               isRuntimeScalarComputedMaskIndexedGatherMAccScatterRoute ||
                route.operationMnemonic ==
                    "computed_masked_widening_dot_reduce_add" ||
                route.operationMnemonic ==
@@ -1862,15 +1889,27 @@ int runRVVCommonValidationTest() {
     const bool hasComputedMaskIndexedGather =
         route.operationMnemonic ==
         "computed_masked_indexed_gather_load_unit_store";
+    const bool hasRuntimeScalarComputedMaskIndexedGather =
+        route.operationMnemonic ==
+        "runtime_scalar_cmp_masked_indexed_gather_load_unit_store";
     const bool hasComputedMaskIndexedScatter =
         route.operationMnemonic ==
         "computed_masked_indexed_scatter_store_unit_load";
+    const bool hasRuntimeScalarComputedMaskIndexedScatter =
+        route.operationMnemonic ==
+        "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load";
     const bool hasComputedMaskSegment2Load =
         route.operationMnemonic ==
         "computed_masked_segment2_load_unit_store";
+    const bool hasRuntimeScalarComputedMaskSegment2Load =
+        route.operationMnemonic ==
+        "runtime_scalar_cmp_masked_segment2_load_unit_store";
     const bool hasComputedMaskSegment2Store =
         route.operationMnemonic ==
         "computed_masked_segment2_store_unit_load";
+    const bool hasRuntimeScalarComputedMaskSegment2Store =
+        route.operationMnemonic ==
+        "runtime_scalar_cmp_masked_segment2_store_unit_load";
     const bool hasComputedMaskSegment2Update =
         route.operationMnemonic ==
         "computed_masked_segment2_update_unit_load";
@@ -1912,6 +1951,8 @@ int runRVVCommonValidationTest() {
         isRuntimeScalarComputedMaskStandaloneReduceRoute;
     const bool hasComputedMaskMAcc =
         isComputedMaskMAccRoute || isRuntimeScalarComputedMaskMAccRoute;
+    const bool hasRuntimeScalarComputedMaskIndexedGatherMAccScatter =
+        isRuntimeScalarComputedMaskIndexedGatherMAccScatterRoute;
     unsigned expectedStepCount =
         hasConversion          ? 8u
         : hasDequantization                    ? 9u
@@ -1925,10 +1966,11 @@ int runRVVCommonValidationTest() {
         : hasComputedMaskStandaloneReduction     ? 14u
         : hasRuntimeScalarComputedMaskStandaloneReduction ? 14u
         : hasComputedMaskMAcc                    ? 17u
+        : hasRuntimeScalarComputedMaskIndexedGatherMAccScatter ? 20u
         : isStandaloneReduceRoute                ? 9u
         : hasWideningMAcc                       ? 12u
         : hasWideningProductReduction           ? 12u
-        : hasWideningProductReductionDequantization ? 14u
+        : hasWideningProductReductionDequantization ? 15u
         : hasWideningProductReductionDequantClamp ? 22u
         : hasWideningDotReduce                  ? 11u
         : hasStridedInputWideningDotReduce      ? 13u
@@ -1942,9 +1984,13 @@ int runRVVCommonValidationTest() {
         : hasComputedMaskStridedStore            ? 13u
         : hasComputedMaskStridedLoad             ? 14u
         : hasComputedMaskIndexedGather           ? 15u
+        : hasRuntimeScalarComputedMaskIndexedGather ? 15u
         : hasComputedMaskIndexedScatter          ? 14u
+        : hasRuntimeScalarComputedMaskIndexedScatter ? 14u
         : hasComputedMaskSegment2Load            ? 16u
+        : hasRuntimeScalarComputedMaskSegment2Load ? 16u
         : hasComputedMaskSegment2Store           ? 14u
+        : hasRuntimeScalarComputedMaskSegment2Store ? 14u
         : hasComputedMaskSegment2Update          ? 15u
         : hasSegment2Deinterleave                ? 11u
         : hasSegment2Interleave                  ? 9u
@@ -2046,10 +2092,31 @@ int runRVVCommonValidationTest() {
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
+               "runtime_scalar_cmp_masked_indexed_gather_load_unit_store") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
                "computed_masked_indexed_scatter_store_unit_load") {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyComputedMaskIndexedScatterRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
+               "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyRuntimeScalarComputedMaskIndexedScatterRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
+               "runtime_scalar_cmp_masked_indexed_gather_macc_scatter") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatterRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
@@ -2060,12 +2127,26 @@ int runRVVCommonValidationTest() {
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==
+               "runtime_scalar_cmp_masked_segment2_load_unit_store") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyRuntimeScalarComputedMaskSegment2LoadRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
                    "computed_masked_segment2_store_unit_load" ||
                route.operationMnemonic ==
                    "computed_masked_segment2_update_unit_load") {
       auto routeParameters =
           tianchenrv::tcrv::rvv::
               getRVVSelectedBodyComputedMaskSegment2StoreRuntimeABIParameters();
+      routeRuntimeABIParameters.append(routeParameters.begin(),
+                                       routeParameters.end());
+    } else if (route.operationMnemonic ==
+               "runtime_scalar_cmp_masked_segment2_store_unit_load") {
+      auto routeParameters =
+          tianchenrv::tcrv::rvv::
+              getRVVSelectedBodyRuntimeScalarComputedMaskSegment2StoreRuntimeABIParameters();
       routeRuntimeABIParameters.append(routeParameters.begin(),
                                        routeParameters.end());
     } else if (route.operationMnemonic ==

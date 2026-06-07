@@ -172,6 +172,8 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::int64_t vectorRegisterBudget = 0;
 
   std::string runtimeAVLSource;
+  std::string producerScope;
+  std::string consumerScope;
   std::string runtimeABIOrder;
   std::string targetCapabilityProviderMirror;
   std::string targetCapabilityLegalityMirror;
@@ -369,6 +371,8 @@ struct RVVSelectedBodyEmitCRouteDescription {
   std::int64_t gearboxDestSEW = 0;
   llvm::StringRef gearboxDestLMUL;
   llvm::StringRef gearboxRuntimeAVLSource;
+  llvm::StringRef gearboxProducerScope;
+  llvm::StringRef gearboxConsumerScope;
   RVVLowPrecisionContractionResourceSelection
       lowPrecisionResourceSelection;
   RVVCompositeGatherMAccScatterResourceSelection
@@ -2188,6 +2192,8 @@ struct RVVDequantizationRouteFacts {
   std::int64_t gearboxDestSEW = 0;
   llvm::StringRef gearboxDestLMUL;
   llvm::StringRef gearboxRuntimeAVLSource;
+  llvm::StringRef gearboxProducerScope;
+  llvm::StringRef gearboxConsumerScope;
   std::string routeOperandBindingSummary;
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 4>
       runtimeABIParameters;
@@ -2267,6 +2273,8 @@ struct RVVConversionDtypePolicyRouteValidationContract {
   std::int64_t gearboxDestSEW = 0;
   std::string gearboxDestLMUL;
   std::string gearboxRuntimeAVLSource;
+  std::string gearboxProducerScope;
+  std::string gearboxConsumerScope;
   std::string intrinsic;
   std::string storeIntrinsic;
   std::string setVLIntrinsic;

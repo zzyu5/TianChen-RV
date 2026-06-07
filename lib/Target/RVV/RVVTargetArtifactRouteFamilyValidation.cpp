@@ -4705,6 +4705,18 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
           selection.runtimeAVLSource, "runtime AVL source"))
     return error;
   if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.gearbox.producer_scope", selection.producerScope,
+          "Gearbox producer scope"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.gearbox.consumer_scope", selection.consumerScope,
+          "Gearbox consumer scope"))
+    return error;
+  if (selection.producerScope == selection.consumerScope)
+    return makeRVVTargetRouteError(
+        "target artifact candidate validation requires distinct Gearbox "
+        "producer and consumer scopes");
+  if (llvm::Error error = requireResourceMirror(
           "tcrv_rvv.low_precision_resource.runtime_abi_order",
           selection.runtimeABIOrder, "runtime ABI order"))
     return error;
@@ -11133,7 +11145,10 @@ llvm::Error validateRVVConversionDtypePolicyTypedFacts(
        description.gearboxDestSEW != contract.gearboxDestSEW ||
        description.gearboxDestLMUL != contract.gearboxDestLMUL ||
        description.gearboxRuntimeAVLSource !=
-           contract.gearboxRuntimeAVLSource))
+           contract.gearboxRuntimeAVLSource ||
+       description.gearboxProducerScope != contract.gearboxProducerScope ||
+       description.gearboxConsumerScope != contract.gearboxConsumerScope ||
+       description.gearboxProducerScope == description.gearboxConsumerScope))
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-consumed RVV Gearbox schedule facts before "

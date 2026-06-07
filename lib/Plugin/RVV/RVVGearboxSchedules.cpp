@@ -46,6 +46,10 @@ using tianchenrv::plugin::rvv::kRVVGearboxDestSEWAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxLegalityScopeAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxOperationAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxDequantizeI32ToF32SelectedVLPolicy;
+using tianchenrv::plugin::rvv::kRVVGearboxConsumerScope;
+using tianchenrv::plugin::rvv::kRVVGearboxConsumerScopeAttrName;
+using tianchenrv::plugin::rvv::kRVVGearboxProducerScope;
+using tianchenrv::plugin::rvv::kRVVGearboxProducerScopeAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName;
 using tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceN;
 using tianchenrv::plugin::rvv::kRVVGearboxScheduleIDAttrName;
@@ -214,6 +218,14 @@ mlir::LogicalResult materializeGearboxAttrs(mlir::Operation *op,
   if (mlir::failed(requireStringAttr(op, builder,
                                      kRVVGearboxRuntimeAVLSourceAttrName,
                                      kRVVGearboxRuntimeAVLSourceN)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(op, builder,
+                                     kRVVGearboxProducerScopeAttrName,
+                                     kRVVGearboxProducerScope)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(op, builder,
+                                     kRVVGearboxConsumerScopeAttrName,
+                                     kRVVGearboxConsumerScope)))
     return mlir::failure();
   return mlir::success();
 }
@@ -397,6 +409,14 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceRuntimeAVLSourceAttrName,
           kRVVGearboxRuntimeAVLSourceN)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(op, builder,
+                                     kRVVGearboxProducerScopeAttrName,
+                                     kRVVGearboxProducerScope)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(op, builder,
+                                     kRVVGearboxConsumerScopeAttrName,
+                                     kRVVGearboxConsumerScope)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceRuntimeABIOrderAttrName,
@@ -668,12 +688,18 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
           tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceN ||
       handoff.getResourceDecision() !=
           tianchenrv::plugin::rvv::
-              kRVVLowPrecisionResourceRealizationDecision)
+              kRVVLowPrecisionResourceRealizationDecision ||
+      handoff.getProducerScope() !=
+          tianchenrv::plugin::rvv::kRVVGearboxProducerScope ||
+      handoff.getConsumerScope() !=
+          tianchenrv::plugin::rvv::kRVVGearboxConsumerScope ||
+      handoff.getProducerScope() == handoff.getConsumerScope())
     return handoff->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
               "requires tcrv_rvv.gearbox_cross_region_handoff to carry the "
               "RVV-owned product/reduction-to-dequant contract, phases, "
-              "region count, runtime AVL source, and resource decision";
+              "region count, runtime AVL source, resource decision, and "
+              "distinct producer/consumer scopes";
 
   LoadOp lhsLoad = product.getLhs().getDefiningOp<LoadOp>();
   LoadOp rhsLoad = product.getRhs().getDefiningOp<LoadOp>();
