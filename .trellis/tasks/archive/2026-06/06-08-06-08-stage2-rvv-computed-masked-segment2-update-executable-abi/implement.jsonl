@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, Stage1/Stage2 order, and route authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, route provider, segment2 planning-owner, and target export contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary, provider operand binding summary contract, runtime AVL/VL contract, and computed-mask segment2 update target validation contract."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle, runtime ssh rvv, and fixture evidence expectations."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Stage2 typed RVV selected-body and route-provider boundary checks."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensure RVV behavior remains plugin-local and common EmitC/export stay neutral."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-store-executable-abi/prd.md", "reason": "Adjacent segment2 store ABI closeout pattern for stale binding-summary negative coverage and evidence recording."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Computed-mask segment2 update route facts, validation contract, metadata mirror, and binding-plan construction."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Explicit selected-body computed-mask segment2 update target artifact evidence and stale binding regression coverage."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Pre-realized selected-body computed-mask segment2 update realization, target artifact evidence, and stale binding regression coverage."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated bundle dry-run and ssh rvv evidence path for computed-mask segment2 update."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-computed-masked-segment2-update-dry-run.test", "reason": "Explicit generated-bundle dry-run evidence contract."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-segment2-update-dry-run.test", "reason": "Pre-realized generated-bundle dry-run evidence contract."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-computed-masked-segment2-update-dry-run.test", "reason": "Retired direct pre-realized route-entry fail-closed coverage."}

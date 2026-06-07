@@ -1,0 +1,30 @@
+{
+  "id": "06-08-stage2-rvv-computed-masked-segment2-update-executable-abi",
+  "name": "06-08-stage2-rvv-computed-masked-segment2-update-executable-abi",
+  "title": "Stage2 RVV computed-masked segment2 update executable artifact ABI boundary",
+  "description": "Bounded Stage2 RVV computed-masked segment2 update executable artifact ABI boundary hardening and evidence from Hermes direction brief.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-08",
+  "completedAt": "2026-06-08",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "test/Target/RVV/explicit-selected-body-artifact-computed-masked-segment2-update.mlir",
+    "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-update.mlir",
+    "scripts/rvv_generated_bundle_abi_e2e.py"
+  ],
+  "notes": "Completed bounded computed-masked segment2 update executable artifact ABI closeout. Production provider/target seam was already wired; added explicit and pre-realized stale src1/add-rhs route_operand_binding_operands fail-closed coverage and refreshed generated-bundle dry-run plus ssh rvv correctness evidence.",
+  "meta": {}
+}

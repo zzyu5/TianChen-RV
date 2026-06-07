@@ -713,15 +713,64 @@ Carried runtime-scalar composite gather-MAcc-scatter selected bodies through pro
 
 ### Main Changes
 
-(Add details)
+- Created Trellis task
+  `06-08-06-08-stage2-rvv-computed-masked-segment2-update-executable-abi`
+  from the Hermes direction brief and wrote the bounded PRD.
+- Confirmed the production computed-masked segment2 update path is already
+  wired through typed selected/pre-realized `tcrv_rvv` bodies, RVV
+  plugin-local realization, provider-owned update route facts, common EmitC
+  materialization, target artifact validation, generated bundle export, and
+  `ssh rvv` executable evidence.
+- Added explicit selected-body target artifact negative coverage proving stale
+  `src1` binding metadata cannot replace the provider-built
+  `src1=segment-field1-input-buffer` / `add-rhs` binding summary.
+- Added matching pre-realized selected-body negative coverage proving stale
+  pre-realized metadata cannot replace the provider-built `src1` / `add-rhs`
+  binding summary after selected-body materialization.
+- No production runtime code changed; this round closes a focused
+  update-specific artifact ABI regression-proof gap and refreshes executable
+  evidence.
 
 ### Git Commits
 
-(No commits - planning session)
+| Hash | Message |
+|------|---------|
+| `final commit` | (see git log) |
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] explicit selected-body materialized emission-plan/header export checks
+  via `build/bin/tcrv-opt` and `build/bin/tcrv-translate`
+- [OK] pre-realized selected-body realization/emission-plan/header export
+  checks via `build/bin/tcrv-opt` and `build/bin/tcrv-translate`
+- [OK] explicit stale `src1` / `add-rhs`
+  `tcrv_rvv.route_operand_binding_operands` negative target artifact export
+  check
+- [OK] pre-realized stale `src1` / `add-rhs`
+  `tcrv_rvv.route_operand_binding_operands` negative target artifact export
+  check
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test --op-kind computed_masked_segment2_update_unit_load --dry-run ...`
+- [OK] explicit generated-bundle dry-run without `llvm-readobj` object-header
+  verification
+- [OK] pre-realized generated-bundle dry-run without `llvm-readobj`
+  object-header verification
+- [OK] direct pre-realized route-entry generated-bundle negative dry-run
+  remains fail-closed on the retired shortcut diagnostic
+- [OK] explicit `ssh rvv` generated-bundle correctness for counts
+  `0,1,7,16,23,257`, patterns `0,1`
+- [OK] pre-realized `ssh rvv` generated-bundle correctness for counts
+  `0,1,7,16,23,257`, patterns `0,1`
+- [WARN] `FileCheck` and `llvm-lit` are not installed in this environment;
+  equivalent focused `tcrv-opt` / `tcrv-translate` fail-closed commands were
+  run for the new RUN coverage, and generated-bundle script checks passed.
+- [OK] `python3 ./.trellis/scripts/task.py validate 06-08-06-08-stage2-rvv-computed-masked-segment2-update-executable-abi`
+- [OK] `git diff --check`
+- [OK] Added-line old-authority/source-front-door scan over touched fixture
+  lines found no positive legacy route authority.
 
 ### Status
 
@@ -1330,6 +1379,88 @@ Hardened runtime-scalar-cmp masked segment2-load artifact ABI evidence with focu
 ### Testing
 
 - [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 538: Stage2 RVV computed-masked segment2 update executable ABI
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV computed-masked segment2 update executable ABI
+**Branch**: `main`
+
+### Summary
+
+Hardened computed-masked segment2 update artifact ABI evidence with stale src1/add-rhs binding fail-closed coverage and refreshed explicit/pre-realized ssh rvv correctness.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `06-08-06-08-stage2-rvv-computed-masked-segment2-update-executable-abi`
+  from the Hermes direction brief.
+- Confirmed the production computed-masked segment2 update path is already
+  wired through typed selected/pre-realized `tcrv_rvv` bodies, RVV
+  plugin-local realization, provider-owned update route facts, common EmitC
+  materialization, target artifact validation, generated bundle export, and
+  `ssh rvv` executable evidence.
+- Added explicit selected-body target artifact negative coverage proving stale
+  `src1` binding metadata cannot replace the provider-built
+  `src1=segment-field1-input-buffer` / `add-rhs` binding summary.
+- Added matching pre-realized selected-body negative coverage proving stale
+  pre-realized metadata cannot replace the provider-built `src1` / `add-rhs`
+  binding summary after selected-body materialization.
+- No production runtime code changed; this round closes a focused
+  update-specific artifact ABI regression-proof gap and refreshes executable
+  evidence.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `final commit` | `rvv: harden segment2 update artifact ABI` |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] explicit selected-body materialized emission-plan/header export checks
+  via `build/bin/tcrv-opt` and `build/bin/tcrv-translate`
+- [OK] pre-realized selected-body realization/emission-plan/header export
+  checks via `build/bin/tcrv-opt` and `build/bin/tcrv-translate`
+- [OK] explicit stale `src1` / `add-rhs`
+  `tcrv_rvv.route_operand_binding_operands` negative target artifact export
+  check
+- [OK] pre-realized stale `src1` / `add-rhs`
+  `tcrv_rvv.route_operand_binding_operands` negative target artifact export
+  check
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test --op-kind computed_masked_segment2_update_unit_load --dry-run ...`
+- [OK] explicit generated-bundle dry-run without `llvm-readobj` object-header
+  verification
+- [OK] pre-realized generated-bundle dry-run without `llvm-readobj`
+  object-header verification
+- [OK] direct pre-realized route-entry generated-bundle negative dry-run
+  remains fail-closed on the retired shortcut diagnostic
+- [OK] explicit `ssh rvv` generated-bundle correctness for counts
+  `0,1,7,16,23,257`, patterns `0,1`
+- [OK] pre-realized `ssh rvv` generated-bundle correctness for counts
+  `0,1,7,16,23,257`, patterns `0,1`
+- [WARN] `FileCheck` and `llvm-lit` are not installed in this environment;
+  equivalent focused `tcrv-opt` / `tcrv-translate` fail-closed commands were
+  run for the new RUN coverage, and generated-bundle script checks passed.
+- [OK] `python3 ./.trellis/scripts/task.py validate 06-08-06-08-stage2-rvv-computed-masked-segment2-update-executable-abi`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-06/06-08-06-08-stage2-rvv-computed-masked-segment2-update-executable-abi`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Added-line old-authority/source-front-door scan over touched fixture
+  lines found no positive legacy route authority.
 
 ### Status
 

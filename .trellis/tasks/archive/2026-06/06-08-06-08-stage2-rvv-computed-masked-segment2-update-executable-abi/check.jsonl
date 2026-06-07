@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Final review of global route authority, Stage2 RVV, and descriptor/source-front-door prohibitions."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final review of RVV plugin-local selected-body realization, route provider, segment2 planning-owner, and target export behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final review of provider operand binding summary, common EmitC neutrality, runtime AVL/VL, and target artifact fail-closed contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final review of generated-bundle dry-run, ssh rvv evidence, and FileCheck/lit expectations."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Final plugin-locality review."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Review explicit stale src1 binding negative coverage and positive target artifact assertions."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-segment2-update.mlir", "reason": "Review pre-realized stale src1 binding negative coverage and positive target artifact assertions."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Review generated-bundle evidence command surface and readobj fallback behavior."}

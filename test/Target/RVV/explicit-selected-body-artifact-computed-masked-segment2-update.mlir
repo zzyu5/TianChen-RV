@@ -3,6 +3,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/rvv-generic-computed-masked-segment2-update-unit-load-emitc-route/s//rvv-script-derived-segment2-update-route/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ROUTE
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-computed-mask-segment2-update-add-plan-validated/s//provider_supported_mirror:rvv-script-derived-segment2-update/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/rvv-route-operand-binding:cmseg2_update_unit_load.v1/s//rvv-route-operand-binding:script-derived-segment2-update.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-BINDING
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed 's/src1=segment-field1-input-buffer:src1:abi|f1-load|f1-payload|add-rhs|tuple1|f1-role|src1-mem|hdr/src1=segment-field0-input-buffer:src1:abi|f1-load|f1-payload|add-lhs|tuple1|f1-role|src1-mem|hdr/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SRC1-BINDING
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/cmp_lhs,cmp_rhs,src0,src1,dst,n/s//cmp_lhs,src0,cmp_rhs,src1,dst,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/stddef.h,stdint.h,riscv_vector.h/s//stddef.h,stdint.h/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-HEADER
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/vl:size_t/s//vl:uint64_t/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-TYPE
@@ -114,6 +115,14 @@ module {
 // STALE-BINDING: RVV materialized EmitC target artifact bridge failed
 // STALE-BINDING: candidate tcrv_rvv.route_operand_binding_plan provenance must mirror selected typed RVV body binding plan
 // STALE-BINDING-SAME: rvv-route-operand-binding:script-derived-segment2-update.v1
+
+// STALE-SRC1-BINDING: RVV materialized EmitC target artifact bridge failed
+// STALE-SRC1-BINDING: candidate tcrv_rvv.route_operand_binding_operands provenance must mirror selected typed RVV body binding summary
+// STALE-SRC1-BINDING-SAME: src1=segment-field1-input-buffer:src1:abi
+// STALE-SRC1-BINDING-SAME: add-rhs
+// STALE-SRC1-BINDING-SAME: but was
+// STALE-SRC1-BINDING-SAME: src1=segment-field0-input-buffer:src1:abi
+// STALE-SRC1-BINDING-SAME: add-lhs
 
 // STALE-ABI: RVV materialized EmitC target artifact bridge failed
 // STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror route-local runtime AVL/VL ABI order mirror

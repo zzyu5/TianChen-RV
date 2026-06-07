@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-25.md`
-- **Total Sessions**: 537
+- **Total Sessions**: 538
 - **Last Active**: 2026-06-08
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-25.md` | ~1281 | Active |
+| `journal-25.md` | ~1371 | Active |
 | `journal-24.md` | ~1991 | Archived |
 | `journal-23.md` | ~1982 | Archived |
 | `journal-22.md` | ~2034 | Archived |
@@ -53,6 +53,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 538 | 2026-06-08 | Stage2 RVV computed-masked segment2 update executable ABI | final commit | `main` |
 | 537 | 2026-06-08 | Stage2 RVV runtime-scalar-cmp segment2-load artifact ABI | final commit | `main` |
 | 535 | 2026-06-07 | Stage3 RVV vector source-front-door family-owner boundary | HEAD | `main` |
 | 534 | 2026-06-07 | Stage3 RVV registered source-front-door artifact bridge | final commit | `main` |
