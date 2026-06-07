@@ -3224,8 +3224,10 @@ getRVVComputedMaskSegment2MemoryRouteFacts(
   operand binding plan, and exact route operand binding summary. Runtime-scalar
   variants additionally require the RHS scalar ABI role/name/type, scalar splat
   realization fact, runtime-scalar producer-source mirror, and route operand
-  binding summary entries for `lhs`, `rhs_scalar`, `src`, `out0`, `out1`, and
-  `n`.
+  binding summary entries that match the route family ABI. Runtime-scalar
+  segment2 load binds `lhs`, `rhs_scalar`, `src`, `out0`, `out1`, and `n`.
+  Runtime-scalar segment2 store binds `lhs`, `rhs_scalar`, `src0`, `src1`,
+  `dst`, and `n`.
 - Route-description/provider validation must classify these three operations as
   segment2 consumers before applying generic computed-mask memory validation.
   Generic computed-mask memory checks may verify the shared computed-mask family
@@ -3278,6 +3280,11 @@ getRVVComputedMaskSegment2MemoryRouteFacts(
   old field passthrough tuple, masked segment-load, and field stores, and
   rejects stale vector-compare producer, field-order, passthrough, ABI, or
   header/prototype facts.
+- Good: runtime-scalar computed-mask segment2 store accepts provider-derived
+  `lhs/rhs_scalar/src0/src1/dst/n` ABI binding, scalar splat compare mask,
+  field0/field1 payload loads, tuple create, masked segment-store, and
+  interleaved destination store, and rejects stale vector-compare producer,
+  payload field role/order, destination ABI, or header/prototype facts.
 - Good: computed-mask segment2 store accepts field payload loads, tuple create,
   and masked segment-store, and rejects segment-load or field-extract residue.
 - Base: plain segment2 deinterleave/interleave continue to use the plain

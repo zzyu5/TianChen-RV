@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, Stage1/Stage2 order, and route authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, selected-body realization, route provider, and segment2 runtime-scalar mask contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route boundary and prohibition on common emission deciding RVV semantics."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Executable artifact, ABI, generated bundle, and selected path artifact validation contracts."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first review for target/profile/variant/artifact boundary changes."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensure RVV behavior remains plugin-local and common code stays neutral."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Avoid descriptor-driven compute and high-level compute leakage into exec/common layers."}

@@ -48,6 +48,65 @@ Hardened runtime-scalar-cmp masked indexed gather-load target artifact ABI valid
 
 - None - task complete
 
+## Session 538: Stage2 RVV runtime-scalar-cmp segment2-store artifact ABI
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV runtime-scalar-cmp masked segment2 store executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Hardened runtime-scalar-cmp masked segment2-store artifact ABI evidence with
+focused stale `src1` payload binding fail-closed coverage, corrected the
+store-specific route binding spec wording, and refreshed explicit/pre-realized
+`ssh rvv` correctness.
+
+### Main Changes
+
+- Created Trellis task
+  `06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-store-executable-abi`
+  from the Hermes brief.
+- Confirmed the production explicit and pre-realized runtime-scalar-cmp masked
+  segment2-store route already flows through plugin-local selected-body
+  realization, RVV segment2 provider facts, common EmitC materialization,
+  target artifact export, and generated-bundle ABI.
+- Added explicit and pre-realized target artifact negative coverage proving
+  stale `src1` field-payload ABI role metadata in
+  `tcrv_rvv.route_operand_binding_operands` cannot replace the provider-built
+  binding summary.
+- Updated `.trellis/spec/lowering-runtime/emitc-route.md` so runtime-scalar
+  segment2 store binding entries are stated as
+  `lhs,rhs_scalar,src0,src1,dst,n`, distinct from segment2 load
+  `lhs,rhs_scalar,src,out0,out1,n`.
+- No production runtime code changed; existing provider/target validators
+  already reject the stale field-payload ABI summary.
+
+### Testing
+
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='runtime-scalar-cmp-masked-segment2-store'` from `build/test`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test --op-kind runtime_scalar_cmp_masked_segment2_store_unit_load --dry-run ...`
+- [OK] explicit generated-bundle dry-run for
+  `runtime_scalar_cmp_masked_segment2_store_unit_load`
+- [OK] pre-realized generated-bundle dry-run for
+  `runtime_scalar_cmp_masked_segment2_store_unit_load`
+- [OK] explicit `ssh rvv` generated-bundle correctness for counts
+  `0,1,16,17,257`, rhs scalars `-37,91`, patterns `0,1`
+- [OK] pre-realized `ssh rvv` generated-bundle correctness for counts
+  `0,1,16,17,257`, rhs scalars `-37,91`, patterns `0,1`
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
 
 ## Session 535: Stage3 RVV runtime-scalar-cmp select source-front-door
 
