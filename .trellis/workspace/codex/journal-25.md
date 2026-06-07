@@ -49,6 +49,69 @@ Hardened runtime-scalar-cmp masked indexed gather-load target artifact ABI valid
 - None - task complete
 
 
+## Session 527: Stage2 RVV composite selected-envelope generated-bundle runtime evidence
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV composite gather-MAcc-scatter generated-bundle runtime evidence
+**Branch**: `main`
+
+### Summary
+
+Closed the selected-envelope composite gather-MAcc-scatter generated-bundle
+runtime evidence gap with explicit and pre-realized non-dry-run `ssh rvv`
+execution. No compiler source change was needed because the selected-envelope
+artifact/export seam from `3ae4859e` already executed correctly.
+
+### Main Changes
+
+- Created the Trellis task
+  `06-07-stage2-rvv-composite-gather-macc-scatter-generated-runtime` with a
+  bounded PRD for selected-envelope generated-bundle runtime evidence.
+- Verified explicit and pre-realized selected-envelope composite generated
+  bundles on `ssh rvv` under
+  `artifacts/tmp/stage2-selected-envelope-composite-gms-ssh-rvv/`.
+- Confirmed both generated bundle indexes carry selected-envelope
+  `tcrv_rvv.exec_abi_bindings`, runtime ABI order
+  `cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n`, and provider support
+  mirrors.
+- Recorded that no `.trellis/spec/` update was needed because the existing RVV
+  plugin, EmitC route, emission runtime, and testing specs already cover this
+  evidence contract.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | rvv: record selected envelope composite ssh evidence |
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'runtime-scalar-cmp-masked-indexed-gather-macc-scatter'`
+  from `build/test` passed 3 focused tests.
+- [OK] Explicit selected-envelope non-dry-run `ssh rvv` generated bundle:
+  `artifacts/tmp/stage2-selected-envelope-composite-gms-ssh-rvv/explicit-selected-envelope-composite-gms-ssh-rvv/runtime_scalar_cmp_masked_indexed_gather_macc_scatter/evidence.json`.
+- [OK] Pre-realized selected-envelope non-dry-run `ssh rvv` generated bundle:
+  `artifacts/tmp/stage2-selected-envelope-composite-gms-ssh-rvv/pre-selected-envelope-composite-gms-ssh-rvv/runtime_scalar_cmp_masked_indexed_gather_macc_scatter/evidence.json`.
+- [OK] Both remote runs reported
+  `PASS op=runtime_scalar_cmp_masked_indexed_gather_macc_scatter counts=0,1,16,17,257 rhs_scalars=-37,91 patterns=0,1`.
+- [OK] Bounded old-authority scan over touched files and added diff lines found
+  no new positive legacy route authority.
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 519: Stage2 RVV runtime-scalar indexed scatter ABI
 
 **Date**: 2026-06-07

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the final result preserves RVV-first authority and Stage 2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify composite gather-MAcc-scatter facts remain plugin-owned and typed-body-derived."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export only consumes provider-built route facts."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify generated artifacts and metadata mirrors do not become semantic authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify runtime correctness claims are backed by focused ssh rvv evidence."}

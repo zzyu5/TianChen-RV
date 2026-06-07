@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage 2 scope, and runtime evidence boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Runtime-scalar indexed gather-MAcc-scatter route contract and RVV plugin ownership."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, operand binding, and common EmitC neutrality."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, generated bundle, runtime ABI, and metadata mirror boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Required focused lit/C++ checks and ssh rvv evidence rules for runtime claims."}
