@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final behavior against global architecture and RVV stage boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check source-front-door evidence still derives RVV route support from typed body/provider facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check no RVV semantic inference moved into Common EmitC/export."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Check selected dispatch, artifact metadata, source-front-door, and runtime evidence contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle dry-run versus ssh rvv runtime claims and preservation evidence."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Review source-front-door generated-bundle mode, fail-closed mode validation, and self-test impact."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-source-front-door-dry-run.test", "reason": "Focused source-front-door dry-run lit evidence for bundle export and harness source checks."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-source-front-door-fail-closed.test", "reason": "Focused fail-closed lit evidence for unsupported source-front-door requests."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-source-seed-unsupported.test", "reason": "Regression check that legacy source-seed remains fail-closed."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-selected-body-dry-run.test", "reason": "Regression check that existing explicit selected-body generated-bundle evidence still passes."}
+{"file": "test/Transforms/RVV/rvv-vector-add-source-front-door.mlir", "reason": "Regression check that the source-front-door materialization lit coverage still passes."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Local RVV plugin smoke binary passed after source-front-door evidence changes."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Local target artifact export binary passed after generated-bundle evidence changes."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/vector-source-front-door-rvv/evidence.json", "reason": "Non-dry-run ssh rvv correctness evidence passed for counts 0, 1, 17, and 257 with source and tail preservation."}

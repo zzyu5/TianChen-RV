@@ -976,3 +976,36 @@ Implemented a bounded RVV plugin source-front-door materializer from one MLIR Ve
 ### Next Steps
 
 - None - task complete
+
+
+## Session 532: Stage3 bounded Vector source-front-door RVV executable artifact boundary
+
+**Date**: 2026-06-07
+**Task**: Stage3 bounded Vector source-front-door RVV executable artifact boundary
+**Branch**: `main`
+
+### Summary
+
+Completed the bounded Vector add source-front-door generated-bundle evidence path: --vector-source-front-door runs the RVV materializer into the existing selected typed-body route/export path, records marker-as-opt-in evidence, checks active add/source/tail preservation, fails closed for unsupported source-front-door requests, and passed ssh rvv for counts 0,1,17,257. Focused script/lit checks, RVV plugin smoke, target artifact export smoke, diff checks, and old-authority scans passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

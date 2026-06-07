@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, stage boundaries, and source-front-door guardrails for executable artifact evidence."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body/provider authority, ABI/runtime value flow, and ssh rvv evidence policy."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC must consume provider-built routes without inferring RVV semantics."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, source-front-door opt-in, selected dispatch, and runtime evidence boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle and ssh rvv evidence requirements, including tail/source preservation."}
+{"file": ".trellis/tasks/archive/2026-06/06-07-stage3-vector-selected-rvv-boundary/prd.md", "reason": "Previous bounded Vector add source-front-door materialization task and its explicit non-runtime closeout."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated RVV bundle ABI evidence tooling to extend with a bounded source-front-door mode."}
+{"file": "test/Transforms/RVV/rvv-vector-add-source-front-door.mlir", "reason": "Positive source-front-door materialization fixture and expected selected RVV typed body."}
+{"file": "test/Transforms/RVV/rvv-vector-add-source-front-door-negative.mlir", "reason": "Existing fail-closed source-pattern coverage to preserve."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-selected-body-dry-run.test", "reason": "Existing generated-bundle dry-run reference for explicit selected-body add/sub/mul evidence."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-source-seed-unsupported.test", "reason": "Legacy source-seed fail-closed behavior that must remain distinct from the new bounded source-front-door mode."}
+{"file": "test/Target/RVV/vector-materialized-target-artifact-exporters.mlir", "reason": "Lower-level materialized selected-body target artifact/export reference for vector-source-shaped add."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-source-front-door-dry-run.test", "reason": "New focused dry-run generated-bundle coverage for the bounded Vector source-front-door artifact boundary."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-source-front-door-fail-closed.test", "reason": "New fail-closed coverage for unsupported and stale source-front-door mode combinations."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/vector-source-front-door-rvv/evidence.json", "reason": "Runtime ssh rvv evidence for the bounded Vector add source-front-door generated bundle."}

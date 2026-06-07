@@ -8,6 +8,9 @@ bundle, builds a small external C ABI consumer, and optionally runs that
 consumer on the real RVV target. ``--pre-realized-selected-body`` starts from
 the bounded pre-realized selected-body fixtures and uses the public selected
 lowering-boundary materialization pass before emission planning. The
+``--vector-source-front-door`` mode starts from the bounded Vector add
+source-front-door MLIR fixture, runs the RVV plugin-owned materializer, and
+then uses the same selected typed-body route/export path. The
 ``--direct-pre-realized-route-entry`` entry mode is retired and fails closed
 before bundle generation for selected pre-realized op kinds.
 The legacy ``--source-seed`` mode is unsupported and exits before bundle
@@ -2973,6 +2976,10 @@ class OpExpectation:
         )
 
     @property
+    def is_vector_source_front_door(self) -> bool:
+        return self.input_mode == "vector-source-front-door"
+
+    @property
     def supports_direct_pre_realized_route_entry(self) -> bool:
         return False
 
@@ -4874,6 +4881,30 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         out_initializer="(int32_t)(-7000 - (int32_t)(index * 17))",
         expected_expression="(mask[index] != 0 ? src[index] : old_dst[index])",
     ),
+}
+
+VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS = {
+    "add": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
+        input_path=Path("test/Transforms/RVV/rvv-vector-add-source-front-door.mlir"),
+        input_mode="vector-source-front-door",
+        selected_variant="rvv_vector_add",
+        function_name="tcrv_emitc_rvv_vector_add_from_vector_source_rvv_vector_add",
+        lhs_initializer="(int32_t)(7 + (int32_t)(index * 3))",
+        rhs_initializer="(int32_t)(1000 - (int32_t)(index * 5))",
+        expected_expression="lhs[index] + rhs[index]",
+        selected_dispatch_case_mirror=(
+            "selected_dispatch_case_mirror:@rvv_vector_add;"
+            "role=dispatch case;runtime_guard_required=false;"
+            "runtime_guard=none;origin=rvv-plugin;"
+            "policy=rvv-vector-add-source-front-door-case"
+        ),
+        selected_dispatch_fallback_mirror=(
+            "selected_dispatch_fallback_mirror:@rvv_vector_add_scalar_fallback;"
+            "role=dispatch fallback;fallback_role=conservative;"
+            "origin=scalar-plugin"
+        ),
+    )
 }
 
 RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS = {
@@ -27308,6 +27339,101 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
+    if expectation.is_vector_source_front_door:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static int run_case(size_t n) {{
+  size_t alloc_n = n == 0 ? 1 : n;
+  size_t out_alloc_n = alloc_n + 8;
+  {expectation.element_c_type} *lhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *rhs = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *lhs_before = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *rhs_before = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * alloc_n);
+  {expectation.element_c_type} *out = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * out_alloc_n);
+  {expectation.element_c_type} *old_out = ({expectation.element_c_type} *)malloc(sizeof({expectation.element_c_type}) * out_alloc_n);
+  int status = 0;
+  if (!lhs || !rhs || !lhs_before || !rhs_before || !out || !old_out) {{
+    fprintf(stderr, "allocation failed for n=%zu\\n", n);
+    status = 11;
+    goto cleanup;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    lhs[index] = {expectation.lhs_initializer};
+    rhs[index] = {expectation.rhs_initializer};
+    lhs_before[index] = lhs[index];
+    rhs_before[index] = rhs[index];
+  }}
+  for (size_t index = 0; index < out_alloc_n; ++index) {{
+    out[index] = {expectation.out_initializer};
+    old_out[index] = out[index];
+  }}
+
+  {expectation.function_name}(lhs, rhs, out, n);
+
+  for (size_t index = 0; index < n; ++index) {{
+    {expectation.element_c_type} expected = {expectation.expected_expression};
+    if (out[index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu index=%zu got=%lld expected=%lld lhs=%lld rhs=%lld\\n",
+              n, index, (long long)out[index], (long long)expected,
+              (long long)lhs[index], (long long)rhs[index]);
+      status = 12;
+      goto cleanup;
+    }}
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    if (lhs[index] != lhs_before[index] || rhs[index] != rhs_before[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} source buffer mutated n=%zu index=%zu lhs=%lld lhs_before=%lld rhs=%lld rhs_before=%lld\\n",
+              n, index, (long long)lhs[index], (long long)lhs_before[index],
+              (long long)rhs[index], (long long)rhs_before[index]);
+      status = 13;
+      goto cleanup;
+    }}
+  }}
+  for (size_t index = n; index < out_alloc_n; ++index) {{
+    if (out[index] != old_out[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail sentinel n=%zu index=%zu got=%lld old=%lld\\n",
+              n, index, (long long)out[index], (long long)old_out[index]);
+      status = 14;
+      goto cleanup;
+    }}
+  }}
+
+  printf("{expectation.kind} case n=%zu ok source_preserved tail_preserved\\n", n);
+
+cleanup:
+  free(lhs);
+  free(rhs);
+  free(lhs_before);
+  free(rhs_before);
+  free(out);
+  free(old_out);
+  return status;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    int status = run_case(counts[index]);
+    if (status != 0)
+      return status;
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} source_preserved tail_preserved\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} source_preserved tail_preserved\\n");
+  return 0;
+}}
+""".lstrip()
     return f"""
 #include <stddef.h>
 #include <stdint.h>
@@ -27388,6 +27514,10 @@ def generate_bundle(
         )
     materialized_path = bundle_dir.parent / "materialized_selected_body.mlir"
     materialize_command = [tcrv_opt, str(expectation.input_path)]
+    if expectation.is_vector_source_front_door:
+        materialize_command.append(
+            "--tcrv-rvv-materialize-vector-add-source-front-door"
+        )
     if expectation.is_widening_product_reduce_dequantize_f32:
         materialize_command.append("--tcrv-rvv-materialize-gearbox-schedules")
     if expectation.requires_selected_lowering_boundary_materialization:
@@ -27469,6 +27599,23 @@ def generate_bundle(
             "explicit compound typed tcrv_rvv body before provider route "
             "construction"
         )
+    elif expectation.is_vector_source_front_door:
+        result["front_door"] = "bounded-vector-add-source-front-door"
+        result["materializer"] = (
+            "tcrv-rvv-materialize-vector-add-source-front-door"
+        )
+        result["source_front_door_boundary"] = {
+            "marker": "tcrv_rvv.source_front_door=bounded_vector_source",
+            "marker_role": "explicit opt-in materialization boundary only",
+            "route_authority": (
+                "selected typed tcrv_rvv body plus RVV provider-built "
+                "TCRVEmitCLowerableRoute"
+            ),
+            "common_emitc_role": (
+                "neutral materializer for provider payload; no RVV semantic "
+                "inference"
+            ),
+        }
     return result
 
 
@@ -27653,19 +27800,26 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
             "Stage1 residue hygiene; use explicit selected generic typed "
             "tcrv_rvv body fixtures instead"
         )
+    vector_source_front_door = bool(
+        getattr(args, "vector_source_front_door", False)
+    )
     selected_modes = [
+        vector_source_front_door,
         args.pre_realized_selected_body,
         args.rhs_broadcast_selected_body,
         args.lmul_m2_selected_body,
     ]
     if sum(1 for selected in selected_modes if selected) > 1:
         raise EvidenceError(
-            "--pre-realized-selected-body, --rhs-broadcast-selected-body, "
-            "and --lmul-m2-selected-body are "
+            "--vector-source-front-door, --pre-realized-selected-body, "
+            "--rhs-broadcast-selected-body, and --lmul-m2-selected-body are "
             "mutually exclusive"
         )
 
-    if args.pre_realized_selected_body:
+    if vector_source_front_door:
+        expectation_table = VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS
+        mode = "vector-source-front-door"
+    elif args.pre_realized_selected_body:
         expectation_table = PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS
         mode = "pre-realized-selected-body"
     elif args.rhs_broadcast_selected_body:
@@ -32343,7 +32497,9 @@ def run_one_op_e2e(
         }
 
     try:
-        if expectation.is_pre_realized:
+        if expectation.is_vector_source_front_door:
+            input_copy_name = "vector_source_front_door_input.mlir"
+        elif expectation.is_pre_realized:
             input_copy_name = "pre_realized_selected_body_input.mlir"
         else:
             input_copy_name = "selected_body_input.mlir"
@@ -32366,6 +32522,24 @@ def run_one_op_e2e(
             args.direct_pre_realized_route_entry,
         )
         evidence["local_bundle_generation"] = local
+        if expectation.is_vector_source_front_door:
+            evidence["source_front_door_artifact_boundary"] = {
+                "source": (
+                    "bounded Vector add source-front-door MLIR -> RVV "
+                    "plugin-owned materializer -> selected typed tcrv_rvv "
+                    "body -> provider route -> target bundle"
+                ),
+                "marker_role": "explicit opt-in only",
+                "route_authority": (
+                    "typed tcrv_rvv body/config/runtime facts consumed by "
+                    "the RVV provider"
+                ),
+                "artifact_metadata_role": (
+                    "mirror-only-after-provider-route-and-target-validation"
+                ),
+                "selected_variant": expectation.selected_variant,
+                "materializer": local["materializer"],
+            }
         evidence["materialized_selected_body_checks"] = (
             verify_materialized_selected_body(
                 Path(local["materialized_selected_body"]), expectation
@@ -33392,6 +33566,9 @@ def root_op_result_summary(
         "selected_dispatch_bundle_boundary": result.get(
             "selected_dispatch_bundle_boundary", {}
         ),
+        "source_front_door_artifact_boundary": result.get(
+            "source_front_door_artifact_boundary", {}
+        ),
         "mask_tail_policy_boundary": result.get(
             "mask_tail_policy_boundary", {}
         ),
@@ -33505,6 +33682,7 @@ def run_e2e(args: argparse.Namespace) -> int:
         "dry_run": bool(args.dry_run),
         "input_mode": "explicit-selected-body",
         "source_seed": bool(args.source_seed),
+        "vector_source_front_door": bool(args.vector_source_front_door),
         "pre_realized_selected_body": bool(args.pre_realized_selected_body),
         "rhs_broadcast_selected_body": bool(args.rhs_broadcast_selected_body),
         "lmul_m2_selected_body": bool(args.lmul_m2_selected_body),
@@ -33512,7 +33690,9 @@ def run_e2e(args: argparse.Namespace) -> int:
         "runtime_counts": runtime_counts,
         "op_results": {},
     }
-    if args.pre_realized_selected_body:
+    if args.vector_source_front_door:
+        evidence["input_mode"] = "vector-source-front-door"
+    elif args.pre_realized_selected_body:
         evidence["input_mode"] = "pre-realized-selected-body"
         if args.direct_pre_realized_route_entry:
             evidence["pre_realized_route_entry_mode"] = "direct"
@@ -34212,6 +34392,7 @@ def run_self_test() -> int:
 
         for expectation in (
             list(EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS.values())
+            + list(VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS.values())
             + list(RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS.values())
             + list(LMUL_M2_SELECTED_BODY_OP_EXPECTATIONS.values())
             + list(PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS.values())
@@ -36185,6 +36366,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--vector-source-front-door",
+        action="store_true",
+        help=(
+            "use the bounded Vector add source-front-door fixture, run the "
+            "RVV plugin-owned materializer, and then prove the generated "
+            "bundle ABI for the selected typed tcrv_rvv add body; mutually "
+            "exclusive with selected-body modes"
+        ),
+    )
+    parser.add_argument(
         "--direct-pre-realized-route-entry",
         action="store_true",
         help=(
@@ -36229,7 +36420,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help=(
             "override the selected-body MLIR fixture for exactly one --op-kind; "
-            "applies to explicit or pre-realized selected-body modes"
+            "applies to explicit, pre-realized, or vector source-front-door "
+            "modes"
         ),
     )
     parser.add_argument("--tcrv-opt", default="build/bin/tcrv-opt")
