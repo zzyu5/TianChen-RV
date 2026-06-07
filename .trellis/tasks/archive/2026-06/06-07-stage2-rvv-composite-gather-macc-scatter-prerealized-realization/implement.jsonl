@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain and RVV Stage2 selected-body realization boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Runtime-scalar computed-mask indexed gather-MAcc-scatter route contract, explicit body shape, ABI order, and pre-realized owner boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute contract and Common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused plugin/route-provider evidence expectations and no unsupported runtime claim."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected-body/variant and mirror-only metadata constraints for Stage2 RVV work."}
+{"file": ".trellis/tasks/archive/2026-06/06-07-stage2-rvv-composite-gather-macc-scatter-realization-route-contract/prd.md", "reason": "Predecessor completion notes: explicit composite route-supported, pre-realized owner remains continuation."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Current fail-closed composite pre-realized boundary and selected-body owner dispatch."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Existing explicit composite route recognizer/provider facts reused after realization."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Composite positive/fail-closed C++ route contract tests to update."}

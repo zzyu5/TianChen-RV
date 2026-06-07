@@ -28779,15 +28779,129 @@ module {
           VariantLoweringBoundaryRequest(
               preRealizedVariant, preRealizedKernel, capabilities,
               VariantEmissionRole::DirectVariant, builder));
-  if (realized)
+  if (!realized)
     return fail("pre-realized composite masked indexed gather-MAcc-scatter "
-                "unexpectedly materialized");
+                "failed to materialize: " +
+                llvm::toString(realized.takeError()));
+
+  std::string realizedPreCompositeIR;
+  llvm::raw_string_ostream realizedPreCompositeOS(realizedPreCompositeIR);
+  preRealizedModule->print(realizedPreCompositeOS);
+  realizedPreCompositeOS.flush();
+  if (int result = expect(
+          !llvm::StringRef(realizedPreCompositeIR)
+               .contains("pre_realized_body") &&
+              llvm::StringRef(realizedPreCompositeIR)
+                  .contains("tcrv_rvv.masked_indexed_load") &&
+              llvm::StringRef(realizedPreCompositeIR)
+                  .contains("tcrv_rvv.masked_macc") &&
+              llvm::StringRef(realizedPreCompositeIR)
+                  .contains("tcrv_rvv.masked_indexed_store"),
+          "pre-realized composite masked indexed gather-MAcc-scatter is "
+          "realized into the explicit composite tcrv_rvv body shape"))
+    return result;
+
+  llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis>
+      preRealizedAnalysis = analyzeRouteInModule(
+          *preRealizedModule,
+          "pre_realized_composite_masked_indexed_gather_macc_scatter_kernel",
+          "rvv_pre_composite");
+  if (!preRealizedAnalysis)
+    return fail("pre-realized composite masked indexed gather-MAcc-scatter "
+                "did not reach route facts after realization: " +
+                llvm::toString(preRealizedAnalysis.takeError()));
+  const tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription
+      &preRealizedDescription = preRealizedAnalysis->description;
+  if (int result = expect(
+          preRealizedDescription.operation == explicitDescription.operation &&
+              preRealizedDescription.memoryForm ==
+                  explicitDescription.memoryForm &&
+              preRealizedDescription.typedComputeOpName ==
+                  explicitDescription.typedComputeOpName &&
+              preRealizedDescription.runtimeABIOrder ==
+                  explicitDescription.runtimeABIOrder &&
+              preRealizedDescription.routeOperandBindingPlanID ==
+                  explicitDescription.routeOperandBindingPlanID,
+          "pre-realized composite masked indexed gather-MAcc-scatter reaches "
+          "the same provider-owned route contract as the explicit body"))
+    return result;
+  if (int result = expect(
+          preRealizedDescription.runtimeABIParameters.size() == 8 &&
+              preRealizedDescription.runtimeABIParameters[0].cName ==
+                  "cmp_lhs" &&
+              preRealizedDescription.runtimeABIParameters[1].cName ==
+                  "rhs_scalar" &&
+              preRealizedDescription.runtimeABIParameters[2].cName ==
+                  "gather_src" &&
+              preRealizedDescription.runtimeABIParameters[3].cName ==
+                  "payload" &&
+              preRealizedDescription.runtimeABIParameters[4].cName == "acc" &&
+              preRealizedDescription.runtimeABIParameters[5].cName == "index" &&
+              preRealizedDescription.runtimeABIParameters[6].cName == "dst" &&
+              preRealizedDescription.runtimeABIParameters[7].cName == "n" &&
+              preRealizedDescription.maskedLoadIntrinsic ==
+                  explicitDescription.maskedLoadIntrinsic &&
+              preRealizedDescription.intrinsic ==
+                  explicitDescription.intrinsic &&
+              preRealizedDescription.indexedStoreIntrinsic ==
+                  explicitDescription.indexedStoreIntrinsic &&
+              preRealizedDescription.maskedPassthroughLayout ==
+                  "old-destination-vector-preserves-inactive-lanes",
+          "pre-realized composite masked indexed gather-MAcc-scatter "
+          "preserves ABI order, leaf facts, and inactive-lane policy"))
+    return result;
+
+  std::string staleIndexSource = preRealizedCompositeSource.str();
+  const std::string indexRuntimeABI =
+      "      %index = tcrv_rvv.runtime_abi_value {c_name = \"index\", "
+      "c_type = \"const uint32_t *\", ownership = "
+      "\"target-export-abi-owned\", role = \"index-input-buffer\"} : "
+      "!tcrv_rvv.runtime_abi_value\n";
+  const std::size_t indexRuntimeABIPos =
+      staleIndexSource.find(indexRuntimeABI);
+  if (indexRuntimeABIPos == std::string::npos)
+    return fail("test setup failed to find pre-realized composite index ABI");
+  staleIndexSource.insert(
+      indexRuntimeABIPos + indexRuntimeABI.size(),
+      "      %stale_index = tcrv_rvv.runtime_abi_value {c_name = "
+      "\"stale_index\", c_type = \"const uint32_t *\", ownership = "
+      "\"target-export-abi-owned\", role = \"index-input-buffer\"} : "
+      "!tcrv_rvv.runtime_abi_value\n");
+  const std::string scatterOperands =
+      "typed_runtime_scalar_computed_mask_indexed_scatter_pre_realized_body "
+      "%cmp_lhs, %rhs_scalar, %scatter_src, %index, %dst, %n";
+  const std::size_t scatterOperandsPos =
+      staleIndexSource.find(scatterOperands);
+  if (scatterOperandsPos == std::string::npos)
+    return fail("test setup failed to find pre-realized composite scatter "
+                "operands");
+  staleIndexSource.replace(
+      scatterOperandsPos, scatterOperands.size(),
+      "typed_runtime_scalar_computed_mask_indexed_scatter_pre_realized_body "
+      "%cmp_lhs, %rhs_scalar, %scatter_src, %stale_index, %dst, %n");
+
+  mlir::OwningOpRef<mlir::ModuleOp> staleIndexModule =
+      parseModule(context, staleIndexSource);
+  if (!staleIndexModule)
+    return fail("failed to parse stale-index pre-realized composite masked "
+                "indexed gather-MAcc-scatter module");
+  KernelOp staleIndexKernel = findKernel(
+      *staleIndexModule,
+      "pre_realized_composite_masked_indexed_gather_macc_scatter_kernel");
+  VariantOp staleIndexVariant =
+      findVariant(staleIndexKernel, "rvv_pre_composite");
+  mlir::OpBuilder staleIndexBuilder(staleIndexModule->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> staleIndexRealized =
+      tianchenrv::plugin::rvv::realizePreRealizedRVVSelectedBody(
+          VariantLoweringBoundaryRequest(
+              staleIndexVariant, staleIndexKernel,
+              TargetCapabilitySet::buildFromKernel(staleIndexKernel),
+              VariantEmissionRole::DirectVariant, staleIndexBuilder));
   if (int result = expectErrorContains(
-          realized.takeError(),
-          {"Stage2 runtime-scalar computed-mask indexed gather-MAcc-scatter "
-           "pre-realized composite",
-           "separate gather, MAcc, and scatter family bodies",
-           "one composite selected-body realization owner"}))
+          staleIndexRealized.takeError(),
+          {"Stage2 RVV composite gather-MAcc-scatter selected-body "
+           "realization owner",
+           "gather and scatter to share the same index runtime ABI value"}))
     return result;
 
   return 0;

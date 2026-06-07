@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin ownership, composite selected-body realization, provider facts, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC remains neutral and only consumes provider-built route payload."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused tests and no unsupported target/runtime claim."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Verify selected-body/variant and mirror-only metadata constraints."}
+{"file": "lib/Plugin/RVV/RVVSelectedBodyRealization.cpp", "reason": "Check composite owner dispatch and no stale fail-closed-only boundary remains for the positive trio."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Check realized pre-realized body reuses explicit provider route contract."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Check positive pre-realized contract and stale-binding negative coverage."}

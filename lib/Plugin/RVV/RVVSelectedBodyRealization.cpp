@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "TianChenRV/Plugin/RVV/RVVBaseMemoryMovementSelectedBodyRealizationOwner.h"
+#include "TianChenRV/Plugin/RVV/RVVCompositeGatherMAccScatterSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVComputedMaskMAccSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVComputedMaskMemorySelectedBodyRealizationOwner.h"
@@ -221,6 +222,9 @@ realizePreRealizedRVVSelectedBody(
     return makeRVVPluginError(
         "pre-realized RVV selected-body realization requires materialized "
         "kernel and variant");
+
+  if (hasPreRealizedRVVCompositeGatherMAccScatterOwnerCandidate(variant))
+    return realizePreRealizedRVVCompositeGatherMAccScatterOwner(request);
 
   llvm::Expected<mlir::Operation *> bodyOp =
       findUniquePreRealizedRVVSelectedBody(variant);

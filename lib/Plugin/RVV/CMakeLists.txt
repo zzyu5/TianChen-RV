@@ -3,6 +3,7 @@ add_subdirectory(EmitC)
 
 add_mlir_library(TianChenRVRVVPlugin
   RVVContractionSelectedBodyRealizationOwner.cpp
+  RVVCompositeGatherMAccScatterSelectedBodyRealizationOwner.cpp
   RVVComputedMaskMAccSelectedBodyRealizationOwner.cpp
   RVVComputedMaskMemorySelectedBodyRealizationOwner.cpp
   RVVBaseMemoryMovementSelectedBodyRealizationOwner.cpp

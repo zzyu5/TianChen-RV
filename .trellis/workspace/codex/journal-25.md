@@ -243,3 +243,48 @@ pending-in-this-commit
   composite realized body shape.
 - Add target artifact/generated-bundle/header mirror evidence, then `ssh rvv`
   evidence only after artifact/export support is structurally present.
+
+
+## Session 523: Stage2 RVV composite gather-MAcc-scatter pre-realized realization
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV composite gather-MAcc-scatter pre-realized realization
+**Branch**: `main`
+
+### Summary
+
+Implemented the RVV plugin-local composite selected-body realization owner that fuses pre-realized runtime-scalar computed-mask indexed gather, MAcc, and scatter family bodies into the explicit route-supported tcrv_rvv body; added positive provider-contract evidence and stale-index fail-closed coverage.
+
+### Main Changes
+
+- Added `RVVCompositeGatherMAccScatterSelectedBodyRealizationOwner` and wired
+  it into the RVV selected-body realization dispatch.
+- The owner validates compatible pre-realized gather, MAcc, and scatter family
+  facts, materializes one explicit composite `setvl`/`with_vl` body, and
+  removes family-only placeholder ABI values before route construction.
+- Updated RVV plugin C++ coverage so explicit and pre-realized composite bodies
+  reach the same provider-owned route contract, with stale scatter-index
+  fail-closed coverage.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| pending-in-this-commit | rvv: realize composite gather macc scatter bodies |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
