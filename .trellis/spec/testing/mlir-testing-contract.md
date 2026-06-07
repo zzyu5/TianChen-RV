@@ -121,6 +121,105 @@ FileCheck and script self-tests must check that pattern loop shape, so a
 single-count call such as `run_case(counts[index])` cannot pass local dry-run
 while failing real `ssh rvv` compilation.
 
+## Selected Dispatch Generated-Bundle Evidence
+
+### 1. Scope / Trigger
+
+Use this contract when generated-bundle evidence claims executable correctness
+for a selected RVV dispatch case with a `tcrv.exec.dispatch` fallback envelope.
+It applies after the RVV provider and target artifact validator already accept
+the selected route.
+
+### 2. Signatures
+
+Per-op evidence JSON should expose:
+
+```json
+"selected_dispatch_bundle_boundary": {
+  "artifact_metadata_role": "mirror-only-after-provider-route-and-selected-dispatch-validation",
+  "selected_variant": "<rvv selected variant symbol without @>",
+  "selected_dispatch_case_mirror": "selected_dispatch_case_mirror:@<rvv case>;...",
+  "selected_dispatch_fallback_mirror": "selected_dispatch_fallback_mirror:@<fallback>;...",
+  "exec_abi_bindings": "<selected-envelope ABI binding summary>",
+  "runtime_abi_order": "<provider runtime ABI order>",
+  "route_operand_binding_plan": "<provider operand binding plan>",
+  "route_operand_binding_operands": "<provider operand binding summary>",
+  "provider_supported_mirror": "<provider support mirror>",
+  "object_header_metadata_agree": true,
+  "runtime_counts_are_execution_cases_not_dispatch_authority": true
+}
+```
+
+### 3. Contracts
+
+- The selected dispatch case/fallback values must be read from object/header
+  bundle metadata that already passed target artifact validation.
+- Object and header records must agree on selected dispatch case, selected
+  fallback, exec ABI bindings, runtime ABI order, route operand binding plan and
+  operands, and provider support mirror.
+- The evidence field is a mirror-only runtime evidence summary. It must not
+  define route support, fallback semantics, ABI order, dtype, or computation.
+- Runtime counts, scalar thresholds, patterns, and remote PASS markers are
+  execution cases only; they do not authorize dispatch selection.
+
+### 4. Validation & Error Matrix
+
+- Missing selected dispatch case/fallback expectation for a route that claims
+  selected-dispatch evidence -> evidence failure.
+- Object/header metadata missing selected dispatch case or fallback mirror ->
+  evidence failure before `ssh rvv` correctness is claimed.
+- Object/header selected dispatch/fallback mirrors disagree with expected
+  provider/target facts -> evidence failure.
+- Object/header disagree on ABI binding, ABI order, provider support, or route
+  operand binding facts -> evidence failure.
+- Remote compile/run failure -> evidence is blocked; do not claim executable
+  correctness.
+
+### 5. Good/Base/Bad Cases
+
+- Good: actual `tcrv.exec.dispatch` case/fallback -> selected typed RVV body ->
+  provider-built route -> target artifact validation -> generated bundle ->
+  per-op evidence records selected dispatch/fallback mirrors and `ssh rvv`
+  PASS output.
+- Base: dry-run generated-bundle evidence validates the same object/header
+  metadata and harness source without claiming runtime correctness.
+- Bad: a generated-bundle evidence file reports remote PASS but omits selected
+  dispatch/fallback mirrors while the task claims selected-dispatch executable
+  coverage.
+
+### 6. Tests Required
+
+- Dry-run FileCheck must assert the selected dispatch bundle boundary fields
+  for each selected-dispatch generated-bundle route under test.
+- Script self-tests or equivalent local checks must ensure fake bundle metadata
+  includes selected dispatch/fallback mirrors when the expectation declares
+  them.
+- Existing target artifact negative tests must continue to reject missing or
+  stale selected dispatch case, fallback, runtime guard, ABI binding, ABI order,
+  provider support, or route operand binding mirrors.
+- Runtime correctness claims must include non-dry-run `ssh rvv` evidence with
+  the generated object, header, and external ABI harness.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+selected_dispatch_case_mirror string in a test name
+  -> generated bundle runs
+  -> claim selected-dispatch executable boundary
+```
+
+Correct:
+
+```text
+actual tcrv.exec.dispatch case/fallback
+  -> RVV provider route and target artifact validation
+  -> object/header bundle metadata agree on selected dispatch/fallback facts
+  -> generated harness compiles and runs on ssh rvv
+  -> evidence records PASS output and mirror-only selected_dispatch_bundle_boundary
+```
+
 ## F32 Clamp/Select Generated-Bundle Evidence
 
 ### 1. Scope / Trigger

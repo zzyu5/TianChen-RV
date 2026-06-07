@@ -26,6 +26,12 @@
 # EXPL-DAG: "expected_selected_variant": "rvv_explicit_composite"
 # EXPL-DAG: "front_door": "explicit-selected-tcrv-exec-rvv-body"
 # EXPL-DAG: "pre_realized_body_consumed": false
+# EXPL-DAG: "selected_dispatch_bundle_boundary": {
+# EXPL-DAG: "artifact_metadata_role": "mirror-only-after-provider-route-and-selected-dispatch-validation"
+# EXPL-DAG: "selected_dispatch_case_mirror": "selected_dispatch_case_mirror:@rvv_explicit_composite;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=explicit-composite-gather-macc-scatter-case"
+# EXPL-DAG: "selected_dispatch_fallback_mirror": "selected_dispatch_fallback_mirror:@explicit_composite_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=explicit-composite-gather-macc-scatter-fallback-envelope"
+# EXPL-DAG: "object_header_metadata_agree": true
+# EXPL-DAG: "runtime_counts_are_execution_cases_not_dispatch_authority": true
 # EXPL-DAG: "prototype": "void tcrv_emitc_explicit_composite_masked_indexed_gather_macc_scatter_kernel_rvv_explicit_composite(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *gather_src, const int32_t *payload, const int32_t *acc, const uint32_t *index, int32_t *dst, size_t n);"
 # EXPL-DAG: "key": "rvv_emitc_lowerable_route"
 # EXPL-DAG: "value": "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-emitc-route"
@@ -75,6 +81,12 @@
 # PRE-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
 # PRE-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
 # PRE-DAG: "pre_realized_body_consumed": true
+# PRE-DAG: "selected_dispatch_bundle_boundary": {
+# PRE-DAG: "artifact_metadata_role": "mirror-only-after-provider-route-and-selected-dispatch-validation"
+# PRE-DAG: "selected_dispatch_case_mirror": "selected_dispatch_case_mirror:@rvv_pre_composite;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-composite-gather-macc-scatter-case"
+# PRE-DAG: "selected_dispatch_fallback_mirror": "selected_dispatch_fallback_mirror:@pre_composite_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-composite-gather-macc-scatter-fallback-envelope"
+# PRE-DAG: "object_header_metadata_agree": true
+# PRE-DAG: "runtime_counts_are_execution_cases_not_dispatch_authority": true
 # PRE-DAG: "prototype": "void tcrv_emitc_pre_realized_composite_masked_indexed_gather_macc_scatter_kernel_rvv_pre_composite(const int32_t *cmp_lhs, int32_t rhs_scalar, const int32_t *gather_src, const int32_t *payload, const int32_t *acc, const uint32_t *index, int32_t *dst, size_t n);"
 # PRE-DAG: "key": "rvv_emitc_lowerable_route"
 # PRE-DAG: "value": "rvv-generic-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-emitc-route"

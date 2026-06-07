@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Final project-wide compliance check."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Verify selected dispatch/fallback facts remain layered and mirror-only after provider route construction."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify generated-bundle evidence does not become route authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify RVV route construction remains provider-owned and common EmitC remains neutral."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact and runtime claim evidence requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/script checks and ssh rvv evidence scope."}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Verify ssh rvv evidence is interpreted as bounded runtime correctness evidence only."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify composite gather-MAcc-scatter route contract and ABI bindings."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Verify no scalar fallback backend is introduced."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review dispatch/runtime guard capability facts."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin locality for any route/evidence changes."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review no core/high-level compute boundary drift."}

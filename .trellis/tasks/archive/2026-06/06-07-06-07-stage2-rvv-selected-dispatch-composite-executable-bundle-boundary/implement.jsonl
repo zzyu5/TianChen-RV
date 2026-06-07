@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Project-wide authority chain and RVV-first stage order for selected-dispatch executable evidence."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected variant, dispatch, fallback, and mirror-non-authority checklist."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant selection/dispatch/fallback contract and generated-bundle evidence boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "RVV provider-built route ownership and common EmitC neutrality."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact, runtime ABI, and ssh rvv evidence requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/script/runtime evidence requirements for RVV generated bundles."}
+{"file": ".trellis/spec/validation/experiment-reference.md", "reason": "Interpret real ssh rvv evidence without redefining compiler structure."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Runtime-scalar indexed gather-MAcc-scatter RVV plugin route contract."}
+{"file": ".trellis/spec/extension-plugins/scalar-fallback-plugin.md", "reason": "Ensure fallback remains an envelope contract and not an executable scalar backend."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check dispatch/runtime guard/capability facts stay capability-driven."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check RVV-specific route and ABI behavior remains plugin-local."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Check no high-level compute or core dialect semantic expansion is introduced."}
+{"file": ".trellis/tasks/archive/2026-06/06-07-stage2-rvv-selected-dispatch-fallback-composite-artifact-boundary/prd.md", "reason": "Predecessor structural artifact boundary and runtime-evidence gap."}

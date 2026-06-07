@@ -2125,6 +2125,8 @@ class OpExpectation:
     element_c_type: str = "int32_t"
     config_contract: str = "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
     bounded_slice: str = "multi-vl-selected-body-sew32-lmul-m1"
+    selected_dispatch_case_mirror: str = ""
+    selected_dispatch_fallback_mirror: str = ""
 
     @property
     def element_type(self) -> str:
@@ -4592,6 +4594,18 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
             ": old_dst[indices[index]])"
         ),
         compare_predicate_kind="sle",
+        selected_dispatch_case_mirror=(
+            "selected_dispatch_case_mirror:@rvv_explicit_composite;"
+            "role=dispatch case;runtime_guard_required=false;"
+            "runtime_guard=none;origin=rvv-plugin;"
+            "policy=explicit-composite-gather-macc-scatter-case"
+        ),
+        selected_dispatch_fallback_mirror=(
+            "selected_dispatch_fallback_mirror:@explicit_composite_scalar_fallback;"
+            "role=dispatch fallback;fallback_role=conservative;"
+            "origin=scalar-plugin;"
+            "policy=explicit-composite-gather-macc-scatter-fallback-envelope"
+        ),
     ),
     "computed_masked_segment2_load_unit_store": OpExpectation(
         kind="computed_masked_segment2_load_unit_store",
@@ -5622,6 +5636,18 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         function_name=(
             "tcrv_emitc_pre_realized_composite_masked_indexed_gather_macc_"
             "scatter_kernel_rvv_pre_composite"
+        ),
+        selected_dispatch_case_mirror=(
+            "selected_dispatch_case_mirror:@rvv_pre_composite;"
+            "role=dispatch case;runtime_guard_required=false;"
+            "runtime_guard=none;origin=rvv-plugin;"
+            "policy=pre-realized-composite-gather-macc-scatter-case"
+        ),
+        selected_dispatch_fallback_mirror=(
+            "selected_dispatch_fallback_mirror:@pre_composite_scalar_fallback;"
+            "role=dispatch fallback;fallback_role=conservative;"
+            "origin=scalar-plugin;"
+            "policy=pre-realized-composite-gather-macc-scatter-fallback-envelope"
         ),
     ),
     "computed_masked_segment2_load_unit_store": replace(
@@ -7630,6 +7656,15 @@ RUNTIME_AVL_VL_METADATA_KEYS = (
     "tcrv_rvv.pointer_advance",
     "tcrv_rvv.multi_vl",
 )
+SELECTED_DISPATCH_BUNDLE_METADATA_KEYS = (
+    "tcrv_rvv.selected_dispatch_case_mirror",
+    "tcrv_rvv.selected_dispatch_fallback_mirror",
+    "tcrv_rvv.exec_abi_bindings",
+    "tcrv_rvv.runtime_abi_order",
+    "tcrv_rvv.route_operand_binding_plan",
+    "tcrv_rvv.route_operand_binding_operands",
+    "tcrv_rvv.provider_supported_mirror",
+)
 MASK_TAIL_POLICY_METADATA_KEYS = (
     "tcrv_rvv.config_contract",
     "tcrv_rvv.tail_policy",
@@ -8605,6 +8640,14 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         "tcrv_rvv.memory_form": expectation.memory_form,
         "tcrv_rvv.bounded_slice": expectation.bounded_slice,
     }
+    if expectation.selected_dispatch_case_mirror:
+        per_op_metadata["tcrv_rvv.selected_dispatch_case_mirror"] = (
+            expectation.selected_dispatch_case_mirror
+        )
+    if expectation.selected_dispatch_fallback_mirror:
+        per_op_metadata["tcrv_rvv.selected_dispatch_fallback_mirror"] = (
+            expectation.selected_dispatch_fallback_mirror
+        )
     if expectation.is_masked_unit_store:
         per_op_metadata["tcrv_rvv.tail_policy"] = "undisturbed"
         per_op_metadata["tcrv_rvv.mask_policy"] = "undisturbed"
@@ -27718,6 +27761,44 @@ def runtime_avl_vl_metadata_from_bundle(
     return metadata
 
 
+def selected_dispatch_bundle_metadata_from_bundle(
+    bundle_checks: dict[str, Any], expectation: OpExpectation
+) -> dict[str, str]:
+    if (
+        not expectation.selected_dispatch_case_mirror
+        or not expectation.selected_dispatch_fallback_mirror
+    ):
+        raise EvidenceError(
+            f"{expectation.kind} has no selected dispatch/fallback mirror "
+            "expectation"
+        )
+    records = bundle_checks["index"]["parsed"]["records"]
+    if len(records) != 2:
+        raise EvidenceError(
+            "selected-dispatch bundle evidence requires object and header records"
+        )
+    object_metadata = metadata_map(find_record(records, "object"))
+    header_metadata = metadata_map(find_record(records, "header"))
+    expected_metadata = expected_metadata_for(expectation)
+    metadata: dict[str, str] = {}
+    for key in SELECTED_DISPATCH_BUNDLE_METADATA_KEYS:
+        expected = expected_metadata.get(key)
+        if expected is None:
+            continue
+        require_equal(
+            object_metadata.get(key),
+            expected,
+            f"{expectation.kind} object selected-dispatch metadata {key}",
+        )
+        require_equal(
+            header_metadata.get(key),
+            expected,
+            f"{expectation.kind} header selected-dispatch metadata {key}",
+        )
+        metadata[key] = expected
+    return metadata
+
+
 def mask_tail_policy_metadata_from_bundle(
     bundle_checks: dict[str, Any], expectation: OpExpectation
 ) -> dict[str, str]:
@@ -28168,6 +28249,53 @@ def runtime_avl_vl_boundary_summary(
         },
         "runtime_counts": runtime_counts,
         "runtime_counts_are_execution_cases_not_vl_authority": True,
+    }
+
+
+def selected_dispatch_bundle_boundary_summary(
+    *,
+    expectation: OpExpectation,
+    bundle_checks: dict[str, Any],
+    runtime_counts: list[int],
+) -> dict[str, Any]:
+    route_metadata = selected_dispatch_bundle_metadata_from_bundle(
+        bundle_checks, expectation
+    )
+    return {
+        "source": (
+            "actual tcrv.exec.dispatch case/fallback facts -> RVV route "
+            "planning -> target artifact validation -> generated bundle "
+            "object/header metadata"
+        ),
+        "authority": (
+            "actual selected tcrv.exec dispatch/fallback envelope plus "
+            "selected typed or realized tcrv_rvv body and RVV provider route"
+        ),
+        "artifact_metadata_role": (
+            "mirror-only-after-provider-route-and-selected-dispatch-validation"
+        ),
+        "selected_variant": expectation.selected_variant,
+        "selected_dispatch_case_mirror": route_metadata.get(
+            "tcrv_rvv.selected_dispatch_case_mirror"
+        ),
+        "selected_dispatch_fallback_mirror": route_metadata.get(
+            "tcrv_rvv.selected_dispatch_fallback_mirror"
+        ),
+        "exec_abi_bindings": route_metadata.get("tcrv_rvv.exec_abi_bindings"),
+        "runtime_abi_order": route_metadata.get("tcrv_rvv.runtime_abi_order"),
+        "route_operand_binding_plan": route_metadata.get(
+            "tcrv_rvv.route_operand_binding_plan"
+        ),
+        "route_operand_binding_operands": route_metadata.get(
+            "tcrv_rvv.route_operand_binding_operands"
+        ),
+        "provider_supported_mirror": route_metadata.get(
+            "tcrv_rvv.provider_supported_mirror"
+        ),
+        "object_header_metadata_agree": True,
+        "route_metadata": route_metadata,
+        "runtime_counts": runtime_counts,
+        "runtime_counts_are_execution_cases_not_dispatch_authority": True,
     }
 
 
@@ -32071,6 +32199,17 @@ def run_one_op_e2e(
             bundle_checks=bundle_checks,
             runtime_counts=runtime_counts,
         )
+        if (
+            expectation.selected_dispatch_case_mirror
+            or expectation.selected_dispatch_fallback_mirror
+        ):
+            evidence["selected_dispatch_bundle_boundary"] = (
+                selected_dispatch_bundle_boundary_summary(
+                    expectation=expectation,
+                    bundle_checks=bundle_checks,
+                    runtime_counts=runtime_counts,
+                )
+            )
         if expectation.is_base_memory_movement:
             evidence["base_memory_movement_boundary"] = (
                 base_memory_movement_boundary_summary(
@@ -33048,6 +33187,9 @@ def root_op_result_summary(
         "runtime_counts": result["runtime_counts"],
         "runtime_avl_vl_boundary": result.get(
             "runtime_avl_vl_boundary", {}
+        ),
+        "selected_dispatch_bundle_boundary": result.get(
+            "selected_dispatch_bundle_boundary", {}
         ),
         "mask_tail_policy_boundary": result.get(
             "mask_tail_policy_boundary", {}
@@ -35165,6 +35307,11 @@ def run_self_test() -> int:
                     bundle_checks=bundle_checks,
                     runtime_counts=[0, 1, 16, 17, 257],
                 )
+                dispatch_boundary = selected_dispatch_bundle_boundary_summary(
+                    expectation=expectation,
+                    bundle_checks=bundle_checks,
+                    runtime_counts=[0, 1, 16, 17, 257],
+                )
                 route_metadata = boundary.get("route_metadata", {})
                 indexed_memory = boundary.get("indexed_memory", {})
                 if (
@@ -35186,12 +35333,17 @@ def run_self_test() -> int:
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_INDEXED_DESTINATION_MEMORY_FORM
                     or boundary.get("artifact_abi", {}).get("runtime_abi_order")
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_RUNTIME_ABI_ORDER
+                    or dispatch_boundary.get("selected_dispatch_case_mirror")
+                    != expectation.selected_dispatch_case_mirror
+                    or dispatch_boundary.get("selected_dispatch_fallback_mirror")
+                    != expectation.selected_dispatch_fallback_mirror
+                    or not dispatch_boundary.get("object_header_metadata_agree")
                 ):
                     raise AssertionError(
                         "self-test fake bundle generation lost runtime-scalar "
                         "indexed gather-MAcc-scatter provider-backed operand "
-                        "binding, mask producer, indexed memory, or ABI-order "
-                        "metadata"
+                        "binding, mask producer, indexed memory, ABI-order, "
+                        "or selected dispatch/fallback metadata"
                     )
             if (
                 expectation.is_computed_masked_segment2_load_unit_store

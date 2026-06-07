@@ -49,6 +49,82 @@ Hardened runtime-scalar-cmp masked indexed gather-load target artifact ABI valid
 - None - task complete
 
 
+## Session 528: Stage2 RVV selected-dispatch composite executable bundle boundary
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV selected-dispatch composite executable bundle boundary
+**Branch**: `main`
+
+### Summary
+
+Extended the composite gather-MAcc-scatter generated-bundle evidence boundary
+from selected-envelope runtime execution to selected dispatch/fallback
+execution. The production compiler seam already failed closed through target
+artifact validation; this round hardened the generated-bundle evidence tooling
+so object/header bundle metadata and per-op evidence explicitly carry the
+selected dispatch case/fallback boundary as mirror-only facts after RVV
+provider route and target artifact validation.
+
+### Main Changes
+
+- Created the Trellis task
+  `06-07-stage2-rvv-selected-dispatch-composite-executable-bundle-boundary`
+  with a bounded PRD for selected-dispatch/fallback composite generated-bundle
+  execution.
+- Added optional selected dispatch case/fallback mirror expectations to
+  `scripts/rvv_generated_bundle_abi_e2e.py` and populated them for the
+  explicit and pre-realized runtime-scalar-cmp masked indexed
+  gather-MAcc-scatter paths.
+- Added generated-bundle object/header metadata verification for selected
+  dispatch case, fallback, selected-envelope ABI bindings, runtime ABI order,
+  route operand binding plan/summary, and provider support mirror.
+- Added `selected_dispatch_bundle_boundary` to per-op and root evidence JSON,
+  labeled as mirror-only after provider route and selected-dispatch validation.
+- Updated the focused generated-bundle dry-run lit test to require the new
+  explicit and pre-realized selected-dispatch bundle boundary evidence fields.
+- Updated `.trellis/spec/testing/mlir-testing-contract.md` with the reusable
+  selected-dispatch generated-bundle evidence JSON contract.
+- Verified explicit and pre-realized non-dry-run generated bundles on `ssh rvv`
+  under `artifacts/tmp/stage2-selected-dispatch-composite-gms-ssh-rvv/`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | rvv: prove selected dispatch composite bundle |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Explicit selected-dispatch composite dry-run generated-bundle evidence.
+- [OK] Pre-realized selected-dispatch composite dry-run generated-bundle
+  evidence.
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-dry-run`
+  from `build/test`.
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'explicit-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter|pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter|selected-dispatch-fallback-envelope-scalar-broadcast-macc-negative|materialize-dispatch-runtime-guards|variant-dispatch-synthesis|rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-dry-run'`
+  from `build/test`.
+- [OK] Explicit selected-dispatch composite non-dry-run generated-bundle
+  evidence on `ssh rvv`, including
+  `PASS op=runtime_scalar_cmp_masked_indexed_gather_macc_scatter counts=0,1,16,17,257 rhs_scalars=-37,91 patterns=0,1`.
+- [OK] Pre-realized selected-dispatch composite non-dry-run generated-bundle
+  evidence on `ssh rvv`, including the same PASS marker.
+- [OK] Bounded old-authority scan over touched files and added diff lines found
+  no new positive legacy route authority.
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 527: Stage2 RVV selected dispatch/fallback composite artifact boundary
 
 **Date**: 2026-06-07
