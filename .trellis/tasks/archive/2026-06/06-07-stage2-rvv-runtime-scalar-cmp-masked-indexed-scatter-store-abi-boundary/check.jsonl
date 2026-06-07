@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check against global RVV authority and Stage boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Final check that RVV provider facts remain plugin-owned and typed-body-derived."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Final check that common EmitC remains neutral and target artifact mirrors fail closed."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Final check that focused C++ tests and generated-bundle evidence match the changed boundary."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Final check that route ids, emission metadata, and artifact names stay mirror-only."}

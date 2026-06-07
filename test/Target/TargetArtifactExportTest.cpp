@@ -20550,6 +20550,64 @@ bool expectRVVTargetArtifactExporterShape(
            "cmp_lhs,cmp_rhs,src,index,dst,n"}))
     return false;
 
+  RVVRouteDescription staleRuntimeScalarIndexedScatterInactiveLane =
+      manualRuntimeScalarIndexedScatterDescription;
+  staleRuntimeScalarIndexedScatterInactiveLane.inactiveLaneContract =
+      "metadata-derived-inactive-lane-contract";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualRuntimeScalarIndexedScatterCandidate,
+          manualRuntimeScalarIndexedScatterRoute,
+          staleRuntimeScalarIndexedScatterInactiveLane,
+          "computed-mask indexed memory registry rejects stale "
+          "runtime-scalar indexed scatter inactive-lane policy",
+          {"inactive-lane contract",
+           "masked-indexed-store-false-lanes-preserve-output-buffer",
+           "metadata-derived-inactive-lane-contract"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarIndexedScatterPassthrough =
+      manualRuntimeScalarIndexedScatterDescription;
+  staleRuntimeScalarIndexedScatterPassthrough.maskedPassthroughLayout =
+      "metadata-derived-passthrough-layout";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualRuntimeScalarIndexedScatterCandidate,
+          manualRuntimeScalarIndexedScatterRoute,
+          staleRuntimeScalarIndexedScatterPassthrough,
+          "computed-mask indexed memory registry rejects stale "
+          "runtime-scalar indexed scatter passthrough policy",
+          {"masked passthrough layout",
+           "masked-indexed-store-has-no-passthrough-load",
+           "metadata-derived-passthrough-layout"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarIndexedScatterUniqueness =
+      manualRuntimeScalarIndexedScatterDescription;
+  staleRuntimeScalarIndexedScatterUniqueness.indexUniqueness =
+      "metadata-derived-duplicate-policy";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualRuntimeScalarIndexedScatterCandidate,
+          manualRuntimeScalarIndexedScatterRoute,
+          staleRuntimeScalarIndexedScatterUniqueness,
+          "computed-mask indexed memory registry rejects stale "
+          "runtime-scalar indexed scatter uniqueness policy",
+          {"index uniqueness", "unique",
+           "metadata-derived-duplicate-policy"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarIndexedScatterDestinationForm =
+      manualRuntimeScalarIndexedScatterDescription;
+  staleRuntimeScalarIndexedScatterDestinationForm.indexedDestinationMemoryForm =
+      "metadata-derived-indexed-destination";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualRuntimeScalarIndexedScatterCandidate,
+          manualRuntimeScalarIndexedScatterRoute,
+          staleRuntimeScalarIndexedScatterDestinationForm,
+          "computed-mask indexed memory registry rejects stale "
+          "runtime-scalar indexed scatter destination form",
+          {"indexed destination memory form", "masked-indexed-store",
+           "metadata-derived-indexed-destination"}))
+    return false;
+
   RVVRouteDescription staleIndexedScatterLoopVL =
       manualIndexedScatterDescription;
   staleIndexedScatterLoopVL.emitCLoopVLName = "metadata_vl";
@@ -21769,6 +21827,92 @@ bool expectRVVTargetArtifactExporterShape(
           "scatter ABI metadata",
           {"runtime_abi_order", "lhs,rhs_scalar,src,index,dst,n",
            "cmp_lhs,cmp_rhs,src,index,dst,n"}))
+    return false;
+
+  TargetArtifactCandidate wrongRuntimeScalarIndexedScatterInactiveCandidate =
+      manualRuntimeScalarIndexedScatterCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongRuntimeScalarIndexedScatterInactiveCandidate,
+          "tcrv_rvv.inactive_lane_contract",
+          "metadata-derived-inactive-lane-contract")) {
+    llvm::errs()
+        << "runtime-scalar computed-mask indexed scatter test fixture did "
+           "not contain inactive lane metadata\n";
+    return false;
+  }
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongRuntimeScalarIndexedScatterInactiveCandidate,
+          manualRuntimeScalarIndexedScatterRoute,
+          manualRuntimeScalarIndexedScatterDescription,
+          "compare/select mask registry rejects stale runtime-scalar indexed "
+          "scatter inactive-lane metadata",
+          {"inactive_lane_contract",
+           "masked-indexed-store-false-lanes-preserve-output-buffer",
+           "metadata-derived-inactive-lane-contract"}))
+    return false;
+
+  TargetArtifactCandidate wrongRuntimeScalarIndexedScatterPassthroughCandidate =
+      manualRuntimeScalarIndexedScatterCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongRuntimeScalarIndexedScatterPassthroughCandidate,
+          "tcrv_rvv.masked_passthrough_layout",
+          "metadata-derived-passthrough-layout")) {
+    llvm::errs()
+        << "runtime-scalar computed-mask indexed scatter test fixture did "
+           "not contain passthrough metadata\n";
+    return false;
+  }
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongRuntimeScalarIndexedScatterPassthroughCandidate,
+          manualRuntimeScalarIndexedScatterRoute,
+          manualRuntimeScalarIndexedScatterDescription,
+          "compare/select mask registry rejects stale runtime-scalar indexed "
+          "scatter passthrough metadata",
+          {"masked_passthrough_layout",
+           "masked-indexed-store-has-no-passthrough-load",
+           "metadata-derived-passthrough-layout"}))
+    return false;
+
+  TargetArtifactCandidate wrongRuntimeScalarIndexedScatterUniquenessCandidate =
+      manualRuntimeScalarIndexedScatterCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongRuntimeScalarIndexedScatterUniquenessCandidate,
+          "tcrv_rvv.index_uniqueness",
+          "metadata-derived-duplicate-policy")) {
+    llvm::errs()
+        << "runtime-scalar computed-mask indexed scatter test fixture did "
+           "not contain index uniqueness metadata\n";
+    return false;
+  }
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongRuntimeScalarIndexedScatterUniquenessCandidate,
+          manualRuntimeScalarIndexedScatterRoute,
+          manualRuntimeScalarIndexedScatterDescription,
+          "compare/select mask registry rejects stale runtime-scalar indexed "
+          "scatter uniqueness metadata",
+          {"index_uniqueness", "unique",
+           "metadata-derived-duplicate-policy"}))
+    return false;
+
+  TargetArtifactCandidate wrongRuntimeScalarIndexedScatterDestinationCandidate =
+      manualRuntimeScalarIndexedScatterCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongRuntimeScalarIndexedScatterDestinationCandidate,
+          "tcrv_rvv.indexed_destination_memory_form",
+          "metadata-derived-indexed-destination")) {
+    llvm::errs()
+        << "runtime-scalar computed-mask indexed scatter test fixture did "
+           "not contain indexed destination metadata\n";
+    return false;
+  }
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongRuntimeScalarIndexedScatterDestinationCandidate,
+          manualRuntimeScalarIndexedScatterRoute,
+          manualRuntimeScalarIndexedScatterDescription,
+          "compare/select mask registry rejects stale runtime-scalar indexed "
+          "scatter destination metadata",
+          {"indexed_destination_memory_form", "masked-indexed-store",
+           "metadata-derived-indexed-destination"}))
     return false;
 
   TargetArtifactCandidate wrongIndexedScatterUniquenessCandidate =

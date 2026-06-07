@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain and Stage1/Stage2 boundaries for this RVV artifact ABI task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, provider route, selected-body realization, and computed-mask indexed memory authority rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route neutrality, provider operand binding, and target artifact mirror validation contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "C++ target artifact and generated-bundle evidence requirements for RVV executable claims."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Stage2 variant and metadata mirror constraints; route ids, status, emission metadata, and artifact names are mirror-only."}
