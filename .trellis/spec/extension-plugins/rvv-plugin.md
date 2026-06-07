@@ -217,6 +217,122 @@ prefetch/software-pipeline structure
 accumulator/reduction layout
 ```
 
+## Runtime-Scalar Indexed Gather-MAcc-Scatter Route Contract
+
+### 1. Scope / Trigger
+
+Use this contract when a selected RVV body structurally represents the bounded
+runtime-scalar compare + computed mask + masked indexed gather + masked MAcc +
+masked indexed scatter path. This is a plugin-owned Stage 2 route-supported
+contract. It is not a source-front-door route, not a route-id shortcut, and not
+a Common EmitC semantic branch.
+
+### 2. Body Shape
+
+The selected explicit body must contain one `tcrv_rvv.with_vl` under one
+selected RVV variant with:
+
+```text
+runtime ABI values:
+  cmp_lhs, rhs_scalar, gather_src, payload, acc, index, dst, n
+
+body:
+  setvl/with_vl using n
+  load cmp_lhs
+  splat rhs_scalar
+  load payload
+  load acc
+  load old dst passthrough
+  index_load index
+  compare cmp_lhs <= rhs_scalar
+  masked_indexed_load gather_src, index, mask, old dst
+  masked_macc mask, gathered, payload, acc
+  masked_indexed_store dst, index, mask, macc result
+```
+
+The provider-owned operation kind is
+`RuntimeScalarComputedMaskIndexedGatherMAccScatter`; the memory form is
+`RuntimeScalarComputedMaskIndexedGatherMAccScatter`; the typed compute chain is
+`tcrv_rvv.masked_indexed_load+tcrv_rvv.masked_macc+tcrv_rvv.masked_indexed_store`.
+
+### 3. Contracts
+
+- Runtime ABI order is exactly
+  `cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n`.
+- `cmp_lhs` binds `lhs-input-buffer`; `rhs_scalar` binds
+  `rhs-scalar-value`; `gather_src` binds `source-input-buffer`; `payload`
+  binds `dot-rhs-input-buffer`; `acc` binds `accumulator-input-buffer`;
+  `index` binds `index-input-buffer`; `dst` binds `output-buffer`; `n` binds
+  `runtime-element-count`.
+- The compare predicate is runtime-scalar `sle`, and gather, MAcc, and scatter
+  must consume the same compare-produced mask in the same VL scope.
+- Indexed gather and indexed scatter both use the same index vector, element
+  offsets, i32 indices, and the provider-derived index source mirror.
+- Gather false lanes use the old destination vector as passthrough; scatter
+  false lanes preserve the output buffer. The masked passthrough layout is
+  `old-destination-vector-preserves-inactive-lanes`.
+- The MAcc lhs is the indexed-gather result, rhs is the payload load, and
+  accumulator is the accumulator load. The masked indexed store value must be
+  the MAcc result.
+- Provider route facts must carry the computed-mask memory family plan, the
+  composite operand-binding plan, target leaf profile, provider support mirror,
+  C type mapping, header declarations, masked indexed gather leaf, MAcc leaf,
+  masked indexed scatter leaf, and ABI/header participation markers.
+
+### 4. Validation & Error Matrix
+
+- Missing or duplicate splat, compare, index load, masked indexed load, masked
+  MAcc, masked indexed store, or the four required loads -> fail before route
+  construction.
+- Stale runtime ABI role, C name, C type, ordering, or ownership -> fail before
+  construction protocol acceptance.
+- Gather, MAcc, or scatter consuming a stale mask, index, VL token, operand, or
+  destination -> fail in the RVV provider before Common EmitC.
+- Missing inactive-lane, passthrough, index uniqueness, memory form,
+  accumulator layout, result layout, or typed config fact -> fail closed with a
+  targeted RVV provider diagnostic.
+- A pre-realized multi-family composite is unsupported until a plugin-local
+  composite realization owner rewrites it into the explicit realized body shape
+  above; it must fail closed with a named owner-boundary diagnostic.
+
+### 5. Good/Base/Bad Cases
+
+- Good: explicit selected composite body -> RVV provider composite facts ->
+  one provider-built `TCRVEmitCLowerableRoute`.
+- Base: pre-realized gather/MAcc/scatter family bodies fail closed at the
+  composite realization-owner boundary until a real owner exists.
+- Bad: route id, artifact metadata, helper name, ABI string, or Common EmitC
+  code infers gather, MAcc, scatter, dtype, mask, or intrinsic facts.
+
+### 6. Tests Required
+
+- Positive C++ coverage must assert operation kind, memory form, typed compute
+  chain, ABI order, runtime ABI parameters, operand-binding summary, masked
+  gather leaf, MAcc leaf, masked scatter leaf, inactive-lane contract, and
+  passthrough layout.
+- Negative C++ coverage must cover at least one stale structural fact, such as
+  scatter not consuming the MAcc result.
+- Pre-realized coverage must continue to check the named fail-closed composite
+  realization-owner boundary until the owner is implemented.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+route id or metadata says gather-macc-scatter
+  -> Common EmitC or target export infers the composite route
+```
+
+Correct:
+
+```text
+selected typed tcrv_rvv body
+  -> RVV-owned composite structure/fact validation
+  -> provider-owned route contract
+  -> neutral Common EmitC materialization
+```
+
 ## Elementwise/Broadcast Route Provider Fact Contract
 
 ### 1. Scope / Trigger

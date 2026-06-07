@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global route authority and Stage2 evidence boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin ownership, selected-body realization, provider facts, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check Common EmitC remains neutral and only consumes provider-built route payload."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused tests and no unsupported runtime/correctness claim."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Check selected-body/variant and mirror-only metadata constraints."}

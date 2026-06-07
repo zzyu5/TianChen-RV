@@ -69,6 +69,7 @@ enum class RVVSelectedBodyOperationKind {
   RuntimeScalarComputedMaskIndexedGatherLoadUnitStore,
   ComputedMaskIndexedScatterStoreUnitLoad,
   RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad,
+  RuntimeScalarComputedMaskIndexedGatherMAccScatter,
   ComputedMaskSegment2LoadUnitStore,
   RuntimeScalarComputedMaskSegment2LoadUnitStore,
   ComputedMaskSegment2StoreUnitLoad,
@@ -121,6 +122,7 @@ enum class RVVSelectedBodyMemoryForm {
   ComputedMaskStridedLoadUnitStore,
   ComputedMaskIndexedGatherLoadUnitStore,
   ComputedMaskUnitLoadIndexedScatterStore,
+  RuntimeScalarComputedMaskIndexedGatherMAccScatter,
   ComputedMaskSegment2LoadUnitStore,
   ComputedMaskUnitLoadSegment2Store,
   Segment2LoadUnitStore,
@@ -869,6 +871,7 @@ enum class RVVComputedMaskIndexedMemoryRouteValidationKind {
   RuntimeScalarIndexedGatherLoadUnitStore,
   IndexedScatterStoreUnitLoad,
   RuntimeScalarIndexedScatterStoreUnitLoad,
+  RuntimeScalarIndexedGatherMAccScatter,
 };
 
 struct RVVComputedMaskIndexedMemoryRouteTypeMappingContract {

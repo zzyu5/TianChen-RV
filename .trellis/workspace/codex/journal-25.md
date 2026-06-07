@@ -186,3 +186,60 @@ pending-in-this-commit
 ### Next Steps
 
 - Replace the fail-closed seam with a plugin-local composite owner that imports typed gather, MAcc, scatter, mask, index, accumulator, ABI, and AVL/VL facts into one realized body and one provider-built `TCRVEmitCLowerableRoute`, then add target artifact/generated-bundle/`ssh rvv` evidence.
+
+
+## Session 523: Stage2 RVV composite gather-MAcc-scatter route contract
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV composite gather-MAcc-scatter selected-body realization and route contract
+**Branch**: `main`
+
+### Summary
+
+Replaced the explicit selected-body composite fail-closed seam with a positive
+RVV provider-owned route-supported contract for runtime-scalar computed-mask
+indexed gather -> masked MAcc -> masked indexed scatter. Pre-realized
+multi-family composites remain fail-closed at the named composite
+realization-owner boundary.
+
+### Main Changes
+
+- Added composite operation/memory-form route facts, ABI order, runtime ABI
+  parameter contract, operand-binding plan, target leaf profile, provider
+  mirror facts, construction protocol role steps, and computed-mask memory
+  family integration.
+- Added explicit composite collector validation for gather/index/mask/MAcc/
+  scatter/accumulator/destination/VL facts and stale scatter-value rejection.
+- Updated the RVV plugin spec with the executable composite route contract.
+- Updated focused C++ smoke coverage from old explicit fail-closed expectation
+  to positive route-contract assertions while retaining the pre-realized
+  fail-closed owner-boundary diagnostic.
+
+### Git Commits
+
+pending-in-this-commit
+
+### Testing
+
+- [OK] `rtk ninja -C build tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk ninja -C build tianchenrv-target-artifact-export-test`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk git diff --check`
+- [OK] `rtk git diff --cached --check`
+- [OK] Added-diff old-authority scan found no descriptor/source-front-door/
+  legacy `tcrv_rvv.i32_*`/`RVVI32M1`/`rvv-i32m1` route-authority additions.
+  Added `__riscv_*_i32m1` strings are provider-derived leaf mirror assertions
+  only.
+
+### Status
+
+[OK] **Completed explicit route contract**
+
+### Next Steps
+
+- Implement the plugin-local pre-realized composite realization owner that
+  rewrites separate gather, MAcc, and scatter family bodies into the explicit
+  composite realized body shape.
+- Add target artifact/generated-bundle/header mirror evidence, then `ssh rvv`
+  evidence only after artifact/export support is structurally present.

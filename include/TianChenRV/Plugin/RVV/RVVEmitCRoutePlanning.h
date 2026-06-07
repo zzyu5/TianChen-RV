@@ -142,6 +142,7 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Operation *field1MoveOperation = nullptr;
   mlir::Operation *field0StoreOperation = nullptr;
   mlir::Operation *field1StoreOperation = nullptr;
+  mlir::Operation *oldDestinationLoadOperation = nullptr;
   mlir::Operation *accumulatorLoadOperation = nullptr;
   mlir::Operation *dotLHSLoadOperation = nullptr;
   mlir::Operation *dotRHSLoadOperation = nullptr;
@@ -178,6 +179,7 @@ struct RVVSelectedBodyRouteSlice {
   mlir::Value field1LoadedValue;
   mlir::Value field0PassthroughValue;
   mlir::Value field1PassthroughValue;
+  mlir::Value oldDestinationValue;
   mlir::Value field0Value;
   mlir::Value field1Value;
   mlir::Value accumulatorValue;

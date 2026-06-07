@@ -28599,7 +28599,7 @@ int runRouteOperandBindingPlanValidationTest() {
   return 0;
 }
 
-int runCompositeMaskedIndexedGatherMAccScatterFailClosedBoundaryTest(
+int runCompositeMaskedIndexedGatherMAccScatterRouteContractTest(
     mlir::MLIRContext &context) {
   constexpr llvm::StringLiteral explicitCompositeSource = R"mlir(
 module {
@@ -28642,16 +28642,100 @@ module {
           *explicitModule,
           "composite_masked_indexed_gather_macc_scatter_kernel",
           "rvv_composite");
-  if (explicitAnalysis)
-    return fail("explicit composite masked indexed gather-MAcc-scatter "
-                "unexpectedly reached route facts");
+  if (!explicitAnalysis) {
+    std::string errorMessage = llvm::toString(explicitAnalysis.takeError());
+    return fail(llvm::Twine("explicit composite masked indexed "
+                            "gather-MAcc-scatter did not reach route facts: ") +
+                errorMessage);
+  }
+  const tianchenrv::plugin::rvv::RVVSelectedBodyEmitCRouteDescription
+      &explicitDescription = explicitAnalysis->description;
+  if (int result = expect(
+          explicitDescription.operation ==
+                  tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
+                      RuntimeScalarComputedMaskIndexedGatherMAccScatter &&
+              explicitDescription.memoryForm ==
+                  tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm::
+                      RuntimeScalarComputedMaskIndexedGatherMAccScatter &&
+              explicitDescription.typedComputeOpName ==
+                  "tcrv_rvv.masked_indexed_load+tcrv_rvv.masked_macc+"
+                  "tcrv_rvv.masked_indexed_store",
+          "explicit composite masked indexed gather-MAcc-scatter records "
+          "plugin-owned operation, memory form, and typed compute chain"))
+    return result;
+  if (int result = expect(
+          explicitDescription.runtimeABIOrder ==
+                  "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n" &&
+              explicitDescription.routeOperandBindingPlanID ==
+                  "rvv-route-operand-binding:"
+                  "runtime_scalar_cmp_masked_indexed_gather_macc_scatter.v1" &&
+              llvm::StringRef(explicitDescription.routeOperandBindingSummary)
+                  .contains("gather_src=source-input-buffer:gather_src") &&
+              llvm::StringRef(explicitDescription.routeOperandBindingSummary)
+                  .contains("payload=dot-rhs-input-buffer:payload") &&
+              llvm::StringRef(explicitDescription.routeOperandBindingSummary)
+                  .contains("acc=accumulator-input-buffer:acc"),
+          "explicit composite masked indexed gather-MAcc-scatter preserves "
+          "runtime ABI order and operand-binding facts"))
+    return result;
+  if (int result = expect(
+          explicitDescription.computedMaskMemoryRouteFamilyPlanID ==
+                  "rvv-computed-mask-memory-route-family-plan.v1" &&
+              explicitDescription.computedMaskMemoryMaskProducerSource ==
+                  "runtime-scalar-splat-compare-rhs" &&
+              explicitDescription.maskedLoadIntrinsic ==
+                  "__riscv_vluxei32_v_i32m1_tumu" &&
+              explicitDescription.intrinsic == "__riscv_vmacc_vv_i32m1" &&
+              explicitDescription.indexedStoreIntrinsic ==
+                  "__riscv_vsoxei32_v_i32m1_m" &&
+              explicitDescription.inactiveLaneContract ==
+                  "masked-indexed-store-false-lanes-preserve-output-buffer" &&
+              explicitDescription.maskedPassthroughLayout ==
+                  "old-destination-vector-preserves-inactive-lanes",
+          "explicit composite masked indexed gather-MAcc-scatter preserves "
+          "masked gather, MAcc, scatter, mask, and inactive-lane facts"))
+    return result;
+  if (int result = expect(
+          explicitDescription.runtimeABIParameters.size() == 8 &&
+              explicitDescription.runtimeABIParameters[0].cName == "cmp_lhs" &&
+              explicitDescription.runtimeABIParameters[1].cName ==
+                  "rhs_scalar" &&
+              explicitDescription.runtimeABIParameters[2].cName ==
+                  "gather_src" &&
+              explicitDescription.runtimeABIParameters[3].cName == "payload" &&
+              explicitDescription.runtimeABIParameters[4].cName == "acc" &&
+              explicitDescription.runtimeABIParameters[5].cName == "index" &&
+              explicitDescription.runtimeABIParameters[6].cName == "dst" &&
+              explicitDescription.runtimeABIParameters[7].cName == "n",
+          "explicit composite masked indexed gather-MAcc-scatter preserves "
+          "runtime ABI parameter ordering"))
+    return result;
+
+  std::string staleScatterValueSource = explicitCompositeSource.str();
+  const std::string expectedStore =
+      "tcrv_rvv.masked_indexed_store %dst, %indices, %mask, %sum, %vl";
+  const std::size_t staleStorePos =
+      staleScatterValueSource.find(expectedStore);
+  if (staleStorePos == std::string::npos)
+    return fail("test setup failed to find composite masked indexed store");
+  staleScatterValueSource.replace(
+      staleStorePos, expectedStore.size(),
+      "tcrv_rvv.masked_indexed_store %dst, %indices, %mask, %gathered, %vl");
+  mlir::OwningOpRef<mlir::ModuleOp> staleScatterModule =
+      parseModule(context, staleScatterValueSource);
+  if (!staleScatterModule)
+    return fail("failed to parse stale composite masked indexed "
+                "gather-MAcc-scatter module");
+  llvm::Expected<tianchenrv::plugin::rvv::RVVSelectedBodyRouteAnalysis>
+      staleScatterAnalysis = analyzeRouteInModule(
+          *staleScatterModule,
+          "composite_masked_indexed_gather_macc_scatter_kernel",
+          "rvv_composite");
   if (int result = expectErrorContains(
-          explicitAnalysis.takeError(),
-          {"Stage2 RVV composite runtime-scalar computed-mask indexed "
-           "gather-MAcc-scatter route is fail-closed",
-           "masked_indexed_load", "masked_macc", "masked_indexed_store",
-           "composite selected-body realization, migrated statement-plan, and "
-           "provider contract"}))
+          staleScatterAnalysis.takeError(),
+          {"Stage2 RVV composite gather-MAcc-scatter route requires "
+           "tcrv_rvv.masked_indexed_store to consume the "
+           "tcrv_rvv.masked_macc result"}))
     return result;
 
   constexpr llvm::StringLiteral preRealizedCompositeSource = R"mlir(
@@ -28853,7 +28937,7 @@ int main() {
   if (int result = runRouteOperandBindingPlanValidationTest())
     return result;
   if (int result =
-          runCompositeMaskedIndexedGatherMAccScatterFailClosedBoundaryTest(
+          runCompositeMaskedIndexedGatherMAccScatterRouteContractTest(
               context))
     return result;
 

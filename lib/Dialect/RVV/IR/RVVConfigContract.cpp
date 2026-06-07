@@ -901,6 +901,35 @@ getRVVSelectedBodyRuntimeScalarComputedMaskMAccRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 8>
+getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatterRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 8> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "cmp_lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs_scalar", "int32_t",
+      support::RuntimeABIParameterRole::RHSScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "gather_src", "const int32_t *",
+      support::RuntimeABIParameterRole::SourceInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "payload", "const int32_t *",
+      support::RuntimeABIParameterRole::DotRHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "acc", "const int32_t *",
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "index", "const uint32_t *",
+      support::RuntimeABIParameterRole::IndexInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "dst", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 5>
 getRVVSelectedBodyWideningMAccRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
@@ -1875,6 +1904,14 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
           parameters, runtimeScalarComputedMaskMAccExpected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 8>
+      runtimeScalarComputedMaskIndexedGatherMAccScatterExpected =
+          getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatterRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(
+          parameters,
+          runtimeScalarComputedMaskIndexedGatherMAccScatterExpected))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 5> wideningMAccExpected =
       getRVVSelectedBodyWideningMAccRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters, wideningMAccExpected))
@@ -1976,7 +2013,9 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "dequantization route; lhs, scale, lower_bound, upper_bound, out, n "
       "for the bounded dequant-clamp f32 epilogue route; lhs, "
       "rhs_scalar, acc, out, n for the bounded scalar-broadcast "
-      "multiply-add accumulator composition route; lhs, acc, "
+      "multiply-add accumulator composition route; cmp_lhs, rhs_scalar, "
+      "gather_src, payload, acc, index, dst, n for the bounded runtime scalar "
+      "computed-mask indexed gather-MAcc-scatter route; lhs, acc, "
       "out, n for the bounded standalone i32 scalar "
       "add-reduction route; cmp_lhs, cmp_rhs, src, acc, out, n for the bounded "
       "computed-mask standalone i32 scalar add-reduction route; lhs, rhs, acc, "
