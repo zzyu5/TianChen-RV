@@ -297,6 +297,12 @@ The provider-owned operation kind is
   route construction. Missing, duplicate, incomplete, or stale pre-realized
   family bodies must fail closed with a named owner-boundary diagnostic before
   Common EmitC or target artifact export can claim executability.
+- The composite owner candidate gate must claim any selected variant containing
+  more than one pre-realized body from the bounded gather/MAcc/scatter family
+  set, including incomplete or duplicate clusters, so those clusters fail at
+  the named composite owner boundary. A single pre-realized gather, MAcc, or
+  scatter family body remains a standalone family-owner candidate and must not
+  be stolen by the composite owner.
 
 ### 5. Good/Base/Bad Cases
 
@@ -308,6 +314,11 @@ The provider-owned operation kind is
 - Base: future or incomplete pre-realized composite family combinations fail
   closed at the composite realization-owner boundary until a bounded owner
   proves the exact realized body shape and provider facts.
+- Base: gather+MAcc without scatter, gather+scatter without MAcc, MAcc+scatter
+  without gather, or duplicate gather/MAcc/scatter bodies are multi-body
+  composite clusters; they fail at the composite owner boundary with
+  gather/MAcc/scatter counts instead of falling through to a generic
+  selected-body registry error.
 - Bad: route id, artifact metadata, helper name, ABI string, or Common EmitC
   code infers gather, MAcc, scatter, dtype, mask, or intrinsic facts.
 
@@ -327,6 +338,10 @@ The provider-owned operation kind is
 - Pre-realized negative coverage must keep fail-closed owner-boundary checks
   for missing, duplicate, incomplete, stale, or unsupported composite family
   facts.
+- Pre-realized negative C++ coverage must include at least one incomplete
+  multi-body cluster and one duplicate-family cluster, and assert that the
+  diagnostic names the composite owner boundary and reports the
+  gather/MAcc/scatter family counts.
 
 ### 7. Wrong vs Correct
 

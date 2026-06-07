@@ -31,6 +31,9 @@ struct CompositeGatherMAccScatterBodies {
   tcrv::rvv::TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp macc;
   tcrv::rvv::TypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOp
       scatter;
+  unsigned gatherBodyCount = 0;
+  unsigned maccBodyCount = 0;
+  unsigned scatterBodyCount = 0;
   unsigned ownedBodyCount = 0;
 };
 
@@ -288,6 +291,7 @@ collectCompositeGatherMAccScatterBodies(tcrv::exec::VariantOp variant) {
                 TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp>(
             op)) {
       bodies.gather = gather;
+      ++bodies.gatherBodyCount;
       ++bodies.ownedBodyCount;
       continue;
     }
@@ -296,6 +300,7 @@ collectCompositeGatherMAccScatterBodies(tcrv::exec::VariantOp variant) {
                                TypedRuntimeScalarComputedMaskMAccPreRealizedBodyOp>(
                 op)) {
       bodies.macc = macc;
+      ++bodies.maccBodyCount;
       ++bodies.ownedBodyCount;
       continue;
     }
@@ -304,6 +309,7 @@ collectCompositeGatherMAccScatterBodies(tcrv::exec::VariantOp variant) {
                 TypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOp>(
             op)) {
       bodies.scatter = scatter;
+      ++bodies.scatterBodyCount;
       ++bodies.ownedBodyCount;
       continue;
     }
@@ -319,14 +325,19 @@ requireCompositeGatherMAccScatterBodies(tcrv::exec::VariantOp variant) {
     return makeRVVPluginError(llvm::Twine(kCompositeContext) +
                               " requires pre-realized gather, MAcc, and "
                               "scatter family bodies");
-  if (bodies.ownedBodyCount != 3 || !bodies.gather || !bodies.macc ||
-      !bodies.scatter)
+  if (bodies.ownedBodyCount != 3 || bodies.gatherBodyCount != 1 ||
+      bodies.maccBodyCount != 1 || bodies.scatterBodyCount != 1 ||
+      !bodies.gather || !bodies.macc || !bodies.scatter)
     return makeRVVPluginError(llvm::Twine(kCompositeContext) +
                               " requires exactly one runtime-scalar "
                               "computed-mask indexed gather body, one "
                               "runtime-scalar computed-mask MAcc body, and "
                               "one runtime-scalar computed-mask indexed "
-                              "scatter body");
+                              "scatter body; found gather=" +
+                              llvm::Twine(bodies.gatherBodyCount) +
+                              ", MAcc=" + llvm::Twine(bodies.maccBodyCount) +
+                              ", scatter=" +
+                              llvm::Twine(bodies.scatterBodyCount));
   return bodies;
 }
 
@@ -673,7 +684,7 @@ bool hasPreRealizedRVVCompositeGatherMAccScatterOwnerCandidate(
     tcrv::exec::VariantOp variant) {
   CompositeGatherMAccScatterBodies bodies =
       collectCompositeGatherMAccScatterBodies(variant);
-  return bodies.gather && bodies.macc && bodies.scatter;
+  return bodies.ownedBodyCount > 1;
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>

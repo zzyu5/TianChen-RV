@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check composite selected-body realization owner diagnostics and fail-closed contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check Common EmitC remains neutral and only consumes provider-built routes."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused C++/lit evidence and old-authority scan expectations."}
+{"file": ".trellis/tasks/06-07-06-07-stage2-rvv-pre-realized-composite-family-fact-fail-closed-owner-boundary/prd.md", "reason": "Check changed behavior against this round's acceptance criteria and non-goals."}
+{"ts": "2026-06-07T19:30:47+08:00", "phase": "check", "command": "cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2", "result": "passed", "notes": "Rebuilt RVV plugin C++ test target after owner-boundary changes."}
+{"ts": "2026-06-07T19:30:47+08:00", "phase": "check", "command": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed", "notes": "C++ coverage passed, including missing scatter and duplicate gather composite owner-boundary regressions."}
+{"ts": "2026-06-07T19:30:47+08:00", "phase": "check", "command": "cmake --build build --target tianchenrv-target-artifact-export-test -j2", "result": "passed", "notes": "Rebuilt target artifact export test target."}
+{"ts": "2026-06-07T19:30:47+08:00", "phase": "check", "command": "build/bin/tianchenrv-target-artifact-export-test", "result": "passed", "notes": "Target artifact export regression exited 0."}
+{"ts": "2026-06-07T19:30:47+08:00", "phase": "check", "command": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='runtime-scalar-cmp-masked-indexed-gather-macc-scatter'", "result": "passed", "notes": "Run from build/test; 3 composite tests selected and passed."}
+{"ts": "2026-06-07T19:30:47+08:00", "phase": "check", "command": "git diff --check && git diff --cached --check", "result": "passed", "notes": "Whitespace checks passed."}
+{"ts": "2026-06-07T19:30:47+08:00", "phase": "check", "command": "bounded old-authority scan over touched files and added diff lines", "result": "passed", "notes": "Touched-file hits are existing negative legacy tests and task non-goal text; added source diff lines contain no new positive legacy authority."}

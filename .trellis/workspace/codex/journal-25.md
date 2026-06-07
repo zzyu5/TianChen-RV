@@ -96,7 +96,6 @@ implemented plugin-local composite realization owner contract.
 
 - None - task complete
 
-
 ## Session 530: Stage2 RVV resource-aware composite fallback dispatch ABI boundary
 
 **Date**: 2026-06-07
@@ -814,6 +813,67 @@ Verified the resource-aware composite gather-MAcc-scatter path already flows thr
 ### Testing
 
 - [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 531: Stage2 RVV pre-realized composite family-fact fail-closed owner boundary
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV pre-realized composite family-fact fail-closed owner boundary
+**Branch**: `main`
+
+### Summary
+
+Hardened the RVV plugin-local pre-realized runtime-scalar indexed
+gather-MAcc-scatter composite owner boundary so incomplete or duplicate
+multi-body composite family clusters fail closed at the named owner before
+provider route construction, Common EmitC materialization, target artifact
+export, or executable ABI claims.
+
+### Main Changes
+
+- Created Trellis task
+  `06-07-06-07-stage2-rvv-pre-realized-composite-family-fact-fail-closed-owner-boundary`
+  with a bounded PRD for owner-local negative family-fact validation.
+- Updated `RVVCompositeGatherMAccScatterSelectedBodyRealizationOwner.cpp` to
+  count gather, MAcc, and scatter family bodies separately and to route any
+  multi-body bounded gather/MAcc/scatter cluster to the composite owner. Single
+  standalone family bodies remain owned by their existing family owner.
+- Added named owner-boundary diagnostics for missing/incomplete or duplicate
+  family-body clusters, including gather/MAcc/scatter counts.
+- Extended `RVVExtensionPluginTest.cpp` with missing-scatter and
+  duplicate-gather pre-realized composite regressions, preserving existing
+  stale-index and positive pre-realized-to-explicit route-contract coverage.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the executable
+  composite owner candidate-gate rule and required count-based negative C++
+  assertions.
+- No ssh rvv runtime correctness was claimed in this round; validation stayed
+  at owner/provider/export regression scope.
+
+### Checks
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='runtime-scalar-cmp-masked-indexed-gather-macc-scatter'` from `build/test` (3 selected, 3 passed)
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-07-06-07-stage2-rvv-pre-realized-composite-family-fact-fail-closed-owner-boundary`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Bounded old-authority scan over touched files and added diff lines
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | `rvv: harden pre-realized composite family facts` |
 
 ### Status
 

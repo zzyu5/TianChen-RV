@@ -28886,6 +28886,92 @@ module {
           "body"))
     return result;
 
+  std::string missingScatterSource = preRealizedCompositeSource.str();
+  const std::string scatterBodyPrefix =
+      "      tcrv_rvv.typed_runtime_scalar_computed_mask_indexed_scatter_"
+      "pre_realized_body";
+  const std::size_t missingScatterPos =
+      missingScatterSource.find(scatterBodyPrefix);
+  if (missingScatterPos == std::string::npos)
+    return fail("test setup failed to find pre-realized composite scatter "
+                "family body");
+  const std::size_t missingScatterLineEnd =
+      missingScatterSource.find('\n', missingScatterPos);
+  if (missingScatterLineEnd == std::string::npos)
+    return fail("test setup failed to find end of pre-realized composite "
+                "scatter family body");
+  missingScatterSource.erase(
+      missingScatterPos, missingScatterLineEnd - missingScatterPos + 1);
+  mlir::OwningOpRef<mlir::ModuleOp> missingScatterModule =
+      parseModule(context, missingScatterSource);
+  if (!missingScatterModule)
+    return fail("failed to parse missing-scatter pre-realized composite "
+                "masked indexed gather-MAcc-scatter module");
+  KernelOp missingScatterKernel = findKernel(
+      *missingScatterModule,
+      "pre_realized_composite_masked_indexed_gather_macc_scatter_kernel");
+  VariantOp missingScatterVariant =
+      findVariant(missingScatterKernel, "rvv_pre_composite");
+  mlir::OpBuilder missingScatterBuilder(missingScatterModule->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> missingScatterRealized =
+      tianchenrv::plugin::rvv::realizePreRealizedRVVSelectedBody(
+          VariantLoweringBoundaryRequest(
+              missingScatterVariant, missingScatterKernel,
+              TargetCapabilitySet::buildFromKernel(missingScatterKernel),
+              VariantEmissionRole::DirectVariant, missingScatterBuilder));
+  if (int result = expectErrorContains(
+          missingScatterRealized.takeError(),
+          {"Stage2 RVV composite gather-MAcc-scatter selected-body "
+           "realization owner",
+           "requires exactly one runtime-scalar computed-mask indexed gather "
+           "body",
+           "found gather=1, MAcc=1, scatter=0"}))
+    return result;
+
+  std::string duplicateGatherSource = preRealizedCompositeSource.str();
+  const std::string gatherBodyPrefix =
+      "      tcrv_rvv.typed_runtime_scalar_computed_mask_indexed_gather_"
+      "pre_realized_body";
+  const std::size_t duplicateGatherPos =
+      duplicateGatherSource.find(gatherBodyPrefix);
+  if (duplicateGatherPos == std::string::npos)
+    return fail("test setup failed to find pre-realized composite gather "
+                "family body");
+  const std::size_t duplicateGatherLineEnd =
+      duplicateGatherSource.find('\n', duplicateGatherPos);
+  if (duplicateGatherLineEnd == std::string::npos)
+    return fail("test setup failed to find end of pre-realized composite "
+                "gather family body");
+  duplicateGatherSource.insert(
+      duplicateGatherLineEnd + 1,
+      duplicateGatherSource.substr(
+          duplicateGatherPos, duplicateGatherLineEnd - duplicateGatherPos + 1));
+  mlir::OwningOpRef<mlir::ModuleOp> duplicateGatherModule =
+      parseModule(context, duplicateGatherSource);
+  if (!duplicateGatherModule)
+    return fail("failed to parse duplicate-gather pre-realized composite "
+                "masked indexed gather-MAcc-scatter module");
+  KernelOp duplicateGatherKernel = findKernel(
+      *duplicateGatherModule,
+      "pre_realized_composite_masked_indexed_gather_macc_scatter_kernel");
+  VariantOp duplicateGatherVariant =
+      findVariant(duplicateGatherKernel, "rvv_pre_composite");
+  mlir::OpBuilder duplicateGatherBuilder(duplicateGatherModule->getContext());
+  llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> duplicateGatherRealized =
+      tianchenrv::plugin::rvv::realizePreRealizedRVVSelectedBody(
+          VariantLoweringBoundaryRequest(
+              duplicateGatherVariant, duplicateGatherKernel,
+              TargetCapabilitySet::buildFromKernel(duplicateGatherKernel),
+              VariantEmissionRole::DirectVariant, duplicateGatherBuilder));
+  if (int result = expectErrorContains(
+          duplicateGatherRealized.takeError(),
+          {"Stage2 RVV composite gather-MAcc-scatter selected-body "
+           "realization owner",
+           "requires exactly one runtime-scalar computed-mask indexed gather "
+           "body",
+           "found gather=2, MAcc=1, scatter=1"}))
+    return result;
+
   std::string staleIndexSource = preRealizedCompositeSource.str();
   const std::string indexRuntimeABI =
       "      %index = tcrv_rvv.runtime_abi_value {c_name = \"index\", "
