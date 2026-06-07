@@ -414,6 +414,43 @@ RVV_TARGET_CAPABILITY_LEGALITY_MIRROR = (
     "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;"
     "rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
 )
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_CANDIDATE_SET = (
+    "rvv-composite-gather-macc-scatter-resource-candidate-set.v1"
+    "[rt-scmp-indexed-gather-macc-scatter-e32m1-u1]"
+)
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_SELECTED_CANDIDATE = (
+    "rvv-composite-gather-macc-scatter-resource-candidate.v1"
+    "[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]"
+)
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_SELECTION_REASON = (
+    "static-bounded-runtime-scalar-computed-mask-indexed-gather-macc-"
+    "scatter-e32m1-runtime-avl"
+)
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_LEGALITY_SCOPE = (
+    "typed-composite-gather-macc-scatter-resource-legality.v1"
+)
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_OPERATION = (
+    "runtime_scalar_cmp_masked_indexed_gather_macc_scatter"
+)
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_MEMORY_FORM = (
+    "runtime-scalar-computed-mask-indexed-gather-macc-scatter"
+)
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VL_POLICY = (
+    "runtime-avl-single-setvl"
+)
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_ACCUMULATOR_LAYOUT = (
+    "separate-i32-vector-accumulator-input"
+)
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_PIPELINE_INTENT = (
+    "single-vl-linear-gather-macc-scatter.v1"
+)
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_PREFETCH_INTENT = "none"
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_LEGALITY = "legal"
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_REJECTION_REASON = "none"
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_UNROLL_FACTOR = "1"
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VSETVL_REGION_COUNT = "1"
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_PEAK_LIVE_VECTOR_GROUPS = "8"
+COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VECTOR_REGISTER_BUDGET = "32"
 COMPUTED_MASK_WIDENING_DOT_RUNTIME_ABI_ORDER = (
     "cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n"
 )
@@ -8020,6 +8057,32 @@ LOW_PRECISION_RESOURCE_METADATA_KEYS = (
     "tcrv_rvv.low_precision_resource.legality",
     "tcrv_rvv.low_precision_resource.rejection_reason",
 )
+COMPOSITE_RESOURCE_METADATA_KEYS = (
+    "tcrv_rvv.composite_resource.candidate_set",
+    "tcrv_rvv.composite_resource.selected_candidate",
+    "tcrv_rvv.composite_resource.selection_reason",
+    "tcrv_rvv.composite_resource.legality_scope",
+    "tcrv_rvv.composite_resource.operation",
+    "tcrv_rvv.composite_resource.memory_form",
+    "tcrv_rvv.composite_resource.sew",
+    "tcrv_rvv.composite_resource.lmul",
+    "tcrv_rvv.composite_resource.tail_policy",
+    "tcrv_rvv.composite_resource.mask_policy",
+    "tcrv_rvv.composite_resource.vl_policy",
+    "tcrv_rvv.composite_resource.accumulator_layout",
+    "tcrv_rvv.composite_resource.unroll_factor",
+    "tcrv_rvv.composite_resource.pipeline_intent",
+    "tcrv_rvv.composite_resource.prefetch_intent",
+    "tcrv_rvv.composite_resource.vsetvl_region_count",
+    "tcrv_rvv.composite_resource.peak_live_vector_groups",
+    "tcrv_rvv.composite_resource.vector_register_budget",
+    "tcrv_rvv.composite_resource.runtime_avl_source",
+    "tcrv_rvv.composite_resource.runtime_abi_order",
+    "tcrv_rvv.composite_resource.target_capability_provider_mirror",
+    "tcrv_rvv.composite_resource.target_capability_legality_mirror",
+    "tcrv_rvv.composite_resource.legality",
+    "tcrv_rvv.composite_resource.rejection_reason",
+)
 WIDENING_DOT_REDUCTION_METADATA_KEYS = (
     "tcrv_rvv.config_contract",
     "tcrv_rvv.element_type",
@@ -10076,6 +10139,70 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.c_type_mapping": (
                     RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_C_TYPE_MAPPING
+                ),
+                "tcrv_rvv.composite_resource.candidate_set": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_CANDIDATE_SET
+                ),
+                "tcrv_rvv.composite_resource.selected_candidate": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_SELECTED_CANDIDATE
+                ),
+                "tcrv_rvv.composite_resource.selection_reason": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_SELECTION_REASON
+                ),
+                "tcrv_rvv.composite_resource.legality_scope": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_LEGALITY_SCOPE
+                ),
+                "tcrv_rvv.composite_resource.operation": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_OPERATION
+                ),
+                "tcrv_rvv.composite_resource.memory_form": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_MEMORY_FORM
+                ),
+                "tcrv_rvv.composite_resource.sew": "32",
+                "tcrv_rvv.composite_resource.lmul": "m1",
+                "tcrv_rvv.composite_resource.tail_policy": "agnostic",
+                "tcrv_rvv.composite_resource.mask_policy": "agnostic",
+                "tcrv_rvv.composite_resource.vl_policy": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VL_POLICY
+                ),
+                "tcrv_rvv.composite_resource.accumulator_layout": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_ACCUMULATOR_LAYOUT
+                ),
+                "tcrv_rvv.composite_resource.unroll_factor": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_UNROLL_FACTOR
+                ),
+                "tcrv_rvv.composite_resource.pipeline_intent": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_PIPELINE_INTENT
+                ),
+                "tcrv_rvv.composite_resource.prefetch_intent": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_PREFETCH_INTENT
+                ),
+                "tcrv_rvv.composite_resource.vsetvl_region_count": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VSETVL_REGION_COUNT
+                ),
+                "tcrv_rvv.composite_resource.peak_live_vector_groups": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_PEAK_LIVE_VECTOR_GROUPS
+                ),
+                "tcrv_rvv.composite_resource.vector_register_budget": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VECTOR_REGISTER_BUDGET
+                ),
+                "tcrv_rvv.composite_resource.runtime_avl_source": (
+                    "runtime_abi:n"
+                ),
+                "tcrv_rvv.composite_resource.runtime_abi_order": (
+                    expectation.runtime_abi_order
+                ),
+                "tcrv_rvv.composite_resource.target_capability_provider_mirror": (
+                    RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
+                ),
+                "tcrv_rvv.composite_resource.target_capability_legality_mirror": (
+                    RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
+                ),
+                "tcrv_rvv.composite_resource.legality": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_LEGALITY
+                ),
+                "tcrv_rvv.composite_resource.rejection_reason": (
+                    COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_REJECTION_REASON
                 ),
             }
         )
@@ -27809,7 +27936,10 @@ def mask_tail_policy_metadata_from_bundle(
     header_metadata = metadata_map(records[1])
     metadata: dict[str, str] = {}
     expected_metadata = expected_metadata_for(expectation)
-    for key in MASK_TAIL_POLICY_METADATA_KEYS:
+    metadata_keys = MASK_TAIL_POLICY_METADATA_KEYS
+    if expectation.is_runtime_scalar_cmp_masked_indexed_gather_macc_scatter:
+        metadata_keys = (*metadata_keys, *COMPOSITE_RESOURCE_METADATA_KEYS)
+    for key in metadata_keys:
         expected = expected_metadata.get(key)
         if expected is None:
             continue
@@ -28384,6 +28514,76 @@ def mask_tail_policy_boundary_summary(
                 "index": "index",
                 "destination": "dst",
                 "runtime_n": "n",
+            },
+            "composite_resource_selection": {
+                "candidate_set": route_metadata.get(
+                    "tcrv_rvv.composite_resource.candidate_set"
+                ),
+                "selected_candidate": route_metadata.get(
+                    "tcrv_rvv.composite_resource.selected_candidate"
+                ),
+                "selection_reason": route_metadata.get(
+                    "tcrv_rvv.composite_resource.selection_reason"
+                ),
+                "legality_scope": route_metadata.get(
+                    "tcrv_rvv.composite_resource.legality_scope"
+                ),
+                "operation": route_metadata.get(
+                    "tcrv_rvv.composite_resource.operation"
+                ),
+                "memory_form": route_metadata.get(
+                    "tcrv_rvv.composite_resource.memory_form"
+                ),
+                "sew": route_metadata.get("tcrv_rvv.composite_resource.sew"),
+                "lmul": route_metadata.get("tcrv_rvv.composite_resource.lmul"),
+                "tail_policy": route_metadata.get(
+                    "tcrv_rvv.composite_resource.tail_policy"
+                ),
+                "mask_policy": route_metadata.get(
+                    "tcrv_rvv.composite_resource.mask_policy"
+                ),
+                "vl_policy": route_metadata.get(
+                    "tcrv_rvv.composite_resource.vl_policy"
+                ),
+                "accumulator_layout": route_metadata.get(
+                    "tcrv_rvv.composite_resource.accumulator_layout"
+                ),
+                "unroll_factor": route_metadata.get(
+                    "tcrv_rvv.composite_resource.unroll_factor"
+                ),
+                "pipeline_intent": route_metadata.get(
+                    "tcrv_rvv.composite_resource.pipeline_intent"
+                ),
+                "prefetch_intent": route_metadata.get(
+                    "tcrv_rvv.composite_resource.prefetch_intent"
+                ),
+                "vsetvl_region_count": route_metadata.get(
+                    "tcrv_rvv.composite_resource.vsetvl_region_count"
+                ),
+                "peak_live_vector_groups": route_metadata.get(
+                    "tcrv_rvv.composite_resource.peak_live_vector_groups"
+                ),
+                "vector_register_budget": route_metadata.get(
+                    "tcrv_rvv.composite_resource.vector_register_budget"
+                ),
+                "runtime_avl_source": route_metadata.get(
+                    "tcrv_rvv.composite_resource.runtime_avl_source"
+                ),
+                "runtime_abi_order": route_metadata.get(
+                    "tcrv_rvv.composite_resource.runtime_abi_order"
+                ),
+                "target_capability_provider_mirror": route_metadata.get(
+                    "tcrv_rvv.composite_resource.target_capability_provider_mirror"
+                ),
+                "target_capability_legality_mirror": route_metadata.get(
+                    "tcrv_rvv.composite_resource.target_capability_legality_mirror"
+                ),
+                "legality": route_metadata.get(
+                    "tcrv_rvv.composite_resource.legality"
+                ),
+                "rejection_reason": route_metadata.get(
+                    "tcrv_rvv.composite_resource.rejection_reason"
+                ),
             },
             "materialized_body": {
                 "typed_compute_op": materialized_checks.get("typed_compute_op"),
@@ -32229,6 +32429,7 @@ def run_one_op_e2e(
             or expectation.is_computed_masked_indexed_gather_load_unit_store
             or expectation.is_runtime_scalar_cmp_masked_indexed_gather_load_unit_store
             or expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load
+            or expectation.is_runtime_scalar_cmp_masked_indexed_gather_macc_scatter
             or expectation.is_computed_masked_segment2_load_unit_store
             or expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
             or expectation.is_computed_masked_segment2_store_unit_load
@@ -35314,6 +35515,9 @@ def run_self_test() -> int:
                 )
                 route_metadata = boundary.get("route_metadata", {})
                 indexed_memory = boundary.get("indexed_memory", {})
+                composite_resource = boundary.get(
+                    "composite_resource_selection", {}
+                )
                 if (
                     route_metadata.get("tcrv_rvv.route_operand_binding_plan")
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_ROUTE_OPERAND_BINDING_PLAN
@@ -35333,6 +35537,18 @@ def run_self_test() -> int:
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_INDEXED_DESTINATION_MEMORY_FORM
                     or boundary.get("artifact_abi", {}).get("runtime_abi_order")
                     != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_RUNTIME_ABI_ORDER
+                    or composite_resource.get("selected_candidate")
+                    != COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_SELECTED_CANDIDATE
+                    or composite_resource.get("vl_policy")
+                    != COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VL_POLICY
+                    or composite_resource.get("vector_register_budget")
+                    != COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_VECTOR_REGISTER_BUDGET
+                    or composite_resource.get("runtime_abi_order")
+                    != RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MACC_SCATTER_RUNTIME_ABI_ORDER
+                    or composite_resource.get("target_capability_provider_mirror")
+                    != RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
+                    or composite_resource.get("legality")
+                    != COMPOSITE_GATHER_MACC_SCATTER_RESOURCE_LEGALITY
                     or dispatch_boundary.get("selected_dispatch_case_mirror")
                     != expectation.selected_dispatch_case_mirror
                     or dispatch_boundary.get("selected_dispatch_fallback_mirror")
@@ -35342,8 +35558,9 @@ def run_self_test() -> int:
                     raise AssertionError(
                         "self-test fake bundle generation lost runtime-scalar "
                         "indexed gather-MAcc-scatter provider-backed operand "
-                        "binding, mask producer, indexed memory, ABI-order, "
-                        "or selected dispatch/fallback metadata"
+                        "binding, mask producer, indexed memory, resource "
+                        "selection, ABI-order, or selected dispatch/fallback "
+                        "metadata"
                     )
             if (
                 expectation.is_computed_masked_segment2_load_unit_store

@@ -633,3 +633,41 @@ Added RVV plugin-owned composite_resource Gearbox facts for composite selected-b
 ### Next Steps
 
 - None - task complete
+
+
+## Session 528: Stage2 RVV resource-aware composite artifact ABI
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV resource-aware composite artifact ABI
+**Branch**: `main`
+
+### Summary
+
+Closed the resource-aware composite gather-MAcc-scatter generated-bundle ABI evidence seam with explicit and pre-realized ssh rvv correctness evidence.
+
+### Main Changes
+
+- Repaired `scripts/rvv_generated_bundle_abi_e2e.py` so the runtime-scalar-cmp masked indexed gather-MAcc-scatter route validates object/header `tcrv_rvv.composite_resource.*` mirrors and writes `mask_tail_policy_boundary.composite_resource_selection` evidence.
+- Updated the focused generated-bundle dry-run lit test to check representative resource selection fields and raw composite resource mirror metadata for explicit and pre-realized selected bodies.
+- Captured the generated-bundle composite resource evidence contract in `.trellis/spec/testing/mlir-testing-contract.md`.
+- Created and archived Trellis task `stage2-rvv-resource-aware-composite-artifact-abi` with PRD evidence paths for explicit and pre-realized `ssh rvv` correctness runs.
+- Checks: py_compile, script self-test, focused generated-bundle dry-run lit, explicit/pre-realized target artifact lit, RVV extension plugin smoke test, target artifact export test, task JSONL validation, old-authority scan, and git diff whitespace checks all passed.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

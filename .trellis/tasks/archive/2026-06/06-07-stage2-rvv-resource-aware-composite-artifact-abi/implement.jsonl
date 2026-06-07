@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture invariants and RVV-first authority chain for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body, runtime-scalar gather-MAcc-scatter, resource-aware Gearbox, and target artifact validator contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle, fail-closed, and ssh rvv evidence requirements for executable RVV claims."}

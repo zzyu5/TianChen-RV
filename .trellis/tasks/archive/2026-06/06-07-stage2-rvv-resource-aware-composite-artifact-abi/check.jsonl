@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final behavior against global project invariants and RVV authority chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify route/provider/resource/target-artifact behavior against RVV contracts and fail-closed expectations."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC remains neutral and consumes provider-built route facts only."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/C++/generated-bundle/ssh evidence is appropriate for the claim."}

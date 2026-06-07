@@ -369,6 +369,17 @@ The per-op evidence JSON should expose a bounded summary key such as:
   construction. It must not be used as route authority.
 - Runtime counts are execution cases only. They must not define mask/tail
   policy, dtype, route support, or artifact authority.
+- For `runtime_scalar_cmp_masked_indexed_gather_macc_scatter`,
+  `mask_tail_policy_boundary` must also expose a
+  `composite_resource_selection` object that mirrors provider-owned
+  `tcrv_rvv.composite_resource.*` facts: candidate set, selected candidate,
+  selection reason, legality scope, operation, memory form, SEW, LMUL,
+  tail/mask policy, VL policy, accumulator layout, unroll factor,
+  pipeline/prefetch intent, `vsetvl` region count, peak live vector groups,
+  vector register budget, runtime AVL source, runtime ABI order, target
+  capability mirrors, legality, and rejection reason. These fields are
+  evidence mirrors only after provider route construction; they must not become
+  route authority.
 
 ### 4. Validation & Error Matrix
 
@@ -378,6 +389,9 @@ The per-op evidence JSON should expose a bounded summary key such as:
   failure.
 - Object/header mirror metadata disagree on tail/mask policy or mask role ->
   evidence failure.
+- For `runtime_scalar_cmp_masked_indexed_gather_macc_scatter`, object/header
+  mirror metadata missing or disagreeing on any
+  `tcrv_rvv.composite_resource.*` key -> evidence failure.
 - Descriptor, direct-C/source-export, route-id, artifact-name, or test-name
   residue is required to explain policy -> evidence failure.
 - `ssh rvv` compile/run failure -> report blocked/failed evidence and do not
@@ -397,6 +411,9 @@ The per-op evidence JSON should expose a bounded summary key such as:
 
 - lit/FileCheck for the generated-bundle dry-run must check representative
   `mask_tail_policy_boundary` fields and mirror metadata.
+- lit/FileCheck for the composite gather-MAcc-scatter generated-bundle dry-run
+  must check representative `composite_resource_selection` fields and raw
+  `tcrv_rvv.composite_resource.*` mirror metadata.
 - Provider or C++ API tests must check the route facts before common EmitC
   materialization when textual MLIR cannot fully prove the boundary.
 - Runtime RVV claims must include `ssh rvv` output and inactive/tail sentinel
