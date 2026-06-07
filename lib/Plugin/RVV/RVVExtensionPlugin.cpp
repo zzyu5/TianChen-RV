@@ -298,6 +298,16 @@ llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
       [] { return createMaterializeRVVVectorBinarySourceFrontDoorPass(); },
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
           Eligible));
+  out.push_back(SourceFrontDoorPassRegistration(
+      kRVVPluginName,
+      "tcrv-rvv-materialize-vector-compare-select-source-front-door",
+      "Materialize one bounded MLIR Vector-like i32 compare/select source "
+      "pattern into a selected generic typed RVV body",
+      [] {
+        return createMaterializeRVVVectorCompareSelectSourceFrontDoorPass();
+      },
+      SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
+          Eligible));
   return llvm::Error::success();
 }
 

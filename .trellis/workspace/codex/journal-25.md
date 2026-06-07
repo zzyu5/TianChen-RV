@@ -1009,3 +1009,36 @@ Completed the bounded Vector add source-front-door generated-bundle evidence pat
 ### Next Steps
 
 - None - task complete
+
+
+## Session 533: Stage3 Vector compare/select source-front-door
+
+**Date**: 2026-06-07
+**Task**: Stage3 Vector compare/select source-front-door
+**Branch**: `main`
+
+### Summary
+
+Materialized bounded Vector compare/select source forms into selected typed tcrv_rvv compare/select bodies, added focused lit/generated-bundle evidence, recorded ssh rvv counts 0,1,17,257, updated RVV plugin spec, and archived the Trellis task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

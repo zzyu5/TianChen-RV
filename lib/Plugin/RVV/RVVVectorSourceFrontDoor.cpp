@@ -33,6 +33,8 @@ constexpr llvm::StringLiteral kSourceFrontDoorAttrName(
 constexpr llvm::StringLiteral kSourceKernelAttrName("tcrv_rvv.source_kernel");
 constexpr llvm::StringLiteral kAcceptedVectorBinarySourceFrontDoorValue(
     "bounded_vector_source");
+constexpr llvm::StringLiteral kAcceptedVectorCompareSelectSourceFrontDoorValue(
+    "bounded_vector_compare_select_source");
 constexpr llvm::StringLiteral kRVVCapabilitySymbol("rvv");
 constexpr llvm::StringLiteral kScalarFallbackCapabilitySymbol(
     "scalar_fallback");
@@ -65,6 +67,14 @@ mlir::LogicalResult failVectorMaterializer(mlir::Operation *op,
                                            llvm::Twine message) {
   op->emitError() << "bounded RVV vector-binary source front door failed: "
                   << message;
+  return mlir::failure();
+}
+
+mlir::LogicalResult failVectorCompareSelectMaterializer(mlir::Operation *op,
+                                                        llvm::Twine message) {
+  op->emitError()
+      << "bounded RVV vector-compare-select source front door failed: "
+      << message;
   return mlir::failure();
 }
 
@@ -148,8 +158,36 @@ mlir::LogicalResult requireVectorSourceOnlyModule(mlir::ModuleOp module) {
       "variant residue is not accepted");
 }
 
+mlir::LogicalResult
+requireVectorCompareSelectSourceOnlyModule(mlir::ModuleOp module) {
+  mlir::Operation *staleOp = nullptr;
+  module.walk([&](mlir::Operation *op) {
+    if (staleOp || op == module.getOperation())
+      return;
+    llvm::StringRef dialect = op->getName().getDialectNamespace();
+    if (dialect == "tcrv" || dialect == "tcrv_rvv" ||
+        dialect == "tcrv_toy" || dialect == "tcrv_tensorext_lite")
+      staleOp = op;
+  });
+  if (!staleOp)
+    return mlir::success();
+
+  return failVectorCompareSelectMaterializer(
+      staleOp,
+      "source materializer requires RVV source-only MLIR input; pre-existing "
+      "tcrv.exec/tcrv_rvv/tcrv_toy/tcrv_tensorext_lite selected-boundary or "
+      "variant residue is not accepted");
+}
+
 std::string getDefaultVectorBinaryKernelName(llvm::StringRef binaryKind) {
   return (llvm::Twine("rvv_vector_") + binaryKind + "_from_vector_source")
+      .str();
+}
+
+std::string
+getDefaultVectorCompareSelectKernelName(llvm::StringRef predicateKind) {
+  return (llvm::Twine("rvv_vector_cmp_select_") + predicateKind +
+          "_from_vector_source")
       .str();
 }
 
@@ -157,9 +195,21 @@ std::string getVectorBinaryVariantSymbol(llvm::StringRef binaryKind) {
   return (llvm::Twine("rvv_vector_") + binaryKind).str();
 }
 
+std::string
+getVectorCompareSelectVariantSymbol(llvm::StringRef predicateKind) {
+  return (llvm::Twine("rvv_vector_cmp_select_") + predicateKind).str();
+}
+
 std::string getVectorBinaryScalarFallbackVariantSymbol(
     llvm::StringRef binaryKind) {
   return (llvm::Twine("rvv_vector_") + binaryKind + "_scalar_fallback").str();
+}
+
+std::string getVectorCompareSelectScalarFallbackVariantSymbol(
+    llvm::StringRef predicateKind) {
+  return (llvm::Twine("rvv_vector_cmp_select_") + predicateKind +
+          "_scalar_fallback")
+      .str();
 }
 
 mlir::FailureOr<std::string>
@@ -187,6 +237,32 @@ getVectorBinarySourceKernelName(mlir::ModuleOp module,
   return kernelName.str();
 }
 
+mlir::FailureOr<std::string>
+getVectorCompareSelectSourceKernelName(mlir::ModuleOp module,
+                                       llvm::StringRef predicateKind) {
+  auto kernelNameAttr =
+      module->getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
+  std::string defaultKernelName;
+  llvm::StringRef kernelName;
+  if (kernelNameAttr) {
+    kernelName = kernelNameAttr.getValue().trim();
+  } else {
+    defaultKernelName = getDefaultVectorCompareSelectKernelName(predicateKind);
+    kernelName = defaultKernelName;
+  }
+  if (kernelName.empty()) {
+    (void)failVectorCompareSelectMaterializer(
+        module, "source kernel name must be non-empty");
+    return mlir::failure();
+  }
+  if (!isBoundedSymbolName(kernelName)) {
+    (void)failVectorCompareSelectMaterializer(
+        module, "source kernel name must be a valid MLIR symbol");
+    return mlir::failure();
+  }
+  return kernelName.str();
+}
+
 bool isRank1I32MemRef(mlir::Type type) {
   auto memref = llvm::dyn_cast<mlir::MemRefType>(type);
   return memref && memref.getRank() == 1 &&
@@ -195,6 +271,12 @@ bool isRank1I32MemRef(mlir::Type type) {
 
 bool isRank1I32Vector(mlir::VectorType type) {
   return type && type.getRank() == 1 && type.getElementType().isInteger(32);
+}
+
+bool isRank1I1Vector(mlir::Type type) {
+  auto vector = llvm::dyn_cast<mlir::VectorType>(type);
+  return vector && vector.getRank() == 1 &&
+         vector.getElementType().isInteger(1);
 }
 
 bool hasNoTransferMask(mlir::vector::TransferReadOp read) {
@@ -220,6 +302,20 @@ llvm::StringRef getSupportedVectorBinaryKind(mlir::Operation *op) {
   return {};
 }
 
+llvm::StringRef
+getSupportedVectorComparePredicate(mlir::arith::CmpIOp compare) {
+  switch (compare.getPredicate()) {
+  case mlir::arith::CmpIPredicate::eq:
+    return "eq";
+  case mlir::arith::CmpIPredicate::slt:
+    return "slt";
+  case mlir::arith::CmpIPredicate::sle:
+    return "sle";
+  default:
+    return {};
+  }
+}
+
 bool hasVectorResult(mlir::Operation *op) {
   return op->getNumResults() == 1 &&
          llvm::isa<mlir::VectorType>(op->getResult(0).getType());
@@ -233,6 +329,16 @@ struct VectorBinarySourceMatch {
   mlir::Value runtimeN;
   mlir::VectorType sourceVectorType;
   std::string binaryKind;
+};
+
+struct VectorCompareSelectSourceMatch {
+  mlir::func::FuncOp func;
+  mlir::Value lhsSource;
+  mlir::Value rhsSource;
+  mlir::Value outDestination;
+  mlir::Value runtimeN;
+  mlir::VectorType sourceVectorType;
+  std::string predicateKind;
 };
 
 mlir::FailureOr<VectorBinarySourceMatch>
@@ -384,6 +490,184 @@ matchBoundedVectorBinarySourceFunc(mlir::func::FuncOp func) {
                                  binaryKind.str()};
 }
 
+mlir::FailureOr<VectorCompareSelectSourceMatch>
+matchBoundedVectorCompareSelectSourceFunc(mlir::func::FuncOp func) {
+  if (func.isDeclaration()) {
+    (void)failVectorCompareSelectMaterializer(
+        func, "source function must have a body for structural pattern match");
+    return mlir::failure();
+  }
+
+  mlir::FunctionType type = func.getFunctionType();
+  if (type.getNumInputs() != 4 || type.getNumResults() != 0) {
+    (void)failVectorCompareSelectMaterializer(
+        func,
+        "source function must have exactly four inputs and no results: "
+        "lhs/rhs/out memref<?xi32> plus n index");
+    return mlir::failure();
+  }
+  if (!isRank1I32MemRef(type.getInput(0)) ||
+      !isRank1I32MemRef(type.getInput(1)) ||
+      !isRank1I32MemRef(type.getInput(2)) || !type.getInput(3).isIndex()) {
+    (void)failVectorCompareSelectMaterializer(
+        func,
+        "source function inputs must be lhs/rhs/out rank-1 i32 memrefs and "
+        "one runtime n index");
+    return mlir::failure();
+  }
+
+  llvm::SmallVector<mlir::vector::TransferReadOp, 2> reads;
+  llvm::SmallVector<mlir::vector::TransferWriteOp, 1> writes;
+  llvm::SmallVector<mlir::arith::CmpIOp, 1> compareOps;
+  llvm::SmallVector<mlir::arith::SelectOp, 1> selectOps;
+  mlir::Operation *unsupportedVectorOp = nullptr;
+  mlir::Operation *unsupportedArithVectorOp = nullptr;
+  func.walk([&](mlir::Operation *op) {
+    if (auto read = llvm::dyn_cast<mlir::vector::TransferReadOp>(op)) {
+      reads.push_back(read);
+      return;
+    }
+    if (auto write = llvm::dyn_cast<mlir::vector::TransferWriteOp>(op)) {
+      writes.push_back(write);
+      return;
+    }
+    if (auto compare = llvm::dyn_cast<mlir::arith::CmpIOp>(op)) {
+      if (isRank1I1Vector(compare.getResult().getType())) {
+        if (!getSupportedVectorComparePredicate(compare).empty())
+          compareOps.push_back(compare);
+        else if (!unsupportedArithVectorOp)
+          unsupportedArithVectorOp = op;
+      }
+      return;
+    }
+    if (auto select = llvm::dyn_cast<mlir::arith::SelectOp>(op)) {
+      if (hasVectorResult(op))
+        selectOps.push_back(select);
+      return;
+    }
+    if (op->getName().getDialectNamespace() == "vector" &&
+        !unsupportedVectorOp)
+      unsupportedVectorOp = op;
+    if (op->getName().getDialectNamespace() == "arith" &&
+        hasVectorResult(op) && !unsupportedArithVectorOp)
+      unsupportedArithVectorOp = op;
+  });
+  if (unsupportedVectorOp) {
+    (void)failVectorCompareSelectMaterializer(
+        unsupportedVectorOp,
+        "only vector.transfer_read and vector.transfer_write are supported "
+        "by this bounded vector-compare-select source pattern");
+    return mlir::failure();
+  }
+  if (unsupportedArithVectorOp) {
+    (void)failVectorCompareSelectMaterializer(
+        unsupportedArithVectorOp,
+        "only arith.cmpi predicates eq, slt, or sle plus arith.select are "
+        "supported by this bounded source path");
+    return mlir::failure();
+  }
+  if (reads.size() != 2 || writes.size() != 1 || compareOps.size() != 1 ||
+      selectOps.size() != 1) {
+    (void)failVectorCompareSelectMaterializer(
+        func,
+        "source pattern must contain exactly two vector.transfer_read ops, "
+        "one supported arith.cmpi vector compare op, one arith.select op, "
+        "and one vector.transfer_write");
+    return mlir::failure();
+  }
+
+  mlir::arith::CmpIOp compare = compareOps.front();
+  mlir::arith::SelectOp select = selectOps.front();
+  llvm::StringRef predicateKind = getSupportedVectorComparePredicate(compare);
+  auto lhsRead =
+      compare.getLhs().getDefiningOp<mlir::vector::TransferReadOp>();
+  auto rhsRead =
+      compare.getRhs().getDefiningOp<mlir::vector::TransferReadOp>();
+  if (!lhsRead || !rhsRead || lhsRead == rhsRead) {
+    (void)failVectorCompareSelectMaterializer(
+        compare,
+        "arith.cmpi operands must be produced by the two source "
+        "vector.transfer_read ops");
+    return mlir::failure();
+  }
+
+  mlir::Block &entry = func.getBody().front();
+  if (lhsRead.getSource() != entry.getArgument(0) ||
+      rhsRead.getSource() != entry.getArgument(1) ||
+      writes.front().getSource() != entry.getArgument(2) ||
+      entry.getNumArguments() != 4) {
+    (void)failVectorCompareSelectMaterializer(
+        func,
+        "source memory roles must be structural: transfer_read lhs/rhs from "
+        "the first two arguments and transfer_write to the third argument");
+    return mlir::failure();
+  }
+
+  if (select.getCondition() != compare.getResult()) {
+    (void)failVectorCompareSelectMaterializer(
+        select, "arith.select condition must be the arith.cmpi result");
+    return mlir::failure();
+  }
+  if (select.getTrueValue() != lhsRead.getVector() ||
+      select.getFalseValue() != rhsRead.getVector()) {
+    (void)failVectorCompareSelectMaterializer(
+        select,
+        "arith.select layout must select lhs when the compare mask is true "
+        "and rhs when it is false");
+    return mlir::failure();
+  }
+
+  mlir::vector::TransferWriteOp write = writes.front();
+  if (write.getVector() != select.getResult()) {
+    (void)failVectorCompareSelectMaterializer(
+        write, "vector.transfer_write must store the arith.select result");
+    return mlir::failure();
+  }
+
+  mlir::VectorType vectorType =
+      llvm::dyn_cast<mlir::VectorType>(select.getResult().getType());
+  if (!isRank1I32Vector(vectorType) ||
+      lhsRead.getVector().getType() != vectorType ||
+      rhsRead.getVector().getType() != vectorType ||
+      compare.getLhs().getType() != vectorType ||
+      compare.getRhs().getType() != vectorType ||
+      write.getVector().getType() != vectorType) {
+    (void)failVectorCompareSelectMaterializer(
+        select,
+        "source compare/select operands and result must share one rank-1 i32 "
+        "vector type");
+    return mlir::failure();
+  }
+  if (!hasNoTransferMask(lhsRead) || !hasNoTransferMask(rhsRead) ||
+      !hasNoTransferMask(write)) {
+    (void)failVectorCompareSelectMaterializer(
+        func, "masked vector transfers are outside this bounded source path");
+    return mlir::failure();
+  }
+  if (!hasOneIndex(lhsRead.getIndices()) || !hasOneIndex(rhsRead.getIndices()) ||
+      !hasOneIndex(write.getIndices())) {
+    (void)failVectorCompareSelectMaterializer(
+        func,
+        "source vector transfers must be rank-1 unit-stride memory accesses");
+    return mlir::failure();
+  }
+  if (!lhsRead.getPadding().getType().isInteger(32) ||
+      !rhsRead.getPadding().getType().isInteger(32)) {
+    (void)failVectorCompareSelectMaterializer(
+        func,
+        "source vector.transfer_read padding must match the i32 element type");
+    return mlir::failure();
+  }
+
+  return VectorCompareSelectSourceMatch{func,
+                                        entry.getArgument(0),
+                                        entry.getArgument(1),
+                                        entry.getArgument(2),
+                                        entry.getArgument(3),
+                                        vectorType,
+                                        predicateKind.str()};
+}
+
 mlir::FailureOr<VectorBinarySourceMatch>
 matchVectorBinarySourceFrontDoor(mlir::ModuleOp module,
                                  std::string &kernelName) {
@@ -392,7 +676,11 @@ matchVectorBinarySourceFrontDoor(mlir::ModuleOp module,
   if (!marker)
     return VectorBinarySourceMatch{};
 
-  if (marker.getValue().trim() != kAcceptedVectorBinarySourceFrontDoorValue) {
+  llvm::StringRef markerValue = marker.getValue().trim();
+  if (markerValue == kAcceptedVectorCompareSelectSourceFrontDoorValue)
+    return VectorBinarySourceMatch{};
+
+  if (markerValue != kAcceptedVectorBinarySourceFrontDoorValue) {
     (void)failVectorMaterializer(
         module,
         "tcrv_rvv.source_front_door must be 'bounded_vector_source'");
@@ -425,6 +713,58 @@ matchVectorBinarySourceFrontDoor(mlir::ModuleOp module,
 
   mlir::FailureOr<std::string> name =
       getVectorBinarySourceKernelName(module, match->binaryKind);
+  if (mlir::failed(name))
+    return mlir::failure();
+  kernelName = *name;
+  return match;
+}
+
+mlir::FailureOr<VectorCompareSelectSourceMatch>
+matchVectorCompareSelectSourceFrontDoor(mlir::ModuleOp module,
+                                        std::string &kernelName) {
+  auto marker =
+      module->getAttrOfType<mlir::StringAttr>(kSourceFrontDoorAttrName);
+  if (!marker)
+    return VectorCompareSelectSourceMatch{};
+
+  llvm::StringRef markerValue = marker.getValue().trim();
+  if (markerValue == kAcceptedVectorBinarySourceFrontDoorValue)
+    return VectorCompareSelectSourceMatch{};
+
+  if (markerValue != kAcceptedVectorCompareSelectSourceFrontDoorValue) {
+    (void)failVectorCompareSelectMaterializer(
+        module,
+        "tcrv_rvv.source_front_door must be "
+        "'bounded_vector_compare_select_source'");
+    return mlir::failure();
+  }
+  if (hasStaleRVVLoweringSeedMetadata(module)) {
+    (void)failVectorCompareSelectMaterializer(
+        module,
+        "stale tcrv_rvv.lowering_seed metadata is not accepted as RVV "
+        "source-route authority");
+    return mlir::failure();
+  }
+  if (mlir::failed(requireVectorCompareSelectSourceOnlyModule(module)))
+    return mlir::failure();
+
+  llvm::SmallVector<mlir::func::FuncOp, 2> funcs;
+  module.walk([&](mlir::func::FuncOp func) { funcs.push_back(func); });
+  if (funcs.size() != 1) {
+    (void)failVectorCompareSelectMaterializer(
+        module,
+        "source module must contain exactly one RVV vector-compare-select "
+        "source function candidate");
+    return mlir::failure();
+  }
+
+  mlir::FailureOr<VectorCompareSelectSourceMatch> match =
+      matchBoundedVectorCompareSelectSourceFunc(funcs.front());
+  if (mlir::failed(match))
+    return mlir::failure();
+
+  mlir::FailureOr<std::string> name =
+      getVectorCompareSelectSourceKernelName(module, match->predicateKind);
   if (mlir::failed(name))
     return mlir::failure();
   kernelName = *name;
@@ -540,6 +880,27 @@ mlir::Value createRVVBinary(mlir::OpBuilder &builder, mlir::Location loc,
   return builder.create(state)->getResult(0);
 }
 
+mlir::Value createRVVCompare(mlir::OpBuilder &builder, mlir::Location loc,
+                             llvm::StringRef predicateKind, mlir::Value lhs,
+                             mlir::Value rhs, mlir::Value vl,
+                             mlir::Type maskType) {
+  mlir::OperationState state(loc, tcrv::rvv::CompareOp::getOperationName());
+  state.addOperands({lhs, rhs, vl});
+  state.addAttribute("kind", builder.getStringAttr(predicateKind));
+  state.addTypes(maskType);
+  return builder.create(state)->getResult(0);
+}
+
+mlir::Value createRVVSelect(mlir::OpBuilder &builder, mlir::Location loc,
+                            mlir::Value mask, mlir::Value trueValue,
+                            mlir::Value falseValue, mlir::Value vl,
+                            mlir::Type vectorType) {
+  mlir::OperationState state(loc, tcrv::rvv::SelectOp::getOperationName());
+  state.addOperands({mask, trueValue, falseValue, vl});
+  state.addTypes(vectorType);
+  return builder.create(state)->getResult(0);
+}
+
 void createRVVStore(mlir::OpBuilder &builder, mlir::Location loc,
                     mlir::Value buffer, mlir::Value value, mlir::Value vl) {
   mlir::OperationState state(loc, tcrv::rvv::StoreOp::getOperationName());
@@ -547,7 +908,7 @@ void createRVVStore(mlir::OpBuilder &builder, mlir::Location loc,
   (void)builder.create(state);
 }
 
-tcrv::exec::VariantOp createRVVVectorBinaryVariant(
+tcrv::exec::VariantOp createRVVVectorSourceVariant(
     mlir::OpBuilder &builder, mlir::Location loc,
     llvm::StringRef selectedVariantSymbol, mlir::ArrayAttr requires,
     tcrv::rvv::PolicyAttr policy) {
@@ -578,7 +939,8 @@ void createScalarFallbackVariant(mlir::OpBuilder &builder, mlir::Location loc,
 
 void createDispatch(mlir::OpBuilder &builder, mlir::Location loc,
                     llvm::StringRef selectedVariantSymbol,
-                    llvm::StringRef fallbackVariantSymbol) {
+                    llvm::StringRef fallbackVariantSymbol,
+                    llvm::StringRef policy) {
   mlir::OperationState dispatchState(loc,
                                      tcrv::exec::DispatchOp::getOperationName());
   dispatchState.addRegion();
@@ -593,8 +955,7 @@ void createDispatch(mlir::OpBuilder &builder, mlir::Location loc,
                                  tcrv::exec::DispatchCaseOp::getOperationName());
   caseState.addAttribute("target", symbolRef(builder, selectedVariantSymbol));
   caseState.addAttribute(kOriginAttrName, builder.getStringAttr(getRVVExtensionPluginName()));
-  caseState.addAttribute("policy",
-                         builder.getStringAttr("rvv-vector-binary-source-front-door-case"));
+  caseState.addAttribute("policy", builder.getStringAttr(policy));
   (void)builder.create(caseState);
 
   mlir::OperationState fallbackState(loc,
@@ -634,7 +995,7 @@ void materializeRVVVectorBinarySourceKernel(mlir::OpBuilder &builder,
   mlir::ArrayAttr scalarRequires =
       createRequires(builder, kScalarFallbackCapabilitySymbol);
 
-  tcrv::exec::VariantOp rvvVariant = createRVVVectorBinaryVariant(
+  tcrv::exec::VariantOp rvvVariant = createRVVVectorSourceVariant(
       builder, loc, selectedVariantSymbol, rvvRequires, policy);
   mlir::OpBuilder::InsertionGuard variantGuard(builder);
   builder.setInsertionPointToStart(&rvvVariant.getBody().front());
@@ -678,7 +1039,88 @@ void materializeRVVVectorBinarySourceKernel(mlir::OpBuilder &builder,
   builder.setInsertionPointAfter(rvvVariant);
   createScalarFallbackVariant(builder, loc, fallbackVariantSymbol,
                               scalarRequires);
-  createDispatch(builder, loc, selectedVariantSymbol, fallbackVariantSymbol);
+  createDispatch(builder, loc, selectedVariantSymbol, fallbackVariantSymbol,
+                 "rvv-vector-binary-source-front-door-case");
+}
+
+void materializeRVVVectorCompareSelectSourceKernel(
+    mlir::OpBuilder &builder, llvm::StringRef kernelName,
+    VectorCompareSelectSourceMatch source) {
+  mlir::Location loc = source.func.getLoc();
+  tcrv::rvv::PolicyAttr policy = createAgnosticPolicy(builder);
+  std::string selectedVariantSymbol =
+      getVectorCompareSelectVariantSymbol(source.predicateKind);
+  std::string fallbackVariantSymbol =
+      getVectorCompareSelectScalarFallbackVariantSymbol(source.predicateKind);
+
+  mlir::OperationState kernelState(loc,
+                                   tcrv::exec::KernelOp::getOperationName());
+  kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
+  kernelState.addRegion();
+  auto kernel = llvm::cast<tcrv::exec::KernelOp>(builder.create(kernelState));
+  kernel.getBody().emplaceBlock();
+
+  mlir::OpBuilder::InsertionGuard kernelGuard(builder);
+  builder.setInsertionPointToStart(&kernel.getBody().front());
+
+  createCapability(builder, loc, kRVVCapabilitySymbol, "rvv", "isa-vector");
+  createCapability(builder, loc, kScalarFallbackCapabilitySymbol,
+                   "scalar.fallback", "fallback");
+  mlir::ArrayAttr rvvRequires = createRequires(builder, kRVVCapabilitySymbol);
+  mlir::ArrayAttr scalarRequires =
+      createRequires(builder, kScalarFallbackCapabilitySymbol);
+
+  tcrv::exec::VariantOp rvvVariant = createRVVVectorSourceVariant(
+      builder, loc, selectedVariantSymbol, rvvRequires, policy);
+  mlir::OpBuilder::InsertionGuard variantGuard(builder);
+  builder.setInsertionPointToStart(&rvvVariant.getBody().front());
+
+  mlir::Type runtimeABIType =
+      tcrv::rvv::RuntimeABIValueType::get(builder.getContext());
+  auto lhs = createRuntimeABIValue(
+      builder, loc, "lhs-input-buffer", "lhs", "const int32_t *",
+      "rvv-vector-compare-select-source-front-door:lhs", runtimeABIType);
+  auto rhs = createRuntimeABIValue(
+      builder, loc, "rhs-input-buffer", "rhs", "const int32_t *",
+      "rvv-vector-compare-select-source-front-door:rhs", runtimeABIType);
+  auto out = createRuntimeABIValue(
+      builder, loc, "output-buffer", "out", "int32_t *",
+      "rvv-vector-compare-select-source-front-door:out", runtimeABIType);
+  auto n = createRuntimeABIValue(
+      builder, loc, "runtime-element-count", "n", "size_t",
+      "rvv-vector-compare-select-source-front-door:n",
+      builder.getIndexType());
+
+  tcrv::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
+  tcrv::rvv::WithVLOp withVL =
+      createWithVL(builder, loc, setvl.getVl(), policy, kernelName,
+                   selectedVariantSymbol, rvvRequires);
+
+  mlir::OpBuilder::InsertionGuard withVLGuard(builder);
+  builder.setInsertionPointToStart(&withVL.getBody().front());
+  mlir::Type vectorType =
+      tcrv::rvv::VectorType::get(builder.getContext(), builder.getI32Type(),
+                                 "m1");
+  mlir::Type maskType =
+      tcrv::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
+                               "m1");
+  mlir::Value loadedLHS =
+      createRVVLoad(builder, loc, lhs.getResult(), setvl.getVl(), vectorType);
+  mlir::Value loadedRHS =
+      createRVVLoad(builder, loc, rhs.getResult(), setvl.getVl(), vectorType);
+  mlir::Value mask =
+      createRVVCompare(builder, loc, source.predicateKind, loadedLHS,
+                       loadedRHS, setvl.getVl(), maskType);
+  mlir::Value selected =
+      createRVVSelect(builder, loc, mask, loadedLHS, loadedRHS, setvl.getVl(),
+                      vectorType);
+  createRVVStore(builder, loc, out.getResult(), selected, setvl.getVl());
+
+  builder.setInsertionPointAfter(rvvVariant);
+  createScalarFallbackVariant(builder, loc, fallbackVariantSymbol,
+                              scalarRequires);
+  createDispatch(builder, loc, selectedVariantSymbol, fallbackVariantSymbol,
+                 "rvv-vector-compare-select-source-front-door-case");
 }
 
 class FailClosedRVVLegacyVectorSourceFrontDoorPass final
@@ -775,6 +1217,47 @@ public:
   }
 };
 
+class MaterializeRVVVectorCompareSelectSourceFrontDoorPass final
+    : public mlir::PassWrapper<
+          MaterializeRVVVectorCompareSelectSourceFrontDoorPass,
+          mlir::OperationPass<mlir::ModuleOp>> {
+public:
+  llvm::StringRef getArgument() const final {
+    return "tcrv-rvv-materialize-vector-compare-select-source-front-door";
+  }
+
+  llvm::StringRef getDescription() const final {
+    return "Materialize one bounded MLIR Vector-like i32 compare/select "
+           "source pattern into a selected generic typed RVV body";
+  }
+
+  void getDependentDialects(mlir::DialectRegistry &registry) const final {
+    registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
+                    mlir::memref::MemRefDialect, mlir::scf::SCFDialect,
+                    mlir::vector::VectorDialect,
+                    tcrv::exec::TCRVExecDialect, tcrv::rvv::TCRVRVVDialect>();
+  }
+
+  void runOnOperation() final {
+    mlir::ModuleOp module = getOperation();
+    std::string kernelName;
+    mlir::FailureOr<VectorCompareSelectSourceMatch> source =
+        matchVectorCompareSelectSourceFrontDoor(module, kernelName);
+    if (mlir::failed(source)) {
+      signalPassFailure();
+      return;
+    }
+    if (!source->func)
+      return;
+
+    mlir::OpBuilder builder(module.getContext());
+    builder.setInsertionPointToStart(module.getBody());
+    materializeRVVVectorCompareSelectSourceKernel(builder, kernelName, *source);
+    module->removeAttr(kSourceFrontDoorAttrName);
+    module->removeAttr(kSourceKernelAttrName);
+  }
+};
+
 } // namespace
 
 std::unique_ptr<::mlir::Pass>
@@ -785,6 +1268,12 @@ createFailClosedRVVLegacyVectorSourceFrontDoorPass() {
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVVectorBinarySourceFrontDoorPass() {
   return std::make_unique<MaterializeRVVVectorBinarySourceFrontDoorPass>();
+}
+
+std::unique_ptr<::mlir::Pass>
+createMaterializeRVVVectorCompareSelectSourceFrontDoorPass() {
+  return std::make_unique<
+      MaterializeRVVVectorCompareSelectSourceFrontDoorPass>();
 }
 
 } // namespace tianchenrv::plugin::rvv

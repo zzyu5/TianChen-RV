@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV source-front-door authority constraints"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed compare/select body, selected-boundary realization, source-front-door, and provider route authority contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and Common EmitC neutrality contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit, generated-bundle, and ssh rvv evidence requirements"}
+{"file": ".trellis/tasks/06-07-stage3-generic-vector-compare-select-source-front-door/prd.md", "reason": "Current task requirements, boundaries, acceptance criteria, and evidence plan"}

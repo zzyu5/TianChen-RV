@@ -1435,6 +1435,157 @@ bounded Vector source IR
   -> target artifact mirrors provider facts
 ```
 
+### Bounded Vector Compare/Select Source Front Door
+
+This is a second explicit opt-in RVV source-front-door exception. It follows
+the binary source-front-door pattern: the source marker may only invoke a
+plugin-owned materializer, and the materializer must immediately create a
+selected `tcrv.exec` RVV variant containing explicit realized typed
+`tcrv_rvv` compare/select body facts.
+
+#### 1. Scope / Trigger
+
+Use this contract only for the RVV plugin-owned bounded Vector compare/select
+source-front-door materializer. The supported source shape is one source-only
+module with:
+
+```text
+tcrv_rvv.source_front_door = "bounded_vector_compare_select_source"
+func(lhs: memref<?xi32>, rhs: memref<?xi32>, out: memref<?xi32>, n: index)
+two unmasked unit-stride vector.transfer_read ops from lhs/rhs
+one vector arith.cmpi predicate in {eq, slt, sle}
+one arith.select using the compare mask, lhs when true, rhs when false
+one unmasked unit-stride vector.transfer_write to out
+```
+
+The materializer may derive only the compare predicate and select layout from
+source IR. Route support, ABI/header facts, C type mapping, compare/select
+intrinsic spelling, mask type, and VL policy must come later from the typed
+`tcrv_rvv` body and RVV provider.
+
+#### 2. Signatures
+
+The public pass signature is:
+
+```text
+tcrv-rvv-materialize-vector-compare-select-source-front-door
+```
+
+The pass factory is:
+
+```c++
+createMaterializeRVVVectorCompareSelectSourceFrontDoorPass()
+```
+
+The positive selected-body skeleton is:
+
+```text
+tcrv.exec.variant @rvv_vector_cmp_select_{predicate}
+  %lhs = tcrv_rvv.runtime_abi_value role = "lhs-input-buffer"
+  %rhs = tcrv_rvv.runtime_abi_value role = "rhs-input-buffer"
+  %out = tcrv_rvv.runtime_abi_value role = "output-buffer"
+  %n   = tcrv_rvv.runtime_abi_value role = "runtime-element-count"
+  %vl  = tcrv_rvv.setvl %n {sew = 32, lmul = "m1", policy = ...}
+  tcrv_rvv.with_vl %vl {
+    %a = tcrv_rvv.load %lhs, %vl
+    %b = tcrv_rvv.load %rhs, %vl
+    %mask = tcrv_rvv.compare {kind = "eq"|"slt"|"sle"} %a, %b, %vl
+    %selected = tcrv_rvv.select %mask, %a, %b, %vl
+    tcrv_rvv.store %out, %selected, %vl
+  }
+```
+
+#### 3. Contracts
+
+- The source marker is only an explicit opt-in materialization boundary.
+- The source function name is not route authority.
+- The predicate must come from the single supported `arith.cmpi`, not from
+  marker text, route ids, artifact names, test names, ABI strings, or Common
+  EmitC metadata.
+- The selected value layout must come from the `arith.select` operands and is
+  bounded to `select-lhs-when-mask-else-rhs` for this contract.
+- The selected variant symbol may mirror the derived predicate
+  (`rvv_vector_cmp_select_eq`, `rvv_vector_cmp_select_slt`,
+  `rvv_vector_cmp_select_sle`), but the provider must still validate the
+  typed body before route/export support.
+- Dispatch policy may mirror the boundary as
+  `rvv-vector-compare-select-source-front-door-case`; it must not be consumed
+  as route support.
+- Common EmitC/export must remain neutral and consume only provider-built route
+  payloads.
+- When several RVV source-front-door materializers are registered as default
+  source-artifact-front-door eligible, a materializer must no-op for a known
+  sibling marker so the pipeline can reach the matching pass. Unknown or stale
+  RVV source-front-door markers must still fail closed.
+
+#### 4. Validation & Error Matrix
+
+- Missing marker -> no materialization.
+- Known sibling marker -> no-op in this pass; the matching sibling pass owns
+  the marker.
+- Unknown marker or stale lowering seed marker -> fail closed before body
+  creation.
+- Non-source-only module with existing `tcrv.exec`, `tcrv_rvv`, `tcrv_toy`, or
+  `tcrv_tensorext_lite` residue -> fail before body creation.
+- Wrong ABI signature, dtype, rank, missing runtime `n`, masked transfers, or
+  non-unit-stride transfers -> fail before body creation.
+- Unsupported predicate such as `ne`, missing compare, or extra compare/select
+  ops -> fail before body creation.
+- Unsupported select layout, including rhs-when-true/lhs-when-false -> fail
+  before body creation.
+- Any provider route failure after materialization -> fail in the existing RVV
+  provider/EmitC/target validation path, not by source marker fallback.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: `arith.cmpi slt` + `arith.select %mask, %lhs, %rhs` source pattern ->
+  selected `rvv_vector_cmp_select_slt` variant -> typed
+  `tcrv_rvv.compare {kind = "slt"}` + `tcrv_rvv.select` -> RVV provider route
+  -> bundle -> optional `ssh rvv` correctness evidence.
+- Base: `eq` remains an ordinary instance of the compare/select materializer,
+  not a route id, artifact name, or source marker authority.
+- Bad: source marker -> route id -> target artifact without typed
+  `tcrv_rvv.compare/select` body/provider validation.
+- Bad: extending the binary materializer with compare/select cases or adding
+  dtype/LMUL clone source front doors instead of a bounded typed-body owner.
+
+#### 6. Tests Required
+
+- Positive `tcrv-opt` FileCheck must cover `eq`, `slt`, and `sle`
+  materialization with derived predicate, runtime ABI values, `setvl`, `load`,
+  `compare`, `select`, and `store`.
+- Source-artifact-front-door pipeline coverage must prove binary and
+  compare/select sibling markers do not false-fail each other.
+- Emission-plan/header/bundle checks must prove the existing RVV provider
+  consumes the typed body facts and records marker/artifact metadata as
+  mirror-only evidence.
+- Negative tests must cover unsupported predicate, unsupported select layout,
+  missing runtime `n`, stale TCRV residue, and stale lowering seed metadata.
+- Runtime correctness claims require real `ssh rvv` evidence for at least one
+  representative compare/select artifact.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+source marker / source function name
+  -> compare predicate or select layout inferred by route id
+  -> Common EmitC picks compare/select intrinsics
+  -> target artifact accepted
+```
+
+Correct:
+
+```text
+bounded Vector compare/select source IR
+  -> RVV plugin materializes selected typed tcrv_rvv compare/select body
+  -> RVV provider validates body/config/runtime/mask facts
+  -> provider-built TCRVEmitCLowerableRoute
+  -> Common EmitC materializes neutral payload
+  -> target artifact mirrors provider facts
+```
+
 ## Route-Family Owner Boundaries
 
 When several active selected-body routes have been closed as one RVV

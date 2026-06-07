@@ -1,10 +1,10 @@
 # RUN: rm -rf %t.unsupported
-# RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --vector-source-front-door --artifact-root %t.unsupported --run-id vector-source-front-door-unsupported --overwrite --op-kind cmp_select --runtime-count 0 --runtime-count 1 --runtime-count 17 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s --check-prefix=BADOP
+# RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --vector-source-front-door --artifact-root %t.unsupported --run-id vector-source-front-door-unsupported --overwrite --op-kind computed_mask_select --runtime-count 0 --runtime-count 1 --runtime-count 17 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s --check-prefix=BADOP
 # RUN: rm -rf %t.mixed
 # RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --vector-source-front-door --pre-realized-selected-body --artifact-root %t.mixed --run-id vector-source-front-door-mixed --overwrite --op-kind add --runtime-count 0 --runtime-count 1 --runtime-count 17 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s --check-prefix=MIXED
 
 # BADOP: rvv_generated_bundle_abi_e2e: failed
-# BADOP: --op-kind values ['cmp_select'] are not supported in vector-source-front-door mode
+# BADOP: --op-kind values ['computed_mask_select'] are not supported in vector-source-front-door mode
 # BADOP-NOT: tcrv_rvv_generated_bundle_abi_add_ok
 # BADOP-NOT: tcrv-rvv-fail-closed-legacy-vector-source-front-door
 

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture invariants and source-front-door stage constraints"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check compare/select typed body/provider authority and no legacy/source marker route authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check Common EmitC/export remains neutral and consumes provider-built routes"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit, script, generated-bundle, and ssh rvv evidence claims"}

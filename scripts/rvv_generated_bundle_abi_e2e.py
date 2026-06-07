@@ -8,9 +8,10 @@ bundle, builds a small external C ABI consumer, and optionally runs that
 consumer on the real RVV target. ``--pre-realized-selected-body`` starts from
 the bounded pre-realized selected-body fixtures and uses the public selected
 lowering-boundary materialization pass before emission planning. The
-``--vector-source-front-door`` mode starts from the bounded Vector binary
-source-front-door MLIR fixtures, runs the RVV plugin-owned materializer, and
-then uses the same selected typed-body route/export path. The
+``--vector-source-front-door`` mode starts from bounded Vector
+source-front-door MLIR fixtures, runs the RVV plugin-owned materializer for the
+selected source family, and then uses the same selected typed-body route/export
+path. The
 ``--direct-pre-realized-route-entry`` entry mode is retired and fails closed
 before bundle generation for selected pre-realized op kinds.
 The legacy ``--source-seed`` mode is unsupported and exits before bundle
@@ -4952,7 +4953,37 @@ VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS = {
             "role=dispatch fallback;fallback_role=conservative;"
             "origin=scalar-plugin"
         ),
-    )
+    ),
+    "cmp_select": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["cmp_select"],
+        input_path=Path(
+            "test/Support/RVV/rvv-vector-compare-select-source-front-door-eq.mlir.inc"
+        ),
+        input_mode="vector-source-front-door",
+        selected_variant="rvv_vector_cmp_select_eq",
+        function_name=(
+            "tcrv_emitc_rvv_vector_cmp_select_eq_from_vector_source_"
+            "rvv_vector_cmp_select_eq"
+        ),
+        lhs_initializer="(int32_t)(41 + (int32_t)(index * 9))",
+        rhs_initializer=(
+            "(int32_t)(((index % 4) == 0) "
+            "? (int32_t)(41 + (int32_t)(index * 9)) "
+            ": (int32_t)(-300 - (int32_t)(index * 7)))"
+        ),
+        expected_expression="(lhs[index] == rhs[index] ? lhs[index] : rhs[index])",
+        selected_dispatch_case_mirror=(
+            "selected_dispatch_case_mirror:@rvv_vector_cmp_select_eq;"
+            "role=dispatch case;runtime_guard_required=false;"
+            "runtime_guard=none;origin=rvv-plugin;"
+            "policy=rvv-vector-compare-select-source-front-door-case"
+        ),
+        selected_dispatch_fallback_mirror=(
+            "selected_dispatch_fallback_mirror:@rvv_vector_cmp_select_eq_scalar_fallback;"
+            "role=dispatch fallback;fallback_role=conservative;"
+            "origin=scalar-plugin"
+        ),
+    ),
 }
 
 RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS = {
@@ -27563,9 +27594,14 @@ def generate_bundle(
     materialized_path = bundle_dir.parent / "materialized_selected_body.mlir"
     materialize_command = [tcrv_opt, str(expectation.input_path)]
     if expectation.is_vector_source_front_door:
-        materialize_command.append(
-            "--tcrv-rvv-materialize-vector-binary-source-front-door"
-        )
+        if expectation.is_cmp_select:
+            materialize_command.append(
+                "--tcrv-rvv-materialize-vector-compare-select-source-front-door"
+            )
+        else:
+            materialize_command.append(
+                "--tcrv-rvv-materialize-vector-binary-source-front-door"
+            )
     if expectation.is_widening_product_reduce_dequantize_f32:
         materialize_command.append("--tcrv-rvv-materialize-gearbox-schedules")
     if expectation.requires_selected_lowering_boundary_materialization:
@@ -27648,12 +27684,25 @@ def generate_bundle(
             "construction"
         )
     elif expectation.is_vector_source_front_door:
-        result["front_door"] = "bounded-vector-binary-source-front-door"
-        result["materializer"] = (
-            "tcrv-rvv-materialize-vector-binary-source-front-door"
-        )
+        if expectation.is_cmp_select:
+            result["front_door"] = (
+                "bounded-vector-compare-select-source-front-door"
+            )
+            result["materializer"] = (
+                "tcrv-rvv-materialize-vector-compare-select-source-front-door"
+            )
+            marker = (
+                "tcrv_rvv.source_front_door="
+                "bounded_vector_compare_select_source"
+            )
+        else:
+            result["front_door"] = "bounded-vector-binary-source-front-door"
+            result["materializer"] = (
+                "tcrv-rvv-materialize-vector-binary-source-front-door"
+            )
+            marker = "tcrv_rvv.source_front_door=bounded_vector_source"
         result["source_front_door_boundary"] = {
-            "marker": "tcrv_rvv.source_front_door=bounded_vector_source",
+            "marker": marker,
             "marker_role": "explicit opt-in materialization boundary only",
             "route_authority": (
                 "selected typed tcrv_rvv body plus RVV provider-built "
@@ -32571,9 +32620,14 @@ def run_one_op_e2e(
         )
         evidence["local_bundle_generation"] = local
         if expectation.is_vector_source_front_door:
+            source_family = (
+                "bounded Vector compare/select source-front-door MLIR"
+                if expectation.is_cmp_select
+                else "bounded Vector binary source-front-door MLIR"
+            )
             evidence["source_front_door_artifact_boundary"] = {
                 "source": (
-                    "bounded Vector binary source-front-door MLIR -> RVV "
+                    f"{source_family} -> RVV "
                     "plugin-owned materializer -> selected typed tcrv_rvv "
                     "body -> provider route -> target bundle"
                 ),
@@ -36417,9 +36471,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--vector-source-front-door",
         action="store_true",
         help=(
-            "use the bounded Vector binary source-front-door fixture, run the "
+            "use a bounded Vector source-front-door fixture, run the matching "
             "RVV plugin-owned materializer, and then prove the generated "
-            "bundle ABI for the selected typed tcrv_rvv binary body; mutually "
+            "bundle ABI for the selected typed tcrv_rvv body; mutually "
             "exclusive with selected-body modes"
         ),
     )

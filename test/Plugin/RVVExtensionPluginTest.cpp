@@ -448,15 +448,16 @@ int runRegistrationAndCapabilityMetadataTest() {
                           "RVV capability id lookup succeeds"))
     return result;
 
-  llvm::SmallVector<SourceFrontDoorPassRegistration, 3> sourceFrontDoorPasses;
+  llvm::SmallVector<SourceFrontDoorPassRegistration, 4> sourceFrontDoorPasses;
   if (int result = expectSuccess(
           registry.collectSourceFrontDoorPasses(sourceFrontDoorPasses),
           "collect RVV source front-door pass registrations"))
     return result;
   if (int result =
-          expect(sourceFrontDoorPasses.size() == 2,
-                 "RVV plugin exposes legacy and bounded vector-binary source "
-                 "front-door pass registrations"))
+          expect(sourceFrontDoorPasses.size() == 3,
+                 "RVV plugin exposes legacy, bounded vector-binary, and "
+                 "bounded vector compare/select source front-door pass "
+                 "registrations"))
     return result;
   if (int result =
           expect(sourceFrontDoorPasses[0].getOwnerPlugin() ==
@@ -490,12 +491,35 @@ int runRegistrationAndCapabilityMetadataTest() {
           "default artifact-front-door pipeline"))
     return result;
   if (int result =
+          expect(sourceFrontDoorPasses[2].getOwnerPlugin() ==
+                     tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
+                 "RVV bounded vector compare/select source front-door pass is "
+                 "owned by RVV plugin"))
+    return result;
+  if (int result = expect(
+          sourceFrontDoorPasses[2].getArgument() ==
+              "tcrv-rvv-materialize-vector-compare-select-source-front-door",
+          "RVV source front-door pass exposes the bounded vector compare/select "
+          "argument"))
+    return result;
+  if (int result = expect(
+          sourceFrontDoorPasses[2].isDefaultArtifactFrontDoorEligible(),
+          "RVV bounded vector compare/select source front-door pass is eligible "
+          "for the default artifact-front-door pipeline"))
+    return result;
+  if (int result =
           expect(static_cast<bool>(sourceFrontDoorPasses[0].getFactory()),
                  "RVV legacy source front-door pass factory is present"))
     return result;
-  return expect(static_cast<bool>(sourceFrontDoorPasses[1].getFactory()),
-                "RVV bounded vector-binary source front-door pass factory is "
-                "present");
+  if (int result =
+          expect(static_cast<bool>(sourceFrontDoorPasses[1].getFactory()),
+                 "RVV bounded vector-binary source front-door pass factory is "
+                 "present"))
+    return result;
+  return expect(
+      static_cast<bool>(sourceFrontDoorPasses[2].getFactory()),
+      "RVV bounded vector compare/select source front-door pass factory is "
+      "present");
 }
 
 int runCapabilityProfileTest() {
