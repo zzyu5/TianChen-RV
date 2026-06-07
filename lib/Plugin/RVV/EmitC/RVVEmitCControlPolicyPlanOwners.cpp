@@ -56,6 +56,8 @@ bool isRVVSelectedBodyComputedMaskMemoryStoreOnlyRoute(
   return op == RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore ||
          op == RVVSelectedBodyOperationKind::
                    RuntimeScalarComputedMaskSegment2StoreUnitLoad ||
+         op == RVVSelectedBodyOperationKind::
+                   RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad ||
          op == RVVSelectedBodyOperationKind::ComputedMaskStridedStore ||
          op == RVVSelectedBodyOperationKind::
                    ComputedMaskIndexedScatterStoreUnitLoad ||
@@ -70,6 +72,8 @@ llvm::StringRef getComputedMaskMemoryProducerSource(
   case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore:
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskIndexedGatherLoadUnitStore:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
   case RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskSegment2LoadUnitStore:
   case RVVSelectedBodyOperationKind::
@@ -318,6 +322,8 @@ static bool isRVVSelectedBodyComputedMaskMemoryRouteControlConsumer(
     return description.memoryForm ==
            RVVSelectedBodyMemoryForm::ComputedMaskIndexedGatherLoadUnitStore;
   case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
+  case RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
     return description.memoryForm ==
            RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadIndexedScatterStore;
   default:
@@ -911,7 +917,10 @@ static llvm::Error buildComputedMaskMemoryRouteControlProviderPlan(
           RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore ||
       description.operation ==
           RVVSelectedBodyOperationKind::
-              RuntimeScalarComputedMaskIndexedGatherLoadUnitStore;
+              RuntimeScalarComputedMaskIndexedGatherLoadUnitStore ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::
+              RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad;
   if (computedPlan.operation != description.operation ||
       computedPlan.memoryForm != description.memoryForm ||
       computedPlan.usesRuntimeScalarProducer != isRuntimeScalarProducer ||

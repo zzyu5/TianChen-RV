@@ -115,6 +115,7 @@ OP_KIND_CHOICES = DEFAULT_OP_KINDS + (
     "computed_masked_indexed_gather_load_unit_store",
     "runtime_scalar_cmp_masked_indexed_gather_load_unit_store",
     "computed_masked_indexed_scatter_store_unit_load",
+    "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load",
     "computed_masked_segment2_load_unit_store",
     "runtime_scalar_cmp_masked_segment2_load_unit_store",
     "computed_masked_segment2_store_unit_load",
@@ -849,6 +850,19 @@ COMPUTED_MASK_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS = (
     "dst=output-buffer:dst:abi|mistore-base|hdr;"
     "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
 )
+RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN = (
+    "rvv-route-operand-binding:runtime_scalar_cmp_masked_indexed_scatter_store_unit_load.v1"
+)
+RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS = (
+    "rvv-route-operand-binding:runtime_scalar_cmp_masked_indexed_scatter_store_unit_load.v1;"
+    "lhs=lhs-input-buffer:lhs:abi|lhs-load|lhs-call|hdr;"
+    "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|rhs-call|hdr;"
+    "src=source-input-buffer:src:abi|src-load|mistore-src-call|hdr;"
+    "index=index-input-buffer:index:abi|materialized-index-load-base|"
+    "index-offset-scale|index-source-mirror|hdr;"
+    "dst=output-buffer:dst:abi|mistore-base|hdr;"
+    "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
+)
 COMPUTED_MASK_SEGMENT2_LOAD_ROUTE_OPERAND_BINDING_PLAN = (
     "rvv-route-operand-binding:computed_masked_segment2_load_unit_store.v1"
 )
@@ -1522,15 +1536,28 @@ RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_C_TYPE_MAPPING = (
 COMPUTED_MASK_INDEXED_SCATTER_TARGET_LEAF_PROFILE = (
     "rvv-v1-e32m1-computed-mask-indexed-scatter-store-leaf-profile.v1"
 )
+RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_TARGET_LEAF_PROFILE = (
+    "rvv-v1-typed-runtime-scalar-cmp-masked-indexed-scatter-store-leaf-profile.v1"
+)
 COMPUTED_MASK_INDEXED_SCATTER_PROVIDER_SUPPORTED_MIRROR = (
     "provider_supported_mirror:rvv-computed-mask-indexed-scatter-store-plan-validated"
 )
+RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_PROVIDER_SUPPORTED_MIRROR = (
+    "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-scatter-store-plan-validated"
+)
 COMPUTED_MASK_INDEXED_SCATTER_REQUIRED_HEADER_DECLARATIONS = (
+    "stddef.h,stdint.h,riscv_vector.h"
+)
+RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_REQUIRED_HEADER_DECLARATIONS = (
     "stddef.h,stdint.h,riscv_vector.h"
 )
 COMPUTED_MASK_INDEXED_SCATTER_C_TYPE_MAPPING = (
     "vl:size_t,compare/source:signed-e32m1,index:u32m1,mask:b32,"
     "dst:masked-indexed-store"
+)
+RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_C_TYPE_MAPPING = (
+    "vl:size_t,lhs/source:signed-e32m1,rhs_scalar:signed-scalar,index:u32m1,"
+    "mask:b32,dst:runtime-scalar-masked-indexed-store"
 )
 COMPUTED_MASK_SEGMENT2_LOAD_TARGET_LEAF_PROFILE = (
     "rvv-v1-e32m1-computed-mask-segment2-load-leaf-profile.v1"
@@ -1705,6 +1732,9 @@ RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_RUNTIME_ABI_ORDER = (
 COMPUTED_MASK_INDEXED_SCATTER_RUNTIME_ABI_ORDER = (
     "cmp_lhs,cmp_rhs,src,index,dst,n"
 )
+RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_RUNTIME_ABI_ORDER = (
+    "lhs,rhs_scalar,src,index,dst,n"
+)
 COMPUTED_MASK_SEGMENT2_LOAD_RUNTIME_ABI_ORDER = (
     "cmp_lhs,cmp_rhs,src,out0,out1,n"
 )
@@ -1731,6 +1761,9 @@ RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_MEMORY_LAYOUT = (
 )
 COMPUTED_MASK_INDEXED_SCATTER_MEMORY_LAYOUT = (
     "unit-stride-compare-source-indexed-masked-destination-runtime-abi"
+)
+RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_MEMORY_LAYOUT = (
+    "unit-stride-lhs-runtime-scalar-threshold-source-indexed-masked-destination-runtime-abi"
 )
 COMPUTED_MASK_SEGMENT2_LOAD_MEMORY_LAYOUT = (
     "unit-stride-compare-segment2-masked-source-old-fields-destination-runtime-abi"
@@ -2382,6 +2415,12 @@ class OpExpectation:
                 "const int32_t *cmp_rhs, const int32_t *src, "
                 "const uint32_t *index, int32_t *dst, size_t n);"
             )
+        if self.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load:
+            return (
+                f"void {self.function_name}(const int32_t *lhs, "
+                "int32_t rhs_scalar, const int32_t *src, "
+                "const uint32_t *index, int32_t *dst, size_t n);"
+            )
         if self.is_computed_masked_segment2_load_unit_store:
             return (
                 f"void {self.function_name}(const int32_t *cmp_lhs, "
@@ -2596,6 +2635,8 @@ class OpExpectation:
             return EXPECTED_RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_RUNTIME_PARAMETERS
         if self.is_computed_masked_indexed_scatter_store_unit_load:
             return EXPECTED_COMPUTED_MASK_INDEXED_SCATTER_RUNTIME_PARAMETERS
+        if self.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load:
+            return EXPECTED_RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_RUNTIME_PARAMETERS
         if self.is_computed_masked_segment2_load_unit_store:
             return EXPECTED_COMPUTED_MASK_SEGMENT2_LOAD_RUNTIME_PARAMETERS
         if self.is_runtime_scalar_cmp_masked_segment2_load_unit_store:
@@ -2752,6 +2793,8 @@ class OpExpectation:
             return RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_RUNTIME_ABI_ORDER
         if self.is_computed_masked_indexed_scatter_store_unit_load:
             return COMPUTED_MASK_INDEXED_SCATTER_RUNTIME_ABI_ORDER
+        if self.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load:
+            return RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_RUNTIME_ABI_ORDER
         if self.is_computed_masked_segment2_load_unit_store:
             return COMPUTED_MASK_SEGMENT2_LOAD_RUNTIME_ABI_ORDER
         if self.is_runtime_scalar_cmp_masked_segment2_load_unit_store:
@@ -3045,6 +3088,10 @@ class OpExpectation:
     @property
     def is_computed_masked_indexed_scatter_store_unit_load(self) -> bool:
         return self.kind == "computed_masked_indexed_scatter_store_unit_load"
+
+    @property
+    def is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load(self) -> bool:
+        return self.kind == "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load"
 
     @property
     def is_computed_masked_segment2_load_unit_store(self) -> bool:
@@ -4404,6 +4451,40 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         ),
         compare_predicate_kind="slt",
     ),
+    "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load": OpExpectation(
+        kind="runtime_scalar_cmp_masked_indexed_scatter_store_unit_load",
+        input_path=Path(
+            "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-indexed-scatter-store.mlir"
+        ),
+        input_mode="explicit-selected-body",
+        source_seed=False,
+        selected_variant="explicit_selected_body_rvv_rt_scalar_cmidx_store",
+        external_abi_name=(
+            "rvv-generic-runtime-scalar-cmp-masked-indexed-scatter-store-unit-load-callable-c-abi.v1"
+        ),
+        function_name=(
+            "tcrv_emitc_explicit_selected_body_rt_scalar_cmidx_store_kernel_"
+            "explicit_selected_body_rvv_rt_scalar_cmidx_store"
+        ),
+        emitc_route=(
+            "rvv-generic-runtime-scalar-cmp-masked-indexed-scatter-store-unit-load-emitc-route"
+        ),
+        typed_compute_op="tcrv_rvv.masked_indexed_store",
+        memory_form="computed-mask-unit-load-indexed-scatter-store",
+        lhs_initializer=(
+            "(int32_t)(((index % 5) == 0) ? -120 : "
+            "((index % 5) == 1) ? -37 : "
+            "((index % 5) == 2) ? 0 : "
+            "((index % 5) == 3) ? 91 : 130)"
+        ),
+        rhs_initializer="rhs_scalar",
+        source_initializer="(int32_t)(9100 + (int32_t)(index * 67))",
+        out_initializer="(int32_t)(-23000 - (int32_t)(index * 47))",
+        expected_expression=(
+            "(lhs[index] <= rhs_scalar ? src[index] : old_dst[indices[index]])"
+        ),
+        compare_predicate_kind="sle",
+    ),
     "computed_masked_segment2_load_unit_store": OpExpectation(
         kind="computed_masked_segment2_load_unit_store",
         input_path=Path("test/Target/RVV/explicit-selected-body-artifact-computed-masked-segment2-load.mlir"),
@@ -5406,6 +5487,20 @@ PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS = {
         input_mode="pre-realized-selected-body",
         selected_variant="pre_realized_body_rvv_cmidx_store",
         function_name="tcrv_emitc_pre_realized_body_cmidx_store_kernel_pre_realized_body_rvv_cmidx_store",
+    ),
+    "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
+            "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load"
+        ],
+        input_path=Path(
+            "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-indexed-scatter-store.mlir"
+        ),
+        input_mode="pre-realized-selected-body",
+        selected_variant="pre_realized_body_rvv_rt_scalar_cmidx_store",
+        function_name=(
+            "tcrv_emitc_pre_realized_body_rt_scalar_cmidx_store_kernel_"
+            "pre_realized_body_rvv_rt_scalar_cmidx_store"
+        ),
     ),
     "computed_masked_segment2_load_unit_store": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS[
@@ -6685,6 +6780,9 @@ EXPECTED_COMPUTED_MASK_INDEXED_SCATTER_RUNTIME_PARAMETERS = (
     EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[3],
     EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[4],
 )
+EXPECTED_RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_RUNTIME_PARAMETERS = (
+    EXPECTED_RUNTIME_SCALAR_CMP_MASKED_INDEXED_GATHER_RUNTIME_PARAMETERS
+)
 EXPECTED_COMPUTED_MASK_SEGMENT2_LOAD_RUNTIME_PARAMETERS = (
     EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[0],
     EXPECTED_COMPUTED_MASK_MEMORY_RUNTIME_PARAMETERS[1],
@@ -7391,6 +7489,7 @@ MASK_TAIL_POLICY_METADATA_KEYS = (
     "tcrv_rvv.index_source",
     "tcrv_rvv.index_eew",
     "tcrv_rvv.offset_unit",
+    "tcrv_rvv.index_uniqueness",
     "tcrv_rvv.indexed_data_memory_form",
     "tcrv_rvv.indexed_destination_memory_form",
     "tcrv_rvv.source_memory_form",
@@ -7425,6 +7524,7 @@ COMPUTED_MASK_MEMORY_METADATA_KEYS = (
     "tcrv_rvv.index_source",
     "tcrv_rvv.index_eew",
     "tcrv_rvv.offset_unit",
+    "tcrv_rvv.index_uniqueness",
     "tcrv_rvv.indexed_data_memory_form",
     "tcrv_rvv.indexed_destination_memory_form",
     "tcrv_rvv.source_memory_form",
@@ -9608,17 +9708,27 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
             }
         )
-    if expectation.is_computed_masked_indexed_scatter_store_unit_load:
+    if (
+        expectation.is_computed_masked_indexed_scatter_store_unit_load
+        or expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load
+    ):
+        is_runtime_scalar = (
+            expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load
+        )
         per_op_metadata.update(
             {
                 "tcrv_rvv.compare_predicate_kind": (
                     expectation.compare_predicate_kind
                 ),
                 "tcrv_rvv.masked_memory_layout": (
-                    COMPUTED_MASK_INDEXED_SCATTER_MEMORY_LAYOUT
+                    RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_MEMORY_LAYOUT
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_INDEXED_SCATTER_MEMORY_LAYOUT
                 ),
                 "tcrv_rvv.indexed_memory_layout": (
-                    COMPUTED_MASK_INDEXED_SCATTER_MEMORY_LAYOUT
+                    RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_MEMORY_LAYOUT
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_INDEXED_SCATTER_MEMORY_LAYOUT
                 ),
                 "tcrv_rvv.mask_role": COMPUTED_MASK_MEMORY_MASK_ROLE,
                 "tcrv_rvv.mask_source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
@@ -9649,28 +9759,42 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     COMPUTED_MASK_INDEXED_SCATTER_INDEXED_DESTINATION_MEMORY_FORM
                 ),
                 "tcrv_rvv.route_operand_binding_plan": (
-                    COMPUTED_MASK_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN
+                    RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN
                 ),
                 "tcrv_rvv.route_operand_binding_operands": (
-                    COMPUTED_MASK_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS
+                    RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS
                 ),
                 "tcrv_rvv.computed_mask_memory_route_family_plan": (
                     COMPUTED_MASK_MEMORY_ROUTE_FAMILY_PLAN
                 ),
                 "tcrv_rvv.computed_mask_memory_mask_producer_source": (
-                    COMPUTED_MASK_MEMORY_VECTOR_COMPARE_PRODUCER_SOURCE
+                    COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_MEMORY_VECTOR_COMPARE_PRODUCER_SOURCE
                 ),
                 "tcrv_rvv.target_leaf_profile": (
-                    COMPUTED_MASK_INDEXED_SCATTER_TARGET_LEAF_PROFILE
+                    RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_TARGET_LEAF_PROFILE
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_INDEXED_SCATTER_TARGET_LEAF_PROFILE
                 ),
                 "tcrv_rvv.provider_supported_mirror": (
-                    COMPUTED_MASK_INDEXED_SCATTER_PROVIDER_SUPPORTED_MIRROR
+                    RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_PROVIDER_SUPPORTED_MIRROR
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_INDEXED_SCATTER_PROVIDER_SUPPORTED_MIRROR
                 ),
                 "tcrv_rvv.required_header_declarations": (
-                    COMPUTED_MASK_INDEXED_SCATTER_REQUIRED_HEADER_DECLARATIONS
+                    RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_REQUIRED_HEADER_DECLARATIONS
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_INDEXED_SCATTER_REQUIRED_HEADER_DECLARATIONS
                 ),
                 "tcrv_rvv.c_type_mapping": (
-                    COMPUTED_MASK_INDEXED_SCATTER_C_TYPE_MAPPING
+                    RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_C_TYPE_MAPPING
+                    if is_runtime_scalar
+                    else COMPUTED_MASK_INDEXED_SCATTER_C_TYPE_MAPPING
                 ),
             }
         )
@@ -16553,36 +16677,55 @@ def verify_materialized_selected_body(
             "tcrv_rvv.binary",
             "materialized selected-body MLIR computed-mask indexed-gather",
         )
-    if expectation.is_computed_masked_indexed_scatter_store_unit_load:
+    if (
+        expectation.is_computed_masked_indexed_scatter_store_unit_load
+        or expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load
+    ):
+        indexed_scatter_context = (
+            "materialized selected-body MLIR runtime scalar computed-mask indexed-scatter"
+            if expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load
+            else "materialized selected-body MLIR computed-mask indexed-scatter"
+        )
         require_contains(
             text,
             "tcrv_rvv.compare",
-            "materialized selected-body MLIR computed-mask indexed-scatter compare",
+            f"{indexed_scatter_context} compare",
         )
         require_contains(
             text,
-            'kind = "slt"',
-            "materialized selected-body MLIR computed-mask indexed-scatter predicate",
+            f'kind = "{expectation.compare_predicate_kind}"',
+            f"{indexed_scatter_context} predicate",
         )
+        if expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load:
+            require_contains(
+                text,
+                "tcrv_rvv.splat",
+                f"{indexed_scatter_context} rhs scalar splat",
+            )
+            require_contains(
+                text,
+                'role = "rhs-scalar-value"',
+                f"{indexed_scatter_context} rhs scalar ABI role",
+            )
         require_contains(
             text,
             "tcrv_rvv.index_load",
-            "materialized selected-body MLIR computed-mask indexed-scatter index load",
+            f"{indexed_scatter_context} index load",
         )
         require_contains(
             text,
             'role = "index-input-buffer"',
-            "materialized selected-body MLIR computed-mask indexed-scatter index ABI role",
+            f"{indexed_scatter_context} index ABI role",
         )
         require_contains(
             text,
             "tcrv_rvv.masked_indexed_store",
-            "materialized selected-body MLIR computed-mask masked indexed-store op",
+            f"{indexed_scatter_context} masked indexed-store op",
         )
         require_contains(
             text,
             'memory_form = "masked-indexed-store"',
-            "materialized selected-body MLIR computed-mask indexed destination memory form",
+            f"{indexed_scatter_context} indexed destination memory form",
         )
         require_contains(
             text,
@@ -20944,6 +21087,248 @@ int main(void) {{
   }}
   printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1\\n");
   printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} patterns=0,1\\n");
+  return 0;
+}}
+""".lstrip()
+    if expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load:
+        return f"""
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "{header_file_name}"
+
+static uint32_t make_index(size_t logical_index, size_t n, size_t pattern) {{
+  if (n == 0)
+    return 0;
+  if ((pattern % 2) == 1) {{
+    size_t stride = (n % 2) == 0 ? (n - 1) : 2;
+    return (uint32_t)((logical_index * stride + 1) % n);
+  }}
+  size_t mixed = (n - 1) - (logical_index % n);
+  if (n > 3)
+    mixed = (mixed + 3) % n;
+  return (uint32_t)mixed;
+}}
+
+static int run_case(size_t n, int32_t rhs_scalar, size_t pattern) {{
+  /* expected: {expectation.expected_expression} */
+  size_t alloc_n = n == 0 ? 1 : n;
+  size_t src_alloc_n = alloc_n + 8;
+  size_t dst_alloc_n = alloc_n + 8;
+  int32_t *lhs = (int32_t *)malloc(sizeof(int32_t) * alloc_n);
+  int32_t *src = (int32_t *)malloc(sizeof(int32_t) * src_alloc_n);
+  int32_t *src_before = (int32_t *)malloc(sizeof(int32_t) * src_alloc_n);
+  uint32_t *indices = (uint32_t *)malloc(sizeof(uint32_t) * alloc_n);
+  int32_t *dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
+  int32_t *old_dst = (int32_t *)malloc(sizeof(int32_t) * dst_alloc_n);
+  if (!lhs || !src || !src_before || !indices || !dst || !old_dst) {{
+    fprintf(stderr, "allocation failed for n=%zu rhs_scalar=%d pattern=%zu\\n",
+            n, rhs_scalar, pattern);
+    free(lhs);
+    free(src);
+    free(src_before);
+    free(indices);
+    free(dst);
+    free(old_dst);
+    return 11;
+  }}
+
+  for (size_t index = 0; index < alloc_n; ++index) {{
+    lhs[index] = {expectation.lhs_initializer};
+    src[index] = {expectation.source_initializer};
+    if ((pattern % 2) == 1) {{
+      lhs[index] = ((index % 5) == 1 || (index % 5) == 4)
+                       ? (int32_t)(rhs_scalar - 7)
+                       : (int32_t)(rhs_scalar + 43);
+      src[index] = (int32_t)(src[index] + 9000 + (int32_t)(index * 13));
+    }}
+    src_before[index] = src[index];
+    indices[index] = make_index(index, alloc_n, pattern);
+  }}
+  for (size_t index = alloc_n; index < src_alloc_n; ++index) {{
+    src[index] = {expectation.source_initializer};
+    if ((pattern % 2) == 1)
+      src[index] = (int32_t)(src[index] + 9000 + (int32_t)(index * 13));
+    src_before[index] = src[index];
+  }}
+  for (size_t index = 0; index < dst_alloc_n; ++index) {{
+    dst[index] = {expectation.out_initializer};
+    old_dst[index] = dst[index];
+  }}
+
+  for (size_t index = 0; index < n; ++index) {{
+    if ((size_t)indices[index] >= n) {{
+      fprintf(stderr,
+              "{expectation.kind} generated out-of-range index n=%zu index=%zu scatter_index=%u\\n",
+              n, index, indices[index]);
+      free(lhs);
+      free(src);
+      free(src_before);
+      free(indices);
+      free(dst);
+      free(old_dst);
+      return 12;
+    }}
+    for (size_t prior = 0; prior < index; ++prior) {{
+      if (indices[prior] == indices[index]) {{
+        fprintf(stderr,
+                "{expectation.kind} duplicate scatter index n=%zu prior=%zu index=%zu scatter_index=%u\\n",
+                n, prior, index, indices[index]);
+        free(lhs);
+        free(src);
+        free(src_before);
+        free(indices);
+        free(dst);
+        free(old_dst);
+        return 13;
+      }}
+    }}
+  }}
+
+  {expectation.function_name}(lhs, rhs_scalar, src, indices, dst, n);
+
+  size_t active_lanes = 0;
+  size_t inactive_lanes = 0;
+  size_t inactive_preserved_lanes = 0;
+  size_t noncontiguous_index_lanes = 0;
+  for (size_t index = 0; index < n; ++index) {{
+    size_t dst_index = (size_t)indices[index];
+    if (dst_index != index)
+      ++noncontiguous_index_lanes;
+    int active = lhs[index] <= rhs_scalar;
+    if (active)
+      ++active_lanes;
+    else
+      ++inactive_lanes;
+    int32_t expected = {expectation.expected_expression};
+    if (dst[dst_index] != expected) {{
+      fprintf(stderr,
+              "{expectation.kind} mismatch n=%zu rhs_scalar=%d pattern=%zu index=%zu scatter_index=%u got=%d expected=%d lhs=%d src=%d old_dst_at_scatter=%d\\n",
+              n, rhs_scalar, pattern, index, indices[index], dst[dst_index],
+              expected, lhs[index], src[index], old_dst[dst_index]);
+      free(lhs);
+      free(src);
+      free(src_before);
+      free(indices);
+      free(dst);
+      free(old_dst);
+      return 14;
+    }}
+    if (!active) {{
+      if (dst[dst_index] != old_dst[dst_index]) {{
+        fprintf(stderr,
+                "{expectation.kind} inactive lane did not preserve destination n=%zu rhs_scalar=%d pattern=%zu index=%zu scatter_index=%u got=%d old_dst=%d\\n",
+                n, rhs_scalar, pattern, index, indices[index], dst[dst_index],
+                old_dst[dst_index]);
+        free(lhs);
+        free(src);
+        free(src_before);
+        free(indices);
+        free(dst);
+        free(old_dst);
+        return 15;
+      }}
+      ++inactive_preserved_lanes;
+    }}
+  }}
+
+  for (size_t index = n; index < dst_alloc_n; ++index) {{
+    if (dst[index] != old_dst[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} touched tail destination n=%zu index=%zu got=%d old_dst=%d\\n",
+              n, index, dst[index], old_dst[index]);
+      free(lhs);
+      free(src);
+      free(src_before);
+      free(indices);
+      free(dst);
+      free(old_dst);
+      return 16;
+    }}
+  }}
+  for (size_t index = 0; index < src_alloc_n; ++index) {{
+    if (src[index] != src_before[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} source buffer mutated n=%zu index=%zu got=%d before=%d\\n",
+              n, index, src[index], src_before[index]);
+      free(lhs);
+      free(src);
+      free(src_before);
+      free(indices);
+      free(dst);
+      free(old_dst);
+      return 17;
+    }}
+  }}
+  if (n > 1 && (active_lanes == 0 || inactive_lanes == 0)) {{
+    fprintf(stderr,
+            "{expectation.kind} compare mask coverage missing n=%zu rhs_scalar=%d active_lanes=%zu inactive_lanes=%zu\\n",
+            n, rhs_scalar, active_lanes, inactive_lanes);
+    free(lhs);
+    free(src);
+    free(src_before);
+    free(indices);
+    free(dst);
+    free(old_dst);
+    return 18;
+  }}
+  if (n > 3 && noncontiguous_index_lanes == 0) {{
+    fprintf(stderr,
+            "{expectation.kind} vacuous indexed scatter check failed n=%zu first_indices=[%u,%u,%u]\\n",
+            n, indices[0], indices[1], indices[2]);
+    free(lhs);
+    free(src);
+    free(src_before);
+    free(indices);
+    free(dst);
+    free(old_dst);
+    return 19;
+  }}
+  if (inactive_lanes != inactive_preserved_lanes) {{
+    fprintf(stderr,
+            "{expectation.kind} inactive preservation coverage mismatch n=%zu rhs_scalar=%d inactive_lanes=%zu preserved_lanes=%zu\\n",
+            n, rhs_scalar, inactive_lanes, inactive_preserved_lanes);
+    free(lhs);
+    free(src);
+    free(src_before);
+    free(indices);
+    free(dst);
+    free(old_dst);
+    return 20;
+  }}
+
+  free(lhs);
+  free(src);
+  free(src_before);
+  free(indices);
+  free(dst);
+  free(old_dst);
+  printf("{expectation.kind} case n=%zu rhs_scalar=%d pattern=%zu ok runtime_scalar_cmp indexed_scatter active_lanes=%zu inactive_lanes=%zu inactive_preserved_lanes=%zu noncontiguous_index_lanes=%zu source_preserved tail_preserved\\n",
+         n, rhs_scalar, pattern, active_lanes, inactive_lanes,
+         inactive_preserved_lanes, noncontiguous_index_lanes);
+  return 0;
+}}
+
+int main(void) {{
+  const size_t counts[] = {{{counts}}};
+  const size_t count_count = sizeof(counts) / sizeof(counts[0]);
+  const int32_t rhs_scalar_values[] = {{{scalar_values_literal}}};
+  const size_t rhs_scalar_count = sizeof(rhs_scalar_values) / sizeof(rhs_scalar_values[0]);
+  const size_t patterns[] = {{0, 1}};
+  const size_t pattern_count = sizeof(patterns) / sizeof(patterns[0]);
+  for (size_t index = 0; index < count_count; ++index) {{
+    for (size_t rhs_index = 0; rhs_index < rhs_scalar_count; ++rhs_index) {{
+      for (size_t pattern_index = 0; pattern_index < pattern_count; ++pattern_index) {{
+        int status = run_case(counts[index], rhs_scalar_values[rhs_index], patterns[pattern_index]);
+        if (status != 0)
+          return status;
+      }}
+    }}
+  }}
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary} patterns=0,1\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} rhs_scalars={scalar_values_summary} patterns=0,1\\n");
   return 0;
 }}
 """.lstrip()
@@ -26400,6 +26785,7 @@ def validate_runtime_scalar_compare_select_rhs_coverage(
         or expectation.is_runtime_scalar_computed_mask_store
         or expectation.is_runtime_scalar_computed_mask_load_store
         or expectation.is_runtime_scalar_cmp_masked_indexed_gather_load_unit_store
+        or expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load
         or expectation.is_runtime_scalar_computed_mask_standalone_reduce
         for expectation in expectations
     ) and len(rhs_scalar_values) < 2:
@@ -27144,6 +27530,87 @@ def mask_tail_policy_boundary_summary(
                 "offset_unit": route_metadata.get("tcrv_rvv.offset_unit"),
                 "data_memory_form": route_metadata.get(
                     "tcrv_rvv.indexed_data_memory_form"
+                ),
+            },
+            "materialized_body": {
+                "typed_compute_op": materialized_checks.get("typed_compute_op"),
+                "memory_form": materialized_checks.get("memory_form"),
+                "contains_with_vl": materialized_checks.get("contains_with_vl"),
+                "pre_realized_body_consumed": materialized_checks.get(
+                    "pre_realized_body_consumed"
+                ),
+                "mask_tail_policy_boundary": materialized_boundary,
+            },
+            "emitted_cpp": emitted_boundary,
+            "route_metadata": route_metadata,
+            "artifact_abi": {
+                "prototype": bundle_checks["header"]["prototype"],
+                "runtime_abi_order": expectation.runtime_abi_order,
+            },
+            "runtime_counts": runtime_counts,
+            "runtime_counts_are_execution_cases_not_policy_authority": True,
+        }
+    if expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load:
+        route_metadata = mask_tail_policy_metadata_from_bundle(
+            bundle_checks, expectation
+        )
+        materialized_boundary = materialized_checks.get(
+            "mask_tail_policy_boundary", {}
+        )
+        emitted_boundary = emitted_cpp_checks.get("mask_tail_policy_boundary", {})
+        return {
+            "source": (
+                "typed tcrv_rvv runtime-scalar computed-mask indexed scatter "
+                "body/config -> runtime scalar splat compare mask -> RVV "
+                "provider indexed scatter facts -> masked indexed store"
+            ),
+            "authority": (
+                "provider-derived typed tcrv_rvv runtime-scalar computed-mask "
+                "indexed scatter body/config/runtime facts"
+            ),
+            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "selected_mask_abi": {
+                "external_mask": False,
+                "producer": "tcrv_rvv.compare",
+                "role": COMPUTED_MASK_MEMORY_MASK_ROLE,
+                "source": COMPUTED_MASK_MEMORY_MASK_SOURCE,
+                "memory_form": COMPUTED_MASK_MEMORY_MASK_FORM,
+                "mask_type": expectation.rvv_mask_type,
+                "mask_c_type": expectation.rvv_mask_c_type,
+                "runtime_scalar_operand": "rhs_scalar",
+                "runtime_scalar_realization_op": "tcrv_rvv.splat",
+                "runtime_scalar_producer_source": (
+                    COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
+                ),
+            },
+            "tail_policy": route_metadata.get("tcrv_rvv.tail_policy"),
+            "mask_policy": route_metadata.get("tcrv_rvv.mask_policy"),
+            "mask_tail_policy_route_family_plan": route_metadata.get(
+                "tcrv_rvv.mask_tail_policy_route_family_plan"
+            ),
+            "mask_tail_policy_owner": route_metadata.get(
+                "tcrv_rvv.mask_tail_policy_owner"
+            ),
+            "active_lane_contract": (
+                "runtime scalar compare-true lanes store source[i] to "
+                "destination[index[i]]"
+            ),
+            "inactive_lane_contract": route_metadata.get(
+                "tcrv_rvv.inactive_lane_contract"
+            ),
+            "masked_passthrough_layout": route_metadata.get(
+                "tcrv_rvv.masked_passthrough_layout"
+            ),
+            "indexed_memory": {
+                "layout": route_metadata.get("tcrv_rvv.indexed_memory_layout"),
+                "index_source": route_metadata.get("tcrv_rvv.index_source"),
+                "index_eew": route_metadata.get("tcrv_rvv.index_eew"),
+                "offset_unit": route_metadata.get("tcrv_rvv.offset_unit"),
+                "index_uniqueness": route_metadata.get(
+                    "tcrv_rvv.index_uniqueness"
+                ),
+                "destination_memory_form": route_metadata.get(
+                    "tcrv_rvv.indexed_destination_memory_form"
                 ),
             },
             "materialized_body": {
@@ -30560,6 +31027,7 @@ def run_one_op_e2e(
         or expectation.is_runtime_scalar_computed_mask_store
         or expectation.is_runtime_scalar_computed_mask_load_store
         or expectation.is_runtime_scalar_cmp_masked_indexed_gather_load_unit_store
+        or expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load
         or expectation.is_runtime_scalar_computed_masked_macc_add
         or expectation.is_runtime_scalar_computed_mask_standalone_reduce
     ):
@@ -30681,6 +31149,7 @@ def run_one_op_e2e(
             or expectation.is_computed_mask_select
             or expectation.is_computed_masked_indexed_gather_load_unit_store
             or expectation.is_runtime_scalar_cmp_masked_indexed_gather_load_unit_store
+            or expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load
             or expectation.is_computed_masked_segment2_load_unit_store
             or expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
             or expectation.is_computed_masked_segment2_store_unit_load
@@ -30916,6 +31385,7 @@ def run_one_op_e2e(
             or expectation.is_runtime_scalar_computed_mask_store
             or expectation.is_runtime_scalar_computed_mask_load_store
             or expectation.is_runtime_scalar_cmp_masked_indexed_gather_load_unit_store
+            or expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load
             or expectation.is_runtime_scalar_computed_masked_macc_add
         ):
             evidence["harness"]["rhs_scalar_values"] = rhs_scalar_values
@@ -31240,6 +31710,22 @@ def run_one_op_e2e(
             evidence["harness"]["mask_coverage_contract"] = (
                 "multi-lane computed_masked_indexed_scatter_store_unit_load "
                 "cases require compare-produced active and inactive mask lanes"
+            )
+            evidence["harness"]["inactive_lane_contract"] = (
+                "compare-false indexed destination lanes must preserve old "
+                "destination values"
+            )
+            evidence["harness"]["indexed_scatter_contract"] = (
+                "active lanes store source[i] to destination[index[i]] with "
+                "unique noncontiguous permuted indices while inactive indexed "
+                "lanes, source buffers, and destination tail slots preserve "
+                "sentinels"
+            )
+        if expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load:
+            evidence["harness"]["mask_coverage_contract"] = (
+                "multi-lane runtime_scalar_cmp_masked_indexed_scatter_store_unit_load "
+                "cases require runtime scalar threshold active and inactive "
+                "mask lanes"
             )
             evidence["harness"]["inactive_lane_contract"] = (
                 "compare-false indexed destination lanes must preserve old "
@@ -31739,6 +32225,7 @@ def run_e2e(args: argparse.Namespace) -> int:
             or expectation.is_runtime_scalar_computed_mask_store
             or expectation.is_runtime_scalar_computed_mask_load_store
             or expectation.is_runtime_scalar_cmp_masked_indexed_gather_load_unit_store
+            or expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load
             or expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store
             or expectation.is_runtime_scalar_cmp_masked_segment2_store_unit_load
             or expectation.is_runtime_scalar_computed_masked_macc_add
@@ -31775,6 +32262,7 @@ def run_e2e(args: argparse.Namespace) -> int:
                 "runtime_scalar_dual_cmp_mask_and_select/"
                 "runtime_scalar_cmp_masked_load_store/"
                 "runtime_scalar_cmp_masked_indexed_gather_load_unit_store/"
+                "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load/"
                 "runtime_scalar_cmp_masked_segment2_load_unit_store/"
                 "runtime_scalar_cmp_masked_segment2_store_unit_load/"
                 "runtime_scalar_cmp_masked_macc_add/"
@@ -33386,6 +33874,7 @@ def run_self_test() -> int:
                 or expectation.is_runtime_scalar_computed_mask_store
                 or expectation.is_runtime_scalar_computed_mask_load_store
                 or expectation.is_runtime_scalar_cmp_masked_indexed_gather_load_unit_store
+                or expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load
                 or expectation.is_runtime_scalar_computed_masked_macc_add
                 or expectation.is_runtime_scalar_computed_mask_standalone_reduce
             ) and runtime_scalar_coverage:
@@ -33624,6 +34113,60 @@ def run_self_test() -> int:
                     "self-test harness generation lost computed-mask indexed "
                     "scatter mask, no-write, or index coverage"
                 )
+            if expectation.is_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load:
+                if (
+                    "runtime_scalar_cmp indexed_scatter" not in harness
+                    or "dst[dst_index]" not in harness
+                    or "src[index]" not in harness
+                    or "const size_t patterns[] = {0, 1}" not in harness
+                    or "pattern=%zu ok runtime_scalar_cmp indexed_scatter"
+                    not in harness
+                    or "inactive lane did not preserve destination" not in harness
+                    or "source buffer mutated" not in harness
+                    or "noncontiguous_index_lanes" not in harness
+                    or "rhs_scalar" not in harness
+                    or "<= rhs_scalar" not in harness
+                    or "lhs, rhs_scalar, src, indices, dst, n" not in harness
+                ):
+                    raise AssertionError(
+                        "self-test harness generation lost runtime-scalar "
+                        "indexed scatter threshold, no-write, or index "
+                        "coverage"
+                    )
+                bundle_checks = verify_bundle(
+                    bundle, readobj=None, expectation=expectation
+                )
+                boundary = mask_tail_policy_boundary_summary(
+                    expectation=expectation,
+                    materialized_checks={},
+                    emitted_cpp_checks={},
+                    bundle_checks=bundle_checks,
+                    runtime_counts=[0, 1, 16, 17, 257],
+                )
+                route_metadata = boundary.get("route_metadata", {})
+                if (
+                    route_metadata.get("tcrv_rvv.route_operand_binding_plan")
+                    != RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_PLAN
+                    or route_metadata.get(
+                        "tcrv_rvv.route_operand_binding_operands"
+                    )
+                    != RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_ROUTE_OPERAND_BINDING_OPERANDS
+                    or route_metadata.get(
+                        "tcrv_rvv.computed_mask_memory_mask_producer_source"
+                    )
+                    != COMPUTED_MASK_MEMORY_RUNTIME_SCALAR_PRODUCER_SOURCE
+                    or route_metadata.get("tcrv_rvv.provider_supported_mirror")
+                    != RUNTIME_SCALAR_CMP_MASKED_INDEXED_SCATTER_PROVIDER_SUPPORTED_MIRROR
+                    or boundary.get("indexed_memory", {}).get(
+                        "destination_memory_form"
+                    )
+                    != COMPUTED_MASK_INDEXED_SCATTER_INDEXED_DESTINATION_MEMORY_FORM
+                ):
+                    raise AssertionError(
+                        "self-test fake bundle generation lost runtime-scalar "
+                        "indexed scatter provider-backed operand binding, "
+                        "mask producer, or destination metadata"
+                    )
             if (
                 expectation.is_computed_masked_segment2_load_unit_store
                 or expectation.is_runtime_scalar_cmp_masked_segment2_load_unit_store

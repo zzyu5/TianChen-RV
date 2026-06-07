@@ -545,6 +545,11 @@ bool isAllowedTypedComputedMaskIndexedScatterPreRealizedBodyAttr(
          name == kLMULAttrName || name == kPolicyAttrName;
 }
 
+bool isAllowedTypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyAttr(
+    llvm::StringRef name) {
+  return isAllowedTypedComputedMaskIndexedScatterPreRealizedBodyAttr(name);
+}
+
 bool isAllowedTypedComputedMaskSegment2LoadPreRealizedBodyAttr(
     llvm::StringRef name) {
   return name == kOpKindAttrName || name == kPredicateKindAttrName ||
@@ -1570,6 +1575,12 @@ bool isSupportedTypedComputedMaskIndexedScatterPreRealizedBodyOpKind(
   return opKind == "computed_masked_indexed_scatter_store_unit_load";
 }
 
+bool isSupportedTypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOpKind(
+    llvm::StringRef opKind) {
+  return opKind ==
+         "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load";
+}
+
 bool isSupportedTypedComputedMaskSegment2LoadPreRealizedBodyOpKind(
     llvm::StringRef opKind) {
   return opKind == "computed_masked_segment2_load_unit_store";
@@ -1615,6 +1626,12 @@ bool isSupportedTypedRuntimeScalarComputedMaskIndexedGatherPreRealizedMemoryForm
 bool isSupportedTypedComputedMaskIndexedScatterPreRealizedMemoryForm(
     llvm::StringRef memoryForm) {
   return memoryForm == "computed-mask-unit-load-indexed-scatter-store";
+}
+
+bool isSupportedTypedRuntimeScalarComputedMaskIndexedScatterPreRealizedMemoryForm(
+    llvm::StringRef memoryForm) {
+  return isSupportedTypedComputedMaskIndexedScatterPreRealizedMemoryForm(
+      memoryForm);
 }
 
 bool isSupportedTypedComputedMaskSegment2LoadPreRealizedMemoryForm(
@@ -8611,6 +8628,176 @@ TypedComputedMaskIndexedScatterPreRealizedBodyOp::verify() {
           op, getDestination(), "destination",
           {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
     return mlir::failure();
+  return verifyRuntimeElementCountOperand(op, getN());
+}
+
+mlir::LogicalResult
+TypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenPreRealizedBodyAuthorityAttr(attrName))
+      return emitOpError()
+             << "does not accept authority metadata attribute '"
+             << attr.getName()
+             << "'; pre-realized selected runtime-scalar computed-mask "
+                "indexed scatter-store bodies carry only typed RVV lhs/"
+                "runtime scalar/source/index/destination, mask, memory-form, "
+                "inactive-lane policy, unique-index policy, config, policy, "
+                "and runtime SSA facts and must be realized by the RVV plugin "
+                "before route construction";
+
+    if (!isAllowedTypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyAttr(
+            attrName))
+      return emitOpError()
+             << "only accepts pre-realization attributes '" << kOpKindAttrName
+             << "', '" << kPredicateKindAttrName << "', '"
+             << kMemoryFormAttrName << "', '" << kIndexEEWAttrName << "', '"
+             << kOffsetUnitAttrName << "', '" << kIndexUniquenessAttrName
+             << "', '" << kMaskRoleAttrName << "', '" << kMaskSourceAttrName
+             << "', '" << kMaskMemoryFormAttrName << "', '"
+             << kInactiveLanePolicyAttrName << "', '" << kSEWAttrName
+             << "', '" << kLMULAttrName << "', and '" << kPolicyAttrName
+             << "'; unexpected attribute '" << attr.getName() << "'";
+  }
+
+  if (!llvm::isa<tianchenrv::tcrv::exec::VariantOp>(op->getParentOp()))
+    return emitOpError()
+           << "must be nested directly in a selected tcrv.exec.variant";
+
+  if (op->getNumOperands() != 6 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires lhs, rhs scalar threshold, source, index, "
+              "destination, runtime n/AVL operands and no results";
+
+  if (!isSupportedTypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOpKind(
+          getOpKind()))
+    return emitOpError()
+           << "currently supports only op_kind "
+              "\"runtime_scalar_cmp_masked_indexed_scatter_store_unit_load\" "
+              "for the bounded selected-body runtime-scalar computed-mask "
+              "indexed scatter-store hook";
+  if (!isSupportedTypedRuntimeScalarComputedMaskSegment2StorePreRealizedPredicateKind(
+          getPredicateKind()))
+    return emitOpError()
+           << "currently supports only predicate_kind \"sle\" for the bounded "
+              "selected-body runtime-scalar computed-mask indexed "
+              "scatter-store hook";
+  if (!isSupportedTypedRuntimeScalarComputedMaskIndexedScatterPreRealizedMemoryForm(
+          getMemoryForm()))
+    return emitOpError()
+           << "currently supports only memory_form "
+              "\"computed-mask-unit-load-indexed-scatter-store\" for the "
+              "bounded selected-body runtime-scalar computed-mask indexed "
+              "scatter-store hook";
+  if (!isSupportedTypedIndexedGatherIndexEEW(
+          static_cast<std::int64_t>(getIndexEew())))
+    return emitOpError()
+           << "currently supports only index_eew 32 for the bounded "
+              "selected-body runtime-scalar computed-mask indexed "
+              "scatter-store hook";
+  if (!isSupportedTypedIndexedGatherOffsetUnit(getOffsetUnit()))
+    return emitOpError()
+           << "currently supports only offset_unit \"element\" for the "
+              "bounded selected-body runtime-scalar computed-mask indexed "
+              "scatter-store hook";
+  if (!isSupportedTypedIndexedScatterIndexUniqueness(getIndexUniqueness()))
+    return emitOpError()
+           << "requires index_uniqueness \"unique\" because duplicate-index "
+              "masked scatter policy is unsupported for the bounded "
+              "selected-body runtime-scalar computed-mask indexed "
+              "scatter-store hook";
+  if (!isSupportedTypedComputedMaskMemoryRole(getMaskRole()))
+    return emitOpError()
+           << "currently supports only mask_role "
+              "\"predicate-mask-produced-by-compare\" for the bounded "
+              "selected-body runtime-scalar computed-mask indexed "
+              "scatter-store hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskSource(getMaskSource()))
+    return emitOpError()
+           << "currently supports only mask_source "
+              "\"compare-produced-mask-same-vl-scope\" for the bounded "
+              "selected-body runtime-scalar computed-mask indexed "
+              "scatter-store hook";
+  if (!isSupportedTypedComputedMaskMemoryMaskMemoryForm(getMaskMemoryForm()))
+    return emitOpError()
+           << "currently supports only mask_memory_form "
+              "\"compare-produced-mask\" for the bounded selected-body "
+              "runtime-scalar computed-mask indexed scatter-store hook";
+  if (getInactiveLanePolicy() != "preserve-output-on-false-lanes")
+    return emitOpError()
+           << "requires inactive_lane_policy "
+              "\"preserve-output-on-false-lanes\" because compare-false and "
+              "masked-off lanes must not write the indexed destination buffer";
+
+  if (static_cast<std::int64_t>(getSew()) != getRVVFirstSliceSEWBits() ||
+      getLmul() != getRVVLMULM1())
+    return emitOpError()
+           << "requires bounded pre-realized runtime-scalar computed-mask "
+              "indexed scatter-store data config to be SEW32 LMUL m1";
+  if (!isRVVAgnosticPolicy(getPolicy()))
+    return emitOpError()
+           << "requires tail agnostic, mask agnostic policy for the bounded "
+              "selected-body runtime-scalar computed-mask indexed "
+              "scatter-store hook";
+
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getLhs(), "lhs",
+          {tianchenrv::support::RuntimeABIParameterRole::LHSInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIScalarOperandRole(
+          op, getRhsScalar(), "rhs scalar threshold",
+          {getRVVFirstSliceSEWBits()}, "i32",
+          {tianchenrv::support::RuntimeABIParameterRole::RHSScalarValue})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getSource(), "source",
+          {tianchenrv::support::RuntimeABIParameterRole::SourceInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getIndex(), "index",
+          {tianchenrv::support::RuntimeABIParameterRole::IndexInputBuffer})))
+    return mlir::failure();
+  if (mlir::failed(verifyRuntimeABIValueOperandRole(
+          op, getDestination(), "destination",
+          {tianchenrv::support::RuntimeABIParameterRole::OutputBuffer})))
+    return mlir::failure();
+
+  RuntimeABIValueOp lhsBinding = getLhs().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp rhsScalarBinding =
+      getRhsScalar().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp sourceBinding =
+      getSource().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp indexBinding =
+      getIndex().getDefiningOp<RuntimeABIValueOp>();
+  RuntimeABIValueOp destinationBinding =
+      getDestination().getDefiningOp<RuntimeABIValueOp>();
+  if (!lhsBinding || lhsBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires lhs operand C type 'const int32_t *' to match typed "
+              "runtime-scalar computed-mask indexed scatter-store predicate "
+              "dtype";
+  if (!rhsScalarBinding || rhsScalarBinding.getCType() != "int32_t")
+    return emitOpError()
+           << "requires rhs scalar threshold operand C type 'int32_t' to "
+              "match typed runtime-scalar computed-mask indexed scatter-store "
+              "predicate dtype";
+  if (!sourceBinding || sourceBinding.getCType() != "const int32_t *")
+    return emitOpError()
+           << "requires source operand C type 'const int32_t *' to match "
+              "typed runtime-scalar computed-mask indexed scatter-store "
+              "payload dtype";
+  if (!indexBinding || indexBinding.getCType() != "const uint32_t *")
+    return emitOpError()
+           << "requires index operand C type 'const uint32_t *' to match "
+              "typed runtime-scalar computed-mask indexed scatter-store index "
+              "dtype";
+  if (!destinationBinding || destinationBinding.getCType() != "int32_t *")
+    return emitOpError()
+           << "requires destination operand C type 'int32_t *' to match typed "
+              "runtime-scalar computed-mask indexed scatter-store result "
+              "dtype";
   return verifyRuntimeElementCountOperand(op, getN());
 }
 

@@ -63,6 +63,12 @@ llvm::Error validatePreRealizedRVVSelectedComputedMaskIndexedScatterBody(
     const VariantLoweringBoundaryRequest &request,
     tcrv::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp body);
 
+llvm::Error
+validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedScatterBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOp
+        body);
+
 } // namespace tianchenrv::plugin::rvv
 
 #endif // TIANCHENRV_PLUGIN_RVV_RVVEMITCCOMPUTEDMASKMEMORYROUTEFAMILYPLANOWNERS_H

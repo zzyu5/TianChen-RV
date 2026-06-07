@@ -1475,6 +1475,29 @@ getRVVSelectedBodyComputedMaskIndexedScatterRuntimeABIParameters() {
 }
 
 llvm::SmallVector<support::RuntimeABIParameter, 6>
+getRVVSelectedBodyRuntimeScalarComputedMaskIndexedScatterRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const int32_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs_scalar", "int32_t",
+      support::RuntimeABIParameterRole::RHSScalarValue));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "src", "const int32_t *",
+      support::RuntimeABIParameterRole::SourceInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "index", "const uint32_t *",
+      support::RuntimeABIParameterRole::IndexInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "dst", "int32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
+llvm::SmallVector<support::RuntimeABIParameter, 6>
 getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
   parameters.push_back(support::makeTargetExportABIParameter(
@@ -1749,6 +1772,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
           getRVVSelectedBodyComputedMaskIndexedScatterRuntimeABIParameters();
   if (support::runtimeABIParametersEqual(parameters,
                                          computedMaskIndexedScatter))
+    return llvm::Error::success();
+
+  llvm::SmallVector<support::RuntimeABIParameter, 6>
+      runtimeScalarComputedMaskIndexedScatter =
+          getRVVSelectedBodyRuntimeScalarComputedMaskIndexedScatterRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(
+          parameters, runtimeScalarComputedMaskIndexedScatter))
     return llvm::Error::success();
 
   llvm::SmallVector<support::RuntimeABIParameter, 6>

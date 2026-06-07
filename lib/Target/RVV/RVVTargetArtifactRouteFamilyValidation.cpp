@@ -525,6 +525,8 @@ bool isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
       RuntimeScalarComputedMaskLoadStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       RuntimeScalarComputedMaskIndexedGatherLoadUnitStore:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
     return true;
   default:
     return false;
@@ -1734,7 +1736,9 @@ llvm::Error validateComputedMaskIndexedScatterHeaderBindingSummary(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
   using OperationKind = plugin::rvv::RVVSelectedBodyOperationKind;
   if (description.operation !=
-      OperationKind::ComputedMaskIndexedScatterStoreUnitLoad)
+          OperationKind::ComputedMaskIndexedScatterStoreUnitLoad &&
+      description.operation !=
+          OperationKind::RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad)
     return llvm::Error::success();
 
   std::optional<
@@ -7249,7 +7253,10 @@ bool isRVVCompareSelectMaskIndexedMemoryOperation(
                  RuntimeScalarComputedMaskIndexedGatherLoadUnitStore ||
          operation ==
              plugin::rvv::RVVSelectedBodyOperationKind::
-                 ComputedMaskIndexedScatterStoreUnitLoad;
+                 ComputedMaskIndexedScatterStoreUnitLoad ||
+         operation ==
+             plugin::rvv::RVVSelectedBodyOperationKind::
+                 RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad;
 }
 
 bool isRVVCompareSelectMaskStridedMemoryOperation(
@@ -7368,6 +7375,8 @@ llvm::StringRef getRVVCompareSelectMaskExpectedProviderSupportedMirror(
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedScatterStoreUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
     return {};
   default:
     return {};
@@ -7392,6 +7401,8 @@ llvm::StringRef getRVVCompareSelectMaskExpectedTargetLeafProfile(
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedScatterStoreUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
     return {};
   default:
     return {};
@@ -7427,6 +7438,8 @@ llvm::StringRef getRVVCompareSelectMaskExpectedCTypeMappingSummary(
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedScatterStoreUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
     return {};
   default:
     return {};
@@ -7450,6 +7463,8 @@ llvm::StringRef getRVVCompareSelectMaskExpectedMaskProducerSource(
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedScatterStoreUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
     return {};
   default:
     return {};
@@ -7471,6 +7486,8 @@ llvm::StringRef getRVVCompareSelectMaskExpectedSourceMemoryForm(
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedScatterStoreUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
     return {};
   default:
     return {};
@@ -7493,6 +7510,8 @@ llvm::StringRef getRVVCompareSelectMaskExpectedDestinationMemoryForm(
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedScatterStoreUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
     return {};
   default:
     return {};
@@ -7517,6 +7536,8 @@ llvm::StringRef getRVVCompareSelectMaskExpectedInactiveLaneContract(
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedScatterStoreUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
     return {};
   default:
     return {};
@@ -7541,6 +7562,8 @@ llvm::StringRef getRVVCompareSelectMaskExpectedPassthroughLayout(
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedScatterStoreUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
     return {};
   default:
     return {};
@@ -7564,6 +7587,8 @@ llvm::StringRef getRVVCompareSelectMaskExpectedMaskedMemoryLayout(
       ComputedMaskIndexedGatherLoadUnitStore:
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedScatterStoreUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
     return {};
   default:
     return {};
@@ -9247,6 +9272,8 @@ std::size_t getRVVCompareSelectMaskExpectedLoopBodyStepCount(
     return 9;
   case plugin::rvv::RVVSelectedBodyOperationKind::
       ComputedMaskIndexedScatterStoreUnitLoad:
+  case plugin::rvv::RVVSelectedBodyOperationKind::
+      RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
     return 8;
   default:
     return 0;
@@ -9840,9 +9867,12 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
   const bool isRuntimeScalarIndexedGather =
       description.operation ==
       OperationKind::RuntimeScalarComputedMaskIndexedGatherLoadUnitStore;
+  const bool isRuntimeScalarIndexedScatter =
+      description.operation ==
+      OperationKind::RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad;
   const bool isRuntimeScalarMemory =
       isRuntimeScalarStore || isRuntimeScalarLoadStore ||
-      isRuntimeScalarIndexedGather;
+      isRuntimeScalarIndexedGather || isRuntimeScalarIndexedScatter;
   const bool isStridedStore =
       description.operation == OperationKind::ComputedMaskStridedStore;
   const bool isStridedLoad =
@@ -9853,14 +9883,16 @@ llvm::Error validateRVVCompareSelectMaskRouteStatementPlan(
       isRuntimeScalarIndexedGather;
   const bool isIndexedScatter =
       description.operation ==
-      OperationKind::ComputedMaskIndexedScatterStoreUnitLoad;
+          OperationKind::ComputedMaskIndexedScatterStoreUnitLoad ||
+      isRuntimeScalarIndexedScatter;
   const bool isIndexed = isIndexedGather || isIndexedScatter;
   const bool isLoadMerge =
       isRuntimeScalarLoadStore || isRuntimeScalarIndexedGather ||
       description.operation == OperationKind::ComputedMaskUnitLoadStore ||
       isStridedLoad || isIndexedGather;
   const bool isStoreOnly =
-      isRuntimeScalarStore || isStridedStore || isIndexedScatter;
+      isRuntimeScalarStore || isRuntimeScalarIndexedScatter ||
+      isStridedStore || isIndexedScatter;
 
   if (!isRVVCompareProducedComputedMaskMemoryRouteFamilyOperation(
           description.operation))

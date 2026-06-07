@@ -1948,3 +1948,44 @@ Implemented pre-realized runtime-scalar-cmp masked segment2 store selected-body 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 517: Stage2 RVV runtime-scalar indexed scatter ABI
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV runtime-scalar indexed scatter ABI
+**Branch**: `main`
+
+### Summary
+
+Implemented runtime-scalar-cmp masked indexed scatter-store artifact ABI path with focused lit and ssh rvv evidence.
+
+### Main Changes
+
+Implemented the runtime-scalar-cmp masked indexed scatter-store seam from typed/pre-realized tcrv_rvv bodies through RVV plugin realization, provider route planning, EmitC metadata, target artifact export, generated bundle ABI, and ssh rvv correctness evidence.
+
+Evidence:
+- RVV extension plugin smoke test passed.
+- Target artifact export smoke test passed.
+- Focused lit filter runtime-scalar-cmp-masked-indexed-scatter-store passed 4/4.
+- Explicit and pre-realized generated bundles compiled and ran on ssh rvv with counts 0,1,16,17,257; rhs scalars -37,91; patterns 0,1.
+- Script self-test initially caught runtime-scalar scatter harness/metadata issues; fixed and reran to pass.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

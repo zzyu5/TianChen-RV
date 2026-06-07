@@ -1471,6 +1471,7 @@ struct RVVSelectedBodyComputedMaskMemoryRouteStatementPlan {
   bool plansComputedMaskIndexedGatherLoadUnitStore = false;
   bool plansRuntimeScalarComputedMaskIndexedGatherLoadUnitStore = false;
   bool plansComputedMaskIndexedScatterStoreUnitLoad = false;
+  bool plansRuntimeScalarComputedMaskIndexedScatterStoreUnitLoad = false;
   RVVSelectedBodyMaskTailPolicyProviderPlan maskTailPolicyPlan;
 
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>

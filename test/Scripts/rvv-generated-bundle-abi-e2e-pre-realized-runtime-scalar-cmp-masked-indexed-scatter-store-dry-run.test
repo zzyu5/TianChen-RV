@@ -1,0 +1,54 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-runtime-scalar-cmp-masked-indexed-scatter-store --overwrite --op-kind runtime_scalar_cmp_masked_indexed_scatter_store_unit_load --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-indexed-scatter-store/evidence.json
+# RUN: FileCheck %s --check-prefix=RTSCATTER --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-indexed-scatter-store/runtime_scalar_cmp_masked_indexed_scatter_store_unit_load/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-runtime-scalar-cmp-masked-indexed-scatter-store/runtime_scalar_cmp_masked_indexed_scatter_store_unit_load/rvv_generated_bundle_abi_runtime_scalar_cmp_masked_indexed_scatter_store_unit_load_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT: "input_mode": "pre-realized-selected-body"
+# ROOT: "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load"
+# ROOT: "pre_realized_selected_body": true
+# ROOT: "ssh_evidence": false
+# ROOT: "status": "dry_run_success"
+
+# RTSCATTER-DAG: "input_mode": "pre-realized-selected-body"
+# RTSCATTER-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-indexed-scatter-store.mlir"
+# RTSCATTER-DAG: "prototype": "void tcrv_emitc_pre_realized_body_rt_scalar_cmidx_store_kernel_pre_realized_body_rvv_rt_scalar_cmidx_store(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src, const uint32_t *index, int32_t *dst, size_t n);"
+# RTSCATTER-DAG: "expected_function": "tcrv_emitc_pre_realized_body_rt_scalar_cmidx_store_kernel_pre_realized_body_rvv_rt_scalar_cmidx_store"
+# RTSCATTER-DAG: "expected_runtime_abi_name": "rvv-generic-runtime-scalar-cmp-masked-indexed-scatter-store-unit-load-callable-c-abi.v1"
+# RTSCATTER-DAG: "expected_selected_variant": "pre_realized_body_rvv_rt_scalar_cmidx_store"
+# RTSCATTER-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# RTSCATTER-DAG: "pre_realized_body_consumed": true
+# RTSCATTER-DAG: "typed_compute_op": "tcrv_rvv.masked_indexed_store"
+# RTSCATTER-DAG: "memory_form": "computed-mask-unit-load-indexed-scatter-store"
+# RTSCATTER-DAG: "key": "rvv_emitc_lowerable_route"
+# RTSCATTER-DAG: "value": "rvv-generic-runtime-scalar-cmp-masked-indexed-scatter-store-unit-load-emitc-route"
+# RTSCATTER-DAG: "key": "rvv_selected_body_operation"
+# RTSCATTER-DAG: "value": "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load"
+# RTSCATTER-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# RTSCATTER-DAG: "value": "lhs,rhs_scalar,src,index,dst,n"
+# RTSCATTER-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# RTSCATTER-DAG: "value": "rvv-route-operand-binding:runtime_scalar_cmp_masked_indexed_scatter_store_unit_load.v1;lhs=lhs-input-buffer:lhs:abi|lhs-load|lhs-call|hdr;rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|rhs-call|hdr;src=source-input-buffer:src:abi|src-load|mistore-src-call|hdr;index=index-input-buffer:index:abi|materialized-index-load-base|index-offset-scale|index-source-mirror|hdr;dst=output-buffer:dst:abi|mistore-base|hdr;n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr"
+# RTSCATTER-DAG: "key": "tcrv_rvv.computed_mask_memory_mask_producer_source"
+# RTSCATTER-DAG: "value": "runtime-scalar-splat-compare-rhs"
+# RTSCATTER-DAG: "key": "tcrv_rvv.mask_role"
+# RTSCATTER-DAG: "value": "predicate-mask-produced-by-compare"
+# RTSCATTER-DAG: "key": "tcrv_rvv.mask_memory_form"
+# RTSCATTER-DAG: "value": "compare-produced-mask"
+# RTSCATTER-DAG: "key": "tcrv_rvv.indexed_destination_memory_form"
+# RTSCATTER-DAG: "value": "masked-indexed-store"
+# RTSCATTER-DAG: "inactive_lane_contract": "compare-false indexed destination lanes must preserve old destination values"
+# RTSCATTER-DAG: "indexed_scatter_contract": "active lanes store source[i] to destination[index[i]] with unique noncontiguous permuted indices while inactive indexed lanes, source buffers, and destination tail slots preserve sentinels"
+# RTSCATTER-DAG: "status": "dry_run_success"
+
+# HARNESS: tcrv_emitc_pre_realized_body_rt_scalar_cmidx_store_kernel_pre_realized_body_rvv_rt_scalar_cmidx_store(lhs, rhs_scalar, src, indices, dst, n);
+# HARNESS: int32_t expected = (lhs[index] <= rhs_scalar ? src[index] : old_dst[indices[index]]);
+# HARNESS: inactive lane did not preserve destination
+# HARNESS: noncontiguous_index_lanes
+# HARNESS: pattern=%zu ok runtime_scalar_cmp indexed_scatter
+# HARNESS: source_preserved tail_preserved
+# HARNESS: const size_t patterns[] = {0, 1};
+# HARNESS: PASS op=runtime_scalar_cmp_masked_indexed_scatter_store_unit_load counts=0,1,16,17,257 rhs_scalars=-37,91 patterns=0,1

@@ -323,7 +323,9 @@ bool isPreRealizedRVVComputedMaskMemoryClusterOp(mlir::Operation *op) {
                    tcrv::rvv::TypedComputedMaskIndexedGatherPreRealizedBodyOp,
                    tcrv::rvv::
                        TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp,
-                   tcrv::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp>(
+                   tcrv::rvv::TypedComputedMaskIndexedScatterPreRealizedBodyOp,
+                   tcrv::rvv::
+                       TypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOp>(
       op);
 }
 
@@ -535,6 +537,48 @@ realizePreRealizedRVVComputedMaskMemoryOwner(
             builder, loc, body.getIndex(), vl, indexEEW, lmul));
     auto compare = createComputedMaskMemoryCompareFromLoads(
         builder, loc, body, compareLoads.first, compareLoads.second, vl);
+    createRealizedGenericMaskedIndexedStore(
+        builder, loc, body.getDestination(), indexLoad.getLoaded(),
+        compare.getMask(), sourceLoad.getLoaded(), vl, indexEEW,
+        body.getOffsetUnit(), body.getIndexUniqueness());
+    body->erase();
+    return withVL;
+  }
+
+  if (auto body = llvm::dyn_cast<
+          tcrv::rvv::
+              TypedRuntimeScalarComputedMaskIndexedScatterPreRealizedBodyOp>(
+          bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedRuntimeScalarComputedMaskIndexedScatterBody(
+                request, body))
+      return std::move(error);
+
+    std::int64_t sew = static_cast<std::int64_t>(body.getSew());
+    llvm::StringRef lmul = body.getLmul();
+    std::int64_t indexEEW = static_cast<std::int64_t>(body.getIndexEew());
+    tcrv::rvv::WithVLOp withVL =
+        createComputedMaskMemoryWithVL(request, body, sew, lmul);
+    mlir::Location loc = body->getLoc();
+    mlir::Value vl = withVL.getVl();
+
+    builder.setInsertionPointToStart(&withVL.getBody().front());
+    auto lhsLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, body.getLhs(), vl, sew, lmul));
+    auto rhsScalarSplat =
+        llvm::cast<tcrv::rvv::SplatOp>(createRealizedGenericSplat(
+            builder, loc, body.getRhsScalar(), vl, sew, lmul));
+    auto sourceLoad =
+        llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
+            builder, loc, body.getSource(), vl, sew, lmul));
+    auto indexLoad =
+        llvm::cast<tcrv::rvv::IndexLoadOp>(createRealizedGenericIndexLoad(
+            builder, loc, body.getIndex(), vl, indexEEW, lmul));
+    auto compare = llvm::cast<tcrv::rvv::CompareOp>(
+        createRealizedGenericCompare(builder, loc, lhsLoad.getLoaded(),
+                                     rhsScalarSplat.getBroadcast(), vl,
+                                     body.getPredicateKind()));
     createRealizedGenericMaskedIndexedStore(
         builder, loc, body.getDestination(), indexLoad.getLoaded(),
         compare.getMask(), sourceLoad.getLoaded(), vl, indexEEW,

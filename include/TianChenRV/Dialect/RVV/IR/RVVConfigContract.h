@@ -209,6 +209,8 @@ getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
 getRVVSelectedBodyComputedMaskIndexedScatterRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
+getRVVSelectedBodyRuntimeScalarComputedMaskIndexedScatterRuntimeABIParameters();
+llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
 getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters();
 llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 6>
 getRVVSelectedBodyRuntimeScalarComputedMaskSegment2LoadRuntimeABIParameters();

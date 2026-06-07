@@ -15991,7 +15991,7 @@ module {
               *runtimeScalarProviderStatementPlan,
               "runtime scalar computed-mask memory missing scalar ABI "
               "provider-boundary unit test"),
-          {"lhs/rhs_scalar/src/dst/n plus indexed-gather operand-binding facts",
+          {"lhs/rhs_scalar/src/dst/n plus indexed route operand-binding facts",
            "before creating TCRVEmitCLowerableRoute"}))
     return result;
 
@@ -16004,7 +16004,7 @@ module {
               *runtimeScalarBindingFacts, staleRuntimeScalarStatementPlan,
               "runtime scalar computed-mask memory stale statement-plan "
               "provider-boundary unit test"),
-          {"matching runtime-scalar store/load-store statement plan",
+          {"matching runtime-scalar store/load-store/indexed-scatter statement plan",
            "before creating TCRVEmitCLowerableRoute"}))
     return result;
 
@@ -16058,7 +16058,7 @@ module {
               "runtime scalar computed-mask memory stale memory-form "
               "provider-boundary unit test"),
           {"runtime-scalar producer facts and the matching store/load-store/"
-           "indexed-gather memory form",
+           "indexed-gather/indexed-scatter memory form",
            "before creating TCRVEmitCLowerableRoute"}))
     return result;
 
