@@ -1,10 +1,16 @@
 # REQUIRES: tianchenrv-local-rvv-object-clang
 # RUN: rm -rf %t.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --vector-source-front-door --artifact-root %t.artifacts --run-id vector-source-front-door --overwrite --op-kind add --runtime-count 0 --runtime-count 1 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --vector-source-front-door --artifact-root %t.artifacts --run-id vector-source-front-door --overwrite --op-kind add --op-kind sub --op-kind mul --runtime-count 0 --runtime-count 1 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
 # RUN: FileCheck %s --check-prefix=ROOT --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-i32m1" < %t.artifacts/vector-source-front-door/evidence.json
 # RUN: FileCheck %s --check-prefix=ADD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-i32m1" < %t.artifacts/vector-source-front-door/add/evidence.json
+# RUN: FileCheck %s --check-prefix=SUB --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-i32m1" < %t.artifacts/vector-source-front-door/sub/evidence.json
+# RUN: FileCheck %s --check-prefix=MUL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-i32m1" < %t.artifacts/vector-source-front-door/mul/evidence.json
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-i32m1" < %t.artifacts/vector-source-front-door/add/rvv_generated_bundle_abi_add_harness.c
+# RUN: FileCheck %s --check-prefix=HARNESS-SUB --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-i32m1" < %t.artifacts/vector-source-front-door/sub/rvv_generated_bundle_abi_sub_harness.c
+# RUN: FileCheck %s --check-prefix=HARNESS-MUL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-i32m1" < %t.artifacts/vector-source-front-door/mul/rvv_generated_bundle_abi_mul_harness.c
 # RUN: FileCheck %s --check-prefix=BUNDLE --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-i32m1" < %t.artifacts/vector-source-front-door/add/generated_bundle/tianchenrv-target-artifact-bundle.index
+# RUN: FileCheck %s --check-prefix=BUNDLE-SUB --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-i32m1" < %t.artifacts/vector-source-front-door/sub/generated_bundle/tianchenrv-target-artifact-bundle.index
+# RUN: FileCheck %s --check-prefix=BUNDLE-MUL --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="rvv-i32m1" < %t.artifacts/vector-source-front-door/mul/generated_bundle/tianchenrv-target-artifact-bundle.index
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
 # STDOUT: artifact_dir:
@@ -14,6 +20,8 @@
 # ROOT-DAG: "source_seed": false
 # ROOT-DAG: "op_kinds": [
 # ROOT-DAG: "add"
+# ROOT-DAG: "sub"
+# ROOT-DAG: "mul"
 # ROOT-DAG: "runtime_counts": [
 # ROOT-DAG: 0
 # ROOT-DAG: 1
@@ -23,17 +31,17 @@
 # ROOT-DAG: "status": "dry_run_success"
 # ROOT-DAG: "source_front_door_artifact_boundary": {
 # ROOT-DAG: "selected_variant": "rvv_vector_add"
-# ROOT-DAG: "materializer": "tcrv-rvv-materialize-vector-add-source-front-door"
+# ROOT-DAG: "materializer": "tcrv-rvv-materialize-vector-binary-source-front-door"
 # ROOT-DAG: "route_authority": "typed tcrv_rvv body/config/runtime facts consumed by the RVV provider"
 
 # ADD-DAG: "input_mode": "vector-source-front-door"
 # ADD-DAG: "selected_input": {
 # ADD-DAG: "mode": "vector-source-front-door"
-# ADD-DAG: "path": "{{.*}}test/Transforms/RVV/rvv-vector-add-source-front-door.mlir"
+# ADD-DAG: "path": "{{.*}}test/Support/RVV/rvv-vector-binary-source-front-door-add.mlir.inc"
 # ADD-DAG: "local_bundle_generation": {
-# ADD-DAG: "front_door": "bounded-vector-add-source-front-door"
-# ADD-DAG: "materializer": "tcrv-rvv-materialize-vector-add-source-front-door"
-# ADD-DAG: --tcrv-rvv-materialize-vector-add-source-front-door
+# ADD-DAG: "front_door": "bounded-vector-binary-source-front-door"
+# ADD-DAG: "materializer": "tcrv-rvv-materialize-vector-binary-source-front-door"
+# ADD-DAG: --tcrv-rvv-materialize-vector-binary-source-front-door
 # ADD-DAG: --tcrv-materialize-emission-plans
 # ADD-DAG: --tcrv-export-target-artifact-bundle
 # ADD-DAG: "source_front_door_boundary": {
@@ -56,12 +64,42 @@
 # ADD-DAG: "value": "provider_supported_mirror:rvv-plain-elementwise-arithmetic-plan-validated"
 # ADD-DAG: "selected_dispatch_bundle_boundary": {
 # ADD-DAG: "artifact_metadata_role": "mirror-only-after-provider-route-and-selected-dispatch-validation"
-# ADD-DAG: "selected_dispatch_case_mirror": "selected_dispatch_case_mirror:@rvv_vector_add;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=rvv-vector-add-source-front-door-case"
+# ADD-DAG: "selected_dispatch_case_mirror": "selected_dispatch_case_mirror:@rvv_vector_add;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=rvv-vector-binary-source-front-door-case"
 # ADD-DAG: "selected_dispatch_fallback_mirror": "selected_dispatch_fallback_mirror:@rvv_vector_add_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin"
 # ADD-DAG: "runtime_abi_order": "lhs,rhs,out,n"
 # ADD-DAG: "pass_marker": "tcrv_rvv_generated_bundle_abi_add_ok"
 # ADD-DAG: "ssh_evidence": false
 # ADD-DAG: "status": "dry_run_success"
+
+# SUB-DAG: "input_mode": "vector-source-front-door"
+# SUB-DAG: "path": "{{.*}}test/Support/RVV/rvv-vector-binary-source-front-door-sub.mlir.inc"
+# SUB-DAG: "front_door": "bounded-vector-binary-source-front-door"
+# SUB-DAG: "materializer": "tcrv-rvv-materialize-vector-binary-source-front-door"
+# SUB-DAG: "expected_function": "tcrv_emitc_rvv_vector_sub_from_vector_source_rvv_vector_sub"
+# SUB-DAG: "expected_runtime_abi_name": "rvv-generic-binary-sub-callable-c-abi.v1"
+# SUB-DAG: "expected_selected_variant": "rvv_vector_sub"
+# SUB-DAG: "key": "rvv_selected_body_operation"
+# SUB-DAG: "value": "sub"
+# SUB-DAG: "selected_dispatch_case_mirror": "selected_dispatch_case_mirror:@rvv_vector_sub;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=rvv-vector-binary-source-front-door-case"
+# SUB-DAG: "selected_dispatch_fallback_mirror": "selected_dispatch_fallback_mirror:@rvv_vector_sub_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin"
+# SUB-DAG: "pass_marker": "tcrv_rvv_generated_bundle_abi_sub_ok"
+# SUB-DAG: "ssh_evidence": false
+# SUB-DAG: "status": "dry_run_success"
+
+# MUL-DAG: "input_mode": "vector-source-front-door"
+# MUL-DAG: "path": "{{.*}}test/Support/RVV/rvv-vector-binary-source-front-door-mul.mlir.inc"
+# MUL-DAG: "front_door": "bounded-vector-binary-source-front-door"
+# MUL-DAG: "materializer": "tcrv-rvv-materialize-vector-binary-source-front-door"
+# MUL-DAG: "expected_function": "tcrv_emitc_rvv_vector_mul_from_vector_source_rvv_vector_mul"
+# MUL-DAG: "expected_runtime_abi_name": "rvv-generic-binary-mul-callable-c-abi.v1"
+# MUL-DAG: "expected_selected_variant": "rvv_vector_mul"
+# MUL-DAG: "key": "rvv_selected_body_operation"
+# MUL-DAG: "value": "mul"
+# MUL-DAG: "selected_dispatch_case_mirror": "selected_dispatch_case_mirror:@rvv_vector_mul;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=rvv-vector-binary-source-front-door-case"
+# MUL-DAG: "selected_dispatch_fallback_mirror": "selected_dispatch_fallback_mirror:@rvv_vector_mul_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin"
+# MUL-DAG: "pass_marker": "tcrv_rvv_generated_bundle_abi_mul_ok"
+# MUL-DAG: "ssh_evidence": false
+# MUL-DAG: "status": "dry_run_success"
 
 # HARNESS: #include "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h"
 # HARNESS: size_t out_alloc_n = alloc_n + 8;
@@ -75,14 +113,40 @@
 # HARNESS: tcrv_rvv_generated_bundle_abi_add_ok counts=0,1,17,257 source_preserved tail_preserved
 # HARNESS: PASS op=add counts=0,1,17,257 source_preserved tail_preserved
 
+# HARNESS-SUB: tcrv_emitc_rvv_vector_sub_from_vector_source_rvv_vector_sub(lhs, rhs, out, n);
+# HARNESS-SUB: expected = lhs[index] - rhs[index]
+# HARNESS-SUB: tcrv_rvv_generated_bundle_abi_sub_ok counts=0,1,17,257 source_preserved tail_preserved
+# HARNESS-SUB: PASS op=sub counts=0,1,17,257 source_preserved tail_preserved
+
+# HARNESS-MUL: tcrv_emitc_rvv_vector_mul_from_vector_source_rvv_vector_mul(lhs, rhs, out, n);
+# HARNESS-MUL: expected = lhs[index] * rhs[index]
+# HARNESS-MUL: tcrv_rvv_generated_bundle_abi_mul_ok counts=0,1,17,257 source_preserved tail_preserved
+# HARNESS-MUL: PASS op=mul counts=0,1,17,257 source_preserved tail_preserved
+
 # BUNDLE-DAG: selected_variant: @rvv_vector_add
 # BUNDLE-DAG: role: "dispatch case"
 # BUNDLE-DAG: external_abi_name: "rvv-generic-binary-add-callable-c-abi.v1"
 # BUNDLE-DAG: key: "rvv_selected_body_operation"
 # BUNDLE-DAG: value: "add"
 # BUNDLE-DAG: key: "tcrv_rvv.selected_dispatch_case_mirror"
-# BUNDLE-DAG: value: "selected_dispatch_case_mirror:@rvv_vector_add;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=rvv-vector-add-source-front-door-case"
+# BUNDLE-DAG: value: "selected_dispatch_case_mirror:@rvv_vector_add;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=rvv-vector-binary-source-front-door-case"
 # BUNDLE-DAG: key: "tcrv_rvv.selected_dispatch_fallback_mirror"
 # BUNDLE-DAG: value: "selected_dispatch_fallback_mirror:@rvv_vector_add_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin"
 # BUNDLE-DAG: key: "tcrv_rvv.route_operand_binding_operands"
 # BUNDLE-DAG: value: "rvv-route-operand-binding:add.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header"
+
+# BUNDLE-SUB-DAG: selected_variant: @rvv_vector_sub
+# BUNDLE-SUB-DAG: external_abi_name: "rvv-generic-binary-sub-callable-c-abi.v1"
+# BUNDLE-SUB-DAG: key: "rvv_selected_body_operation"
+# BUNDLE-SUB-DAG: value: "sub"
+# BUNDLE-SUB-DAG: value: "selected_dispatch_case_mirror:@rvv_vector_sub;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=rvv-vector-binary-source-front-door-case"
+# BUNDLE-SUB-DAG: value: "selected_dispatch_fallback_mirror:@rvv_vector_sub_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin"
+# BUNDLE-SUB-DAG: value: "rvv-route-operand-binding:sub.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header"
+
+# BUNDLE-MUL-DAG: selected_variant: @rvv_vector_mul
+# BUNDLE-MUL-DAG: external_abi_name: "rvv-generic-binary-mul-callable-c-abi.v1"
+# BUNDLE-MUL-DAG: key: "rvv_selected_body_operation"
+# BUNDLE-MUL-DAG: value: "mul"
+# BUNDLE-MUL-DAG: value: "selected_dispatch_case_mirror:@rvv_vector_mul;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=rvv-vector-binary-source-front-door-case"
+# BUNDLE-MUL-DAG: value: "selected_dispatch_fallback_mirror:@rvv_vector_mul_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin"
+# BUNDLE-MUL-DAG: value: "rvv-route-operand-binding:mul.v1;lhs=lhs-input-buffer:lhs:abi|load-base|binary-lhs-call;rhs=rhs-input-buffer:rhs:abi|load-base|binary-rhs-call;out=output-buffer:out:abi|store-base|header;n=runtime-element-count:n:abi|setvl-avl|loop-control|header"

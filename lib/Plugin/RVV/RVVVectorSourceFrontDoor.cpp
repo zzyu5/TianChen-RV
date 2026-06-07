@@ -31,16 +31,11 @@ constexpr llvm::StringLiteral kLoweringSeedAttrSuffix(".lowering_seed");
 constexpr llvm::StringLiteral kSourceFrontDoorAttrName(
     "tcrv_rvv.source_front_door");
 constexpr llvm::StringLiteral kSourceKernelAttrName("tcrv_rvv.source_kernel");
-constexpr llvm::StringLiteral kAcceptedVectorAddSourceFrontDoorValue(
+constexpr llvm::StringLiteral kAcceptedVectorBinarySourceFrontDoorValue(
     "bounded_vector_source");
-constexpr llvm::StringLiteral kDefaultVectorAddKernelName(
-    "rvv_vector_add_from_vector_source");
 constexpr llvm::StringLiteral kRVVCapabilitySymbol("rvv");
 constexpr llvm::StringLiteral kScalarFallbackCapabilitySymbol(
     "scalar_fallback");
-constexpr llvm::StringLiteral kRVVVectorAddVariantSymbol("rvv_vector_add");
-constexpr llvm::StringLiteral kRVVVectorAddScalarFallbackVariantSymbol(
-    "rvv_vector_add_scalar_fallback");
 constexpr llvm::StringLiteral kOriginAttrName("origin");
 constexpr llvm::StringLiteral kRequiresAttrName("requires");
 constexpr llvm::StringLiteral kFallbackRoleAttrName("fallback_role");
@@ -68,7 +63,7 @@ mlir::LogicalResult failLegacyMaterializer(mlir::Operation *op,
 
 mlir::LogicalResult failVectorMaterializer(mlir::Operation *op,
                                            llvm::Twine message) {
-  op->emitError() << "bounded RVV vector-add source front door failed: "
+  op->emitError() << "bounded RVV vector-binary source front door failed: "
                   << message;
   return mlir::failure();
 }
@@ -153,13 +148,33 @@ mlir::LogicalResult requireVectorSourceOnlyModule(mlir::ModuleOp module) {
       "variant residue is not accepted");
 }
 
-mlir::FailureOr<std::string> getVectorAddSourceKernelName(
-    mlir::ModuleOp module) {
+std::string getDefaultVectorBinaryKernelName(llvm::StringRef binaryKind) {
+  return (llvm::Twine("rvv_vector_") + binaryKind + "_from_vector_source")
+      .str();
+}
+
+std::string getVectorBinaryVariantSymbol(llvm::StringRef binaryKind) {
+  return (llvm::Twine("rvv_vector_") + binaryKind).str();
+}
+
+std::string getVectorBinaryScalarFallbackVariantSymbol(
+    llvm::StringRef binaryKind) {
+  return (llvm::Twine("rvv_vector_") + binaryKind + "_scalar_fallback").str();
+}
+
+mlir::FailureOr<std::string>
+getVectorBinarySourceKernelName(mlir::ModuleOp module,
+                                llvm::StringRef binaryKind) {
   auto kernelNameAttr =
       module->getAttrOfType<mlir::StringAttr>(kSourceKernelAttrName);
-  llvm::StringRef kernelName =
-      kernelNameAttr ? kernelNameAttr.getValue().trim()
-                     : llvm::StringRef(kDefaultVectorAddKernelName);
+  std::string defaultKernelName;
+  llvm::StringRef kernelName;
+  if (kernelNameAttr) {
+    kernelName = kernelNameAttr.getValue().trim();
+  } else {
+    defaultKernelName = getDefaultVectorBinaryKernelName(binaryKind);
+    kernelName = defaultKernelName;
+  }
   if (kernelName.empty()) {
     (void)failVectorMaterializer(module, "source kernel name must be non-empty");
     return mlir::failure();
@@ -195,17 +210,33 @@ bool hasOneIndex(mlir::Operation::operand_range indices) {
          (*indices.begin()).getType().isIndex();
 }
 
-struct VectorAddSourceMatch {
+llvm::StringRef getSupportedVectorBinaryKind(mlir::Operation *op) {
+  if (llvm::isa<mlir::arith::AddIOp>(op))
+    return "add";
+  if (llvm::isa<mlir::arith::SubIOp>(op))
+    return "sub";
+  if (llvm::isa<mlir::arith::MulIOp>(op))
+    return "mul";
+  return {};
+}
+
+bool hasVectorResult(mlir::Operation *op) {
+  return op->getNumResults() == 1 &&
+         llvm::isa<mlir::VectorType>(op->getResult(0).getType());
+}
+
+struct VectorBinarySourceMatch {
   mlir::func::FuncOp func;
   mlir::Value lhsSource;
   mlir::Value rhsSource;
   mlir::Value outDestination;
   mlir::Value runtimeN;
   mlir::VectorType sourceVectorType;
+  std::string binaryKind;
 };
 
-mlir::FailureOr<VectorAddSourceMatch>
-matchBoundedVectorAddSourceFunc(mlir::func::FuncOp func) {
+mlir::FailureOr<VectorBinarySourceMatch>
+matchBoundedVectorBinarySourceFunc(mlir::func::FuncOp func) {
   if (func.isDeclaration()) {
     (void)failVectorMaterializer(
         func, "source function must have a body for structural pattern match");
@@ -232,8 +263,9 @@ matchBoundedVectorAddSourceFunc(mlir::func::FuncOp func) {
 
   llvm::SmallVector<mlir::vector::TransferReadOp, 2> reads;
   llvm::SmallVector<mlir::vector::TransferWriteOp, 1> writes;
-  llvm::SmallVector<mlir::arith::AddIOp, 1> adds;
+  llvm::SmallVector<mlir::Operation *, 1> binaryOps;
   mlir::Operation *unsupportedVectorOp = nullptr;
+  mlir::Operation *unsupportedArithVectorOp = nullptr;
   func.walk([&](mlir::Operation *op) {
     if (auto read = llvm::dyn_cast<mlir::vector::TransferReadOp>(op)) {
       reads.push_back(read);
@@ -246,33 +278,46 @@ matchBoundedVectorAddSourceFunc(mlir::func::FuncOp func) {
     if (op->getName().getDialectNamespace() == "vector" &&
         !unsupportedVectorOp)
       unsupportedVectorOp = op;
-    if (auto add = llvm::dyn_cast<mlir::arith::AddIOp>(op))
-      adds.push_back(add);
+    if (op->getName().getDialectNamespace() == "arith" &&
+        hasVectorResult(op)) {
+      if (!getSupportedVectorBinaryKind(op).empty())
+        binaryOps.push_back(op);
+      else if (!unsupportedArithVectorOp)
+        unsupportedArithVectorOp = op;
+    }
   });
   if (unsupportedVectorOp) {
     (void)failVectorMaterializer(
         unsupportedVectorOp,
         "only vector.transfer_read and vector.transfer_write are supported "
-        "by this bounded vector-add source pattern");
+        "by this bounded vector-binary source pattern");
     return mlir::failure();
   }
-  if (reads.size() != 2 || writes.size() != 1 || adds.size() != 1) {
+  if (unsupportedArithVectorOp) {
+    (void)failVectorMaterializer(
+        unsupportedArithVectorOp,
+        "only arith.addi, arith.subi, and arith.muli vector binary ops are "
+        "supported by this bounded source path");
+    return mlir::failure();
+  }
+  if (reads.size() != 2 || writes.size() != 1 || binaryOps.size() != 1) {
     (void)failVectorMaterializer(
         func,
         "source pattern must contain exactly two vector.transfer_read ops, "
-        "one arith.addi, and one vector.transfer_write");
+        "one supported arith vector binary op, and one vector.transfer_write");
     return mlir::failure();
   }
 
-  mlir::arith::AddIOp add = adds.front();
-  auto lhsRead =
-      add.getLhs().getDefiningOp<mlir::vector::TransferReadOp>();
-  auto rhsRead =
-      add.getRhs().getDefiningOp<mlir::vector::TransferReadOp>();
+  mlir::Operation *binaryOp = binaryOps.front();
+  llvm::StringRef binaryKind = getSupportedVectorBinaryKind(binaryOp);
+  auto lhsRead = binaryOp->getOperand(0)
+                     .getDefiningOp<mlir::vector::TransferReadOp>();
+  auto rhsRead = binaryOp->getOperand(1)
+                     .getDefiningOp<mlir::vector::TransferReadOp>();
   if (!lhsRead || !rhsRead || lhsRead == rhsRead) {
     (void)failVectorMaterializer(
-        add,
-        "arith.addi operands must be produced by the two source "
+        binaryOp,
+        "arith vector binary operands must be produced by the two source "
         "vector.transfer_read ops");
     return mlir::failure();
   }
@@ -290,21 +335,21 @@ matchBoundedVectorAddSourceFunc(mlir::func::FuncOp func) {
   }
 
   mlir::vector::TransferWriteOp write = writes.front();
-  if (write.getVector() != add.getResult()) {
+  if (write.getVector() != binaryOp->getResult(0)) {
     (void)failVectorMaterializer(
         write,
-        "vector.transfer_write must store the arith.addi vector result");
+        "vector.transfer_write must store the arith vector binary result");
     return mlir::failure();
   }
 
   mlir::VectorType vectorType =
-      llvm::dyn_cast<mlir::VectorType>(add.getResult().getType());
+      llvm::dyn_cast<mlir::VectorType>(binaryOp->getResult(0).getType());
   if (!isRank1I32Vector(vectorType) ||
       lhsRead.getVector().getType() != vectorType ||
       rhsRead.getVector().getType() != vectorType ||
       write.getVector().getType() != vectorType) {
     (void)failVectorMaterializer(
-        add,
+        binaryOp,
         "source vector operands and result must share one rank-1 i32 vector "
         "type");
     return mlir::failure();
@@ -330,20 +375,24 @@ matchBoundedVectorAddSourceFunc(mlir::func::FuncOp func) {
     return mlir::failure();
   }
 
-  return VectorAddSourceMatch{func, entry.getArgument(0), entry.getArgument(1),
-                              entry.getArgument(2), entry.getArgument(3),
-                              vectorType};
+  return VectorBinarySourceMatch{func,
+                                 entry.getArgument(0),
+                                 entry.getArgument(1),
+                                 entry.getArgument(2),
+                                 entry.getArgument(3),
+                                 vectorType,
+                                 binaryKind.str()};
 }
 
-mlir::FailureOr<VectorAddSourceMatch>
-matchVectorAddSourceFrontDoor(mlir::ModuleOp module,
-                              std::string &kernelName) {
+mlir::FailureOr<VectorBinarySourceMatch>
+matchVectorBinarySourceFrontDoor(mlir::ModuleOp module,
+                                 std::string &kernelName) {
   auto marker =
       module->getAttrOfType<mlir::StringAttr>(kSourceFrontDoorAttrName);
   if (!marker)
-    return VectorAddSourceMatch{};
+    return VectorBinarySourceMatch{};
 
-  if (marker.getValue().trim() != kAcceptedVectorAddSourceFrontDoorValue) {
+  if (marker.getValue().trim() != kAcceptedVectorBinarySourceFrontDoorValue) {
     (void)failVectorMaterializer(
         module,
         "tcrv_rvv.source_front_door must be 'bounded_vector_source'");
@@ -359,22 +408,27 @@ matchVectorAddSourceFrontDoor(mlir::ModuleOp module,
   if (mlir::failed(requireVectorSourceOnlyModule(module)))
     return mlir::failure();
 
-  mlir::FailureOr<std::string> name = getVectorAddSourceKernelName(module);
-  if (mlir::failed(name))
-    return mlir::failure();
-  kernelName = *name;
-
   llvm::SmallVector<mlir::func::FuncOp, 2> funcs;
   module.walk([&](mlir::func::FuncOp func) { funcs.push_back(func); });
   if (funcs.size() != 1) {
     (void)failVectorMaterializer(
         module,
-        "source module must contain exactly one RVV vector-add source "
+        "source module must contain exactly one RVV vector-binary source "
         "function candidate");
     return mlir::failure();
   }
 
-  return matchBoundedVectorAddSourceFunc(funcs.front());
+  mlir::FailureOr<VectorBinarySourceMatch> match =
+      matchBoundedVectorBinarySourceFunc(funcs.front());
+  if (mlir::failed(match))
+    return mlir::failure();
+
+  mlir::FailureOr<std::string> name =
+      getVectorBinarySourceKernelName(module, match->binaryKind);
+  if (mlir::failed(name))
+    return mlir::failure();
+  kernelName = *name;
+  return match;
 }
 
 mlir::FlatSymbolRefAttr symbolRef(mlir::OpBuilder &builder,
@@ -437,6 +491,7 @@ tcrv::rvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
                                  mlir::Value vl,
                                  tcrv::rvv::PolicyAttr policy,
                                  llvm::StringRef kernelName,
+                                 llvm::StringRef selectedVariantSymbol,
                                  mlir::ArrayAttr requires) {
   mlir::OperationState state(loc, tcrv::rvv::WithVLOp::getOperationName());
   state.addOperands(vl);
@@ -446,7 +501,7 @@ tcrv::rvv::WithVLOp createWithVL(mlir::OpBuilder &builder, mlir::Location loc,
   state.addAttribute(kSourceKernelBoundaryAttrName,
                      builder.getStringAttr(kernelName));
   state.addAttribute(kSelectedVariantAttrName,
-                     symbolRef(builder, kRVVVectorAddVariantSymbol));
+                     symbolRef(builder, selectedVariantSymbol));
   state.addAttribute(kOriginAttrName, builder.getStringAttr(getRVVExtensionPluginName()));
   state.addAttribute(kSelectedPathRoleAttrName,
                      builder.getStringAttr(
@@ -474,12 +529,13 @@ mlir::Value createRVVLoad(mlir::OpBuilder &builder, mlir::Location loc,
   return builder.create(state)->getResult(0);
 }
 
-mlir::Value createRVVBinaryAdd(mlir::OpBuilder &builder, mlir::Location loc,
-                               mlir::Value lhs, mlir::Value rhs,
-                               mlir::Value vl, mlir::Type vectorType) {
+mlir::Value createRVVBinary(mlir::OpBuilder &builder, mlir::Location loc,
+                            llvm::StringRef binaryKind, mlir::Value lhs,
+                            mlir::Value rhs, mlir::Value vl,
+                            mlir::Type vectorType) {
   mlir::OperationState state(loc, tcrv::rvv::BinaryOp::getOperationName());
   state.addOperands({lhs, rhs, vl});
-  state.addAttribute("kind", builder.getStringAttr("add"));
+  state.addAttribute("kind", builder.getStringAttr(binaryKind));
   state.addTypes(vectorType);
   return builder.create(state)->getResult(0);
 }
@@ -491,13 +547,12 @@ void createRVVStore(mlir::OpBuilder &builder, mlir::Location loc,
   (void)builder.create(state);
 }
 
-tcrv::exec::VariantOp createRVVVectorAddVariant(mlir::OpBuilder &builder,
-                                                mlir::Location loc,
-                                                mlir::ArrayAttr requires,
-                                                tcrv::rvv::PolicyAttr policy) {
+tcrv::exec::VariantOp createRVVVectorBinaryVariant(
+    mlir::OpBuilder &builder, mlir::Location loc,
+    llvm::StringRef selectedVariantSymbol, mlir::ArrayAttr requires,
+    tcrv::rvv::PolicyAttr policy) {
   mlir::OperationState state(loc, tcrv::exec::VariantOp::getOperationName());
-  state.addAttribute("sym_name",
-                     builder.getStringAttr(kRVVVectorAddVariantSymbol));
+  state.addAttribute("sym_name", builder.getStringAttr(selectedVariantSymbol));
   state.addAttribute(kOriginAttrName, builder.getStringAttr(getRVVExtensionPluginName()));
   state.addAttribute(kRequiresAttrName, requires);
   state.addAttribute("tcrv_rvv.policy", policy);
@@ -508,10 +563,10 @@ tcrv::exec::VariantOp createRVVVectorAddVariant(mlir::OpBuilder &builder,
 }
 
 void createScalarFallbackVariant(mlir::OpBuilder &builder, mlir::Location loc,
+                                 llvm::StringRef fallbackVariantSymbol,
                                  mlir::ArrayAttr requires) {
   mlir::OperationState state(loc, tcrv::exec::VariantOp::getOperationName());
-  state.addAttribute(
-      "sym_name", builder.getStringAttr(kRVVVectorAddScalarFallbackVariantSymbol));
+  state.addAttribute("sym_name", builder.getStringAttr(fallbackVariantSymbol));
   state.addAttribute(kOriginAttrName, builder.getStringAttr("scalar-plugin"));
   state.addAttribute(kRequiresAttrName, requires);
   state.addAttribute(kFallbackRoleAttrName,
@@ -521,7 +576,9 @@ void createScalarFallbackVariant(mlir::OpBuilder &builder, mlir::Location loc,
   variant.getBody().emplaceBlock();
 }
 
-void createDispatch(mlir::OpBuilder &builder, mlir::Location loc) {
+void createDispatch(mlir::OpBuilder &builder, mlir::Location loc,
+                    llvm::StringRef selectedVariantSymbol,
+                    llvm::StringRef fallbackVariantSymbol) {
   mlir::OperationState dispatchState(loc,
                                      tcrv::exec::DispatchOp::getOperationName());
   dispatchState.addRegion();
@@ -534,28 +591,31 @@ void createDispatch(mlir::OpBuilder &builder, mlir::Location loc) {
 
   mlir::OperationState caseState(loc,
                                  tcrv::exec::DispatchCaseOp::getOperationName());
-  caseState.addAttribute("target", symbolRef(builder, kRVVVectorAddVariantSymbol));
+  caseState.addAttribute("target", symbolRef(builder, selectedVariantSymbol));
   caseState.addAttribute(kOriginAttrName, builder.getStringAttr(getRVVExtensionPluginName()));
   caseState.addAttribute("policy",
-                         builder.getStringAttr("rvv-vector-add-source-front-door-case"));
+                         builder.getStringAttr("rvv-vector-binary-source-front-door-case"));
   (void)builder.create(caseState);
 
   mlir::OperationState fallbackState(loc,
                                      tcrv::exec::FallbackOp::getOperationName());
   fallbackState.addAttribute("target",
-                             symbolRef(builder,
-                                       kRVVVectorAddScalarFallbackVariantSymbol));
+                             symbolRef(builder, fallbackVariantSymbol));
   fallbackState.addAttribute(kOriginAttrName, builder.getStringAttr("scalar-plugin"));
   fallbackState.addAttribute(kFallbackRoleAttrName,
                              builder.getStringAttr(kConservativeFallbackRoleValue));
   (void)builder.create(fallbackState);
 }
 
-void materializeRVVVectorAddSourceKernel(mlir::OpBuilder &builder,
-                                         llvm::StringRef kernelName,
-                                         VectorAddSourceMatch source) {
+void materializeRVVVectorBinarySourceKernel(mlir::OpBuilder &builder,
+                                            llvm::StringRef kernelName,
+                                            VectorBinarySourceMatch source) {
   mlir::Location loc = source.func.getLoc();
   tcrv::rvv::PolicyAttr policy = createAgnosticPolicy(builder);
+  std::string selectedVariantSymbol =
+      getVectorBinaryVariantSymbol(source.binaryKind);
+  std::string fallbackVariantSymbol =
+      getVectorBinaryScalarFallbackVariantSymbol(source.binaryKind);
 
   mlir::OperationState kernelState(loc,
                                    tcrv::exec::KernelOp::getOperationName());
@@ -574,8 +634,8 @@ void materializeRVVVectorAddSourceKernel(mlir::OpBuilder &builder,
   mlir::ArrayAttr scalarRequires =
       createRequires(builder, kScalarFallbackCapabilitySymbol);
 
-  tcrv::exec::VariantOp rvvVariant =
-      createRVVVectorAddVariant(builder, loc, rvvRequires, policy);
+  tcrv::exec::VariantOp rvvVariant = createRVVVectorBinaryVariant(
+      builder, loc, selectedVariantSymbol, rvvRequires, policy);
   mlir::OpBuilder::InsertionGuard variantGuard(builder);
   builder.setInsertionPointToStart(&rvvVariant.getBody().front());
 
@@ -583,23 +643,23 @@ void materializeRVVVectorAddSourceKernel(mlir::OpBuilder &builder,
       tcrv::rvv::RuntimeABIValueType::get(builder.getContext());
   auto lhs = createRuntimeABIValue(
       builder, loc, "lhs-input-buffer", "lhs", "const int32_t *",
-      "rvv-vector-add-source-front-door:lhs", runtimeABIType);
+      "rvv-vector-binary-source-front-door:lhs", runtimeABIType);
   auto rhs = createRuntimeABIValue(
       builder, loc, "rhs-input-buffer", "rhs", "const int32_t *",
-      "rvv-vector-add-source-front-door:rhs", runtimeABIType);
+      "rvv-vector-binary-source-front-door:rhs", runtimeABIType);
   auto out = createRuntimeABIValue(builder, loc, "output-buffer", "out",
                                    "int32_t *",
-                                   "rvv-vector-add-source-front-door:out",
+                                   "rvv-vector-binary-source-front-door:out",
                                    runtimeABIType);
   auto n = createRuntimeABIValue(builder, loc, "runtime-element-count", "n",
                                  "size_t",
-                                 "rvv-vector-add-source-front-door:n",
+                                 "rvv-vector-binary-source-front-door:n",
                                  builder.getIndexType());
 
   tcrv::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
   tcrv::rvv::WithVLOp withVL =
       createWithVL(builder, loc, setvl.getVl(), policy, kernelName,
-                   rvvRequires);
+                   selectedVariantSymbol, rvvRequires);
 
   mlir::OpBuilder::InsertionGuard withVLGuard(builder);
   builder.setInsertionPointToStart(&withVL.getBody().front());
@@ -610,13 +670,15 @@ void materializeRVVVectorAddSourceKernel(mlir::OpBuilder &builder,
       createRVVLoad(builder, loc, lhs.getResult(), setvl.getVl(), vectorType);
   mlir::Value loadedRHS =
       createRVVLoad(builder, loc, rhs.getResult(), setvl.getVl(), vectorType);
-  mlir::Value sum = createRVVBinaryAdd(builder, loc, loadedLHS, loadedRHS,
-                                       setvl.getVl(), vectorType);
-  createRVVStore(builder, loc, out.getResult(), sum, setvl.getVl());
+  mlir::Value result =
+      createRVVBinary(builder, loc, source.binaryKind, loadedLHS, loadedRHS,
+                      setvl.getVl(), vectorType);
+  createRVVStore(builder, loc, out.getResult(), result, setvl.getVl());
 
   builder.setInsertionPointAfter(rvvVariant);
-  createScalarFallbackVariant(builder, loc, scalarRequires);
-  createDispatch(builder, loc);
+  createScalarFallbackVariant(builder, loc, fallbackVariantSymbol,
+                              scalarRequires);
+  createDispatch(builder, loc, selectedVariantSymbol, fallbackVariantSymbol);
 }
 
 class FailClosedRVVLegacyVectorSourceFrontDoorPass final
@@ -673,17 +735,17 @@ public:
   }
 };
 
-class MaterializeRVVVectorAddSourceFrontDoorPass final
-    : public mlir::PassWrapper<MaterializeRVVVectorAddSourceFrontDoorPass,
+class MaterializeRVVVectorBinarySourceFrontDoorPass final
+    : public mlir::PassWrapper<MaterializeRVVVectorBinarySourceFrontDoorPass,
                                mlir::OperationPass<mlir::ModuleOp>> {
 public:
   llvm::StringRef getArgument() const final {
-    return "tcrv-rvv-materialize-vector-add-source-front-door";
+    return "tcrv-rvv-materialize-vector-binary-source-front-door";
   }
 
   llvm::StringRef getDescription() const final {
-    return "Materialize one bounded MLIR Vector-like i32 add source pattern "
-           "into a selected generic typed RVV body";
+    return "Materialize one bounded MLIR Vector-like i32 binary source "
+           "pattern into a selected generic typed RVV body";
   }
 
   void getDependentDialects(mlir::DialectRegistry &registry) const final {
@@ -696,8 +758,8 @@ public:
   void runOnOperation() final {
     mlir::ModuleOp module = getOperation();
     std::string kernelName;
-    mlir::FailureOr<VectorAddSourceMatch> source =
-        matchVectorAddSourceFrontDoor(module, kernelName);
+    mlir::FailureOr<VectorBinarySourceMatch> source =
+        matchVectorBinarySourceFrontDoor(module, kernelName);
     if (mlir::failed(source)) {
       signalPassFailure();
       return;
@@ -707,7 +769,7 @@ public:
 
     mlir::OpBuilder builder(module.getContext());
     builder.setInsertionPointToStart(module.getBody());
-    materializeRVVVectorAddSourceKernel(builder, kernelName, *source);
+    materializeRVVVectorBinarySourceKernel(builder, kernelName, *source);
     module->removeAttr(kSourceFrontDoorAttrName);
     module->removeAttr(kSourceKernelAttrName);
   }
@@ -721,8 +783,8 @@ createFailClosedRVVLegacyVectorSourceFrontDoorPass() {
 }
 
 std::unique_ptr<::mlir::Pass>
-createMaterializeRVVVectorAddSourceFrontDoorPass() {
-  return std::make_unique<MaterializeRVVVectorAddSourceFrontDoorPass>();
+createMaterializeRVVVectorBinarySourceFrontDoorPass() {
+  return std::make_unique<MaterializeRVVVectorBinarySourceFrontDoorPass>();
 }
 
 } // namespace tianchenrv::plugin::rvv

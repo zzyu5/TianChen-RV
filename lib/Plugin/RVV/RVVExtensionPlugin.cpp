@@ -292,10 +292,10 @@ llvm::Error RVVExtensionPlugin::registerSourceFrontDoorPasses(
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
           ExplicitOnly));
   out.push_back(SourceFrontDoorPassRegistration(
-      kRVVPluginName, "tcrv-rvv-materialize-vector-add-source-front-door",
-      "Materialize one bounded MLIR Vector-like i32 add source pattern into "
-      "a selected generic typed RVV body",
-      [] { return createMaterializeRVVVectorAddSourceFrontDoorPass(); },
+      kRVVPluginName, "tcrv-rvv-materialize-vector-binary-source-front-door",
+      "Materialize one bounded MLIR Vector-like i32 binary source pattern "
+      "into a selected generic typed RVV body",
+      [] { return createMaterializeRVVVectorBinarySourceFrontDoorPass(); },
       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
           Eligible));
   return llvm::Error::success();

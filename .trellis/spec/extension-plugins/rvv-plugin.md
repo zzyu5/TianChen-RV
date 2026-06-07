@@ -1301,6 +1301,140 @@ No Stage1 spec or test may require positive RVV artifact generation from
 source-front-door/source-artifact metadata. Positive RVV generated artifacts
 must come from corrected typed `tcrv_rvv` bodies and plugin-built routes.
 
+### Bounded Vector Binary Source Front Door
+
+This is the current explicit opt-in RVV source-front-door exception. It exists
+only because the materializer immediately converts a bounded Vector-like source
+pattern into a selected `tcrv.exec` RVV variant containing a typed generic
+`tcrv_rvv` body, then hands that body to the existing RVV provider route path.
+It is not a default frontend and not a source-marker route.
+
+#### 1. Scope / Trigger
+
+Use this contract only for the RVV plugin-owned bounded Vector binary
+source-front-door materializer. The supported source shape is one source-only
+module with:
+
+```text
+tcrv_rvv.source_front_door = "bounded_vector_source"
+func(lhs: memref<?xi32>, rhs: memref<?xi32>, out: memref<?xi32>, n: index)
+two unmasked unit-stride vector.transfer_read ops from lhs/rhs
+one vector arith.addi, arith.subi, or arith.muli
+one unmasked unit-stride vector.transfer_write to out
+```
+
+The materializer may derive only the binary operation kind from source IR. All
+route support, ABI/header facts, C type mapping, and intrinsic selection must
+come later from the typed `tcrv_rvv` body and RVV provider.
+
+#### 2. Signatures
+
+The public pass signature is:
+
+```text
+tcrv-rvv-materialize-vector-binary-source-front-door
+```
+
+The pass factory is:
+
+```c++
+createMaterializeRVVVectorBinarySourceFrontDoorPass()
+```
+
+The positive selected-body skeleton is:
+
+```text
+tcrv.exec.variant @rvv_vector_{add,sub,mul}
+  %lhs = tcrv_rvv.runtime_abi_value role = "lhs-input-buffer"
+  %rhs = tcrv_rvv.runtime_abi_value role = "rhs-input-buffer"
+  %out = tcrv_rvv.runtime_abi_value role = "output-buffer"
+  %n   = tcrv_rvv.runtime_abi_value role = "runtime-element-count"
+  %vl  = tcrv_rvv.setvl %n {sew = 32, lmul = "m1", policy = ...}
+  tcrv_rvv.with_vl %vl {
+    %a = tcrv_rvv.load %lhs, %vl
+    %b = tcrv_rvv.load %rhs, %vl
+    %c = tcrv_rvv.binary {kind = "add"|"sub"|"mul"} %a, %b, %vl
+    tcrv_rvv.store %out, %c, %vl
+  }
+```
+
+#### 3. Contracts
+
+- The source marker is only an explicit opt-in materialization boundary.
+- The source function name is not route authority.
+- The derived kind must come from the single supported source arith op, not
+  from marker text, route ids, artifact names, test names, or ABI strings.
+- The selected variant symbol may mirror the derived kind
+  (`rvv_vector_add`, `rvv_vector_sub`, `rvv_vector_mul`), but the provider must
+  still validate the typed body before route/export support.
+- Dispatch policy may mirror the boundary as
+  `rvv-vector-binary-source-front-door-case`; it must not be consumed as route
+  support.
+- Common EmitC/export must remain neutral and consume only provider-built route
+  payloads.
+
+#### 4. Validation & Error Matrix
+
+- Missing or stale marker -> no materialization or fail closed.
+- Non-source-only module with existing `tcrv.exec`, `tcrv_rvv`,
+  `tcrv_toy`, or `tcrv_tensorext_lite` residue -> fail before body creation.
+- Wrong ABI signature, dtype, rank, missing runtime `n`, masked transfers, or
+  non-unit-stride transfers -> fail before body creation.
+- Unsupported vector arith op such as `arith.andi` -> fail before body
+  creation.
+- Multiple candidate funcs, reads, writes, or binary ops -> fail before body
+  creation.
+- Any provider route failure after materialization -> fail in the existing RVV
+  provider/EmitC/target validation path, not by source marker fallback.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: `arith.subi` source pattern -> selected `rvv_vector_sub` variant ->
+  typed `tcrv_rvv.binary {kind = "sub"}` -> RVV provider route -> bundle ->
+  optional `ssh rvv` correctness evidence.
+- Base: `arith.addi` remains an ordinary instance of the generic binary
+  materializer, not an add-only source-front-door owner.
+- Bad: source marker -> route id -> target artifact without typed
+  `tcrv_rvv.binary` body/provider validation.
+- Bad: adding compare/select/reduction/MAcc/source-shape cases to this
+  materializer instead of a separate typed-body/realization owner.
+
+#### 6. Tests Required
+
+- Positive `tcrv-opt` FileCheck must cover add/sub/mul materialization with
+  derived `kind`, runtime ABI values, `setvl`, `load`, `binary`, and `store`.
+- Emission-plan/header/bundle checks must prove the existing RVV provider
+  consumes the typed body facts.
+- Negative tests must cover stale selected-boundary residue and unsupported
+  source arithmetic.
+- Generated-bundle evidence may use the source marker only to invoke the
+  materializer; evidence JSON must label marker/artifact metadata as mirror
+  or opt-in boundary only.
+- Runtime correctness claims for non-add source paths require real `ssh rvv`
+  evidence.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+source marker / source op name
+  -> route id
+  -> Common EmitC picks intrinsic
+  -> target artifact accepted
+```
+
+Correct:
+
+```text
+bounded Vector source IR
+  -> RVV plugin materializes selected typed tcrv_rvv binary body
+  -> RVV provider validates body/config/runtime facts
+  -> provider-built TCRVEmitCLowerableRoute
+  -> Common EmitC materializes neutral payload
+  -> target artifact mirrors provider facts
+```
+
 ## Route-Family Owner Boundaries
 
 When several active selected-body routes have been closed as one RVV

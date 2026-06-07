@@ -455,7 +455,7 @@ int runRegistrationAndCapabilityMetadataTest() {
     return result;
   if (int result =
           expect(sourceFrontDoorPasses.size() == 2,
-                 "RVV plugin exposes legacy and bounded vector-add source "
+                 "RVV plugin exposes legacy and bounded vector-binary source "
                  "front-door pass registrations"))
     return result;
   if (int result =
@@ -476,17 +476,17 @@ int runRegistrationAndCapabilityMetadataTest() {
   if (int result =
           expect(sourceFrontDoorPasses[1].getOwnerPlugin() ==
                      tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
-                 "RVV bounded vector-add source front-door pass is owned by "
+                 "RVV bounded vector-binary source front-door pass is owned by "
                  "RVV plugin"))
     return result;
   if (int result = expect(
           sourceFrontDoorPasses[1].getArgument() ==
-              "tcrv-rvv-materialize-vector-add-source-front-door",
-          "RVV source front-door pass exposes the bounded vector-add argument"))
+              "tcrv-rvv-materialize-vector-binary-source-front-door",
+          "RVV source front-door pass exposes the bounded vector-binary argument"))
     return result;
   if (int result = expect(
           sourceFrontDoorPasses[1].isDefaultArtifactFrontDoorEligible(),
-          "RVV bounded vector-add source front-door pass is eligible for the "
+          "RVV bounded vector-binary source front-door pass is eligible for the "
           "default artifact-front-door pipeline"))
     return result;
   if (int result =
@@ -494,7 +494,7 @@ int runRegistrationAndCapabilityMetadataTest() {
                  "RVV legacy source front-door pass factory is present"))
     return result;
   return expect(static_cast<bool>(sourceFrontDoorPasses[1].getFactory()),
-                "RVV bounded vector-add source front-door pass factory is "
+                "RVV bounded vector-binary source front-door pass factory is "
                 "present");
 }
 

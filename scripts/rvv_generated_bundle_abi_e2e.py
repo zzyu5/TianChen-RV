@@ -8,8 +8,8 @@ bundle, builds a small external C ABI consumer, and optionally runs that
 consumer on the real RVV target. ``--pre-realized-selected-body`` starts from
 the bounded pre-realized selected-body fixtures and uses the public selected
 lowering-boundary materialization pass before emission planning. The
-``--vector-source-front-door`` mode starts from the bounded Vector add
-source-front-door MLIR fixture, runs the RVV plugin-owned materializer, and
+``--vector-source-front-door`` mode starts from the bounded Vector binary
+source-front-door MLIR fixtures, runs the RVV plugin-owned materializer, and
 then uses the same selected typed-body route/export path. The
 ``--direct-pre-realized-route-entry`` entry mode is retired and fails closed
 before bundle generation for selected pre-realized op kinds.
@@ -4886,7 +4886,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
 VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS = {
     "add": replace(
         EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["add"],
-        input_path=Path("test/Transforms/RVV/rvv-vector-add-source-front-door.mlir"),
+        input_path=Path(
+            "test/Support/RVV/rvv-vector-binary-source-front-door-add.mlir.inc"
+        ),
         input_mode="vector-source-front-door",
         selected_variant="rvv_vector_add",
         function_name="tcrv_emitc_rvv_vector_add_from_vector_source_rvv_vector_add",
@@ -4897,10 +4899,56 @@ VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS = {
             "selected_dispatch_case_mirror:@rvv_vector_add;"
             "role=dispatch case;runtime_guard_required=false;"
             "runtime_guard=none;origin=rvv-plugin;"
-            "policy=rvv-vector-add-source-front-door-case"
+            "policy=rvv-vector-binary-source-front-door-case"
         ),
         selected_dispatch_fallback_mirror=(
             "selected_dispatch_fallback_mirror:@rvv_vector_add_scalar_fallback;"
+            "role=dispatch fallback;fallback_role=conservative;"
+            "origin=scalar-plugin"
+        ),
+    ),
+    "sub": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["sub"],
+        input_path=Path(
+            "test/Support/RVV/rvv-vector-binary-source-front-door-sub.mlir.inc"
+        ),
+        input_mode="vector-source-front-door",
+        selected_variant="rvv_vector_sub",
+        function_name="tcrv_emitc_rvv_vector_sub_from_vector_source_rvv_vector_sub",
+        lhs_initializer="(int32_t)(900 - (int32_t)(index * 7))",
+        rhs_initializer="(int32_t)(11 + (int32_t)(index * 3))",
+        expected_expression="lhs[index] - rhs[index]",
+        selected_dispatch_case_mirror=(
+            "selected_dispatch_case_mirror:@rvv_vector_sub;"
+            "role=dispatch case;runtime_guard_required=false;"
+            "runtime_guard=none;origin=rvv-plugin;"
+            "policy=rvv-vector-binary-source-front-door-case"
+        ),
+        selected_dispatch_fallback_mirror=(
+            "selected_dispatch_fallback_mirror:@rvv_vector_sub_scalar_fallback;"
+            "role=dispatch fallback;fallback_role=conservative;"
+            "origin=scalar-plugin"
+        ),
+    ),
+    "mul": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["mul"],
+        input_path=Path(
+            "test/Support/RVV/rvv-vector-binary-source-front-door-mul.mlir.inc"
+        ),
+        input_mode="vector-source-front-door",
+        selected_variant="rvv_vector_mul",
+        function_name="tcrv_emitc_rvv_vector_mul_from_vector_source_rvv_vector_mul",
+        lhs_initializer="(int32_t)(3 + (int32_t)(index % 17))",
+        rhs_initializer="(int32_t)(-5 + (int32_t)(index % 11))",
+        expected_expression="lhs[index] * rhs[index]",
+        selected_dispatch_case_mirror=(
+            "selected_dispatch_case_mirror:@rvv_vector_mul;"
+            "role=dispatch case;runtime_guard_required=false;"
+            "runtime_guard=none;origin=rvv-plugin;"
+            "policy=rvv-vector-binary-source-front-door-case"
+        ),
+        selected_dispatch_fallback_mirror=(
+            "selected_dispatch_fallback_mirror:@rvv_vector_mul_scalar_fallback;"
             "role=dispatch fallback;fallback_role=conservative;"
             "origin=scalar-plugin"
         ),
@@ -27516,7 +27564,7 @@ def generate_bundle(
     materialize_command = [tcrv_opt, str(expectation.input_path)]
     if expectation.is_vector_source_front_door:
         materialize_command.append(
-            "--tcrv-rvv-materialize-vector-add-source-front-door"
+            "--tcrv-rvv-materialize-vector-binary-source-front-door"
         )
     if expectation.is_widening_product_reduce_dequantize_f32:
         materialize_command.append("--tcrv-rvv-materialize-gearbox-schedules")
@@ -27600,9 +27648,9 @@ def generate_bundle(
             "construction"
         )
     elif expectation.is_vector_source_front_door:
-        result["front_door"] = "bounded-vector-add-source-front-door"
+        result["front_door"] = "bounded-vector-binary-source-front-door"
         result["materializer"] = (
-            "tcrv-rvv-materialize-vector-add-source-front-door"
+            "tcrv-rvv-materialize-vector-binary-source-front-door"
         )
         result["source_front_door_boundary"] = {
             "marker": "tcrv_rvv.source_front_door=bounded_vector_source",
@@ -32525,7 +32573,7 @@ def run_one_op_e2e(
         if expectation.is_vector_source_front_door:
             evidence["source_front_door_artifact_boundary"] = {
                 "source": (
-                    "bounded Vector add source-front-door MLIR -> RVV "
+                    "bounded Vector binary source-front-door MLIR -> RVV "
                     "plugin-owned materializer -> selected typed tcrv_rvv "
                     "body -> provider route -> target bundle"
                 ),
@@ -36369,9 +36417,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--vector-source-front-door",
         action="store_true",
         help=(
-            "use the bounded Vector add source-front-door fixture, run the "
+            "use the bounded Vector binary source-front-door fixture, run the "
             "RVV plugin-owned materializer, and then prove the generated "
-            "bundle ABI for the selected typed tcrv_rvv add body; mutually "
+            "bundle ABI for the selected typed tcrv_rvv binary body; mutually "
             "exclusive with selected-body modes"
         ),
     )
