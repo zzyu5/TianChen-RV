@@ -28615,7 +28615,7 @@ module {
       %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_composite, sew = 32 : i64, source_kernel = "composite_masked_indexed_gather_macc_scatter_kernel", status = "selected-lowering-boundary"} {
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_composite, sew = 32 : i64, source_kernel = "composite_masked_indexed_gather_macc_scatter_kernel", status = "selected-lowering-boundary", tcrv_rvv.composite_resource.accumulator_layout = "separate-i32-vector-accumulator-input", tcrv_rvv.composite_resource.candidate_set = "rvv-composite-gather-macc-scatter-resource-candidate-set.v1[rt-scmp-indexed-gather-macc-scatter-e32m1-u1]", tcrv_rvv.composite_resource.legality = "legal", tcrv_rvv.composite_resource.legality_scope = "typed-composite-gather-macc-scatter-resource-legality.v1", tcrv_rvv.composite_resource.lmul = "m1", tcrv_rvv.composite_resource.mask_policy = "agnostic", tcrv_rvv.composite_resource.memory_form = "runtime-scalar-computed-mask-indexed-gather-macc-scatter", tcrv_rvv.composite_resource.operation = "runtime_scalar_cmp_masked_indexed_gather_macc_scatter", tcrv_rvv.composite_resource.peak_live_vector_groups = 8 : i64, tcrv_rvv.composite_resource.pipeline_intent = "single-vl-linear-gather-macc-scatter.v1", tcrv_rvv.composite_resource.prefetch_intent = "none", tcrv_rvv.composite_resource.rejection_reason = "none", tcrv_rvv.composite_resource.runtime_abi_order = "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n", tcrv_rvv.composite_resource.runtime_avl_source = "runtime_abi:n", tcrv_rvv.composite_resource.selected_candidate = "rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]", tcrv_rvv.composite_resource.selection_reason = "static-bounded-runtime-scalar-computed-mask-indexed-gather-macc-scatter-e32m1-runtime-avl", tcrv_rvv.composite_resource.sew = 32 : i64, tcrv_rvv.composite_resource.tail_policy = "agnostic", tcrv_rvv.composite_resource.target_capability_legality_mirror = "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic", tcrv_rvv.composite_resource.target_capability_provider_mirror = "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact", tcrv_rvv.composite_resource.unroll_factor = 1 : i64, tcrv_rvv.composite_resource.vector_register_budget = 32 : i64, tcrv_rvv.composite_resource.vl_policy = "runtime-avl-single-setvl", tcrv_rvv.composite_resource.vsetvl_region_count = 1 : i64} {
         %cmp_lhs_vec = tcrv_rvv.load %cmp_lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
         %threshold_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
         %payload_vec = tcrv_rvv.load %payload, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
@@ -28709,6 +28709,26 @@ module {
               explicitDescription.runtimeABIParameters[7].cName == "n",
           "explicit composite masked indexed gather-MAcc-scatter preserves "
           "runtime ABI parameter ordering"))
+    return result;
+  const tianchenrv::plugin::rvv::
+      RVVCompositeGatherMAccScatterResourceSelection
+          &explicitResourceSelection =
+              explicitDescription
+                  .compositeGatherMAccScatterResourceSelection;
+  if (int result = expect(
+          explicitResourceSelection.hasSelection &&
+              explicitResourceSelection.isLegal &&
+              explicitResourceSelection.selectedCandidateID ==
+                  "rvv-composite-gather-macc-scatter-resource-candidate.v1["
+                  "rt-scmp-indexed-gather-macc-scatter,e32m1,u1]" &&
+              explicitResourceSelection.vlPolicy ==
+                  "runtime-avl-single-setvl" &&
+              explicitResourceSelection.peakLiveVectorGroups == 8 &&
+              explicitResourceSelection.vectorRegisterBudget == 32 &&
+              explicitResourceSelection.runtimeABIOrder ==
+                  explicitDescription.runtimeABIOrder,
+          "explicit composite masked indexed gather-MAcc-scatter consumes "
+          "resource-aware Gearbox selection facts from realized with_vl"))
     return result;
 
   std::string staleScatterValueSource = explicitCompositeSource.str();
@@ -28849,6 +28869,21 @@ module {
                   "old-destination-vector-preserves-inactive-lanes",
           "pre-realized composite masked indexed gather-MAcc-scatter "
           "preserves ABI order, leaf facts, and inactive-lane policy"))
+    return result;
+  if (int result = expect(
+          preRealizedDescription
+              .compositeGatherMAccScatterResourceSelection.hasSelection &&
+              preRealizedDescription
+                  .compositeGatherMAccScatterResourceSelection
+                  .selectedCandidateID ==
+                  explicitResourceSelection.selectedCandidateID &&
+              preRealizedDescription
+                  .compositeGatherMAccScatterResourceSelection
+                  .vectorRegisterBudget ==
+                  explicitResourceSelection.vectorRegisterBudget,
+          "pre-realized composite masked indexed gather-MAcc-scatter "
+          "materializes the same resource-aware Gearbox facts as the explicit "
+          "body"))
     return result;
 
   std::string staleIndexSource = preRealizedCompositeSource.str();

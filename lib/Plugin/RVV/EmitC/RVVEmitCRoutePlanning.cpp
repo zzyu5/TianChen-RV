@@ -12024,6 +12024,327 @@ llvm::Error requireRouteDescriptionField(llvm::StringRef context,
       "' but was '" + actual + "'");
 }
 
+llvm::Expected<std::string> requireRVVCompositeResourceStringFact(
+    mlir::Operation *op, llvm::StringRef context, llvm::StringRef attrName) {
+  if (!op)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires realized composite resource facts on a concrete tcrv_rvv "
+        "operation");
+  mlir::StringAttr attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+  if (!attr || attr.getValue().trim().empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires realized composite resource string fact '" + attrName +
+        "' before provider route construction");
+  return attr.getValue().str();
+}
+
+llvm::Expected<std::int64_t> requireRVVCompositeResourceIntegerFact(
+    mlir::Operation *op, llvm::StringRef context, llvm::StringRef attrName) {
+  if (!op)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires realized composite resource facts on a concrete tcrv_rvv "
+        "operation");
+  mlir::IntegerAttr attr = op->getAttrOfType<mlir::IntegerAttr>(attrName);
+  if (!attr)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires realized composite resource integer fact '" + attrName +
+        "' before provider route construction");
+  return attr.getInt();
+}
+
+llvm::Error requireRVVCompositeResourceStringField(
+    llvm::StringRef context, llvm::StringRef field, llvm::StringRef actual,
+    llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) + " composite resource " + field +
+      " must mirror realized/provider-derived fact '" + expected +
+      "' but was '" + actual + "'");
+}
+
+llvm::Error requireRVVCompositeResourceIntegerField(
+    llvm::StringRef context, llvm::StringRef field, std::int64_t actual,
+    std::int64_t expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) + " composite resource " + field +
+      " must mirror realized/provider-derived fact " + llvm::Twine(expected) +
+      " but was " + llvm::Twine(actual));
+}
+
+RVVCompositeGatherMAccScatterResourceSelection
+deriveExpectedRVVCompositeGatherMAccScatterResourceSelection(
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    const RVVSelectedTargetCapabilityFacts &targetFacts) {
+  RVVCompositeGatherMAccScatterResourceSelection selection;
+  selection.hasSelection = true;
+  selection.candidateSetID = kRVVCompositeResourceCandidateSet.str();
+  selection.selectedCandidateID =
+      kRVVCompositeResourceSelectedCandidate.str();
+  selection.selectionReason = kRVVCompositeResourceSelectionReason.str();
+  selection.legalityScope = kRVVCompositeResourceLegalityScope.str();
+  selection.operation = kRVVCompositeResourceOperation.str();
+  selection.memoryForm = kRVVCompositeResourceMemoryForm.str();
+  selection.sew = description.sew;
+  selection.lmul = description.lmul.str();
+  selection.tailPolicy = description.tailPolicy.str();
+  selection.maskPolicy = description.maskPolicy.str();
+  selection.vlPolicy = kRVVGearboxRuntimeAVLSingleSetVLPolicy.str();
+  selection.accumulatorLayout =
+      kRVVCompositeResourceAccumulatorLayout.str();
+  selection.unrollFactor = kRVVCompositeResourceStaticUnroll;
+  selection.pipelineIntent = kRVVCompositeResourcePipelineIntent.str();
+  selection.prefetchIntent = kRVVCompositeResourcePrefetchIntent.str();
+  selection.vsetvlRegionCount = kRVVCompositeResourceVSetVLRegions;
+  selection.peakLiveVectorGroups =
+      kRVVCompositeResourcePeakLiveVectorGroups;
+  selection.vectorRegisterBudget =
+      kRVVCompositeResourceVectorRegisterBudget;
+  selection.runtimeAVLSource = description.runtimeAVLASource.str();
+  selection.runtimeABIOrder = description.runtimeABIOrder.str();
+  selection.targetCapabilityProviderMirror = targetFacts.providerMirror;
+  selection.targetCapabilityLegalityMirror = targetFacts.legalityMirror;
+  selection.isLegal = true;
+  selection.rejectionReason =
+      kRVVCompositeResourceNoRejectionReason.str();
+  return selection;
+}
+
+llvm::Expected<RVVCompositeGatherMAccScatterResourceSelection>
+deriveRVVCompositeGatherMAccScatterResourceSelectionFromRealizedFacts(
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    const RVVSelectedTargetCapabilityFacts &targetFacts, mlir::Operation *op,
+    llvm::StringRef context) {
+  RVVCompositeGatherMAccScatterResourceSelection expected =
+      deriveExpectedRVVCompositeGatherMAccScatterResourceSelection(
+          description, targetFacts);
+  RVVCompositeGatherMAccScatterResourceSelection selection;
+  selection.hasSelection = true;
+
+#define TCRV_READ_COMPOSITE_STRING(Field, AttrName)                           \
+  {                                                                           \
+    llvm::Expected<std::string> value =                                       \
+        requireRVVCompositeResourceStringFact(op, context, AttrName);         \
+    if (!value)                                                               \
+      return value.takeError();                                               \
+    selection.Field = std::move(*value);                                      \
+  }
+#define TCRV_READ_COMPOSITE_INTEGER(Field, AttrName)                          \
+  {                                                                           \
+    llvm::Expected<std::int64_t> value =                                      \
+        requireRVVCompositeResourceIntegerFact(op, context, AttrName);        \
+    if (!value)                                                               \
+      return value.takeError();                                               \
+    selection.Field = *value;                                                 \
+  }
+
+  TCRV_READ_COMPOSITE_STRING(candidateSetID,
+                             kRVVCompositeResourceCandidateSetAttrName);
+  TCRV_READ_COMPOSITE_STRING(selectedCandidateID,
+                             kRVVCompositeResourceSelectedCandidateAttrName);
+  TCRV_READ_COMPOSITE_STRING(selectionReason,
+                             kRVVCompositeResourceSelectionReasonAttrName);
+  TCRV_READ_COMPOSITE_STRING(legalityScope,
+                             kRVVCompositeResourceLegalityScopeAttrName);
+  TCRV_READ_COMPOSITE_STRING(operation,
+                             kRVVCompositeResourceOperationAttrName);
+  TCRV_READ_COMPOSITE_STRING(memoryForm,
+                             kRVVCompositeResourceMemoryFormAttrName);
+  TCRV_READ_COMPOSITE_INTEGER(sew, kRVVCompositeResourceSEWAttrName);
+  TCRV_READ_COMPOSITE_STRING(lmul, kRVVCompositeResourceLMULAttrName);
+  TCRV_READ_COMPOSITE_STRING(tailPolicy,
+                             kRVVCompositeResourceTailPolicyAttrName);
+  TCRV_READ_COMPOSITE_STRING(maskPolicy,
+                             kRVVCompositeResourceMaskPolicyAttrName);
+  TCRV_READ_COMPOSITE_STRING(vlPolicy,
+                             kRVVCompositeResourceVLPolicyAttrName);
+  TCRV_READ_COMPOSITE_STRING(
+      accumulatorLayout, kRVVCompositeResourceAccumulatorLayoutAttrName);
+  TCRV_READ_COMPOSITE_INTEGER(unrollFactor,
+                              kRVVCompositeResourceUnrollFactorAttrName);
+  TCRV_READ_COMPOSITE_STRING(pipelineIntent,
+                             kRVVCompositeResourcePipelineIntentAttrName);
+  TCRV_READ_COMPOSITE_STRING(prefetchIntent,
+                             kRVVCompositeResourcePrefetchIntentAttrName);
+  TCRV_READ_COMPOSITE_INTEGER(
+      vsetvlRegionCount, kRVVCompositeResourceVSetVLRegionCountAttrName);
+  TCRV_READ_COMPOSITE_INTEGER(
+      peakLiveVectorGroups,
+      kRVVCompositeResourcePeakLiveVectorGroupsAttrName);
+  TCRV_READ_COMPOSITE_INTEGER(
+      vectorRegisterBudget,
+      kRVVCompositeResourceVectorRegisterBudgetAttrName);
+  TCRV_READ_COMPOSITE_STRING(
+      runtimeAVLSource, kRVVCompositeResourceRuntimeAVLSourceAttrName);
+  TCRV_READ_COMPOSITE_STRING(
+      runtimeABIOrder, kRVVCompositeResourceRuntimeABIOrderAttrName);
+  TCRV_READ_COMPOSITE_STRING(
+      targetCapabilityProviderMirror,
+      kRVVCompositeResourceTargetCapabilityProviderMirrorAttrName);
+  TCRV_READ_COMPOSITE_STRING(
+      targetCapabilityLegalityMirror,
+      kRVVCompositeResourceTargetCapabilityLegalityMirrorAttrName);
+  std::string legality;
+  {
+    llvm::Expected<std::string> value = requireRVVCompositeResourceStringFact(
+        op, context, kRVVCompositeResourceLegalityAttrName);
+    if (!value)
+      return value.takeError();
+    legality = std::move(*value);
+  }
+  selection.isLegal = legality == kRVVCompositeResourceLegal;
+  TCRV_READ_COMPOSITE_STRING(
+      rejectionReason, kRVVCompositeResourceRejectionReasonAttrName);
+
+#undef TCRV_READ_COMPOSITE_STRING
+#undef TCRV_READ_COMPOSITE_INTEGER
+
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "candidate set", selection.candidateSetID,
+          expected.candidateSetID))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "selected candidate", selection.selectedCandidateID,
+          expected.selectedCandidateID))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "selection reason", selection.selectionReason,
+          expected.selectionReason))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "legality scope", selection.legalityScope,
+          expected.legalityScope))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "operation", selection.operation, expected.operation))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "memory form", selection.memoryForm, expected.memoryForm))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceIntegerField(
+          context, "SEW", selection.sew, expected.sew))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "LMUL", selection.lmul, expected.lmul))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "tail policy", selection.tailPolicy,
+          expected.tailPolicy))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "mask policy", selection.maskPolicy,
+          expected.maskPolicy))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "VL policy", selection.vlPolicy, expected.vlPolicy))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "accumulator layout", selection.accumulatorLayout,
+          expected.accumulatorLayout))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceIntegerField(
+          context, "unroll factor", selection.unrollFactor,
+          expected.unrollFactor))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "pipeline intent", selection.pipelineIntent,
+          expected.pipelineIntent))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "prefetch intent", selection.prefetchIntent,
+          expected.prefetchIntent))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceIntegerField(
+          context, "vsetvl region count", selection.vsetvlRegionCount,
+          expected.vsetvlRegionCount))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceIntegerField(
+          context, "peak live vector groups",
+          selection.peakLiveVectorGroups,
+          expected.peakLiveVectorGroups))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceIntegerField(
+          context, "vector register budget",
+          selection.vectorRegisterBudget,
+          expected.vectorRegisterBudget))
+    return std::move(error);
+  if (selection.peakLiveVectorGroups > selection.vectorRegisterBudget)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite resource peak live vector-group estimate " +
+        llvm::Twine(selection.peakLiveVectorGroups) +
+        " exceeds vector register budget " +
+        llvm::Twine(selection.vectorRegisterBudget));
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "runtime AVL source", selection.runtimeAVLSource,
+          expected.runtimeAVLSource))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "runtime ABI order", selection.runtimeABIOrder,
+          expected.runtimeABIOrder))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "target capability provider mirror",
+          selection.targetCapabilityProviderMirror,
+          expected.targetCapabilityProviderMirror))
+    return std::move(error);
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "target capability legality mirror",
+          selection.targetCapabilityLegalityMirror,
+          expected.targetCapabilityLegalityMirror))
+    return std::move(error);
+  if (legality != kRVVCompositeResourceLegal)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " composite resource legality must be 'legal' before provider route "
+        "construction but was '" +
+        legality + "'");
+  if (llvm::Error error = requireRVVCompositeResourceStringField(
+          context, "rejection reason", selection.rejectionReason,
+          expected.rejectionReason))
+    return std::move(error);
+  return selection;
+}
+
+llvm::Error verifyRVVCompositeGatherMAccScatterResourceDescriptionSelection(
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  const RVVCompositeGatherMAccScatterResourceSelection &selection =
+      description.compositeGatherMAccScatterResourceSelection;
+  if (description.operation !=
+      RVVSelectedBodyOperationKind::
+          RuntimeScalarComputedMaskIndexedGatherMAccScatter) {
+    if (!selection.hasSelection)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " non-composite route must not carry composite gather-MAcc-scatter "
+        "resource selection facts");
+  }
+  if (!selection.hasSelection || !selection.isLegal ||
+      selection.selectedCandidateID.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime-scalar computed-mask indexed gather-MAcc-scatter route "
+        "requires a provider-consumed legal composite resource candidate "
+        "before route construction");
+  if (selection.peakLiveVectorGroups > selection.vectorRegisterBudget)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " runtime-scalar computed-mask indexed gather-MAcc-scatter route "
+        "rejects composite resource peak live vector-group estimate " +
+        llvm::Twine(selection.peakLiveVectorGroups) +
+        " above vector register budget " +
+        llvm::Twine(selection.vectorRegisterBudget));
+  return llvm::Error::success();
+}
+
 llvm::StringRef stringifyRVVTailPolicy(tcrv::rvv::TailPolicy policy) {
   switch (policy) {
   case tcrv::rvv::TailPolicy::Agnostic:
@@ -25463,6 +25784,11 @@ getRVVComputedMaskIndexedMemoryRouteValidationContract(
   appendComputedMaskIndexedMemoryValidationTypeMapping(
       contract, contract.maskTypeName, contract.maskCType,
       "selected typed RVV computed-mask indexed mask type");
+  if (description.operation ==
+      RVVSelectedBodyOperationKind::
+          RuntimeScalarComputedMaskIndexedGatherMAccScatter)
+    contract.compositeGatherMAccScatterResourceSelection =
+        description.compositeGatherMAccScatterResourceSelection;
 
   return contract;
 }
@@ -26505,6 +26831,134 @@ getRVVComputedMaskIndexedMemoryRouteMetadataMirrorContract(
       contract, "tcrv_rvv.indexed_destination_memory_form",
       validation->indexedDestinationMemoryForm,
       "selected typed RVV computed-mask indexed destination memory form");
+  const RVVCompositeGatherMAccScatterResourceSelection &resourceSelection =
+      validation->compositeGatherMAccScatterResourceSelection;
+  if (resourceSelection.hasSelection) {
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.candidate_set",
+        resourceSelection.candidateSetID,
+        "provider-selected composite gather-MAcc-scatter resource candidate set");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.selected_candidate",
+        resourceSelection.selectedCandidateID,
+        "provider-selected composite gather-MAcc-scatter resource selected candidate");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.selection_reason",
+        resourceSelection.selectionReason,
+        "provider-selected composite gather-MAcc-scatter resource selection reason");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.legality_scope",
+        resourceSelection.legalityScope,
+        "provider-selected composite gather-MAcc-scatter resource legality scope");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.operation",
+        resourceSelection.operation,
+        "provider-selected composite gather-MAcc-scatter resource operation");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.memory_form",
+        resourceSelection.memoryForm,
+        "provider-selected composite gather-MAcc-scatter resource memory form");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.sew",
+        llvm::Twine(resourceSelection.sew).str(),
+        "provider-selected composite gather-MAcc-scatter resource SEW");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.lmul",
+        resourceSelection.lmul,
+        "provider-selected composite gather-MAcc-scatter resource LMUL");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.tail_policy",
+        resourceSelection.tailPolicy,
+        "provider-selected composite gather-MAcc-scatter resource tail policy");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.mask_policy",
+        resourceSelection.maskPolicy,
+        "provider-selected composite gather-MAcc-scatter resource mask policy");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.vl_policy",
+        resourceSelection.vlPolicy,
+        "provider-selected composite gather-MAcc-scatter resource VL policy");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.accumulator_layout",
+        resourceSelection.accumulatorLayout,
+        "provider-selected composite gather-MAcc-scatter resource accumulator layout");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.unroll_factor",
+        llvm::Twine(resourceSelection.unrollFactor).str(),
+        "provider-selected composite gather-MAcc-scatter resource unroll factor");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.pipeline_intent",
+        resourceSelection.pipelineIntent,
+        "provider-selected composite gather-MAcc-scatter resource pipeline intent");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.prefetch_intent",
+        resourceSelection.prefetchIntent,
+        "provider-selected composite gather-MAcc-scatter resource prefetch intent");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.vsetvl_region_count",
+        llvm::Twine(resourceSelection.vsetvlRegionCount).str(),
+        "provider-selected composite gather-MAcc-scatter resource vsetvl region count");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.peak_live_vector_groups",
+        llvm::Twine(resourceSelection.peakLiveVectorGroups).str(),
+        "provider-selected composite gather-MAcc-scatter resource peak live vector groups");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.vector_register_budget",
+        llvm::Twine(resourceSelection.vectorRegisterBudget).str(),
+        "provider-selected composite gather-MAcc-scatter resource vector register budget");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.runtime_avl_source",
+        resourceSelection.runtimeAVLSource,
+        "provider-selected composite gather-MAcc-scatter resource runtime AVL source");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.runtime_abi_order",
+        resourceSelection.runtimeABIOrder,
+        "provider-selected composite gather-MAcc-scatter resource runtime ABI order");
+    appendRVVMemoryRouteMetadataMirror(
+        contract,
+        "tcrv_rvv.composite_resource.target_capability_provider_mirror",
+        resourceSelection.targetCapabilityProviderMirror,
+        "provider-selected composite gather-MAcc-scatter resource target capability provider mirror");
+    appendRVVMemoryRouteMetadataMirror(
+        contract,
+        "tcrv_rvv.composite_resource.target_capability_legality_mirror",
+        resourceSelection.targetCapabilityLegalityMirror,
+        "provider-selected composite gather-MAcc-scatter resource target capability legality mirror");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.legality",
+        resourceSelection.isLegal ? "legal" : "rejected",
+        "provider-selected composite gather-MAcc-scatter resource legality");
+    appendRVVMemoryRouteMetadataMirror(
+        contract, "tcrv_rvv.composite_resource.rejection_reason",
+        resourceSelection.rejectionReason,
+        "provider-selected composite gather-MAcc-scatter resource rejection reason");
+  } else {
+    contract.staleMirrorKeys.append(
+        {"tcrv_rvv.composite_resource.candidate_set",
+         "tcrv_rvv.composite_resource.selected_candidate",
+         "tcrv_rvv.composite_resource.selection_reason",
+         "tcrv_rvv.composite_resource.legality_scope",
+         "tcrv_rvv.composite_resource.operation",
+         "tcrv_rvv.composite_resource.memory_form",
+         "tcrv_rvv.composite_resource.sew",
+         "tcrv_rvv.composite_resource.lmul",
+         "tcrv_rvv.composite_resource.tail_policy",
+         "tcrv_rvv.composite_resource.mask_policy",
+         "tcrv_rvv.composite_resource.vl_policy",
+         "tcrv_rvv.composite_resource.accumulator_layout",
+         "tcrv_rvv.composite_resource.unroll_factor",
+         "tcrv_rvv.composite_resource.pipeline_intent",
+         "tcrv_rvv.composite_resource.prefetch_intent",
+         "tcrv_rvv.composite_resource.vsetvl_region_count",
+         "tcrv_rvv.composite_resource.peak_live_vector_groups",
+         "tcrv_rvv.composite_resource.vector_register_budget",
+         "tcrv_rvv.composite_resource.runtime_avl_source",
+         "tcrv_rvv.composite_resource.runtime_abi_order",
+         "tcrv_rvv.composite_resource.target_capability_provider_mirror",
+         "tcrv_rvv.composite_resource.target_capability_legality_mirror",
+         "tcrv_rvv.composite_resource.legality",
+         "tcrv_rvv.composite_resource.rejection_reason"});
+  }
 
   contract.staleMirrorKeys.append(
       {"tcrv_rvv.plain_compare_select_route_family_plan",
@@ -36379,6 +36833,19 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       analysis.selectedTargetCapabilityFacts.providerMirror;
   analysis.description.targetCapabilityLegalityMirror =
       analysis.selectedTargetCapabilityFacts.legalityMirror;
+  if (analysis.slice.arithmeticKind ==
+      RVVSelectedBodyOperationKind::
+          RuntimeScalarComputedMaskIndexedGatherMAccScatter) {
+    llvm::Expected<RVVCompositeGatherMAccScatterResourceSelection> selection =
+        deriveRVVCompositeGatherMAccScatterResourceSelectionFromRealizedFacts(
+            analysis.description, analysis.selectedTargetCapabilityFacts,
+            analysis.slice.withVL.getOperation(),
+            "selected RVV route analysis composite resource gate");
+    if (!selection)
+      return selection.takeError();
+    analysis.description.compositeGatherMAccScatterResourceSelection =
+        std::move(*selection);
+  }
 
   llvm::Expected<RVVSelectedDispatchEnvelopeFacts> dispatchEnvelopeFacts =
       collectRVVSelectedDispatchEnvelopeFacts(
@@ -37667,6 +38134,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   if (llvm::Error error = requireRouteDescriptionField(
           context, "runtime AVL source", description.runtimeAVLASource,
           configContract.runtimeAVLASource))
+    return error;
+  if (llvm::Error error =
+          verifyRVVCompositeGatherMAccScatterResourceDescriptionSelection(
+              description, context))
     return error;
   if (isContractionRoute) {
     if (llvm::Error error =
@@ -41528,6 +41999,61 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back({"tcrv_rvv.low_precision_resource.legality",
                         selection.isLegal ? "legal" : "rejected"});
     metadata.push_back({"tcrv_rvv.low_precision_resource.rejection_reason",
+                        selection.rejectionReason});
+  }
+  if (description.compositeGatherMAccScatterResourceSelection.hasSelection) {
+    const RVVCompositeGatherMAccScatterResourceSelection &selection =
+        description.compositeGatherMAccScatterResourceSelection;
+    metadata.push_back({"tcrv_rvv.composite_resource.candidate_set",
+                        selection.candidateSetID});
+    metadata.push_back({"tcrv_rvv.composite_resource.selected_candidate",
+                        selection.selectedCandidateID});
+    metadata.push_back({"tcrv_rvv.composite_resource.selection_reason",
+                        selection.selectionReason});
+    metadata.push_back({"tcrv_rvv.composite_resource.legality_scope",
+                        selection.legalityScope});
+    metadata.push_back({"tcrv_rvv.composite_resource.operation",
+                        selection.operation});
+    metadata.push_back({"tcrv_rvv.composite_resource.memory_form",
+                        selection.memoryForm});
+    metadata.push_back({"tcrv_rvv.composite_resource.sew",
+                        llvm::Twine(selection.sew).str()});
+    metadata.push_back({"tcrv_rvv.composite_resource.lmul",
+                        selection.lmul});
+    metadata.push_back({"tcrv_rvv.composite_resource.tail_policy",
+                        selection.tailPolicy});
+    metadata.push_back({"tcrv_rvv.composite_resource.mask_policy",
+                        selection.maskPolicy});
+    metadata.push_back({"tcrv_rvv.composite_resource.vl_policy",
+                        selection.vlPolicy});
+    metadata.push_back({"tcrv_rvv.composite_resource.accumulator_layout",
+                        selection.accumulatorLayout});
+    metadata.push_back({"tcrv_rvv.composite_resource.unroll_factor",
+                        llvm::Twine(selection.unrollFactor).str()});
+    metadata.push_back({"tcrv_rvv.composite_resource.pipeline_intent",
+                        selection.pipelineIntent});
+    metadata.push_back({"tcrv_rvv.composite_resource.prefetch_intent",
+                        selection.prefetchIntent});
+    metadata.push_back({"tcrv_rvv.composite_resource.vsetvl_region_count",
+                        llvm::Twine(selection.vsetvlRegionCount).str()});
+    metadata.push_back(
+        {"tcrv_rvv.composite_resource.peak_live_vector_groups",
+         llvm::Twine(selection.peakLiveVectorGroups).str()});
+    metadata.push_back({"tcrv_rvv.composite_resource.vector_register_budget",
+                        llvm::Twine(selection.vectorRegisterBudget).str()});
+    metadata.push_back({"tcrv_rvv.composite_resource.runtime_avl_source",
+                        selection.runtimeAVLSource});
+    metadata.push_back({"tcrv_rvv.composite_resource.runtime_abi_order",
+                        selection.runtimeABIOrder});
+    metadata.push_back(
+        {"tcrv_rvv.composite_resource.target_capability_provider_mirror",
+         selection.targetCapabilityProviderMirror});
+    metadata.push_back(
+        {"tcrv_rvv.composite_resource.target_capability_legality_mirror",
+         selection.targetCapabilityLegalityMirror});
+    metadata.push_back({"tcrv_rvv.composite_resource.legality",
+                        selection.isLegal ? "legal" : "rejected"});
+    metadata.push_back({"tcrv_rvv.composite_resource.rejection_reason",
                         selection.rejectionReason});
   }
   if (description.operation ==

@@ -14402,6 +14402,24 @@ validateRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterTargetArtifactProvid
         "runtime-scalar indexed gather-MAcc-scatter target artifact consumer "
         "requires provider-owned route validation contract before artifact "
         "export");
+  const plugin::rvv::RVVCompositeGatherMAccScatterResourceSelection
+      &resourceSelection =
+          context.description.compositeGatherMAccScatterResourceSelection;
+  if (!resourceSelection.hasSelection || !resourceSelection.isLegal ||
+      resourceSelection.selectedCandidateID.empty())
+    return makeRVVTargetRouteError(
+        "runtime-scalar indexed gather-MAcc-scatter target artifact consumer "
+        "requires provider-consumed legal composite resource selection facts "
+        "before artifact export");
+  if (resourceSelection.peakLiveVectorGroups >
+      resourceSelection.vectorRegisterBudget)
+    return makeRVVTargetRouteError(
+        llvm::Twine("runtime-scalar indexed gather-MAcc-scatter target "
+                    "artifact consumer rejects composite resource peak live "
+                    "vector-group estimate ") +
+        llvm::Twine(resourceSelection.peakLiveVectorGroups) +
+        " above vector register budget " +
+        llvm::Twine(resourceSelection.vectorRegisterBudget));
   if (context.route.getRouteID() != contract->emitCRouteID)
     return makeRVVTargetRouteError(
         llvm::Twine(contract->consumerLabel) +

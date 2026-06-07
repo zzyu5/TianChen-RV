@@ -180,6 +180,38 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::string rejectionReason;
 };
 
+struct RVVCompositeGatherMAccScatterResourceSelection {
+  bool hasSelection = false;
+  std::string candidateSetID;
+  std::string selectedCandidateID;
+  std::string selectionReason;
+  std::string legalityScope;
+
+  std::string operation;
+  std::string memoryForm;
+  std::int64_t sew = 0;
+  std::string lmul;
+  std::string tailPolicy;
+  std::string maskPolicy;
+  std::string vlPolicy;
+  std::string accumulatorLayout;
+
+  std::int64_t unrollFactor = 0;
+  std::string pipelineIntent;
+  std::string prefetchIntent;
+  std::int64_t vsetvlRegionCount = 0;
+  std::int64_t peakLiveVectorGroups = 0;
+  std::int64_t vectorRegisterBudget = 0;
+
+  std::string runtimeAVLSource;
+  std::string runtimeABIOrder;
+  std::string targetCapabilityProviderMirror;
+  std::string targetCapabilityLegalityMirror;
+
+  bool isLegal = false;
+  std::string rejectionReason;
+};
+
 struct RVVSelectedBodyEmitCRouteDescription {
   RVVSelectedBodyOperationKind operation = RVVSelectedBodyOperationKind::Add;
   RVVSelectedBodyMemoryForm memoryForm = RVVSelectedBodyMemoryForm::VectorRHSLoad;
@@ -337,6 +369,8 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef gearboxRuntimeAVLSource;
   RVVLowPrecisionContractionResourceSelection
       lowPrecisionResourceSelection;
+  RVVCompositeGatherMAccScatterResourceSelection
+      compositeGatherMAccScatterResourceSelection;
   llvm::StringRef scalarSeedSplatIntrinsic;
   llvm::StringRef productElementTypeName;
   std::int64_t productSEW = 0;
@@ -964,6 +998,8 @@ struct RVVComputedMaskIndexedMemoryRouteValidationContract {
   llvm::SmallVector<std::string, 4> requiredHeaders;
   llvm::SmallVector<RVVComputedMaskIndexedMemoryRouteTypeMappingContract, 4>
       typeMappings;
+  RVVCompositeGatherMAccScatterResourceSelection
+      compositeGatherMAccScatterResourceSelection;
 };
 
 std::optional<RVVComputedMaskIndexedMemoryRouteValidationContract>

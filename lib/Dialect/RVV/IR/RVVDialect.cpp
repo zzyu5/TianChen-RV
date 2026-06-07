@@ -209,7 +209,8 @@ bool isAllowedWithVLAttr(llvm::StringRef name) {
          name == tianchenrv::plugin::rvv::kRVVGearboxDestLMULAttrName ||
          name ==
              tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceAttrName ||
-         tianchenrv::plugin::rvv::isRVVLowPrecisionResourceAttrName(name);
+         tianchenrv::plugin::rvv::isRVVLowPrecisionResourceAttrName(name) ||
+         tianchenrv::plugin::rvv::isRVVCompositeResourceAttrName(name);
 }
 
 bool isAllowedI32LoadAttr(llvm::StringRef) {
@@ -3691,7 +3692,9 @@ mlir::LogicalResult WithVLOp::verify() {
              << "only accepts optional bounded compile-time config "
                 "attributes '"
              << kSEWAttrName << "', '" << kLMULAttrName << "', and '"
-             << kPolicyAttrName << "'; unexpected attribute '"
+             << kPolicyAttrName
+             << "', selected-boundary mirrors, and RVV plugin-owned Gearbox/"
+                "resource facts; unexpected attribute '"
              << attr.getName() << "'";
   }
 

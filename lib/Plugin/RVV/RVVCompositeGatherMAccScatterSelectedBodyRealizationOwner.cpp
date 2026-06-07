@@ -2,6 +2,8 @@
 
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
+#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Plugin/RVV/RVVRuntimeAVLVLControl.h"
 #include "TianChenRV/Support/RuntimeABI.h"
 
@@ -19,6 +21,9 @@ constexpr llvm::StringLiteral kCompositeRuntimeABIOrder(
     "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n");
 constexpr llvm::StringLiteral kCompositeContext(
     "Stage2 RVV composite gather-MAcc-scatter selected-body realization owner");
+
+constexpr llvm::StringLiteral kCompositeResourceTypedFactsID(
+    "rvv-composite-gather-macc-scatter-resource-typed-config.v1");
 
 struct CompositeGatherMAccScatterBodies {
   tcrv::rvv::TypedRuntimeScalarComputedMaskIndexedGatherPreRealizedBodyOp
@@ -578,6 +583,90 @@ void eraseUnusedRuntimeABIValue(mlir::Value value) {
   binding->erase();
 }
 
+llvm::Expected<RVVSelectedTargetCapabilityFacts>
+deriveCompositeTargetCapabilityFacts(
+    tcrv::exec::VariantOp variant,
+    const support::TargetCapabilitySet &capabilities,
+    const RVVRuntimeAVLVLControlPlan &runtimeControlPlan) {
+  RVVSelectedBodyTypedConfigFacts typedConfigFacts;
+  typedConfigFacts.factsID = kCompositeResourceTypedFactsID;
+  typedConfigFacts.elementTypeName = "i32";
+  typedConfigFacts.elementBitWidth = runtimeControlPlan.sew;
+  typedConfigFacts.sew = runtimeControlPlan.sew;
+  typedConfigFacts.lmul = runtimeControlPlan.lmul;
+  typedConfigFacts.tailPolicy = runtimeControlPlan.tailPolicy;
+  typedConfigFacts.maskPolicy = runtimeControlPlan.maskPolicy;
+  typedConfigFacts.configContractID = runtimeControlPlan.configContractID;
+
+  llvm::Expected<RVVSelectedTargetCapabilityFacts> targetFacts =
+      collectRVVSelectedTargetCapabilityFacts(variant, capabilities,
+                                              kCompositeContext);
+  if (!targetFacts)
+    return targetFacts.takeError();
+  if (llvm::Error error = verifyRVVSelectedTargetCapabilityForTypedConfig(
+          *targetFacts, typedConfigFacts, kCompositeContext))
+    return std::move(error);
+  return targetFacts;
+}
+
+void materializeCompositeResourceAttrs(
+    tcrv::rvv::WithVLOp withVL, mlir::OpBuilder &builder,
+    const RVVRuntimeAVLVLControlPlan &runtimeControlPlan,
+    const RVVSelectedTargetCapabilityFacts &targetFacts) {
+  mlir::Operation *op = withVL.getOperation();
+  op->setAttr(kRVVCompositeResourceCandidateSetAttrName,
+              builder.getStringAttr(kRVVCompositeResourceCandidateSet));
+  op->setAttr(kRVVCompositeResourceSelectedCandidateAttrName,
+              builder.getStringAttr(kRVVCompositeResourceSelectedCandidate));
+  op->setAttr(kRVVCompositeResourceSelectionReasonAttrName,
+              builder.getStringAttr(kRVVCompositeResourceSelectionReason));
+  op->setAttr(kRVVCompositeResourceLegalityScopeAttrName,
+              builder.getStringAttr(kRVVCompositeResourceLegalityScope));
+  op->setAttr(kRVVCompositeResourceOperationAttrName,
+              builder.getStringAttr(kRVVCompositeResourceOperation));
+  op->setAttr(kRVVCompositeResourceMemoryFormAttrName,
+              builder.getStringAttr(kRVVCompositeResourceMemoryForm));
+  op->setAttr(kRVVCompositeResourceSEWAttrName,
+              builder.getI64IntegerAttr(runtimeControlPlan.sew));
+  op->setAttr(kRVVCompositeResourceLMULAttrName,
+              builder.getStringAttr(runtimeControlPlan.lmul));
+  op->setAttr(kRVVCompositeResourceTailPolicyAttrName,
+              builder.getStringAttr(runtimeControlPlan.tailPolicy));
+  op->setAttr(kRVVCompositeResourceMaskPolicyAttrName,
+              builder.getStringAttr(runtimeControlPlan.maskPolicy));
+  op->setAttr(kRVVCompositeResourceVLPolicyAttrName,
+              builder.getStringAttr(kRVVGearboxRuntimeAVLSingleSetVLPolicy));
+  op->setAttr(kRVVCompositeResourceAccumulatorLayoutAttrName,
+              builder.getStringAttr(kRVVCompositeResourceAccumulatorLayout));
+  op->setAttr(kRVVCompositeResourceUnrollFactorAttrName,
+              builder.getI64IntegerAttr(kRVVCompositeResourceStaticUnroll));
+  op->setAttr(kRVVCompositeResourcePipelineIntentAttrName,
+              builder.getStringAttr(kRVVCompositeResourcePipelineIntent));
+  op->setAttr(kRVVCompositeResourcePrefetchIntentAttrName,
+              builder.getStringAttr(kRVVCompositeResourcePrefetchIntent));
+  op->setAttr(
+      kRVVCompositeResourceVSetVLRegionCountAttrName,
+      builder.getI64IntegerAttr(kRVVCompositeResourceVSetVLRegions));
+  op->setAttr(
+      kRVVCompositeResourcePeakLiveVectorGroupsAttrName,
+      builder.getI64IntegerAttr(kRVVCompositeResourcePeakLiveVectorGroups));
+  op->setAttr(
+      kRVVCompositeResourceVectorRegisterBudgetAttrName,
+      builder.getI64IntegerAttr(kRVVCompositeResourceVectorRegisterBudget));
+  op->setAttr(kRVVCompositeResourceRuntimeAVLSourceAttrName,
+              builder.getStringAttr(runtimeControlPlan.runtimeAVLASource));
+  op->setAttr(kRVVCompositeResourceRuntimeABIOrderAttrName,
+              builder.getStringAttr(runtimeControlPlan.runtimeABIOrder));
+  op->setAttr(kRVVCompositeResourceTargetCapabilityProviderMirrorAttrName,
+              builder.getStringAttr(targetFacts.providerMirror));
+  op->setAttr(kRVVCompositeResourceTargetCapabilityLegalityMirrorAttrName,
+              builder.getStringAttr(targetFacts.legalityMirror));
+  op->setAttr(kRVVCompositeResourceLegalityAttrName,
+              builder.getStringAttr(kRVVCompositeResourceLegal));
+  op->setAttr(kRVVCompositeResourceRejectionReasonAttrName,
+              builder.getStringAttr(kRVVCompositeResourceNoRejectionReason));
+}
+
 } // namespace
 
 bool hasPreRealizedRVVCompositeGatherMAccScatterOwnerCandidate(
@@ -616,6 +705,11 @@ realizePreRealizedRVVCompositeGatherMAccScatterOwner(
           kCompositeRuntimeABIOrder, kCompositeContext);
   if (!runtimeControlPlan)
     return runtimeControlPlan.takeError();
+  llvm::Expected<RVVSelectedTargetCapabilityFacts> targetFacts =
+      deriveCompositeTargetCapabilityFacts(
+          variant, request.getCapabilities(), *runtimeControlPlan);
+  if (!targetFacts)
+    return targetFacts.takeError();
 
   builder.setInsertionPoint(firstBody);
   auto setvl = llvm::cast<tcrv::rvv::SetVLOp>(
@@ -629,6 +723,8 @@ realizePreRealizedRVVCompositeGatherMAccScatterOwner(
                            runtimeControlPlan->sew,
                            runtimeControlPlan->lmul,
                            runtimeControlPlan->policy);
+  materializeCompositeResourceAttrs(withVL, builder, *runtimeControlPlan,
+                                    *targetFacts);
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
   auto compareLhsLoad =

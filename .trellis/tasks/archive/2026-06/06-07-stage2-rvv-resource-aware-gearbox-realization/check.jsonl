@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Final project-wide compliance check for RVV-first Stage2 work."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify composite selected-body realization and provider planning stay plugin-owned and typed-body-driven."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC remains semantic-neutral and provider-built route facts are consumed faithfully."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review selected target/capability fact use and fail-closed resource gating."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review locality of RVV resource-aware realization/planning changes."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review no high-level compute/core dialect drift."}
+{"phase": "check", "summary": "Passed targeted build for tianchenrv-rvv-extension-plugin-test, tianchenrv-target-artifact-export-test, tcrv-opt, and tcrv-translate; passed RVV extension plugin test; passed target artifact export test; passed focused lit for explicit and pre-realized composite selected-body artifact tests; added fail-closed missing and stale composite_resource evidence; added-diff old-authority scan found no new legacy route-authority markers; git diff --check passed."}

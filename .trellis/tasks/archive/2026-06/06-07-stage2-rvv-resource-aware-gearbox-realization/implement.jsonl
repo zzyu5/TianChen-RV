@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Project-wide RVV-first authority chain, Stage2 selected-body realization, and mirror-non-authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local selected-body realization and runtime-scalar indexed gather-MAcc-scatter route contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute ownership and Common EmitC neutrality."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Ensure resource facts are derived from selected target/capability facts rather than metadata mirrors."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensure resource-aware realization and route planning remain RVV plugin-local."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure no high-level compute IR or common scheduling semantics are introduced."}
+{"file": ".trellis/tasks/archive/2026-06/06-07-06-07-stage2-rvv-selected-dispatch-composite-executable-bundle-boundary/prd.md", "reason": "Immediate predecessor boundary and evidence closeout that this task must advance beyond."}
+{"phase": "implementation", "summary": "Added RVV plugin-owned composite_resource Gearbox facts for runtime-scalar-cmp masked indexed gather-MAcc-scatter, derived from typed body/control/capability/runtime facts in selected-body realization, carried on realized tcrv_rvv.with_vl, consumed by route planning, mirrored through target support metadata, and required by target artifact validation."}

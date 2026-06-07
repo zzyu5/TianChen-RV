@@ -104,6 +104,59 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourceLegalityAttrName(
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRejectionReasonAttrName(
     "tcrv_rvv.low_precision_resource.rejection_reason");
 
+constexpr llvm::StringLiteral kRVVCompositeResourceCandidateSetAttrName(
+    "tcrv_rvv.composite_resource.candidate_set");
+constexpr llvm::StringLiteral kRVVCompositeResourceSelectedCandidateAttrName(
+    "tcrv_rvv.composite_resource.selected_candidate");
+constexpr llvm::StringLiteral kRVVCompositeResourceSelectionReasonAttrName(
+    "tcrv_rvv.composite_resource.selection_reason");
+constexpr llvm::StringLiteral kRVVCompositeResourceLegalityScopeAttrName(
+    "tcrv_rvv.composite_resource.legality_scope");
+constexpr llvm::StringLiteral kRVVCompositeResourceOperationAttrName(
+    "tcrv_rvv.composite_resource.operation");
+constexpr llvm::StringLiteral kRVVCompositeResourceMemoryFormAttrName(
+    "tcrv_rvv.composite_resource.memory_form");
+constexpr llvm::StringLiteral kRVVCompositeResourceSEWAttrName(
+    "tcrv_rvv.composite_resource.sew");
+constexpr llvm::StringLiteral kRVVCompositeResourceLMULAttrName(
+    "tcrv_rvv.composite_resource.lmul");
+constexpr llvm::StringLiteral kRVVCompositeResourceTailPolicyAttrName(
+    "tcrv_rvv.composite_resource.tail_policy");
+constexpr llvm::StringLiteral kRVVCompositeResourceMaskPolicyAttrName(
+    "tcrv_rvv.composite_resource.mask_policy");
+constexpr llvm::StringLiteral kRVVCompositeResourceVLPolicyAttrName(
+    "tcrv_rvv.composite_resource.vl_policy");
+constexpr llvm::StringLiteral kRVVCompositeResourceAccumulatorLayoutAttrName(
+    "tcrv_rvv.composite_resource.accumulator_layout");
+constexpr llvm::StringLiteral kRVVCompositeResourceUnrollFactorAttrName(
+    "tcrv_rvv.composite_resource.unroll_factor");
+constexpr llvm::StringLiteral kRVVCompositeResourcePipelineIntentAttrName(
+    "tcrv_rvv.composite_resource.pipeline_intent");
+constexpr llvm::StringLiteral kRVVCompositeResourcePrefetchIntentAttrName(
+    "tcrv_rvv.composite_resource.prefetch_intent");
+constexpr llvm::StringLiteral kRVVCompositeResourceVSetVLRegionCountAttrName(
+    "tcrv_rvv.composite_resource.vsetvl_region_count");
+constexpr llvm::StringLiteral
+    kRVVCompositeResourcePeakLiveVectorGroupsAttrName(
+        "tcrv_rvv.composite_resource.peak_live_vector_groups");
+constexpr llvm::StringLiteral
+    kRVVCompositeResourceVectorRegisterBudgetAttrName(
+        "tcrv_rvv.composite_resource.vector_register_budget");
+constexpr llvm::StringLiteral kRVVCompositeResourceRuntimeAVLSourceAttrName(
+    "tcrv_rvv.composite_resource.runtime_avl_source");
+constexpr llvm::StringLiteral kRVVCompositeResourceRuntimeABIOrderAttrName(
+    "tcrv_rvv.composite_resource.runtime_abi_order");
+constexpr llvm::StringLiteral
+    kRVVCompositeResourceTargetCapabilityProviderMirrorAttrName(
+        "tcrv_rvv.composite_resource.target_capability_provider_mirror");
+constexpr llvm::StringLiteral
+    kRVVCompositeResourceTargetCapabilityLegalityMirrorAttrName(
+        "tcrv_rvv.composite_resource.target_capability_legality_mirror");
+constexpr llvm::StringLiteral kRVVCompositeResourceLegalityAttrName(
+    "tcrv_rvv.composite_resource.legality");
+constexpr llvm::StringLiteral kRVVCompositeResourceRejectionReasonAttrName(
+    "tcrv_rvv.composite_resource.rejection_reason");
+
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32U1CandidateID(
     "rvv-gearbox-dequantize-i32-to-f32-e32-m1-u1.v1");
 constexpr llvm::StringLiteral kRVVGearboxDequantizeI32ToF32U2CandidateID(
@@ -171,6 +224,33 @@ constexpr std::int64_t kRVVLowPrecisionResourceVSetVLRegions = 2;
 constexpr std::int64_t kRVVLowPrecisionResourcePeakLiveVectorGroups = 4;
 constexpr std::int64_t kRVVLowPrecisionResourceVectorRegisterBudget = 32;
 
+constexpr llvm::StringLiteral kRVVCompositeResourceCandidateSet(
+    "rvv-composite-gather-macc-scatter-resource-candidate-set.v1["
+    "rt-scmp-indexed-gather-macc-scatter-e32m1-u1]");
+constexpr llvm::StringLiteral kRVVCompositeResourceSelectedCandidate(
+    "rvv-composite-gather-macc-scatter-resource-candidate.v1["
+    "rt-scmp-indexed-gather-macc-scatter,e32m1,u1]");
+constexpr llvm::StringLiteral kRVVCompositeResourceSelectionReason(
+    "static-bounded-runtime-scalar-computed-mask-indexed-gather-macc-"
+    "scatter-e32m1-runtime-avl");
+constexpr llvm::StringLiteral kRVVCompositeResourceLegalityScope(
+    "typed-composite-gather-macc-scatter-resource-legality.v1");
+constexpr llvm::StringLiteral kRVVCompositeResourceOperation(
+    "runtime_scalar_cmp_masked_indexed_gather_macc_scatter");
+constexpr llvm::StringLiteral kRVVCompositeResourceMemoryForm(
+    "runtime-scalar-computed-mask-indexed-gather-macc-scatter");
+constexpr llvm::StringLiteral kRVVCompositeResourceAccumulatorLayout(
+    "separate-i32-vector-accumulator-input");
+constexpr llvm::StringLiteral kRVVCompositeResourcePipelineIntent(
+    "single-vl-linear-gather-macc-scatter.v1");
+constexpr llvm::StringLiteral kRVVCompositeResourcePrefetchIntent("none");
+constexpr llvm::StringLiteral kRVVCompositeResourceLegal("legal");
+constexpr llvm::StringLiteral kRVVCompositeResourceNoRejectionReason("none");
+constexpr std::int64_t kRVVCompositeResourceStaticUnroll = 1;
+constexpr std::int64_t kRVVCompositeResourceVSetVLRegions = 1;
+constexpr std::int64_t kRVVCompositeResourcePeakLiveVectorGroups = 8;
+constexpr std::int64_t kRVVCompositeResourceVectorRegisterBudget = 32;
+
 inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
   return name == kRVVLowPrecisionResourceCandidateSetAttrName ||
          name == kRVVLowPrecisionResourceSelectedCandidateAttrName ||
@@ -203,6 +283,33 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name == kRVVLowPrecisionResourceRuntimeABIOrderAttrName ||
          name == kRVVLowPrecisionResourceLegalityAttrName ||
          name == kRVVLowPrecisionResourceRejectionReasonAttrName;
+}
+
+inline bool isRVVCompositeResourceAttrName(llvm::StringRef name) {
+  return name == kRVVCompositeResourceCandidateSetAttrName ||
+         name == kRVVCompositeResourceSelectedCandidateAttrName ||
+         name == kRVVCompositeResourceSelectionReasonAttrName ||
+         name == kRVVCompositeResourceLegalityScopeAttrName ||
+         name == kRVVCompositeResourceOperationAttrName ||
+         name == kRVVCompositeResourceMemoryFormAttrName ||
+         name == kRVVCompositeResourceSEWAttrName ||
+         name == kRVVCompositeResourceLMULAttrName ||
+         name == kRVVCompositeResourceTailPolicyAttrName ||
+         name == kRVVCompositeResourceMaskPolicyAttrName ||
+         name == kRVVCompositeResourceVLPolicyAttrName ||
+         name == kRVVCompositeResourceAccumulatorLayoutAttrName ||
+         name == kRVVCompositeResourceUnrollFactorAttrName ||
+         name == kRVVCompositeResourcePipelineIntentAttrName ||
+         name == kRVVCompositeResourcePrefetchIntentAttrName ||
+         name == kRVVCompositeResourceVSetVLRegionCountAttrName ||
+         name == kRVVCompositeResourcePeakLiveVectorGroupsAttrName ||
+         name == kRVVCompositeResourceVectorRegisterBudgetAttrName ||
+         name == kRVVCompositeResourceRuntimeAVLSourceAttrName ||
+         name == kRVVCompositeResourceRuntimeABIOrderAttrName ||
+         name == kRVVCompositeResourceTargetCapabilityProviderMirrorAttrName ||
+         name == kRVVCompositeResourceTargetCapabilityLegalityMirrorAttrName ||
+         name == kRVVCompositeResourceLegalityAttrName ||
+         name == kRVVCompositeResourceRejectionReasonAttrName;
 }
 
 } // namespace tianchenrv::plugin::rvv

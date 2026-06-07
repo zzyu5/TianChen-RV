@@ -4,6 +4,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-plan-validated/s//provider_supported_mirror:rvv-script-derived-pre-composite-gather-macc-scatter/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n/s//cmp_lhs,rhs_scalar,payload,gather_src,acc,index,dst,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/payload=dot-rhs-input-buffer->@abi_dot_rhs_input_buffer;/s//payload=dot-rhs-input-buffer->@stale_dot_rhs_input_buffer;/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-EXEC-BINDING
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.composite_resource.vector_register_budget\", value = \"32\"/s//tcrv_rvv.composite_resource.vector_register_budget\", value = \"4\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-COMPOSITE-RESOURCE
 // RUN: sed '0,/^      %index = tcrv_rvv.runtime_abi_value/{s/exec_binding = @abi_index_input_buffer, //}' %s | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-EXEC-BINDING
 
 // Pre-realized family bodies for runtime scalar masked indexed gather, masked
@@ -53,6 +54,13 @@ module {
 // REALIZED: %[[VL:.*]] = tcrv_rvv.setvl %{{.*}} {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: selected_variant = @rvv_pre_composite
+// REALIZED-DAG: tcrv_rvv.composite_resource.selected_candidate = "rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]"
+// REALIZED-DAG: tcrv_rvv.composite_resource.vl_policy = "runtime-avl-single-setvl"
+// REALIZED-DAG: tcrv_rvv.composite_resource.peak_live_vector_groups = 8 : i64
+// REALIZED-DAG: tcrv_rvv.composite_resource.vector_register_budget = 32 : i64
+// REALIZED-DAG: tcrv_rvv.composite_resource.runtime_abi_order = "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n"
+// REALIZED-DAG: tcrv_rvv.composite_resource.target_capability_provider_mirror = "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
+// REALIZED-DAG: tcrv_rvv.composite_resource.target_capability_legality_mirror = "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
 // REALIZED: %[[CMP_LHS:.*]] = tcrv_rvv.load
 // REALIZED: %[[THRESHOLD:.*]] = tcrv_rvv.splat
 // REALIZED: %[[PAYLOAD:.*]] = tcrv_rvv.load
@@ -92,6 +100,13 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.masked_passthrough_layout", value = "old-destination-vector-preserves-inactive-lanes"}
 // PLAN-SAME: {key = "tcrv_rvv.source_memory_form", value = "masked-indexed-load"}
 // PLAN-SAME: {key = "tcrv_rvv.destination_memory_form", value = "masked-indexed-store"}
+// PLAN-SAME: {key = "tcrv_rvv.composite_resource.selected_candidate", value = "rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]"}
+// PLAN-SAME: {key = "tcrv_rvv.composite_resource.vl_policy", value = "runtime-avl-single-setvl"}
+// PLAN-SAME: {key = "tcrv_rvv.composite_resource.peak_live_vector_groups", value = "8"}
+// PLAN-SAME: {key = "tcrv_rvv.composite_resource.vector_register_budget", value = "32"}
+// PLAN-SAME: {key = "tcrv_rvv.composite_resource.runtime_abi_order", value = "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n"}
+// PLAN-SAME: {key = "tcrv_rvv.composite_resource.target_capability_provider_mirror", value = "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"}
+// PLAN-SAME: {key = "tcrv_rvv.composite_resource.target_capability_legality_mirror", value = "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"}
 // PLAN-SAME: {key = "tcrv_rvv.indexed_memory_layout", value = "unit-stride-lhs-runtime-scalar-threshold-indexed-masked-gather-payload-accumulator-macc-indexed-masked-scatter-runtime-abi"}
 // PLAN-SAME: {key = "tcrv_rvv.index_source", value = "runtime_abi:index"}
 // PLAN-SAME: {key = "tcrv_rvv.index_eew", value = "32"}
@@ -107,6 +122,10 @@ module {
 // HEADER-DAG: tianchenrv.rvv.selected_dispatch_case_mirror: selected_dispatch_case_mirror:@rvv_pre_composite;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-composite-gather-macc-scatter-case
 // HEADER-DAG: tianchenrv.rvv.selected_dispatch_fallback_mirror: selected_dispatch_fallback_mirror:@pre_composite_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-composite-gather-macc-scatter-fallback-envelope
 // HEADER-DAG: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-plan-validated
+// HEADER-DAG: tianchenrv.rvv.composite_resource.selected_candidate: rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]
+// HEADER-DAG: tianchenrv.rvv.composite_resource.vector_register_budget: 32
+// HEADER-DAG: tianchenrv.rvv.composite_resource.runtime_abi_order: cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n
+// HEADER-DAG: tianchenrv.rvv.composite_resource.target_capability_provider_mirror: selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact
 // HEADER-DAG: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:rt_scmp_gather_macc_scatter.v1
 // HEADER-DAG: tianchenrv.rvv.exec_abi_bindings: cmp_lhs=lhs-input-buffer->@abi_cmp_lhs_input_buffer;rhs_scalar=rhs-scalar-value->@abi_rhs_scalar_value;gather_src=source-input-buffer->@abi_source_input_buffer;payload=dot-rhs-input-buffer->@abi_dot_rhs_input_buffer;acc=accumulator-input-buffer->@abi_accumulator_input_buffer;index=index-input-buffer->@abi_index_input_buffer;dst=output-buffer->@abi_output_buffer;n=runtime-element-count->@abi_runtime_element_count
 // HEADER-DAG: tianchenrv.rvv.computed_mask_memory_mask_producer_source: runtime-scalar-splat-compare-rhs
@@ -117,10 +136,13 @@ module {
 // STALE-PROVIDER: candidate tcrv_rvv.provider_supported_mirror provenance must mirror selected typed RVV body provider support
 // STALE-PROVIDER-SAME: provider_supported_mirror:rvv-script-derived-pre-composite-gather-macc-scatter
 
-// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror route-local runtime AVL/VL ABI order mirror
+// STALE-ABI: composite resource runtime ABI order must mirror realized/provider-derived fact
 // STALE-ABI-SAME: cmp_lhs,rhs_scalar,payload,gather_src,acc,index,dst,n
 
 // STALE-EXEC-BINDING: candidate tcrv_rvv.exec_abi_bindings provenance must mirror selected tcrv.exec ABI binding summary
 // STALE-EXEC-BINDING-SAME: payload=dot-rhs-input-buffer->@stale_dot_rhs_input_buffer
+
+// STALE-COMPOSITE-RESOURCE: candidate tcrv_rvv.composite_resource.vector_register_budget provenance must mirror provider-selected composite gather-MAcc-scatter resource vector register budget
+// STALE-COMPOSITE-RESOURCE-SAME: 4
 
 // MISSING-EXEC-BINDING: requires tcrv_rvv.runtime_abi_value 'index' with role 'index-input-buffer' to carry exec_binding to a tcrv.exec ABI declaration
