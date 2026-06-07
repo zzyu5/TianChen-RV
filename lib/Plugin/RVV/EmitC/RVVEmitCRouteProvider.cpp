@@ -356,13 +356,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
                 "selected RVV EmitC route construction"))
       return error;
   }
-  if (llvm::Error error =
-          verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
-              analysis, materializationFacts, mathOperandBindingFacts,
-              directContractionProviderPlan, *statementPlanOwnerSelection,
-              "selected RVV EmitC route construction"))
-    return error;
-
   conversion::emitc::TCRVEmitCLowerableRoute route(
       segment2RouteConstructionPlan ? segment2RouteConstructionPlan->emitCRouteID
                                     : analysis.description.emitCRouteID,

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack, RVV-first authority chain, and Stage 2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV owner-local statement plans, provider consumption, fail-closed diagnostics, and contraction-family boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Defines TCRVEmitCLowerableRoute as a provider-built container and forbids Common EmitC or metadata from reconstructing RVV semantics."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Defines focused MLIR/C++/artifact evidence expectations for changed compiler behavior."}

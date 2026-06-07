@@ -1920,6 +1920,11 @@ getRVVSelectedBodyRouteStatementPlanOwnerSelection(
   if (hasDirectContractionOwner) {
     moveDirectContractionStatementPlan(directContractionStatementPlan,
                                        selection);
+    if (llvm::Error error =
+            verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
+                analysis, materializationFacts, mathOperandBindingFacts,
+                directContractionProviderPlan, selection, context))
+      return std::move(error);
     return selection;
   }
 

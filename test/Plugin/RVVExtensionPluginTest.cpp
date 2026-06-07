@@ -9047,14 +9047,12 @@ module {
     return fail("product-reduction-dequant statement owner selection: " +
                 llvm::toString(
                     productDequantSelectedStatementPlan.takeError()));
-  if (int result = expectSuccess(
-          verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
-              *productDequantAnalysis, *productDequantMaterializationFacts,
-              *productDequantMathFacts, *productDequantDirectProviderPlan,
-              *productDequantSelectedStatementPlan,
-              "selected-boundary product-reduction-dequant test"),
-          "product-reduction-dequant direct provider facts accept the "
-          "same-analysis i32 accumulator/f32 result type-config mirror"))
+  if (int result = expect(
+          productDequantSelectedStatementPlan->ownerName ==
+              "direct-provider contraction" &&
+              productDequantSelectedStatementPlan->postLoopSteps.size() == 4,
+          "product-reduction-dequant owner selection consumes verified "
+          "direct-contraction provider facts before returning statements"))
     return result;
 
   auto staleProductDequantAnalysis = *productDequantAnalysis;
@@ -9085,14 +9083,17 @@ module {
     return fail("stale product-reduction-dequant direct provider plan: " +
                 llvm::toString(
                     staleProductDequantDirectProviderPlan.takeError()));
+  auto staleProductDequantSelectedStatementPlan =
+      getRVVSelectedBodyRouteStatementPlanOwnerSelection(
+          staleProductDequantAnalysis,
+          *staleProductDequantMaterializationFacts,
+          emptyProductDequantElementwiseFacts,
+          emptyProductDequantMemoryFacts, *staleProductDequantMathFacts,
+          emptyProductDequantResidualFacts,
+          *staleProductDequantDirectProviderPlan,
+          "selected-boundary stale product-reduction-dequant test");
   if (int result = expectErrorContains(
-          verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
-              staleProductDequantAnalysis,
-              *staleProductDequantMaterializationFacts,
-              *staleProductDequantMathFacts,
-              *staleProductDequantDirectProviderPlan,
-              *productDequantSelectedStatementPlan,
-              "selected-boundary stale product-reduction-dequant test"),
+          staleProductDequantSelectedStatementPlan.takeError(),
           {"family-plan type/config facts",
            "widening_product_reduce_dequantize_f32"}))
     return result;
@@ -23066,20 +23067,15 @@ module {
             "statement-plan owner module selects the direct-contraction owner "
             "and preserves provider-ready statements"))
       return result;
-    if (int result = expectSuccess(
-            verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
-                analysis, *materializationFacts, *mathFacts,
-                *directProviderPlan, *selectedStatementPlan, label),
-            "direct contraction provider-facts verifier accepts the "
-            "same-analysis provider plan and owner statements"))
-      return result;
-
     auto staleDirectProviderPlan = *directProviderPlan;
     staleDirectProviderPlan.routeControlPlan.typedConfigFacts = nullptr;
+    auto staleDirectProviderSelection =
+        getRVVSelectedBodyRouteStatementPlanOwnerSelection(
+            analysis, *materializationFacts, emptyElementwiseFacts,
+            emptyMemoryFacts, *mathFacts, emptyResidualFacts,
+            staleDirectProviderPlan, label);
     if (int result = expectErrorContains(
-            verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
-                analysis, *materializationFacts, *mathFacts,
-                staleDirectProviderPlan, *selectedStatementPlan, label),
+            staleDirectProviderSelection.takeError(),
             {"direct contraction route construction requires the RVV-owned "
              "route-control provider plan from the same selected route "
              "analysis",

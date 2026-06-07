@@ -1817,3 +1817,59 @@ Moved migrated RVV statement-plan provider validation into owning migrated build
 ### Next Steps
 
 - None - task complete
+
+
+## Session 548: Stage2 RVV contraction-family statement-plan provider consumption boundary
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV contraction-family statement-plan provider consumption boundary
+**Branch**: `main`
+
+### Summary
+
+Moved direct-contraction provider-fact validation into RVV statement-plan owner selection, removed central provider verifier residue, and verified focused MAcc/dot dry-run plus fail-closed regressions.
+
+### Main Changes
+
+### Main Changes
+
+- Removed the central `RVVEmitCRouteProvider.cpp` call to `verifyRVVSelectedBodyDirectContractionRouteProviderFacts`.
+- Added the same fail-closed validation inside `getRVVSelectedBodyRouteStatementPlanOwnerSelection` before direct-contraction owner selection returns.
+- Updated focused C++ tests so stale direct-contraction provider facts fail through owner selection.
+- No `.trellis/spec/` update: existing RVV plugin and EmitC route specs already defined this owner-consumed provider boundary.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j$(nproc)`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] generated-bundle dry-run: `widening_macc_add`
+- [OK] generated-bundle dry-run: `widening_dot_reduce_add`
+- [OK] direct-pre-realized fail-closed: `widening_macc_add`
+- [OK] direct-pre-realized fail-closed: `widening_dot_reduce_add`
+- [OK] provider residue scan: no direct-contraction provider-fact verifier call remains in `RVVEmitCRouteProvider.cpp`
+- [OK] added-line old-authority scan: no new legacy i32/source-front-door/descriptor/direct-C authority in touched diff
+- [OK] `git diff --check`
+
+### Status
+
+[OK] Completed and archived task `06-08-stage2-rvv-contraction-family-statement-plan-provider-consumption-boundary`.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
