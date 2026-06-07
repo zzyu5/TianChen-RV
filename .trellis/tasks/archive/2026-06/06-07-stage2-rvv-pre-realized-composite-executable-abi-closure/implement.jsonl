@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain and RVV Stage1/Stage2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected-body realization, and runtime-scalar indexed gather-MAcc-scatter route contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and Common EmitC neutrality contract."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Executable lowering/runtime checklist for provider-owned EmitC route consumption."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected-body realization and emission metadata mirror boundary."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/C++/ssh rvv evidence expectations."}
+{"file": ".trellis/tasks/archive/2026-06/06-07-06-07-stage2-rvv-composite-route-family-plan-owner-extraction/prd.md", "reason": "Immediate predecessor plan-owner extraction and validation evidence."}
+{"ts": "2026-06-07T19:35:00+08:00", "phase": "implementation", "file": ".trellis/spec/extension-plugins/rvv-plugin.md", "change": "Updated the runtime-scalar indexed gather-MAcc-scatter route contract from stale pre-realized unsupported wording to the implemented plugin-local composite realization owner positive path while preserving fail-closed diagnostics for missing, duplicate, incomplete, stale, or unsupported family facts."}
+{"ts": "2026-06-07T19:35:00+08:00", "phase": "implementation", "file": ".trellis/tasks/archive/2026-06/06-07-stage2-rvv-pre-realized-composite-executable-abi-closure/prd.md", "change": "No production C++/MLIR/script source change was needed: live non-dry-run evidence showed current HEAD already carries pre-realized composite bodies through realization, plan, provider route, target artifact validation, generated bundle, and ssh rvv runtime correctness."}

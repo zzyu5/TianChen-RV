@@ -48,6 +48,54 @@ Hardened runtime-scalar-cmp masked indexed gather-load target artifact ABI valid
 
 - None - task complete
 
+---
+
+## Session: Stage2 RVV pre-realized composite executable ABI closure
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV pre-realized composite gather-MAcc-scatter executable artifact ABI closure
+**Branch**: `main`
+
+### Summary
+
+Verified that current HEAD already closes the pre-realized
+`runtime_scalar_cmp_masked_indexed_gather_macc_scatter` generated RVV artifact
+ABI path through non-dry-run `ssh rvv` evidence, and updated the RVV plugin
+spec to replace stale "unsupported until owner exists" wording with the
+implemented plugin-local composite realization owner contract.
+
+### Main Changes
+
+- Created Trellis task `06-07-stage2-rvv-pre-realized-composite-executable-abi-closure` and wrote a bounded PRD for the pre-realized composite executable artifact/ABI closure.
+- Confirmed no production C++/MLIR/script change was needed: the current path already flows from pre-realized selected family bodies through selected lowering-boundary materialization, the plugin-local composite realization owner, realized `tcrv_rvv` body, composite route-family plan, provider-built route, target artifact validation, generated bundle, and `ssh rvv` runtime correctness.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` so the runtime-scalar indexed gather-MAcc-scatter contract now records the implemented pre-realized owner-positive path and preserves fail-closed diagnostics for missing, duplicate, incomplete, stale, or unsupported family facts.
+- Collected pre-realized non-dry-run evidence at `artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-pre-composite-ssh-repro/runtime_scalar_cmp_masked_indexed_gather_macc_scatter/evidence.json`.
+- Evidence records `status=success`, `ssh_evidence=true`, remote compile/run success, ABI order `cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n`, composite plan id `rvv-composite-gather-macc-scatter-route-family-plan.v1`, typed compute chain `tcrv_rvv.masked_indexed_load+tcrv_rvv.masked_macc+tcrv_rvv.masked_indexed_store`, resource budget `32`, and PASS output for counts `0,1,16,17,257`, rhs scalars `-37,91`, patterns `0,1`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | `rvv: close pre-realized composite abi evidence` |
+
+### Testing
+
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body ... --op-kind runtime_scalar_cmp_masked_indexed_gather_macc_scatter ...`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body ... --op-kind runtime_scalar_cmp_masked_indexed_gather_macc_scatter ... --ssh-target rvv`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter='runtime-scalar-cmp-masked-indexed-gather-macc-scatter'` from `build/test`
+- [OK] explicit selected-body generated-bundle dry-run regression for the same route
+- [OK] bounded old-authority scan over touched files and added diff lines
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
 
 ## Session 530: Stage2 RVV resource-aware composite fallback dispatch ABI boundary
 

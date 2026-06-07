@@ -291,16 +291,23 @@ The provider-owned operation kind is
 - Missing inactive-lane, passthrough, index uniqueness, memory form,
   accumulator layout, result layout, or typed config fact -> fail closed with a
   targeted RVV provider diagnostic.
-- A pre-realized multi-family composite is unsupported until a plugin-local
-  composite realization owner rewrites it into the explicit realized body shape
-  above; it must fail closed with a named owner-boundary diagnostic.
+- A pre-realized multi-family composite is supported only when the
+  plugin-local composite realization owner rewrites the bounded gather, MAcc,
+  and scatter family bodies into the explicit realized body shape above before
+  route construction. Missing, duplicate, incomplete, or stale pre-realized
+  family bodies must fail closed with a named owner-boundary diagnostic before
+  Common EmitC or target artifact export can claim executability.
 
 ### 5. Good/Base/Bad Cases
 
 - Good: explicit selected composite body -> RVV provider composite facts ->
   one provider-built `TCRVEmitCLowerableRoute`.
-- Base: pre-realized gather/MAcc/scatter family bodies fail closed at the
-  composite realization-owner boundary until a real owner exists.
+- Good: pre-realized gather/MAcc/scatter family bodies -> RVV plugin-local
+  composite realization owner -> explicit realized composite body -> provider
+  composite facts -> one provider-built `TCRVEmitCLowerableRoute`.
+- Base: future or incomplete pre-realized composite family combinations fail
+  closed at the composite realization-owner boundary until a bounded owner
+  proves the exact realized body shape and provider facts.
 - Bad: route id, artifact metadata, helper name, ABI string, or Common EmitC
   code infers gather, MAcc, scatter, dtype, mask, or intrinsic facts.
 
@@ -312,8 +319,14 @@ The provider-owned operation kind is
   passthrough layout.
 - Negative C++ coverage must cover at least one stale structural fact, such as
   scatter not consuming the MAcc result.
-- Pre-realized coverage must continue to check the named fail-closed composite
-  realization-owner boundary until the owner is implemented.
+- Pre-realized positive coverage must check that the named composite
+  realization owner consumes the pre-realized gather, MAcc, and scatter family
+  bodies, emits the explicit realized body shape, preserves ABI/runtime facts,
+  and carries the composite plan id, typed compute chain, resource selection,
+  header metadata, and target validation facts into the generated bundle.
+- Pre-realized negative coverage must keep fail-closed owner-boundary checks
+  for missing, duplicate, incomplete, stale, or unsupported composite family
+  facts.
 
 ### 7. Wrong vs Correct
 
