@@ -48,6 +48,54 @@ Hardened runtime-scalar-cmp masked indexed gather-load target artifact ABI valid
 
 - None - task complete
 
+
+## Session 535: Stage3 RVV runtime-scalar-cmp select source-front-door
+
+**Date**: 2026-06-07
+**Task**: Stage3 RVV runtime-scalar-cmp select source-front-door materializer and artifact bridge
+**Branch**: `main`
+
+### Summary
+
+Added the registered RVV Vector-like runtime-scalar compare/select
+source-front-door family, materializing bounded source-only MLIR into selected
+typed `tcrv_rvv` runtime-scalar compare/select bodies and proving the
+generated bundle path through `ssh rvv`.
+
+### Main Changes
+
+- Registered `bounded-vector-runtime-scalar-cmp-select-source-front-door`.
+- Added C++ source matcher/materializer for `lhs`, `rhs_scalar`, `true_value`,
+  `false_value`, `out`, and `n` ABI roles.
+- Extended generated-bundle source-front-door contract/evidence for
+  `runtime_scalar_cmp_select`.
+- Added transform positive/negative lit coverage, support fixture, script
+  dry-run coverage, and registry test updates.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused transform lit filter for runtime-scalar source-front-door and
+  registry negative coverage
+- [OK] focused generated-bundle lit filter for runtime-scalar source-front-door
+  dry-run, fail-closed, and script self-test coverage
+- [OK] `ssh rvv` generated-bundle run:
+  `PASS op=runtime_scalar_cmp_select counts=0,1,17,257 rhs_scalars=-37,91 true_lanes=332 false_lanes=216 mixed_cases=4 all_true_cases=0 all_false_cases=0`
+- [OK] `git diff --check`
+- [OK] Added-line old-authority scan
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
 ---
 
 ## Session: Stage2 RVV pre-realized composite executable ABI closure

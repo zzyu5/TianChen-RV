@@ -4984,6 +4984,45 @@ VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS = {
             "origin=scalar-plugin"
         ),
     ),
+    "runtime_scalar_cmp_select": replace(
+        EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["runtime_scalar_cmp_select"],
+        input_path=Path(
+            "test/Support/RVV/"
+            "rvv-vector-runtime-scalar-cmp-select-source-front-door-sle.mlir.inc"
+        ),
+        input_mode="vector-source-front-door",
+        selected_variant="rvv_vector_runtime_scalar_cmp_select_sle",
+        function_name=(
+            "tcrv_emitc_rvv_vector_runtime_scalar_cmp_select_sle_from_"
+            "vector_source_rvv_vector_runtime_scalar_cmp_select_sle"
+        ),
+        lhs_initializer=(
+            "(int32_t)(((index % 5) == 0) ? -100 : "
+            "((index % 5) == 1) ? -37 : "
+            "((index % 5) == 2) ? 0 : "
+            "((index % 5) == 3) ? 91 : 130)"
+        ),
+        rhs_initializer="rhs_scalar",
+        true_value_initializer="(int32_t)(3100 + (int32_t)(index * 23))",
+        false_value_initializer="(int32_t)(-4100 - (int32_t)(index * 29))",
+        expected_expression=(
+            "(lhs[index] <= rhs_scalar ? true_value[index] : false_value[index])"
+        ),
+        compare_predicate_kind="sle",
+        selected_dispatch_case_mirror=(
+            "selected_dispatch_case_mirror:@"
+            "rvv_vector_runtime_scalar_cmp_select_sle;"
+            "role=dispatch case;runtime_guard_required=false;"
+            "runtime_guard=none;origin=rvv-plugin;"
+            "policy=rvv-vector-runtime-scalar-cmp-select-source-front-door-case"
+        ),
+        selected_dispatch_fallback_mirror=(
+            "selected_dispatch_fallback_mirror:@"
+            "rvv_vector_runtime_scalar_cmp_select_sle_scalar_fallback;"
+            "role=dispatch fallback;fallback_role=conservative;"
+            "origin=scalar-plugin"
+        ),
+    ),
 }
 
 RHS_BROADCAST_SELECTED_BODY_OP_EXPECTATIONS = {
@@ -8467,6 +8506,7 @@ class SourceFrontDoorFamilyContract:
     default_artifact_front_door_policy: str
     source_family_label: str
     supported_kinds: tuple[str, ...]
+    runtime_purpose_roles: tuple[str, ...]
 
 
 VECTOR_BINARY_SOURCE_FRONT_DOOR_CONTRACT = SourceFrontDoorFamilyContract(
@@ -8479,6 +8519,7 @@ VECTOR_BINARY_SOURCE_FRONT_DOOR_CONTRACT = SourceFrontDoorFamilyContract(
     default_artifact_front_door_policy="eligible",
     source_family_label="bounded Vector binary source-front-door MLIR",
     supported_kinds=("add", "sub", "mul"),
+    runtime_purpose_roles=("lhs", "rhs", "out", "n"),
 )
 
 VECTOR_COMPARE_SELECT_SOURCE_FRONT_DOOR_CONTRACT = SourceFrontDoorFamilyContract(
@@ -8491,6 +8532,42 @@ VECTOR_COMPARE_SELECT_SOURCE_FRONT_DOOR_CONTRACT = SourceFrontDoorFamilyContract
     default_artifact_front_door_policy="eligible",
     source_family_label="bounded Vector compare/select source-front-door MLIR",
     supported_kinds=("cmp_select",),
+    runtime_purpose_roles=("lhs", "rhs", "out", "n"),
+)
+
+VECTOR_RUNTIME_SCALAR_COMPARE_SELECT_SOURCE_FRONT_DOOR_CONTRACT = (
+    SourceFrontDoorFamilyContract(
+        family_name="bounded-vector-runtime-scalar-cmp-select-source-front-door",
+        marker=(
+            "tcrv_rvv.source_front_door="
+            "bounded_vector_runtime_scalar_cmp_select_source"
+        ),
+        materializer=(
+            "tcrv-rvv-materialize-vector-runtime-scalar-cmp-select-"
+            "source-front-door"
+        ),
+        selected_variant_prefix="rvv_vector_runtime_scalar_cmp_select_",
+        runtime_purpose_prefix=(
+            "rvv-vector-runtime-scalar-cmp-select-source-front-door"
+        ),
+        dispatch_policy=(
+            "rvv-vector-runtime-scalar-cmp-select-source-front-door-case"
+        ),
+        default_artifact_front_door_policy="eligible",
+        source_family_label=(
+            "bounded Vector runtime-scalar compare/select source-front-door "
+            "MLIR"
+        ),
+        supported_kinds=("runtime_scalar_cmp_select",),
+        runtime_purpose_roles=(
+            "lhs",
+            "rhs_scalar",
+            "true_value",
+            "false_value",
+            "out",
+            "n",
+        ),
+    )
 )
 
 
@@ -8502,11 +8579,12 @@ def source_front_door_family_contract_for(
             f"{expectation.kind} is not a vector source-front-door expectation"
         )
 
-    contract = (
-        VECTOR_COMPARE_SELECT_SOURCE_FRONT_DOOR_CONTRACT
-        if expectation.is_cmp_select
-        else VECTOR_BINARY_SOURCE_FRONT_DOOR_CONTRACT
-    )
+    if expectation.is_runtime_scalar_compare_select:
+        contract = VECTOR_RUNTIME_SCALAR_COMPARE_SELECT_SOURCE_FRONT_DOOR_CONTRACT
+    elif expectation.is_cmp_select:
+        contract = VECTOR_COMPARE_SELECT_SOURCE_FRONT_DOOR_CONTRACT
+    else:
+        contract = VECTOR_BINARY_SOURCE_FRONT_DOOR_CONTRACT
     if expectation.kind not in contract.supported_kinds:
         raise EvidenceError(
             f"{expectation.kind} is not supported by registered RVV "
@@ -8561,7 +8639,7 @@ def source_front_door_expected_runtime_purposes(
 ) -> dict[str, str]:
     return {
         role: f"{contract.runtime_purpose_prefix}:{role}"
-        for role in ("lhs", "rhs", "out", "n")
+        for role in contract.runtime_purpose_roles
     }
 
 
@@ -27764,7 +27842,11 @@ def generate_bundle(
     materialized_path = bundle_dir.parent / "materialized_selected_body.mlir"
     materialize_command = [tcrv_opt, str(expectation.input_path)]
     if expectation.is_vector_source_front_door:
-        if expectation.is_cmp_select:
+        if expectation.is_runtime_scalar_compare_select:
+            materialize_command.append(
+                "--tcrv-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door"
+            )
+        elif expectation.is_cmp_select:
             materialize_command.append(
                 "--tcrv-rvv-materialize-vector-compare-select-source-front-door"
             )
@@ -34639,6 +34721,9 @@ def run_self_test() -> int:
         source_front_door_family_contract_summary(
             VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS["cmp_select"]
         )
+        source_front_door_family_contract_summary(
+            VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS["runtime_scalar_cmp_select"]
+        )
         wrong_source_variant_error = expect_self_test_failure(
             "source-front-door selected variant prefix mismatch",
             lambda: source_front_door_family_contract_summary(
@@ -34652,6 +34737,22 @@ def run_self_test() -> int:
             raise AssertionError(
                 "self-test source-front-door contract lost selected variant "
                 "prefix mismatch diagnostic"
+            )
+        wrong_runtime_scalar_source_variant_error = expect_self_test_failure(
+            "runtime-scalar source-front-door selected variant prefix mismatch",
+            lambda: source_front_door_family_contract_summary(
+                replace(
+                    VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS[
+                        "runtime_scalar_cmp_select"
+                    ],
+                    selected_variant="rvv_vector_cmp_select_sle",
+                )
+            ),
+        )
+        if "selected variant" not in wrong_runtime_scalar_source_variant_error:
+            raise AssertionError(
+                "self-test runtime-scalar source-front-door contract lost "
+                "selected variant prefix mismatch diagnostic"
             )
         wrong_dispatch_mirror_error = expect_self_test_failure(
             "source-front-door dispatch policy mirror mismatch",

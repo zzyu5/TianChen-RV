@@ -455,10 +455,10 @@ int runRegistrationAndCapabilityMetadataTest() {
           "collect RVV source front-door pass registrations"))
     return result;
   if (int result =
-          expect(sourceFrontDoorPasses.size() == 3,
-                 "RVV plugin exposes legacy, bounded vector-binary, and "
-                 "bounded vector compare/select source front-door pass "
-                 "registrations"))
+          expect(sourceFrontDoorPasses.size() == 4,
+                 "RVV plugin exposes legacy, bounded vector-binary, bounded "
+                 "vector compare/select, and bounded vector runtime-scalar "
+                 "compare/select source front-door pass registrations"))
     return result;
   if (int result =
           expect(sourceFrontDoorPasses[0].getOwnerPlugin() ==
@@ -508,6 +508,23 @@ int runRegistrationAndCapabilityMetadataTest() {
           "RVV bounded vector compare/select source front-door pass is eligible "
           "for the default artifact-front-door pipeline"))
     return result;
+  if (int result = expect(
+          sourceFrontDoorPasses[3].getOwnerPlugin() ==
+              tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
+          "RVV bounded vector runtime-scalar compare/select source front-door "
+          "pass is owned by RVV plugin"))
+    return result;
+  if (int result = expect(
+          sourceFrontDoorPasses[3].getArgument() ==
+              "tcrv-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door",
+          "RVV source front-door pass exposes the bounded vector "
+          "runtime-scalar compare/select argument"))
+    return result;
+  if (int result = expect(
+          sourceFrontDoorPasses[3].isDefaultArtifactFrontDoorEligible(),
+          "RVV bounded vector runtime-scalar compare/select source front-door "
+          "pass is eligible for the default artifact-front-door pipeline"))
+    return result;
   if (int result =
           expect(static_cast<bool>(sourceFrontDoorPasses[0].getFactory()),
                  "RVV legacy source front-door pass factory is present"))
@@ -522,8 +539,13 @@ int runRegistrationAndCapabilityMetadataTest() {
           "RVV bounded vector compare/select source front-door pass factory is "
           "present"))
     return result;
+  if (int result = expect(
+          static_cast<bool>(sourceFrontDoorPasses[3].getFactory()),
+          "RVV bounded vector runtime-scalar compare/select source front-door "
+          "pass factory is present"))
+    return result;
 
-  llvm::SmallVector<SourceFrontDoorPassRegistration, 2> familyRegistryPasses;
+  llvm::SmallVector<SourceFrontDoorPassRegistration, 3> familyRegistryPasses;
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::
               registerRVVVectorSourceFrontDoorFamilyPasses(
@@ -532,9 +554,10 @@ int runRegistrationAndCapabilityMetadataTest() {
           "collect RVV vector source-front-door active family registry"))
     return result;
   if (int result =
-          expect(familyRegistryPasses.size() == 2,
+          expect(familyRegistryPasses.size() == 3,
                  "RVV vector source-front-door family registry owns exactly "
-                 "the bounded binary and compare/select active families"))
+                 "the bounded binary, compare/select, and runtime-scalar "
+                 "compare/select active families"))
     return result;
   for (size_t index = 0; index < familyRegistryPasses.size(); ++index) {
     const SourceFrontDoorPassRegistration &registryPass =

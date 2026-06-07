@@ -26,6 +26,9 @@ createMaterializeRVVVectorBinarySourceFrontDoorPass();
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVVectorCompareSelectSourceFrontDoorPass();
 
+std::unique_ptr<::mlir::Pass>
+createMaterializeRVVVectorRuntimeScalarCompareSelectSourceFrontDoorPass();
+
 llvm::Error registerRVVVectorSourceFrontDoorFamilyPasses(
     llvm::StringRef ownerPlugin,
     llvm::SmallVectorImpl<

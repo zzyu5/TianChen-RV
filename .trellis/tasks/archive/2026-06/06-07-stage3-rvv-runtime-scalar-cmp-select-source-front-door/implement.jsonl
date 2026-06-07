@@ -1,0 +1,15 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, source-front-door mirror-only boundary, and Stage 3 scope"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership of typed body, runtime ABI value use, selected-body route/provider validation"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and Common EmitC neutrality"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Dry-run vs ssh rvv runtime evidence requirements"}
+{"file": ".trellis/tasks/archive/2026-06/06-07-06-07-stage3-rvv-registered-vector-source-front-door-artifact-bridge/prd.md", "reason": "Previous source-front-door bridge hardening scope and evidence"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h", "reason": "Public source-front-door materializer pass factory declarations"}
+{"file": "lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp", "reason": "Family descriptor registry, source matchers, selected typed body materializers, pass registration"}
+{"file": "lib/Plugin/RVV/RVVExtensionPlugin.cpp", "reason": "RVV plugin source-front-door pass registration"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCCompareSelectStatementPlanOwners.cpp", "reason": "Existing runtime_scalar_cmp_select statement-plan/provider facts"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Existing route/provider handoff after selected typed body materialization"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle source-front-door expectations, family contract checks, harness and ssh rvv evidence"}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-select.mlir", "reason": "Existing positive selected-body runtime_scalar_cmp_select route fixture"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-select.mlir", "reason": "Existing pre-realized runtime_scalar_cmp_select route fixture"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-select-dry-run.test", "reason": "Existing generated-bundle runtime_scalar_cmp_select evidence shape"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-source-front-door-fail-closed.test", "reason": "Existing source-front-door fail-closed generated-bundle expectations"}

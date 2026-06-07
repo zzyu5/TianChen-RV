@@ -37,6 +37,9 @@ constexpr llvm::StringLiteral kAcceptedVectorBinarySourceFrontDoorValue(
     "bounded_vector_source");
 constexpr llvm::StringLiteral kAcceptedVectorCompareSelectSourceFrontDoorValue(
     "bounded_vector_compare_select_source");
+constexpr llvm::StringLiteral
+    kAcceptedVectorRuntimeScalarCompareSelectSourceFrontDoorValue(
+        "bounded_vector_runtime_scalar_cmp_select_source");
 constexpr llvm::StringLiteral kRVVCapabilitySymbol("rvv");
 constexpr llvm::StringLiteral kScalarFallbackCapabilitySymbol(
     "scalar_fallback");
@@ -81,6 +84,16 @@ mlir::LogicalResult failVectorCompareSelectMaterializer(mlir::Operation *op,
 }
 
 mlir::LogicalResult
+failVectorRuntimeScalarCompareSelectMaterializer(mlir::Operation *op,
+                                                llvm::Twine message) {
+  op->emitError()
+      << "bounded RVV vector-runtime-scalar-cmp-select source front door "
+         "failed: "
+      << message;
+  return mlir::failure();
+}
+
+mlir::LogicalResult
 failVectorSourceFrontDoorFamilyRegistry(mlir::Operation *op,
                                         llvm::Twine message) {
   op->emitError() << "RVV vector source-front-door family registry failed: "
@@ -88,7 +101,11 @@ failVectorSourceFrontDoorFamilyRegistry(mlir::Operation *op,
   return mlir::failure();
 }
 
-enum class RVVVectorSourceFrontDoorFamilyID { Binary, CompareSelect };
+enum class RVVVectorSourceFrontDoorFamilyID {
+  Binary,
+  CompareSelect,
+  RuntimeScalarCompareSelect
+};
 
 using RVVVectorSourceFrontDoorFailFn =
     mlir::LogicalResult (*)(mlir::Operation *, llvm::Twine);
@@ -136,6 +153,19 @@ getRVVVectorSourceFrontDoorFamilyRegistry() {
        SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
            Eligible,
        failVectorCompareSelectMaterializer},
+      {RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect,
+       "bounded-vector-runtime-scalar-cmp-select-source-front-door",
+       kAcceptedVectorRuntimeScalarCompareSelectSourceFrontDoorValue,
+       "tcrv-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door",
+       "Materialize one bounded MLIR Vector-like i32 runtime-scalar "
+       "compare/select source pattern into a selected generic typed RVV body",
+       "RVV vector-runtime-scalar-cmp-select source function candidate",
+       "rvv_vector_runtime_scalar_cmp_select_",
+       "rvv-vector-runtime-scalar-cmp-select-source-front-door",
+       "rvv-vector-runtime-scalar-cmp-select-source-front-door-case",
+       SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
+           Eligible,
+       failVectorRuntimeScalarCompareSelectMaterializer},
   };
   return families;
 }
@@ -389,6 +419,18 @@ struct VectorCompareSelectSourceMatch {
   mlir::func::FuncOp func;
   mlir::Value lhsSource;
   mlir::Value rhsSource;
+  mlir::Value outDestination;
+  mlir::Value runtimeN;
+  mlir::VectorType sourceVectorType;
+  std::string predicateKind;
+};
+
+struct VectorRuntimeScalarCompareSelectSourceMatch {
+  mlir::func::FuncOp func;
+  mlir::Value lhsSource;
+  mlir::Value rhsScalar;
+  mlir::Value trueValueSource;
+  mlir::Value falseValueSource;
   mlir::Value outDestination;
   mlir::Value runtimeN;
   mlir::VectorType sourceVectorType;
@@ -722,6 +764,201 @@ matchBoundedVectorCompareSelectSourceFunc(mlir::func::FuncOp func) {
                                         predicateKind.str()};
 }
 
+mlir::FailureOr<VectorRuntimeScalarCompareSelectSourceMatch>
+matchBoundedVectorRuntimeScalarCompareSelectSourceFunc(
+    mlir::func::FuncOp func) {
+  if (func.isDeclaration()) {
+    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+        func, "source function must have a body for structural pattern match");
+    return mlir::failure();
+  }
+
+  mlir::FunctionType type = func.getFunctionType();
+  if (type.getNumInputs() != 6 || type.getNumResults() != 0) {
+    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+        func,
+        "source function must have exactly six inputs and no results: "
+        "lhs memref<?xi32>, rhs_scalar i32, true_value/false_value/out "
+        "memref<?xi32>, plus n index");
+    return mlir::failure();
+  }
+  if (!isRank1I32MemRef(type.getInput(0)) ||
+      !type.getInput(1).isInteger(32) ||
+      !isRank1I32MemRef(type.getInput(2)) ||
+      !isRank1I32MemRef(type.getInput(3)) ||
+      !isRank1I32MemRef(type.getInput(4)) || !type.getInput(5).isIndex()) {
+    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+        func,
+        "source function inputs must be lhs rank-1 i32 memref, rhs_scalar "
+        "i32, true_value/false_value/out rank-1 i32 memrefs, and one "
+        "runtime n index");
+    return mlir::failure();
+  }
+
+  llvm::SmallVector<mlir::vector::TransferReadOp, 3> reads;
+  llvm::SmallVector<mlir::vector::TransferWriteOp, 1> writes;
+  llvm::SmallVector<mlir::vector::SplatOp, 1> splats;
+  llvm::SmallVector<mlir::arith::CmpIOp, 1> compareOps;
+  llvm::SmallVector<mlir::arith::SelectOp, 1> selectOps;
+  mlir::Operation *unsupportedVectorOp = nullptr;
+  mlir::Operation *unsupportedArithVectorOp = nullptr;
+  func.walk([&](mlir::Operation *op) {
+    if (auto read = llvm::dyn_cast<mlir::vector::TransferReadOp>(op)) {
+      reads.push_back(read);
+      return;
+    }
+    if (auto write = llvm::dyn_cast<mlir::vector::TransferWriteOp>(op)) {
+      writes.push_back(write);
+      return;
+    }
+    if (auto splat = llvm::dyn_cast<mlir::vector::SplatOp>(op)) {
+      splats.push_back(splat);
+      return;
+    }
+    if (auto compare = llvm::dyn_cast<mlir::arith::CmpIOp>(op)) {
+      if (isRank1I1Vector(compare.getResult().getType())) {
+        if (!getSupportedVectorComparePredicate(compare).empty())
+          compareOps.push_back(compare);
+        else if (!unsupportedArithVectorOp)
+          unsupportedArithVectorOp = op;
+      }
+      return;
+    }
+    if (auto select = llvm::dyn_cast<mlir::arith::SelectOp>(op)) {
+      if (hasVectorResult(op))
+        selectOps.push_back(select);
+      return;
+    }
+    if (op->getName().getDialectNamespace() == "vector" &&
+        !unsupportedVectorOp)
+      unsupportedVectorOp = op;
+    if (op->getName().getDialectNamespace() == "arith" &&
+        hasVectorResult(op) && !unsupportedArithVectorOp)
+      unsupportedArithVectorOp = op;
+  });
+  if (unsupportedVectorOp) {
+    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+        unsupportedVectorOp,
+        "only vector.transfer_read, vector.splat, and "
+        "vector.transfer_write are supported by this bounded "
+        "runtime-scalar compare/select source pattern");
+    return mlir::failure();
+  }
+  if (unsupportedArithVectorOp) {
+    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+        unsupportedArithVectorOp,
+        "only arith.cmpi predicates eq, slt, or sle plus arith.select are "
+        "supported by this bounded runtime-scalar source path");
+    return mlir::failure();
+  }
+  if (reads.size() != 3 || writes.size() != 1 || splats.size() != 1 ||
+      compareOps.size() != 1 || selectOps.size() != 1) {
+    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+        func,
+        "source pattern must contain exactly three vector.transfer_read ops, "
+        "one vector.splat of rhs_scalar, one supported arith.cmpi vector "
+        "compare op, one arith.select op, and one vector.transfer_write");
+    return mlir::failure();
+  }
+
+  mlir::arith::CmpIOp compare = compareOps.front();
+  mlir::arith::SelectOp select = selectOps.front();
+  llvm::StringRef predicateKind = getSupportedVectorComparePredicate(compare);
+  auto lhsRead =
+      compare.getLhs().getDefiningOp<mlir::vector::TransferReadOp>();
+  auto rhsSplat = compare.getRhs().getDefiningOp<mlir::vector::SplatOp>();
+  if (!lhsRead || !rhsSplat) {
+    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+        compare,
+        "arith.cmpi must compare the lhs vector.transfer_read against the "
+        "vector.splat result of rhs_scalar");
+    return mlir::failure();
+  }
+
+  mlir::Block &entry = func.getBody().front();
+  if (lhsRead.getSource() != entry.getArgument(0) ||
+      rhsSplat.getInput() != entry.getArgument(1) ||
+      writes.front().getSource() != entry.getArgument(4) ||
+      entry.getNumArguments() != 6) {
+    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+        func,
+        "source roles must be structural: lhs transfer_read from the first "
+        "argument, vector.splat from rhs_scalar, transfer_write to the fifth "
+        "argument, and runtime n as the sixth argument");
+    return mlir::failure();
+  }
+
+  if (select.getCondition() != compare.getResult()) {
+    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+        select, "arith.select condition must be the arith.cmpi result");
+    return mlir::failure();
+  }
+  auto trueRead =
+      select.getTrueValue().getDefiningOp<mlir::vector::TransferReadOp>();
+  auto falseRead =
+      select.getFalseValue().getDefiningOp<mlir::vector::TransferReadOp>();
+  if (!trueRead || !falseRead || trueRead == falseRead ||
+      trueRead.getSource() != entry.getArgument(2) ||
+      falseRead.getSource() != entry.getArgument(3)) {
+    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+        select,
+        "arith.select layout must select true_value when the runtime-scalar "
+        "compare mask is true and false_value when it is false");
+    return mlir::failure();
+  }
+
+  mlir::vector::TransferWriteOp write = writes.front();
+  if (write.getVector() != select.getResult()) {
+    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+        write, "vector.transfer_write must store the arith.select result");
+    return mlir::failure();
+  }
+
+  mlir::VectorType vectorType =
+      llvm::dyn_cast<mlir::VectorType>(select.getResult().getType());
+  if (!isRank1I32Vector(vectorType) ||
+      lhsRead.getVector().getType() != vectorType ||
+      rhsSplat.getResult().getType() != vectorType ||
+      trueRead.getVector().getType() != vectorType ||
+      falseRead.getVector().getType() != vectorType ||
+      compare.getLhs().getType() != vectorType ||
+      compare.getRhs().getType() != vectorType ||
+      write.getVector().getType() != vectorType) {
+    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+        select,
+        "source compare/select operands and result must share one rank-1 i32 "
+        "vector type");
+    return mlir::failure();
+  }
+  if (!hasNoTransferMask(lhsRead) || !hasNoTransferMask(trueRead) ||
+      !hasNoTransferMask(falseRead) || !hasNoTransferMask(write)) {
+    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+        func, "masked vector transfers are outside this bounded source path");
+    return mlir::failure();
+  }
+  if (!hasOneIndex(lhsRead.getIndices()) ||
+      !hasOneIndex(trueRead.getIndices()) ||
+      !hasOneIndex(falseRead.getIndices()) || !hasOneIndex(write.getIndices())) {
+    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+        func,
+        "source vector transfers must be rank-1 unit-stride memory accesses");
+    return mlir::failure();
+  }
+  if (!lhsRead.getPadding().getType().isInteger(32) ||
+      !trueRead.getPadding().getType().isInteger(32) ||
+      !falseRead.getPadding().getType().isInteger(32)) {
+    (void)failVectorRuntimeScalarCompareSelectMaterializer(
+        func,
+        "source vector.transfer_read padding must match the i32 element type");
+    return mlir::failure();
+  }
+
+  return VectorRuntimeScalarCompareSelectSourceMatch{
+      func,           entry.getArgument(0), entry.getArgument(1),
+      entry.getArgument(2), entry.getArgument(3), entry.getArgument(4),
+      entry.getArgument(5), vectorType,           predicateKind.str()};
+}
+
 mlir::FailureOr<bool> matchRVVVectorSourceFrontDoorFamilyMarker(
     mlir::ModuleOp module,
     const RVVVectorSourceFrontDoorFamilyDescriptor &family) {
@@ -824,6 +1061,45 @@ matchVectorCompareSelectSourceFrontDoor(mlir::ModuleOp module,
 
   mlir::FailureOr<VectorCompareSelectSourceMatch> match =
       matchBoundedVectorCompareSelectSourceFunc(funcs.front());
+  if (mlir::failed(match))
+    return mlir::failure();
+
+  mlir::FailureOr<std::string> name =
+      getRVVVectorSourceKernelName(module, family, match->predicateKind);
+  if (mlir::failed(name))
+    return mlir::failure();
+  kernelName = *name;
+  return match;
+}
+
+mlir::FailureOr<VectorRuntimeScalarCompareSelectSourceMatch>
+matchVectorRuntimeScalarCompareSelectSourceFrontDoor(mlir::ModuleOp module,
+                                                    std::string &kernelName) {
+  const RVVVectorSourceFrontDoorFamilyDescriptor &family =
+      getRVVVectorSourceFrontDoorFamily(
+          RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect);
+  mlir::FailureOr<bool> selected =
+      matchRVVVectorSourceFrontDoorFamilyMarker(module, family);
+  if (mlir::failed(selected))
+    return mlir::failure();
+  if (!*selected)
+    return VectorRuntimeScalarCompareSelectSourceMatch{};
+
+  if (mlir::failed(requireRVVVectorSourceOnlyModule(module, family)))
+    return mlir::failure();
+
+  llvm::SmallVector<mlir::func::FuncOp, 2> funcs;
+  module.walk([&](mlir::func::FuncOp func) { funcs.push_back(func); });
+  if (funcs.size() != 1) {
+    (void)family.fail(
+        module,
+        llvm::Twine("source module must contain exactly one ") +
+            family.sourceFunctionCandidateDescription);
+    return mlir::failure();
+  }
+
+  mlir::FailureOr<VectorRuntimeScalarCompareSelectSourceMatch> match =
+      matchBoundedVectorRuntimeScalarCompareSelectSourceFunc(funcs.front());
   if (mlir::failed(match))
     return mlir::failure();
 
@@ -952,6 +1228,15 @@ mlir::Value createRVVCompare(mlir::OpBuilder &builder, mlir::Location loc,
   state.addOperands({lhs, rhs, vl});
   state.addAttribute("kind", builder.getStringAttr(predicateKind));
   state.addTypes(maskType);
+  return builder.create(state)->getResult(0);
+}
+
+mlir::Value createRVVSplat(mlir::OpBuilder &builder, mlir::Location loc,
+                           mlir::Value scalar, mlir::Value vl,
+                           mlir::Type vectorType) {
+  mlir::OperationState state(loc, tcrv::rvv::SplatOp::getOperationName());
+  state.addOperands({scalar, vl});
+  state.addTypes(vectorType);
   return builder.create(state)->getResult(0);
 }
 
@@ -1195,6 +1480,106 @@ void materializeRVVVectorCompareSelectSourceKernel(
                  family.dispatchPolicy);
 }
 
+void materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
+    mlir::OpBuilder &builder, llvm::StringRef kernelName,
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family,
+    VectorRuntimeScalarCompareSelectSourceMatch source) {
+  mlir::Location loc = source.func.getLoc();
+  tcrv::rvv::PolicyAttr policy = createAgnosticPolicy(builder);
+  std::string selectedVariantSymbol =
+      getRVVVectorSourceVariantSymbol(family, source.predicateKind);
+  std::string fallbackVariantSymbol =
+      getRVVVectorSourceScalarFallbackVariantSymbol(family,
+                                                   source.predicateKind);
+
+  mlir::OperationState kernelState(loc,
+                                   tcrv::exec::KernelOp::getOperationName());
+  kernelState.addAttribute("sym_name", builder.getStringAttr(kernelName));
+  kernelState.addRegion();
+  auto kernel = llvm::cast<tcrv::exec::KernelOp>(builder.create(kernelState));
+  kernel.getBody().emplaceBlock();
+
+  mlir::OpBuilder::InsertionGuard kernelGuard(builder);
+  builder.setInsertionPointToStart(&kernel.getBody().front());
+
+  createCapability(builder, loc, kRVVCapabilitySymbol, "rvv", "isa-vector");
+  createCapability(builder, loc, kScalarFallbackCapabilitySymbol,
+                   "scalar.fallback", "fallback");
+  mlir::ArrayAttr rvvRequires = createRequires(builder, kRVVCapabilitySymbol);
+  mlir::ArrayAttr scalarRequires =
+      createRequires(builder, kScalarFallbackCapabilitySymbol);
+
+  tcrv::exec::VariantOp rvvVariant = createRVVVectorSourceVariant(
+      builder, loc, selectedVariantSymbol, rvvRequires, policy);
+  mlir::OpBuilder::InsertionGuard variantGuard(builder);
+  builder.setInsertionPointToStart(&rvvVariant.getBody().front());
+
+  mlir::Type runtimeABIType =
+      tcrv::rvv::RuntimeABIValueType::get(builder.getContext());
+  std::string lhsPurpose = getRVVVectorSourceRuntimePurpose(family, "lhs");
+  std::string rhsScalarPurpose =
+      getRVVVectorSourceRuntimePurpose(family, "rhs_scalar");
+  std::string trueValuePurpose =
+      getRVVVectorSourceRuntimePurpose(family, "true_value");
+  std::string falseValuePurpose =
+      getRVVVectorSourceRuntimePurpose(family, "false_value");
+  std::string outPurpose = getRVVVectorSourceRuntimePurpose(family, "out");
+  std::string nPurpose = getRVVVectorSourceRuntimePurpose(family, "n");
+  auto lhs = createRuntimeABIValue(
+      builder, loc, "lhs-input-buffer", "lhs", "const int32_t *", lhsPurpose,
+      runtimeABIType);
+  auto rhsScalar =
+      createRuntimeABIValue(builder, loc, "rhs-scalar-value", "rhs_scalar",
+                            "int32_t", rhsScalarPurpose, builder.getI32Type());
+  auto trueValue = createRuntimeABIValue(
+      builder, loc, "true-value-input-buffer", "true_value",
+      "const int32_t *", trueValuePurpose, runtimeABIType);
+  auto falseValue = createRuntimeABIValue(
+      builder, loc, "false-value-input-buffer", "false_value",
+      "const int32_t *", falseValuePurpose, runtimeABIType);
+  auto out = createRuntimeABIValue(
+      builder, loc, "output-buffer", "out", "int32_t *", outPurpose,
+      runtimeABIType);
+  auto n = createRuntimeABIValue(
+      builder, loc, "runtime-element-count", "n", "size_t", nPurpose,
+      builder.getIndexType());
+
+  tcrv::rvv::SetVLOp setvl = createSetVL(builder, loc, n.getResult(), policy);
+  tcrv::rvv::WithVLOp withVL =
+      createWithVL(builder, loc, setvl.getVl(), policy, kernelName,
+                   selectedVariantSymbol, rvvRequires);
+
+  mlir::OpBuilder::InsertionGuard withVLGuard(builder);
+  builder.setInsertionPointToStart(&withVL.getBody().front());
+  mlir::Type vectorType =
+      tcrv::rvv::VectorType::get(builder.getContext(), builder.getI32Type(),
+                                 "m1");
+  mlir::Type maskType =
+      tcrv::rvv::MaskType::get(builder.getContext(), builder.getI32Type(),
+                               "m1");
+  mlir::Value loadedLHS =
+      createRVVLoad(builder, loc, lhs.getResult(), setvl.getVl(), vectorType);
+  mlir::Value splattedRHS = createRVVSplat(
+      builder, loc, rhsScalar.getResult(), setvl.getVl(), vectorType);
+  mlir::Value loadedTrueValue = createRVVLoad(
+      builder, loc, trueValue.getResult(), setvl.getVl(), vectorType);
+  mlir::Value loadedFalseValue = createRVVLoad(
+      builder, loc, falseValue.getResult(), setvl.getVl(), vectorType);
+  mlir::Value mask =
+      createRVVCompare(builder, loc, source.predicateKind, loadedLHS,
+                       splattedRHS, setvl.getVl(), maskType);
+  mlir::Value selected =
+      createRVVSelect(builder, loc, mask, loadedTrueValue, loadedFalseValue,
+                      setvl.getVl(), vectorType);
+  createRVVStore(builder, loc, out.getResult(), selected, setvl.getVl());
+
+  builder.setInsertionPointAfter(rvvVariant);
+  createScalarFallbackVariant(builder, loc, fallbackVariantSymbol,
+                              scalarRequires);
+  createDispatch(builder, loc, selectedVariantSymbol, fallbackVariantSymbol,
+                 family.dispatchPolicy);
+}
+
 class FailClosedRVVLegacyVectorSourceFrontDoorPass final
     : public mlir::PassWrapper<
           FailClosedRVVLegacyVectorSourceFrontDoorPass,
@@ -1344,6 +1729,55 @@ public:
   }
 };
 
+class MaterializeRVVVectorRuntimeScalarCompareSelectSourceFrontDoorPass final
+    : public mlir::PassWrapper<
+          MaterializeRVVVectorRuntimeScalarCompareSelectSourceFrontDoorPass,
+          mlir::OperationPass<mlir::ModuleOp>> {
+public:
+  llvm::StringRef getArgument() const final {
+    return getRVVVectorSourceFrontDoorFamily(
+               RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect)
+        .passArgument;
+  }
+
+  llvm::StringRef getDescription() const final {
+    return getRVVVectorSourceFrontDoorFamily(
+               RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect)
+        .passDescription;
+  }
+
+  void getDependentDialects(mlir::DialectRegistry &registry) const final {
+    registry.insert<mlir::arith::ArithDialect, mlir::func::FuncDialect,
+                    mlir::memref::MemRefDialect, mlir::scf::SCFDialect,
+                    mlir::vector::VectorDialect,
+                    tcrv::exec::TCRVExecDialect, tcrv::rvv::TCRVRVVDialect>();
+  }
+
+  void runOnOperation() final {
+    mlir::ModuleOp module = getOperation();
+    const RVVVectorSourceFrontDoorFamilyDescriptor &family =
+        getRVVVectorSourceFrontDoorFamily(
+            RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect);
+    std::string kernelName;
+    mlir::FailureOr<VectorRuntimeScalarCompareSelectSourceMatch> source =
+        matchVectorRuntimeScalarCompareSelectSourceFrontDoor(module,
+                                                            kernelName);
+    if (mlir::failed(source)) {
+      signalPassFailure();
+      return;
+    }
+    if (!source->func)
+      return;
+
+    mlir::OpBuilder builder(module.getContext());
+    builder.setInsertionPointToStart(module.getBody());
+    materializeRVVVectorRuntimeScalarCompareSelectSourceKernel(
+        builder, kernelName, family, *source);
+    module->removeAttr(kSourceFrontDoorAttrName);
+    module->removeAttr(kSourceKernelAttrName);
+  }
+};
+
 std::unique_ptr<::mlir::Pass>
 createMaterializeRVVVectorSourceFrontDoorFamilyPass(
     RVVVectorSourceFrontDoorFamilyID familyID) {
@@ -1352,6 +1786,8 @@ createMaterializeRVVVectorSourceFrontDoorFamilyPass(
     return createMaterializeRVVVectorBinarySourceFrontDoorPass();
   case RVVVectorSourceFrontDoorFamilyID::CompareSelect:
     return createMaterializeRVVVectorCompareSelectSourceFrontDoorPass();
+  case RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect:
+    return createMaterializeRVVVectorRuntimeScalarCompareSelectSourceFrontDoorPass();
   }
   llvm_unreachable("unknown RVV vector source-front-door family id");
 }
@@ -1372,6 +1808,12 @@ std::unique_ptr<::mlir::Pass>
 createMaterializeRVVVectorCompareSelectSourceFrontDoorPass() {
   return std::make_unique<
       MaterializeRVVVectorCompareSelectSourceFrontDoorPass>();
+}
+
+std::unique_ptr<::mlir::Pass>
+createMaterializeRVVVectorRuntimeScalarCompareSelectSourceFrontDoorPass() {
+  return std::make_unique<
+      MaterializeRVVVectorRuntimeScalarCompareSelectSourceFrontDoorPass>();
 }
 
 llvm::Error registerRVVVectorSourceFrontDoorFamilyPasses(

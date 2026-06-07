@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify source-front-door remains mirror-only and route authority stays in typed RVV body/provider"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify runtime scalar ABI binding and RVV plugin ownership are preserved"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify no Common EmitC semantic invention or descriptor route was added"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify evidence claims match dry-run and ssh rvv requirements"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h", "reason": "Check exported pass factory surface"}
+{"file": "lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp", "reason": "Check family registration, matcher fail-closed behavior, and materialized typed body facts"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Check source-front-door contract, ABI evidence, self-tests, and ssh harness expectations"}
+{"file": "test/Transforms/RVV/", "reason": "Check positive and negative source materializer lit coverage"}
+{"file": "test/Scripts/", "reason": "Check generated-bundle dry-run and fail-closed script tests"}
