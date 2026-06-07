@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-24.md`
-- **Total Sessions**: 517
+- **Active File**: `journal-25.md`
+- **Total Sessions**: 518
 - **Last Active**: 2026-06-07
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-24.md` | ~1991 | Active |
+| `journal-25.md` | ~40 | Active |
+| `journal-24.md` | ~1991 | Archived |
 | `journal-23.md` | ~1982 | Archived |
 | `journal-22.md` | ~2034 | Archived |
 | `journal-21.md` | ~1978 | Archived |
@@ -52,6 +53,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 518 | 2026-06-07 | Stage2 RVV runtime-scalar indexed gather ABI | pending-in-this-commit | `main` |
 | 517 | 2026-06-07 | Stage2 RVV runtime-scalar indexed scatter ABI | pending-in-this-commit | `main` |
 | 516 | 2026-06-07 | Stage2 RVV runtime-scalar segment2 load ABI | created-after-journal-entry | `main` |
 | 515 | 2026-06-07 | Stage2 RVV pre-realized runtime-scalar segment2 store ABI | created-after-journal-entry | `main` |

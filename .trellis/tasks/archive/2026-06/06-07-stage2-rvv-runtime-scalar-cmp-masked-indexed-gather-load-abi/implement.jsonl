@@ -1,0 +1,8 @@
+{"file": ".trellis/tasks/06-07-stage2-rvv-runtime-scalar-cmp-masked-indexed-gather-load-abi/prd.md", "reason": "Current bounded module requirements, acceptance criteria, out-of-scope limits, and evidence contract."}
+{"file": ".trellis/spec/index.md", "reason": "Global RVV authority chain, Stage 2 selected-body realization boundary, and invalid descriptor/common-EmitC authority rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local route ownership, computed-mask indexed memory statement-plan boundary, typed body/config/runtime fact authority, and fail-closed provider facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, neutral common EmitC materialization, computed-mask indexed memory facts, validation contracts, metadata mirrors, ABI binding, and runtime AVL/VL boundary."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/C++/generated-bundle/ssh rvv evidence requirements for executable RVV claims."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Evidence interpretation rules for RVV runtime/correctness claims."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added runtime-scalar computed-mask indexed gather manual route/candidate coverage, positive provider/candidate validation, and stale binding/indexed-data fail-closed checks."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Aligned computed-mask indexed memory fact/validation surface with runtime-scalar gather/scatter provider kinds, RHS scalar splat facts, and tests required."}

@@ -2361,9 +2361,11 @@ typed computed-mask strided body/config/runtime facts
 
 ### Computed-Mask Indexed Memory Fact Surface
 
-For `computed_masked_indexed_gather_load_unit_store` and
-`computed_masked_indexed_scatter_store_unit_load`, provider/target shared
-constants must use the provider-owned surface:
+For `computed_masked_indexed_gather_load_unit_store`,
+`runtime_scalar_cmp_masked_indexed_gather_load_unit_store`,
+`computed_masked_indexed_scatter_store_unit_load`, and
+`runtime_scalar_cmp_masked_indexed_scatter_store_unit_load`,
+provider/target shared constants must use the provider-owned surface:
 
 ```c++
 struct RVVComputedMaskIndexedMemoryRouteFacts {
@@ -2393,6 +2395,7 @@ struct RVVComputedMaskIndexedMemoryRouteFacts {
   llvm::StringRef maskedIndexedLoadIntrinsic;
   llvm::StringRef maskedIndexedStoreIntrinsic;
   llvm::StringRef maskedStoreIntrinsic;
+  llvm::StringRef rhsScalarSplatIntrinsic;
   llvm::StringRef compareIntrinsic;
   llvm::StringRef routeOperandBindingPlanID;
   llvm::StringRef typedComputeOpName;
@@ -2427,9 +2430,13 @@ getRVVComputedMaskIndexedMemoryRouteFacts(
 
 Contracts:
 
-- Gather and scatter both use runtime ABI order
+- Vector-compare gather and scatter both use runtime ABI order
   `cmp_lhs,cmp_rhs,src,index,dst,n` and exported header/prototype binding for
   every ABI parameter.
+- Runtime-scalar gather and scatter both use runtime ABI order
+  `lhs,rhs_scalar,src,index,dst,n`, exported header/prototype binding for
+  every ABI parameter, `rhsScalarSplatIntrinsic`, and computed-mask producer
+  source `runtime-scalar-splat-compare-rhs`.
 - Gather uses typed compute op `tcrv_rvv.masked_indexed_load`, memory form
   `computed-mask-indexed-gather-load-unit-store`, indexed data memory form
   `masked-indexed-load`, and no scatter uniqueness fact.
@@ -2444,10 +2451,11 @@ Contracts:
   leaf through the route description's indexed-store field. It must carry empty
   `maskedIndexedLoadIntrinsic` and empty ordinary `maskedStoreIntrinsic`; the
   destination update is not a unit-stride store leaf.
-- Both routes require SEW/LMUL/policy `32/m1/agnostic/agnostic`, compare
-  predicate `slt`, compare-produced mask facts, mask/tail route-family plan,
-  inactive-lane contract, passthrough/no-write layout, indexed memory layout,
-  index source `runtime_abi:index`, index EEW `32`, offset unit `element`,
+- All four indexed computed-mask routes require SEW/LMUL/policy
+  `32/m1/agnostic/agnostic`, operation-specific compare predicate, compare-
+  produced mask facts, mask/tail route-family plan, inactive-lane contract,
+  passthrough/no-write layout, indexed memory layout, index source
+  `runtime_abi:index`, index EEW `32`, offset unit `element`,
   provider-supported mirror, target leaf profile, header declarations, C type
   summary, operand binding plan, and exact operand binding summary from the
   accessor.
@@ -2457,11 +2465,16 @@ Contracts:
 
 Validation and error behavior:
 
-- Missing accessor result for either computed-mask indexed operation -> fail
+- Missing accessor result for any computed-mask indexed operation -> fail
   before target artifact export.
 - Gather facts applied to scatter, or scatter facts applied to gather -> fail
   on memory form, typed compute op, indexed data/destination form, uniqueness,
   target profile, provider mirror, or binding summary before bundle acceptance.
+- Vector-compare facts applied to a runtime-scalar indexed route, or
+  runtime-scalar facts applied to a vector-compare indexed route -> fail on
+  runtime ABI order, RHS scalar splat leaf, mask producer source, predicate,
+  target profile, provider mirror, C type summary, or binding summary before
+  bundle acceptance.
 - Missing or stale mask facts, index facts, inactive-lane contract, route-family
   plan, header/type summary, target profile, provider mirror, runtime ABI order,
   or binding summary -> fail before target artifact acceptance.
@@ -2489,18 +2502,19 @@ Validation and error behavior:
 Tests required:
 
 - C++ target artifact tests must mutate provider route descriptions for stale
-  gather/scatter typed compute, mask/index facts, binding facts, header/type
-  facts, target profile, provider mirror, masked indexed load/store leaves,
-  ordinary store residue, and gather/scatter cross-contamination.
+  gather/scatter/runtime-scalar typed compute, mask/index facts, binding facts,
+  header/type facts, target profile, provider mirror, masked indexed load/store
+  leaves, ordinary store residue, RHS scalar splat facts, and gather/scatter or
+  vector/runtime-scalar cross-contamination.
 - C++ target artifact tests must mutate candidate metadata mirrors for the same
   fields and prove stale metadata cannot be accepted.
 - C++ target artifact tests must prove stale plain base-memory provider facts
   and `tcrv_rvv.base_memory_movement_route_family_plan` candidate mirrors fail
   closed on computed-mask indexed routes.
 - Generated-bundle dry-run FileCheck tests must keep explicit and pre-realized
-  gather/scatter coverage and expose representative `typed_compute_op`,
-  memory form, binding summary, mask/index facts, provider mirror, and target
-  profile in evidence JSON.
+  gather/scatter/runtime-scalar coverage and expose representative
+  `typed_compute_op`, memory form, binding summary, mask/index/runtime-scalar
+  facts, provider mirror, and target profile in evidence JSON.
 - Runtime `ssh rvv` evidence is required only when the task claims new runtime,
   correctness, or performance behavior. Pure validation tightening may reuse
   prior runtime evidence and must state that no generated runtime semantics
@@ -2511,8 +2525,10 @@ Tests required:
 #### 1. Scope / Trigger
 
 When target artifact validation accepts rebuilt provider payloads for
-`computed_masked_indexed_gather_load_unit_store` or
-`computed_masked_indexed_scatter_store_unit_load`, it must consume a
+`computed_masked_indexed_gather_load_unit_store`,
+`runtime_scalar_cmp_masked_indexed_gather_load_unit_store`,
+`computed_masked_indexed_scatter_store_unit_load`, or
+`runtime_scalar_cmp_masked_indexed_scatter_store_unit_load`, it must consume a
 provider-owned route validation contract after rebuilding the RVV provider
 route. This contract sits above candidate metadata mirrors: mirrors are checked
 only after the rebuilt route description, route payload, ABI mappings, headers,
@@ -2525,7 +2541,9 @@ The durable provider-owned surface is:
 ```c++
 enum class RVVComputedMaskIndexedMemoryRouteValidationKind {
   IndexedGatherLoadUnitStore,
+  RuntimeScalarIndexedGatherLoadUnitStore,
   IndexedScatterStoreUnitLoad,
+  RuntimeScalarIndexedScatterStoreUnitLoad,
 };
 
 struct RVVComputedMaskIndexedMemoryRouteValidationContract {
@@ -2582,6 +2600,7 @@ struct RVVComputedMaskIndexedMemoryRouteValidationContract {
   std::string maskedIndexedLoadIntrinsic;
   std::string maskedIndexedStoreIntrinsic;
   std::string maskedStoreIntrinsic;
+  std::string rhsScalarSplatIntrinsic;
   std::string compareIntrinsic;
   std::size_t expectedPreLoopStepCount;
   std::size_t expectedLoopBodyStepCount;
@@ -2620,13 +2639,17 @@ getRVVComputedMaskIndexedMemoryRouteMetadataMirrorContract(
 - Scatter contracts must carry masked indexed store facts, indexed destination
   memory form, unique-index facts, and empty masked indexed load plus ordinary
   unit-store residue.
+- Runtime-scalar indexed contracts must additionally carry RHS scalar ABI
+  binding, `rhsScalarSplatIntrinsic`, runtime-scalar mask producer source,
+  and runtime-scalar C type/binding summaries; vector-compare contracts must
+  reject those runtime-scalar facts as stale residue.
 - Candidate metadata mirror validation remains separate and must use
   `getRVVComputedMaskIndexedMemoryRouteMetadataMirrorContract(...)` after route
   payload validation succeeds.
 
 #### 4. Validation & Error Matrix
 
-- Missing validation contract for either computed-mask indexed operation ->
+- Missing validation contract for any computed-mask indexed operation ->
   fail before target artifact acceptance.
 - Operation, memory form, route family plan, mask/tail facts, target profile,
   provider mirror, header/type summary, binding plan, binding summary, or
@@ -2638,6 +2661,10 @@ getRVVComputedMaskIndexedMemoryRouteMetadataMirrorContract(
   missing unit-store facts -> fail closed. Scatter carrying gather typed
   compute, masked indexed load, ordinary unit-store, or missing uniqueness
   facts -> fail closed.
+- Runtime-scalar gather/scatter carrying vector-compare ABI order, missing RHS
+  scalar splat, stale vector compare producer source, or vector-compare C type
+  summary -> fail closed. Vector-compare gather/scatter carrying
+  runtime-scalar ABI/splat residue -> fail closed.
 - Candidate metadata matches while provider payload mismatches -> fail;
   mirrors cannot override provider route validation.
 - Stale plain base-memory, strided, segment2, unit-only, scalar-splat,
@@ -2654,6 +2681,16 @@ getRVVComputedMaskIndexedMemoryRouteMetadataMirrorContract(
   validation contract -> target checks compare-produced mask, index load/scale,
   masked indexed store leaf, unique-index fact, provider binding summary, route
   headers/types, and statement-plan shape before mirrors.
+- Good: `runtime_scalar_cmp_masked_indexed_gather_load_unit_store` facts ->
+  route validation contract -> target checks runtime RHS scalar binding, splat,
+  compare-produced mask, index load/scale, masked indexed load leaf, unit-store
+  output, provider binding summary, route headers/types, and statement-plan
+  shape before mirrors.
+- Good: `runtime_scalar_cmp_masked_indexed_scatter_store_unit_load` facts ->
+  route validation contract -> target checks runtime RHS scalar binding, splat,
+  compare-produced mask, source payload, index load/scale, masked indexed store
+  leaf, unique-index fact, provider binding summary, route headers/types, and
+  statement-plan shape before mirrors.
 - Base: plain indexed, computed-mask strided, segment2, base-memory, and
   compare/select routes consume their own validation contracts or fact surfaces.
 - Bad: target validation accepts a route because the route id, artifact name,
@@ -2662,8 +2699,8 @@ getRVVComputedMaskIndexedMemoryRouteMetadataMirrorContract(
 
 #### 6. Tests Required
 
-- C++ target artifact tests must cover positive contract access for both
-  computed-mask indexed gather and scatter.
+- C++ target artifact tests must cover positive contract access for vector and
+  runtime-scalar computed-mask indexed gather/scatter routes.
 - C++ target artifact tests must mutate provider route descriptions for stale
   provider mirror, target profile, header/type facts, runtime ABI roles, mask
   facts, index source/EEW/offset/uniqueness facts, binding summary, intrinsic

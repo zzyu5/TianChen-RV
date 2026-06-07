@@ -2772,7 +2772,13 @@ TargetArtifactCandidate makeRVVManualTargetArtifactCandidate(
   if (description.operation ==
           RVVManualOperationKind::ComputedMaskIndexedGatherLoadUnitStore ||
       description.operation ==
-          RVVManualOperationKind::ComputedMaskIndexedScatterStoreUnitLoad) {
+          RVVManualOperationKind::
+              RuntimeScalarComputedMaskIndexedGatherLoadUnitStore ||
+      description.operation ==
+          RVVManualOperationKind::ComputedMaskIndexedScatterStoreUnitLoad ||
+      description.operation ==
+          RVVManualOperationKind::
+              RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad) {
     add("tcrv_rvv.indexed_memory_layout", description.indexedMemoryLayout);
     add("tcrv_rvv.index_source", description.indexSource);
     candidate.artifactMetadata.emplace_back(
@@ -3469,6 +3475,175 @@ makeRVVManualIndexedGatherRoute(
       {Operand{pointerAtInduction("cmp_rhs"), "const int32_t *"},
        loopVLOperand()},
       "rhs_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{pointerAtInduction("dst"), "int32_t *"}, loopVLOperand()},
+      "old_dst_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.compareIntrinsic,
+      {Operand{"lhs_vec", description.vectorCType.str()},
+       Operand{"rhs_vec", description.vectorCType.str()},
+       loopVLOperand()},
+      description.maskName, description.maskCType, "compute"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.maskedLoadIntrinsic,
+      {Operand{description.maskName.str(), description.maskCType.str()},
+       Operand{"old_dst_vec", description.vectorCType.str()},
+       Operand{"src", "const int32_t *"},
+       Operand{"byte_offsets", description.indexVectorCType.str()},
+       loopVLOperand()},
+      description.resultName, description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.storeIntrinsic,
+      {Operand{pointerAtInduction("dst"), "int32_t *"},
+       Operand{description.resultName.str(), description.vectorCType.str()},
+       loopVLOperand()},
+      {}, {}, "store"));
+  route.addForLoop(loop);
+  return route;
+}
+
+RVVManualRouteDescription makeRVVManualRuntimeScalarIndexedGatherDescription() {
+  RVVManualRouteDescription description;
+  description.operation =
+      RVVManualOperationKind::
+          RuntimeScalarComputedMaskIndexedGatherLoadUnitStore;
+  description.memoryForm =
+      RVVManualMemoryForm::ComputedMaskIndexedGatherLoadUnitStore;
+  description.elementTypeName = "i32";
+  description.sew = 32;
+  description.lmul = "m1";
+  description.tailPolicy = "agnostic";
+  description.maskPolicy = "agnostic";
+  description.typedComputeOpName = "tcrv_rvv.masked_indexed_load";
+  description.emitCRouteID =
+      "manual-runtime-scalar-computed-mask-indexed-gather-route";
+  description.providerSupportedMirror =
+      "provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-gather-load-plan-validated";
+  description.targetLeafProfile =
+      "rvv-v1-typed-runtime-scalar-cmp-masked-indexed-gather-load-leaf-profile.v1";
+  description.routeOperandBindingPlanID =
+      "rvv-route-operand-binding:runtime_scalar_cmp_masked_indexed_gather_load_unit_store.v1";
+  description.routeOperandBindingSummary =
+      "rvv-route-operand-binding:runtime_scalar_cmp_masked_indexed_gather_load_unit_store.v1;"
+      "lhs=lhs-input-buffer:lhs:abi|lhs-load|lhs-call|hdr;"
+      "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|rhs-call|hdr;"
+      "src=source-input-buffer:src:abi|midx-base|midx-load-call|hdr;"
+      "index=index-input-buffer:index:abi|materialized-index-load-base|"
+      "index-offset-scale|index-source-mirror|hdr;"
+      "dst=output-buffer:dst:abi|old-dst-load|passthru-call|store-base|hdr;"
+      "n=runtime-element-count:n:abi|setvl-avl|loop-control|hdr";
+  description.runtimeControlPlanID =
+      "rvv-runtime-avl-vl-control-plan.v1";
+  applyRVVManualRuntimeAVLVLSelectedBoundaryFacts(description);
+  description.runtimeABIOrder = "lhs,rhs_scalar,src,index,dst,n";
+  description.computedMaskMemoryRouteFamilyPlanID =
+      "rvv-computed-mask-memory-route-family-plan.v1";
+  description.computedMaskMemoryMaskProducerSource =
+      "runtime-scalar-splat-compare-rhs";
+  description.maskTailPolicyRouteFamilyPlanID =
+      "rvv-mask-tail-policy-route-family-plan.v1";
+  description.maskTailPolicyOwner = "computed-mask memory mask/tail policy";
+  description.requiredHeaderDeclarations = "stddef.h,stdint.h,riscv_vector.h";
+  description.cTypeMappingSummary =
+      "vl:size_t,lhs/source/passthrough:signed-e32m1,rhs_scalar:signed-scalar,index:u32m1,mask:b32,result:runtime-scalar-masked-indexed-load-store";
+  description.vlCType = "size_t";
+  description.vectorTypeName = "!tcrv_rvv.vector<i32, \"m1\">";
+  description.vectorCType = "vint32m1_t";
+  description.indexVectorTypeName = "!tcrv_rvv.index_vector<i32, \"m1\">";
+  description.indexVectorCType = "vuint32m1_t";
+  description.maskTypeName = "!tcrv_rvv.mask<i32, \"m1\">";
+  description.maskCType = "vbool32_t";
+  description.setVLIntrinsic = "__riscv_vsetvl_e32m1";
+  description.vectorLoadIntrinsic = "__riscv_vle32_v_i32m1";
+  description.indexLoadIntrinsic = "__riscv_vle32_v_u32m1";
+  description.indexScaleIntrinsic = "__riscv_vmul_vx_u32m1";
+  description.maskedLoadIntrinsic = "__riscv_vluxei32_v_i32m1_tumu";
+  description.storeIntrinsic = "__riscv_vse32_v_i32m1";
+  description.rhsBroadcastIntrinsic = "__riscv_vmv_v_x_i32m1";
+  description.comparePredicateKind = "sle";
+  description.compareIntrinsic = "__riscv_vmsle_vv_i32m1_b32";
+  description.resultName = "runtime_scalar_masked_indexed_loaded_vec";
+  description.maskName = "runtime_scalar_indexed_load_mask";
+  description.maskRole = "predicate-mask-produced-by-compare";
+  description.maskSource = "compare-produced-mask-same-vl-scope";
+  description.maskMemoryForm = "compare-produced-mask";
+  description.inactiveLaneContract =
+      "masked-off-lanes-preserve-old-destination";
+  description.maskedPassthroughLayout =
+      "old-destination-vector-preserves-inactive-lanes";
+  description.indexedMemoryLayout =
+      "unit-stride-lhs-runtime-scalar-threshold-indexed-masked-source-old-destination-runtime-abi";
+  description.sourceMemoryForm = "masked-indexed-load";
+  description.destinationMemoryForm = "unit-stride-store";
+  description.indexEEW = 32;
+  description.offsetUnit = "element";
+  description.indexSource = "runtime_abi:index";
+  description.indexedDataMemoryForm = "masked-indexed-load";
+  addRVVManualRuntimeABIParameter(description, "lhs", "const int32_t *",
+                                  RuntimeABIParameterRole::LHSInputBuffer);
+  addRVVManualRuntimeABIParameter(description, "rhs_scalar", "int32_t",
+                                  RuntimeABIParameterRole::RHSScalarValue);
+  addRVVManualRuntimeABIParameter(description, "src", "const int32_t *",
+                                  RuntimeABIParameterRole::SourceInputBuffer);
+  addRVVManualRuntimeABIParameter(description, "index", "const uint32_t *",
+                                  RuntimeABIParameterRole::IndexInputBuffer);
+  addRVVManualRuntimeABIParameter(description, "dst", "int32_t *",
+                                  RuntimeABIParameterRole::OutputBuffer);
+  addRVVManualRuntimeABIParameter(
+      description, "n", "size_t",
+      RuntimeABIParameterRole::RuntimeElementCount);
+  return description;
+}
+
+tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+makeRVVManualRuntimeScalarIndexedGatherRoute(
+    const RVVManualRouteDescription &description) {
+  using Operand = tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueOperand;
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute route(
+      description.emitCRouteID, "rvv-manual-target-artifact-test");
+  addRVVManualRouteCommonFacts(route, description);
+  const std::string loopInduction = description.emitCLoopInductionName.str();
+  const std::string loopVLName = description.emitCLoopVLName.str();
+  const std::string vlCType = description.vlCType.str();
+  auto pointerAtInduction = [&](llvm::StringRef base) -> std::string {
+    return (base + " + " + loopInduction).str();
+  };
+  auto loopVLOperand = [&]() -> Operand {
+    return Operand{loopVLName, vlCType};
+  };
+  route.addCallOpaqueStep(makeRVVManualRouteStep(
+      description.setVLIntrinsic, {Operand{"n", "size_t"}},
+      description.emitCFullChunkVLName, description.vlCType, "configure"));
+  tianchenrv::conversion::emitc::TCRVEmitCForLoop loop;
+  loop.inductionVarName = description.emitCLoopInductionName.str();
+  loop.lowerBound = {"0", description.vlCType.str()};
+  loop.upperBound = {"n", "size_t"};
+  loop.step = {description.emitCFullChunkVLName.str(),
+               description.vlCType.str()};
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.setVLIntrinsic,
+      {Operand{(llvm::StringRef("n - ") + loopInduction).str(), vlCType}},
+      description.emitCLoopVLName, description.vlCType, "configure"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.vectorLoadIntrinsic,
+      {Operand{pointerAtInduction("lhs"), "const int32_t *"},
+       loopVLOperand()},
+      "lhs_vec", description.vectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.indexLoadIntrinsic,
+      {Operand{pointerAtInduction("index"), "const uint32_t *"},
+       loopVLOperand()},
+      "index_vec", description.indexVectorCType, "load"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.indexScaleIntrinsic,
+      {Operand{"index_vec", description.indexVectorCType.str()},
+       Operand{"4", "uint32_t"}, loopVLOperand()},
+      "byte_offsets", description.indexVectorCType, "compute"));
+  loop.bodySteps.push_back(makeRVVManualRouteStep(
+      description.rhsBroadcastIntrinsic,
+      {Operand{"rhs_scalar", "int32_t"}, loopVLOperand()}, "rhs_vec",
+      description.vectorCType, "compute"));
   loop.bodySteps.push_back(makeRVVManualRouteStep(
       description.vectorLoadIntrinsic,
       {Operand{pointerAtInduction("dst"), "int32_t *"}, loopVLOperand()},
@@ -18877,6 +19052,15 @@ bool expectRVVTargetArtifactExporterShape(
       makeRVVManualIndexedGatherRoute(manualIndexedDescription);
   TargetArtifactCandidate manualIndexedCandidate =
       makeRVVManualTargetArtifactCandidate(manualIndexedDescription);
+  RVVRouteDescription manualRuntimeScalarIndexedGatherDescription =
+      makeRVVManualRuntimeScalarIndexedGatherDescription();
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      manualRuntimeScalarIndexedGatherRoute =
+          makeRVVManualRuntimeScalarIndexedGatherRoute(
+              manualRuntimeScalarIndexedGatherDescription);
+  TargetArtifactCandidate manualRuntimeScalarIndexedGatherCandidate =
+      makeRVVManualTargetArtifactCandidate(
+          manualRuntimeScalarIndexedGatherDescription);
   RVVRouteDescription manualIndexedScatterDescription =
       makeRVVManualIndexedScatterDescription();
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
@@ -19449,6 +19633,13 @@ bool expectRVVTargetArtifactExporterShape(
           "computed-mask indexed gather provider contract"))
     return false;
   if (!expectComputedMaskIndexedProviderContract(
+          manualRuntimeScalarIndexedGatherDescription,
+          tianchenrv::plugin::rvv::
+              RVVComputedMaskIndexedMemoryRouteValidationKind::
+                  RuntimeScalarIndexedGatherLoadUnitStore,
+          "runtime-scalar computed-mask indexed gather provider contract"))
+    return false;
+  if (!expectComputedMaskIndexedProviderContract(
           manualIndexedScatterDescription,
           tianchenrv::plugin::rvv::
               RVVComputedMaskIndexedMemoryRouteValidationKind::
@@ -19509,6 +19700,12 @@ bool expectRVVTargetArtifactExporterShape(
   if (!expectManualCompareSelectMaskPositive(
           manualIndexedCandidate, manualIndexedRoute, manualIndexedDescription,
           "computed-mask indexed gather/load-store"))
+    return false;
+  if (!expectManualCompareSelectMaskPositive(
+          manualRuntimeScalarIndexedGatherCandidate,
+          manualRuntimeScalarIndexedGatherRoute,
+          manualRuntimeScalarIndexedGatherDescription,
+          "runtime-scalar computed-mask indexed gather/load-store"))
     return false;
   if (!expectManualCompareSelectMaskPositive(
           manualIndexedScatterCandidate, manualIndexedScatterRoute,
@@ -20079,6 +20276,21 @@ bool expectRVVTargetArtifactExporterShape(
           "computed-mask indexed memory registry rejects stale runtime n ABI "
           "role",
           {"runtime n/AVL ABI parameter"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarIndexedBinding =
+      manualRuntimeScalarIndexedGatherDescription;
+  staleRuntimeScalarIndexedBinding.routeOperandBindingSummary =
+      manualIndexedDescription.routeOperandBindingSummary;
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualRuntimeScalarIndexedGatherCandidate,
+          manualRuntimeScalarIndexedGatherRoute,
+          staleRuntimeScalarIndexedBinding,
+          "computed-mask indexed memory registry rejects stale "
+          "runtime-scalar indexed gather binding summary",
+          {"route operand binding facts",
+           "rvv-route-operand-binding:runtime_scalar_cmp_masked_indexed_gather_load_unit_store.v1",
+           "rvv-route-operand-binding:computed_masked_indexed_gather_load_unit_store.v1"}))
     return false;
 
   RVVRouteDescription staleIndexedScatterLoopVL =
@@ -21155,6 +21367,25 @@ bool expectRVVTargetArtifactExporterShape(
           manualIndexedDescription,
           "compare/select mask registry rejects stale index EEW metadata",
           {"index_eew", "32", "64"}))
+    return false;
+
+  TargetArtifactCandidate wrongRuntimeScalarIndexedDataCandidate =
+      manualRuntimeScalarIndexedGatherCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongRuntimeScalarIndexedDataCandidate,
+          "tcrv_rvv.indexed_data_memory_form", "masked-indexed-store")) {
+    llvm::errs() << "runtime-scalar computed-mask indexed gather test fixture "
+                    "did not contain indexed data memory metadata\n";
+    return false;
+  }
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongRuntimeScalarIndexedDataCandidate,
+          manualRuntimeScalarIndexedGatherRoute,
+          manualRuntimeScalarIndexedGatherDescription,
+          "compare/select mask registry rejects stale runtime-scalar indexed "
+          "gather data memory metadata",
+          {"indexed_data_memory_form", "masked-indexed-load",
+           "masked-indexed-store"}))
     return false;
 
   TargetArtifactCandidate wrongIndexedScatterUniquenessCandidate =
