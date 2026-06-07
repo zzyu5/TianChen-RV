@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify final changes against global TianChen-RV invariants and RVV authority chain."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify selected dispatch/fallback and ABI envelope facts stay structural and target-neutral."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV route/provider/resource behavior and fail-closed diagnostics against plugin contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export consume provider facts without inventing RVV semantics."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/C++/generated-bundle/ssh evidence is appropriate for the selected-envelope claim."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify selected-body realization/resource-aware tuning claims match Stage2 pipeline rules."}

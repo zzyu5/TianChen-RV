@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV invariants and RVV-first authority chain for selected envelope work."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec dispatch/fallback, mem_window, runtime_param, and selected-path mirror boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV selected-body, runtime-scalar gather-MAcc-scatter, resource-aware realization, and provider route contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute requirements."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Selected-dispatch generated-bundle, composite resource, fail-closed, and ssh rvv evidence requirements."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Variant selection, runtime dispatch, fallback, selected-body realization, and resource-aware tuning stage rules."}

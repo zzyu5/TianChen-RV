@@ -671,3 +671,44 @@ Closed the resource-aware composite gather-MAcc-scatter generated-bundle ABI evi
 ### Next Steps
 
 - None - task complete
+
+
+## Session 529: Stage2 RVV resource-aware composite selected dispatch envelope
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV resource-aware composite selected dispatch envelope
+**Branch**: `main`
+
+### Summary
+
+Verified the resource-aware composite gather-MAcc-scatter path already flows through actual selected tcrv.exec dispatch/fallback envelopes, with fresh explicit and pre-realized ssh rvv generated-bundle evidence.
+
+### Main Changes
+
+- Created and archived Trellis task `stage2-rvv-resource-aware-composite-selected-dispatch-envelope` with a bounded PRD for the selected dispatch/fallback envelope owner.
+- Confirmed no production source change was needed: current HEAD already carries explicit and pre-realized `runtime_scalar_cmp_masked_indexed_gather_macc_scatter` fixtures through actual `tcrv.exec.dispatch` case/fallback envelopes, selected typed or realized `tcrv_rvv` bodies, RVV provider route facts, target artifact validation, generated bundle metadata, and selected-dispatch evidence mirrors.
+- Verified fail-closed coverage in the explicit fixture for missing dispatch case/fallback, missing runtime guard, stale/missing selected dispatch mirrors, stale provider mirror, stale ABI/order/bindings, and stale/missing composite resource facts.
+- Collected fresh explicit selected-envelope `ssh rvv` evidence at `artifacts/tmp/stage2-resource-aware-composite-selected-dispatch-envelope-ssh-rvv/explicit-selected-envelope-composite-gms-ssh-rvv/evidence.json`.
+- Collected fresh pre-realized selected-envelope `ssh rvv` evidence at `artifacts/tmp/stage2-resource-aware-composite-selected-dispatch-envelope-ssh-rvv/pre-selected-envelope-composite-gms-ssh-rvv/evidence.json`.
+- Both evidence files record `ssh_evidence=true`, `status=success`, selected dispatch case/fallback mirrors, runtime ABI order `cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n`, selected candidate `rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]`, VL policy `runtime-avl-single-setvl`, vector register budget `32`, and PASS output for counts `0,1,16,17,257`, rhs scalars `-37,91`, and patterns `0,1`.
+- Checks passed: task JSONL validation, `py_compile`, generated-bundle script self-test, focused lit under `build/test`, `build/bin/tianchenrv-rvv-extension-plugin-test`, `build/bin/tianchenrv-target-artifact-export-test`, old-authority scan, and git whitespace checks.
+- Spec update review: no `.trellis/spec/` change was needed because the existing RVV, EmitC, variant-pipeline, and testing specs already cover selected-dispatch generated-bundle boundary and composite resource evidence contracts.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
