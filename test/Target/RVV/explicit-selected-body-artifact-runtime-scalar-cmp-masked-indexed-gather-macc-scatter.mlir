@@ -3,6 +3,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-plan-validated/s//provider_supported_mirror:rvv-script-derived-composite-gather-macc-scatter/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n/s//cmp_lhs,gather_src,rhs_scalar,payload,acc,index,dst,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/cmp_lhs=lhs-input-buffer->@abi_cmp_lhs_input_buffer;/s//cmp_lhs=lhs-input-buffer->@stale_cmp_lhs_input_buffer;/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-EXEC-BINDING
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/payload=dot-rhs-input-buffer:payload:abi|ld|macc-rhs|hdr/s//payload=dot-rhs-input-buffer:payload:abi|ld|stale-macc-rhs|hdr/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-OPERAND-BINDING
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.exec_abi_bindings/s//tcrv_rvv.exec_abi_bindings_removed/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-EXEC-MIRROR
 // RUN: sed '0,/^      %index = tcrv_rvv.runtime_abi_value/{s/exec_binding = @abi_index_input_buffer, //}' %s | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-EXEC-BINDING
 // RUN: sed '/tcrv.exec.case @rvv_explicit_composite/d' %s | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-DISPATCH-CASE
@@ -142,6 +143,9 @@ module {
 
 // STALE-EXEC-BINDING: candidate tcrv_rvv.exec_abi_bindings provenance must mirror selected tcrv.exec ABI binding summary
 // STALE-EXEC-BINDING-SAME: cmp_lhs=lhs-input-buffer->@stale_cmp_lhs_input_buffer
+
+// STALE-OPERAND-BINDING: candidate tcrv_rvv.route_operand_binding_operands provenance must mirror selected typed RVV body binding summary
+// STALE-OPERAND-BINDING-SAME: stale-macc-rhs
 
 // MISSING-EXEC-MIRROR: candidate metadata must carry tcrv_rvv.exec_abi_bindings provenance
 // MISSING-EXEC-MIRROR: tcrv_rvv.exec_abi_bindings_removed

@@ -1156,3 +1156,67 @@ Consolidated active RVV vector source-front-door materializer pass ownership aro
 ### Next Steps
 
 - None - task complete
+
+
+## Session 536: Stage2 RVV composite operand-binding artifact ABI boundary
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV runtime-scalar indexed gather-MAcc-scatter executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Hardened the runtime-scalar compare, masked indexed gather, masked MAcc, and
+masked indexed scatter composite artifact ABI boundary with focused fail-closed
+coverage for stale provider operand-binding metadata. Current production code
+already has the explicit and pre-realized composite path wired through RVV
+plugin-local realization/provider facts, target artifact validation, and
+generated-bundle export; this round fixed the missing regression proof at the
+target artifact mirror seam.
+
+### Main Changes
+
+- Created Trellis task
+  `06-07-stage2-rvv-runtime-scalar-indexed-gather-macc-scatter-executable-abi`
+  and wrote the bounded PRD for this composite executable artifact ABI owner.
+- Added explicit selected-body target artifact negative coverage proving stale
+  `tcrv_rvv.route_operand_binding_operands` cannot replace the provider-built
+  payload/MAcc binding summary.
+- Added pre-realized selected-body target artifact negative coverage proving a
+  stale destination/scatter operand-binding mirror cannot pass artifact export.
+- No production runtime code changed and no new ssh rvv runtime correctness
+  claim is made in this round.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| final commit | `rvv: harden composite operand binding artifacts` |
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused lit filter
+  `explicit-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter`
+- [OK] focused lit filter
+  `pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter`
+- [OK] composite lit filter `runtime-scalar-cmp-masked-indexed-gather-macc-scatter`
+- [OK] explicit generated-bundle dry-run for
+  `runtime_scalar_cmp_masked_indexed_gather_macc_scatter`
+- [OK] pre-realized generated-bundle dry-run for
+  `runtime_scalar_cmp_masked_indexed_gather_macc_scatter`
+- [OK] `python3 ./.trellis/scripts/task.py validate ...`
+- [OK] `git diff --check`
+- [OK] added-line old-authority/source-front-door scan over changed fixture
+  lines found no positive legacy route authority.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

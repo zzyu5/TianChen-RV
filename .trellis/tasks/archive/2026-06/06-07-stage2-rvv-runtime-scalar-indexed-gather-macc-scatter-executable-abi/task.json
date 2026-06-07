@@ -1,0 +1,32 @@
+{
+  "id": "stage2-rvv-runtime-scalar-indexed-gather-macc-scatter-executable-abi",
+  "name": "stage2-rvv-runtime-scalar-indexed-gather-macc-scatter-executable-abi",
+  "title": "Stage2 RVV runtime-scalar indexed gather-MAcc-scatter executable artifact ABI boundary",
+  "description": "Harden runtime-scalar indexed gather-MAcc-scatter executable artifact ABI operand-binding mirror validation coverage.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "rvv-composite-artifact-abi",
+  "package": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-07",
+  "completedAt": "2026-06-07",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": "final commit; see git log",
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter.mlir",
+    "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter.mlir",
+    ".trellis/spec/extension-plugins/rvv-plugin.md",
+    ".trellis/spec/lowering-runtime/emitc-route.md",
+    ".trellis/spec/testing/mlir-testing-contract.md"
+  ],
+  "notes": "Current production composite path is implemented; this round adds focused lit fail-closed coverage for stale tcrv_rvv.route_operand_binding_operands mirrors on explicit and pre-realized generated artifact boundaries.",
+  "meta": {}
+}
