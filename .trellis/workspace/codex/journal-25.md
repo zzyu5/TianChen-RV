@@ -881,15 +881,24 @@ Added RVV plugin-owned composite_resource Gearbox facts for composite selected-b
 
 ### Main Changes
 
-(Add details)
+- Added explicit selected-body target artifact fail-closed coverage for stale `rhs_scalar` route operand binding, runtime ABI order, required header declarations, inactive-lane contract, and field0 role mirrors.
+- Added matching pre-realized selected-body fail-closed coverage after selected-body materialization, proving stale pre-realized artifact metadata cannot replace provider-built route facts.
+- Archived the bounded Trellis task with completion notes and related files.
 
 ### Git Commits
 
-(No commits - planning session)
+- final commit
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] explicit and pre-realized target artifact export positive checks with `build/bin/tcrv-opt` / `build/bin/tcrv-translate`
+- [OK] explicit and pre-realized stale `rhs_scalar`, ABI order, required header, inactive-lane, and field0 role fail-closed checks with equivalent command-line verification
+- [OK] generated-bundle dry-run for explicit and pre-realized runtime-scalar-cmp masked segment2 load with counts `0,1,16,17,257`, rhs scalars `-37,91`, patterns `0,1`
+- [OK] non-dry-run `ssh rvv` generated-bundle correctness for explicit and pre-realized runtime-scalar-cmp masked segment2 load with counts `0,1,16,17,257`, patterns `0,1`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
 
 ### Status
 
@@ -1461,6 +1470,46 @@ Hardened computed-masked segment2 update artifact ABI evidence with stale src1/a
 - [OK] `git diff --cached --check`
 - [OK] Added-line old-authority/source-front-door scan over touched fixture
   lines found no positive legacy route authority.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 539: Stage2 RVV runtime-scalar-cmp masked segment2 load ABI
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV runtime-scalar-cmp masked segment2 load ABI
+**Branch**: `main`
+
+### Summary
+
+Hardened runtime-scalar-cmp masked segment2 load artifact ABI regression coverage for stale rhs_scalar binding, ABI order, header, inactive-lane, and field0 role mirrors; verified dry-run and ssh rvv generated-bundle correctness.
+
+### Main Changes
+
+- Added explicit selected-body target artifact fail-closed coverage for stale `rhs_scalar` route operand binding, runtime ABI order, required header declarations, inactive-lane contract, and field0 role mirrors.
+- Added matching pre-realized selected-body fail-closed coverage after selected-body materialization, proving stale pre-realized artifact metadata cannot replace provider-built route facts.
+- Archived the bounded Trellis task with completion notes and related files.
+
+### Git Commits
+
+- final commit
+
+### Testing
+
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] explicit and pre-realized target artifact export positive checks with `build/bin/tcrv-opt` / `build/bin/tcrv-translate`
+- [OK] explicit and pre-realized stale `rhs_scalar`, ABI order, required header, inactive-lane, and field0 role fail-closed checks with equivalent command-line verification
+- [OK] generated-bundle dry-run for explicit and pre-realized runtime-scalar-cmp masked segment2 load with counts `0,1,16,17,257`, rhs scalars `-37,91`, patterns `0,1`
+- [OK] non-dry-run `ssh rvv` generated-bundle correctness for explicit and pre-realized runtime-scalar-cmp masked segment2 load with counts `0,1,16,17,257`, patterns `0,1`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
 
 ### Status
 

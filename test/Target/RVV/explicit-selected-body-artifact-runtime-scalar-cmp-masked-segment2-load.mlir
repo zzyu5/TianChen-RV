@@ -1,7 +1,12 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed 's/runtime-scalar-splat-compare-rhs/vector-compare-rhs-load/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRODUCER
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed 's/rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|rhs-call|hdr/rhs_scalar=lhs-input-buffer:rhs_scalar:abi|cmp-lhs-load|rhs-call|hdr/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RHS-BINDING
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed 's/out1=segment-field1-output-buffer:out1:abi|old1-load|f1-pass|f1-store|f1-role|dst-mem|hdr/out1=segment-field0-output-buffer:out1:abi|old1-load|f1-pass|f1-store|f1-role|dst-mem|hdr/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-BINDING
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/lhs,rhs_scalar,src,out0,out1,n/s//lhs,src,rhs_scalar,out0,out1,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/stddef.h,stdint.h,riscv_vector.h/s//stddef.h,stdint.h/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/masked-off-lanes-preserve-old-destination/s//script-derived-passthrough/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-INACTIVE
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.field0_role", value = "segment-field0-output-buffer"/s//tcrv_rvv.field0_role", value = "segment-field1-output-buffer"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-FIELD0
 
 // Hand-authored explicit selected-body input for one bounded Stage2 runtime
 // scalar compare plus two-field masked segment2 load slice. The selected RVV
@@ -82,7 +87,34 @@ module {
 // HEADER: void tcrv_emitc_explicit_selected_body_rt_scalar_cmseg_load_kernel_explicit_selected_body_rvv_rt_scalar_cmseg_load(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src, int32_t *out0, int32_t *out1, size_t n);
 
 // STALE-PRODUCER: candidate tcrv_rvv.computed_mask_memory_mask_producer_source provenance must mirror selected typed RVV computed-mask segment2 producer source 'runtime-scalar-splat-compare-rhs' but was 'vector-compare-rhs-load'
+// STALE-RHS-BINDING: RVV materialized EmitC target artifact bridge failed
+// STALE-RHS-BINDING: candidate tcrv_rvv.route_operand_binding_operands provenance must mirror selected typed RVV body binding summary
+// STALE-RHS-BINDING-SAME: rhs_scalar=rhs-scalar-value:rhs_scalar:abi
+// STALE-RHS-BINDING-SAME: splat
+// STALE-RHS-BINDING-SAME: but was
+// STALE-RHS-BINDING-SAME: rhs_scalar=lhs-input-buffer:rhs_scalar:abi
+// STALE-RHS-BINDING-SAME: cmp-lhs-load
 // STALE-BINDING: candidate tcrv_rvv.route_operand_binding_operands provenance must mirror selected typed RVV body binding summary
 // STALE-BINDING-SAME: out1=segment-field1-output-buffer:out1:abi
 // STALE-BINDING-SAME: but was
 // STALE-BINDING-SAME: out1=segment-field0-output-buffer:out1:abi
+// STALE-ABI: RVV materialized EmitC target artifact bridge failed
+// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror route-local runtime AVL/VL ABI order mirror
+// STALE-ABI-SAME: lhs,rhs_scalar,src,out0,out1,n
+// STALE-ABI-SAME: but was
+// STALE-ABI-SAME: lhs,src,rhs_scalar,out0,out1,n
+// STALE-HEADER: RVV materialized EmitC target artifact bridge failed
+// STALE-HEADER: candidate tcrv_rvv.required_header_declarations provenance must mirror selected typed RVV computed-mask segment2 route header requirements
+// STALE-HEADER-SAME: stddef.h,stdint.h,riscv_vector.h
+// STALE-HEADER-SAME: but was
+// STALE-HEADER-SAME: stddef.h,stdint.h
+// STALE-INACTIVE: RVV materialized EmitC target artifact bridge failed
+// STALE-INACTIVE: candidate tcrv_rvv.inactive_lane_contract provenance must mirror selected typed RVV computed-mask segment2 inactive lane contract
+// STALE-INACTIVE-SAME: masked-off-lanes-preserve-old-destination
+// STALE-INACTIVE-SAME: but was
+// STALE-INACTIVE-SAME: script-derived-passthrough
+// STALE-FIELD0: RVV materialized EmitC target artifact bridge failed
+// STALE-FIELD0: candidate tcrv_rvv.field0_role provenance must mirror selected typed RVV computed-mask segment2 field0 role
+// STALE-FIELD0-SAME: segment-field0-output-buffer
+// STALE-FIELD0-SAME: but was
+// STALE-FIELD0-SAME: segment-field1-output-buffer

@@ -1,0 +1,29 @@
+{
+  "id": "stage2-rvv-runtime-scalar-cmp-masked-segment2-load-executable-abi",
+  "name": "stage2-rvv-runtime-scalar-cmp-masked-segment2-load-executable-abi",
+  "title": "Stage2 RVV runtime-scalar-cmp masked segment2 load executable artifact ABI boundary",
+  "description": "Make or harden the existing RVV runtime-scalar-cmp masked segment2 load selected-body route family through generated executable artifact ABI evidence, with fail-closed validation for stale runtime scalar/mask/segment/pass-through/header facts.",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-08",
+  "completedAt": "2026-06-08",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-segment2-load.mlir",
+    "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-segment2-load.mlir"
+  ],
+  "notes": "Completed bounded runtime-scalar-cmp masked segment2 load executable artifact ABI closeout. Production provider/target seam was already wired; added explicit and pre-realized stale rhs_scalar binding, runtime ABI order, required header, inactive-lane, and field0 role fail-closed coverage, then refreshed dry-run and ssh rvv correctness evidence.",
+  "meta": {}
+}
