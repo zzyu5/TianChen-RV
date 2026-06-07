@@ -943,3 +943,36 @@ change was needed.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 531: Stage3 bounded Vector source to RVV selected body
+
+**Date**: 2026-06-07
+**Task**: Stage3 bounded Vector source to RVV selected body
+**Branch**: `main`
+
+### Summary
+
+Implemented a bounded RVV plugin source-front-door materializer from one MLIR Vector-like i32 add pattern into selected tcrv.exec plus typed generic tcrv_rvv body, with provider/header export and fail-closed tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

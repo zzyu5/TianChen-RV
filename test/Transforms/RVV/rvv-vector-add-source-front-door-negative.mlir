@@ -1,0 +1,48 @@
+// RUN: tcrv-opt %s --split-input-file --verify-diagnostics --tcrv-rvv-materialize-vector-add-source-front-door
+
+module attributes {tcrv_rvv.source_front_door = "bounded_vector_source"} {
+  // expected-error@+1 {{bounded RVV vector-add source front door failed: source function inputs must be lhs/rhs/out rank-1 i32 memrefs and one runtime n index}}
+  func.func @bad_dtype(%lhs: memref<?xf32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
+    %c0 = arith.constant 0 : index
+    %pad = arith.constant 0.0 : f32
+    %lhs_vec = vector.transfer_read %lhs[%c0], %pad {in_bounds = [true]} : memref<?xf32>, vector<4xf32>
+    %rhs_pad = arith.constant 0 : i32
+    %rhs_vec = vector.transfer_read %rhs[%c0], %rhs_pad {in_bounds = [true]} : memref<?xi32>, vector<4xi32>
+    %bad = arith.addi %rhs_vec, %rhs_vec : vector<4xi32>
+    vector.transfer_write %bad, %out[%c0] {in_bounds = [true]} : vector<4xi32>, memref<?xi32>
+    return
+  }
+}
+
+// -----
+
+module attributes {tcrv_rvv.source_front_door = "bounded_vector_source"} {
+  // expected-error@+1 {{bounded RVV vector-add source front door failed: source function must have exactly four inputs and no results: lhs/rhs/out memref<?xi32> plus n index}}
+  func.func @missing_runtime_n(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>) {
+    %c0 = arith.constant 0 : index
+    %pad = arith.constant 0 : i32
+    %lhs_vec = vector.transfer_read %lhs[%c0], %pad {in_bounds = [true]} : memref<?xi32>, vector<4xi32>
+    %rhs_vec = vector.transfer_read %rhs[%c0], %pad {in_bounds = [true]} : memref<?xi32>, vector<4xi32>
+    %sum = arith.addi %lhs_vec, %rhs_vec : vector<4xi32>
+    vector.transfer_write %sum, %out[%c0] {in_bounds = [true]} : vector<4xi32>, memref<?xi32>
+    return
+  }
+}
+
+// -----
+
+module attributes {tcrv_rvv.source_front_door = "bounded_vector_source"} {
+  // expected-error@+1 {{bounded RVV vector-add source front door failed: source materializer requires RVV source-only MLIR input; pre-existing tcrv.exec/tcrv_rvv/tcrv_toy/tcrv_tensorext_lite selected-boundary or variant residue is not accepted}}
+  tcrv.exec.kernel @stale_selected_boundary {
+  }
+
+  func.func @source_vector_add(%lhs: memref<?xi32>, %rhs: memref<?xi32>, %out: memref<?xi32>, %n: index) {
+    %c0 = arith.constant 0 : index
+    %pad = arith.constant 0 : i32
+    %lhs_vec = vector.transfer_read %lhs[%c0], %pad {in_bounds = [true]} : memref<?xi32>, vector<4xi32>
+    %rhs_vec = vector.transfer_read %rhs[%c0], %pad {in_bounds = [true]} : memref<?xi32>, vector<4xi32>
+    %sum = arith.addi %lhs_vec, %rhs_vec : vector<4xi32>
+    vector.transfer_write %sum, %out[%c0] {in_bounds = [true]} : vector<4xi32>, memref<?xi32>
+    return
+  }
+}

@@ -12,6 +12,9 @@ namespace tianchenrv::plugin::rvv {
 std::unique_ptr<::mlir::Pass>
 createFailClosedRVVLegacyVectorSourceFrontDoorPass();
 
+std::unique_ptr<::mlir::Pass>
+createMaterializeRVVVectorAddSourceFrontDoorPass();
+
 } // namespace tianchenrv::plugin::rvv
 
 #endif // TIANCHENRV_PLUGIN_RVV_RVVVECTORSOURCEFRONTDOOR_H

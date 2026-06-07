@@ -448,32 +448,54 @@ int runRegistrationAndCapabilityMetadataTest() {
                           "RVV capability id lookup succeeds"))
     return result;
 
-  llvm::SmallVector<SourceFrontDoorPassRegistration, 2> sourceFrontDoorPasses;
+  llvm::SmallVector<SourceFrontDoorPassRegistration, 3> sourceFrontDoorPasses;
   if (int result = expectSuccess(
           registry.collectSourceFrontDoorPasses(sourceFrontDoorPasses),
           "collect RVV source front-door pass registrations"))
     return result;
   if (int result =
-          expect(sourceFrontDoorPasses.size() == 1,
-                 "RVV plugin exposes one source front-door pass registration"))
+          expect(sourceFrontDoorPasses.size() == 2,
+                 "RVV plugin exposes legacy and bounded vector-add source "
+                 "front-door pass registrations"))
     return result;
   if (int result =
-          expect(sourceFrontDoorPasses.front().getOwnerPlugin() ==
+          expect(sourceFrontDoorPasses[0].getOwnerPlugin() ==
                      tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
-                 "RVV source front-door pass is owned by RVV plugin"))
+                 "RVV legacy source front-door pass is owned by RVV plugin"))
     return result;
   if (int result =
-          expect(sourceFrontDoorPasses.front().getArgument() ==
+          expect(sourceFrontDoorPasses[0].getArgument() ==
                      "tcrv-rvv-fail-closed-legacy-vector-source-front-door",
                  "RVV source front-door pass exposes the fail-closed legacy argument"))
     return result;
   if (int result = expect(
-          !sourceFrontDoorPasses.front().isDefaultArtifactFrontDoorEligible(),
-          "RVV source front-door pass is explicit-only and not default "
+          !sourceFrontDoorPasses[0].isDefaultArtifactFrontDoorEligible(),
+          "RVV legacy source front-door pass is explicit-only and not default "
           "artifact-front-door eligible"))
     return result;
-  return expect(static_cast<bool>(sourceFrontDoorPasses.front().getFactory()),
-                "RVV source front-door pass factory is present");
+  if (int result =
+          expect(sourceFrontDoorPasses[1].getOwnerPlugin() ==
+                     tianchenrv::plugin::rvv::getRVVExtensionPluginName(),
+                 "RVV bounded vector-add source front-door pass is owned by "
+                 "RVV plugin"))
+    return result;
+  if (int result = expect(
+          sourceFrontDoorPasses[1].getArgument() ==
+              "tcrv-rvv-materialize-vector-add-source-front-door",
+          "RVV source front-door pass exposes the bounded vector-add argument"))
+    return result;
+  if (int result = expect(
+          sourceFrontDoorPasses[1].isDefaultArtifactFrontDoorEligible(),
+          "RVV bounded vector-add source front-door pass is eligible for the "
+          "default artifact-front-door pipeline"))
+    return result;
+  if (int result =
+          expect(static_cast<bool>(sourceFrontDoorPasses[0].getFactory()),
+                 "RVV legacy source front-door pass factory is present"))
+    return result;
+  return expect(static_cast<bool>(sourceFrontDoorPasses[1].getFactory()),
+                "RVV bounded vector-add source front-door pass factory is "
+                "present");
 }
 
 int runCapabilityProfileTest() {

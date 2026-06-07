@@ -33,6 +33,7 @@ add_mlir_library(TianChenRVRVVPlugin
   MLIRArithDialect
   MLIRFuncDialect
   MLIRIR
+  MLIRMemRefDialect
   MLIRPass
   MLIRSCFDialect
   MLIRSupport
