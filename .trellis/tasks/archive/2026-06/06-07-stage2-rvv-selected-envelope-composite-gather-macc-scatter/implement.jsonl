@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain and Stage 2 boundary."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "tcrv.exec envelope, mem_window/runtime_param, dispatch/fallback, and mirror-only diagnostic contracts."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Composite gather-MAcc-scatter route contract and RVV plugin ownership."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and common EmitC neutrality."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Target artifact export, runtime ABI boundary, and non-authority metadata rules."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selected dispatch/fallback and Stage2 evidence-vs-production-progress boundary."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused lit/C++ evidence requirements and RVV runtime claim rules."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability-first dispatch/export review checklist."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensure RVV-specific semantics remain plugin/target-local, not core/common."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure tcrv.exec remains envelope-only and selected body imports ABI values."}
+{"file": ".trellis/tasks/archive/2026-06/06-07-06-07-stage2-rvv-composite-gather-macc-scatter-ssh-rvv-runtime-boundary/prd.md", "reason": "Immediate predecessor evidence-only runtime closeout and continuation boundary."}

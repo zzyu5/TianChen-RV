@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify RVV-first authority and Stage2 scope are preserved."}
+{"file": ".trellis/spec/core-dialect/tcrv-exec-contract.md", "reason": "Verify mem_window/runtime_param remain ABI declarations and dispatch/fallback stays structural."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify composite route facts stay plugin-owned and typed-body-derived."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify common EmitC/export carries provider-built facts without inventing RVV semantics."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify target artifact export rejects stale mirrors and metadata-only authority."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/C++ checks and runtime evidence claims are bounded."}

@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-25.md`
-- **Total Sessions**: 525
+- **Total Sessions**: 526
 - **Last Active**: 2026-06-07
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-25.md` | ~354 | Active |
+| `journal-25.md` | ~409 | Active |
 | `journal-24.md` | ~1991 | Archived |
 | `journal-23.md` | ~1982 | Archived |
 | `journal-22.md` | ~2034 | Archived |
@@ -53,6 +53,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 526 | 2026-06-07 | Stage2 RVV composite selected envelope ABI | `11603636` | `main` |
 | 525 | 2026-06-07 | Stage2 RVV composite gather-MAcc-scatter ssh rvv runtime boundary | pending-in-this-commit | `main` |
 | 524 | 2026-06-07 | Stage2 RVV composite artifact ABI boundary | - | `main` |
 | 523 | 2026-06-07 | Stage2 RVV composite gather-MAcc-scatter pre-realized realization | pending-in-this-commit | `main` |

@@ -193,6 +193,12 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
   }
 
   if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.exec_abi_bindings",
+          description.execABIBindingSummary,
+          "selected tcrv.exec ABI binding summary"))
+    return error;
+
+  if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.provider_supported_mirror",
           description.providerSupportedMirror,
           "selected typed RVV body provider support"))
