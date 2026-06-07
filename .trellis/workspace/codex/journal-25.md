@@ -1220,3 +1220,62 @@ target artifact mirror seam.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 537: Stage2 RVV runtime-scalar-cmp segment2-load artifact ABI
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV runtime-scalar-cmp segment2-load artifact ABI
+**Branch**: `main`
+
+### Summary
+
+Hardened runtime-scalar-cmp masked segment2-load artifact ABI evidence with focused stale out1 binding fail-closed coverage, positive pre-realized binding-summary assertions, and refreshed explicit/pre-realized ssh rvv correctness.
+
+### Main Changes
+
+- Created and archived Trellis task `06-08-06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-load-executable-abi` from the Hermes brief.
+- Confirmed the production explicit and pre-realized runtime-scalar-cmp masked segment2-load route already flows through plugin-local selected-body realization, RVV segment2 provider facts, common EmitC materialization, target artifact export, and generated-bundle ABI.
+- Added explicit selected-body target artifact negative coverage proving stale `out1` field-output ABI role metadata in `tcrv_rvv.route_operand_binding_operands` cannot replace the provider-built binding summary.
+- Added pre-realized selected-body target artifact positive coverage for the full provider binding summary in emission-plan/header mirrors and matching stale `out1` binding fail-closed coverage.
+- No production runtime code changed; this round closes a focused artifact ABI regression-proof gap and records executable evidence.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] explicit selected-body materialized emission-plan/header export checks via `build/bin/tcrv-opt` and `build/bin/tcrv-translate`
+- [OK] pre-realized selected-body realization/emission-plan/header export checks via `build/bin/tcrv-opt` and `build/bin/tcrv-translate`
+- [OK] explicit stale `out1` route_operand_binding_operands negative target artifact export check
+- [OK] pre-realized stale `out1` route_operand_binding_operands negative target artifact export check
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test --op-kind runtime_scalar_cmp_masked_segment2_load_unit_store --dry-run ...`
+- [OK] explicit generated-bundle dry-run without `llvm-readobj` object-header verification
+- [OK] pre-realized generated-bundle dry-run without `llvm-readobj` object-header verification
+- [OK] explicit `ssh rvv` generated-bundle correctness for counts `0,1,16,17,257`, rhs scalars `-37,91`, patterns `0,1`
+- [OK] pre-realized `ssh rvv` generated-bundle correctness for counts `0,1,16,17,257`, rhs scalars `-37,91`, patterns `0,1`
+- [WARN] Full generated-bundle dry-run with default `--llvm-readobj` is blocked in this environment because `llvm-readobj` is not installed; rerun without object-header readobj verification passed.
+- [OK] `python3 ./.trellis/scripts/task.py validate 06-08-06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-load-executable-abi`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Added-line old-authority/source-front-door scan over touched fixture lines found no positive legacy route authority.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `final commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV route authority remains typed-body/provider-owned"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check artifact metadata mirrors exact provider facts and Common EmitC is semantic-neutral"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/generated-bundle/ssh rvv evidence quality"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin locality and target/core boundary"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review no high-level compute or source-front-door drift"}

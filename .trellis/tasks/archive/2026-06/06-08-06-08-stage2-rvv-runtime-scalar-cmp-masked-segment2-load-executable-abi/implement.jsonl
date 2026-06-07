@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed body, plugin-owned route/provider, and Stage2 selected-body realization boundary"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and operand-binding artifact mirror contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle dry-run and ssh rvv runtime correctness evidence requirements"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Ensure segment2 semantics stay RVV-plugin-local and Common EmitC remains neutral"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure this remains low-level RVV execution structure, not high-level frontend compute"}
