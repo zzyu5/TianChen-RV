@@ -5,6 +5,13 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/cmp_lhs=lhs-input-buffer->@abi_cmp_lhs_input_buffer;/s//cmp_lhs=lhs-input-buffer->@stale_cmp_lhs_input_buffer;/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-EXEC-BINDING
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.exec_abi_bindings/s//tcrv_rvv.exec_abi_bindings_removed/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-EXEC-MIRROR
 // RUN: sed '0,/^      %index = tcrv_rvv.runtime_abi_value/{s/exec_binding = @abi_index_input_buffer, //}' %s | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-EXEC-BINDING
+// RUN: sed '/tcrv.exec.case @rvv_explicit_composite/d' %s | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-DISPATCH-CASE
+// RUN: sed '/tcrv.exec.fallback @explicit_composite_scalar_fallback/d' %s | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-DISPATCH-FALLBACK
+// RUN: sed '0,/^      tcrv.exec.case @rvv_explicit_composite {origin = "rvv-plugin", policy = "explicit-composite-gather-macc-scatter-case"}/s//      tcrv.exec.case @rvv_explicit_composite {origin = "rvv-plugin", policy = "explicit-composite-gather-macc-scatter-case", runtime_guard_required = true}/' %s | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-RUNTIME-GUARD
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/selected_dispatch_case_mirror:@rvv_explicit_composite/s//selected_dispatch_case_mirror:@stale_rvv_composite/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DISPATCH-CASE
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/selected_dispatch_fallback_mirror:@explicit_composite_scalar_fallback/s//selected_dispatch_fallback_mirror:@stale_scalar_fallback/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-DISPATCH-FALLBACK
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.selected_dispatch_case_mirror/s//tcrv_rvv.selected_dispatch_case_mirror_removed/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-DISPATCH-CASE-MIRROR
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.selected_dispatch_fallback_mirror/s//tcrv_rvv.selected_dispatch_fallback_mirror_removed/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-DISPATCH-FALLBACK-MIRROR
 
 // Hand-authored explicit selected-body input for the Stage2 runtime scalar
 // compare, masked indexed gather, masked MAcc, and masked indexed scatter
@@ -121,3 +128,19 @@ module {
 // MISSING-EXEC-MIRROR: tcrv_rvv.exec_abi_bindings_removed
 
 // MISSING-EXEC-BINDING: requires tcrv_rvv.runtime_abi_value 'index' with role 'index-input-buffer' to carry exec_binding to a tcrv.exec ABI declaration
+
+// MISSING-DISPATCH-CASE: 'tcrv.exec.dispatch' op requires at least one tcrv.exec.case
+
+// MISSING-DISPATCH-FALLBACK: 'tcrv.exec.dispatch' op requires exactly one tcrv.exec.fallback
+
+// MISSING-RUNTIME-GUARD: selected dispatch case declares runtime_guard_required=true but does not link runtime_guard to a same-kernel dispatch-availability-guard runtime_param before RVV route construction
+
+// STALE-DISPATCH-CASE: candidate tcrv_rvv.selected_dispatch_case_mirror provenance must mirror selected dispatch case facts
+// STALE-DISPATCH-CASE-SAME: selected_dispatch_case_mirror:@stale_rvv_composite
+
+// STALE-DISPATCH-FALLBACK: candidate tcrv_rvv.selected_dispatch_fallback_mirror provenance must mirror selected dispatch fallback facts
+// STALE-DISPATCH-FALLBACK-SAME: selected_dispatch_fallback_mirror:@stale_scalar_fallback
+
+// MISSING-DISPATCH-CASE-MIRROR: candidate metadata must carry tcrv_rvv.selected_dispatch_case_mirror provenance
+
+// MISSING-DISPATCH-FALLBACK-MIRROR: candidate metadata must carry tcrv_rvv.selected_dispatch_fallback_mirror provenance

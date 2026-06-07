@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Project-wide spec index and pre-development routing for the Stage2 RVV dispatch/fallback boundary task."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selected variant pipeline authority and required guideline routing."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Selection and tuning boundary rules for dispatch, selected variants, and fallback facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "EmitC route ownership and RVV provider/common materializer boundary rules."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Generated artifact, runtime ABI, execution evidence, and validation contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused test/evidence expectations for production compiler changes."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Fail-closed validation and diagnostic expectations for stale or mirror-only facts."}

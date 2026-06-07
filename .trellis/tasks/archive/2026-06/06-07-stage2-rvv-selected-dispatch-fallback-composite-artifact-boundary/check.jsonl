@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Project-wide compliance baseline for final verification."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Verify selected variant, dispatch, fallback, and selection facts remain layered."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify selected dispatch/fallback facts are not mirror-only executable authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify RVV route support remains plugin-owned and common EmitC stays semantic-neutral."}
+{"file": ".trellis/spec/lowering-runtime/emission-runtime-contract.md", "reason": "Verify artifact/ABI/evidence claims are backed by owning facts."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Verify focused test and evidence scope."}
+{"file": ".trellis/spec/validation/index.md", "reason": "Verify fail-closed diagnostics for stale, missing, or mirror-only facts."}

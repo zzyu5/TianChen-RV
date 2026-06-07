@@ -49,6 +49,62 @@ Hardened runtime-scalar-cmp masked indexed gather-load target artifact ABI valid
 - None - task complete
 
 
+## Session 527: Stage2 RVV selected dispatch/fallback composite artifact boundary
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV selected dispatch/fallback composite artifact boundary
+**Branch**: `main`
+
+### Summary
+
+Hardened the composite gather-MAcc-scatter selected dispatch/fallback artifact
+boundary with focused fail-closed tests. No production source change was needed:
+the existing RVV provider and target artifact bridge already rebuild the route
+from actual `tcrv.exec` dispatch/fallback, runtime guard, selected variant, ABI,
+and provider facts before accepting candidate metadata.
+
+### Main Changes
+
+- Created and completed the Trellis task with a bounded PRD for the selected
+  dispatch/fallback composite artifact boundary.
+- Added composite-specific target artifact fail-closed coverage for missing
+  actual `tcrv.exec.case`, missing actual `tcrv.exec.fallback`, missing
+  runtime guard linkage, stale selected dispatch case/fallback mirrors, and
+  missing selected dispatch case/fallback mirrors.
+- Confirmed no `.trellis/spec/` update was needed because existing specs already
+  define the mirror-non-authority and fail-closed selected dispatch/fallback
+  contract.
+- Made no new runtime correctness claim and did not run new `ssh rvv` evidence.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `ninja -C build tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter explicit-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'explicit-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter|pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter|selected-dispatch-fallback-envelope-scalar-broadcast-macc-negative|materialize-dispatch-runtime-guards|variant-dispatch-synthesis|rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-dry-run'`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-07-stage2-rvv-selected-dispatch-fallback-composite-artifact-boundary`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Bounded old-authority scan over added test diff lines found no legacy
+  positive route authority; task-note match was negative out-of-scope wording.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 527: Stage2 RVV composite selected-envelope generated-bundle runtime evidence
 
 **Date**: 2026-06-07
