@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Final check for authority chain, Stage 2 scope, and no legacy/source-front-door/common-EmitC semantic drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check explicit and pre-realized composite route evidence against required ABI, mask, index, MAcc, scatter, and fail-closed facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider route, operand binding, header/type mapping, target validation, and Common EmitC neutrality."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle dry-run and non-dry-run ssh rvv evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-07-06-07-stage2-rvv-pre-realized-composite-family-fact-fail-closed-owner-boundary/prd.md", "reason": "Ensure prior fail-closed owner-boundary coverage remains respected."}

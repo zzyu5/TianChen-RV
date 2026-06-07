@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage 2 scope, and source-of-truth constraints for RVV executable claims."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Runtime-scalar indexed gather-MAcc-scatter route contract, pre-realized composite owner boundary, ABI/mask/index/MAcc/scatter requirements."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality, provider-owned lowerable route contract, operand binding/header marker and target validation boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle, mask/tail, composite resource, dry-run, and ssh rvv evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-07-06-07-stage2-rvv-pre-realized-composite-family-fact-fail-closed-owner-boundary/prd.md", "reason": "Immediate prior owner-boundary work and validation evidence after commit 9c03e2fa."}
+{"file": ".trellis/tasks/archive/2026-06/06-07-stage2-rvv-pre-realized-composite-executable-abi-closure/prd.md", "reason": "Earlier non-dry-run pre-realized composite ABI evidence to revalidate at current HEAD."}

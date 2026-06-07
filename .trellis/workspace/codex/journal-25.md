@@ -882,3 +882,64 @@ export, or executable ABI claims.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 530: Stage2 RVV composite executable ABI evidence
+
+**Date**: 2026-06-07
+**Task**: Stage2 RVV composite executable ABI evidence
+**Branch**: `main`
+
+### Summary
+
+Validated current HEAD explicit and pre-realized runtime-scalar indexed
+gather-MAcc-scatter generated bundles through `ssh rvv`; no production source
+change was needed.
+
+### Main Changes
+
+- Created and archived Trellis task
+  `06-07-stage2-rvv-runtime-scalar-cmp-composite-executable-abi-boundary`.
+- Revalidated current HEAD `9c03e2fa` after the composite family-fact
+  fail-closed owner-boundary change.
+- Proved both explicit and pre-realized selected-body inputs reach generated
+  RVV object/header bundles, external ABI harnesses, and non-dry-run `ssh rvv`
+  correctness for
+  `runtime_scalar_cmp_masked_indexed_gather_macc_scatter`.
+- Confirmed the pre-realized path uses
+  `tcrv-materialize-selected-lowering-boundaries`, the RVV plugin-local
+  selected-body realization owner registry, `pre_realized_body_consumed=true`,
+  and no retired route-entry realization.
+- Recorded that the production code already carries the executable seam; this
+  round changed Trellis task/journal evidence only.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | `rvv: record composite executable abi evidence` |
+
+### Checks
+
+- [OK] explicit selected-body generated-bundle dry-run:
+  `codex-current-explicit-composite-dry`
+- [OK] pre-realized selected-body generated-bundle dry-run:
+  `codex-current-pre-composite-dry`
+- [OK] explicit selected-body non-dry-run `ssh rvv`:
+  `codex-current-explicit-composite-ssh`
+- [OK] pre-realized selected-body non-dry-run `ssh rvv`:
+  `codex-current-pre-composite-ssh`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter=runtime-scalar-cmp-masked-indexed-gather-macc-scatter` from `build/test` (3 selected, 3 passed)
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Bounded old-authority scan over touched files and added diff lines
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
