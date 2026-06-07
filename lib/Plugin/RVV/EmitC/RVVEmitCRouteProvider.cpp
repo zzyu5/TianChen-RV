@@ -5,7 +5,6 @@
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
-#include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
@@ -235,20 +234,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
   const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
       &elementwiseSelectOperandBindingFacts =
           *elementwiseSelectOperandBindingFactsOrError;
-  llvm::Expected<RVVSelectedBodyCompareSelectRouteStatementPlan>
-      compareSelectStatementPlanOrError =
-          getRVVSelectedBodyCompareSelectRouteStatementPlan(
-              analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
-              "selected RVV EmitC route construction");
-  if (!compareSelectStatementPlanOrError)
-    return compareSelectStatementPlanOrError.takeError();
-  const RVVSelectedBodyCompareSelectRouteStatementPlan
-      &compareSelectStatementPlan = *compareSelectStatementPlanOrError;
-  if (llvm::Error error = verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
-          analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
-          compareSelectStatementPlan,
-          "selected RVV EmitC route construction"))
-    return error;
   llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
       memoryOperandBindingFactsOrError =
           getRVVSelectedBodyMemoryRouteOperandBindingFacts(
@@ -257,22 +242,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return memoryOperandBindingFactsOrError.takeError();
   const RVVSelectedBodyMemoryRouteOperandBindingFacts
       &memoryOperandBindingFacts = *memoryOperandBindingFactsOrError;
-  if (isRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyConsumer(
-          description.operation)) {
-    llvm::Expected<RVVSelectedBodyComputedMaskMemoryRouteStatementPlan>
-        computedMaskMemoryStatementPlanOrError =
-            getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
-                analysis, materializationFacts, memoryOperandBindingFacts,
-                "selected RVV EmitC route construction");
-    if (!computedMaskMemoryStatementPlanOrError)
-      return computedMaskMemoryStatementPlanOrError.takeError();
-    if (llvm::Error error =
-            verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
-                analysis, materializationFacts, memoryOperandBindingFacts,
-                *computedMaskMemoryStatementPlanOrError,
-                "selected RVV EmitC route construction"))
-      return error;
-  }
   llvm::Expected<RVVSelectedBodyMathRouteOperandBindingFacts>
       mathOperandBindingFactsOrError =
           getRVVSelectedBodyMathRouteOperandBindingFacts(
@@ -281,45 +250,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return mathOperandBindingFactsOrError.takeError();
   const RVVSelectedBodyMathRouteOperandBindingFacts
       &mathOperandBindingFacts = *mathOperandBindingFactsOrError;
-  llvm::Expected<RVVSelectedBodyWideningConversionRouteStatementPlan>
-      wideningConversionStatementPlanOrError =
-          getRVVSelectedBodyWideningConversionRouteStatementPlan(
-              analysis, materializationFacts, mathOperandBindingFacts,
-              "selected RVV EmitC route construction");
-  if (!wideningConversionStatementPlanOrError)
-    return wideningConversionStatementPlanOrError.takeError();
-  if (llvm::Error error =
-          verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
-              analysis, materializationFacts, mathOperandBindingFacts,
-              *wideningConversionStatementPlanOrError,
-              "selected RVV EmitC route construction"))
-    return error;
-  llvm::Expected<RVVSelectedBodyDequantizationRouteStatementPlan>
-      dequantizationStatementPlanOrError =
-          getRVVSelectedBodyDequantizationRouteStatementPlan(
-              analysis, materializationFacts, mathOperandBindingFacts,
-              "selected RVV EmitC route construction");
-  if (!dequantizationStatementPlanOrError)
-    return dequantizationStatementPlanOrError.takeError();
-  if (llvm::Error error =
-          verifyRVVSelectedBodyDequantizationRouteProviderFacts(
-              analysis, materializationFacts, mathOperandBindingFacts,
-              *dequantizationStatementPlanOrError,
-              "selected RVV EmitC route construction"))
-    return error;
-  llvm::Expected<RVVSelectedBodyStandaloneReductionRouteStatementPlan>
-      standaloneReductionStatementPlanOrError =
-          getRVVSelectedBodyStandaloneReductionRouteStatementPlan(
-              analysis, materializationFacts, mathOperandBindingFacts,
-              "selected RVV EmitC route construction");
-  if (!standaloneReductionStatementPlanOrError)
-    return standaloneReductionStatementPlanOrError.takeError();
-  if (llvm::Error error =
-          verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
-              analysis, materializationFacts, mathOperandBindingFacts,
-              *standaloneReductionStatementPlanOrError,
-              "selected RVV EmitC route construction"))
-    return error;
   llvm::Expected<RVVSelectedBodyResidualRouteOperandBindingFacts>
       residualOperandBindingFactsOrError =
           getRVVSelectedBodyResidualRouteOperandBindingFacts(
@@ -328,19 +258,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
     return residualOperandBindingFactsOrError.takeError();
   const RVVSelectedBodyResidualRouteOperandBindingFacts
       &residualOperandBindingFacts = *residualOperandBindingFactsOrError;
-  llvm::Expected<RVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan>
-      runtimeScalarSplatStoreStatementPlanOrError =
-          getRVVSelectedBodyRuntimeScalarSplatStoreRouteStatementPlan(
-              analysis, materializationFacts, residualOperandBindingFacts,
-              "selected RVV EmitC route construction");
-  if (!runtimeScalarSplatStoreStatementPlanOrError)
-    return runtimeScalarSplatStoreStatementPlanOrError.takeError();
-  if (llvm::Error error =
-          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
-              analysis, materializationFacts, residualOperandBindingFacts,
-              *runtimeScalarSplatStoreStatementPlanOrError,
-              "selected RVV EmitC route construction"))
-    return error;
 
   const RVVSelectedBodyTypedConfigFacts &typedConfigFacts =
       materializationFacts.typedConfigFacts;

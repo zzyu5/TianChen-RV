@@ -349,6 +349,11 @@ llvm::Error buildWideningConversionMigratedRouteStatementPlan(
         "a statement plan for operation '" +
         stringifyRVVSelectedBodyOperationKind(analysis.description.operation) +
         "'");
+  if (llvm::Error error =
+          verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
+              analysis, materializationFacts, mathOperandBindingFacts, *plan,
+              context))
+    return error;
   return setRVVSelectedBodyMigratedRouteStatementPlan(
       out,
       RVVSelectedBodyMigratedRouteStatementPlanFamily::WideningConversion,
@@ -375,6 +380,11 @@ llvm::Error buildDequantizationMigratedRouteStatementPlan(
         "statement plan for operation '" +
         stringifyRVVSelectedBodyOperationKind(analysis.description.operation) +
         "'");
+  if (llvm::Error error =
+          verifyRVVSelectedBodyDequantizationRouteProviderFacts(
+              analysis, materializationFacts, mathOperandBindingFacts, *plan,
+              context))
+    return error;
   return setRVVSelectedBodyMigratedRouteStatementPlan(
       out, RVVSelectedBodyMigratedRouteStatementPlanFamily::Dequantization,
       plan->preLoopSteps, plan->loop, analysis.description, context);
@@ -401,6 +411,11 @@ llvm::Error buildRuntimeScalarSplatStoreMigratedRouteStatementPlan(
         "produce a statement plan for operation '" +
         stringifyRVVSelectedBodyOperationKind(analysis.description.operation) +
         "'");
+  if (llvm::Error error =
+          verifyRVVSelectedBodyRuntimeScalarSplatStoreRouteProviderFacts(
+              analysis, materializationFacts, residualOperandBindingFacts,
+              *plan, context))
+    return error;
   return setRVVSelectedBodyMigratedRouteStatementPlan(
       out,
       RVVSelectedBodyMigratedRouteStatementPlanFamily::

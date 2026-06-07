@@ -1784,3 +1784,36 @@ Completed Gearbox true multi-with_vl dequant-clamp selected/pre-realized route: 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 547: Stage2 RVV migrated statement-plan provider consumption boundary
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV migrated statement-plan provider consumption boundary
+**Branch**: `main`
+
+### Summary
+
+Moved migrated RVV statement-plan provider validation into owning migrated builders, removed central provider manual family getter sequencing, verified focused RVV provider and target artifact tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

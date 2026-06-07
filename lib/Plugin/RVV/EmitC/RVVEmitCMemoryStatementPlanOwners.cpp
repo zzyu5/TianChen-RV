@@ -1,4 +1,5 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 
@@ -500,6 +501,11 @@ llvm::Error buildComputedMaskMemoryMigratedRouteStatementPlan(
         "produce a statement plan for operation '" +
         stringifyRVVSelectedBodyOperationKind(analysis.description.operation) +
         "'");
+  if (llvm::Error error =
+          verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts(
+              analysis, materializationFacts, memoryOperandBindingFacts, *plan,
+              context))
+    return error;
   return setRVVSelectedBodyMemoryMigratedRouteStatementPlan(
       out,
       RVVSelectedBodyMigratedRouteStatementPlanFamily::ComputedMaskMemory,

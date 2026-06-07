@@ -515,6 +515,11 @@ llvm::Error buildStandaloneReductionMigratedRouteStatementPlan(
         "produce a statement plan for operation '" +
         stringifyRVVSelectedBodyOperationKind(analysis.description.operation) +
         "'");
+  if (llvm::Error error =
+          verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
+              analysis, materializationFacts, mathOperandBindingFacts, *plan,
+              context))
+    return error;
   return setRVVSelectedBodyMigratedRouteStatementPlan(
       out,
       RVVSelectedBodyMigratedRouteStatementPlanFamily::StandaloneReduction,

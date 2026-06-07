@@ -215,6 +215,10 @@ llvm::Error buildCompareSelectMigratedRouteStatementPlan(
         "statement plan for operation '" +
         stringifyRVVSelectedBodyOperationKind(analysis.description.operation) +
         "'");
+  if (llvm::Error error = verifyRVVSelectedBodyCompareSelectRouteProviderFacts(
+          analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+          *plan, context))
+    return error;
   return setRVVSelectedBodyMigratedRouteStatementPlan(
       out, RVVSelectedBodyMigratedRouteStatementPlanFamily::CompareSelect,
       plan->preLoopSteps, plan->loop, analysis.description, context);
