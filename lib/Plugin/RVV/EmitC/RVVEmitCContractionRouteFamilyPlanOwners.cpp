@@ -4316,9 +4316,65 @@ llvm::Error requireRVVLowPrecisionResourceRealizationFacts(
   return llvm::Error::success();
 }
 
+llvm::Error requireRVVLowPrecisionRealizedVSetVLRegionStructure(
+    RVVSelectedBodyRouteSlice &slice, llvm::StringRef context,
+    const RVVLowPrecisionContractionResourceSelection &selection) {
+  const std::int64_t expectedRegionCount = selection.vsetvlRegionCount;
+  if (static_cast<std::int64_t>(slice.vsetvlRegionMarkers.size()) !=
+      expectedRegionCount)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires " + llvm::Twine(expectedRegionCount) +
+        " tcrv_rvv.vsetvl_region_marker ops matching realized resource "
+        "facts, but found " +
+        llvm::Twine(slice.vsetvlRegionMarkers.size()));
+
+  llvm::ArrayRef<llvm::StringRef> expectedPhases = {
+      "load-product-reduce", "dequant-store"};
+  if (expectedRegionCount !=
+      static_cast<std::int64_t>(expectedPhases.size()))
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure has no provider-owned phase contract for realized vsetvl "
+        "region count " +
+        llvm::Twine(expectedRegionCount));
+
+  for (auto [index, marker] :
+       llvm::enumerate(slice.vsetvlRegionMarkers)) {
+    const std::int64_t expectedIndex =
+        static_cast<std::int64_t>(index) + 1;
+    if (marker.getVl() != slice.withVL.getVl())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " selected-body realization low-precision direct-contraction "
+          "structure requires each tcrv_rvv.vsetvl_region_marker to consume "
+          "the selected with_vl token");
+    if (static_cast<std::int64_t>(marker.getRegionIndex()) != expectedIndex ||
+        static_cast<std::int64_t>(marker.getRegionCount()) !=
+            expectedRegionCount ||
+        marker.getPhase() != expectedPhases[index] ||
+        marker.getResourceDecision() !=
+            kRVVLowPrecisionResourceRealizationDecision)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " selected-body realization low-precision direct-contraction "
+          "structure has stale or inconsistent vsetvl region marker at "
+          "position " +
+          llvm::Twine(expectedIndex) + ": expected phase '" +
+          expectedPhases[index] + "', region_index " +
+          llvm::Twine(expectedIndex) + ", region_count " +
+          llvm::Twine(expectedRegionCount) + ", resource decision '" +
+          kRVVLowPrecisionResourceRealizationDecision + "'");
+  }
+  return llvm::Error::success();
+}
+
 llvm::Expected<RVVLowPrecisionContractionResourceSelection>
 deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan,
+    RVVSelectedBodyRouteSlice &slice,
     const RVVSelectedTargetCapabilityFacts &targetFacts, mlir::Operation *op,
     llvm::StringRef context) {
   using namespace tianchenrv::plugin::rvv;
@@ -4499,6 +4555,10 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     return std::move(error);
   if (llvm::Error error = requireRVVLowPrecisionResourceRealizationFacts(
           op, context, selection))
+    return std::move(error);
+  if (llvm::Error error =
+          requireRVVLowPrecisionRealizedVSetVLRegionStructure(slice, context,
+                                                              selection))
     return std::move(error);
   return selection;
 }
@@ -6003,7 +6063,7 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
         !plan.usesProductReductionDequantClamp) {
       llvm::Expected<RVVLowPrecisionContractionResourceSelection> selection =
           deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
-              plan, analysis.selectedTargetCapabilityFacts,
+              plan, analysis.slice, analysis.selectedTargetCapabilityFacts,
               analysis.slice.withVL.getOperation(),
               "contraction route-family plan derivation");
       if (!selection)

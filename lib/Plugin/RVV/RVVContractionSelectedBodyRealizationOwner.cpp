@@ -417,6 +417,22 @@ void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
   (void)builder.create(state);
 }
 
+void createRealizedVSetVLRegionMarker(mlir::OpBuilder &builder,
+                                      mlir::Location loc, mlir::Value vl,
+                                      llvm::StringRef phase,
+                                      std::int64_t regionIndex,
+                                      std::int64_t regionCount) {
+  mlir::OperationState state(loc, "tcrv_rvv.vsetvl_region_marker");
+  state.addOperands(vl);
+  state.addAttribute("phase", builder.getStringAttr(phase));
+  state.addAttribute("region_index", builder.getI64IntegerAttr(regionIndex));
+  state.addAttribute("region_count", builder.getI64IntegerAttr(regionCount));
+  state.addAttribute("resource_decision",
+                     builder.getStringAttr(
+                         kRVVLowPrecisionResourceRealizationDecision));
+  (void)builder.create(state);
+}
+
 struct RVVSelectedBodyContractionRealizationPlan {
   mlir::Operation *preRealizedBody = nullptr;
 
@@ -749,6 +765,11 @@ realizePreRealizedRVVSelectedContractionFamily(
   builder.setInsertionPointToStart(&withVL.getBody().front());
   mlir::Value compareLHSValue;
   mlir::Value compareRHSValue;
+  if (plan.usesProductReductionDequantization &&
+      !plan.usesProductReductionDequantClamp)
+    createRealizedVSetVLRegionMarker(
+        builder, loc, setvl.getVl(), "load-product-reduce", 1,
+        kRVVLowPrecisionResourceVSetVLRegions);
   if (plan.usesComputedMask) {
     auto compareLHSLoad =
         llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
@@ -800,6 +821,10 @@ realizePreRealizedRVVSelectedContractionFamily(
             builder, loc, plan.accumulatorLayout, plan.resultLayout,
             product.getResult(), plan.acc, setvl.getVl(), plan.resultSEW,
             plan.resultLMUL));
+    if (!plan.usesProductReductionDequantClamp)
+      createRealizedVSetVLRegionMarker(
+          builder, loc, setvl.getVl(), "dequant-store", 2,
+          kRVVLowPrecisionResourceVSetVLRegions);
     auto dequantized = llvm::cast<tcrv::rvv::DequantizeOp>(
         createRealizedGenericDequantizeCompute(
             builder, loc, plan.dequantizationRelation, reduced.getResult(),

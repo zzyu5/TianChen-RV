@@ -5439,6 +5439,14 @@ the route provider claims resource-aware tuning.
 - A selected candidate must be consumed by selected-body realization, provider
   planning, or target artifact validation before route construction. Mirroring a
   candidate in artifact metadata is insufficient.
+- When the selected low-precision Gearbox candidate affects `vsetvl` placement
+  or region count, selected-body realization must materialize provider-verifiable
+  realized body structure for that placement. The provider must compare the
+  realized structure with the RVV-owned resource facts and fail closed if marker
+  count, ordering, phase, resource decision, or bound `!tcrv_rvv.vl` token is
+  stale or inconsistent. Such structure is RVV plugin-local scheduling evidence;
+  it is not a common EmitC role op, route id, artifact mirror, or intrinsic
+  authority.
 - For generated-bundle evidence on pre-realized
   `widening_product_reduce_dequantize_f32`, the Gearbox resource-fact pass must
   run before selected-body realization so `tcrv_rvv.low_precision_resource.*`
@@ -5493,6 +5501,10 @@ the route provider claims resource-aware tuning.
   stale candidate mirrors, and invalid ABI/runtime AVL facts.
 - Provider/target artifact validation proving selected candidate facts are
   consumed before artifact acceptance and stale metadata-only candidates fail.
+- Focused selected-body/provider tests for resource-fact and realized-structure
+  mismatch, including stale `vsetvl` region placement structure when `vsetvl`
+  placement or region count is part of the selected low-precision Gearbox
+  candidate.
 - A focused generated-bundle or benchmark harness for the first comparable
   low-precision direct-contraction kernel.
 - Real `ssh rvv` correctness evidence for executable claims and real same-target

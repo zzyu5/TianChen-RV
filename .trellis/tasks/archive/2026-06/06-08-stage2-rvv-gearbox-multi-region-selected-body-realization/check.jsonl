@@ -1,0 +1,17 @@
+{"file": ".trellis/spec/index.md", "reason": "Final behavior must preserve RVV typed-body authority and Stage 2 selected-body realization chain."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin locality, selected-body realization, and fail-closed behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check common EmitC remains neutral and provider route facts remain provider-owned."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Check resource-aware selected-body realization is not metadata-only tuning."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check lit/FileCheck and RVV evidence expectations."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir", "reason": "Focused positive and mismatch fail-closed evidence for the changed behavior."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "RVV plugin smoke test after rebuilding changed production code."}
+{"ts": "2026-06-08T02:36:04+08:00", "check": "cmake-build-tcrv-opt", "cmd": "rtk cmake --build build --target tcrv-opt -j 8", "result": "passed"}
+{"ts": "2026-06-08T02:36:04+08:00", "check": "cmake-build-tcrv-translate", "cmd": "rtk cmake --build build --target tcrv-translate -j 8", "result": "passed"}
+{"ts": "2026-06-08T02:36:04+08:00", "check": "focused-lit-pre-realized", "cmd": "rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32", "workdir": "build/test", "result": "passed"}
+{"ts": "2026-06-08T02:36:04+08:00", "check": "focused-lit-gearbox-transform", "cmd": "rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter rvv-gearbox-widening-product-reduce-dequantize-f32", "workdir": "build/test", "result": "passed"}
+{"ts": "2026-06-08T02:36:04+08:00", "check": "focused-lit-product-reduce-dequantize-artifacts", "cmd": "rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'widening-product-reduce-dequantize-f32'", "workdir": "build/test", "result": "passed"}
+{"ts": "2026-06-08T02:36:04+08:00", "check": "rvv-extension-plugin-test", "cmd": "rtk ./build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed"}
+{"ts": "2026-06-08T02:36:04+08:00", "check": "rvv-dialect-test", "cmd": "rtk ./build/bin/tianchenrv-rvv-dialect-test", "result": "passed"}
+{"ts": "2026-06-08T02:36:04+08:00", "check": "git-diff-check", "cmd": "rtk git diff --check", "result": "passed"}
+{"ts": "2026-06-08T02:36:04+08:00", "check": "bounded-old-authority-scan", "cmd": "rtk git diff -U0 -- touched production/test files | rg -n 'RVVI32M1|rvv-i32m1|tcrv_rvv\\\\.i32_|!tcrv_rvv\\\\.i32m|source-front-door|source-artifact|descriptor|direct-C|route_id|artifact-name|__riscv_.*_i32m1'", "result": "only negative explanatory source-front-door text in the new marker description; no new positive legacy route authority"}
+{"ts": "2026-06-08T02:36:04+08:00", "check": "self-repair", "cmd": "focused lit/build iterations", "result": "fixed construction role-order failure by excluding marker from RVV role sequence; rebuilt stale tcrv-translate; updated explicit artifact fixture to carry realized facts/marker structure under the tightened provider contract"}

@@ -18307,12 +18307,18 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
       genericMaskedSegment2Stores;
   llvm::SmallVector<tcrv::rvv::Segment2LoadOp, 1> genericSegment2Loads;
   llvm::SmallVector<tcrv::rvv::Segment2StoreOp, 1> genericSegment2Stores;
+  llvm::SmallVector<tcrv::rvv::VSetVLRegionMarkerOp, 4>
+      vsetvlRegionMarkers;
   llvm::SmallVector<tcrv::rvv::BroadcastLoadOp, 1> genericBroadcastLoads;
   llvm::SmallVector<tcrv::rvv::SplatOp, 2> genericScalarSplats;
   llvm::SmallVector<tcrv::rvv::StoreOp, 2> genericStores;
   unsigned storeCount = 0;
   unsigned stridedStoreCount = 0;
   for (mlir::Operation &op : slice.withVL.getBody().front()) {
+    if (auto marker = llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(op)) {
+      vsetvlRegionMarkers.push_back(marker);
+      continue;
+    }
     if (auto load = llvm::dyn_cast<tcrv::rvv::LoadOp>(op)) {
       genericLoads.push_back(load);
       continue;
@@ -18576,6 +18582,7 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "masked_segment2_load, "
         "masked_store, masked_strided_store, store, and strided_store only");
   }
+  slice.vsetvlRegionMarkers = std::move(vsetvlRegionMarkers);
 
   const bool hasIndexedMemory =
       !genericIndexLoads.empty() || !genericIndexedLoads.empty() ||
@@ -19044,6 +19051,12 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
     slice.arithmeticOp = splat.getOperation();
     slice.arithmeticResult = splat.getBroadcast();
   }
+  if (!slice.vsetvlRegionMarkers.empty() &&
+      !isWideningProductReduceDequantize)
+    return makeRVVEmitCRouteProviderError(
+        "bounded RVV EmitC route accepts tcrv_rvv.vsetvl_region_marker only "
+        "for low-precision product-reduction dequantization selected-body "
+        "realization");
   if (hasIndexedMemory && isIndexedGatherUnitStore &&
       (!genericStridedLoads.empty() || stridedStoreCount != 0 ||
        !genericLoads.empty() || !genericBroadcastLoads.empty() ||
@@ -20290,7 +20303,9 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
           : (hasStridedMemory
                  ? 13
                  : ((isCompareSelect || isMaskedArithmetic) ? 11 : 10))));
-  if (rvvOpCount != expectedRVVOps)
+  const unsigned expectedRVVOpsWithMarkers =
+      expectedRVVOps + slice.vsetvlRegionMarkers.size();
+  if (rvvOpCount != expectedRVVOpsWithMarkers)
     return makeRVVEmitCRouteProviderError(
         "bounded generic RVV EmitC route supports only runtime_abi_value/"
         "runtime_abi_value/runtime_abi_value plus optional runtime_abi_value "
@@ -20300,7 +20315,8 @@ collectRVVSelectedBodyRouteSlice(tcrv::exec::VariantOp variant) {
         "index_load/indexed_load/mask_load/segment2_load/segment2_store/"
         "binary/compare/select/masked_binary/reduce/macc/masked_macc/"
         "standalone_reduce/masked_standalone_reduce/widening_product/"
-        "widening_dot_reduce/widening_convert/dequantize/move/"
+        "widening_dot_reduce/widening_convert/dequantize/"
+        "vsetvl_region_marker/move/"
         "masked_move/masked_load/masked_strided_load/"
         "masked_indexed_load/masked_indexed_store/masked_store/"
         "masked_segment2_store/masked_strided_store/store/strided_store body "
@@ -24140,11 +24156,14 @@ collectRVVRoleOperationsInBodyOrder(tcrv::exec::VariantOp variant,
   for (mlir::Operation &op : variant.getBody().front()) {
     if (op.getName().getDialectNamespace() != "tcrv_rvv")
       continue;
+    if (llvm::isa<tcrv::rvv::VSetVLRegionMarkerOp>(op))
+      continue;
     ordered.operations.push_back(&op);
     ordered.constructionOrders.push_back(getRVVCanonicalRoleOrder(slice, &op));
     if (auto withVL = llvm::dyn_cast<tcrv::rvv::WithVLOp>(op))
       for (mlir::Operation &nested : withVL.getBody().front())
-        if (nested.getName().getDialectNamespace() == "tcrv_rvv") {
+        if (nested.getName().getDialectNamespace() == "tcrv_rvv" &&
+            !llvm::isa<tcrv::rvv::VSetVLRegionMarkerOp>(nested)) {
           ordered.operations.push_back(&nested);
           ordered.constructionOrders.push_back(
               getRVVCanonicalRoleOrder(slice, &nested));

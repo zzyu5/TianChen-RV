@@ -2,6 +2,7 @@
 // RUN: not tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-RESOURCE-PASS
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.selected_candidate = "[^"]*"/tcrv_rvv.low_precision_resource.selected_candidate = "artifact-name-derived-resource-candidate"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER-RESOURCE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 2 : i64/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 1 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZATION-RESOURCE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/phase = "dequant-store"/phase = "artifact-metadata-region"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZED-REGION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: sed '/c_name = "scale"/s/c_type = "float"/c_type = "float *"/;/c_name = "scale"/s/role = "dequant-scale-value"/role = "output-buffer"/' %s | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-SCALE
@@ -48,6 +49,11 @@ module {
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 2 : i64
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64
+// REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
+// REALIZED-SAME: phase = "load-product-reduce"
+// REALIZED-SAME: region_count = 2 : i64
+// REALIZED-SAME: region_index = 1 : i64
+// REALIZED-SAME: resource_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"
 // REALIZED: %[[LHS:.*]] = tcrv_rvv.load
 // REALIZED-SAME: !tcrv_rvv.vector<i8, "mf4">
 // REALIZED: %[[RHS:.*]] = tcrv_rvv.load
@@ -61,6 +67,11 @@ module {
 // REALIZED-SAME: kind = "signed_widening_reduce_add"
 // REALIZED-SAME: result_layout = "store-standalone-reduction-lane0-to-output-scalar"
 // REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m1">
+// REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
+// REALIZED-SAME: phase = "dequant-store"
+// REALIZED-SAME: region_count = 2 : i64
+// REALIZED-SAME: region_index = 2 : i64
+// REALIZED-SAME: resource_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"
 // REALIZED: %[[DEQUANT:.*]] = tcrv_rvv.dequantize %[[REDUCED]], %{{.*}}, %[[VL]]
 // REALIZED-SAME: dequant_relation = "signed-i32m1-to-f32m1-scale-f32"
 // REALIZED-SAME: kind = "i32_to_f32_scaled"
@@ -104,6 +115,10 @@ module {
 // STALE-REALIZATION-RESOURCE: selected-body realization low-precision direct-contraction resource fact
 // STALE-REALIZATION-RESOURCE-SAME: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count
 // STALE-REALIZATION-RESOURCE-SAME: requires realized vsetvl region count 2
+
+// STALE-REALIZED-REGION: selected-body realization low-precision direct-contraction structure
+// STALE-REALIZED-REGION-SAME: stale or inconsistent vsetvl region marker
+// STALE-REALIZED-REGION-SAME: expected phase 'dequant-store'
 
 // MISSING-SCALE: runtime scale
 // MISSING-SCALE-SAME: dequant-scale-value

@@ -331,6 +331,34 @@ def WithVLOp : TCRVRVV_Op<"with_vl",
   let hasVerifier = 1;
 }
 
+def VSetVLRegionMarkerOp : TCRVRVV_Op<"vsetvl_region_marker"> {
+  let summary = "RVV plugin-owned vsetvl placement marker";
+  let description = [{
+    Records one RVV plugin-local selected-body realization boundary for a
+    resource-aware vsetvl placement decision. The op is nested directly under
+    tcrv_rvv.with_vl, consumes the active !tcrv_rvv.vl token, and carries the
+    realized region phase, one-based region index, total region count, and
+    resource decision string.
+
+    This op is structural schedule evidence only. It does not model compute,
+    dtype, memory access, an intrinsic wrapper, route id, artifact metadata,
+    source-front-door marker, or executable proof. The RVV provider may use it
+    to validate that resource facts have been consumed into realized body
+    structure before building a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$vl,
+    StrAttr:$phase,
+    I64Attr:$region_index,
+    I64Attr:$region_count,
+    StrAttr:$resource_decision
+  );
+
+  let assemblyFormat = "$vl attr-dict `:` type($vl)";
+  let hasVerifier = 1;
+}
+
 def TypedBinaryPreRealizedBodyOp
     : TCRVRVV_Op<"typed_binary_pre_realized_body"> {
   let summary = "generic typed pre-realized RVV binary selected body";

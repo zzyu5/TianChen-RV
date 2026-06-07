@@ -1,0 +1,21 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV Stage 2 selected-body realization, and anti-metadata-authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-local selected-body realization and resource-aware Stage 2 rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built route contract."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Resource-aware selected-body realization must be real structure, not artifact-only evidence."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/FileCheck and RVV evidence expectations."}
+{"file": ".trellis/spec/implementation-stack/index.md", "reason": "C++/MLIR/TableGen/CMake/lit stack boundary."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep scheduling/resource behavior RVV plugin-local."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Ensure performance config is consumed into realized body structure."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-gearbox-resource-aware-realization/prd.md", "reason": "Previous resource-fact foundation and continuation point."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h", "reason": "Low-precision resource fact names and constants."}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Selected-body realization for low-precision product-reduction-dequantization."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Provider route-family resource validation and plan derivation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Selected-body route slice collection currently enforces one setvl/with_vl and may need bounded multi-region support."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir", "reason": "Focused positive/fail-closed lit coverage for this route."}
+{"file": "test/Transforms/RVV/rvv-gearbox-widening-product-reduce-dequantize-f32.mlir", "reason": "Adjacent Gearbox resource pass reference."}
+{"ts": "2026-06-08T02:36:04+08:00", "phase": "implementation", "summary": "Added RVV plugin-local tcrv_rvv.vsetvl_region_marker op/verifier as structural schedule evidence for Gearbox vsetvl placement; it consumes the active !tcrv_rvv.vl token and is deliberately not a common EmitC role op or route authority."}
+{"ts": "2026-06-08T02:36:04+08:00", "phase": "implementation", "summary": "Updated low-precision product-reduction-dequantization selected-body realization to emit two ordered placement markers: load-product-reduce and dequant-store, both tied to the selected RVV low-precision resource decision."}
+{"ts": "2026-06-08T02:36:04+08:00", "phase": "implementation", "summary": "Updated RVV route slice planning to collect marker ops, exclude them from construction role-order validation, and permit them only for the bounded widening_product_reduce_dequantize_f32 selected-body route."}
+{"ts": "2026-06-08T02:36:04+08:00", "phase": "implementation", "summary": "Updated contraction provider planning to fail closed when realized marker count, phase, index/count, resource decision, or bound with_vl token disagrees with RVV-owned resource facts."}
+{"ts": "2026-06-08T02:36:04+08:00", "phase": "implementation", "summary": "Updated focused pre-realized and explicit product-reduction-dequantization artifact tests; explicit fixture now represents an already-realized body with resource facts and marker structure."}
+{"ts": "2026-06-08T02:36:04+08:00", "phase": "spec-sync", "summary": "Updated .trellis/spec/extension-plugins/rvv-plugin.md to record that low-precision Gearbox vsetvl placement/resource facts must be consumed into provider-verifiable realized structure and mismatch must fail closed."}

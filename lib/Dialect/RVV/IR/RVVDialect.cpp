@@ -213,6 +213,11 @@ bool isAllowedWithVLAttr(llvm::StringRef name) {
          tianchenrv::plugin::rvv::isRVVCompositeResourceAttrName(name);
 }
 
+bool isAllowedVSetVLRegionMarkerAttr(llvm::StringRef name) {
+  return name == "phase" || name == "region_index" ||
+         name == "region_count" || name == "resource_decision";
+}
+
 bool isAllowedI32LoadAttr(llvm::StringRef) {
   return false;
 }
@@ -3773,6 +3778,54 @@ mlir::LogicalResult WithVLOp::verify() {
                 "tcrv_rvv.widening_product -> "
                 "tcrv_rvv.standalone_reduce chain";
   }
+
+  return mlir::success();
+}
+
+mlir::LogicalResult VSetVLRegionMarkerOp::verify() {
+  mlir::Operation *op = getOperation();
+
+  for (mlir::NamedAttribute attr : op->getAttrs()) {
+    llvm::StringRef attrName = attr.getName().getValue();
+    if (isForbiddenDataflowParameterAttr(attrName))
+      return emitOpError()
+             << "does not accept attribute '" << attr.getName()
+             << "'; vsetvl placement markers keep VLEN/vlenb as target "
+                "capability facts and consume the active !tcrv_rvv.vl token";
+
+    if (!isAllowedVSetVLRegionMarkerAttr(attrName))
+      return emitOpError()
+             << "only accepts RVV realization placement attributes 'phase', "
+                "'region_index', 'region_count', and 'resource_decision'; "
+                "unexpected attribute '"
+             << attr.getName() << "'";
+  }
+
+  if (op->getNumOperands() != 1 || op->getNumResults() != 0)
+    return emitOpError()
+           << "requires exactly one active !tcrv_rvv.vl operand and no "
+              "results";
+  if (mlir::failed(verifyNestedDataflowOp(op)))
+    return mlir::failure();
+  if (!llvm::isa<VLType>(getVl().getType()))
+    return emitOpError()
+           << "requires runtime VL operand to have !tcrv_rvv.vl type";
+  if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
+    return mlir::failure();
+
+  if (getPhase().empty())
+    return emitOpError() << "requires non-empty phase";
+  if (mlir::failed(verifyBoundedMetadata(op, "phase", getPhase())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, "resource_decision",
+                                         getResourceDecision())))
+    return mlir::failure();
+
+  if (getRegionCount() <= 0)
+    return emitOpError() << "requires positive region_count";
+  if (getRegionIndex() <= 0 || getRegionIndex() > getRegionCount())
+    return emitOpError()
+           << "requires one-based region_index within region_count";
 
   return mlir::success();
 }

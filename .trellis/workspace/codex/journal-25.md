@@ -1558,3 +1558,62 @@ Completed Stage2 RVV Gearbox resource-aware selected-body realization foundation
 ### Next Steps
 
 - None - task complete
+
+
+## Session 541: Stage2 RVV Gearbox multi-region selected-body realization
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV Gearbox multi-region selected-body realization
+**Branch**: `main`
+
+### Summary
+
+Completed a bounded Stage2 RVV Gearbox multi-region selected-body realization step: low-precision product-reduction-dequantization now materializes provider-verifiable vsetvl placement markers, and provider planning fails closed when realized placement structure and resource facts disagree.
+
+### Main Changes
+
+- Added `tcrv_rvv.vsetvl_region_marker` as RVV plugin-local structural schedule evidence. It consumes the selected `!tcrv_rvv.vl` token, verifies nesting under `tcrv_rvv.with_vl`, and is not an EmitC role op, intrinsic wrapper, route id, artifact mirror, or source-front-door authority.
+- Updated `RVVContractionSelectedBodyRealizationOwner.cpp` so pre-realized low-precision product-reduction-dequantization emits two ordered markers: `load-product-reduce` and `dequant-store`, tied to the selected resource decision.
+- Updated route planning to collect marker ops, exclude them from construction role-order validation, and accept markers only for the bounded widening product-reduction-dequantization path.
+- Updated the contraction provider to require marker count, order, phase, region index/count, resource decision, and bound `with_vl` token to agree with RVV-owned resource facts before route support.
+- Updated pre-realized and explicit product-reduction-dequantization artifact lit coverage, including a stale marker phase fail-closed test.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the new durable Gearbox vsetvl placement structure contract.
+- Archived Trellis task `stage2-rvv-gearbox-multi-region-selected-body-realization` under `archive/2026-06`.
+
+Checks:
+- [OK] `rtk cmake --build build --target tcrv-opt -j 8`
+- [OK] `rtk cmake --build build --target tcrv-translate -j 8`
+- [OK] filtered lit: `pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32`
+- [OK] filtered lit: `rvv-gearbox-widening-product-reduce-dequantize-f32`
+- [OK] filtered lit: `widening-product-reduce-dequantize-f32` (3 tests)
+- [OK] `rtk ./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk ./build/bin/tianchenrv-rvv-dialect-test`
+- [OK] `rtk git diff --check`
+- [OK] bounded old-authority scan over touched production/test diff found no new positive legacy authority; only negative explanatory `source-front-door` text in the marker description.
+
+Self-repair:
+- First focused lit exposed that marker ops must not enter RVV construction role-order validation; fixed by excluding `VSetVLRegionMarkerOp` from the RVV role sequence while keeping it in the provider route slice.
+- Header artifact check initially used a stale `tcrv-translate`; rebuilt it.
+- Wider product-reduction-dequantization lit exposed an explicit fixture that still represented schedule facts without realized structure; updated it to an already-realized body with facts and markers under the tightened provider contract.
+
+Continuation:
+- If future work wants actual multiple `with_vl`/stripe regions instead of marker-backed placement structure, first define the cross-region SSA/result and runtime boundary for product/reduction/dequant values.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `created-after-journal-entry` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
