@@ -2158,8 +2158,6 @@ verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
       materializationFacts.maskCType != plan.maskCType ||
       materializationFacts.setVLLeaf != plan.setVLIntrinsic ||
       materializationFacts.vectorLoadLeaf != plan.vectorLoadIntrinsic ||
-      materializationFacts.rhsScalarBroadcastLeaf !=
-          plan.rhsScalarSplatIntrinsic ||
       materializationFacts.compareLeaf != plan.compareIntrinsic ||
       materializationFacts.storeLeaf != plan.maskedStoreIntrinsic)
     return makeRVVEmitCRouteProviderError(
@@ -2292,6 +2290,24 @@ verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
         "plan, or the gather-MAcc-scatter statement plan, before creating "
         "TCRVEmitCLowerableRoute");
 
+  RVVRuntimeScalarComputedMaskMemorySplatProviderContract splatContract;
+  splatContract.required = true;
+  splatContract.consumerLabel =
+      "runtime scalar computed-mask memory provider";
+  splatContract.rhsScalarSplatIntrinsic = plan.rhsScalarSplatIntrinsic;
+  splatContract.materializedRHSScalarSplatLeaf =
+      materializationFacts.rhsScalarBroadcastLeaf;
+  splatContract.runtimeABIOrder = plan.runtimeABIOrder;
+  splatContract.providerSupportedMirror = plan.providerSupportedMirror;
+  splatContract.rhsScalarABI = memoryOperandBindingFacts.rhsScalarABI;
+  splatContract.bindsRuntimeScalarComputedMaskMemory =
+      memoryOperandBindingFacts.bindsRuntimeScalarComputedMaskMemory;
+  if (llvm::Error error =
+          verifyRVVRuntimeScalarComputedMaskMemorySplatProviderContract(
+              splatContract, computedMaskMemoryStatementPlan.loop.bodySteps,
+              context))
+    return error;
+
   auto statementHasCallee = [&](llvm::StringRef callee) {
     for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
          computedMaskMemoryStatementPlan.loop.bodySteps)
@@ -2299,8 +2315,7 @@ verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
         return true;
     return false;
   };
-  if (!statementHasCallee(plan.rhsScalarSplatIntrinsic) ||
-      !statementHasCallee(plan.compareIntrinsic) ||
+  if (!statementHasCallee(plan.compareIntrinsic) ||
       (!isRuntimeScalarIndexedScatter &&
        !isRuntimeScalarIndexedGatherMAccScatter &&
        !statementHasCallee(plan.maskedStoreIntrinsic)) ||

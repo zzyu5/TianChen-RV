@@ -6288,6 +6288,65 @@ module {
                           "producer-realized @") +
                   variantName))
         return result;
+      if (variantName ==
+          "rvv_pre_route_runtime_scalar_cmp_masked_segment2_load_unit_store") {
+        auto analysis = tianchenrv::plugin::rvv::analyzeRVVSelectedBodyRoute(
+            VariantEmitCLowerableRequest(
+                variant, kernel, capabilities,
+                VariantEmissionRole::DirectVariant));
+        if (!analysis)
+          return fail("analyze producer-realized runtime-scalar segment2 "
+                      "load route: " +
+                      llvm::toString(analysis.takeError()));
+        auto materializationFacts = tianchenrv::plugin::rvv::
+            getRVVSelectedBodyRouteMaterializationFacts(
+                *analysis, "runtime-scalar segment2 load splat contract unit "
+                           "test");
+        if (!materializationFacts)
+          return fail("runtime-scalar segment2 load materialization facts: " +
+                      llvm::toString(materializationFacts.takeError()));
+        auto memoryFacts = tianchenrv::plugin::rvv::
+            getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+                *analysis, "runtime-scalar segment2 load splat contract unit "
+                           "test");
+        if (!memoryFacts)
+          return fail("runtime-scalar segment2 load memory facts: " +
+                      llvm::toString(memoryFacts.takeError()));
+        auto providerPlan = tianchenrv::plugin::rvv::
+            getRVVSelectedBodySegment2RouteFamilyProviderPlan(
+                *analysis, *materializationFacts, *memoryFacts,
+                "runtime-scalar segment2 load splat contract unit test");
+        if (!providerPlan)
+          return fail("runtime-scalar segment2 load provider plan: " +
+                      llvm::toString(providerPlan.takeError()));
+        if (int result = expectSegment2ProviderBoundaryPreflight(
+                *analysis, *materializationFacts, *memoryFacts, *providerPlan,
+                "runtime-scalar segment2 load splat contract unit test"))
+          return result;
+
+        auto selection = buildSegment2StatementPlanOwnerSelectionForTest(
+            *analysis, *materializationFacts, *memoryFacts,
+            "runtime-scalar segment2 load stale splat contract unit test");
+        if (!selection)
+          return fail("runtime-scalar segment2 load statement-plan owner "
+                      "selection: " +
+                      llvm::toString(selection.takeError()));
+        auto staleMaterializationFacts = *materializationFacts;
+        staleMaterializationFacts.rhsScalarBroadcastLeaf =
+            "stale_rhs_scalar_splat_leaf";
+        if (int result = expectErrorContains(
+                tianchenrv::plugin::rvv::
+                    verifyRVVSelectedBodySegment2MemoryRouteProviderFacts(
+                        *analysis, staleMaterializationFacts, *memoryFacts,
+                        *providerPlan, *selection,
+                        "runtime-scalar segment2 load stale splat contract "
+                        "unit test"),
+                {"runtime scalar computed-mask segment2 provider splat "
+                 "provider contract",
+                 "rhs_scalar splat leaf",
+                 "before creating TCRVEmitCLowerableRoute"}))
+          return result;
+      }
     }
 
     VariantEmissionPlan plan;
@@ -15407,6 +15466,8 @@ int runComputedMaskMemoryRouteFamilyProviderPlanTest(
         RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore,
         RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad,
         RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore,
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarComputedMaskSegment2LoadUnitStore,
         RVVSelectedBodyOperationKind::
             RuntimeScalarComputedMaskSegment2StoreUnitLoad,
         RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad}) {

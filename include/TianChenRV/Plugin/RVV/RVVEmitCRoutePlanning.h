@@ -1252,6 +1252,22 @@ struct RVVSelectedBodyMemoryRouteOperandBindingFacts {
   const support::RuntimeABIParameter *destinationStrideABI = nullptr;
 };
 
+struct RVVRuntimeScalarComputedMaskMemorySplatProviderContract {
+  bool required = false;
+  llvm::StringRef consumerLabel;
+  llvm::StringRef rhsScalarSplatIntrinsic;
+  llvm::StringRef materializedRHSScalarSplatLeaf;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef providerSupportedMirror;
+  const support::RuntimeABIParameter *rhsScalarABI = nullptr;
+  bool bindsRuntimeScalarComputedMaskMemory = false;
+};
+
+llvm::Error verifyRVVRuntimeScalarComputedMaskMemorySplatProviderContract(
+    const RVVRuntimeScalarComputedMaskMemorySplatProviderContract &contract,
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueStep> statementSteps,
+    llvm::StringRef context);
+
 struct RVVSelectedBodyMathRouteOperandBindingFacts {
   const RVVRouteOperandBindingPlan *bindingPlan = nullptr;
 

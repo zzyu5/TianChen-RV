@@ -726,7 +726,7 @@ Hardened runtime-scalar computed-mask segment2 load route-family classification,
 
 ### Git Commits
 
-- Pending final commit in this session.
+- Final commit created in this session after focused checks.
 
 ### Testing
 
@@ -775,6 +775,64 @@ Added focused C++ provider coverage for runtime-scalar computed-mask segment2 st
 ### Status
 
 [OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 562: Stage2 RVV runtime-scalar computed-mask memory provider contract owner
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV runtime-scalar computed-mask memory provider contract owner
+**Branch**: `main`
+
+### Summary
+
+Added a shared RVV provider-owned runtime-scalar computed-mask splat contract
+and used it to fail-close stale segment2 load/store provider preflight facts
+before `TCRVEmitCLowerableRoute` construction.
+
+### Main Changes
+
+- Created Trellis task
+  `06-08-stage2-rvv-runtime-scalar-computed-mask-memory-provider-contract-owner`.
+- Added `RVVRuntimeScalarComputedMaskMemorySplatProviderContract` and
+  `verifyRVVRuntimeScalarComputedMaskMemorySplatProviderContract(...)`.
+- Rewired non-segment runtime-scalar computed-mask memory provider preflight to
+  use the shared splat contract for `rhs_scalar` ABI, splat materialization,
+  provider mirror, runtime ABI order, and statement-plan leaf checks.
+- Rewired segment2 runtime-scalar computed-mask load/store provider preflight
+  to use the same contract. This repairs the stale load-side consumer that did
+  not previously require `rhsScalarBroadcastLeaf` and the splat statement leaf
+  before route construction.
+- Added focused C++ regression coverage that producer-realizes
+  runtime-scalar segment2 load, runs positive provider preflight, mutates the
+  splat materialization leaf, and checks fail-closed provider diagnostics.
+- Confirmed target validation already checks runtime-scalar segment2
+  statement shape from rebuilt provider contracts, so no target source rewrite
+  was required.
+- Updated `.trellis/spec/lowering-runtime/emitc-route.md` with the executable
+  `RVVRuntimeScalarComputedMaskMemorySplatProviderContract` signature,
+  contract, error matrix, and tests required.
+
+### Git Commits
+
+- Pending final commit in this session.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'runtime-scalar-cmp-masked-segment2'` from `build/test`: 8/8 passed
+- [OK] `git diff --check`
+- [OK] bounded added-line old-authority scan
+
+### Status
+
+[OK] **Completed, archived, and committed**
 
 ### Next Steps
 

@@ -2077,6 +2077,70 @@ getRVVRuntimeAVLVLSelectedBoundaryContract(
   return contract;
 }
 
+llvm::Error verifyRVVRuntimeScalarComputedMaskMemorySplatProviderContract(
+    const RVVRuntimeScalarComputedMaskMemorySplatProviderContract &contract,
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueStep> statementSteps,
+    llvm::StringRef context) {
+  if (!contract.required)
+    return llvm::Error::success();
+
+  const llvm::StringRef consumerLabel =
+      contract.consumerLabel.empty()
+          ? llvm::StringRef("runtime scalar computed-mask memory")
+          : contract.consumerLabel;
+  if (contract.runtimeABIOrder.empty() ||
+      contract.providerSupportedMirror.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " " + consumerLabel +
+        " splat provider contract requires provider-owned runtime ABI order "
+        "and provider-supported mirror facts before creating "
+        "TCRVEmitCLowerableRoute");
+  if (!contract.bindsRuntimeScalarComputedMaskMemory)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " " + consumerLabel +
+        " splat provider contract requires operand-binding facts to mark "
+        "the route as runtime-scalar computed-mask memory before creating "
+        "TCRVEmitCLowerableRoute");
+  if (!contract.rhsScalarABI)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " " + consumerLabel +
+        " splat provider contract requires rhs_scalar ABI binding facts "
+        "before creating TCRVEmitCLowerableRoute");
+  if (contract.rhsScalarABI->role !=
+      support::RuntimeABIParameterRole::RHSScalarValue)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " " + consumerLabel +
+        " splat provider contract requires rhs_scalar ABI role '" +
+        support::stringifyRuntimeABIParameterRole(
+            support::RuntimeABIParameterRole::RHSScalarValue) +
+        "' before creating TCRVEmitCLowerableRoute, but saw '" +
+        support::stringifyRuntimeABIParameterRole(contract.rhsScalarABI->role) +
+        "'");
+  if (contract.rhsScalarSplatIntrinsic.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " " + consumerLabel +
+        " splat provider contract requires a provider-owned rhs_scalar "
+        "splat intrinsic before creating TCRVEmitCLowerableRoute");
+  if (contract.materializedRHSScalarSplatLeaf !=
+      contract.rhsScalarSplatIntrinsic)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) + " " + consumerLabel +
+        " splat provider contract requires materialization facts to carry "
+        "the provider-owned rhs_scalar splat leaf before creating "
+        "TCRVEmitCLowerableRoute");
+
+  for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+       statementSteps)
+    if (step.callee == contract.rhsScalarSplatIntrinsic)
+      return llvm::Error::success();
+
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) + " " + consumerLabel +
+      " splat provider contract requires the RVV-owned statement plan to "
+      "emit the rhs_scalar splat leaf before creating "
+      "TCRVEmitCLowerableRoute");
+}
+
 llvm::Error verifyRVVRuntimeAVLVLControlPlan(
     const RVVRuntimeAVLVLControlPlan &plan, llvm::StringRef context) {
   if (context.trim().empty())
@@ -31989,10 +32053,7 @@ llvm::Error verifyRVVSelectedBodySegment2MemoryRouteProviderFacts(
        (materializationFacts.maskTypeName != segment2ProviderPlan.maskTypeName ||
         materializationFacts.maskCType != segment2ProviderPlan.maskCType ||
         materializationFacts.compareLeaf !=
-            segment2ProviderPlan.compareIntrinsic ||
-        (isRuntimeScalarComputedMaskSegment2Store &&
-         materializationFacts.rhsScalarBroadcastLeaf !=
-             segment2ProviderPlan.rhsScalarSplatIntrinsic))))
+            segment2ProviderPlan.compareIntrinsic)))
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " segment2 route construction requires materialization facts to come "
@@ -32116,6 +32177,26 @@ llvm::Error verifyRVVSelectedBodySegment2MemoryRouteProviderFacts(
               requireABI(segment2ProviderPlan.rhsScalarABI,
                          memoryOperandBindingFacts.rhsScalarABI, "rhs_scalar"))
         return error;
+      RVVRuntimeScalarComputedMaskMemorySplatProviderContract splatContract;
+      splatContract.required = true;
+      splatContract.consumerLabel =
+          "runtime scalar computed-mask segment2 provider";
+      splatContract.rhsScalarSplatIntrinsic =
+          segment2ProviderPlan.rhsScalarSplatIntrinsic;
+      splatContract.materializedRHSScalarSplatLeaf =
+          materializationFacts.rhsScalarBroadcastLeaf;
+      splatContract.runtimeABIOrder =
+          segment2ProviderPlan.runtimeABIOrderMirror;
+      splatContract.providerSupportedMirror =
+          segment2ProviderPlan.providerSupportedMirror;
+      splatContract.rhsScalarABI = memoryOperandBindingFacts.rhsScalarABI;
+      splatContract.bindsRuntimeScalarComputedMaskMemory =
+          memoryOperandBindingFacts.bindsRuntimeScalarComputedMaskMemory;
+      if (llvm::Error error =
+              verifyRVVRuntimeScalarComputedMaskMemorySplatProviderContract(
+                  splatContract, statementPlanOwnerSelection.loop.bodySteps,
+                  context))
+        return error;
     } else {
       if (llvm::Error error =
               requireABI(segment2ProviderPlan.compareRhsABI,
@@ -32219,8 +32300,6 @@ llvm::Error verifyRVVSelectedBodySegment2MemoryRouteProviderFacts(
        !statementHasCallee(segment2ProviderPlan.vectorLoadIntrinsic)) ||
       (isComputedMaskSegment2 &&
        !statementHasCallee(segment2ProviderPlan.compareIntrinsic)) ||
-      (isRuntimeScalarComputedMaskSegment2Store &&
-       !statementHasCallee(segment2ProviderPlan.rhsScalarSplatIntrinsic)) ||
       (isComputedMaskSegment2Update &&
        !statementHasCallee(segment2ProviderPlan.arithmeticIntrinsic)) ||
       ((isPlainDeinterleave || isComputedMaskSegment2Load) &&

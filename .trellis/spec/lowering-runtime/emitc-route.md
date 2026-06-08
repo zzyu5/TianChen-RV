@@ -913,6 +913,102 @@ typed tcrv_rvv body/config/runtime facts
   -> artifact/evidence mirrors match exactly
 ```
 
+### Runtime-Scalar Computed-Mask Memory Splat Provider Contract
+
+#### 1. Scope / Trigger
+
+When a runtime-scalar computed-mask memory route is promoted to provider route
+construction, the `rhs_scalar` ABI binding, scalar splat leaf, and statement
+splat leaf must be checked through one provider-owned contract before
+`TCRVEmitCLowerableRoute` construction. This applies to non-segment
+runtime-scalar computed-mask memory routes and to runtime-scalar computed-mask
+segment2 load/store routes.
+
+#### 2. Signatures
+
+The provider-facing API shape is:
+
+```c++
+struct RVVRuntimeScalarComputedMaskMemorySplatProviderContract {
+  bool required;
+  llvm::StringRef consumerLabel;
+  llvm::StringRef rhsScalarSplatIntrinsic;
+  llvm::StringRef materializedRHSScalarSplatLeaf;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef providerSupportedMirror;
+  const support::RuntimeABIParameter *rhsScalarABI;
+  bool bindsRuntimeScalarComputedMaskMemory;
+};
+
+llvm::Error verifyRVVRuntimeScalarComputedMaskMemorySplatProviderContract(
+    const RVVRuntimeScalarComputedMaskMemorySplatProviderContract &contract,
+    llvm::ArrayRef<TCRVEmitCCallOpaqueStep> statementSteps,
+    llvm::StringRef context);
+```
+
+#### 3. Contracts
+
+- The contract is built from RVV provider facts, selected route materialization
+  facts, runtime ABI operand-binding facts, and the RVV-owned statement plan.
+- `rhsScalarABI` must bind role `rhs-scalar-value`.
+- `materializedRHSScalarSplatLeaf` must equal the provider-owned
+  `rhsScalarSplatIntrinsic`.
+- `statementSteps` must contain the same splat callee before route
+  construction is accepted.
+- `runtimeABIOrder` and `providerSupportedMirror` are provider-derived facts,
+  not target metadata authority.
+
+#### 4. Validation & Error Matrix
+
+- Missing runtime ABI order or provider-supported mirror -> fail before route
+  construction.
+- Operand-binding facts do not mark runtime-scalar computed-mask memory ->
+  fail before route construction.
+- Missing `rhs_scalar` ABI parameter, or wrong ABI role -> fail before route
+  construction.
+- Missing or stale splat materialization leaf -> fail before route
+  construction.
+- Statement plan does not emit the splat leaf -> fail before route
+  construction.
+
+#### 5. Good/Base/Bad Cases
+
+- Good: selected typed runtime-scalar computed-mask segment2 load body ->
+  computed-mask memory family plan -> segment2 provider plan -> splat provider
+  contract -> provider-built route.
+- Base: vector-compare computed-mask memory routes do not require the contract.
+- Bad: segment2 load accepts a computed-mask route because target validation
+  would later notice the missing `rhs_scalar` splat.
+
+#### 6. Tests Required
+
+- Positive C++ provider coverage must exercise at least one runtime-scalar
+  computed-mask segment2 load or store through the contract.
+- Negative C++ provider coverage must mutate the splat materialization or
+  statement leaf and assert failure before `TCRVEmitCLowerableRoute`
+  construction.
+- Target artifact tests may remain as rebuilt-route mirror consumers; they do
+  not replace the provider preflight contract.
+
+#### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+runtime-scalar segment2 route
+  -> provider skips splat leaf preflight
+  -> target validation is the first splat consumer
+```
+
+Correct:
+
+```text
+runtime-scalar segment2 typed body
+  -> RVV provider-owned splat contract
+  -> TCRVEmitCLowerableRoute construction
+  -> target validation mirrors rebuilt provider facts
+```
+
 ### MAcc Metadata Mirror Contract
 
 #### 1. Scope / Trigger
