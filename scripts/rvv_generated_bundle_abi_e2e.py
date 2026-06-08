@@ -8,12 +8,11 @@ bundle, builds a small external C ABI consumer, and optionally runs that
 consumer on the real RVV target. ``--pre-realized-selected-body`` starts from
 the bounded pre-realized selected-body fixtures and uses the public selected
 lowering-boundary materialization pass before emission planning. The
-``--vector-source-front-door`` mode starts from bounded Vector
-source-front-door MLIR fixtures, runs the RVV plugin-owned materializer for the
-selected source family, and then uses the same selected typed-body route/export
-path. The
-``--direct-pre-realized-route-entry`` entry mode is retired and fails closed
-before bundle generation for selected pre-realized op kinds.
+``--vector-source-front-door`` generated-bundle mode is retired for current
+RVV Stage1/Stage2 work and fails closed before bundle generation. The explicit
+source-front-door materializer passes remain separate typed-body fixture/import
+tests only. The ``--direct-pre-realized-route-entry`` entry mode is retired
+and fails closed before bundle generation for selected pre-realized op kinds.
 The legacy ``--source-seed`` mode is unsupported and exits before bundle
 generation. The script does not
 implement compiler IR, lowering, plugin selection, emission, descriptors,
@@ -8575,7 +8574,7 @@ VECTOR_BINARY_SOURCE_FRONT_DOOR_CONTRACT = SourceFrontDoorFamilyContract(
     selected_variant_prefix="rvv_vector_",
     runtime_purpose_prefix="rvv-vector-binary-source-front-door",
     dispatch_policy="rvv-vector-binary-source-front-door-case",
-    default_artifact_front_door_policy="eligible",
+    default_artifact_front_door_policy="explicit-only",
     source_family_label="bounded Vector binary source-front-door MLIR",
     supported_kinds=("add", "sub", "mul"),
     runtime_purpose_roles=("lhs", "rhs", "out", "n"),
@@ -8588,7 +8587,7 @@ VECTOR_COMPARE_SELECT_SOURCE_FRONT_DOOR_CONTRACT = SourceFrontDoorFamilyContract
     selected_variant_prefix="rvv_vector_cmp_select_",
     runtime_purpose_prefix="rvv-vector-compare-select-source-front-door",
     dispatch_policy="rvv-vector-compare-select-source-front-door-case",
-    default_artifact_front_door_policy="eligible",
+    default_artifact_front_door_policy="explicit-only",
     source_family_label="bounded Vector compare/select source-front-door MLIR",
     supported_kinds=("cmp_select",),
     runtime_purpose_roles=("lhs", "rhs", "out", "n"),
@@ -8612,7 +8611,7 @@ VECTOR_RUNTIME_SCALAR_COMPARE_SELECT_SOURCE_FRONT_DOOR_CONTRACT = (
         dispatch_policy=(
             "rvv-vector-runtime-scalar-cmp-select-source-front-door-case"
         ),
-        default_artifact_front_door_policy="eligible",
+        default_artifact_front_door_policy="explicit-only",
         source_family_label=(
             "bounded Vector runtime-scalar compare/select source-front-door "
             "MLIR"
@@ -28529,8 +28528,13 @@ def selected_expectations(args: argparse.Namespace) -> list[OpExpectation]:
         )
 
     if vector_source_front_door:
-        expectation_table = VECTOR_SOURCE_FRONT_DOOR_OP_EXPECTATIONS
-        mode = "vector-source-front-door"
+        raise EvidenceError(
+            "RVV --vector-source-front-door generated-bundle mode is retired "
+            "for current Stage1/Stage2: source-front-door markers are explicit "
+            "typed-body materialization scaffolding only and cannot claim "
+            "route-supported or executable artifacts; use explicit selected-body "
+            "or pre-realized selected-body fixtures for artifact evidence"
+        )
     elif args.pre_realized_selected_body:
         expectation_table = PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS
         mode = "pre-realized-selected-body"
@@ -33350,26 +33354,6 @@ def run_one_op_e2e(
             args.direct_pre_realized_route_entry,
         )
         evidence["local_bundle_generation"] = local
-        if expectation.is_vector_source_front_door:
-            family_contract = local["source_front_door_boundary"]
-            evidence["source_front_door_artifact_boundary"] = {
-                "source": (
-                    f"{family_contract['source_family']} -> RVV "
-                    "plugin-owned materializer -> selected typed tcrv_rvv "
-                    "body -> provider route -> target bundle"
-                ),
-                "marker_role": "explicit opt-in only",
-                "route_authority": (
-                    "typed tcrv_rvv body/config/runtime facts consumed by "
-                    "the RVV provider"
-                ),
-                "artifact_metadata_role": (
-                    "mirror-only-after-provider-route-and-target-validation"
-                ),
-                "selected_variant": expectation.selected_variant,
-                "materializer": local["materializer"],
-                "registered_family_contract": family_contract,
-            }
         evidence["materialized_selected_body_checks"] = (
             verify_materialized_selected_body(
                 Path(local["materialized_selected_body"]), expectation
@@ -34395,9 +34379,6 @@ def root_op_result_summary(
         ),
         "selected_dispatch_bundle_boundary": result.get(
             "selected_dispatch_bundle_boundary", {}
-        ),
-        "source_front_door_artifact_boundary": result.get(
-            "source_front_door_artifact_boundary", {}
         ),
         "mask_tail_policy_boundary": result.get(
             "mask_tail_policy_boundary", {}
@@ -37381,10 +37362,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--vector-source-front-door",
         action="store_true",
         help=(
-            "use a bounded Vector source-front-door fixture, run the matching "
-            "RVV plugin-owned materializer, and then prove the generated "
-            "bundle ABI for the selected typed tcrv_rvv body; mutually "
-            "exclusive with selected-body modes"
+            "retired RVV generated-bundle mode; source-front-door fixtures are "
+            "explicit typed-body materializer tests only and cannot claim "
+            "artifact evidence"
         ),
     )
     parser.add_argument(

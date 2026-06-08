@@ -1,0 +1,22 @@
+{"file": ".trellis/tasks/06-08-rvv-source-front-door-positive-route-demotion/prd.md", "reason": "Current task goal, boundaries, acceptance criteria, non-goals, and explicit source-front-door demotion rules."}
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV stage order, and source-front-door metadata as mirror-only/non-authority."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "DefaultArtifactFrontDoorPolicy::ExplicitOnly default and RVV Stage1/Stage2 source-front-door fail-closed policy."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body authority, source-front-door contracts, and text requiring demotion away from positive artifact authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality, invalid route inputs, and source-artifact front-door disabled-by-default contract."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-executable-artifact-abi/prd.md", "reason": "Previous completed task and reason this round moves to source-front-door authority cleanup."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVVectorSourceFrontDoor.h", "reason": "RVV source-front-door public materializer/registration surface."}
+{"file": "lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp", "reason": "RVV bounded vector source-front-door family descriptors, materializer passes, and default artifact policy."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVExtensionPlugin.h", "reason": "RVV plugin source-front-door registration API."}
+{"file": "lib/Plugin/RVV/RVVExtensionPlugin.cpp", "reason": "RVV plugin source-front-door registration and selected-body route/provider boundary."}
+{"file": "include/TianChenRV/Plugin/ExtensionPlugin.h", "reason": "SourceFrontDoorPassRegistration policy semantics."}
+{"file": "lib/Plugin/ExtensionPlugin.cpp", "reason": "Source-front-door registration collection and validation."}
+{"file": "lib/Transforms/ExecutionPlanningPipeline.cpp", "reason": "Default source-artifact front-door pipeline consumes only eligible source-front-door registrations."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated-bundle script vector-source-front-door mode and fail-closed diagnostics."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "C++ RVV plugin registration policy checks."}
+{"file": "test/Transforms/RVV/rvv-vector-binary-source-front-door.mlir", "reason": "Binary source-front-door explicit materializer and source-artifact pipeline lit coverage."}
+{"file": "test/Transforms/RVV/rvv-vector-compare-select-source-front-door.mlir", "reason": "Compare/select source-front-door explicit materializer and source-artifact pipeline lit coverage."}
+{"file": "test/Transforms/RVV/rvv-vector-runtime-scalar-cmp-select-source-front-door.mlir", "reason": "Runtime-scalar compare/select source-front-door explicit materializer and source-artifact pipeline lit coverage."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-source-front-door-fail-closed.test", "reason": "Script-level fail-closed coverage for vector source-front-door mode."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-source-front-door-dry-run.test", "reason": "Positive source-front-door generated-bundle test to remove or demote."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-compare-select-source-front-door-dry-run.test", "reason": "Positive compare/select source-front-door generated-bundle test to remove or demote."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-runtime-scalar-cmp-select-source-front-door-dry-run.test", "reason": "Positive runtime-scalar source-front-door generated-bundle test to remove or demote."}

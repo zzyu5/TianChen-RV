@@ -1303,11 +1303,13 @@ must come from corrected typed `tcrv_rvv` bodies and plugin-built routes.
 
 ### Bounded Vector Binary Source Front Door
 
-This is the current explicit opt-in RVV source-front-door exception. It exists
-only because the materializer immediately converts a bounded Vector-like source
-pattern into a selected `tcrv.exec` RVV variant containing a typed generic
-`tcrv_rvv` body, then hands that body to the existing RVV provider route path.
-It is not a default frontend and not a source-marker route.
+This is an explicit-only RVV source-front-door materializer. It remains only as
+manual typed-body fixture/import scaffolding because it immediately converts a
+bounded Vector-like source pattern into a selected `tcrv.exec` RVV variant
+containing a typed generic `tcrv_rvv` body, then hands that body to the existing
+RVV provider route path. It is not a default frontend, not a source-marker
+route, and not eligible for the default source-artifact or generated-bundle
+artifact path.
 
 #### 1. Scope / Trigger
 
@@ -1389,9 +1391,11 @@ tcrv.exec.variant @rvv_vector_{add,sub,mul}
 
 #### 5. Good/Base/Bad Cases
 
-- Good: `arith.subi` source pattern -> selected `rvv_vector_sub` variant ->
-  typed `tcrv_rvv.binary {kind = "sub"}` -> RVV provider route -> bundle ->
-  optional `ssh rvv` correctness evidence.
+- Good: explicit materializer invocation on an `arith.subi` source pattern ->
+  selected `rvv_vector_sub` variant -> typed
+  `tcrv_rvv.binary {kind = "sub"}` -> RVV provider route checks. Artifact
+  evidence must use explicit typed selected-body fixtures, not this source
+  marker as the front door.
 - Base: `arith.addi` remains an ordinary instance of the generic binary
   materializer, not an add-only source-front-door owner.
 - Bad: source marker -> route id -> target artifact without typed
@@ -1403,13 +1407,13 @@ tcrv.exec.variant @rvv_vector_{add,sub,mul}
 
 - Positive `tcrv-opt` FileCheck must cover add/sub/mul materialization with
   derived `kind`, runtime ABI values, `setvl`, `load`, `binary`, and `store`.
-- Emission-plan/header/bundle checks must prove the existing RVV provider
-  consumes the typed body facts.
+- Emission-plan/header checks may prove the existing RVV provider consumes the
+  typed body facts after explicit materializer invocation. They must not turn
+  the source marker into a default artifact front door.
 - Negative tests must cover stale selected-boundary residue and unsupported
   source arithmetic.
-- Generated-bundle evidence may use the source marker only to invoke the
-  materializer; evidence JSON must label marker/artifact metadata as mirror
-  or opt-in boundary only.
+- Default source-artifact pipeline and generated-bundle evidence tests for this
+  source marker must fail closed before target artifact export.
 - Runtime correctness claims for non-add source paths require real `ssh rvv`
   evidence.
 
@@ -1437,11 +1441,12 @@ bounded Vector source IR
 
 ### Bounded Vector Compare/Select Source Front Door
 
-This is a second explicit opt-in RVV source-front-door exception. It follows
+This is a second explicit-only RVV source-front-door materializer. It follows
 the binary source-front-door pattern: the source marker may only invoke a
-plugin-owned materializer, and the materializer must immediately create a
-selected `tcrv.exec` RVV variant containing explicit realized typed
-`tcrv_rvv` compare/select body facts.
+manual plugin-owned materializer, and the materializer must immediately create
+a selected `tcrv.exec` RVV variant containing explicit realized typed
+`tcrv_rvv` compare/select body facts. It is not eligible for the default
+source-artifact or generated-bundle artifact path.
 
 #### 1. Scope / Trigger
 
@@ -1513,10 +1518,9 @@ tcrv.exec.variant @rvv_vector_cmp_select_{predicate}
   as route support.
 - Common EmitC/export must remain neutral and consume only provider-built route
   payloads.
-- When several RVV source-front-door materializers are registered as default
-  source-artifact-front-door eligible, a materializer must no-op for a known
-  sibling marker so the pipeline can reach the matching pass. Unknown or stale
-  RVV source-front-door markers must still fail closed.
+- A materializer must no-op for a known sibling marker so explicit pass
+  sequencing can reach the matching pass. Unknown or stale RVV
+  source-front-door markers must still fail closed.
 
 #### 4. Validation & Error Matrix
 
@@ -1628,7 +1632,8 @@ source function candidate description
 selected variant prefix
 runtime ABI purpose prefix
 dispatch policy mirror
-default source-artifact-front-door eligibility
+default source-artifact-front-door policy (currently explicit-only /
+non-eligible for RVV)
 family-local diagnostic hook
 ```
 
@@ -1707,17 +1712,19 @@ owning family still keeps its parser and typed-body materializer local.
 #### 6. Tests Required
 
 - C++ plugin test must prove the active family registry exposes exactly the
-  registered active family pass arguments, default eligibility, ownership, and
-  non-null factories consumed by the RVV plugin, and that registry-created
-  materializer passes expose the same family-owned pass argument.
+  registered active family pass arguments, explicit-only default artifact
+  policy, ownership, and non-null factories consumed by the RVV plugin, and
+  that registry-created materializer passes expose the same family-owned pass
+  argument.
 - Positive lit must continue to prove binary and compare/select source
-  materialization, runtime-scalar compare/select materialization, and
-  source-artifact-front-door sibling-marker no-op behavior.
+  materialization and runtime-scalar compare/select materialization under
+  explicit materializer invocation only.
 - Negative lit must cover unknown marker, stale matched marker, malformed
   source shape, stale selected-boundary/TCRV residue, and legacy i32m1
   source-front-door fail-closed behavior.
-- Generated-bundle dry-run must continue to cover both active source-front-door
-  families and label marker/artifact metadata as mirror-only opt-in evidence.
+- Source-artifact pipeline and generated-bundle dry-run tests for RVV
+  source-front-door markers must fail closed before positive emission-plan or
+  target artifact export.
 
 #### 7. Wrong vs Correct
 

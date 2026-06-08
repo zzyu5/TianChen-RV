@@ -1,6 +1,6 @@
 // RUN: tcrv-opt %s --split-input-file --tcrv-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door | FileCheck %s --check-prefix=MATERIALIZED --implicit-check-not="tcrv_rvv.i32_"
 // RUN: tcrv-opt %S/../../Support/RVV/rvv-vector-runtime-scalar-cmp-select-source-front-door-sle.mlir.inc --tcrv-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN --implicit-check-not="rvv-i32m1" --implicit-check-not="descriptor" --implicit-check-not="source-export"
-// RUN: tcrv-opt %S/../../Support/RVV/rvv-vector-runtime-scalar-cmp-select-source-front-door-sle.mlir.inc --tcrv-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PIPELINE --implicit-check-not="rvv-i32m1" --implicit-check-not="descriptor" --implicit-check-not="source-export"
+// RUN: not tcrv-opt %S/../../Support/RVV/rvv-vector-runtime-scalar-cmp-select-source-front-door-sle.mlir.inc --tcrv-source-artifact-front-door-pipeline 2>&1 | FileCheck %s --check-prefix=PIPELINE-FAIL --implicit-check-not="rvv-i32m1" --implicit-check-not="descriptor" --implicit-check-not="source-export" --implicit-check-not="rvv_selected_body_operation" --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
 // RUN: tcrv-opt %S/../../Support/RVV/rvv-vector-runtime-scalar-cmp-select-source-front-door-sle.mlir.inc --tcrv-rvv-materialize-vector-runtime-scalar-cmp-select-source-front-door --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER-SLE --implicit-check-not="rvv-i32m1" --implicit-check-not="descriptor" --implicit-check-not="source-export"
 
 module attributes {tcrv_rvv.source_front_door = "bounded_vector_runtime_scalar_cmp_select_source"} {
@@ -115,9 +115,8 @@ module attributes {tcrv_rvv.source_front_door = "bounded_vector_runtime_scalar_c
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_vector_runtime_scalar_cmp_select_sle
 
-// PIPELINE: {key = "rvv_selected_body_operation", value = "runtime_scalar_cmp_select"}
-// PIPELINE-SAME: {key = "tcrv_rvv.compare_predicate_kind", value = "sle"}
-// PIPELINE-SAME: target = @rvv_vector_runtime_scalar_cmp_select_sle
+// PIPELINE-FAIL: TianChen-RV execution plan coherence check failed for kernel <missing>
+// PIPELINE-FAIL-SAME: requires at least one tcrv.exec.kernel
 
 // HEADER-SLE: tianchenrv.rvv.selected_variant: @rvv_vector_runtime_scalar_cmp_select_sle
 // HEADER-SLE: tianchenrv.rvv.runtime_abi_name: rvv-generic-runtime-scalar-cmp-select-callable-c-abi.v1

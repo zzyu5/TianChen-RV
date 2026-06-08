@@ -1,6 +1,6 @@
 // RUN: tcrv-opt %s --split-input-file --tcrv-rvv-materialize-vector-binary-source-front-door | FileCheck %s --check-prefix=MATERIALIZED --implicit-check-not="tcrv_rvv.i32_"
 // RUN: tcrv-opt %s --split-input-file --tcrv-rvv-materialize-vector-binary-source-front-door --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN --implicit-check-not="rvv-i32m1" --implicit-check-not="descriptor" --implicit-check-not="source-export"
-// RUN: tcrv-opt %s --split-input-file --tcrv-source-artifact-front-door-pipeline | FileCheck %s --check-prefix=PIPELINE --implicit-check-not="rvv-i32m1" --implicit-check-not="descriptor" --implicit-check-not="source-export"
+// RUN: not tcrv-opt %s --split-input-file --tcrv-source-artifact-front-door-pipeline 2>&1 | FileCheck %s --check-prefix=PIPELINE-FAIL --implicit-check-not="rvv-i32m1" --implicit-check-not="descriptor" --implicit-check-not="source-export" --implicit-check-not="rvv_selected_body_operation" --implicit-check-not="artifact_kind = \"riscv-elf-relocatable-object\""
 // RUN: tcrv-opt %S/../../Support/RVV/rvv-vector-binary-source-front-door-add.mlir.inc --tcrv-rvv-materialize-vector-binary-source-front-door --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER-ADD --implicit-check-not="rvv-i32m1" --implicit-check-not="descriptor" --implicit-check-not="source-export"
 // RUN: tcrv-opt %S/../../Support/RVV/rvv-vector-binary-source-front-door-sub.mlir.inc --tcrv-rvv-materialize-vector-binary-source-front-door --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER-SUB --implicit-check-not="rvv-i32m1" --implicit-check-not="descriptor" --implicit-check-not="source-export"
 // RUN: tcrv-opt %S/../../Support/RVV/rvv-vector-binary-source-front-door-mul.mlir.inc --tcrv-rvv-materialize-vector-binary-source-front-door --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER-MUL --implicit-check-not="rvv-i32m1" --implicit-check-not="descriptor" --implicit-check-not="source-export"
@@ -130,15 +130,8 @@ module attributes {tcrv_rvv.source_front_door = "bounded_vector_source"} {
 // PLAN-SAME: status = "supported"
 // PLAN-SAME: target = @rvv_vector_mul
 
-// PIPELINE: {key = "rvv_selected_body_operation", value = "add"}
-// PIPELINE-SAME: reason = "emission_plan"
-// PIPELINE-SAME: target = @rvv_vector_add
-// PIPELINE: {key = "rvv_selected_body_operation", value = "sub"}
-// PIPELINE-SAME: reason = "emission_plan"
-// PIPELINE-SAME: target = @rvv_vector_sub
-// PIPELINE: {key = "rvv_selected_body_operation", value = "mul"}
-// PIPELINE-SAME: reason = "emission_plan"
-// PIPELINE-SAME: target = @rvv_vector_mul
+// PIPELINE-FAIL: TianChen-RV execution plan coherence check failed for kernel <missing>
+// PIPELINE-FAIL-SAME: requires at least one tcrv.exec.kernel
 
 // HEADER-ADD: tianchenrv.rvv.selected_variant: @rvv_vector_add
 // HEADER-ADD: tianchenrv.rvv.runtime_abi_name: rvv-generic-binary-add-callable-c-abi.v1

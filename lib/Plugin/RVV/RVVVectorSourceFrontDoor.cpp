@@ -138,7 +138,7 @@ getRVVVectorSourceFrontDoorFamilyRegistry() {
        "rvv-vector-binary-source-front-door",
        "rvv-vector-binary-source-front-door-case",
        SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
-           Eligible,
+           ExplicitOnly,
        failVectorMaterializer},
       {RVVVectorSourceFrontDoorFamilyID::CompareSelect,
        "bounded-vector-compare-select-source-front-door",
@@ -151,7 +151,7 @@ getRVVVectorSourceFrontDoorFamilyRegistry() {
        "rvv-vector-compare-select-source-front-door",
        "rvv-vector-compare-select-source-front-door-case",
        SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
-           Eligible,
+           ExplicitOnly,
        failVectorCompareSelectMaterializer},
       {RVVVectorSourceFrontDoorFamilyID::RuntimeScalarCompareSelect,
        "bounded-vector-runtime-scalar-cmp-select-source-front-door",
@@ -164,7 +164,7 @@ getRVVVectorSourceFrontDoorFamilyRegistry() {
        "rvv-vector-runtime-scalar-cmp-select-source-front-door",
        "rvv-vector-runtime-scalar-cmp-select-source-front-door-case",
        SourceFrontDoorPassRegistration::DefaultArtifactFrontDoorPolicy::
-           Eligible,
+           ExplicitOnly,
        failVectorRuntimeScalarCompareSelectMaterializer},
   };
   return families;

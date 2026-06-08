@@ -484,9 +484,9 @@ int runRegistrationAndCapabilityMetadataTest() {
           "RVV source front-door pass exposes the bounded vector-binary argument"))
     return result;
   if (int result = expect(
-          sourceFrontDoorPasses[1].isDefaultArtifactFrontDoorEligible(),
-          "RVV bounded vector-binary source front-door pass is eligible for the "
-          "default artifact-front-door pipeline"))
+          !sourceFrontDoorPasses[1].isDefaultArtifactFrontDoorEligible(),
+          "RVV bounded vector-binary source front-door pass is explicit-only "
+          "and not default artifact-front-door eligible"))
     return result;
   if (int result =
           expect(sourceFrontDoorPasses[2].getOwnerPlugin() ==
@@ -501,9 +501,9 @@ int runRegistrationAndCapabilityMetadataTest() {
           "argument"))
     return result;
   if (int result = expect(
-          sourceFrontDoorPasses[2].isDefaultArtifactFrontDoorEligible(),
-          "RVV bounded vector compare/select source front-door pass is eligible "
-          "for the default artifact-front-door pipeline"))
+          !sourceFrontDoorPasses[2].isDefaultArtifactFrontDoorEligible(),
+          "RVV bounded vector compare/select source front-door pass is "
+          "explicit-only and not default artifact-front-door eligible"))
     return result;
   if (int result = expect(
           sourceFrontDoorPasses[3].getOwnerPlugin() ==
@@ -518,9 +518,9 @@ int runRegistrationAndCapabilityMetadataTest() {
           "runtime-scalar compare/select argument"))
     return result;
   if (int result = expect(
-          sourceFrontDoorPasses[3].isDefaultArtifactFrontDoorEligible(),
+          !sourceFrontDoorPasses[3].isDefaultArtifactFrontDoorEligible(),
           "RVV bounded vector runtime-scalar compare/select source front-door "
-          "pass is eligible for the default artifact-front-door pipeline"))
+          "pass is explicit-only and not default artifact-front-door eligible"))
     return result;
   if (int result =
           expect(static_cast<bool>(sourceFrontDoorPasses[0].getFactory()),

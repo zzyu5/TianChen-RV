@@ -495,3 +495,48 @@ executable artifacts.
 ### Next Steps
 
 - None - task complete
+
+
+## Session 557: RVV source-front-door positive-route demotion
+
+**Date**: 2026-06-08
+**Task**: RVV source-front-door positive-route demotion
+**Branch**: `main`
+
+### Summary
+
+Demoted RVV bounded vector source-front-door families to explicit-only materializers, retired generated-bundle source-front-door artifact mode, and verified fail-closed/default-pipeline behavior.
+
+### Main Changes
+
+- Demoted RVV bounded vector binary, compare/select, and runtime-scalar compare/select source-front-door family registrations from default artifact-front-door eligible to explicit-only.
+- Retired `scripts/rvv_generated_bundle_abi_e2e.py --vector-source-front-door` as a generated-bundle artifact mode; the script now fails before selected-body materialization or target bundle export and directs evidence to explicit/pre-realized selected-body modes.
+- Converted source-front-door generated-bundle dry-run tests to fail-closed coverage, while keeping explicit materializer lit tests as manual typed-body scaffolding checks.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` so RVV source-front-door contracts describe explicit-only materializers and require default source-artifact/generated-bundle paths to fail closed.
+- Completed and archived Trellis task `06-08-rvv-source-front-door-positive-route-demotion`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'Transforms/RVV/rvv-vector-(binary|compare-select|runtime-scalar-cmp-select)-source-front-door\.mlir|Scripts/rvv-generated-bundle-abi-e2e-vector-(source-front-door|compare-select-source-front-door|runtime-scalar-cmp-select-source-front-door)-(dry-run|fail-closed)\.test'` from `build/test`: 7/7 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'SourceFrontDoor/source-artifact-front-door-pipeline|Target/TargetArtifactBundleExport/source-artifact-bundle-front-door|Target/RVV/vector-source-target-artifact-exporters|Target/RVV/vector-materialized-target-artifact-exporters|Plugin/rvv-extension-plugin\.test'` from `build/test`: 9/9 passed
+- [OK] focused authority scan found no remaining `DefaultArtifactFrontDoorPolicy::Eligible`, `default_artifact_front_door_policy = "eligible"`, JSON `"eligible"`, or `source_front_door_artifact_boundary` in the changed RVV source-front-door/script/spec/test surface
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete

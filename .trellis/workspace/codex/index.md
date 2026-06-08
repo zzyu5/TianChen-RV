@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-26.md`
-- **Total Sessions**: 556
+- **Total Sessions**: 557
 - **Last Active**: 2026-06-08
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-26.md` | ~497 | Active |
+| `journal-26.md` | ~551 | Active |
 | `journal-25.md` | ~1968 | Archived |
 | `journal-24.md` | ~1991 | Archived |
 | `journal-23.md` | ~1982 | Archived |
@@ -54,6 +54,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 557 | 2026-06-08 | RVV source-front-door positive-route demotion | - | `main` |
 | 556 | 2026-06-08 | Stage2 RVV runtime-scalar-cmp masked segment2 executable artifact ABI | pending-in-this-commit | `main` |
 | 554 | 2026-06-08 | Stage2 RVV computed-masked strided dot executable artifact ABI | pending-in-this-commit | `main` |
 | 553 | 2026-06-08 | Stage2 RVV runtime-scalar indexed write-side boundary | pending | `main` |

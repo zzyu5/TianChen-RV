@@ -1,0 +1,15 @@
+{"file": ".trellis/tasks/06-08-rvv-source-front-door-positive-route-demotion/prd.md", "reason": "Verify final implementation and evidence against current acceptance criteria."}
+{"file": ".trellis/spec/index.md", "reason": "Check no source-front-door, metadata, descriptor, or mirror-only route authority remains."}
+{"file": ".trellis/spec/plugin-protocol/interfaces-and-registry.md", "reason": "Verify source front-door policy remains explicit-only/disabled by default for current RVV work."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV source-front-door spec text matches production demotion and typed-body authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify source-artifact front-door and common EmitC contracts remain neutral/fail-closed."}
+{"file": "lib/Plugin/RVV/RVVVectorSourceFrontDoor.cpp", "reason": "Check RVV bounded vector source-front-door family registrations are non-default for artifact front-door pipeline."}
+{"file": "lib/Transforms/ExecutionPlanningPipeline.cpp", "reason": "Check source-artifact pipeline behavior remains governed by registration eligibility."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "py_compile, self-test, and script fail-closed behavior for retired vector-source-front-door generated-bundle mode."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "C++ validation of RVV source-front-door registration policy."}
+{"file": "test/Transforms/RVV/rvv-vector-binary-source-front-door.mlir", "reason": "Focused lit for explicit materializer and default pipeline fail-closed behavior."}
+{"file": "test/Transforms/RVV/rvv-vector-compare-select-source-front-door.mlir", "reason": "Focused lit for explicit compare/select materializer and default pipeline fail-closed behavior."}
+{"file": "test/Transforms/RVV/rvv-vector-runtime-scalar-cmp-select-source-front-door.mlir", "reason": "Focused lit for explicit runtime-scalar materializer and default pipeline fail-closed behavior."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-vector-source-front-door-fail-closed.test", "reason": "Focused script lit proving retired vector-source-front-door generated-bundle mode fails closed."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "C++ regression for RVV plugin registration and selected-body route checks."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "C++ regression for target artifact validation and no accidental source-front-door artifact acceptance."}

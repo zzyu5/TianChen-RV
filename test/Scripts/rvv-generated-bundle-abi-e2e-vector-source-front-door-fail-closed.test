@@ -4,7 +4,9 @@
 # RUN: not python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --vector-source-front-door --pre-realized-selected-body --artifact-root %t.mixed --run-id vector-source-front-door-mixed --overwrite --op-kind add --runtime-count 0 --runtime-count 1 --runtime-count 17 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj 2>&1 | FileCheck %s --check-prefix=MIXED
 
 # BADOP: rvv_generated_bundle_abi_e2e: failed
-# BADOP: --op-kind values ['computed_mask_select'] are not supported in vector-source-front-door mode
+# BADOP: RVV --vector-source-front-door generated-bundle mode is retired for current Stage1/Stage2
+# BADOP-SAME: source-front-door markers are explicit typed-body materialization scaffolding only
+# BADOP-SAME: cannot claim route-supported or executable artifacts
 # BADOP-NOT: tcrv_rvv_generated_bundle_abi_add_ok
 # BADOP-NOT: tcrv-rvv-fail-closed-legacy-vector-source-front-door
 
