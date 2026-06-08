@@ -96,3 +96,61 @@ representative. Gate 5 same-target correctness/performance remains open and
 blocked until executable packed-i4 generated artifact support and a truthful
 scalar-baseline comparison exist. Final coherent commit is created after this
 journal entry.
+
+## Session 573: RVV packed-i4 Gate 5 executable correctness
+
+**Date**: 2026-06-09
+**Task**: RVV low-precision packed-contraction primitive surface campaign
+
+### Summary
+
+Continued the active macro task for Gate 5. The non-dry-run generated-bundle
+path was already able to stage, compile, and execute the packed-i4 generated
+artifact on `ssh rvv`, but the external C harness still used the default
+unpacked-byte `i8*i8` reference oracle. That produced a real remote correctness
+failure at `n=1` because the generated packed-i4 code correctly accumulates
+both low and high signed i4 nibbles per packed byte while the old oracle treated
+each byte as one signed i8 lane.
+
+Updated `scripts/rvv_generated_bundle_abi_e2e.py` so harness generation derives
+the packed-i4 oracle switch from validated provider-owned object/header
+low-precision resource metadata. For the accepted packed-i4 product-dequant
+representative, the harness now packs two signed i4 lanes into each int8_t
+source byte, sign-extends low/high nibbles, accumulates both products per
+packed byte into the scalar seed, applies runtime f32 scale, and checks source,
+accumulator, and output sentinel preservation. The default byte/grouped
+product-dequant path remains unchanged.
+
+Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the executable
+packed-i4 harness/oracle contract so future Gate 5 work keeps the reference
+calculation metadata-derived from provider facts and preserves the default byte
+oracle.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] packed-i4 generated-bundle dry-run:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/gate5_packed_i4_after_oracle_fix_dry`
+- [OK] packed-i4 generated-bundle non-dry-run on `ssh rvv`:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/gate5_packed_i4_after_oracle_fix_ssh`
+- [OK] remote compile on `ssh rvv`: `riscv64`, `/usr/bin/clang`,
+  Ubuntu clang 18.1.3.
+- [OK] remote run passed counts `1,7,16,17,257`, patterns `0,1`, scales
+  `-0.125,0.375`, with `packed_i4_reference_oracle` and `ssh_evidence = true`.
+- [OK] default byte/grouped product-dequant dry-run:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/gate5_default_byte_grouped_regression_dry`
+- [OK] built `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-target-artifact-export-test`, `tcrv-opt`, and `tcrv-translate`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+
+### Status
+
+[OPEN] Macro task remains active. Gate 5 executable packed-i4 correctness and
+same-target scalar/reference comparison are now present for the accepted
+representative, but timing/performance is still not measured. No performance
+win, llama.cpp parity, or q4/q8 route-authority claim is made. Next
+continuation point: add a named same-target scalar/baseline timing measurement
+on `ssh rvv` for the accepted packed-i4 representative and report
+win/regression honestly.

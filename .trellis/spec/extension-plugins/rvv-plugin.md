@@ -5856,6 +5856,15 @@ the route provider claims resource-aware tuning.
 - Runtime/performance parity claims require generated TianChen-RV output and the
   baseline RVV implementation to run on the same named `ssh rvv` environment with
   correctness checked before timing.
+- Executable generated-bundle correctness for the accepted packed-i4
+  product-reduction representative must select its external scalar/reference
+  oracle from validated provider-owned low-precision resource metadata, not from
+  fixture names, route ids, artifact names, or op-kind strings alone. When the
+  object/header metadata validates `packed-i4-nibbles`, the same-target harness
+  treats runtime `n` as packed input bytes, sign-extends both low and high
+  signed i4 nibbles from each byte, accumulates both products per byte into the
+  scalar seed, then applies the runtime f32 scale. The default unpacked-byte
+  product-dequant path must keep the existing byte-wise `i8*i8` oracle.
 - Full runtime autotuning caches are not required for the first closure. A
   bounded static resource model is acceptable if it is explicit, tested, and
   consumed by provider/target contracts.
@@ -5896,6 +5905,11 @@ the route provider claims resource-aware tuning.
   runtime correctness, performance, or llama.cpp parity evidence without the
   matching executable generated-bundle and `ssh rvv` checks -> fail closed as an
   evidence-boundary violation.
+- A packed-i4 generated-bundle executable harness compares generated output
+  against the default byte-wise `i8*i8` scalar oracle, or switches to packed
+  low/high signed-i4 semantics because of a fixture name or script option rather
+  than validated provider resource metadata -> fail closed as a same-target
+  reference-oracle violation.
 
 ### 5. Good/Base/Bad Cases
 
@@ -5943,6 +5957,11 @@ the route provider claims resource-aware tuning.
   candidate.
 - A focused generated-bundle or benchmark harness for the first comparable
   low-precision direct-contraction kernel.
+- Packed-i4 executable harness coverage must assert the validated metadata
+  switch, low/high signed-i4 sign-extension, both low and high product
+  accumulation per packed byte, runtime scale application, source/accumulator
+  preservation, output sentinel preservation, and no change to the default
+  unpacked-byte product-dequant oracle.
 - Real `ssh rvv` correctness evidence for executable claims and real same-target
   timing evidence for performance or llama.cpp-parity claims.
 

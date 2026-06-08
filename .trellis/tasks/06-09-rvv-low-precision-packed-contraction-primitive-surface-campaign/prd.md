@@ -9,16 +9,18 @@ signedness, packing width, and unpack/dequant intent explicit before selected
 body realization, route planning, target validation, or artifact claims can
 accept the path.
 
-This is a macro task. Gate 1, Gate 2, and Gate 3 are complete for the accepted
-signed packed-i4/nibble representative through selected-body realization,
-provider planning, and provider-owned route statement payloads. The target
-artifact/export part of Gate 4 is complete for that representative. The current
-round is a bounded Gate 4 generated-bundle evidence slice: carry the accepted
-packed-i4 artifact payload through the public selected-body realization,
-provider route rebuild, target artifact export, and generated-bundle dry-run
-evidence path, while still separating route-supported, artifact-supported,
-generated-bundle-observable, and executable/runtime evidence. The task remains
-active after this slice unless Gate 4 and Gate 5 are genuinely complete.
+This is a macro task. Gate 1, Gate 2, Gate 3, and Gate 4 are complete for the
+accepted signed packed-i4/nibble representative through selected-body
+realization, provider planning, provider-owned route statement payloads, target
+artifact/export validation, and generated-bundle dry-run evidence. The current
+round is a bounded Gate 5 executable same-target comparison slice: carry the
+accepted packed-i4 path from typed `tcrv_rvv`/resource facts through generated
+artifact execution on `ssh rvv`, correct the external harness/reference oracle
+only where it consumes provider-owned packed-i4 facts, and record same-target
+correctness plus scalar/reference comparison evidence. If executable support
+cannot truthfully proceed, the slice must land the smallest production
+compiler/runtime/export fix that removes the blocker or leave a precise active
+continuation point. The task remains active until Gate 5 is genuinely complete.
 
 ## Direction Brief Source
 
@@ -70,37 +72,47 @@ boundary for unsupported q4/q8-like pressure-test shapes.
 - [x] Gate 3: make selected-body realization and RVV route/statement planning
       consume the primitive/resource facts without Common EmitC semantic
       inference.
-- [ ] Gate 4: add focused artifact/runtime evidence only for production support
+- [x] Gate 4: add focused artifact/runtime evidence only for production support
       changed by this campaign.
 - [ ] Gate 5: when executable support exists, run same-target correctness and
       timing against a named scalar baseline and report win/regression honestly.
 
 ## Current Round Slice
 
-Complete one bounded Gate 4 generated-bundle evidence slice for the accepted
-signed packed-i4 resource family:
+Complete one bounded Gate 5 executable same-target comparison slice for the
+accepted signed packed-i4 resource family:
 
 - keep the selected packed-i4 resource facts as the only authority: byte
   storage width, four-bit effective width, low/high nibble packing layout,
   signed source interpretation, sign-extension unpack intent, dtype/runtime
   facts, resource shape, provider mirrors, and provider-built statement
   payloads;
-- use the public selected-body/generated-bundle route rather than a
-  target-test-only fixture so that the generated artifact mirrors the rebuilt
-  RVV provider route and not metadata-derived packed semantics;
-- make generated-bundle artifact/export evidence prove the packed lhs/rhs
-  source-vector loads, low/high nibble sign-extension, low/high widening
-  product/reduction, final carry into `dot_acc_vec`, provider resource mirror,
-  ABI/header/export facts, and stale payload/resource rejection that are
-  already required by target artifact validation;
-- if generated-bundle support cannot truthfully proceed, identify and fix or
-  fail-close the exact production blocker without claiming executable packed-i4
-  runtime correctness or performance;
-- keep Gate 5 same-target correctness/performance open unless this slice
-  produces executable packed-i4 generated artifacts and real runtime evidence.
+- use the public pre-realized selected-body generated-bundle route and its
+  rebuilt RVV provider route, not fixture names, metadata, route ids, artifact
+  names, or script-side packed semantics, to detect whether the generated
+  artifact consumes the packed-i4 representative;
+- make the generated-bundle harness/reference oracle distinguish default
+  unpacked-byte product-dequant from explicit signed packed-i4 product-dequant
+  by consuming the provider-owned low-precision resource metadata already
+  validated in Gate 4;
+- for packed-i4 runtime evidence, generate inputs whose bytes carry two signed
+  i4 lanes, compare the generated artifact against a scalar/reference
+  same-target calculation that sign-extends low and high nibbles, accumulates
+  both lanes per packed byte, applies the runtime scale, checks source and
+  accumulator preservation, and preserves non-scalar output sentinels;
+- run non-dry-run `ssh rvv` correctness for the accepted packed-i4
+  representative when the harness and generated artifact are executable;
+- record a same-target scalar/reference comparison boundary. If timing is not
+  yet implemented or not production-ready, leave Gate 5 open with the exact
+  next continuation point instead of claiming performance or parity;
+- if executable support cannot truthfully proceed, identify and fix or
+  fail-close the exact production blocker without claiming runtime correctness,
+  timing, parity, or performance.
 
-This slice may complete the generated-bundle artifact evidence part of Gate 4,
-but it does not by itself claim runtime correctness, timing, parity, or Gate 5.
+This slice may complete Gate 5 correctness and scalar/reference comparison for
+the accepted packed-i4 representative. It does not claim performance win,
+llama.cpp parity, or q4/q8 route authority unless same-target timing evidence
+and a named baseline are present.
 
 ## Requirements
 
@@ -183,6 +195,19 @@ but it does not by itself claim runtime correctness, timing, parity, or Gate 5.
       still not present, the evidence remains dry-run/artifact-only and Gate 5
       remains open with no `ssh rvv` correctness, timing, parity, or
       performance claim.
+- [x] Gate 5 current packed-i4 executable slice: generated-bundle harness
+      selection consumes provider-owned packed-i4 low-precision resource
+      metadata and switches only the external reference/oracle behavior needed
+      to compare packed low/high signed i4 nibbles against the generated
+      artifact.
+- [x] Gate 5 current packed-i4 executable slice: non-dry-run generated-bundle
+      evidence runs on `ssh rvv`, passes correctness for the accepted packed-i4
+      representative, and records a same-target scalar/reference comparison
+      boundary without treating fixture names, route ids, artifact names,
+      provider mirrors, or dry-run JSON as runtime authority.
+- [x] Gate 5 current packed-i4 executable slice: if same-target timing is not
+      implemented in this round, the task remains open with an exact
+      continuation point and no performance win, parity, or llama.cpp claim.
 - [x] `build/bin/tianchenrv-rvv-extension-plugin-test` and
       `build/bin/tianchenrv-target-artifact-export-test` pass after the change.
 - [x] `tcrv-opt` / `tcrv-translate` are built or verified available if touched
@@ -437,3 +462,46 @@ The macro task remains active. Gate 4 artifact/generated-bundle evidence is
 now complete for this representative, but Gate 5 same-target
 correctness/performance remains blocked until executable packed-i4 generated
 artifact support and a truthful scalar-baseline comparison are available.
+
+## Current Gate 5 Packed-I4 Executable Correctness Round Result
+
+This slice completes the executable correctness and same-target scalar
+reference comparison path for the accepted signed packed-i4
+product-reduction-dequant representative. The generated-bundle evidence script
+now detects the packed-i4 representative only after the object/header bundle
+metadata has been validated against provider-owned low-precision resource facts.
+For that representative, the external C ABI harness switches from the default
+unpacked-byte `i8*i8` oracle to a packed-i4 scalar oracle that:
+
+- packs two signed i4 lanes into each int8_t input byte;
+- sign-extends low and high nibbles independently;
+- accumulates low-nibble and high-nibble products per packed byte into the
+  i32 scalar seed;
+- applies the runtime f32 scale after accumulation;
+- checks source and accumulator preservation plus non-scalar output sentinels.
+
+The default byte/grouped product-dequant dry-run remains unchanged and does not
+record a packed-i4 oracle.
+
+Focused validation completed:
+
+- built `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-target-artifact-export-test`, `tcrv-opt`, and
+  `tcrv-translate`;
+- ran `build/bin/tianchenrv-rvv-extension-plugin-test`;
+- ran `build/bin/tianchenrv-target-artifact-export-test`;
+- ran `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`;
+- ran `scripts/rvv_generated_bundle_abi_e2e.py --self-test`;
+- ran the default byte/grouped product-dequant generated-bundle dry-run;
+- ran the explicit packed-i4 product-dequant generated-bundle dry-run;
+- ran the explicit packed-i4 product-dequant non-dry-run `ssh rvv` evidence
+  with `ssh_evidence = true`, remote `clang` compile success, remote run
+  success, and counts `1,7,16,17,257` across two patterns and two runtime
+  scale values.
+
+The macro task remains active. Gate 5 now has executable packed-i4 correctness
+and a same-target scalar/reference comparison path for the accepted
+representative, but it still does not claim timing, performance win, llama.cpp
+parity, or q4/q8 route authority. The exact next continuation point is Gate 5
+same-target timing: add a named scalar/baseline timing measurement on `ssh rvv`
+for the accepted packed-i4 representative and report win/regression honestly.
