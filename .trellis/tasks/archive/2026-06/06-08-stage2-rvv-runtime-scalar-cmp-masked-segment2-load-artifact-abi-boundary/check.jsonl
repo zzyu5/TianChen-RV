@@ -1,0 +1,6 @@
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-load-artifact-abi-boundary/prd.md", "reason": "Verify implementation and evidence against current acceptance criteria and non-goals."}
+{"file": ".trellis/spec/index.md", "reason": "Check no stack, descriptor, source-front-door, old-authority, or mirror-authority drift was introduced."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV owner locality, segment2 route-family planning, statement-plan, target export, and runtime evidence contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route facts, computed-mask segment2 fact surface, ABI/header markers, and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check required lit, C++ tests, and ssh rvv evidence policy."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle and runtime correctness evidence quality rules."}

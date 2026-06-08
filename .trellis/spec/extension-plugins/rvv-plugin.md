@@ -4022,10 +4022,11 @@ route description, validates selected-body route-family facts, memory
 operand-binding facts, materialization facts, and route-control facts, and then
 returns one owner-built provider plan for the segment2 statement-plan boundary.
 
-The active entries are `computed-mask segment2 load`, `computed-mask segment2
-store`, `runtime-scalar computed-mask segment2 store`, `computed-mask
-segment2 update`, `plain segment2 deinterleave`, and `plain segment2
-interleave`. A route may match at most one planning owner.
+The active entries are `computed-mask segment2 load`, `runtime-scalar
+computed-mask segment2 load`, `computed-mask segment2 store`,
+`runtime-scalar computed-mask segment2 store`, `computed-mask segment2
+update`, `plain segment2 deinterleave`, and `plain segment2 interleave`. A
+route may match at most one planning owner.
 
 ### 2. Signatures
 
@@ -4140,8 +4141,9 @@ by running its own central predicate cluster after the planning-owner boundary.
 
 - C++ tests for registry membership, owner order/names, and non-null predicate
   and builder hooks.
-- C++ exact-one classification tests for computed-mask segment2 load, store,
-  update, plain deinterleave, and plain interleave.
+- C++ exact-one classification tests for computed-mask segment2 load,
+  runtime-scalar computed-mask segment2 load, computed-mask segment2 store,
+  computed-mask segment2 update, plain deinterleave, and plain interleave.
 - C++ empty-plan coverage for unrelated route descriptions.
 - C++ fail-closed coverage for missing or stale route-family plans,
   materialization facts, route-control facts, operand-binding facts, operation
@@ -4315,9 +4317,9 @@ mirrors, field-role mirrors, or intrinsic mirrors after RVV-owned family
 plans, materialization facts, and memory operand-binding facts have been
 validated. The RVV planning layer must expose one RVV-owned statement-plan
 boundary for plain segment2 deinterleave/unit-store, plain segment2
-interleave/unit-load, computed-mask segment2 load/unit-store, and
-computed-mask segment2 store/unit-load where those routes are
-production-active.
+interleave/unit-load, computed-mask segment2 load/unit-store,
+runtime-scalar computed-mask segment2 load/unit-store, and computed-mask
+segment2 store/unit-load where those routes are production-active.
 
 The provider remains the owner that instantiates `TCRVEmitCLowerableRoute`,
 adds neutral headers, type mappings, ABI mappings, selected-boundary source
@@ -4369,8 +4371,9 @@ It may carry:
   plain segment2 family plan or computed-mask memory family plan that justifies
   the selected segment2 statement sequence;
 - owner-built sub-family booleans for plain deinterleave, plain interleave,
-  computed-mask segment2 load, computed-mask segment2 store, runtime-scalar
-  computed-mask segment2 store, and computed-mask segment2 update;
+  computed-mask segment2 load, runtime-scalar computed-mask segment2 load,
+  computed-mask segment2 store, runtime-scalar computed-mask segment2 store,
+  and computed-mask segment2 update;
 - provider-ready `TCRVEmitCCallOpaqueStep` entries for full-chunk `setvl`;
 - one provider-ready `TCRVEmitCForLoop` with loop `setvl`, compare-mask
   producer steps for computed-mask segment2 routes, field payload or
@@ -4437,8 +4440,9 @@ mirror, and not a route-support declaration by itself.
 
 - C++ tests for positive statement-plan construction and provider consumption
   for plain segment2 deinterleave/unit-store, plain segment2
-  interleave/unit-load, computed-mask segment2 load/unit-store, and
-  computed-mask segment2 store/unit-load.
+  interleave/unit-load, computed-mask segment2 load/unit-store,
+  runtime-scalar computed-mask segment2 load/unit-store, and computed-mask
+  segment2 store/unit-load.
 - C++ fail-closed diagnostics for at least one missing or stale
   statement-plan dependency before route statement construction, including
   missing/stale route-control, same-analysis materialization, runtime AVL/VL,
@@ -5979,6 +5983,7 @@ Required target-side validations:
   computed-mask route-family mirror as support authority.
 - Computed-mask segment2 families
   (`computed_masked_segment2_load_unit_store`,
+  `runtime_scalar_cmp_masked_segment2_load_unit_store`,
   `computed_masked_segment2_store_unit_load`,
   `runtime_scalar_cmp_masked_segment2_store_unit_load`,
   `computed_masked_segment2_update_unit_load`) require
@@ -5997,6 +6002,11 @@ Statement-plan checks are family-specific:
   statements; it must not be rejected for lacking ordinary vector loads.
 - Plain segment2 interleave validates ordinary field loads plus tuple creation
   and segment-store statements.
+- Runtime-scalar computed-mask segment2 load validates lhs load, runtime
+  scalar splat, compare/mask construction, old field passthrough loads,
+  masked segment-load, field extraction, and field-store statements. It must
+  reject stale vector RHS load, segment-store, or field-payload facts before
+  artifact export.
 - Computed-mask segment2 store validates compare/mask construction, field
   payload loads, tuple creation, and masked segment-store statements. It must
   reject stale segment-load or field-extract facts before artifact export.

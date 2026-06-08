@@ -1,0 +1,7 @@
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-load-artifact-abi-boundary/prd.md", "reason": "Current task goal, stale-brief conflict, bounded load seam, and acceptance criteria."}
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, stack constraints, RVV-first stage order, and mirror-only metadata rule."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned selected-body realization, segment2 route-family planning owner, statement-plan, target export, and ssh evidence contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute, common EmitC neutrality, computed-mask segment2 fact surface, operand binding, and segment2 validation contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Required lit/C++/ssh rvv evidence policy for RVV runtime/correctness claims."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle evidence requirements for masks, inactive lanes, source/destination preservation, tails, and ssh rvv claims."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-executable-artifact-abi/prd.md", "reason": "Previous runtime-scalar segment2 load/store executable evidence and stale-brief comparison point."}

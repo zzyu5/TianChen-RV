@@ -5650,6 +5650,15 @@ module {
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
       tcrv_rvv.typed_computed_mask_segment2_load_pre_realized_body %cmp_lhs, %cmp_rhs, %src, %out0, %out1, %n {destination_memory_form = "unit-stride-store", field0_role = "segment-field0-output-buffer", field1_role = "segment-field1-output-buffer", inactive_lane_policy = "preserve-passthrough-on-false-lanes", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-segment2-load-unit-store", op_kind = "computed_masked_segment2_load_unit_store", predicate_kind = "slt", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, segment_count = 2 : i64, sew = 32 : i64, source_memory_form = "segment2-interleaved-unit-stride-load"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
+    tcrv.exec.variant @rvv_pre_route_runtime_scalar_cmp_masked_segment2_load_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %src = tcrv_rvv.runtime_abi_value {c_name = "src", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "source-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out0 = tcrv_rvv.runtime_abi_value {c_name = "out0", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-field0-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %out1 = tcrv_rvv.runtime_abi_value {c_name = "out1", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-field1-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_runtime_scalar_computed_mask_segment2_load_pre_realized_body %lhs, %rhs_scalar, %src, %out0, %out1, %n {destination_memory_form = "unit-stride-store", field0_role = "segment-field0-output-buffer", field1_role = "segment-field1-output-buffer", inactive_lane_policy = "preserve-passthrough-on-false-lanes", lmul = "m1", mask_memory_form = "compare-produced-mask", mask_role = "predicate-mask-produced-by-compare", mask_source = "compare-produced-mask-same-vl-scope", memory_form = "computed-mask-segment2-load-unit-store", op_kind = "runtime_scalar_cmp_masked_segment2_load_unit_store", predicate_kind = "sle", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, segment_count = 2 : i64, sew = 32 : i64, source_memory_form = "segment2-interleaved-unit-stride-load"} : (!tcrv_rvv.runtime_abi_value, i32, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
     tcrv.exec.variant @rvv_pre_route_owner_negative_computed_masked_segment2_load_unit_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %cmp_lhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
       %cmp_rhs = tcrv_rvv.runtime_abi_value {c_name = "cmp_rhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -6431,6 +6440,9 @@ module {
       const bool isComputedMaskSegment2Load =
           preRealizedOpName ==
           "tcrv_rvv.typed_computed_mask_segment2_load_pre_realized_body";
+      const bool isRuntimeScalarComputedMaskSegment2Load =
+          preRealizedOpName ==
+          "tcrv_rvv.typed_runtime_scalar_computed_mask_segment2_load_pre_realized_body";
       const bool isComputedMaskSegment2Store =
           preRealizedOpName ==
           "tcrv_rvv.typed_computed_mask_segment2_store_pre_realized_body";
@@ -6468,9 +6480,13 @@ module {
                     " realizes segment2 load, field moves, and field "
                     "stores"))
           return result;
-      } else if (isComputedMaskSegment2Load) {
+      } else if (isComputedMaskSegment2Load ||
+                 isRuntimeScalarComputedMaskSegment2Load) {
         if (int result = expect(
-                countNestedOps(variant, "tcrv_rvv.load") == 4 &&
+                countNestedOps(variant, "tcrv_rvv.load") ==
+                    (isRuntimeScalarComputedMaskSegment2Load ? 3 : 4) &&
+                    countNestedOps(variant, "tcrv_rvv.splat") ==
+                        (isRuntimeScalarComputedMaskSegment2Load ? 1 : 0) &&
                     countNestedOps(variant, "tcrv_rvv.compare") == 1 &&
                     countNestedOps(variant,
                                    "tcrv_rvv.masked_segment2_load") == 1 &&
@@ -6478,7 +6494,7 @@ module {
                     countNestedOps(variant, "tcrv_rvv.segment2_load") == 0 &&
                     countNestedOps(variant, "tcrv_rvv.segment2_store") == 0,
                 llvm::Twine("selected-body producer @") + variantName +
-                    " realizes compare loads, passthrough field loads, "
+                    " realizes compare/splat, passthrough field loads, "
                     "masked segment2 load, and field stores"))
           return result;
       } else if (isComputedMaskSegment2Store) {
@@ -6765,6 +6781,13 @@ module {
   if (int result = exerciseVariant(
           "rvv_pre_route_computed_masked_segment2_load_unit_store",
           "tcrv_rvv.typed_computed_mask_segment2_load_pre_realized_body",
+          "segment2 memory",
+          "rvv-computed-mask-memory-route-family-plan.v1",
+          /*buildRouteBeforePlan=*/true))
+    return result;
+  if (int result = exerciseVariant(
+          "rvv_pre_route_runtime_scalar_cmp_masked_segment2_load_unit_store",
+          "tcrv_rvv.typed_runtime_scalar_computed_mask_segment2_load_pre_realized_body",
           "segment2 memory",
           "rvv-computed-mask-memory-route-family-plan.v1",
           /*buildRouteBeforePlan=*/true))
