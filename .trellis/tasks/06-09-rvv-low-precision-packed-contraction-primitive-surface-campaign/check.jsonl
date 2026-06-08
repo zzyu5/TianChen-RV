@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global architecture invariants, RVV authority chain, and evidence rules."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV low-precision primitive/resource/fail-closed contract compliance."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that Common EmitC remains neutral and provider-built routes remain authoritative."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-06-08-rvv-low-precision-production-kernel-performance-optimization-campaign/prd.md", "reason": "Check that this slice builds on, rather than reopens, the closed grouped u2 campaign."}

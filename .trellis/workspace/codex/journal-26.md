@@ -1824,3 +1824,66 @@ support claims.
 ### Next Steps
 
 - None - task complete.
+
+
+## Session 568: RVV packed low-bit primitive fact boundary
+
+**Date**: 2026-06-09
+**Task**: RVV low-precision packed-contraction primitive surface campaign
+**Branch**: `main`
+
+### Summary
+
+Started the new macro campaign after grouped `u2` closeout. Gate 1 attribution
+found that current production code already has signed i8 product-reduction,
+unsigned u8 widening-product, product-dequant/dequant-clamp realization, and
+grouped `u2` resource candidates. The next gap is not a q8/q4-named route; it
+is the lack of a provider-owned packed operand fact boundary for sub-byte
+pressure-test shapes.
+
+This slice lands the first Gate 2 fail-closed production boundary. The RVV
+low-precision resource candidate/selection surface now carries explicit
+`operand_form`, `source_signedness`, `storage_element_width`,
+`effective_element_width`, `packing_layout`, and `unpack_intent` facts. The
+active byte path is classified as signed unpacked byte operands with 8-bit
+storage/effective width and no-unpack direct widening-product intent. Stale
+packed claims such as `packed-i4-nibbles` fail closed before they can authorize
+realization, provider route construction, or target artifact acceptance.
+
+### Main Changes
+
+- Added packed/operand-form resource attributes and selection fields in the RVV
+  Gearbox/resource provider surface.
+- Materialized and verified those facts in the Gearbox schedule pass,
+  selected-body realization owner, contraction route-family/provider checks,
+  emission-plan metadata, target support bundle, and target artifact route
+  validation.
+- Updated focused C++ and lit coverage for the accepted byte boundary and stale
+  packed mirror rejection.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] focused lit from `build/test` with filter
+  `rvv-gearbox-widening-product-reduce-dequantize-f32|pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32`
+  passed 2/2.
+- [OK] `git diff --check`
+- [OK] Bounded added-line authority scan over touched production/test files:
+  no new legacy i32/source-front-door/descriptor/Common-EmitC authority matches.
+
+### Status
+
+[OPEN] Macro task remains active. Gate 1 and this first Gate 2 production
+boundary slice are complete; positive packed sub-byte route support, generated
+bundle evidence, same-target correctness/timing, and parity claims remain open.
+
+### Next Steps
+
+- Add positive typed packed sub-byte primitive support for one narrow operand
+  family, then extend provider-owned packed facts through statement planning,
+  generated-bundle evidence, and `ssh rvv` evidence only after executable route
+  support exists.

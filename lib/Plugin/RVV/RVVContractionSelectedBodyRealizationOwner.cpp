@@ -298,6 +298,30 @@ materializeLowPrecisionResourceRealizationAttrs(
           selected->sourceLMUL))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceOperandFormAttrName,
+          selected->operandForm))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceSourceSignednessAttrName,
+          selected->sourceSignedness))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
+          source, kRVVLowPrecisionResourceStorageElementWidthAttrName,
+          selected->storageElementWidth))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
+          source, kRVVLowPrecisionResourceEffectiveElementWidthAttrName,
+          selected->effectiveElementWidth))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourcePackingLayoutAttrName,
+          selected->packingLayout))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceUnpackIntentAttrName,
+          selected->unpackIntent))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceProductDTypeAttrName,
           selected->productElementTypeName))
     return std::move(error);

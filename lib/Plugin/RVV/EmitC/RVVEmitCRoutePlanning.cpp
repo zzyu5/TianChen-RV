@@ -43011,6 +43011,20 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         llvm::Twine(selection.sourceSEW).str()});
     metadata.push_back({"tcrv_rvv.low_precision_resource.source_lmul",
                         selection.sourceLMUL});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.operand_form",
+                        selection.operandForm});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.source_signedness",
+                        selection.sourceSignedness});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.storage_element_width",
+         llvm::Twine(selection.storageElementWidth).str()});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.effective_element_width",
+         llvm::Twine(selection.effectiveElementWidth).str()});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.packing_layout",
+                        selection.packingLayout});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.unpack_intent",
+                        selection.unpackIntent});
     metadata.push_back({"tcrv_rvv.low_precision_resource.product_dtype",
                         selection.productElementTypeName});
     metadata.push_back({"tcrv_rvv.low_precision_resource.product_sew",

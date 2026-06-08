@@ -149,6 +149,12 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::string sourceElementTypeName;
   std::int64_t sourceSEW = 0;
   std::string sourceLMUL;
+  std::string operandForm;
+  std::string sourceSignedness;
+  std::int64_t storageElementWidth = 0;
+  std::int64_t effectiveElementWidth = 0;
+  std::string packingLayout;
+  std::string unpackIntent;
   std::string productElementTypeName;
   std::int64_t productSEW = 0;
   std::string productLMUL;

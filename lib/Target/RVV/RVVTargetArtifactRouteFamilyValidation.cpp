@@ -5050,6 +5050,32 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
           selection.sourceLMUL, "source LMUL"))
     return error;
   if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.operand_form",
+          selection.operandForm, "operand form"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.source_signedness",
+          selection.sourceSignedness, "source signedness"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.storage_element_width",
+          llvm::Twine(selection.storageElementWidth).str(),
+          "storage element width"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.effective_element_width",
+          llvm::Twine(selection.effectiveElementWidth).str(),
+          "effective element width"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.packing_layout",
+          selection.packingLayout, "packing layout"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.unpack_intent",
+          selection.unpackIntent, "unpack intent"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
           "tcrv_rvv.low_precision_resource.product_dtype",
           selection.productElementTypeName, "product dtype"))
     return error;

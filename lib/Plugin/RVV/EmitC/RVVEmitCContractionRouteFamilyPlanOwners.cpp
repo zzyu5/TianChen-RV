@@ -4504,6 +4504,20 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceReductionLayout(
   return kRVVProductReductionDequantVectorCarryBoundary;
 }
 
+llvm::StringRef
+getExpectedRVVLowPrecisionResourceOperandForm(std::int64_t sourceSEW) {
+  if (sourceSEW == kRVVLowPrecisionResourceByteEffectiveElementWidth)
+    return kRVVLowPrecisionResourceOperandFormUnpackedByte;
+  return "unpacked-source-elements";
+}
+
+llvm::StringRef
+getExpectedRVVLowPrecisionResourcePackingLayout(std::int64_t sourceSEW) {
+  if (sourceSEW == kRVVLowPrecisionResourceByteStorageElementWidth)
+    return kRVVLowPrecisionResourcePackingLayoutByte;
+  return "one-element-per-source-element";
+}
+
 void populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
     RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionContractionResourceCandidate &candidate,
@@ -4516,6 +4530,12 @@ void populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
   selection.sourceElementTypeName = candidate.sourceElementTypeName.str();
   selection.sourceSEW = candidate.sourceSEW;
   selection.sourceLMUL = candidate.sourceLMUL.str();
+  selection.operandForm = candidate.operandForm.str();
+  selection.sourceSignedness = candidate.sourceSignedness.str();
+  selection.storageElementWidth = candidate.storageElementWidth;
+  selection.effectiveElementWidth = candidate.effectiveElementWidth;
+  selection.packingLayout = candidate.packingLayout.str();
+  selection.unpackIntent = candidate.unpackIntent.str();
   selection.productElementTypeName = candidate.productElementTypeName.str();
   selection.productSEW = candidate.productSEW;
   selection.productLMUL = candidate.productLMUL.str();
@@ -4588,6 +4608,15 @@ deriveRVVLowPrecisionContractionResourceSelection(
   selection.sourceElementTypeName = plan.sourceElementTypeName.str();
   selection.sourceSEW = plan.sourceSEW;
   selection.sourceLMUL = plan.sourceLMUL.str();
+  selection.operandForm =
+      getExpectedRVVLowPrecisionResourceOperandForm(plan.sourceSEW).str();
+  selection.sourceSignedness =
+      kRVVLowPrecisionResourceSourceSignednessSigned.str();
+  selection.storageElementWidth = plan.sourceSEW;
+  selection.effectiveElementWidth = plan.sourceSEW;
+  selection.packingLayout =
+      getExpectedRVVLowPrecisionResourcePackingLayout(plan.sourceSEW).str();
+  selection.unpackIntent = kRVVLowPrecisionResourceUnpackIntentNone.str();
   selection.productElementTypeName =
       getExpectedRVVLowPrecisionResourceProductElementType(plan).str();
   selection.productSEW = getExpectedRVVLowPrecisionResourceProductSEW(plan);
@@ -4976,6 +5005,36 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
   else
     return value.takeError();
   if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceOperandFormAttrName))
+    selection.operandForm = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceSourceSignednessAttrName))
+    selection.sourceSignedness = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::int64_t> value =
+          readInteger(kRVVLowPrecisionResourceStorageElementWidthAttrName))
+    selection.storageElementWidth = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::int64_t> value =
+          readInteger(kRVVLowPrecisionResourceEffectiveElementWidthAttrName))
+    selection.effectiveElementWidth = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourcePackingLayoutAttrName))
+    selection.packingLayout = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceUnpackIntentAttrName))
+    selection.unpackIntent = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
           readString(kRVVLowPrecisionResourceProductDTypeAttrName))
     selection.productElementTypeName = *value;
   else
@@ -5165,6 +5224,12 @@ bool isRVVLowPrecisionResourceSelectionEqual(
          lhs.legalityScope == rhs.legalityScope &&
          lhs.sourceElementTypeName == rhs.sourceElementTypeName &&
          lhs.sourceSEW == rhs.sourceSEW && lhs.sourceLMUL == rhs.sourceLMUL &&
+         lhs.operandForm == rhs.operandForm &&
+         lhs.sourceSignedness == rhs.sourceSignedness &&
+         lhs.storageElementWidth == rhs.storageElementWidth &&
+         lhs.effectiveElementWidth == rhs.effectiveElementWidth &&
+         lhs.packingLayout == rhs.packingLayout &&
+         lhs.unpackIntent == rhs.unpackIntent &&
          lhs.productElementTypeName == rhs.productElementTypeName &&
          lhs.productSEW == rhs.productSEW &&
          lhs.productLMUL == rhs.productLMUL &&
@@ -5307,6 +5372,31 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "source LMUL", selection.sourceLMUL,
           plan.sourceLMUL))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "operand form", selection.operandForm,
+          getExpectedRVVLowPrecisionResourceOperandForm(plan.sourceSEW)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "source signedness",
+          selection.sourceSignedness,
+          kRVVLowPrecisionResourceSourceSignednessSigned))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "storage element width",
+          selection.storageElementWidth, plan.sourceSEW))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "effective element width",
+          selection.effectiveElementWidth, plan.sourceSEW))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "packing layout", selection.packingLayout,
+          getExpectedRVVLowPrecisionResourcePackingLayout(plan.sourceSEW)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "unpack intent", selection.unpackIntent,
+          kRVVLowPrecisionResourceUnpackIntentNone))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "product dtype", selection.productElementTypeName,
@@ -5534,6 +5624,33 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "source LMUL", selection.sourceLMUL,
           description.sourceLMUL))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "operand form", selection.operandForm,
+          getExpectedRVVLowPrecisionResourceOperandForm(
+              description.sourceSEW)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "source signedness",
+          selection.sourceSignedness,
+          kRVVLowPrecisionResourceSourceSignednessSigned))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "storage element width",
+          selection.storageElementWidth, description.sourceSEW))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "effective element width",
+          selection.effectiveElementWidth, description.sourceSEW))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "packing layout", selection.packingLayout,
+          getExpectedRVVLowPrecisionResourcePackingLayout(
+              description.sourceSEW)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "unpack intent", selection.unpackIntent,
+          kRVVLowPrecisionResourceUnpackIntentNone))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "product dtype", selection.productElementTypeName,

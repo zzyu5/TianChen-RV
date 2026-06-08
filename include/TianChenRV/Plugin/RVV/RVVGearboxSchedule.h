@@ -59,6 +59,20 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourceSourceSEWAttrName(
     "tcrv_rvv.low_precision_resource.source_sew");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceSourceLMULAttrName(
     "tcrv_rvv.low_precision_resource.source_lmul");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceOperandFormAttrName(
+    "tcrv_rvv.low_precision_resource.operand_form");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceSourceSignednessAttrName(
+    "tcrv_rvv.low_precision_resource.source_signedness");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceStorageElementWidthAttrName(
+        "tcrv_rvv.low_precision_resource.storage_element_width");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceEffectiveElementWidthAttrName(
+        "tcrv_rvv.low_precision_resource.effective_element_width");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackingLayoutAttrName(
+    "tcrv_rvv.low_precision_resource.packing_layout");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceUnpackIntentAttrName(
+    "tcrv_rvv.low_precision_resource.unpack_intent");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductDTypeAttrName(
     "tcrv_rvv.low_precision_resource.product_dtype");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductSEWAttrName(
@@ -287,6 +301,9 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceUnsupportedGroupedStatementPlanRejectionReason(
         "unsupported-tail-safe-grouped-product-reduction-statement-plan");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceUnsupportedPackedOperandRejectionReason(
+        "unsupported-packed-low-bit-operand-form");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRealizationProducer(
     "rvv-plugin-local-selected-body-realization-resource-consumer.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRealizationDecision(
@@ -303,6 +320,16 @@ constexpr std::int64_t kRVVLowPrecisionResourceGroupedAccumulatorCount = 2;
 constexpr std::int64_t kRVVLowPrecisionResourceGroupedVSetVLRegions = 3;
 constexpr std::int64_t kRVVLowPrecisionResourceGroupedPeakLiveVectorGroups = 7;
 constexpr std::int64_t kRVVLowPrecisionResourceVectorRegisterBudget = 32;
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceOperandFormUnpackedByte(
+    "unpacked-byte-elements");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceSourceSignednessSigned(
+    "signed");
+constexpr std::int64_t kRVVLowPrecisionResourceByteStorageElementWidth = 8;
+constexpr std::int64_t kRVVLowPrecisionResourceByteEffectiveElementWidth = 8;
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackingLayoutByte(
+    "one-element-per-byte");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceUnpackIntentNone(
+    "none-direct-widening-product");
 
 enum class RVVLowPrecisionContractionResourceOperation {
   ProductReductionDequantizeF32,
@@ -318,6 +345,12 @@ struct RVVLowPrecisionContractionResourceCandidate {
   llvm::StringRef sourceElementTypeName;
   std::int64_t sourceSEW = 0;
   llvm::StringRef sourceLMUL;
+  llvm::StringRef operandForm;
+  llvm::StringRef sourceSignedness;
+  std::int64_t storageElementWidth = 0;
+  std::int64_t effectiveElementWidth = 0;
+  llvm::StringRef packingLayout;
+  llvm::StringRef unpackIntent;
   llvm::StringRef productElementTypeName;
   std::int64_t productSEW = 0;
   llvm::StringRef productLMUL;
@@ -517,6 +550,14 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
   candidate.sourceElementTypeName = "i8";
   candidate.sourceSEW = sourceSEW;
   candidate.sourceLMUL = sourceLMUL;
+  candidate.operandForm = kRVVLowPrecisionResourceOperandFormUnpackedByte;
+  candidate.sourceSignedness = kRVVLowPrecisionResourceSourceSignednessSigned;
+  candidate.storageElementWidth =
+      kRVVLowPrecisionResourceByteStorageElementWidth;
+  candidate.effectiveElementWidth =
+      kRVVLowPrecisionResourceByteEffectiveElementWidth;
+  candidate.packingLayout = kRVVLowPrecisionResourcePackingLayoutByte;
+  candidate.unpackIntent = kRVVLowPrecisionResourceUnpackIntentNone;
   candidate.productElementTypeName = "i16";
   candidate.productSEW = productSEW;
   candidate.productLMUL = productLMUL;
@@ -659,6 +700,12 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name == kRVVLowPrecisionResourceSourceDTypeAttrName ||
          name == kRVVLowPrecisionResourceSourceSEWAttrName ||
          name == kRVVLowPrecisionResourceSourceLMULAttrName ||
+         name == kRVVLowPrecisionResourceOperandFormAttrName ||
+         name == kRVVLowPrecisionResourceSourceSignednessAttrName ||
+         name == kRVVLowPrecisionResourceStorageElementWidthAttrName ||
+         name == kRVVLowPrecisionResourceEffectiveElementWidthAttrName ||
+         name == kRVVLowPrecisionResourcePackingLayoutAttrName ||
+         name == kRVVLowPrecisionResourceUnpackIntentAttrName ||
          name == kRVVLowPrecisionResourceProductDTypeAttrName ||
          name == kRVVLowPrecisionResourceProductSEWAttrName ||
          name == kRVVLowPrecisionResourceProductLMULAttrName ||

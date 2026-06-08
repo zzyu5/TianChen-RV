@@ -380,6 +380,30 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
           selected->sourceLMUL)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceOperandFormAttrName,
+          selected->operandForm)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceSourceSignednessAttrName,
+          selected->sourceSignedness)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceStorageElementWidthAttrName,
+          selected->storageElementWidth)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceEffectiveElementWidthAttrName,
+          selected->effectiveElementWidth)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourcePackingLayoutAttrName,
+          selected->packingLayout)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceUnpackIntentAttrName,
+          selected->unpackIntent)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceProductDTypeAttrName,
           selected->productElementTypeName)))
     return mlir::failure();

@@ -1,21 +1,33 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-rvv-materialize-gearbox-schedules | FileCheck %s
 // RUN: sed '/typed_widening_product_reduce_dequantize_pre_realized_body/s/policy = /tcrv_rvv.low_precision_resource.selected_candidate = "artifact-name-derived-resource-candidate", policy = /' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules 2>&1 | FileCheck %s --check-prefix=STALE
+// RUN: sed '/typed_widening_product_reduce_dequantize_pre_realized_body/s/policy = /tcrv_rvv.low_precision_resource.operand_form = "packed-i4-nibbles", policy = /' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-PACKED
 // RUN: sed '/typed_widening_product_reduce_dequantize_pre_realized_body/s/source_sew = 8 : i64/source_sew = 16 : i64/' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-RESOURCE
 
 // CHECK-LABEL: tcrv.exec.kernel @rvv_gearbox_widening_product_reduce_dequantize_f32_kernel
 // CHECK: tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body
 // CHECK-SAME: tcrv_rvv.low_precision_resource.candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v3[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe]"
+// CHECK-SAME: tcrv_rvv.low_precision_resource.effective_element_width = 8 : i64
 // CHECK-SAME: tcrv_rvv.low_precision_resource.memory_form = "unit-stride-widening-product-reduce-dequantize-f32"
+// CHECK-SAME: tcrv_rvv.low_precision_resource.operand_form = "unpacked-byte-elements"
+// CHECK-SAME: tcrv_rvv.low_precision_resource.packing_layout = "one-element-per-byte"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.product_dtype = "i16"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.result_dtype = "f32"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.runtime_abi_order = "lhs,rhs,acc,scale,out,n"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.selection_reason = "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-u2-grouped-tail-safe-runtime-avl"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.source_dtype = "i8"
+// CHECK-SAME: tcrv_rvv.low_precision_resource.source_signedness = "signed"
+// CHECK-SAME: tcrv_rvv.low_precision_resource.storage_element_width = 8 : i64
+// CHECK-SAME: tcrv_rvv.low_precision_resource.unpack_intent = "none-direct-widening-product"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64
 
 // STALE: RVV Gearbox pass found stale schedule fact
 // STALE-SAME: tcrv_rvv.low_precision_resource.selected_candidate
+
+// UNSUPPORTED-PACKED: RVV Gearbox pass found stale schedule fact
+// UNSUPPORTED-PACKED-SAME: tcrv_rvv.low_precision_resource.operand_form
+// UNSUPPORTED-PACKED-SAME: expected 'unpacked-byte-elements'
+// UNSUPPORTED-PACKED-SAME: packed-i4-nibbles
 
 // UNSUPPORTED-RESOURCE: requires typed product-reduction-dequantization config
 // UNSUPPORTED-RESOURCE-SAME: source SEW8 LMUL mf4
