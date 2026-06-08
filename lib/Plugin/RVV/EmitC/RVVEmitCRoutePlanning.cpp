@@ -3184,6 +3184,11 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterMemoryLayout(
         "unit-stride-lhs-runtime-scalar-threshold-indexed-masked-gather-payload-accumulator-macc-indexed-masked-scatter-runtime-abi");
+constexpr llvm::StringLiteral kRVVComputedMaskIndexedScatterWriteSideContract(
+    "source-before-active-indexed-write;destination-before-inactive-tail-preserve");
+constexpr llvm::StringLiteral
+    kRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterWriteSideContract(
+        "gather-payload-acc-before-active-indexed-write;destination-before-inactive-tail-preserve");
 constexpr llvm::StringLiteral kRVVComputedMaskSegment2LoadMemoryLayout(
     "unit-stride-compare-segment2-masked-source-old-fields-destination-runtime-abi");
 constexpr llvm::StringLiteral kRVVComputedMaskSegment2StoreMemoryLayout(
@@ -9385,6 +9390,19 @@ validateRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
                   ? llvm::StringRef(kRVVComputedMaskStridedLoadMemoryLayout)
                   : llvm::StringRef()))
     return error;
+  const llvm::StringRef expectedIndexedWriteSideContract =
+      isRuntimeScalarComputedMaskIndexedGatherMAccScatter
+          ? llvm::StringRef(
+                kRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterWriteSideContract)
+      : isIndexedScatter
+          ? llvm::StringRef(kRVVComputedMaskIndexedScatterWriteSideContract)
+          : llvm::StringRef();
+  if (llvm::Error error =
+          requireRVVSelectedBodyComputedMaskMemoryPlanField(
+              plan, "indexed write-side contract",
+              plan.indexedWriteSideContract,
+              expectedIndexedWriteSideContract))
+    return error;
   if (llvm::Error error =
           requireRVVSelectedBodyComputedMaskMemoryPlanField(
               plan, "source memory form", plan.sourceMemoryForm,
@@ -9935,6 +9953,13 @@ deriveRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
   plan.maskedPassthroughLayout =
       getComputedMaskMemoryPassthroughLayout(operation);
   plan.maskedMemoryLayout = getComputedMaskMemoryLayout(operation);
+  plan.indexedWriteSideContract =
+      isRuntimeScalarComputedMaskIndexedGatherMAccScatter
+          ? llvm::StringRef(
+                kRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterWriteSideContract)
+      : isComputedMaskIndexedScatterLike
+          ? llvm::StringRef(kRVVComputedMaskIndexedScatterWriteSideContract)
+          : llvm::StringRef();
   plan.stridedMemoryLayout =
       isComputedMaskStridedStore ? llvm::StringRef(kRVVComputedMaskStridedStoreMemoryLayout)
       : isComputedMaskStridedLoad ? llvm::StringRef(kRVVComputedMaskStridedLoadMemoryLayout)
@@ -10136,6 +10161,7 @@ void applyRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan(
   description.inactiveLaneContract = plan.inactiveLaneContract;
   description.maskedPassthroughLayout = plan.maskedPassthroughLayout;
   description.indexedMemoryLayout = plan.maskedMemoryLayout;
+  description.indexedWriteSideContract = plan.indexedWriteSideContract;
   description.stridedMemoryLayout = plan.stridedMemoryLayout;
   description.sourceMemoryForm = plan.sourceMemoryForm;
   description.destinationMemoryForm = plan.destinationMemoryForm;
@@ -26204,6 +26230,13 @@ getRVVComputedMaskIndexedMemoryRouteFacts(
   facts.maskedPassthroughLayout =
       getComputedMaskMemoryPassthroughLayout(operation);
   facts.indexedMemoryLayout = getComputedMaskMemoryLayout(operation);
+  facts.indexedWriteSideContract =
+      isRuntimeScalarGatherMAccScatter
+          ? llvm::StringRef(
+                kRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterWriteSideContract)
+      : (isScatter || isRuntimeScalarScatter)
+          ? llvm::StringRef(kRVVComputedMaskIndexedScatterWriteSideContract)
+          : llvm::StringRef();
   facts.sourceMemoryForm = getComputedMaskMemorySourceMemoryForm(operation);
   facts.destinationMemoryForm =
       getComputedMaskMemoryDestinationMemoryForm(operation);
@@ -26367,6 +26400,8 @@ getRVVComputedMaskIndexedMemoryRouteValidationContract(
   contract.maskedPassthroughLayout =
       routeFacts->maskedPassthroughLayout.str();
   contract.indexedMemoryLayout = routeFacts->indexedMemoryLayout.str();
+  contract.indexedWriteSideContract =
+      routeFacts->indexedWriteSideContract.str();
   contract.sourceMemoryForm = routeFacts->sourceMemoryForm.str();
   contract.destinationMemoryForm = routeFacts->destinationMemoryForm.str();
   contract.indexEEW = routeFacts->indexEEW;
@@ -27505,6 +27540,10 @@ getRVVComputedMaskIndexedMemoryRouteMetadataMirrorContract(
       contract, "tcrv_rvv.indexed_memory_layout",
       validation->indexedMemoryLayout,
       "selected typed RVV computed-mask indexed memory layout");
+  appendRVVMemoryRouteMetadataMirror(
+      contract, "tcrv_rvv.indexed_write_side_contract",
+      validation->indexedWriteSideContract,
+      "selected typed RVV computed-mask indexed write-side contract");
   appendRVVMemoryRouteMetadataMirror(
       contract, "tcrv_rvv.index_source", validation->indexSource,
       "selected typed RVV computed-mask indexed index source");
@@ -29277,6 +29316,8 @@ verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans(
       analysis.description.maskedPassthroughLayout !=
           plan.maskedPassthroughLayout ||
       analysis.description.indexedMemoryLayout != plan.maskedMemoryLayout ||
+      analysis.description.indexedWriteSideContract !=
+          plan.indexedWriteSideContract ||
       analysis.description.stridedMemoryLayout != plan.stridedMemoryLayout ||
       analysis.description.sourceMemoryForm != plan.sourceMemoryForm ||
       analysis.description.destinationMemoryForm !=
@@ -38148,6 +38189,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     if (isRuntimeScalarComputedMaskIndexedGatherMAccScatter) {
       analysis.description.indexedMemoryLayout =
           kRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterMemoryLayout;
+      analysis.description.indexedWriteSideContract =
+          kRVVRuntimeScalarComputedMaskIndexedGatherMAccScatterWriteSideContract;
       analysis.description.indexEEW =
           static_cast<std::int64_t>(
               analysis.slice.maskedIndexedLoadOp.getIndexEew());
@@ -38175,6 +38218,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
             "computed-mask indexed route facts before description population");
       analysis.description.indexedMemoryLayout =
           routeFacts->indexedMemoryLayout;
+      analysis.description.indexedWriteSideContract =
+          routeFacts->indexedWriteSideContract;
       analysis.description.indexEEW = routeFacts->indexEEW;
       analysis.description.offsetUnit = routeFacts->offsetUnit;
       analysis.description.indexSource = routeFacts->indexSource;
@@ -38353,6 +38398,8 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
             "description population");
       analysis.description.indexedMemoryLayout =
           routeFacts->indexedMemoryLayout;
+      analysis.description.indexedWriteSideContract =
+          routeFacts->indexedWriteSideContract;
       analysis.description.sourceMemoryForm = routeFacts->sourceMemoryForm;
       analysis.description.destinationMemoryForm =
           routeFacts->destinationMemoryForm;
@@ -42974,6 +43021,8 @@ getRVVSelectedBodyConfigArtifactMetadata(
               RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad) {
     metadata.push_back({"tcrv_rvv.indexed_memory_layout",
                         description.indexedMemoryLayout});
+    metadata.push_back({"tcrv_rvv.indexed_write_side_contract",
+                        description.indexedWriteSideContract});
     metadata.push_back({"tcrv_rvv.index_source", description.indexSource});
     metadata.push_back({"tcrv_rvv.index_eew",
                         llvm::Twine(description.indexEEW).str()});
@@ -42988,6 +43037,8 @@ getRVVSelectedBodyConfigArtifactMetadata(
           RuntimeScalarComputedMaskIndexedGatherMAccScatter) {
     metadata.push_back({"tcrv_rvv.indexed_memory_layout",
                         description.indexedMemoryLayout});
+    metadata.push_back({"tcrv_rvv.indexed_write_side_contract",
+                        description.indexedWriteSideContract});
     metadata.push_back({"tcrv_rvv.index_source", description.indexSource});
     metadata.push_back({"tcrv_rvv.index_eew",
                         llvm::Twine(description.indexEEW).str()});

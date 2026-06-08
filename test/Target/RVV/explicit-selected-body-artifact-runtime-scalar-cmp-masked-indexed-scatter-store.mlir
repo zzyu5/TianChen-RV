@@ -1,6 +1,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed 's/runtime-scalar-splat-compare-rhs/vector-compare-rhs-load/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRODUCER
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/source-before-active-indexed-write;destination-before-inactive-tail-preserve/s//post-call-source-indexed-write/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-WRITE-SIDE
 
 // Hand-authored explicit selected-body input for one bounded Stage2 runtime
 // scalar compare plus masked indexed scatter-store slice. The selected RVV body
@@ -54,6 +55,8 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.masked_memory_layout", value = "unit-stride-lhs-runtime-scalar-threshold-source-indexed-masked-destination-runtime-abi"}
 // PLAN-SAME: {key = "tcrv_rvv.inactive_lane_contract", value = "masked-indexed-store-false-lanes-preserve-output-buffer"}
 // PLAN-SAME: {key = "tcrv_rvv.masked_passthrough_layout", value = "masked-indexed-store-has-no-passthrough-load"}
+// PLAN-SAME: {key = "tcrv_rvv.indexed_memory_layout", value = "unit-stride-lhs-runtime-scalar-threshold-source-indexed-masked-destination-runtime-abi"}
+// PLAN-SAME: {key = "tcrv_rvv.indexed_write_side_contract", value = "source-before-active-indexed-write;destination-before-inactive-tail-preserve"}
 // PLAN-SAME: {key = "tcrv_rvv.index_uniqueness", value = "unique"}
 // PLAN-SAME: {key = "tcrv_rvv.indexed_destination_memory_form", value = "masked-indexed-store"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-runtime-scalar-cmp-masked-indexed-scatter-store-unit-load-callable-c-abi.v1"
@@ -65,6 +68,7 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_order: lhs,rhs_scalar,src,index,dst,n
 // HEADER: tianchenrv.rvv.compare_predicate_kind: sle
 // HEADER: tianchenrv.rvv.indexed_memory_layout: unit-stride-lhs-runtime-scalar-threshold-source-indexed-masked-destination-runtime-abi
+// HEADER: tianchenrv.rvv.indexed_write_side_contract: source-before-active-indexed-write;destination-before-inactive-tail-preserve
 // HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-typed-runtime-scalar-cmp-masked-indexed-scatter-store-leaf-profile.v1
 // HEADER: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-runtime-scalar-cmp-masked-indexed-scatter-store-plan-validated
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:runtime_scalar_cmp_masked_indexed_scatter_store_unit_load.v1
@@ -72,3 +76,7 @@ module {
 // HEADER: void tcrv_emitc_explicit_selected_body_rt_scalar_cmidx_store_kernel_explicit_selected_body_rvv_rt_scalar_cmidx_store(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src, const uint32_t *index, int32_t *dst, size_t n);
 
 // STALE-PRODUCER: candidate tcrv_rvv.computed_mask_memory_mask_producer_source provenance must mirror selected typed RVV computed-mask indexed memory producer source 'runtime-scalar-splat-compare-rhs' but was 'vector-compare-rhs-load'
+
+// STALE-WRITE-SIDE: candidate tcrv_rvv.indexed_write_side_contract provenance must mirror selected typed RVV computed-mask indexed write-side contract
+// STALE-WRITE-SIDE-SAME: source-before-active-indexed-write;destination-before-inactive-tail-preserve
+// STALE-WRITE-SIDE-SAME: post-call-source-indexed-write

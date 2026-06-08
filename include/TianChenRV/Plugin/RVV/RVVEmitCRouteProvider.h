@@ -386,6 +386,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef inactiveLaneZeroingRequirement;
   llvm::StringRef stridedMemoryLayout;
   llvm::StringRef indexedMemoryLayout;
+  llvm::StringRef indexedWriteSideContract;
   llvm::StringRef segmentMemoryLayout;
   std::int64_t segmentCount = 0;
   llvm::StringRef segmentTupleCType;
@@ -888,6 +889,7 @@ struct RVVComputedMaskIndexedMemoryRouteFacts {
   llvm::StringRef inactiveLaneContract;
   llvm::StringRef maskedPassthroughLayout;
   llvm::StringRef indexedMemoryLayout;
+  llvm::StringRef indexedWriteSideContract;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
   std::int64_t indexEEW = 0;
@@ -962,6 +964,7 @@ struct RVVComputedMaskIndexedMemoryRouteValidationContract {
   std::string inactiveLaneContract;
   std::string maskedPassthroughLayout;
   std::string indexedMemoryLayout;
+  std::string indexedWriteSideContract;
   std::string sourceMemoryForm;
   std::string destinationMemoryForm;
   std::int64_t indexEEW = 0;

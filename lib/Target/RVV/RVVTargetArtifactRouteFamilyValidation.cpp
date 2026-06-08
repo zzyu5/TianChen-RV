@@ -8260,6 +8260,11 @@ llvm::Error validateRVVComputedMaskIndexedMemoryDescriptionAgainstContract(
           require("masked memory layout", description.indexedMemoryLayout,
                   contract.indexedMemoryLayout))
     return error;
+  if (llvm::Error error =
+          require("indexed write-side contract",
+                  description.indexedWriteSideContract,
+                  contract.indexedWriteSideContract))
+    return error;
   if (llvm::Error error = require("source memory form",
                                   description.sourceMemoryForm,
                                   contract.sourceMemoryForm))

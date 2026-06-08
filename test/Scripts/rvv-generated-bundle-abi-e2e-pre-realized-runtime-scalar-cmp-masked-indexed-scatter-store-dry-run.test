@@ -40,6 +40,8 @@
 # RTSCATTER-DAG: "value": "compare-produced-mask"
 # RTSCATTER-DAG: "key": "tcrv_rvv.indexed_destination_memory_form"
 # RTSCATTER-DAG: "value": "masked-indexed-store"
+# RTSCATTER-DAG: "key": "tcrv_rvv.indexed_write_side_contract"
+# RTSCATTER-DAG: "value": "source-before-active-indexed-write;destination-before-inactive-tail-preserve"
 # RTSCATTER-DAG: "inactive_lane_contract": "compare-false indexed destination lanes must preserve old destination values"
 # RTSCATTER-DAG: "indexed_scatter_contract": "active lanes store source[i] to destination[index[i]] with unique noncontiguous permuted indices while inactive indexed lanes, source buffers, and destination tail slots preserve sentinels"
 # RTSCATTER-DAG: "status": "dry_run_success"

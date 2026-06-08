@@ -849,6 +849,7 @@ struct RVVSelectedBodyComputedMaskMemoryRouteFamilyPlan {
   llvm::StringRef maskedPassthroughLayout;
   llvm::StringRef maskedMemoryLayout;
   llvm::StringRef stridedMemoryLayout;
+  llvm::StringRef indexedWriteSideContract;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
   llvm::StringRef sourceStrideSource;
@@ -1500,6 +1501,7 @@ struct RVVCompositeGatherMAccScatterRouteFamilyPlan {
   llvm::StringRef maskSource;
   llvm::StringRef maskMemoryForm;
   llvm::StringRef indexedMemoryLayout;
+  llvm::StringRef indexedWriteSideContract;
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
   llvm::StringRef indexedDataMemoryForm;

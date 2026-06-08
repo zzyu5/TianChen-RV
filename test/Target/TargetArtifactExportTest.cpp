@@ -2780,6 +2780,8 @@ TargetArtifactCandidate makeRVVManualTargetArtifactCandidate(
           RVVManualOperationKind::
               RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad) {
     add("tcrv_rvv.indexed_memory_layout", description.indexedMemoryLayout);
+    add("tcrv_rvv.indexed_write_side_contract",
+        description.indexedWriteSideContract);
     add("tcrv_rvv.index_source", description.indexSource);
     candidate.artifactMetadata.emplace_back(
         "tcrv_rvv.index_eew", llvm::Twine(description.indexEEW).str());
@@ -3739,6 +3741,8 @@ RVVManualRouteDescription makeRVVManualIndexedScatterDescription() {
       "masked-indexed-store-has-no-passthrough-load";
   description.indexedMemoryLayout =
       "unit-stride-compare-source-indexed-masked-destination-runtime-abi";
+  description.indexedWriteSideContract =
+      "source-before-active-indexed-write;destination-before-inactive-tail-preserve";
   description.sourceMemoryForm = "unit-stride-load";
   description.destinationMemoryForm = "masked-indexed-store";
   description.indexEEW = 32;
@@ -3904,6 +3908,8 @@ RVVManualRouteDescription makeRVVManualRuntimeScalarIndexedScatterDescription() 
       "masked-indexed-store-has-no-passthrough-load";
   description.indexedMemoryLayout =
       "unit-stride-lhs-runtime-scalar-threshold-source-indexed-masked-destination-runtime-abi";
+  description.indexedWriteSideContract =
+      "source-before-active-indexed-write;destination-before-inactive-tail-preserve";
   description.sourceMemoryForm = "unit-stride-load";
   description.destinationMemoryForm = "masked-indexed-store";
   description.indexEEW = 32;
@@ -19681,6 +19687,8 @@ bool expectRVVTargetArtifactExporterShape(
             manualDescription.computedMaskMemoryMaskProducerSource ||
         llvm::StringRef(contract->indexedMemoryLayout) !=
             manualDescription.indexedMemoryLayout ||
+        llvm::StringRef(contract->indexedWriteSideContract) !=
+            manualDescription.indexedWriteSideContract ||
         llvm::StringRef(contract->indexSource) !=
             manualDescription.indexSource ||
         contract->indexEEW != manualDescription.indexEEW ||
@@ -20548,6 +20556,21 @@ bool expectRVVTargetArtifactExporterShape(
           "runtime-scalar indexed scatter ABI order",
           {"runtime ABI order", "lhs,rhs_scalar,src,index,dst,n",
            "cmp_lhs,cmp_rhs,src,index,dst,n"}))
+    return false;
+
+  RVVRouteDescription staleRuntimeScalarIndexedScatterWriteSide =
+      manualRuntimeScalarIndexedScatterDescription;
+  staleRuntimeScalarIndexedScatterWriteSide.indexedWriteSideContract =
+      "post-call-source-indexed-write";
+  if (!expectManualCompareSelectMaskProviderFailure(
+          manualRuntimeScalarIndexedScatterCandidate,
+          manualRuntimeScalarIndexedScatterRoute,
+          staleRuntimeScalarIndexedScatterWriteSide,
+          "computed-mask indexed memory registry rejects stale "
+          "runtime-scalar indexed scatter write-side contract",
+          {"indexed write-side contract",
+           "source-before-active-indexed-write;destination-before-inactive-tail-preserve",
+           "post-call-source-indexed-write"}))
     return false;
 
   RVVRouteDescription staleRuntimeScalarIndexedScatterInactiveLane =
@@ -21827,6 +21850,28 @@ bool expectRVVTargetArtifactExporterShape(
           "scatter ABI metadata",
           {"runtime_abi_order", "lhs,rhs_scalar,src,index,dst,n",
            "cmp_lhs,cmp_rhs,src,index,dst,n"}))
+    return false;
+
+  TargetArtifactCandidate wrongRuntimeScalarIndexedScatterWriteSideCandidate =
+      manualRuntimeScalarIndexedScatterCandidate;
+  if (!rewriteArtifactMetadataValue(
+          wrongRuntimeScalarIndexedScatterWriteSideCandidate,
+          "tcrv_rvv.indexed_write_side_contract",
+          "post-call-source-indexed-write")) {
+    llvm::errs()
+        << "runtime-scalar computed-mask indexed scatter test fixture did "
+           "not contain indexed write-side contract metadata\n";
+    return false;
+  }
+  if (!expectManualCompareSelectMaskCandidateFailure(
+          wrongRuntimeScalarIndexedScatterWriteSideCandidate,
+          manualRuntimeScalarIndexedScatterRoute,
+          manualRuntimeScalarIndexedScatterDescription,
+          "compare/select mask registry rejects stale runtime-scalar indexed "
+          "scatter write-side metadata",
+          {"indexed_write_side_contract",
+           "source-before-active-indexed-write;destination-before-inactive-tail-preserve",
+           "post-call-source-indexed-write"}))
     return false;
 
   TargetArtifactCandidate wrongRuntimeScalarIndexedScatterInactiveCandidate =

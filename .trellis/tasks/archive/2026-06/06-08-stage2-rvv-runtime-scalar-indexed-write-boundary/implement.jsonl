@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain and RVV Stage2 boundary for selected typed RVV body -> provider route -> common EmitC -> target artifact."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, runtime-scalar indexed gather-MAcc-scatter contract, indexed write-side mask/index/inactive-lane/provider facts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, computed-mask indexed memory validation contract, target artifact mirror/fail-closed rules."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Runtime/generated-bundle evidence quality rules for snapshot-backed preservation and RVV ssh evidence."}
+{"file": ".trellis/tasks/06-08-stage2-rvv-runtime-scalar-indexed-write-boundary/prd.md", "reason": "Current task PRD and acceptance criteria."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "write-side contract fields on route descriptions and validation contracts"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "write-side contract fields on provider route family plans"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "provider facts, plan validation, metadata mirrors, and artifact metadata for indexed write-side contract"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.cpp", "reason": "provider owner fail-closed comparisons for computed-mask indexed and composite plans"}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "target validation consumes write-side contract before artifact acceptance"}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "header evidence exports write-side contract metadata"}

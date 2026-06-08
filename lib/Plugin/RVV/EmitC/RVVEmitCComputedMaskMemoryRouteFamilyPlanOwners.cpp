@@ -1605,6 +1605,7 @@ buildRVVCompositeGatherMAccScatterRouteFamilyPlan(
   plan.maskSource = computedPlan.maskSource;
   plan.maskMemoryForm = computedPlan.maskMemoryForm;
   plan.indexedMemoryLayout = computedPlan.maskedMemoryLayout;
+  plan.indexedWriteSideContract = computedPlan.indexedWriteSideContract;
   plan.sourceMemoryForm = computedPlan.sourceMemoryForm;
   plan.destinationMemoryForm = computedPlan.destinationMemoryForm;
   plan.indexedDataMemoryForm = computedPlan.indexedDataMemoryForm;
@@ -1808,6 +1809,8 @@ static llvm::Error verifyRVVCompositeGatherMAccScatterRouteFamilyPlan(
       plan.maskSource != computedPlan.maskSource ||
       plan.maskMemoryForm != computedPlan.maskMemoryForm ||
       plan.indexedMemoryLayout != computedPlan.maskedMemoryLayout ||
+      plan.indexedWriteSideContract !=
+          computedPlan.indexedWriteSideContract ||
       plan.sourceMemoryForm != computedPlan.sourceMemoryForm ||
       plan.destinationMemoryForm != computedPlan.destinationMemoryForm ||
       plan.indexedDataMemoryForm != computedPlan.indexedDataMemoryForm ||
@@ -2030,6 +2033,8 @@ verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
        plan.maskedPassthroughLayout !=
            indexedRouteFacts->maskedPassthroughLayout ||
        plan.maskedMemoryLayout != indexedRouteFacts->indexedMemoryLayout ||
+       plan.indexedWriteSideContract !=
+           indexedRouteFacts->indexedWriteSideContract ||
        plan.sourceMemoryForm != indexedRouteFacts->sourceMemoryForm ||
        plan.destinationMemoryForm !=
            indexedRouteFacts->destinationMemoryForm ||
@@ -2074,6 +2079,8 @@ verifyRVVSelectedBodyRuntimeScalarComputedMaskMemoryRouteProviderFacts(
   if ((expectsIndexedGather || expectsIndexedScatter) &&
       (description.sourceMemoryForm != plan.sourceMemoryForm ||
        description.destinationMemoryForm != plan.destinationMemoryForm ||
+       description.indexedWriteSideContract !=
+           plan.indexedWriteSideContract ||
        description.indexEEW != plan.indexEEW ||
        description.offsetUnit != plan.offsetUnit ||
        description.indexSource != plan.indexSource ||
@@ -2555,6 +2562,8 @@ verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
        plan.maskedPassthroughLayout !=
            indexedRouteFacts->maskedPassthroughLayout ||
        plan.maskedMemoryLayout != indexedRouteFacts->indexedMemoryLayout ||
+       plan.indexedWriteSideContract !=
+           indexedRouteFacts->indexedWriteSideContract ||
        plan.sourceMemoryForm != indexedRouteFacts->sourceMemoryForm ||
        plan.destinationMemoryForm !=
            indexedRouteFacts->destinationMemoryForm ||
@@ -2589,6 +2598,8 @@ verifyRVVSelectedBodyRegularComputedMaskMemoryRouteProviderFacts(
       description.runtimeABIOrder != plan.runtimeABIOrder ||
       description.sourceMemoryForm != plan.sourceMemoryForm ||
       description.destinationMemoryForm != plan.destinationMemoryForm ||
+      description.indexedWriteSideContract !=
+          plan.indexedWriteSideContract ||
       description.sourceStrideSource != plan.sourceStrideSource ||
       description.outStrideSource != plan.destinationStrideSource ||
       description.indexEEW != plan.indexEEW ||

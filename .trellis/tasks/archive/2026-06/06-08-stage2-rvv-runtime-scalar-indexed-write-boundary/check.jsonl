@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global authority placement and RVV Stage2 direction."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-owned indexed write-side validation and composite route contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider route validation, target artifact acceptance, and mirror-only constraints."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check evidence, lit/FileCheck, and runtime snapshot requirements."}
+{"file": ".trellis/tasks/06-08-stage2-rvv-runtime-scalar-indexed-write-boundary/prd.md", "reason": "Check implementation against current task acceptance criteria."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-indexed-scatter-store.mlir", "reason": "positive header/plan metadata and stale write-side fail-closed fixture"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-indexed-scatter-store.mlir", "reason": "pre-realized scatter realization to plan/header write-side evidence"}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter.mlir", "reason": "positive header/plan metadata and stale composite write-side fail-closed fixture"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter.mlir", "reason": "pre-realized composite realization to plan/header write-side evidence"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-indexed-scatter-store-dry-run.test", "reason": "generated bundle dry-run evidence carries scatter write-side contract"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-dry-run.test", "reason": "generated bundle dry-run evidence carries composite write-side contract"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "C++ target artifact positive and stale metadata/write-side contract regression coverage"}
+{"file": "build/trellis-validation/stage2-runtime-scalar-indexed-write-boundary/ssh/", "type": "directory", "reason": "ssh rvv generated-bundle evidence for scatter and gather-MAcc-scatter"}

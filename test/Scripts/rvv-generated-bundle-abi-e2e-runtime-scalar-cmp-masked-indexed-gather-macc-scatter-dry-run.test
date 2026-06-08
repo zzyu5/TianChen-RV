@@ -65,6 +65,8 @@
 # EXPL-DAG: "value": "masked-indexed-load"
 # EXPL-DAG: "key": "tcrv_rvv.indexed_destination_memory_form"
 # EXPL-DAG: "value": "masked-indexed-store"
+# EXPL-DAG: "key": "tcrv_rvv.indexed_write_side_contract"
+# EXPL-DAG: "value": "gather-payload-acc-before-active-indexed-write;destination-before-inactive-tail-preserve"
 # EXPL-DAG: "indexed_gather_scatter_contract": "active lanes gather gather_src[index[i]], compute acc[i] + gathered * payload[i], and scatter to dst[index[i]] with unique noncontiguous permuted indices"
 # EXPL-DAG: "abi_order_contract": "cmp_lhs,rhs_scalar,gather_src,payload,acc,index,dst,n"
 # EXPL-DAG: "macc_intrinsic": "__riscv_vmacc_vv_i32m1"
@@ -120,6 +122,8 @@
 # PRE-DAG: "value": "rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]"
 # PRE-DAG: "key": "tcrv_rvv.composite_resource.vector_register_budget"
 # PRE-DAG: "value": "32"
+# PRE-DAG: "key": "tcrv_rvv.indexed_write_side_contract"
+# PRE-DAG: "value": "gather-payload-acc-before-active-indexed-write;destination-before-inactive-tail-preserve"
 # PRE-DAG: "indexed_gather_scatter_contract": "active lanes gather gather_src[index[i]], compute acc[i] + gathered * payload[i], and scatter to dst[index[i]] with unique noncontiguous permuted indices"
 # PRE-DAG: "status": "dry_run_success"
 
