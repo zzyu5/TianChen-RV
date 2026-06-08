@@ -649,13 +649,19 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY = (
     "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET = (
-    "rvv-low-precision-direct-contraction-resource-candidate-set.v3"
+    "rvv-low-precision-direct-contraction-resource-candidate-set.v4"
     "[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,"
-    "u2-grouped-tail-safe]"
+    "u2-grouped-tail-safe,"
+    "signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE = (
     "rvv-low-precision-direct-contraction-resource-candidate.v1"
     "[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE = (
+    "rvv-low-precision-direct-contraction-resource-candidate.v1"
+    "[product-reduction-dequantize-f32,"
+    "signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTED_CANDIDATE = (
     "rvv-low-precision-direct-contraction-resource-candidate.v1"
@@ -663,6 +669,10 @@ WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTED_CANDIDATE = (
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON = (
     "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-u2-grouped-tail-safe-runtime-avl"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTION_REASON = (
+    "static-bounded-product-reduction-dequant-signed-i4n2-in-i8mf4-i16mf2-"
+    "i32m1-f32m1-u1-unpack-required-runtime-avl"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON = (
     "static-bounded-product-reduction-dequant-clamp-i8mf4-i16mf2-i32m1-"
@@ -673,6 +683,33 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE = (
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION = (
     "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_DECISION = (
+    "consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_BYTE_OPERAND_FORM = (
+    "unpacked-byte-elements"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_BYTE_PACKING_LAYOUT = (
+    "one-element-per-byte"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_BYTE_UNPACK_INTENT = (
+    "none-direct-widening-product"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_OPERAND_FORM = (
+    "packed-i4-nibbles"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PACKING_LAYOUT = (
+    "two-signed-i4-elements-per-byte-low-high-nibbles"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_UNPACK_INTENT = (
+    "sign-extend-i4-nibbles-before-widening-product"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC = (
+    "__riscv_vsll_vx_i8mf4"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC = (
+    "__riscv_vsra_vx_i8mf4"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM = (
     "unit-stride-widening-product-reduce-dequantize-f32"
@@ -8231,6 +8268,12 @@ LOW_PRECISION_RESOURCE_METADATA_KEYS = (
     "tcrv_rvv.low_precision_resource.source_dtype",
     "tcrv_rvv.low_precision_resource.source_sew",
     "tcrv_rvv.low_precision_resource.source_lmul",
+    "tcrv_rvv.low_precision_resource.operand_form",
+    "tcrv_rvv.low_precision_resource.source_signedness",
+    "tcrv_rvv.low_precision_resource.storage_element_width",
+    "tcrv_rvv.low_precision_resource.effective_element_width",
+    "tcrv_rvv.low_precision_resource.packing_layout",
+    "tcrv_rvv.low_precision_resource.unpack_intent",
     "tcrv_rvv.low_precision_resource.product_dtype",
     "tcrv_rvv.low_precision_resource.product_sew",
     "tcrv_rvv.low_precision_resource.product_lmul",
@@ -9103,6 +9146,168 @@ def verify_common_record_fields(
         EXPECTED_SELECTED_ROLE,
         f"{context} selected component role",
     )
+
+
+def product_dequant_uses_packed_i4_resource_metadata(
+    metadata: dict[str, str], expectation: OpExpectation
+) -> bool:
+    return (
+        expectation.is_widening_product_reduce_dequantize_f32
+        and metadata.get("tcrv_rvv.low_precision_resource.selected_candidate")
+        == WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE
+    )
+
+
+def product_dequant_uses_packed_i4_resource_text(
+    text: str, expectation: OpExpectation
+) -> bool:
+    return (
+        expectation.is_widening_product_reduce_dequantize_f32
+        and (
+            'tcrv_rvv.low_precision_resource.selected_candidate = "'
+            f"{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE}"
+            '"'
+        )
+        in text
+    )
+
+
+def product_dequant_low_precision_resource_profile(
+    expectation: OpExpectation, *, packed_i4: bool
+) -> dict[str, str]:
+    if packed_i4:
+        if not expectation.is_widening_product_reduce_dequantize_f32:
+            raise EvidenceError(
+                "packed-i4 low-precision resource evidence is currently "
+                "supported only for product-reduction dequantize f32"
+            )
+        return {
+            "selected_candidate": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE
+            ),
+            "selection_reason": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTION_REASON
+            ),
+            "memory_form": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM,
+            "resource_decision": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_DECISION
+            ),
+            "operand_form": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_OPERAND_FORM
+            ),
+            "source_signedness": "signed",
+            "storage_element_width": "8",
+            "effective_element_width": "4",
+            "packing_layout": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PACKING_LAYOUT
+            ),
+            "unpack_intent": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_UNPACK_INTENT
+            ),
+            "unroll_factor": "1",
+            "accumulator_count": "1",
+            "vsetvl_region_count": "2",
+            "peak_live_vector_groups": "6",
+            "producer_phase": "load-product-reduce",
+            "consumer_phase": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE,
+            "producer_region_index": "1",
+            "consumer_region_index": "2",
+        }
+    is_product_dequant_clamp = (
+        expectation.is_widening_product_reduce_dequant_clamp_f32
+    )
+    return {
+        "selected_candidate": (
+            WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTED_CANDIDATE
+            if is_product_dequant_clamp
+            else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
+        ),
+        "selection_reason": (
+            WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON
+            if is_product_dequant_clamp
+            else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
+        ),
+        "memory_form": (
+            WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_MEMORY_FORM
+            if is_product_dequant_clamp
+            else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
+        ),
+        "resource_decision": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION,
+        "operand_form": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_BYTE_OPERAND_FORM,
+        "source_signedness": "signed",
+        "storage_element_width": "8",
+        "effective_element_width": "8",
+        "packing_layout": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_BYTE_PACKING_LAYOUT,
+        "unpack_intent": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_BYTE_UNPACK_INTENT,
+        "unroll_factor": "2",
+        "accumulator_count": "2",
+        "vsetvl_region_count": "3",
+        "peak_live_vector_groups": "7",
+        "producer_phase": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_PHASE,
+        "consumer_phase": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE,
+        "producer_region_index": "2",
+        "consumer_region_index": "3",
+    }
+
+
+def validate_low_precision_resource_metadata(
+    metadata: dict[str, str],
+    expectation: OpExpectation,
+    context: str,
+    *,
+    packed_i4: bool,
+) -> None:
+    profile = product_dequant_low_precision_resource_profile(
+        expectation, packed_i4=packed_i4
+    )
+    expected = {
+        "candidate_set": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET,
+        "selected_candidate": profile["selected_candidate"],
+        "selection_reason": profile["selection_reason"],
+        "legality_scope": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE,
+        "source_dtype": "i8",
+        "source_sew": "8",
+        "source_lmul": "mf4",
+        "operand_form": profile["operand_form"],
+        "source_signedness": profile["source_signedness"],
+        "storage_element_width": profile["storage_element_width"],
+        "effective_element_width": profile["effective_element_width"],
+        "packing_layout": profile["packing_layout"],
+        "unpack_intent": profile["unpack_intent"],
+        "product_dtype": "i16",
+        "product_sew": "16",
+        "product_lmul": "mf2",
+        "product_emul": "mf2",
+        "accumulator_dtype": "i32",
+        "accumulator_sew": "32",
+        "accumulator_lmul": "m1",
+        "accumulator_emul": "m1",
+        "result_dtype": "f32",
+        "result_sew": "32",
+        "result_lmul": "m1",
+        "memory_form": profile["memory_form"],
+        "tail_policy": "agnostic",
+        "mask_policy": "agnostic",
+        "unroll_factor": profile["unroll_factor"],
+        "accumulator_count": profile["accumulator_count"],
+        "reduction_layout": (
+            WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY
+        ),
+        "vsetvl_region_count": profile["vsetvl_region_count"],
+        "peak_live_vector_groups": profile["peak_live_vector_groups"],
+        "vector_register_budget": "32",
+        "runtime_avl_source": "runtime_abi:n",
+        "runtime_abi_order": expectation.runtime_abi_order,
+        "target_capability_provider_mirror": RVV_TARGET_CAPABILITY_PROVIDER_MIRROR,
+        "target_capability_legality_mirror": (
+            RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
+        ),
+        "legality": "legal",
+        "rejection_reason": "none",
+    }
+    for suffix, expected_value in expected.items():
+        key = f"tcrv_rvv.low_precision_resource.{suffix}"
+        require_equal(metadata.get(key), expected_value, f"{context} metadata {key}")
 
 
 def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
@@ -11445,23 +11650,8 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
         expectation.is_widening_product_reduce_dequantize_f32
         or expectation.is_widening_product_reduce_dequant_clamp_f32
     ):
-        is_product_dequant_clamp = (
-            expectation.is_widening_product_reduce_dequant_clamp_f32
-        )
-        expected_resource_selected_candidate = (
-            WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTED_CANDIDATE
-            if is_product_dequant_clamp
-            else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
-        )
-        expected_resource_selection_reason = (
-            WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON
-            if is_product_dequant_clamp
-            else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
-        )
-        expected_resource_memory_form = (
-            WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_MEMORY_FORM
-            if is_product_dequant_clamp
-            else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
+        resource_profile = product_dequant_low_precision_resource_profile(
+            expectation, packed_i4=False
         )
         per_op_metadata.update(
             {
@@ -11469,10 +11659,10 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
                 ),
                 "tcrv_rvv.low_precision_resource.selected_candidate": (
-                    expected_resource_selected_candidate
+                    resource_profile["selected_candidate"]
                 ),
                 "tcrv_rvv.low_precision_resource.selection_reason": (
-                    expected_resource_selection_reason
+                    resource_profile["selection_reason"]
                 ),
                 "tcrv_rvv.low_precision_resource.legality_scope": (
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE
@@ -11480,6 +11670,24 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.low_precision_resource.source_dtype": "i8",
                 "tcrv_rvv.low_precision_resource.source_sew": "8",
                 "tcrv_rvv.low_precision_resource.source_lmul": "mf4",
+                "tcrv_rvv.low_precision_resource.operand_form": (
+                    resource_profile["operand_form"]
+                ),
+                "tcrv_rvv.low_precision_resource.source_signedness": (
+                    resource_profile["source_signedness"]
+                ),
+                "tcrv_rvv.low_precision_resource.storage_element_width": (
+                    resource_profile["storage_element_width"]
+                ),
+                "tcrv_rvv.low_precision_resource.effective_element_width": (
+                    resource_profile["effective_element_width"]
+                ),
+                "tcrv_rvv.low_precision_resource.packing_layout": (
+                    resource_profile["packing_layout"]
+                ),
+                "tcrv_rvv.low_precision_resource.unpack_intent": (
+                    resource_profile["unpack_intent"]
+                ),
                 "tcrv_rvv.low_precision_resource.product_dtype": "i16",
                 "tcrv_rvv.low_precision_resource.product_sew": "16",
                 "tcrv_rvv.low_precision_resource.product_lmul": "mf2",
@@ -11492,17 +11700,25 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.low_precision_resource.result_sew": "32",
                 "tcrv_rvv.low_precision_resource.result_lmul": "m1",
                 "tcrv_rvv.low_precision_resource.memory_form": (
-                    expected_resource_memory_form
+                    resource_profile["memory_form"]
                 ),
                 "tcrv_rvv.low_precision_resource.tail_policy": "agnostic",
                 "tcrv_rvv.low_precision_resource.mask_policy": "agnostic",
-                "tcrv_rvv.low_precision_resource.unroll_factor": "2",
-                "tcrv_rvv.low_precision_resource.accumulator_count": "2",
+                "tcrv_rvv.low_precision_resource.unroll_factor": (
+                    resource_profile["unroll_factor"]
+                ),
+                "tcrv_rvv.low_precision_resource.accumulator_count": (
+                    resource_profile["accumulator_count"]
+                ),
                 "tcrv_rvv.low_precision_resource.reduction_layout": (
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY
                 ),
-                "tcrv_rvv.low_precision_resource.vsetvl_region_count": "3",
-                "tcrv_rvv.low_precision_resource.peak_live_vector_groups": "7",
+                "tcrv_rvv.low_precision_resource.vsetvl_region_count": (
+                    resource_profile["vsetvl_region_count"]
+                ),
+                "tcrv_rvv.low_precision_resource.peak_live_vector_groups": (
+                    resource_profile["peak_live_vector_groups"]
+                ),
                 "tcrv_rvv.low_precision_resource.vector_register_budget": "32",
                 "tcrv_rvv.low_precision_resource.runtime_avl_source": (
                     "runtime_abi:n"
@@ -11806,8 +12022,17 @@ def verify_record_metadata(
     record: dict[str, Any], context: str, expectation: OpExpectation
 ) -> None:
     metadata = metadata_map(record)
+    uses_packed_i4_resource = product_dequant_uses_packed_i4_resource_metadata(
+        metadata, expectation
+    )
     for key, expected in expected_metadata_for(expectation).items():
+        if uses_packed_i4_resource and key in LOW_PRECISION_RESOURCE_METADATA_KEYS:
+            continue
         require_equal(metadata.get(key), expected, f"{context} metadata {key}")
+    if uses_packed_i4_resource:
+        validate_low_precision_resource_metadata(
+            metadata, expectation, context, packed_i4=True
+        )
     for key, value in metadata.items():
         require_no_forbidden_public_residue(
             f"{key}={value}", f"{context} artifact metadata"
@@ -13360,23 +13585,113 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
                 forbidden,
                 f"emitted RVV C/C++ product-reduction dequant-clamp loop {context}",
             )
-    reduction = require_regex(
-        loop_block,
-        rf"vint16mf2_t (?P<product>v[0-9]+) = "
-        rf"{re.escape(WIDENING_PRODUCT_REDUCE_INTRINSIC)}"
-        rf"\([^;]+, (?P<loop_vl>v[0-9]+)\);\s*"
-        rf"(?://[^\n]*\n\s*)*"
-        rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
-        rf"(?P<current_carry>v[0-9]+) = {local_carry};\s*"
-        rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
-        rf"(?P<reduced>v[0-9]+) = "
-        rf"{re.escape(WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC)}"
-        rf"\((?P=product), (?P=current_carry), (?P=loop_vl)\);\s*"
-        rf".*?"
-        rf"(?://[^\n]*tcrv_emitc\.assign target=dot_acc_vec[^\n]*\n\s*)"
-        rf"{local_carry} = (?P=reduced);",
-        "emitted RVV C/C++ product-reduction dequant vector carry reduction",
+    uses_packed_i4_resource = (
+        WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC
+        in loop_block
     )
+    packed_i4_statement_payload: dict[str, Any] = {}
+    if uses_packed_i4_resource:
+        require_ordered_tokens(
+            loop_block,
+            [
+                WIDENING_PRODUCT_REDUCE_SOURCE_LOAD_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_SOURCE_LOAD_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC,
+            ],
+            "emitted RVV C/C++ packed-i4 low/high nibble statement order",
+        )
+        reduction = require_regex(
+            loop_block,
+            rf"vint8mf4_t (?P<lhs_low_shift>v[0-9]+) = "
+            rf"{re.escape(WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC)}"
+            rf"\((?P<lhs_packed>v[0-9]+), 4, (?P<loop_vl>v[0-9]+)\);\s*"
+            rf"(?://[^\n]*\n\s*)*"
+            rf"vint8mf4_t (?P<lhs_low>v[0-9]+) = "
+            rf"{re.escape(WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC)}"
+            rf"\((?P=lhs_low_shift), 4, (?P=loop_vl)\);\s*"
+            rf"(?://[^\n]*\n\s*)*"
+            rf"vint8mf4_t (?P<lhs_high>v[0-9]+) = "
+            rf"{re.escape(WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC)}"
+            rf"\((?P=lhs_packed), 4, (?P=loop_vl)\);\s*"
+            rf".*?"
+            rf"vint8mf4_t (?P<rhs_low_shift>v[0-9]+) = "
+            rf"{re.escape(WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC)}"
+            rf"\((?P<rhs_packed>v[0-9]+), 4, (?P=loop_vl)\);\s*"
+            rf"(?://[^\n]*\n\s*)*"
+            rf"vint8mf4_t (?P<rhs_low>v[0-9]+) = "
+            rf"{re.escape(WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC)}"
+            rf"\((?P=rhs_low_shift), 4, (?P=loop_vl)\);\s*"
+            rf"(?://[^\n]*\n\s*)*"
+            rf"vint8mf4_t (?P<rhs_high>v[0-9]+) = "
+            rf"{re.escape(WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC)}"
+            rf"\((?P=rhs_packed), 4, (?P=loop_vl)\);\s*"
+            rf"(?://[^\n]*\n\s*)*"
+            rf"vint16mf2_t (?P<product_low>v[0-9]+) = "
+            rf"{re.escape(WIDENING_PRODUCT_REDUCE_INTRINSIC)}"
+            rf"\((?P=lhs_low), (?P=rhs_low), (?P=loop_vl)\);\s*"
+            rf"(?://[^\n]*\n\s*)*"
+            rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
+            rf"(?P<current_carry>v[0-9]+) = {local_carry};\s*"
+            rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
+            rf"(?P<reduced_low>v[0-9]+) = "
+            rf"{re.escape(WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC)}"
+            rf"\((?P=product_low), (?P=current_carry), (?P=loop_vl)\);\s*"
+            rf"(?://[^\n]*\n\s*)*"
+            rf"vint16mf2_t (?P<product_high>v[0-9]+) = "
+            rf"{re.escape(WIDENING_PRODUCT_REDUCE_INTRINSIC)}"
+            rf"\((?P=lhs_high), (?P=rhs_high), (?P=loop_vl)\);\s*"
+            rf"(?://[^\n]*\n\s*)*"
+            rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
+            rf"(?P<reduced_high>v[0-9]+) = "
+            rf"{re.escape(WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC)}"
+            rf"\((?P=product_high), (?P=reduced_low), (?P=loop_vl)\);\s*"
+            rf"(?://[^\n]*\n\s*)*"
+            rf"(?://[^\n]*tcrv_emitc\.assign target=dot_acc_vec[^\n]*\n\s*)"
+            rf"{local_carry} = (?P=reduced_high);",
+            "emitted RVV C/C++ packed-i4 low/high nibble vector carry reduction",
+        )
+        packed_i4_statement_payload = {
+            "operand_form": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_OPERAND_FORM,
+            "lhs_packed_vector": reduction.group("lhs_packed"),
+            "rhs_packed_vector": reduction.group("rhs_packed"),
+            "lhs_low_vector": reduction.group("lhs_low"),
+            "rhs_low_vector": reduction.group("rhs_low"),
+            "lhs_high_vector": reduction.group("lhs_high"),
+            "rhs_high_vector": reduction.group("rhs_high"),
+            "low_product_vector": reduction.group("product_low"),
+            "high_product_vector": reduction.group("product_high"),
+            "low_reduction_vector": reduction.group("reduced_low"),
+            "high_reduction_vector": reduction.group("reduced_high"),
+            "low_nibble_sign_extension": "shift-left-4-then-arithmetic-shift-right-4",
+            "high_nibble_sign_extension": "arithmetic-shift-right-4",
+        }
+    else:
+        reduction = require_regex(
+            loop_block,
+            rf"vint16mf2_t (?P<product>v[0-9]+) = "
+            rf"{re.escape(WIDENING_PRODUCT_REDUCE_INTRINSIC)}"
+            rf"\([^;]+, (?P<loop_vl>v[0-9]+)\);\s*"
+            rf"(?://[^\n]*\n\s*)*"
+            rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
+            rf"(?P<current_carry>v[0-9]+) = {local_carry};\s*"
+            rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
+            rf"(?P<reduced>v[0-9]+) = "
+            rf"{re.escape(WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC)}"
+            rf"\((?P=product), (?P=current_carry), (?P=loop_vl)\);\s*"
+            rf".*?"
+            rf"(?://[^\n]*tcrv_emitc\.assign target=dot_acc_vec[^\n]*\n\s*)"
+            rf"{local_carry} = (?P=reduced);",
+            "emitted RVV C/C++ product-reduction dequant vector carry reduction",
+        )
     post_loop = text[loop_end:]
     extracted = require_regex(
         post_loop,
@@ -13471,6 +13786,7 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
         "loop_accumulator_source": "dot_acc_vec",
         "loop_reduction_accumulator": reduction.group("current_carry"),
         "loop_updates_vector_carry": True,
+        "packed_i4_statement_payload": packed_i4_statement_payload,
         "post_loop_scalar_extract": extracted,
         "loop_dequantization_forbidden": True,
         "post_loop_dequantization": {
@@ -16457,23 +16773,11 @@ def verify_materialized_selected_body(
             expectation.is_widening_product_reduce_dequantize_f32
             or expectation.is_widening_product_reduce_dequant_clamp_f32
         ):
-            is_product_dequant_clamp = (
-                expectation.is_widening_product_reduce_dequant_clamp_f32
+            uses_packed_i4_resource = product_dequant_uses_packed_i4_resource_text(
+                text, expectation
             )
-            expected_resource_selected_candidate = (
-                WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTED_CANDIDATE
-                if is_product_dequant_clamp
-                else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
-            )
-            expected_resource_selection_reason = (
-                WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON
-                if is_product_dequant_clamp
-                else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
-            )
-            expected_resource_memory_form = (
-                WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_MEMORY_FORM
-                if is_product_dequant_clamp
-                else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
+            resource_profile = product_dequant_low_precision_resource_profile(
+                expectation, packed_i4=uses_packed_i4_resource
             )
             require_contains(
                 text,
@@ -16497,7 +16801,7 @@ def verify_materialized_selected_body(
             )
             require_contains(
                 text,
-                f'from_phase = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_PHASE}"',
+                f'from_phase = "{resource_profile["producer_phase"]}"',
                 "materialized selected-body MLIR Gearbox handoff producer phase",
             )
             require_contains(
@@ -16512,32 +16816,49 @@ def verify_materialized_selected_body(
             )
             require_contains(
                 text,
-                "region_count = 3 : i64",
-                "materialized selected-body MLIR Gearbox three-region count",
+                f'region_count = {resource_profile["vsetvl_region_count"]} : i64',
+                "materialized selected-body MLIR Gearbox region count",
             )
             require_contains(
                 text,
                 "region_index = 1 : i64",
                 "materialized selected-body MLIR Gearbox producer region marker",
             )
+            if uses_packed_i4_resource:
+                require_contains(
+                    text,
+                    'phase = "load-product-reduce"',
+                    "materialized selected-body MLIR packed-i4 producer phase marker",
+                )
+                require_contains(
+                    text,
+                    "region_index = 2 : i64",
+                    "materialized selected-body MLIR packed-i4 consumer region marker",
+                )
+                require_not_contains(
+                    text,
+                    'phase = "grouped-product-reduce-main"',
+                    "materialized selected-body MLIR packed-i4 two-region schedule",
+                )
+            else:
+                require_contains(
+                    text,
+                    'phase = "grouped-product-reduce-main"',
+                    "materialized selected-body MLIR Gearbox grouped main phase marker",
+                )
+                require_contains(
+                    text,
+                    "region_index = 2 : i64",
+                    "materialized selected-body MLIR Gearbox tail producer region marker",
+                )
+                require_contains(
+                    text,
+                    "region_index = 3 : i64",
+                    "materialized selected-body MLIR Gearbox consumer region marker",
+                )
             require_contains(
                 text,
-                'phase = "grouped-product-reduce-main"',
-                "materialized selected-body MLIR Gearbox grouped main phase marker",
-            )
-            require_contains(
-                text,
-                "region_index = 2 : i64",
-                "materialized selected-body MLIR Gearbox tail producer region marker",
-            )
-            require_contains(
-                text,
-                "region_index = 3 : i64",
-                "materialized selected-body MLIR Gearbox consumer region marker",
-            )
-            require_contains(
-                text,
-                f'phase = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_PHASE}"',
+                f'phase = "{resource_profile["producer_phase"]}"',
                 "materialized selected-body MLIR Gearbox producer phase marker",
             )
             require_contains(
@@ -16547,7 +16868,7 @@ def verify_materialized_selected_body(
             )
             require_contains(
                 text,
-                f'resource_decision = "{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION}"',
+                f'resource_decision = "{resource_profile["resource_decision"]}"',
                 "materialized selected-body MLIR Gearbox resource decision",
             )
             require_contains(
@@ -16557,12 +16878,12 @@ def verify_materialized_selected_body(
             )
             require_contains(
                 text,
-                f'tcrv_rvv.low_precision_resource.selected_candidate = "{expected_resource_selected_candidate}"',
+                f'tcrv_rvv.low_precision_resource.selected_candidate = "{resource_profile["selected_candidate"]}"',
                 "materialized selected-body MLIR low-precision selected candidate",
             )
             require_contains(
                 text,
-                f'tcrv_rvv.low_precision_resource.selection_reason = "{expected_resource_selection_reason}"',
+                f'tcrv_rvv.low_precision_resource.selection_reason = "{resource_profile["selection_reason"]}"',
                 "materialized selected-body MLIR low-precision selection reason",
             )
             require_contains(
@@ -16572,17 +16893,57 @@ def verify_materialized_selected_body(
             )
             require_contains(
                 text,
-                f'tcrv_rvv.low_precision_resource.memory_form = "{expected_resource_memory_form}"',
+                f'tcrv_rvv.low_precision_resource.memory_form = "{resource_profile["memory_form"]}"',
                 "materialized selected-body MLIR low-precision memory form",
             )
             require_contains(
                 text,
-                "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 3 : i64",
+                f'tcrv_rvv.low_precision_resource.operand_form = "{resource_profile["operand_form"]}"',
+                "materialized selected-body MLIR low-precision operand form",
+            )
+            require_contains(
+                text,
+                f'tcrv_rvv.low_precision_resource.source_signedness = "{resource_profile["source_signedness"]}"',
+                "materialized selected-body MLIR low-precision source signedness",
+            )
+            require_contains(
+                text,
+                f'tcrv_rvv.low_precision_resource.storage_element_width = {resource_profile["storage_element_width"]} : i64',
+                "materialized selected-body MLIR low-precision storage element width",
+            )
+            require_contains(
+                text,
+                f'tcrv_rvv.low_precision_resource.effective_element_width = {resource_profile["effective_element_width"]} : i64',
+                "materialized selected-body MLIR low-precision effective element width",
+            )
+            require_contains(
+                text,
+                f'tcrv_rvv.low_precision_resource.packing_layout = "{resource_profile["packing_layout"]}"',
+                "materialized selected-body MLIR low-precision packing layout",
+            )
+            require_contains(
+                text,
+                f'tcrv_rvv.low_precision_resource.unpack_intent = "{resource_profile["unpack_intent"]}"',
+                "materialized selected-body MLIR low-precision unpack intent",
+            )
+            require_contains(
+                text,
+                f'tcrv_rvv.low_precision_resource.unroll_factor = {resource_profile["unroll_factor"]} : i64',
+                "materialized selected-body MLIR low-precision unroll factor",
+            )
+            require_contains(
+                text,
+                f'tcrv_rvv.low_precision_resource.accumulator_count = {resource_profile["accumulator_count"]} : i64',
+                "materialized selected-body MLIR low-precision accumulator count",
+            )
+            require_contains(
+                text,
+                f'tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = {resource_profile["vsetvl_region_count"]} : i64',
                 "materialized selected-body MLIR realized Gearbox vsetvl region count",
             )
             require_contains(
                 text,
-                "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups = 7 : i64",
+                f'tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups = {resource_profile["peak_live_vector_groups"]} : i64',
                 "materialized selected-body MLIR realized Gearbox resource budget",
             )
             widening_product_reduction_boundary["selected_source_abi"][
@@ -16600,15 +16961,15 @@ def verify_materialized_selected_body(
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE
                 ),
                 "from_phase": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_PHASE
+                    resource_profile["producer_phase"]
                 ),
                 "to_phase": (
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE
                 ),
                 "runtime_avl_source": "runtime_abi:n",
-                "region_count": 3,
+                "region_count": int(resource_profile["vsetvl_region_count"]),
                 "resource_decision": (
-                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION
+                    resource_profile["resource_decision"]
                 ),
             }
             widening_product_reduction_boundary["low_precision_resource"] = {
@@ -16616,19 +16977,31 @@ def verify_materialized_selected_body(
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
                 ),
                 "selected_candidate": (
-                    expected_resource_selected_candidate
+                    resource_profile["selected_candidate"]
                 ),
                 "selection_reason": (
-                    expected_resource_selection_reason
+                    resource_profile["selection_reason"]
                 ),
                 "legality_scope": (
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE
                 ),
                 "memory_form": (
-                    expected_resource_memory_form
+                    resource_profile["memory_form"]
                 ),
-                "vsetvl_region_count": 3,
-                "peak_live_vector_groups": 7,
+                "operand_form": resource_profile["operand_form"],
+                "source_signedness": resource_profile["source_signedness"],
+                "storage_element_width": (
+                    resource_profile["storage_element_width"]
+                ),
+                "effective_element_width": (
+                    resource_profile["effective_element_width"]
+                ),
+                "packing_layout": resource_profile["packing_layout"],
+                "unpack_intent": resource_profile["unpack_intent"],
+                "vsetvl_region_count": int(resource_profile["vsetvl_region_count"]),
+                "peak_live_vector_groups": int(
+                    resource_profile["peak_live_vector_groups"]
+                ),
                 "vector_register_budget": 32,
                 "runtime_avl_source": "runtime_abi:n",
             }
@@ -29212,9 +29585,25 @@ def widening_product_reduction_metadata_from_bundle(
     header_metadata = metadata_map(records[1])
     metadata: dict[str, str] = {}
     expected_metadata = expected_metadata_for(expectation)
+    uses_packed_i4_resource = product_dequant_uses_packed_i4_resource_metadata(
+        object_metadata, expectation
+    )
+    require_equal(
+        product_dequant_uses_packed_i4_resource_metadata(header_metadata, expectation),
+        uses_packed_i4_resource,
+        f"{expectation.kind} object/header packed-i4 resource selection agreement",
+    )
     for key in WIDENING_PRODUCT_REDUCTION_METADATA_KEYS:
         expected = expected_metadata.get(key)
         if expected is None:
+            continue
+        if uses_packed_i4_resource and key in LOW_PRECISION_RESOURCE_METADATA_KEYS:
+            require_equal(
+                object_metadata.get(key),
+                header_metadata.get(key),
+                f"{expectation.kind} object/header low-precision metadata {key}",
+            )
+            metadata[key] = object_metadata.get(key, "")
             continue
         require_equal(
             object_metadata.get(key),
@@ -29227,6 +29616,13 @@ def widening_product_reduction_metadata_from_bundle(
             f"{expectation.kind} header widening product-reduction metadata {key}",
         )
         metadata[key] = expected
+    if uses_packed_i4_resource:
+        validate_low_precision_resource_metadata(
+            object_metadata, expectation, "object", packed_i4=True
+        )
+        validate_low_precision_resource_metadata(
+            header_metadata, expectation, "header", packed_i4=True
+        )
     if (
         expectation.is_widening_product_reduce_dequantize_f32
         or expectation.is_widening_product_reduce_dequant_clamp_f32
@@ -32662,20 +33058,11 @@ def widening_product_reduction_boundary_summary(
             "scale_c_type": "float",
             "scale_name": "scale",
         }
-    expected_resource_selected_candidate = (
-        WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTED_CANDIDATE
-        if is_dequant_clamp
-        else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
+    uses_packed_i4_resource = product_dequant_uses_packed_i4_resource_metadata(
+        route_metadata, expectation
     )
-    expected_resource_selection_reason = (
-        WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON
-        if is_dequant_clamp
-        else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON
-    )
-    expected_resource_memory_form = (
-        WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_MEMORY_FORM
-        if is_dequant_clamp
-        else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
+    resource_profile = product_dequant_low_precision_resource_profile(
+        expectation, packed_i4=uses_packed_i4_resource
     )
     if is_dequant or is_dequant_clamp:
         provider_route_facts["gearbox_cross_region_handoff"] = {
@@ -32689,9 +33076,7 @@ def widening_product_reduction_boundary_summary(
             "consumer_scope": route_metadata.get(
                 "tcrv_rvv.gearbox.consumer_scope"
             ),
-            "from_phase": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_PHASE
-            ),
+            "from_phase": resource_profile["producer_phase"],
             "to_phase": (
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE
             ),
@@ -32699,7 +33084,7 @@ def widening_product_reduction_boundary_summary(
                 "tcrv_rvv.low_precision_resource.runtime_avl_source"
             ),
             "resource_decision": (
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION
+                resource_profile["resource_decision"]
             ),
             "region_count": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.vsetvl_region_count"
@@ -32712,11 +33097,11 @@ def widening_product_reduction_boundary_summary(
             "selected_candidate": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.selected_candidate"
             ),
-            "expected_selected_candidate": expected_resource_selected_candidate,
+            "expected_selected_candidate": resource_profile["selected_candidate"],
             "selection_reason": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.selection_reason"
             ),
-            "expected_selection_reason": expected_resource_selection_reason,
+            "expected_selection_reason": resource_profile["selection_reason"],
             "legality_scope": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.legality_scope"
             ),
@@ -32735,7 +33120,32 @@ def widening_product_reduction_boundary_summary(
             "memory_form": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.memory_form"
             ),
-            "expected_memory_form": expected_resource_memory_form,
+            "expected_memory_form": resource_profile["memory_form"],
+            "operand_form": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.operand_form"
+            ),
+            "expected_operand_form": resource_profile["operand_form"],
+            "source_signedness": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.source_signedness"
+            ),
+            "storage_element_width": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.storage_element_width"
+            ),
+            "effective_element_width": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.effective_element_width"
+            ),
+            "packing_layout": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.packing_layout"
+            ),
+            "unpack_intent": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.unpack_intent"
+            ),
+            "unroll_factor": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.unroll_factor"
+            ),
+            "accumulator_count": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.accumulator_count"
+            ),
             "vsetvl_region_count": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.vsetvl_region_count"
             ),
@@ -32906,6 +33316,58 @@ def widening_product_reduction_boundary_summary(
             "scalar_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
         }
     )
+    if uses_packed_i4_resource:
+        statement_plan = {
+            "family": (
+                "widening product-reduction dequantization contraction with "
+                "signed packed-i4 nibble unpack"
+            ),
+            "pre_loop_callees": [
+                expectation.setvl_intrinsic,
+                WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC,
+            ],
+            "loop_callees": [
+                expectation.setvl_intrinsic,
+                WIDENING_PRODUCT_REDUCE_SOURCE_LOAD_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_SOURCE_LOAD_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC,
+            ],
+            "post_loop_callees": [
+                "__riscv_vmv_x_s_i32m1_i32",
+                F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+                DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
+            ],
+            "packed_operand_form": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_OPERAND_FORM
+            ),
+            "packed_source_loads": ["lhs_packed_i4_vec", "rhs_packed_i4_vec"],
+            "low_nibble_sign_extension": (
+                "shift-left-4-then-arithmetic-shift-right-4"
+            ),
+            "high_nibble_sign_extension": "arithmetic-shift-right-4",
+            "product_operand_order": (
+                "low(lhs_low_i4_vec,rhs_low_i4_vec,vl);"
+                "high(lhs_high_i4_vec,rhs_high_i4_vec,vl)"
+            ),
+            "reduction_operand_order": (
+                "low(products,current_dot_acc_vec,vl);"
+                "high(products,reduced_i32_vec,vl)"
+            ),
+            "seed_source": "acc[0]",
+            "loop_accumulator_source": "dot_acc_vec",
+            "loop_accumulator_final_source": "reduced_i32_vec_i4_high",
+            "scalar_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
+            "loop_dequantization_forbidden": True,
+        }
     target_validator_consumed_facts = [
         "runtime ABI order and roles",
         "route operand binding plan and exact binding summary",
@@ -32934,6 +33396,16 @@ def widening_product_reduction_boundary_summary(
                 header_object_abi_fact,
             ]
         )
+        if uses_packed_i4_resource:
+            target_validator_consumed_facts.extend(
+                [
+                    "packed-i4 operand form, signedness, storage/effective width, layout, and unpack intent",
+                    "packed lhs/rhs source-vector loads",
+                    "low/high nibble sign-extension statement payload",
+                    "low/high widening product and reduction carry chain",
+                    "final carry assignment into dot_acc_vec",
+                ]
+            )
     return {
         "source": (
             "typed tcrv_rvv.widening_product + standalone_reduce + Gearbox "

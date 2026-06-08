@@ -136,6 +136,9 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
       const bool usesGroupedLowPrecisionDecision =
           marker.getResourceDecision() ==
           rvv::kRVVLowPrecisionResourceGroupedRealizationDecision;
+      const bool usesPackedI4LowPrecisionDecision =
+          marker.getResourceDecision() ==
+          rvv::kRVVLowPrecisionResourcePackedI4RealizationDecision;
       hasRegionMarker =
           marker.getPhase() == "dequant-store" &&
           static_cast<std::int64_t>(marker.getRegionIndex()) ==
@@ -146,7 +149,8 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
                    : rvv::kRVVLowPrecisionResourceVSetVLRegions) &&
           (marker.getResourceDecision() ==
                rvv::kRVVLowPrecisionResourceRealizationDecision ||
-           usesGroupedLowPrecisionDecision) &&
+           usesGroupedLowPrecisionDecision ||
+           usesPackedI4LowPrecisionDecision) &&
           marker.getVl() == producerWithVL.getVl();
       continue;
     }
