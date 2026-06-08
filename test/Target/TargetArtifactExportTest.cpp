@@ -12,6 +12,7 @@
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
+#include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 #include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
@@ -520,6 +521,8 @@ llvm::StringRef getRVVTestArithmeticOperationName(
     return "tcrv_rvv.widening_product";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningProductReduceAdd:
     return "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32:
+    return "tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return "tcrv_rvv.widening_dot_reduce";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -620,6 +623,8 @@ llvm::StringRef getRVVTestBinaryKind(
     return "widening_product";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningProductReduceAdd:
     return "widening_product_reduce_add";
+  case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32:
+    return "widening_product_reduce_dequantize_f32";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::WideningDotReduceAdd:
     return "widening_dot_reduce_add";
   case tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::StridedInputWideningDotReduceAdd:
@@ -723,6 +728,9 @@ std::string getRVVTestVariantSymbol(
                 WideningProductReduceAdd)
     return "rvv_low_precision_widening_product_reduce_add";
   if (op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
+                WideningProductReduceDequantizeF32)
+    return "rvv_pre_route_product_reduce_dequantize_packed_i4";
+  if (op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
                 WideningStandaloneReduceAdd)
     return "rvv_low_precision_widening_standalone_reduce_add";
   return (llvm::Twine("rvv_i32_") +
@@ -810,6 +818,28 @@ mlir::OwningOpRef<mlir::ModuleOp> parseRVVSelectedBodyCandidateModule(
   std::string source;
   llvm::raw_string_ostream os(source);
   std::string variant = getRVVTestVariantSymbol(op);
+  if (op == tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
+                WideningProductReduceDequantizeF32) {
+    os << R"mlir(
+module {
+  tcrv.exec.kernel @rvv_low_precision_packed_i4_body_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @)mlir"
+       << variant << R"mlir( attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int8_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int8_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %scale = tcrv_rvv.runtime_abi_value {c_name = "scale", c_type = "float", ownership = "target-export-abi-owned", role = "dequant-scale-value"} : !tcrv_rvv.runtime_abi_value
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "float *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body %lhs, %rhs, %acc, %scale, %out, %n {accumulator_carry_boundary = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1", accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, dequant_relation = "signed-i32m1-to-f32m1-scale-f32", dequant_store_boundary = "store-dequantized-f32-vector-to-output-buffer", memory_form = "unit-stride-widening-product-reduce-dequantize-f32", op_kind = "widening_product_reduce_dequantize_f32", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, product_lmul = "mf2", product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", product_relation = "signed-i8mf4xi8mf4-to-i16mf2", product_sew = 16 : i64, result_layout = "store-standalone-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, scale_role = "dequant-scale-value", source_lmul = "mf4", source_sew = 8 : i64, tcrv_rvv.gearbox.consumer_scope = "gearbox-scope:dequant-store", tcrv_rvv.gearbox.producer_scope = "gearbox-scope:product-reduction", tcrv_rvv.low_precision_resource.accumulator_count = 1 : i64, tcrv_rvv.low_precision_resource.accumulator_dtype = "i32", tcrv_rvv.low_precision_resource.accumulator_emul = "m1", tcrv_rvv.low_precision_resource.accumulator_lmul = "m1", tcrv_rvv.low_precision_resource.accumulator_sew = 32 : i64, tcrv_rvv.low_precision_resource.candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]", tcrv_rvv.low_precision_resource.effective_element_width = 4 : i64, tcrv_rvv.low_precision_resource.legality = "legal", tcrv_rvv.low_precision_resource.legality_scope = "typed-low-precision-product-reduction-dequant-resource-legality.v1", tcrv_rvv.low_precision_resource.mask_policy = "agnostic", tcrv_rvv.low_precision_resource.memory_form = "unit-stride-widening-product-reduce-dequantize-f32", tcrv_rvv.low_precision_resource.operand_form = "packed-i4-nibbles", tcrv_rvv.low_precision_resource.packing_layout = "two-signed-i4-elements-per-byte-low-high-nibbles", tcrv_rvv.low_precision_resource.peak_live_vector_groups = 6 : i64, tcrv_rvv.low_precision_resource.product_dtype = "i16", tcrv_rvv.low_precision_resource.product_emul = "mf2", tcrv_rvv.low_precision_resource.product_lmul = "mf2", tcrv_rvv.low_precision_resource.product_sew = 16 : i64, tcrv_rvv.low_precision_resource.reduction_layout = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1", tcrv_rvv.low_precision_resource.rejection_reason = "none", tcrv_rvv.low_precision_resource.result_dtype = "f32", tcrv_rvv.low_precision_resource.result_lmul = "m1", tcrv_rvv.low_precision_resource.result_sew = 32 : i64, tcrv_rvv.low_precision_resource.runtime_abi_order = "lhs,rhs,acc,scale,out,n", tcrv_rvv.low_precision_resource.runtime_avl_source = "runtime_abi:n", tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]", tcrv_rvv.low_precision_resource.selection_reason = "static-bounded-product-reduction-dequant-signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1-u1-unpack-required-runtime-avl", tcrv_rvv.low_precision_resource.source_dtype = "i8", tcrv_rvv.low_precision_resource.source_lmul = "mf4", tcrv_rvv.low_precision_resource.source_sew = 8 : i64, tcrv_rvv.low_precision_resource.source_signedness = "signed", tcrv_rvv.low_precision_resource.storage_element_width = 8 : i64, tcrv_rvv.low_precision_resource.tail_policy = "agnostic", tcrv_rvv.low_precision_resource.unpack_intent = "sign-extend-i4-nibbles-before-widening-product", tcrv_rvv.low_precision_resource.unroll_factor = 1 : i64, tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64, tcrv_rvv.low_precision_resource.vsetvl_region_count = 2 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+  }
+}
+)mlir";
+    os.flush();
+    return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
+  }
   if (op ==
       tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind::
           RuntimeScalarSplatStore) {
@@ -2151,6 +2181,25 @@ struct RVVTargetArtifactCandidateFixture {
       error = "failed to find RVV selected-body candidate kernel";
       return;
     }
+    tianchenrv::tcrv::exec::VariantOp variant =
+        findRVVTestVariant(kernel, getRVVTestVariantSymbol(op));
+    if (variant &&
+        tianchenrv::plugin::rvv::variantContainsPreRealizedRVVSelectedBody(
+            variant)) {
+      tianchenrv::support::TargetCapabilitySet capabilities =
+          tianchenrv::support::TargetCapabilitySet::buildFromKernel(kernel);
+      mlir::OpBuilder builder(module->getContext());
+      llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> realized =
+          tianchenrv::plugin::rvv::realizePreRealizedRVVSelectedBody(
+              tianchenrv::plugin::VariantLoweringBoundaryRequest(
+                  variant, kernel, capabilities,
+                  tianchenrv::plugin::VariantEmissionRole::DirectVariant,
+                  builder));
+      if (!realized) {
+        error = llvm::toString(realized.takeError());
+        return;
+      }
+    }
     candidate = makeValidRVVTargetArtifactCandidate(kernel, op);
   }
 
@@ -2241,6 +2290,15 @@ void copyRVVEmitCLowerableRouteWithoutLoops(
   for (const tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        route.getCallOpaqueSteps())
     cloned.addCallOpaqueStep(step);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCLocalVariable &variable :
+       route.getLocalVariables())
+    cloned.addLocalVariable(variable);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCAssignStep &assignment :
+       route.getPreLoopAssignments())
+    cloned.addPreLoopAssignment(assignment);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+       route.getPostLoopSteps())
+    cloned.addPostLoopStep(step);
 }
 
 void copyRVVEmitCLowerableRouteDeclarationsProvenanceAndStatements(
@@ -2260,9 +2318,18 @@ void copyRVVEmitCLowerableRouteDeclarationsProvenanceAndStatements(
   for (const tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        route.getCallOpaqueSteps())
     cloned.addCallOpaqueStep(step);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCLocalVariable &variable :
+       route.getLocalVariables())
+    cloned.addLocalVariable(variable);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCAssignStep &assignment :
+       route.getPreLoopAssignments())
+    cloned.addPreLoopAssignment(assignment);
   for (const tianchenrv::conversion::emitc::TCRVEmitCForLoop &loop :
        route.getForLoops())
     cloned.addForLoop(loop);
+  for (const tianchenrv::conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+       route.getPostLoopSteps())
+    cloned.addPostLoopStep(step);
 }
 
 tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
@@ -12871,23 +12938,51 @@ bool expectRVVTargetArtifactExporterShape(
                                  productReductionRoute,
                                  productReductionDescription))
     return false;
-  RVVRouteDescription packedI4Gate4Description =
-      productReductionDescription;
-  packedI4Gate4Description.lowPrecisionResourceSelection.hasSelection = true;
-  packedI4Gate4Description.lowPrecisionResourceSelection.selectedCandidateID =
-      tianchenrv::plugin::rvv::kRVVLowPrecisionResourceDequantPackedI4Candidate
-          .str();
-  if (!expectErrorContains(
-          tianchenrv::target::rvv::
-              validateRVVTargetArtifactRouteFamilyProviderFacts(
-                  RVVRouteValidationContext{productReductionFixture.candidate,
-                                            productReductionRoute,
-                                            packedI4Gate4Description}),
-          "widening-dot registry keeps packed-i4 artifact export behind Gate 4",
-          {"selected packed-i4 low-precision resource candidate",
-           "target artifact export fail-closed", "Gate 4",
-           "nibble unpack/sign-extension"}))
+
+  RVVTargetArtifactCandidateFixture packedI4ProductDequantFixture(
+      OperationKind::WideningProductReduceDequantizeF32);
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      packedI4ProductDequantRoute;
+  RVVRouteDescription packedI4ProductDequantDescription;
+  if (!expectWideningDotPositive(
+          "packed-i4 product-reduction dequantize artifact",
+          packedI4ProductDequantFixture, packedI4ProductDequantRoute,
+          packedI4ProductDequantDescription))
     return false;
+  std::optional<tianchenrv::plugin::rvv::
+                    RVVWideningDotReduceRouteValidationContract>
+      packedI4ProductDequantContract =
+          tianchenrv::plugin::rvv::
+              getRVVWideningDotReduceRouteValidationContract(
+                  packedI4ProductDequantDescription);
+  if (!packedI4ProductDequantContract ||
+      !packedI4ProductDequantDescription.lowPrecisionResourceSelection
+           .hasSelection ||
+      packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .selectedCandidateID !=
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceDequantPackedI4Candidate ||
+      packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .operandForm !=
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceOperandFormPackedI4Nibbles ||
+      packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .unpackIntent !=
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles ||
+      packedI4ProductDequantContract->expectedPreLoopStepCount != 2 ||
+      packedI4ProductDequantContract->expectedLoopBodyStepCount != 13 ||
+      packedI4ProductDequantRoute.getForLoops().size() != 1 ||
+      packedI4ProductDequantRoute.getForLoops().front().bodySteps.size() !=
+          13 ||
+      packedI4ProductDequantRoute.getForLoops()
+              .front()
+              .bodyAssignments.size() != 1) {
+    llvm::errs()
+        << "packed-i4 product-reduction dequantize fixture did not carry "
+           "provider-owned artifact validation facts\n";
+    return false;
+  }
 
   RVVTargetArtifactCandidateFixture stridedWideningDotFixture(
       OperationKind::StridedInputWideningDotReduceAdd);
@@ -13322,6 +13417,94 @@ bool expectRVVTargetArtifactExporterShape(
           "product-reduction registry rejects stale primitive accumulator "
           "dtype metadata",
           {"low_precision_primitive.accumulator_dtype", "i32", "i16"}))
+    return false;
+
+  RVVRouteDescription stalePackedI4OperandForm =
+      packedI4ProductDequantDescription;
+  stalePackedI4OperandForm.lowPrecisionResourceSelection.operandForm =
+      "metadata-derived-packed-operands";
+  if (!expectWideningDotProviderFailure(
+          packedI4ProductDequantFixture.candidate,
+          packedI4ProductDequantRoute, stalePackedI4OperandForm,
+          "packed-i4 product-reduction registry rejects stale operand form",
+          {"packed-i4 operand form", "packed-i4-nibbles",
+           "metadata-derived-packed-operands"}))
+    return false;
+
+  TargetArtifactCandidate stalePackedI4UnpackIntentMirror =
+      packedI4ProductDequantFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          stalePackedI4UnpackIntentMirror,
+          "tcrv_rvv.low_precision_resource.unpack_intent",
+          "metadata-derived-unpack")) {
+    llvm::errs() << "packed-i4 test fixture did not contain unpack intent "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          stalePackedI4UnpackIntentMirror, packedI4ProductDequantRoute,
+          packedI4ProductDequantDescription,
+          "packed-i4 product-reduction registry rejects stale unpack intent "
+          "metadata",
+          {"unpack intent", "sign-extend-i4-nibbles-before-widening-product",
+           "metadata-derived-unpack"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      stalePackedI4LowShiftOperand =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              packedI4ProductDequantRoute, /*loopIndex=*/0,
+              /*stepIndex=*/4, /*operandIndex=*/0, "lhs_packed_i4_vec");
+  if (!expectWideningDotRouteFailure(
+          packedI4ProductDequantFixture.candidate,
+          stalePackedI4LowShiftOperand, packedI4ProductDequantDescription,
+          "packed-i4 product-reduction registry rejects stale low-nibble "
+          "shift operand",
+          {"lhs packed-i4 low-nibble arithmetic shift-right operand[0]",
+           "lhs_low_i4_shifted_vec", "lhs_packed_i4_vec"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      stalePackedI4HighProductOperand =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              packedI4ProductDequantRoute, /*loopIndex=*/0,
+              /*stepIndex=*/11, /*operandIndex=*/1, "rhs_low_i4_vec");
+  if (!expectWideningDotRouteFailure(
+          packedI4ProductDequantFixture.candidate,
+          stalePackedI4HighProductOperand, packedI4ProductDequantDescription,
+          "packed-i4 product-reduction registry rejects stale high-nibble "
+          "product operand",
+          {"packed-i4 high-nibble widening product operand[1]",
+           "rhs_high_i4_vec", "rhs_low_i4_vec"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      stalePackedI4HighReductionAccumulator =
+          cloneRVVEmitCLowerableRouteWithLoopOperand(
+              packedI4ProductDequantRoute, /*loopIndex=*/0,
+              /*stepIndex=*/12, /*operandIndex=*/1, "dot_acc_vec");
+  if (!expectWideningDotRouteFailure(
+          packedI4ProductDequantFixture.candidate,
+          stalePackedI4HighReductionAccumulator,
+          packedI4ProductDequantDescription,
+          "packed-i4 product-reduction registry rejects stale high-nibble "
+          "reduction accumulator",
+          {"packed-i4 high-nibble widening dot reduction operand[1]",
+           "reduced_i32_vec", "dot_acc_vec"}))
+    return false;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
+      stalePackedI4HighReductionResult =
+          cloneRVVEmitCLowerableRouteWithLoopResult(
+              packedI4ProductDequantRoute, /*loopIndex=*/0,
+              /*stepIndex=*/12, "metadata_reduced_i32_vec");
+  if (!expectWideningDotRouteFailure(
+          packedI4ProductDequantFixture.candidate,
+          stalePackedI4HighReductionResult, packedI4ProductDequantDescription,
+          "packed-i4 product-reduction registry rejects stale high-nibble "
+          "reduction result",
+          {"packed-i4 high-nibble widening dot reduction result",
+           "reduced_i32_vec_i4_high", "metadata_reduced_i32_vec"}))
     return false;
 
   RVVRouteDescription staleWideningDotRuntimeAVLSource =

@@ -2950,21 +2950,23 @@ static void populateRVVWideningDotValidationContract(
   contract.vectorCType = core.resultVectorCType;
   contract.maskTypeName = core.maskTypeName;
   contract.maskCType = core.maskCType;
+  const bool isProductReductionDequantization =
+      facts.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+      facts.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  const bool usesPackedI4LowPrecisionProductReduction =
+      isProductReductionDequantization &&
+      isRVVLowPrecisionResourcePackedI4CandidateID(
+          description.lowPrecisionResourceSelection.selectedCandidateID);
   contract.expectedPreLoopStepCount =
-      (facts.operation ==
-           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
-       facts.operation ==
-           RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32)
-          ? 2
-          : 3;
-    contract.expectedLoopBodyStepCount =
-        (facts.operation ==
-             RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
-         facts.operation ==
-             RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32)
-            ? 5
-        : isComputedMask ? 12
-                         : 7;
+      isProductReductionDequantization ? 2 : 3;
+  contract.expectedLoopBodyStepCount =
+      usesPackedI4LowPrecisionProductReduction
+          ? 13
+          : isProductReductionDequantization ? 5
+          : isComputedMask                  ? 12
+                                            : 7;
   contract.runtimeABIParameters.append(core.runtimeABIParameters.begin(),
                                        core.runtimeABIParameters.end());
   contract.lowPrecisionResourceSelection =

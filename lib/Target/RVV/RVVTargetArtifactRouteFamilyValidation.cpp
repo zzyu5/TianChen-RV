@@ -3626,6 +3626,73 @@ llvm::Error validateRVVLowPrecisionWideningReductionPrimitiveProviderFacts(
       description.reductionStoreVL, primitive.reductionStoreVL);
 }
 
+llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
+    const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
+  const plugin::rvv::RVVLowPrecisionContractionResourceSelection &selection =
+      contract.lowPrecisionResourceSelection;
+  if (!selection.hasSelection ||
+      !plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
+          selection.selectedCandidateID))
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-selected packed-i4 low-precision resource facts "
+        "before artifact export");
+  if (!selection.isLegal)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-selected packed-i4 low-precision resource facts "
+        "to be legal before artifact export");
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 operand form",
+          selection.operandForm,
+          plugin::rvv::kRVVLowPrecisionResourceOperandFormPackedI4Nibbles))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 source signedness",
+          selection.sourceSignedness,
+          plugin::rvv::kRVVLowPrecisionResourceSourceSignednessSigned))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "packed-i4 storage element width",
+          selection.storageElementWidth,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4StorageElementWidth))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "packed-i4 effective element width",
+          selection.effectiveElementWidth,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4EffectiveElementWidth))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 packing layout",
+          selection.packingLayout,
+          plugin::rvv::kRVVLowPrecisionResourcePackingLayoutPackedI4Nibbles))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 unpack intent",
+          selection.unpackIntent,
+          plugin::rvv::kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "packed-i4 unroll factor",
+          selection.unrollFactor,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4Unroll))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "packed-i4 accumulator count",
+          selection.accumulatorCount,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4AccumulatorCount))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "packed-i4 vsetvl region count",
+          selection.vsetvlRegionCount,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4VSetVLRegions))
+    return error;
+  return requireRVVWideningDotContractIntField(
+      contract.consumerLabel, "packed-i4 peak live vector groups",
+      selection.peakLiveVectorGroups,
+      plugin::rvv::kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups);
+}
+
 llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
@@ -3640,16 +3707,14 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
       contract.kind == plugin::rvv::RVVWideningDotReduceRouteValidationKind::
                            ProductReductionChain ||
       isProductReductionDequantization;
-  if (contract.lowPrecisionResourceSelection.hasSelection &&
+  const bool usesPackedI4LowPrecisionProductReduction =
+      isProductReductionDequantization &&
       plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
-          contract.lowPrecisionResourceSelection.selectedCandidateID))
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract.consumerLabel) +
-        " keeps selected packed-i4 low-precision resource candidate '" +
-        contract.lowPrecisionResourceSelection.selectedCandidateID +
-        "' target artifact export fail-closed until Gate 4 validates the "
-        "provider-owned nibble unpack/sign-extension statement boundary and "
-        "collects artifact/runtime evidence");
+          contract.lowPrecisionResourceSelection.selectedCandidateID);
+  if (usesPackedI4LowPrecisionProductReduction)
+    if (llvm::Error error =
+            validateRVVPackedI4LowPrecisionResourceProviderFacts(contract))
+      return error;
   if (description.memoryForm != contract.memoryForm)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
@@ -4195,6 +4260,10 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
       isProductReductionDequantization &&
       plugin::rvv::isRVVLowPrecisionResourceGroupedCandidateID(
           contract.lowPrecisionResourceSelection.selectedCandidateID);
+  const bool usesPackedI4LowPrecisionProductReduction =
+      isProductReductionDequantization &&
+      plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
+          contract.lowPrecisionResourceSelection.selectedCandidateID);
   if (description.runtimeABIParameters.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
@@ -4288,6 +4357,11 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
         "ABI order before validating route statements");
 
   const llvm::StringRef scalarI32CType = "int32_t";
+  const llvm::StringRef packedI4ShiftAmount = "4";
+  const llvm::StringRef packedI4ShiftAmountCType = "uint8_t";
+  const llvm::StringRef packedI4ShiftLeftIntrinsic = "__riscv_vsll_vx_i8mf4";
+  const llvm::StringRef packedI4ArithmeticShiftRightIntrinsic =
+      "__riscv_vsra_vx_i8mf4";
   const llvm::StringRef accumulatorVectorCType =
       isProductReductionDequantization ? llvm::StringRef("vint32m1_t")
                                        : description.vectorCType;
@@ -4563,6 +4637,37 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
     return validateUnitSourceLoad(step, abi, resultName, stepLabel);
   };
 
+  auto validatePackedI4SignExtend =
+      [&](std::size_t shiftLeftIndex, llvm::StringRef packedVecName,
+          llvm::StringRef lowShiftedVecName, llvm::StringRef lowVecName,
+          llvm::StringRef highVecName, llvm::StringRef shiftLeftLabel,
+          llvm::StringRef lowShiftRightLabel,
+          llvm::StringRef highShiftRightLabel) -> llvm::Error {
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[shiftLeftIndex], consumerLabel, shiftLeftLabel,
+            packedI4ShiftLeftIntrinsic,
+            {{packedVecName, description.sourceVectorCType},
+             {packedI4ShiftAmount, packedI4ShiftAmountCType},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+            lowShiftedVecName, description.sourceVectorCType))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[shiftLeftIndex + 1], consumerLabel,
+            lowShiftRightLabel, packedI4ArithmeticShiftRightIntrinsic,
+            {{lowShiftedVecName, description.sourceVectorCType},
+             {packedI4ShiftAmount, packedI4ShiftAmountCType},
+             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+            lowVecName, description.sourceVectorCType))
+      return error;
+    return validateRVVProviderBuiltRouteStep(
+        loop.bodySteps[shiftLeftIndex + 2], consumerLabel, highShiftRightLabel,
+        packedI4ArithmeticShiftRightIntrinsic,
+        {{packedVecName, description.sourceVectorCType},
+         {packedI4ShiftAmount, packedI4ShiftAmountCType},
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+        highVecName, description.sourceVectorCType);
+  };
+
   if (isComputedMask) {
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[1], consumerLabel, "compare lhs vector load",
@@ -4626,30 +4731,65 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
             "dot_product_vec", description.vectorCType))
       return error;
   } else {
-    if (llvm::Error error =
-            validateDotSourceLoad(loop.bodySteps[1], *lhsABI, lhsStrideABI,
-                                  "lhs_vec", "lhs source load"))
-      return error;
-    if (llvm::Error error =
-            validateDotSourceLoad(loop.bodySteps[2], *rhsABI, rhsStrideABI,
-                                  "rhs_vec", "rhs source load"))
-      return error;
-    const llvm::StringRef productResultName =
-        isProductReductionChain ? "product_vec" : "dot_product_vec";
-    const llvm::StringRef productResultCType =
-        isProductReductionChain ? description.productVectorCType
-                                : description.vectorCType;
-    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-            loop.bodySteps[3], consumerLabel, "widening product",
-            description.wideningProductIntrinsic,
-            {{"lhs_vec", description.sourceVectorCType},
-             {"rhs_vec", description.sourceVectorCType},
-             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
-            productResultName, productResultCType))
-      return error;
+    if (usesPackedI4LowPrecisionProductReduction) {
+      if (llvm::Error error = validateUnitSourceLoad(
+              loop.bodySteps[1], *lhsABI, "lhs_packed_i4_vec",
+              "lhs packed-i4 source load"))
+        return error;
+      if (llvm::Error error = validateUnitSourceLoad(
+              loop.bodySteps[2], *rhsABI, "rhs_packed_i4_vec",
+              "rhs packed-i4 source load"))
+        return error;
+      if (llvm::Error error = validatePackedI4SignExtend(
+              3, "lhs_packed_i4_vec", "lhs_low_i4_shifted_vec",
+              "lhs_low_i4_vec", "lhs_high_i4_vec",
+              "lhs packed-i4 low-nibble shift-left",
+              "lhs packed-i4 low-nibble arithmetic shift-right",
+              "lhs packed-i4 high-nibble arithmetic shift-right"))
+        return error;
+      if (llvm::Error error = validatePackedI4SignExtend(
+              6, "rhs_packed_i4_vec", "rhs_low_i4_shifted_vec",
+              "rhs_low_i4_vec", "rhs_high_i4_vec",
+              "rhs packed-i4 low-nibble shift-left",
+              "rhs packed-i4 low-nibble arithmetic shift-right",
+              "rhs packed-i4 high-nibble arithmetic shift-right"))
+        return error;
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              loop.bodySteps[9], consumerLabel,
+              "packed-i4 low-nibble widening product",
+              description.wideningProductIntrinsic,
+              {{"lhs_low_i4_vec", description.sourceVectorCType},
+               {"rhs_low_i4_vec", description.sourceVectorCType},
+               {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+              "product_vec", description.productVectorCType))
+        return error;
+    } else {
+      if (llvm::Error error =
+              validateDotSourceLoad(loop.bodySteps[1], *lhsABI, lhsStrideABI,
+                                    "lhs_vec", "lhs source load"))
+        return error;
+      if (llvm::Error error =
+              validateDotSourceLoad(loop.bodySteps[2], *rhsABI, rhsStrideABI,
+                                    "rhs_vec", "rhs source load"))
+        return error;
+      const llvm::StringRef productResultName =
+          isProductReductionChain ? "product_vec" : "dot_product_vec";
+      const llvm::StringRef productResultCType =
+          isProductReductionChain ? description.productVectorCType
+                                  : description.vectorCType;
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              loop.bodySteps[3], consumerLabel, "widening product",
+              description.wideningProductIntrinsic,
+              {{"lhs_vec", description.sourceVectorCType},
+               {"rhs_vec", description.sourceVectorCType},
+               {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+              productResultName, productResultCType))
+        return error;
+    }
   }
 
-  const std::size_t seedIndex = isComputedMask ? 9 : 4;
+  const std::size_t seedIndex =
+      isComputedMask ? 9 : usesPackedI4LowPrecisionProductReduction ? 10 : 4;
   const std::size_t reductionIndex =
       isProductReductionDequantization ? seedIndex : seedIndex + 1;
   const std::size_t storeIndex = reductionIndex + 1;
@@ -4686,6 +4826,26 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           llvm::Twine(consumerLabel) +
           " requires dequant scale ABI before validating post-loop dequant "
           "statements");
+    if (usesPackedI4LowPrecisionProductReduction) {
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              loop.bodySteps[11], consumerLabel,
+              "packed-i4 high-nibble widening product",
+              description.wideningProductIntrinsic,
+              {{"lhs_high_i4_vec", description.sourceVectorCType},
+               {"rhs_high_i4_vec", description.sourceVectorCType},
+               {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+              "product_vec_i4_high", description.productVectorCType))
+        return error;
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              loop.bodySteps[12], consumerLabel,
+              "packed-i4 high-nibble widening dot reduction",
+              description.intrinsic,
+              {{"product_vec_i4_high", description.productVectorCType},
+               {"reduced_i32_vec", accumulatorVectorCType},
+               {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+              "reduced_i32_vec_i4_high", accumulatorVectorCType))
+        return error;
+    }
     const std::size_t expectedLoopAssignmentCount =
         usesGroupedLowPrecisionProductReduction ? 2 : 1;
     if (loop.bodyAssignments.size() != expectedLoopAssignmentCount)
@@ -4708,8 +4868,12 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
             "chunks before artifact export");
       return llvm::Error::success();
     };
+    const llvm::StringRef finalCarryResultName =
+        usesPackedI4LowPrecisionProductReduction
+            ? llvm::StringRef("reduced_i32_vec_i4_high")
+            : reductionResultName;
     if (llvm::Error error = validateCarryAssignment(
-            loop.bodyAssignments[0], reductionResultName,
+            loop.bodyAssignments[0], finalCarryResultName,
             "first product-reduction"))
       return error;
     if (usesGroupedLowPrecisionProductReduction) {

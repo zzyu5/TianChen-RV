@@ -9,15 +9,15 @@ signedness, packing width, and unpack/dequant intent explicit before selected
 body realization, route planning, target validation, or artifact claims can
 accept the path.
 
-This is a macro task. Gate 1, the first Gate 2 production boundary, the byte
-representative Gate 3 consumer boundary, and the first Gate 3 packed-i4
-structural resource/provider slice are complete. The current round is a bounded
-Gate 3 nibble unpack/sign-extension statement slice: consume the selected signed
-packed-i4/nibble resource facts in RVV direct-contraction statement planning,
-materialize provider-owned unpack/sign-extension statement steps before the
-widening product, and keep target artifact/runtime claims fail-closed until the
-Gate 4 artifact/export path and evidence are implemented. The task remains
-active after this slice unless all campaign gates are genuinely complete.
+This is a macro task. Gate 1, Gate 2, and Gate 3 are complete for the accepted
+signed packed-i4/nibble representative through selected-body realization,
+provider planning, and provider-owned route statement payloads. The current
+round is a bounded Gate 4 artifact/export slice: make the target
+route-family/artifact bridge validate the provider-owned packed-i4
+unpack/sign-extension statement payload and resource mirrors before accepting
+artifact export, while still separating route-supported, artifact-supported,
+and executable/runtime evidence. The task remains active after this slice
+unless Gate 4 and Gate 5 are genuinely complete.
 
 ## Direction Brief Source
 
@@ -76,34 +76,33 @@ boundary for unsupported q4/q8-like pressure-test shapes.
 
 ## Current Round Slice
 
-Complete one bounded Gate 3 production slice for the accepted signed packed-i4
-resource family:
+Complete one bounded Gate 4 artifact/export slice for the accepted signed
+packed-i4 resource family:
 
-- keep the previously selected packed-i4 resource facts as the only authority:
-  byte storage width, four-bit effective width, low/high nibble packing layout,
+- keep the selected packed-i4 resource facts as the only authority: byte
+  storage width, four-bit effective width, low/high nibble packing layout,
   signed source interpretation, sign-extension unpack intent, dtype/runtime
-  facts, resource shape, provider mirrors, and target/export fail-closed
-  boundary contract;
-- make the direct-contraction statement-plan owner build a provider-owned
-  packed-i4 unpack/sign-extension sub-plan before the widening product. The
-  sub-plan must unpack low and high nibbles from both operands using RVV-owned
-  statement leaves, feed the resulting signed i8 vectors into the widening
-  product/reduction sequence, and preserve the default byte path when no
-  explicit packed-i4 candidate is selected;
-- continue to reject stale, missing, mismatched, or unsupported packed facts at
-  the RVV-owned route/statement boundary. Do not infer packing or unpack
-  semantics from q4, q8, llama.cpp, route ids, artifact names, benchmark names,
-  descriptors, or Common EmitC;
-- add a targeted target-artifact/export fail-closed boundary for packed-i4 until
-  Gate 4 implements provider-owned artifact validation and evidence. A positive
-  statement plan is not a generated-bundle, runtime correctness, timing, or
-  parity claim;
-- update focused C++ and MLIR/FileCheck coverage for the positive statement
-  sub-plan and the remaining target/export fail-closed boundary.
+  facts, resource shape, provider mirrors, and provider-built statement
+  payloads;
+- replace the previous target-artifact Gate 4 hard fail-close with target
+  route-family validation that accepts packed-i4 only when the rebuilt
+  provider route contains the exact low/high nibble sign-extension statements,
+  low/high widening product/reduction chain, carry assignment, resource facts,
+  and artifact metadata mirrors;
+- keep fail-closed diagnostics for stale resource mirrors, missing packed-i4
+  statement payloads, mismatched low/high nibble operands, or metadata-derived
+  packed semantics. Do not infer packing or unpack semantics from q4, q8,
+  llama.cpp, route ids, artifact names, benchmark names, descriptors, or Common
+  EmitC;
+- add focused C++ target-artifact/export coverage for positive packed-i4
+  artifact acceptance and negative stale payload/mirror rejection. Generated
+  bundle or `ssh rvv` evidence is collected only if executable support is
+  actually reached;
+- keep Gate 5 same-target correctness/performance open unless this slice
+  produces executable packed-i4 generated artifacts and real runtime evidence.
 
-This slice does not close Gate 4 or Gate 5. Generated-bundle/runtime evidence,
-same-target correctness/timing, and parity claims remain open until the
-packed-i4 path has real executable support.
+This slice may advance or complete the target artifact part of Gate 4, but it
+does not by itself claim runtime correctness, timing, parity, or Gate 5.
 
 ## Requirements
 
@@ -161,6 +160,17 @@ packed-i4 path has real executable support.
       fail closed at the RVV-owned route/statement boundary, and target artifact
       export fails closed with a targeted packed-i4 Gate 4 boundary instead of
       claiming executable artifacts or runtime evidence.
+- [x] Gate 4 current packed-i4 artifact/export slice: target route-family
+      validation consumes provider-owned packed-i4 resource facts and accepts
+      artifact export only when the rebuilt route carries the exact low/high
+      nibble sign-extension statement payload, low/high product/reduction
+      chain, and final carry assignment.
+- [x] Gate 4 current packed-i4 artifact/export slice: focused target/export
+      tests cover positive packed-i4 artifact acceptance plus stale
+      payload/mirror fail-closed diagnostics before any generated-bundle or
+      runtime claim.
+- [x] Gate 4 evidence boundary: generated-bundle and `ssh rvv` correctness or
+      timing remain unclaimed unless executable support is actually reached.
 - [x] `build/bin/tianchenrv-rvv-extension-plugin-test` and
       `build/bin/tianchenrv-target-artifact-export-test` pass after the change.
 - [x] `tcrv-opt` / `tcrv-translate` are built or verified available if touched
@@ -205,10 +215,10 @@ packed-i4 path has real executable support.
 
 ## Continuation Point
 
-After this slice, the next milestone should extend the provider-owned packed-i4
-statement boundary through target artifact validation and generated-bundle
-evidence, then collect same-target evidence only after route support is
-executable.
+After this slice, the next milestone should extend the artifact-supported
+packed-i4 path into focused generated-bundle evidence. Same-target correctness
+or timing evidence must be collected only after executable packed-i4 generated
+artifact support exists.
 
 ## Current Round Result
 
@@ -346,3 +356,34 @@ The macro task remains active. The exact next continuation point is Gate 4:
 validate the provider-owned packed-i4 statement payload through target artifact
 export and generated-bundle evidence before any runtime/correctness/performance
 claim.
+
+## Current Gate 4 Packed-I4 Artifact/Export Round Result
+
+This slice completes the target artifact/export seam for the accepted signed
+packed-i4 product-reduction-dequant representative. The previous target-layer
+hard fail-close for selected packed-i4 resources was replaced with target
+route-family validation that consumes provider-owned packed-i4 resource facts
+and accepts artifact export only when the rebuilt route carries the exact
+provider-owned statement payload:
+
+- packed i8 source-vector loads for lhs/rhs;
+- low-nibble shift-left and arithmetic shift-right sign-extension for both
+  operands;
+- high-nibble arithmetic shift-right sign-extension for both operands;
+- low-nibble widening product/reduction into `reduced_i32_vec`;
+- high-nibble widening product/reduction into `reduced_i32_vec_i4_high`;
+- final loop carry assignment from the high-nibble reduction result into
+  `dot_acc_vec`.
+
+The target/export test now builds the packed-i4 fixture from the typed
+pre-realized selected body, runs selected-body realization in the fixture, then
+rebuilds the provider route and validates artifact acceptance from the realized
+body. Stale packed resource facts, stale unpack-intent metadata mirrors, and
+stale low/high nibble statement operands/results fail closed in the target
+artifact bridge.
+
+This slice does not claim generated-bundle support, `ssh rvv` correctness,
+timing, or parity. The macro task remains active. The exact next continuation
+point is still Gate 4, narrowed to focused generated-bundle evidence for the
+artifact-supported packed-i4 path; Gate 5 same-target correctness/performance
+remains blocked until executable generated artifacts exist.
