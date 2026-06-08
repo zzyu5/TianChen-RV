@@ -56,6 +56,65 @@ Focused checks:
 - None - task complete
 
 
+## Session 560: Stage2 RVV computed-masked segment2 update artifact ABI evidence
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV computed-masked segment2 update executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the computed-masked segment2 update generated-artifact ABI boundary with
+no production source changes and fresh `ssh rvv` executable evidence.
+
+### Main Changes
+
+- Created Trellis PRD for
+  `stage2-rvv-computed-masked-segment2-update-artifact-abi-boundary`.
+- Verified the existing RVV plugin path already owns the update executable
+  boundary: pre-realized selected-body realization, computed-mask segment2
+  route-family planning, segment2 statement planning, provider-built
+  `TCRVEmitCLowerableRoute`, target artifact validation, generated bundle ABI,
+  and ssh runtime evidence.
+- Recorded no-source-change justification because existing provider and target
+  validation already reject stale update arithmetic, field roles, mask facts,
+  inactive-lane policy, ABI/header/type mapping, runtime AVL/VL facts, route
+  control, statement-plan facts, and metadata mirrors.
+- Generated dry-run evidence for explicit and pre-realized computed-mask
+  segment2 update bundles.
+- Generated non-dry-run `ssh rvv` evidence for explicit and pre-realized
+  computed-mask segment2 update bundles; both runs reported remote compile/run
+  success and PASS summaries.
+- Revalidated the deprecated direct pre-realized route-entry fail-closed
+  negative path for update.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Explicit computed-mask segment2 update generated-bundle dry-run.
+- [OK] Pre-realized computed-mask segment2 update generated-bundle dry-run.
+- [OK] Explicit computed-mask segment2 update generated-bundle run on `ssh rvv`.
+- [OK] Pre-realized computed-mask segment2 update generated-bundle run on `ssh rvv`.
+- [OK] Deprecated direct pre-realized route-entry negative check for update.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 555: Stage2 RVV runtime-scalar-cmp masked indexed gather-MAcc-scatter executable artifact ABI
 
 **Date**: 2026-06-08

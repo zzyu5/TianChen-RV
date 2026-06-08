@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV stage-order guardrails for this task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned selected-body realization, segment2 planning owner, statement-plan, and target export contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute, provider operand binding, and computed-mask segment2 fact/validation contracts."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Required lit/C++/ssh rvv evidence policy for RVV runtime claims."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Detailed RVV executable evidence requirements for mask, inactive lane, source/destination, and tail behavior."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-computed-masked-segment2-load-store-artifact-abi-boundary/prd.md", "reason": "Previous computed-masked segment2 load/store closeout and no-source-change evidence baseline."}

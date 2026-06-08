@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Final global architecture guardrail check."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV segment2 owner locality, selected-body realization, statement-plan, and target export contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-built route, operand binding, computed-mask segment2 fact surface, and fail-closed validation."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check required test and ssh rvv evidence policy."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check runtime correctness evidence for masks, inactive lanes, source/destination preservation, and tails."}
+{"file": ".trellis/tasks/06-08-stage2-rvv-computed-masked-segment2-update-artifact-abi-boundary/prd.md", "reason": "Check implementation against this task's acceptance criteria and boundaries."}
