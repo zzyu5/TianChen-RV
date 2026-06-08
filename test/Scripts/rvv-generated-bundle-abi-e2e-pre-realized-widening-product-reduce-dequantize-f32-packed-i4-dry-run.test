@@ -4,6 +4,8 @@
 # RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32-packed-i4/evidence.json
 # RUN: FileCheck %s --check-prefix=WPRD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32-packed-i4/widening_product_reduce_dequantize_f32/evidence.json
 # RUN: FileCheck %s --check-prefix=INDEX --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32-packed-i4/widening_product_reduce_dequantize_f32/generated_bundle/tianchenrv-target-artifact-bundle.index
+# RUN: FileCheck %s --check-prefix=HEADER --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32-packed-i4/widening_product_reduce_dequantize_f32/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h
+# RUN: FileCheck %s --check-prefix=EMITTED-C --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="q8" --implicit-check-not="q4" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32-packed-i4/widening_product_reduce_dequantize_f32/materialized_rvv_emitc.cpp
 # RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="q8" --implicit-check-not="q4" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32-packed-i4/widening_product_reduce_dequantize_f32/rvv_generated_bundle_abi_widening_product_reduce_dequantize_f32_harness.c
 
 # STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
@@ -38,6 +40,10 @@
 # WPRD-DAG: "operand_form": "packed-i4-nibbles"
 # WPRD-DAG: "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles"
 # WPRD-DAG: "unpack_intent": "sign-extend-i4-nibbles-before-widening-product"
+# WPRD-DAG: "performance_feedback": "same-target-packed-i4-no-win.v1"
+# WPRD-DAG: "performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
+# WPRD-DAG: "performance_best_speedup_range": "0.761006..0.807006"
+# WPRD-DAG: "performance_action": "no-win-repair-required-before-performance-claim"
 # WPRD-DAG: "packed_i4_statement_payload"
 # WPRD-DAG: "low_nibble_sign_extension": "shift-left-4-then-arithmetic-shift-right-4"
 # WPRD-DAG: "high_nibble_sign_extension": "arithmetic-shift-right-4"
@@ -74,6 +80,33 @@
 # INDEX-DAG: value: "no-win-repair-required-before-performance-claim"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.operand_form"
 # INDEX-DAG: value: "packed-i4-nibbles"
+
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.operand_form: packed-i4-nibbles
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.packing_layout: two-signed-i4-elements-per-byte-low-high-nibbles
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.unpack_intent: sign-extend-i4-nibbles-before-widening-product
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_feedback: same-target-packed-i4-no-win.v1
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_baseline: scalar-c-reference/product-reduction-dequant-packed-i4-v1
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_best_speedup_range: 0.761006..0.807006
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_action: no-win-repair-required-before-performance-claim
+# HEADER-DAG: extern "C" {
+# HEADER-DAG: void tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float *out, size_t n);
+
+# EMITTED-C: #include <riscv_vector.h>
+# EMITTED-C: __riscv_vle8_v_i8mf4
+# EMITTED-C: __riscv_vle8_v_i8mf4
+# EMITTED-C: __riscv_vsll_vx_i8mf4
+# EMITTED-C: __riscv_vsra_vx_i8mf4
+# EMITTED-C: __riscv_vsra_vx_i8mf4
+# EMITTED-C: __riscv_vsll_vx_i8mf4
+# EMITTED-C: __riscv_vsra_vx_i8mf4
+# EMITTED-C: __riscv_vsra_vx_i8mf4
+# EMITTED-C: __riscv_vwmul_vv_i16mf2
+# EMITTED-C: __riscv_vwredsum_vs_i16mf2_i32m1
+# EMITTED-C: __riscv_vwmul_vv_i16mf2
+# EMITTED-C: __riscv_vwredsum_vs_i16mf2_i32m1
+# EMITTED-C: tcrv_emitc.assign target=dot_acc_vec
+# EMITTED-C: __riscv_vse32_v_f32m1
 
 # HARNESS-DAG: static int32_t sign_extend_i4(uint8_t nibble)
 # HARNESS-DAG: static int8_t pack_signed_i4_pair(int32_t low, int32_t high)

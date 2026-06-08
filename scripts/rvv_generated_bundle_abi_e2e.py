@@ -9302,13 +9302,9 @@ def product_dequant_low_precision_resource_profile(
     }
 
 
-def validate_low_precision_resource_metadata(
-    metadata: dict[str, str],
-    expectation: OpExpectation,
-    context: str,
-    *,
-    packed_i4: bool,
-) -> None:
+def expected_low_precision_resource_metadata(
+    expectation: OpExpectation, *, packed_i4: bool
+) -> dict[str, str]:
     profile = product_dequant_low_precision_resource_profile(
         expectation, packed_i4=packed_i4
     )
@@ -9379,8 +9375,23 @@ def validate_low_precision_resource_metadata(
                 "performance_action": profile["performance_action"],
             }
         )
-    for suffix, expected_value in expected.items():
-        key = f"tcrv_rvv.low_precision_resource.{suffix}"
+    return {
+        f"tcrv_rvv.low_precision_resource.{suffix}": expected_value
+        for suffix, expected_value in expected.items()
+    }
+
+
+def validate_low_precision_resource_metadata(
+    metadata: dict[str, str],
+    expectation: OpExpectation,
+    context: str,
+    *,
+    packed_i4: bool,
+) -> None:
+    expected = expected_low_precision_resource_metadata(
+        expectation, packed_i4=packed_i4
+    )
+    for key, expected_value in expected.items():
         require_equal(metadata.get(key), expected_value, f"{context} metadata {key}")
 
 
@@ -12187,6 +12198,28 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
         )
     require_contains(text, "tianchenrv.rvv.runtime_avl_source: runtime_abi:n", "generated header")
     require_contains(text, "tianchenrv.rvv.multi_vl: supported", "generated header")
+    packed_i4_selected_candidate_comment = (
+        "tianchenrv.rvv.low_precision_resource.selected_candidate: "
+        f"{WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE}"
+    )
+    if expectation.is_widening_product_reduce_dequantize_f32 and (
+        packed_i4_selected_candidate_comment in text
+    ):
+        packed_feedback_metadata = expected_low_precision_resource_metadata(
+            expectation, packed_i4=True
+        )
+        for key in (
+            "tcrv_rvv.low_precision_resource.performance_feedback",
+            "tcrv_rvv.low_precision_resource.performance_baseline",
+            "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
+            "tcrv_rvv.low_precision_resource.performance_action",
+        ):
+            comment_key = "tianchenrv.rvv." + key.removeprefix("tcrv_rvv.")
+            require_contains(
+                text,
+                f"{comment_key}: {packed_feedback_metadata[key]}",
+                "generated header packed-i4 no-win feedback mirror",
+            )
     require_no_forbidden_public_residue(text, "generated declaration-only header")
     declaration_text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
     for token in ("__riscv_", "return;", "int main", "main("):
@@ -21211,7 +21244,10 @@ int main(void) {{
   return 0;
 }}
 """.lstrip()
-    if uses_packed_i4_resource and not expectation.is_widening_product_reduce_dequantize_f32:
+    if (
+        uses_packed_i4_resource
+        and not expectation.is_widening_product_reduce_dequantize_f32
+    ):
         raise EvidenceError(
             "packed-i4 harness reference is only supported for "
             "widening_product_reduce_dequantize_f32"
@@ -29927,9 +29963,6 @@ def widening_product_reduction_metadata_from_bundle(
         f"{expectation.kind} object/header packed-i4 resource selection agreement",
     )
     for key in WIDENING_PRODUCT_REDUCTION_METADATA_KEYS:
-        expected = expected_metadata.get(key)
-        if expected is None:
-            continue
         if uses_packed_i4_resource and key in LOW_PRECISION_RESOURCE_METADATA_KEYS:
             require_equal(
                 object_metadata.get(key),
@@ -29937,6 +29970,9 @@ def widening_product_reduction_metadata_from_bundle(
                 f"{expectation.kind} object/header low-precision metadata {key}",
             )
             metadata[key] = object_metadata.get(key, "")
+            continue
+        expected = expected_metadata.get(key)
+        if expected is None:
             continue
         require_equal(
             object_metadata.get(key),
@@ -33534,6 +33570,35 @@ def widening_product_reduction_boundary_summary(
                 "tcrv_rvv.low_precision_resource.rejection_reason"
             ),
         }
+        if uses_packed_i4_resource:
+            provider_route_facts["low_precision_resource"].update(
+                {
+                    "performance_feedback": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.performance_feedback"
+                    ),
+                    "expected_performance_feedback": resource_profile[
+                        "performance_feedback"
+                    ],
+                    "performance_baseline": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.performance_baseline"
+                    ),
+                    "expected_performance_baseline": resource_profile[
+                        "performance_baseline"
+                    ],
+                    "performance_best_speedup_range": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.performance_best_speedup_range"
+                    ),
+                    "expected_performance_best_speedup_range": resource_profile[
+                        "performance_best_speedup_range"
+                    ],
+                    "performance_action": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.performance_action"
+                    ),
+                    "expected_performance_action": resource_profile[
+                        "performance_action"
+                    ],
+                }
+            )
     if is_dequant_clamp:
         provider_route_facts["clamp_select"] = {
             "lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
@@ -35733,7 +35798,12 @@ def run_e2e(args: argparse.Namespace) -> int:
         return 1
 
 
-def make_fake_bundle(root: Path, expectation: OpExpectation) -> Path:
+def make_fake_bundle(
+    root: Path,
+    expectation: OpExpectation,
+    *,
+    uses_packed_i4_resource: bool = False,
+) -> Path:
     bundle_dir = root / "bundle"
     bundle_dir.mkdir(parents=True)
     object_name = (
@@ -35744,7 +35814,19 @@ def make_fake_bundle(root: Path, expectation: OpExpectation) -> Path:
         "artifact-1-runtime-callable-c-header-"
         "rvv-generic-typed-body-emitc-route-family.header.h"
     )
+    if uses_packed_i4_resource and not expectation.is_widening_product_reduce_dequantize_f32:
+        raise AssertionError(
+            "packed-i4 fake bundle metadata is supported only for "
+            "widening_product_reduce_dequantize_f32"
+        )
     expected_metadata = expected_metadata_for(expectation)
+    if uses_packed_i4_resource:
+        expected_metadata = dict(expected_metadata)
+        expected_metadata.update(
+            expected_low_precision_resource_metadata(
+                expectation, packed_i4=True
+            )
+        )
     header_required_metadata_keys = {
         "tcrv_rvv.config_contract",
         "tcrv_rvv.element_type",
@@ -35757,6 +35839,8 @@ def make_fake_bundle(root: Path, expectation: OpExpectation) -> Path:
         "tcrv_rvv.runtime_avl_source",
         "tcrv_rvv.multi_vl",
     }
+    if uses_packed_i4_resource:
+        header_required_metadata_keys.update(LOW_PRECISION_RESOURCE_METADATA_KEYS)
     header_metadata_comments = "\n".join(
         f"/* tianchenrv.rvv.{key.removeprefix('tcrv_rvv.')}: {value} */"
         for key, value in expected_metadata.items()
@@ -38235,6 +38319,46 @@ def run_self_test() -> int:
             "stale low-precision realization schedule metadata",
             lambda: verify_bundle(
                 stale_schedule_metadata, None, product_dequant_expectation
+            ),
+        )
+
+        missing_feedback_metadata = make_fake_bundle(
+            tmp / "missing-packed-i4-feedback-metadata",
+            product_dequant_expectation,
+            uses_packed_i4_resource=True,
+        )
+        index_path = missing_feedback_metadata / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace(
+            'key: "tcrv_rvv.low_precision_resource.performance_feedback"',
+            'key: "tcrv_rvv.low_precision_resource.performance_feedback_missing"',
+            1,
+        )
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "missing packed-i4 performance feedback metadata",
+            lambda: verify_bundle(
+                missing_feedback_metadata, None, product_dequant_expectation
+            ),
+        )
+
+        stale_feedback_metadata = make_fake_bundle(
+            tmp / "stale-packed-i4-feedback-metadata",
+            product_dequant_expectation,
+            uses_packed_i4_resource=True,
+        )
+        index_path = stale_feedback_metadata / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace(
+            WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_FEEDBACK,
+            "same-target-packed-i4-performance-win.v1",
+            1,
+        )
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "stale packed-i4 performance feedback metadata",
+            lambda: verify_bundle(
+                stale_feedback_metadata, None, product_dequant_expectation
             ),
         )
 

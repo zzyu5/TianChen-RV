@@ -537,3 +537,82 @@ remains active because Gate 3 full generated artifact/header/C/correctness
 evidence and Gate 4 same-target timing rerun remain unfinished. Next
 continuation point: improve the RVV-owned packed execution structure or collect
 Gate 3 evidence while preserving the new fail-closed no-win feedback facts.
+
+## Session 580: RVV packed low-precision Gate 3 artifact evidence
+
+**Date**: 2026-06-09
+**Task**: RVV production-kernel packed low-precision performance repair campaign
+
+### Summary
+
+Continued the active macro repair campaign at Gate 3. Gate 1 and Gate 2 were
+already complete from commit `b7832403`; this slice keeps the same Trellis task
+active and proves the provider-owned packed-i4 no-win feedback/resource facts
+survive into generated artifact evidence without claiming a performance win.
+
+The generated-bundle ABI verifier now exposes packed-i4 no-win feedback fields
+in the `widening_product_reduction_boundary.low_precision_resource` evidence
+summary, validates generated header comments when a packed-i4 selected candidate
+is present, and reuses one expected low-precision metadata helper for both
+validation and fake-bundle self-tests. The self-test now includes missing and
+stale packed-i4 `performance_feedback` metadata failures, so the evidence path
+fails closed before accepting stale no-win/performance mirrors.
+
+The packed-i4 generated-bundle dry-run lit test now checks generated bundle JSON,
+generated header comments, emitted RVV C/C++ packed low/high nibble statement
+order, and the packed external ABI correctness oracle. The evidence remains
+dry-run/header/C/harness evidence only; no real `ssh rvv` runtime correctness or
+same-target timing claim was made in this slice.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] packed-i4 generated-bundle ABI dry-run with
+  `--pre-realized-selected-body`, fixture override, runtime counts
+  `0,1,16,17,257`, and `--llvm-readobj ""`
+- [OK] generated header contains the four packed-i4 no-win feedback mirror
+  comments and `packed-i4-nibbles` operand form.
+- [OK] emitted RVV C/C++ contains packed low/high signed-i4 nibble unpack,
+  two widening product/reduction steps, `dot_acc_vec` carry assignment, and
+  final f32 store.
+- [OK] generated harness contains `packed_i4_reference_oracle`,
+  `pack_signed_i4_pair`, `sign_extend_i4`, low/high product accumulation, source
+  and accumulator preservation, and tail preservation checks.
+- [OK] evidence JSON summary carries
+  `same-target-packed-i4-no-win.v1`,
+  `scalar-c-reference/product-reduction-dequant-packed-i4-v1`,
+  `0.761006..0.807006`, and
+  `no-win-repair-required-before-performance-claim`.
+- [OK] default unpacked product-dequant generated-bundle dry-run regression
+  remains separate and does not emit packed-i4 feedback or oracle text.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded added-line authority scan; only initial matches were negative
+  `implicit-check-not` guards.
+
+`FileCheck` and `llvm-lit` are unavailable in this local environment, so the
+updated lit file was validated through the actual dry-run artifacts and focused
+`rg` assertions over generated evidence, bundle header, emitted C, and harness.
+
+### Status
+
+[OPEN] Gate 3 generated artifact/header/C/correctness evidence is complete for
+the current repair campaign. The macro task remains active because Gate 4
+same-target measurement rerun is still unfinished. Next continuation point:
+Gate 4 same-target packed-i4 timing against
+`scalar-c-reference/product-reduction-dequant-packed-i4-v1` after deciding
+whether a later RVV-owned Gearbox/resource/statement repair should be measured;
+otherwise continue reporting the no-win feedback honestly without a performance
+win claim.
+
+### Spec Update Decision
+
+[NO-SPEC-CHANGE] The packed-i4 no-win performance feedback contract, required
+fields, fail-closed behavior, and generated-bundle dry-run expectation already
+live in `.trellis/spec/extension-plugins/rvv-plugin.md`. This round implemented
+and verified that existing contract in the generated-bundle evidence verifier
+and lit surface, but did not add a new metadata field, command signature,
+validation matrix, or cross-layer behavior requiring a spec edit.
