@@ -56,6 +56,68 @@ Focused checks:
 - None - task complete
 
 
+## Session 573: RVV Gate 5 measurement-scaffolding cleanup
+
+**Date**: 2026-06-08
+**Task**: RVV low-precision production-kernel performance optimization campaign
+**Branch**: `main`
+
+### Summary
+
+Repaired the active macro PRD to make Gate 5 the current cleanup milestone and
+completed one Gate 5 source slice. This supersedes the earlier Gate 4
+ready-to-archive note: the macro task remains active because the repaired Gate 3
+and Gate 4 production-loop gates are still partial.
+
+### Main Changes
+
+- Removed product-reduction dequant/dequant-clamp dependence on standalone
+  vector `dequantize_convert_intrinsic` / `dequantize_scale_intrinsic` metadata.
+- Kept scalar dequantization owned by the RVV provider as
+  `dot_acc_scalar * scale`, then mirrored the RVV f32 scalar splat intrinsic via
+  `tcrv_rvv.rhs_broadcast_intrinsic` at the emission-plan/validation boundary.
+- Updated target artifact validation to reject stale standalone vector dequant
+  keys on product-reduction dequant candidates while preserving standalone
+  dequant route contracts.
+- Updated generated-bundle ABI dry-runs, focused Target/RVV FileCheck tests,
+  plugin smoke expectations, and the RVV plugin spec contract.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tcrv-opt --version`
+- [OK] `./build/bin/tcrv-translate --version`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py scripts/rvv_generated_bundle_same_target_measure.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32|pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32|explicit-selected-body-artifact-widening-product-reduce-dequantize-f32|explicit-selected-body-realization-widening-product-reduce-dequant-clamp-f32'` from `build/test`: 4/4 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequantize-f32-dry-run|rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequant-clamp-f32-dry-run|rvv-generated-bundle-abi-e2e-explicit-widening-product-reduce-dequant-clamp-f32-dry-run'` from `build/test`: 3/3 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'widening-product|product-reduction|generic-widening-product'` from `build/test`: 14/14 passed
+- [OK] Added-line old-authority scan found no positive legacy i32m1,
+  descriptor-driven, q8, q4, or llama route authority.
+- [OK] Old dequant convert/scale scan found remaining uses only in standalone
+  dequant contracts or negative stale-metadata checks.
+
+### Runtime Evidence
+
+No new `ssh rvv` measurement was run in this Gate 5 cleanup slice. The executable
+generated product-reduction dequant/dequant-clamp code was not changed from the
+previous scalar-dequant-splat measured path; this slice changed route metadata,
+target validation, script consumers, tests, and spec text.
+
+### Status
+
+[OPEN] Gate 5 cleanup is complete. The macro task remains active and is not
+archived.
+
+### Next Steps
+
+Continue with main low-precision product/reduction loop resource-aware
+selected-body realization and statement planning for repeated VL/control,
+accumulator/reduction structure, and live vector group tradeoffs.
+
+
 ## Session 564: Stage2 RVV runtime-scalar-cmp masked standalone minmax executable artifact ABI boundary
 
 **Date**: 2026-06-08

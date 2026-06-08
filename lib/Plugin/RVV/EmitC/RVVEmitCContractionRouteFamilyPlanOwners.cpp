@@ -387,14 +387,6 @@ llvm::StringRef getContractionFloatStoreIntrinsic(std::int64_t sew,
           .str());
 }
 
-llvm::StringRef getContractionI32ToF32DequantConvertIntrinsic() {
-  return "__riscv_vfcvt_f_x_v_f32m1";
-}
-
-llvm::StringRef getContractionF32ScalarScaleIntrinsic() {
-  return "__riscv_vfmul_vf_f32m1";
-}
-
 llvm::StringRef getContractionVectorTypeName(std::int64_t sew,
                                              llvm::StringRef lmul,
                                              bool isUnsigned = false) {
@@ -1705,20 +1697,19 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
         (plan.usesProductReductionDequantization &&
          (analysis.description.dequantizationRelation !=
               plan.dequantizationRelation ||
-          analysis.description.dequantizeConvertIntrinsic !=
-              plan.dequantizeConvertIntrinsic ||
-          analysis.description.dequantizeScaleIntrinsic !=
-              plan.dequantizeScaleIntrinsic ||
           analysis.description.dequantScaleRole != plan.dequantScaleRole ||
           analysis.description.dequantScaleCType != plan.dequantScaleCType ||
-          analysis.description.dequantScaleName != plan.dequantScaleName)) ||
+          analysis.description.dequantScaleName != plan.dequantScaleName ||
+          analysis.description.rhsBroadcastIntrinsic !=
+              plan.rhsBroadcastIntrinsic)) ||
         (!plan.usesProductReductionDequantization &&
          (!analysis.description.dequantizationRelation.empty() ||
           !analysis.description.dequantizeConvertIntrinsic.empty() ||
           !analysis.description.dequantizeScaleIntrinsic.empty() ||
           !analysis.description.dequantScaleRole.empty() ||
           !analysis.description.dequantScaleCType.empty() ||
-          !analysis.description.dequantScaleName.empty())) ||
+          !analysis.description.dequantScaleName.empty() ||
+          !analysis.description.rhsBroadcastIntrinsic.empty())) ||
         !analysis.description.maskedWideningProductIntrinsic.empty() ||
         (plan.usesProductReductionDequantClamp &&
          (analysis.description.compareIntrinsic != plan.compareIntrinsic ||
@@ -2402,14 +2393,14 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
           ? internContractionDerivedText(
                 (llvm::Twine("vl:size_t,source:signed-e8mf4,product:signed-"
                              "e16mf2,seed:signed-i32,accumulator:signed-"
-                             "e32m1,converted/scaled/clamped:float-e32m1,"
+                             "e32m1,dequant-splat/clamped:float-e32m1,"
                              "scale:float,lower:float,upper:float"))
                     .str())
       : isProductReductionDequantization
           ? internContractionDerivedText(
                 (llvm::Twine("vl:size_t,source:signed-e8mf4,product:signed-"
                              "e16mf2,seed:signed-i32,accumulator:signed-"
-                             "e32m1,converted/scaled:float-e32m1,scale:float"))
+                             "e32m1,dequant-splat:float-e32m1,scale:float"))
                     .str())
       : isProductReductionChain
           ? getContractionProductReductionChainCTypeMappingSummary(
@@ -2593,9 +2584,6 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
           : getContractionSignedVectorCType(kResultSEW, kResultLMUL);
   if (isProductReductionDequantization) {
     facts.dequantizationRelation = kRVVContractionDequantizationRelation;
-    facts.dequantizeConvertIntrinsic =
-        getContractionI32ToF32DequantConvertIntrinsic();
-    facts.dequantizeScaleIntrinsic = getContractionF32ScalarScaleIntrinsic();
     facts.dequantScaleRole = kRVVContractionDequantScaleRole;
     facts.dequantScaleCType = kRVVContractionDequantScaleCType;
     facts.dequantScaleName = kRVVContractionDequantScaleName;
@@ -5842,13 +5830,13 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
               ? llvm::StringRef(
                     "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,"
                     "seed:signed-i32,accumulator:signed-e32m1,"
-                    "converted/scaled/clamped:float-e32m1,scale:float,"
+                    "dequant-splat/clamped:float-e32m1,scale:float,"
                     "lower:float,upper:float")
       : isProductReductionDequantization
               ? llvm::StringRef(
                     "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,"
                     "seed:signed-i32,accumulator:signed-e32m1,"
-                    "converted/scaled:float-e32m1,scale:float")
+                    "dequant-splat:float-e32m1,scale:float")
           : isProductReductionChain
               ? getContractionProductReductionChainCTypeMappingSummary(
                     plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
@@ -6104,15 +6092,6 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
               kRVVContractionDequantizationRelation))
         return error;
       if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
-              plan, "dequantize convert leaf",
-              plan.dequantizeConvertIntrinsic,
-              getContractionI32ToF32DequantConvertIntrinsic()))
-        return error;
-      if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
-              plan, "dequantize scale leaf", plan.dequantizeScaleIntrinsic,
-              getContractionF32ScalarScaleIntrinsic()))
-        return error;
-      if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
               plan, "dequant scale role", plan.dequantScaleRole,
               kRVVContractionDequantScaleRole))
         return error;
@@ -6123,6 +6102,11 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
       if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
               plan, "dequant scale name", plan.dequantScaleName,
               kRVVContractionDequantScaleName))
+        return error;
+      if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+              plan, "post-loop scalar dequant splat leaf",
+              plan.rhsBroadcastIntrinsic,
+              getContractionFloatScalarSplatIntrinsic(plan.sew, plan.lmul)))
         return error;
       if (isProductReductionDequantClamp) {
         if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
@@ -6167,7 +6151,8 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
                !plan.dequantizeScaleIntrinsic.empty() ||
                !plan.dequantScaleRole.empty() ||
                !plan.dequantScaleCType.empty() ||
-               !plan.dequantScaleName.empty()) {
+               !plan.dequantScaleName.empty() ||
+               !plan.rhsBroadcastIntrinsic.empty()) {
       return makeRVVEmitCRouteProviderError(
           "plain product-reduction contraction plan must not carry "
           "dequantization mirrors");
@@ -6566,9 +6551,9 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   plan.requiredHeaderDeclarations = kRVVContractionRequiredHeaderDeclarations;
   plan.cTypeMappingSummary =
       isProductReductionDequantClamp
-          ? "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,converted/scaled/clamped:float-e32m1,scale:float,lower:float,upper:float"
+          ? "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,dequant-splat/clamped:float-e32m1,scale:float,lower:float,upper:float"
       : isProductReductionDequantization
-          ? "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,converted/scaled:float-e32m1,scale:float"
+          ? "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,dequant-splat:float-e32m1,scale:float"
       : isProductReductionChain && productFacts
           ? getContractionProductReductionChainCTypeMappingSummary(
                 lhsSourceFacts->sew, lhsSourceFacts->lmul, productFacts->sew,
@@ -6693,10 +6678,6 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
     if (plan.usesProductReductionDequantization) {
       plan.dequantizationRelation =
           analysis.slice.dequantizeOp.getDequantRelation();
-      plan.dequantizeConvertIntrinsic =
-          getContractionI32ToF32DequantConvertIntrinsic();
-      plan.dequantizeScaleIntrinsic =
-          getContractionF32ScalarScaleIntrinsic();
       plan.dequantScaleRole = kRVVContractionDequantScaleRole;
       plan.dequantScaleCType = kRVVContractionDequantScaleCType;
       plan.dequantScaleName = kRVVContractionDequantScaleName;
@@ -6911,12 +6892,10 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
             : kRVVProductReductionOutCarryBoundary;
     if (plan.usesProductReductionDequantization) {
       description.dequantizationRelation = plan.dequantizationRelation;
-      description.dequantizeConvertIntrinsic =
-          plan.dequantizeConvertIntrinsic;
-      description.dequantizeScaleIntrinsic = plan.dequantizeScaleIntrinsic;
       description.dequantScaleRole = plan.dequantScaleRole;
       description.dequantScaleCType = plan.dequantScaleCType;
       description.dequantScaleName = plan.dequantScaleName;
+      description.rhsBroadcastIntrinsic = plan.rhsBroadcastIntrinsic;
       if (plan.usesProductReductionDequantClamp) {
         description.lowerBoundRole = plan.lowerBoundRole;
         description.upperBoundRole = plan.upperBoundRole;
@@ -7083,13 +7062,13 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
               ? llvm::StringRef(
                     "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,"
                     "seed:signed-i32,accumulator:signed-e32m1,"
-                    "converted/scaled/clamped:float-e32m1,scale:float,"
+                    "dequant-splat/clamped:float-e32m1,scale:float,"
                     "lower:float,upper:float")
       : usesProductReductionDequantization
               ? llvm::StringRef(
                     "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,"
                     "seed:signed-i32,accumulator:signed-e32m1,"
-                    "converted/scaled:float-e32m1,scale:float")
+                    "dequant-splat:float-e32m1,scale:float")
           : usesProductReductionChain
               ? getContractionProductReductionChainCTypeMappingSummary(
                     description.sourceSEW, description.sourceLMUL,
@@ -7359,18 +7338,6 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
         return error;
       if (llvm::Error error =
               requireRVVSelectedBodyContractionDescriptionField(
-                  context, "dequantize convert intrinsic",
-                  description.dequantizeConvertIntrinsic,
-                  getContractionI32ToF32DequantConvertIntrinsic()))
-        return error;
-      if (llvm::Error error =
-              requireRVVSelectedBodyContractionDescriptionField(
-                  context, "dequantize scale intrinsic",
-                  description.dequantizeScaleIntrinsic,
-                  getContractionF32ScalarScaleIntrinsic()))
-        return error;
-      if (llvm::Error error =
-              requireRVVSelectedBodyContractionDescriptionField(
                   context, "dequant scale role", description.dequantScaleRole,
                   kRVVContractionDequantScaleRole))
         return error;
@@ -7384,6 +7351,13 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
               requireRVVSelectedBodyContractionDescriptionField(
                   context, "dequant scale name", description.dequantScaleName,
                   kRVVContractionDequantScaleName))
+        return error;
+      if (llvm::Error error =
+              requireRVVSelectedBodyContractionDescriptionField(
+                  context, "post-loop scalar dequant splat intrinsic",
+                  description.rhsBroadcastIntrinsic,
+                  getContractionFloatScalarSplatIntrinsic(description.sew,
+                                                          description.lmul)))
         return error;
       if (usesProductReductionDequantClamp) {
         if (llvm::Error error =
@@ -7475,7 +7449,8 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
                !description.dequantizeScaleIntrinsic.empty() ||
                !description.dequantScaleRole.empty() ||
                !description.dequantScaleCType.empty() ||
-               !description.dequantScaleName.empty()) {
+               !description.dequantScaleName.empty() ||
+               !description.rhsBroadcastIntrinsic.empty()) {
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " plain product-reduction contraction route description must not "

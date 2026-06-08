@@ -8939,14 +8939,15 @@ module {
     return fail("product-reduction-dequant math operand-binding facts: " +
                 llvm::toString(productDequantMathFacts.takeError()));
   if (int result = expect(
-          productDequantMaterializationFacts
-              ->emitsContractionProductReductionDequantization &&
+              productDequantMaterializationFacts
+                  ->emitsContractionProductReductionDequantization &&
               productDequantMaterializationFacts->wideningProductLeaf ==
                   "__riscv_vwmul_vv_i16mf2" &&
-              productDequantMaterializationFacts->dequantizeConvertLeaf ==
-                  "__riscv_vfcvt_f_x_v_f32m1" &&
-              productDequantMaterializationFacts->dequantizeScaleLeaf ==
-                  "__riscv_vfmul_vf_f32m1" &&
+              productDequantMaterializationFacts->dequantizeConvertLeaf
+                  .empty() &&
+              productDequantMaterializationFacts->dequantizeScaleLeaf.empty() &&
+              productDequantMaterializationFacts->rhsScalarBroadcastLeaf ==
+                  "__riscv_vfmv_v_f_f32m1" &&
               productDequantMathFacts
                   ->bindsWideningProductReductionDequantization &&
               productDequantMathFacts->lhsABI &&
@@ -8974,10 +8975,13 @@ module {
               !productDequantDirectProviderPlan
                    ->plansProductReductionDequantClamp &&
               productDequantDirectProviderPlan->dequantScaleABI &&
-              productDequantDirectProviderPlan->dequantizeConvertLeaf ==
-                  productDequantMaterializationFacts->dequantizeConvertLeaf &&
-              productDequantDirectProviderPlan->dequantizeScaleLeaf ==
-                  productDequantMaterializationFacts->dequantizeScaleLeaf &&
+              productDequantDirectProviderPlan->dequantizeConvertLeaf.empty() &&
+              productDequantDirectProviderPlan->dequantizeScaleLeaf.empty() &&
+              productDequantAnalysis->description.rhsBroadcastIntrinsic ==
+                  productDequantMaterializationFacts->rhsScalarBroadcastLeaf &&
+              productDequantAnalysis->contractionRouteFamilyPlan
+                      ->rhsBroadcastIntrinsic ==
+                  productDequantMaterializationFacts->rhsScalarBroadcastLeaf &&
               productDequantDirectProviderPlan->dequantResultVectorCType ==
                   "vfloat32m1_t" &&
               productDequantAnalysis->contractionRouteFamilyPlan

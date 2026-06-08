@@ -21,6 +21,6 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "",
+  "notes": "Gate 5 cleanup complete: product-reduction dequant/dequant-clamp metadata no longer carries standalone vector dequant convert/scale authority, and stale mirrors fail closed. Macro task remains active because repaired Gate 3/Gate 4 production-loop gates are still partial.",
   "meta": {}
 }

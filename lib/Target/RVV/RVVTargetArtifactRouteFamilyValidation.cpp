@@ -4189,14 +4189,15 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
       description.vectorCType.empty() || runtimeContract.vlCType.empty() ||
       (isProductReductionChain && description.productVectorCType.empty()) ||
       (isProductReductionDequantization &&
-       (description.dequantizeConvertIntrinsic.empty() ||
-        description.dequantizeScaleIntrinsic.empty() ||
+       (description.rhsBroadcastIntrinsic.empty() ||
+        description.dequantScaleRole.empty() ||
+        description.dequantScaleCType.empty() ||
         description.dequantScaleName.empty())))
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
         " requires provider-derived result, source/result vector C type, "
-        "optional product vector C type, optional dequant scale facts, and "
-        "VL C type facts before validating route statements");
+        "optional product vector C type, optional scalar-dequant splat/scale "
+        "facts, and VL C type facts before validating route statements");
   if (isComputedMask &&
       (description.maskName.empty() || description.maskCType.empty()))
     return makeRVVTargetRouteError(
@@ -5232,16 +5233,14 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
               "selected typed RVV product-reduction dequantization relation"))
         return error;
       if (llvm::Error error = requireCandidateMetadataMirror(
-              candidate, "tcrv_rvv.dequantize_convert_intrinsic",
-              contract->dequantizeConvertIntrinsic,
-              "selected typed RVV product-reduction dequantize convert "
-              "intrinsic"))
+              candidate, "tcrv_rvv.dequantize_convert_intrinsic", "",
+              "selected typed RVV product-reduction scalar dequant route "
+              "without standalone vector dequant convert"))
         return error;
       if (llvm::Error error = requireCandidateMetadataMirror(
-              candidate, "tcrv_rvv.dequantize_scale_intrinsic",
-              contract->dequantizeScaleIntrinsic,
-              "selected typed RVV product-reduction dequantize scale "
-              "intrinsic"))
+              candidate, "tcrv_rvv.dequantize_scale_intrinsic", "",
+              "selected typed RVV product-reduction scalar dequant route "
+              "without standalone vector dequant scale"))
         return error;
       if (llvm::Error error = requireCandidateMetadataMirror(
               candidate, "tcrv_rvv.dequant_scale_role",
@@ -5253,83 +5252,81 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
               contract->dequantScaleCType,
               "selected typed RVV product-reduction dequant scale C type"))
         return error;
-	      if (llvm::Error error = requireCandidateMetadataMirror(
-	              candidate, "tcrv_rvv.dequant_scale_name",
-	              contract->dequantScaleName,
-	              "selected typed RVV product-reduction dequant scale name"))
-	        return error;
-	      if (isProductReductionDequantClamp) {
-	        if (llvm::Error error = requireCandidateMetadataMirror(
-	                candidate, "tcrv_rvv.lower_bound_role",
-	                contract->lowerBoundRole,
-	                "selected typed RVV product-reduction lower bound role"))
-	          return error;
-	        if (llvm::Error error = requireCandidateMetadataMirror(
-	                candidate, "tcrv_rvv.upper_bound_role",
-	                contract->upperBoundRole,
-	                "selected typed RVV product-reduction upper bound role"))
-	          return error;
-	        if (llvm::Error error = requireCandidateMetadataMirror(
-	                candidate, "tcrv_rvv.lower_bound_c_type",
-	                contract->lowerBoundCType,
-	                "selected typed RVV product-reduction lower bound C type"))
-	          return error;
-	        if (llvm::Error error = requireCandidateMetadataMirror(
-	                candidate, "tcrv_rvv.upper_bound_c_type",
-	                contract->upperBoundCType,
-	                "selected typed RVV product-reduction upper bound C type"))
-	          return error;
-	        if (llvm::Error error = requireCandidateMetadataMirror(
-	                candidate, "tcrv_rvv.bound_order", contract->boundOrder,
-	                "selected typed RVV product-reduction clamp bound order"))
-	          return error;
-	        if (llvm::Error error = requireCandidateMetadataMirror(
-	                candidate, "tcrv_rvv.clamp_relation",
-	                contract->clampRelation,
-	                "selected typed RVV product-reduction clamp relation"))
-	          return error;
-	        if (llvm::Error error = requireCandidateMetadataMirror(
-	                candidate, "tcrv_rvv.select_layout",
-	                contract->selectLayout,
-	                "selected typed RVV product-reduction clamp select layout"))
-	          return error;
-	        if (llvm::Error error = requireCandidateMetadataMirror(
-	                candidate, "tcrv_rvv.compare_predicate_kind",
-	                contract->comparePredicateKind,
-	                "selected typed RVV product-reduction lower compare "
-	                "predicate"))
-	          return error;
-	        if (llvm::Error error = requireCandidateMetadataMirror(
-	                candidate, "tcrv_rvv.secondary_compare_predicate_kind",
-	                contract->secondaryComparePredicateKind,
-	                "selected typed RVV product-reduction secondary compare "
-	                "predicate"))
-	          return error;
-	        if (llvm::Error error = requireCandidateMetadataMirror(
-	                candidate, "tcrv_rvv.compare_intrinsic",
-	                contract->compareIntrinsic,
-	                "selected typed RVV product-reduction lower compare "
-	                "intrinsic"))
-	          return error;
-	        if (llvm::Error error = requireCandidateMetadataMirror(
-	                candidate, "tcrv_rvv.secondary_compare_intrinsic",
-	                contract->secondaryCompareIntrinsic,
-	                "selected typed RVV product-reduction secondary compare "
-	                "intrinsic"))
-	          return error;
-	        if (llvm::Error error = requireCandidateMetadataMirror(
-	                candidate, "tcrv_rvv.masked_merge_intrinsic",
-	                contract->maskedMergeIntrinsic,
-	                "selected typed RVV product-reduction clamp select intrinsic"))
-	          return error;
-	        if (llvm::Error error = requireCandidateMetadataMirror(
-	                candidate, "tcrv_rvv.rhs_broadcast_intrinsic",
-	                context.description.rhsBroadcastIntrinsic,
-	                "selected typed RVV product-reduction f32 bound splat "
-	                "intrinsic"))
-	          return error;
-	      }
-	    } else {
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.dequant_scale_name",
+              contract->dequantScaleName,
+              "selected typed RVV product-reduction dequant scale name"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.rhs_broadcast_intrinsic",
+              contract->rhsBroadcastIntrinsic,
+              "selected typed RVV product-reduction post-loop scalar dequant "
+              "splat intrinsic"))
+        return error;
+      if (isProductReductionDequantClamp) {
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.lower_bound_role",
+                contract->lowerBoundRole,
+                "selected typed RVV product-reduction lower bound role"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.upper_bound_role",
+                contract->upperBoundRole,
+                "selected typed RVV product-reduction upper bound role"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.lower_bound_c_type",
+                contract->lowerBoundCType,
+                "selected typed RVV product-reduction lower bound C type"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.upper_bound_c_type",
+                contract->upperBoundCType,
+                "selected typed RVV product-reduction upper bound C type"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.bound_order", contract->boundOrder,
+                "selected typed RVV product-reduction clamp bound order"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.clamp_relation", contract->clampRelation,
+                "selected typed RVV product-reduction clamp relation"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.select_layout", contract->selectLayout,
+                "selected typed RVV product-reduction clamp select layout"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.compare_predicate_kind",
+                contract->comparePredicateKind,
+                "selected typed RVV product-reduction lower compare "
+                "predicate"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.secondary_compare_predicate_kind",
+                contract->secondaryComparePredicateKind,
+                "selected typed RVV product-reduction secondary compare "
+                "predicate"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.compare_intrinsic",
+                contract->compareIntrinsic,
+                "selected typed RVV product-reduction lower compare "
+                "intrinsic"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.secondary_compare_intrinsic",
+                contract->secondaryCompareIntrinsic,
+                "selected typed RVV product-reduction secondary compare "
+                "intrinsic"))
+          return error;
+        if (llvm::Error error = requireCandidateMetadataMirror(
+                candidate, "tcrv_rvv.masked_merge_intrinsic",
+                contract->maskedMergeIntrinsic,
+                "selected typed RVV product-reduction clamp select intrinsic"))
+          return error;
+      }
+    } else {
       if (llvm::Error error = requireCandidateMetadataMirror(
               candidate, "tcrv_rvv.dequantization_relation", "",
               "selected typed RVV product-reduction without dequant relation"))
@@ -5353,6 +5350,11 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
       if (llvm::Error error = requireCandidateMetadataMirror(
               candidate, "tcrv_rvv.dequant_scale_name", "",
               "selected typed RVV product-reduction without dequant scale name"))
+        return error;
+      if (llvm::Error error = requireCandidateMetadataMirror(
+              candidate, "tcrv_rvv.rhs_broadcast_intrinsic", "",
+              "selected typed RVV product-reduction without scalar dequant "
+              "splat"))
         return error;
     }
   } else {

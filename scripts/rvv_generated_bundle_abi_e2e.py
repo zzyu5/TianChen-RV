@@ -604,12 +604,12 @@ WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_TARGET_LEAF_PROFILE = (
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_C_TYPE_MAPPING = (
     "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,"
     "seed:signed-i32,accumulator:signed-e32m1,"
-    "converted/scaled:float-e32m1,scale:float"
+    "dequant-splat:float-e32m1,scale:float"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_C_TYPE_MAPPING = (
     "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,"
     "seed:signed-i32,accumulator:signed-e32m1,"
-    "converted/scaled/clamped:float-e32m1,scale:float,lower:float,upper:float"
+    "dequant-splat/clamped:float-e32m1,scale:float,lower:float,upper:float"
 )
 WIDENING_PRODUCT_REDUCE_C_TYPE_MAPPING = (
     "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,"
@@ -8379,6 +8379,11 @@ WIDENING_PRODUCT_REDUCTION_METADATA_KEYS = (
     "tcrv_rvv.scalar_seed_splat_intrinsic",
     "tcrv_rvv.reduction_store_vl",
     "tcrv_rvv.scalar_result_runtime_boundary",
+    "tcrv_rvv.dequantization_relation",
+    "tcrv_rvv.dequant_scale_role",
+    "tcrv_rvv.dequant_scale_c_type",
+    "tcrv_rvv.dequant_scale_name",
+    "tcrv_rvv.rhs_broadcast_intrinsic",
     *LOW_PRECISION_RESOURCE_METADATA_KEYS,
     *GEARBOX_SCOPE_METADATA_KEYS,
 )
@@ -11272,12 +11277,6 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.dequantization_relation": (
                     DEQUANTIZE_I32_TO_F32_RELATION
                 ),
-                "tcrv_rvv.dequantize_convert_intrinsic": (
-                    DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC
-                ),
-                "tcrv_rvv.dequantize_scale_intrinsic": (
-                    DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
-                ),
                 "tcrv_rvv.dequant_scale_role": "dequant-scale-value",
                 "tcrv_rvv.dequant_scale_c_type": "float",
                 "tcrv_rvv.dequant_scale_name": "scale",
@@ -11433,15 +11432,12 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 "tcrv_rvv.dequantization_relation": (
                     DEQUANTIZE_I32_TO_F32_RELATION
                 ),
-                "tcrv_rvv.dequantize_convert_intrinsic": (
-                    DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC
-                ),
-                "tcrv_rvv.dequantize_scale_intrinsic": (
-                    DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
-                ),
                 "tcrv_rvv.dequant_scale_role": "dequant-scale-value",
                 "tcrv_rvv.dequant_scale_c_type": "float",
                 "tcrv_rvv.dequant_scale_name": "scale",
+                "tcrv_rvv.rhs_broadcast_intrinsic": (
+                    F32_CLAMP_SELECT_SPLAT_INTRINSIC
+                ),
             }
         )
     if (
@@ -29192,6 +29188,19 @@ def widening_product_reduction_metadata_from_bundle(
             f"{expectation.kind} header widening product-reduction metadata {key}",
         )
         metadata[key] = expected
+    if (
+        expectation.is_widening_product_reduce_dequantize_f32
+        or expectation.is_widening_product_reduce_dequant_clamp_f32
+    ):
+        for stale_key in (
+            "tcrv_rvv.dequantize_convert_intrinsic",
+            "tcrv_rvv.dequantize_scale_intrinsic",
+        ):
+            if object_metadata.get(stale_key) or header_metadata.get(stale_key):
+                raise EvidenceError(
+                    f"{expectation.kind} product-reduction metadata must not "
+                    f"carry standalone vector dequant mirror {stale_key}"
+                )
     return metadata
 
 
@@ -32603,8 +32612,14 @@ def widening_product_reduction_boundary_summary(
     if is_dequant or is_dequant_clamp:
         provider_route_facts["dequantization"] = {
             "relation": DEQUANTIZE_I32_TO_F32_RELATION,
-            "convert_intrinsic": DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
-            "scale_intrinsic": DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
+            "scalar_dequant_expression": "dot_acc_scalar * scale",
+            "scalar_splat_intrinsic": F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+            "forbids_vector_convert_intrinsic": (
+                DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC
+            ),
+            "forbids_vector_scale_intrinsic": (
+                DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
+            ),
             "scale_role": "dequant-scale-value",
             "scale_c_type": "float",
             "scale_name": "scale",
@@ -35876,9 +35891,6 @@ def run_self_test() -> int:
                         bundle_checks, expectation
                     )
                 )
-                dequant_metadata = dequantization_metadata_from_bundle(
-                    bundle_checks, expectation
-                )
                 product_dequant_boundary = (
                     widening_product_reduction_boundary_summary(
                         expectation=expectation,
@@ -35902,6 +35914,7 @@ def run_self_test() -> int:
                 provider_facts = product_dequant_boundary.get(
                     "provider_route_facts", {}
                 )
+                product_dequant_facts = provider_facts.get("dequantization", {})
                 low_precision_resource = provider_facts.get(
                     "low_precision_resource", {}
                 )
@@ -35974,9 +35987,23 @@ def run_self_test() -> int:
                     )
                     != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY
                     or gearbox_boundary_lost
-                    or dequant_metadata.get("tcrv_rvv.dequantization_relation")
+                    or product_dequant_metadata.get(
+                        "tcrv_rvv.dequantization_relation"
+                    )
                     != DEQUANTIZE_I32_TO_F32_RELATION
-                    or dequant_metadata.get("tcrv_rvv.dequantize_scale_intrinsic")
+                    or product_dequant_metadata.get(
+                        "tcrv_rvv.rhs_broadcast_intrinsic"
+                    )
+                    != F32_CLAMP_SELECT_SPLAT_INTRINSIC
+                    or product_dequant_facts.get("scalar_dequant_expression")
+                    != "dot_acc_scalar * scale"
+                    or product_dequant_facts.get("scalar_splat_intrinsic")
+                    != F32_CLAMP_SELECT_SPLAT_INTRINSIC
+                    or product_dequant_facts.get(
+                        "forbids_vector_convert_intrinsic"
+                    )
+                    != DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC
+                    or product_dequant_facts.get("forbids_vector_scale_intrinsic")
                     != DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
                     or selected_source_abi.get("scale") != "dequant-scale-value"
                     or provider_facts.get("target_leaf_profile")

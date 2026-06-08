@@ -86,30 +86,30 @@ generated-bundle, measurement-dashboard, metadata, or report-only task.
       Current slice evidence was collected and does not support a performance
       win claim; the macro gate remains open for further optimization and final
       campaign measurement.
-- [ ] Gate 5: cleanup of temporary measurement-only scaffolding so production
+- [x] Gate 5: cleanup of temporary measurement-only scaffolding so production
       path remains plugin-owned and common EmitC/export stays neutral.
 
 ## Current Round Milestone
 
-Complete Gate 1 and one bounded Gate 2 slice.
+Complete Gate 5 cleanup for the active macro campaign.
 
 The current slice is:
 
-- Use the previous Gate 4 evidence for
-  `widening_product_reduce_dequantize_f32` and
-  `widening_product_reduce_dequant_clamp_f32` to attribute the slowdown to a
-  named production owner.
-- Inspect generated C/intrinsic output, selected-body realization facts,
-  resource candidate facts, route planning, direct-contraction statement
-  planning, and target validation mirrors.
-- Land one coherent production-source change in the RVV owner. A valid Gate 2
-  slice may either improve code generation for the bounded kernels or fail-close
-  the exact missing production primitive/candidate so the compiler no longer
-  treats the slow resource shape as a completed performance-ready route.
-- Validate the changed behavior with focused build/tests. If the source change
-  produces an executable optimized artifact, collect correctness and
-  same-target measurement evidence; if the source change only exposes the
-  production blocker, leave Gate 3/Gate 4 open with an exact next slice.
+- Inventory the directly touched production and measurement-consumer files from
+  the last low-precision scalar-dequant epilogue slice.
+- Remove or fail-close stale product-reduction dequant metadata mirrors that
+  made the old standalone vector convert/scale epilogue look like production
+  route authority after the route had moved to scalar dequant plus f32 splat.
+- Preserve the real production contract: RVV provider-owned low-precision
+  product/reduction facts, `dot_acc_scalar * scale` scalar dequantization,
+  provider-derived `rhs_broadcast_intrinsic` f32 splat, and target validation as
+  a consumer of provider mirrors.
+- Keep standalone `dequantize_i32_to_f32` and standalone dequant-clamp epilogue
+  vector convert/scale route contracts unchanged.
+- Keep scripts and evidence artifacts as consumers/verifiers only. They may
+  assert the production metadata contract and stale-key rejection, but they must
+  not supply dtype/config, selected-body semantics, intrinsic spelling,
+  artifact authority, or performance readiness state.
 
 ## Requirements
 
@@ -132,30 +132,39 @@ The current slice is:
 
 ## Acceptance Criteria For This Round
 
-- [x] PRD names the new macro performance-optimization campaign, records the
-      Gate 4 evidence-driven bottleneck attribution, and keeps macro gates open.
-- [x] Gate 1 records the production owner and evidence: generated C/intrinsic
-      shape, resource candidate facts, and same-target timing contrast.
-- [x] Production RVV compiler source changes in selected-body realization,
-      route planning, statement planning, or validation; no measurement-only
-      closeout.
-- [x] Focused checks cover the changed production behavior and fail-closed
-      boundary.
+- [x] PRD names Gate 5 as the current unfinished milestone and keeps this macro
+      task active because Gate 3/Gate 4 remain open for later production-loop
+      optimization evidence.
+- [x] Product-reduction dequant/dequant-clamp route facts and emitted metadata
+      no longer mirror `tcrv_rvv.dequantize_convert_intrinsic` or
+      `tcrv_rvv.dequantize_scale_intrinsic`; those remain valid only for
+      standalone dequant route families.
+- [x] RVV provider/target validation require the provider-derived post-loop
+      scalar dequant splat mirror through `tcrv_rvv.rhs_broadcast_intrinsic`
+      and reject inserted stale standalone vector-dequant metadata keys.
+- [x] Generated-bundle evidence scripts consume the provider metadata contract
+      and assert stale-key absence/rejection; they do not supply route facts,
+      dtype/config authority, selected-body semantics, intrinsic spelling, or
+      performance readiness state.
+- [x] Common EmitC remains neutral and continues only to materialize
+      provider-supplied scalar expressions and route payloads.
 - [x] Required focused builds/checks are run or an exact blocker is recorded:
       `tcrv-opt`, `tcrv-translate`,
       `tianchenrv-rvv-extension-plugin-test`,
       `tianchenrv-target-artifact-export-test`, relevant low-precision/
       Gearbox/generated-bundle lit tests, `git diff --check`, and
       `git diff --cached --check`.
-- [x] If optimized artifacts are produced, collect correctness guard and
-      before/after same-target measurement on `ssh rvv`; otherwise record why
-      measurement remains pending and name the next production primitive.
+- [x] No same-target measurement rerun is required for this slice because the
+      executable low-precision post-loop body is unchanged from the previous
+      scalar-dequant epilogue optimization; the changed behavior is metadata
+      ownership and target validation cleanup.
 - [x] Bounded old-authority scan over touched files and added diff lines shows
       no new positive `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`,
       `!tcrv_rvv.i32m*`, descriptor, source-front-door, route-id,
       artifact-name, or q8/q4 authority.
-- [x] Commit one coherent slice and leave `.trellis/.current-task` active if
-      campaign gates remain open.
+- [x] Commit one coherent Gate 5 cleanup slice and leave `.trellis/.current-task`
+      active because Gate 3/Gate 4 remain partial for future production-loop
+      optimization.
 
 ## Out Of Scope
 
@@ -192,7 +201,7 @@ The current slice is:
   `lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp`, and
   `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp`.
 
-## Current Round Result
+## Previous Round Result
 
 Gate 1 attribution is complete for this slice. The slow generated path is owned
 by RVV direct-contraction route/statement planning and its validation mirrors,
@@ -236,6 +245,34 @@ Self-repair note: an intermediate scalar `fmaf` expression produced optimized C
 that failed remote linking on `ssh rvv` with an undefined `fmaf` reference in
 the current measurement compile path. The slice was repaired to ordinary scalar
 multiply before the f32 splat, avoiding a new libm dependency.
+
+## Current Gate 5 Round Result
+
+Gate 5 cleanup is complete for this slice. Product-reduction
+`widening_product_reduce_dequantize_f32` and
+`widening_product_reduce_dequant_clamp_f32` now expose the scalar-dequant
+epilogue contract truthfully:
+
+- RVV contraction route-family facts and route descriptions use
+  `dequant-splat` C type summaries for product-reduction dequant epilogues.
+- Product-reduction dequant route metadata mirrors
+  `tcrv_rvv.rhs_broadcast_intrinsic` as the provider-owned final f32 scalar
+  splat leaf.
+- Product-reduction dequant route metadata no longer mirrors
+  `tcrv_rvv.dequantize_convert_intrinsic` or
+  `tcrv_rvv.dequantize_scale_intrinsic`; target validation rejects those keys
+  when inserted as stale standalone vector-dequant mirrors.
+- Standalone `dequantize_i32_to_f32` and standalone dequant-clamp epilogue
+  route families keep their existing vector convert/scale contracts.
+- Generated-bundle ABI evidence scripts now consume this metadata contract and
+  assert the old vector convert/scale keys as forbidden stale mirrors for
+  product-reduction dequantization.
+
+This slice changes route metadata ownership and target validation behavior, not
+the executable post-loop computation already changed in the previous scalar
+dequant epilogue optimization. Same-target `ssh rvv` measurement therefore
+remains the previous slice's evidence and was not rerun for this metadata/
+validation cleanup.
 
 ## Continuation Point
 

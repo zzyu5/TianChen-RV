@@ -1538,10 +1538,6 @@ static llvm::Error buildContractionRouteControlProviderPlan(
         (isProductReductionDequantization &&
          (contractionPlan.dequantizationRelation !=
               description.dequantizationRelation ||
-          contractionPlan.dequantizeConvertIntrinsic !=
-              description.dequantizeConvertIntrinsic ||
-          contractionPlan.dequantizeScaleIntrinsic !=
-              description.dequantizeScaleIntrinsic ||
           contractionPlan.dequantScaleRole != description.dequantScaleRole ||
           contractionPlan.dequantScaleCType !=
               description.dequantScaleCType ||
@@ -1579,7 +1575,8 @@ static llvm::Error buildContractionRouteControlProviderPlan(
           !contractionPlan.dequantizeScaleIntrinsic.empty() ||
           !contractionPlan.dequantScaleRole.empty() ||
           !contractionPlan.dequantScaleCType.empty() ||
-          !contractionPlan.dequantScaleName.empty())))
+          !contractionPlan.dequantScaleName.empty() ||
+          !contractionPlan.rhsBroadcastIntrinsic.empty())))
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " route-control provider plan requires low-precision "
@@ -1738,14 +1735,10 @@ static llvm::Error buildContractionRouteControlProviderPlan(
       materializationFacts.maskedWideningProductLeaf !=
           contractionPlan.maskedWideningProductIntrinsic ||
       (isProductReductionDequantization &&
-       (materializationFacts.dequantizeConvertLeaf !=
-            contractionPlan.dequantizeConvertIntrinsic ||
-        materializationFacts.dequantizeScaleLeaf !=
-            contractionPlan.dequantizeScaleIntrinsic)) ||
+       materializationFacts.rhsScalarBroadcastLeaf !=
+           contractionPlan.rhsBroadcastIntrinsic) ||
       (isProductReductionDequantClamp &&
-       (materializationFacts.rhsScalarBroadcastLeaf !=
-            contractionPlan.rhsBroadcastIntrinsic ||
-        materializationFacts.compareLeaf != contractionPlan.compareIntrinsic ||
+       (materializationFacts.compareLeaf != contractionPlan.compareIntrinsic ||
         materializationFacts.secondaryCompareLeaf !=
             contractionPlan.secondaryCompareIntrinsic ||
         materializationFacts.maskedMergeLeaf !=

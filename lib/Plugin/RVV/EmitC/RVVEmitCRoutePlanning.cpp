@@ -36903,13 +36903,19 @@ getRVVSelectedBodyDirectContractionRouteProviderPlan(
   }
   if (isProductReductionDequantization) {
     if (llvm::Error error = requireRVVDirectContractionProviderPlanLeaf(
-            materializationFacts.dequantizeConvertLeaf,
-            "dequantize convert leaf", description, context))
+            materializationFacts.rhsScalarBroadcastLeaf,
+            "post-loop scalar dequant splat leaf", description, context))
       return std::move(error);
-    if (llvm::Error error = requireRVVDirectContractionProviderPlanLeaf(
-            materializationFacts.dequantizeScaleLeaf,
-            "dequantize scale leaf", description, context))
-      return std::move(error);
+    if (!materializationFacts.dequantizeConvertLeaf.empty() ||
+        !materializationFacts.dequantizeScaleLeaf.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " direct contraction provider plan rejects standalone vector "
+          "dequant convert/scale leaves for product-reduction scalar "
+          "dequantization before route construction for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) +
+          "', memory_form '" +
+          stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
   }
   if (isProductReductionDequantClamp) {
     if (llvm::Error error = requireRVVDirectContractionProviderPlanLeaf(
@@ -42914,16 +42920,14 @@ getRVVSelectedBodyConfigArtifactMetadata(
             RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32) {
       metadata.push_back({"tcrv_rvv.dequantization_relation",
                           description.dequantizationRelation});
-      metadata.push_back({"tcrv_rvv.dequantize_convert_intrinsic",
-                          description.dequantizeConvertIntrinsic});
-      metadata.push_back({"tcrv_rvv.dequantize_scale_intrinsic",
-                          description.dequantizeScaleIntrinsic});
       metadata.push_back({"tcrv_rvv.dequant_scale_role",
                           description.dequantScaleRole});
       metadata.push_back({"tcrv_rvv.dequant_scale_c_type",
                           description.dequantScaleCType});
       metadata.push_back({"tcrv_rvv.dequant_scale_name",
                           description.dequantScaleName});
+      metadata.push_back({"tcrv_rvv.rhs_broadcast_intrinsic",
+                          description.rhsBroadcastIntrinsic});
       if (description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32) {
         metadata.push_back({"tcrv_rvv.lower_bound_role",
@@ -42949,8 +42953,6 @@ getRVVSelectedBodyConfigArtifactMetadata(
                             description.secondaryCompareIntrinsic});
         metadata.push_back({"tcrv_rvv.masked_merge_intrinsic",
                             description.maskedMergeIntrinsic});
-        metadata.push_back({"tcrv_rvv.rhs_broadcast_intrinsic",
-                            description.rhsBroadcastIntrinsic});
       }
     }
   }

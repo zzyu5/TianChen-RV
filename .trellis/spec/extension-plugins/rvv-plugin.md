@@ -5384,6 +5384,20 @@ analysis exactly. Accepting f32 here is not metadata authority; rejecting stale
 family-plan element mirrors remains fail-closed before `TCRVEmitCLowerableRoute`
 construction.
 
+The product-reduction dequantization epilogue is not the standalone
+`dequantize_i32_to_f32` vector route. For
+`widening_product_reduce_dequantize_f32` and
+`widening_product_reduce_dequant_clamp_f32`, the RVV direct-contraction owner
+keeps the post-loop scalar expression `dot_acc_scalar * scale` as the
+provider-derived dequantization fact and then materializes the final VL=1 f32
+vector through the provider-owned `rhs_broadcast_intrinsic` scalar splat. The
+product-reduction route description and target metadata may mirror
+`dequantization_relation`, `dequant_scale_role`, `dequant_scale_c_type`,
+`dequant_scale_name`, and `rhs_broadcast_intrinsic`. They must not mirror
+standalone vector-dequant leaves such as `tcrv_rvv.dequantize_convert_intrinsic`
+or `tcrv_rvv.dequantize_scale_intrinsic`; those keys remain valid only for the
+standalone dequant/dequant-clamp epilogue route families.
+
 ### 4. Validation & Error Matrix
 
 - A non-contraction route requests the boundary -> return an empty direct
@@ -5399,6 +5413,14 @@ construction.
   result element mirror other than f32, or typed config facts that are neither
   the same-analysis i32 accumulator nor f32 result config -> fail closed before
   route construction.
+- A product-reduction dequantization or dequant-clamp route lacks the
+  provider-derived post-loop scalar dequant splat leaf, scale role/C type/name,
+  or dequantization relation -> fail closed before route construction or target
+  artifact acceptance.
+- A product-reduction dequantization or dequant-clamp candidate carries
+  `tcrv_rvv.dequantize_convert_intrinsic` or
+  `tcrv_rvv.dequantize_scale_intrinsic` metadata -> fail closed before target
+  artifact acceptance as stale standalone vector-dequant mirror authority.
 - A contraction route lacks same-analysis math operand-binding facts for its
   specific sub-family -> fail closed before route construction.
 - The owner selection boundary cannot derive the direct contraction provider
@@ -5456,6 +5478,10 @@ construction.
   centrally obtaining or validating the direct contraction provider plan.
 - Representative generated-bundle or `tcrv-translate` dry-run coverage for one
   direct-provider contraction route and one migrated statement-plan route.
+- Product-reduction dequantization/dequant-clamp coverage must assert
+  `rhs_broadcast_intrinsic` and the `dequant-splat` C type mapping summary, and
+  must prove inserted stale `dequantize_convert_intrinsic` or
+  `dequantize_scale_intrinsic` metadata is rejected by target validation.
 - Bounded provider scan showing direct contraction statement construction is
   reached through the RVV-owned direct contraction owner and that the provider
   no longer carries central direct-contraction provider-plan construction,
@@ -5475,6 +5501,15 @@ RVVEmitCRouteProvider:
   call direct contraction statement owner with a central provider-plan aggregate
 ```
 
+Wrong:
+
+```text
+widening_product_reduce_dequantize_f32 metadata
+  -> tcrv_rvv.dequantize_convert_intrinsic = __riscv_vfcvt_f_x_v_f32m1
+  -> tcrv_rvv.dequantize_scale_intrinsic = __riscv_vfmul_vf_f32m1
+  -> target accepts product-reduction route through standalone dequant mirrors
+```
+
 Correct:
 
 ```text
@@ -5484,6 +5519,15 @@ verified contraction family/materialization/math facts
   -> direct contraction provider facts validated against owner selection
   -> TCRVEmitCLowerableRoute construction
   -> provider attaches returned statements
+```
+
+Correct:
+
+```text
+widening_product_reduce_dequantize_f32 selected body
+  -> RVV direct-contraction owner derives dot_acc_scalar * scale
+  -> provider mirrors rhs_broadcast_intrinsic for the final f32 VL=1 splat
+  -> target rejects standalone vector-dequant convert/scale metadata keys
 ```
 
 ## MAcc And Direct-Contraction Artifact Contract Core
