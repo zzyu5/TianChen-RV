@@ -117,6 +117,38 @@ llvm::Error requireLowPrecisionResourceExpectedIntegerFact(
       llvm::Twine(*value));
 }
 
+llvm::Error requireLowPrecisionResourceExpectedStringFact(
+    mlir::Operation *op, llvm::StringRef attrName,
+    const std::string &expected) {
+  return requireLowPrecisionResourceExpectedStringFact(
+      op, attrName, llvm::StringRef(expected));
+}
+
+llvm::Error requireLowPrecisionResourceExpectedIntegerFact(
+    mlir::Operation *op, llvm::StringRef attrName,
+    std::int64_t actual, std::int64_t expected) {
+  llvm::Expected<std::int64_t> value =
+      requireLowPrecisionResourceIntegerFact(op, attrName);
+  if (!value)
+    return value.takeError();
+  if (actual != expected)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV contraction selected-body realization "
+                    "cannot consume stale or unsupported low-precision "
+                    "direct-contraction resource plan for '") +
+        attrName + "': selected body expects " + llvm::Twine(actual) +
+        " but provider primitive facts require " + llvm::Twine(expected));
+  if (*value == expected)
+    return llvm::Error::success();
+  return makeRVVPluginError(
+      llvm::Twine("pre-realized RVV contraction selected-body realization "
+                  "cannot consume stale or unsupported low-precision "
+                  "direct-contraction resource fact '") +
+      attrName + "': expected " + llvm::Twine(expected) +
+      " matching the selected primitive/resource plan but found " +
+      llvm::Twine(*value));
+}
+
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
                                      mlir::Location loc, mlir::Value nValue,
                                      std::int64_t sew, llvm::StringRef lmul,
@@ -160,7 +192,13 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
 
 llvm::Error materializeLowPrecisionResourceRealizationAttrs(
     mlir::OpBuilder &builder, mlir::Operation *source,
-    mlir::Operation *destination, bool usesProductReductionDequantClamp) {
+    mlir::Operation *destination, bool usesProductReductionDequantClamp,
+    const RVVLowPrecisionWideningReductionPrimitiveFacts &primitiveFacts,
+    llvm::StringRef tailPolicy, llvm::StringRef maskPolicy,
+    std::int64_t sourceSEW, llvm::StringRef sourceLMUL,
+    std::int64_t productSEW, llvm::StringRef productLMUL,
+    std::int64_t reductionResultSEW,
+    llvm::StringRef reductionResultLMUL) {
   if (!destination)
     return makeRVVPluginError(
         "pre-realized RVV contraction selected-body realization requires a "
@@ -196,9 +234,85 @@ llvm::Error materializeLowPrecisionResourceRealizationAttrs(
           source, kRVVLowPrecisionResourceLegalityScopeAttrName,
           kRVVLowPrecisionResourceLegalityScope))
     return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceSourceDTypeAttrName,
+          primitiveFacts.sourceElementTypeName))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
+          source, kRVVLowPrecisionResourceSourceSEWAttrName, sourceSEW,
+          primitiveFacts.sourceSEW))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceSourceLMULAttrName, sourceLMUL))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceProductDTypeAttrName,
+          primitiveFacts.productElementTypeName))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
+          source, kRVVLowPrecisionResourceProductSEWAttrName, productSEW,
+          primitiveFacts.productSEW))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceProductLMULAttrName, productLMUL))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceProductEMULAttrName,
+          kRVVLowPrecisionResourceProductEMUL))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceAccumulatorDTypeAttrName,
+          primitiveFacts.accumulatorElementTypeName))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
+          source, kRVVLowPrecisionResourceAccumulatorSEWAttrName,
+          reductionResultSEW, primitiveFacts.accumulatorSEW))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceAccumulatorLMULAttrName,
+          reductionResultLMUL))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceAccumulatorEMULAttrName,
+          kRVVLowPrecisionResourceAccumulatorEMUL))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceResultDTypeAttrName,
+          primitiveFacts.finalResultElementTypeName))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
+          source, kRVVLowPrecisionResourceResultSEWAttrName,
+          reductionResultSEW, primitiveFacts.reductionResultSEW))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceResultLMULAttrName,
+          reductionResultLMUL))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceMemoryFormAttrName,
+          usesProductReductionDequantClamp
+              ? llvm::StringRef(
+                    "unit-stride-widening-product-reduce-dequant-clamp-f32")
+              : llvm::StringRef(
+                    "unit-stride-widening-product-reduce-dequantize-f32")))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceTailPolicyAttrName, tailPolicy))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceMaskPolicyAttrName, maskPolicy))
+    return error;
   if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
           source, kRVVLowPrecisionResourceUnrollFactorAttrName,
           kRVVLowPrecisionResourceStaticUnroll))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
+          source, kRVVLowPrecisionResourceAccumulatorCountAttrName,
+          kRVVLowPrecisionResourceAccumulatorCount))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceReductionLayoutAttrName,
+          kRVVLowPrecisionResourceReductionLayout))
     return error;
   if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
           source, kRVVLowPrecisionResourceVSetVLRegionCountAttrName,
@@ -211,6 +325,10 @@ llvm::Error materializeLowPrecisionResourceRealizationAttrs(
   if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
           source, kRVVLowPrecisionResourceVectorRegisterBudgetAttrName,
           kRVVLowPrecisionResourceVectorRegisterBudget))
+    return error;
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceRuntimeAVLSourceAttrName,
+          kRVVGearboxRuntimeAVLSourceN))
     return error;
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVGearboxProducerScopeAttrName, kRVVGearboxProducerScope))
@@ -550,6 +668,150 @@ struct RVVSelectedBodyContractionRealizationPlan {
   mlir::Value rhsStride;
 };
 
+llvm::StringRef stringifyLowPrecisionRealizationTailPolicy(
+    tcrv::rvv::TailPolicy policy) {
+  switch (policy) {
+  case tcrv::rvv::TailPolicy::Agnostic:
+    return "agnostic";
+  case tcrv::rvv::TailPolicy::Undisturbed:
+    return "undisturbed";
+  }
+  return {};
+}
+
+llvm::StringRef stringifyLowPrecisionRealizationMaskPolicy(
+    tcrv::rvv::MaskPolicy policy) {
+  switch (policy) {
+  case tcrv::rvv::MaskPolicy::Agnostic:
+    return "agnostic";
+  case tcrv::rvv::MaskPolicy::Undisturbed:
+    return "undisturbed";
+  }
+  return {};
+}
+
+std::optional<RVVSelectedBodyOperationKind>
+getLowPrecisionProductReductionRealizationOperation(
+    const RVVSelectedBodyContractionRealizationPlan &plan) {
+  if (!plan.usesProductReductionDequantization)
+    return std::nullopt;
+  return plan.usesProductReductionDequantClamp
+             ? RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32
+             : RVVSelectedBodyOperationKind::
+                   WideningProductReduceDequantizeF32;
+}
+
+llvm::Error requireLowPrecisionPrimitiveStringField(
+    llvm::StringRef field, llvm::StringRef actual, llvm::StringRef expected) {
+  if (!expected.empty() && actual == expected)
+    return llvm::Error::success();
+  return makeRVVPluginError(
+      llvm::Twine("pre-realized RVV contraction selected-body realization "
+                  "cannot consume stale or unsupported low-precision "
+                  "widening-reduction primitive fact '") +
+      field + "': expected '" + expected + "' but found '" + actual + "'");
+}
+
+llvm::Error requireLowPrecisionPrimitiveIntegerField(
+    llvm::StringRef field, std::int64_t actual, std::int64_t expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVPluginError(
+      llvm::Twine("pre-realized RVV contraction selected-body realization "
+                  "cannot consume stale or unsupported low-precision "
+                  "widening-reduction primitive fact '") +
+      field + "': expected " + llvm::Twine(expected) + " but found " +
+      llvm::Twine(actual));
+}
+
+llvm::Error requireLowPrecisionPrimitiveNonEmptyField(
+    llvm::StringRef field, llvm::StringRef value) {
+  if (!value.empty())
+    return llvm::Error::success();
+  return makeRVVPluginError(
+      llvm::Twine("pre-realized RVV contraction selected-body realization "
+                  "requires provider-owned low-precision widening-reduction "
+                  "primitive fact '") +
+      field + "' before resource-aware realization planning");
+}
+
+llvm::Error validateLowPrecisionPrimitiveFactsForRealization(
+    const RVVSelectedBodyContractionRealizationPlan &plan,
+    const RVVLowPrecisionWideningReductionPrimitiveFacts &primitiveFacts) {
+  if (!primitiveFacts.hasFacts)
+    return makeRVVPluginError(
+        "pre-realized RVV contraction selected-body realization requires "
+        "provider-owned low-precision widening-reduction primitive facts "
+        "before resource-aware realization planning");
+
+  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
+          "contract", primitiveFacts.contractID))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
+          "low-precision primitive contract",
+          primitiveFacts.lowPrecisionPrimitiveContractID))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
+          "low-precision primitive kind",
+          primitiveFacts.lowPrecisionPrimitiveKind))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
+          "widening product intrinsic",
+          primitiveFacts.wideningProductIntrinsic))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
+          "widening reduction intrinsic", primitiveFacts.reductionIntrinsic))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
+          "scalar seed splat intrinsic",
+          primitiveFacts.scalarSeedSplatIntrinsic))
+    return error;
+
+  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
+          "product kind", plan.productKind, "signed_widening_product"))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
+          "source LMUL", plan.sourceLMUL, primitiveFacts.sourceLMUL))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveIntegerField(
+          "source SEW", plan.sourceSEW, primitiveFacts.sourceSEW))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
+          "product LMUL", plan.productLMUL, primitiveFacts.productLMUL))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveIntegerField(
+          "product SEW", plan.productSEW, primitiveFacts.productSEW))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
+          "reduction result LMUL", plan.resultLMUL,
+          primitiveFacts.reductionResultLMUL))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveIntegerField(
+          "reduction result SEW", plan.resultSEW,
+          primitiveFacts.reductionResultSEW))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
+          "widening product relation", plan.productRelation,
+          primitiveFacts.wideningProductRelation))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
+          "product-reduction chain relation",
+          plan.productReductionChainRelation,
+          primitiveFacts.productReductionChainRelation))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
+          "accumulator layout", plan.accumulatorLayout,
+          primitiveFacts.accumulatorLayout))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
+          "result layout", plan.resultLayout, primitiveFacts.resultLayout))
+    return error;
+  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
+          "reduction store VL", primitiveFacts.reductionStoreVL, "1"))
+    return error;
+  return llvm::Error::success();
+}
+
 void populateWideningDotContractionRealizationPlan(
     RVVSelectedBodyContractionRealizationPlan &plan, mlir::Operation *bodyOp,
     llvm::StringRef opKind, llvm::StringRef accumulatorLayout,
@@ -807,6 +1069,29 @@ realizePreRealizedRVVSelectedContractionFamily(
         "pre-realized RVV contraction selected-body realization requires "
         "compare lhs/rhs runtime ABI values for computed-mask routes");
 
+  std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
+      lowPrecisionPrimitiveFacts;
+  if (plan.usesProductReductionDequantization) {
+    std::optional<RVVSelectedBodyOperationKind> operation =
+        getLowPrecisionProductReductionRealizationOperation(plan);
+    if (!operation)
+      return makeRVVPluginError(
+          "pre-realized RVV contraction selected-body realization requires "
+          "a provider-owned product-reduction operation before consuming "
+          "low-precision primitive facts");
+    std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts> facts =
+        getRVVLowPrecisionWideningReductionPrimitiveFacts(*operation);
+    if (!facts)
+      return makeRVVPluginError(
+          "pre-realized RVV contraction selected-body realization requires "
+          "provider-owned low-precision widening-reduction primitive facts "
+          "for the product-reduction operation");
+    if (llvm::Error error =
+            validateLowPrecisionPrimitiveFactsForRealization(plan, *facts))
+      return std::move(error);
+    lowPrecisionPrimitiveFacts = std::move(*facts);
+  }
+
   tcrv::exec::VariantOp variant = request.getVariant();
   tcrv::exec::KernelOp kernel = request.getKernel();
   mlir::OpBuilder &builder = request.getBuilder();
@@ -822,9 +1107,18 @@ realizePreRealizedRVVSelectedContractionFamily(
                            plan.resultLMUL, plan.policy);
   copyLowPrecisionResourceAttrs(plan.preRealizedBody, withVL.getOperation());
   if (plan.usesProductReductionDequantization) {
+    if (!lowPrecisionPrimitiveFacts)
+      return makeRVVPluginError(
+          "pre-realized RVV contraction selected-body realization lost "
+          "provider-owned low-precision primitive facts before materializing "
+          "resource-aware realization attributes");
     if (llvm::Error error = materializeLowPrecisionResourceRealizationAttrs(
             builder, plan.preRealizedBody, withVL.getOperation(),
-            plan.usesProductReductionDequantClamp))
+            plan.usesProductReductionDequantClamp, *lowPrecisionPrimitiveFacts,
+            stringifyLowPrecisionRealizationTailPolicy(plan.policy.getTail()),
+            stringifyLowPrecisionRealizationMaskPolicy(plan.policy.getMask()),
+            plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
+            plan.productLMUL, plan.resultSEW, plan.resultLMUL))
       return std::move(error);
   }
 
@@ -900,7 +1194,11 @@ realizePreRealizedRVVSelectedContractionFamily(
                                   consumerWithVL.getOperation());
     if (llvm::Error error = materializeLowPrecisionResourceRealizationAttrs(
             builder, plan.preRealizedBody, consumerWithVL.getOperation(),
-            plan.usesProductReductionDequantClamp))
+            plan.usesProductReductionDequantClamp, *lowPrecisionPrimitiveFacts,
+            stringifyLowPrecisionRealizationTailPolicy(plan.policy.getTail()),
+            stringifyLowPrecisionRealizationMaskPolicy(plan.policy.getMask()),
+            plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
+            plan.productLMUL, plan.resultSEW, plan.resultLMUL))
       return std::move(error);
     builder.setInsertionPointToStart(&consumerWithVL.getBody().front());
     createRealizedVSetVLRegionMarker(builder, loc, setvl.getVl(),

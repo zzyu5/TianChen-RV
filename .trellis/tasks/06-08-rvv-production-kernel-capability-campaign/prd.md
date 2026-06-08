@@ -10,10 +10,10 @@ production behavior is claimed, and measured same-target comparison for
 production-like RVV kernels.
 
 This task remains open across rounds until the campaign gates below are met.
-This round continues Gate 2 with low-precision widening-reduction primitive
-facts, making the product-reduction / `vwredsum`-style path consume typed RVV
-source/product/accumulator facts, provider-owned intrinsics/layouts, exact
-target mirrors, and neutral EmitC materialization.
+This round integrates Gate 1 and Gate 2 by making Gearbox/resource-aware
+selected-body realization consume the low-precision widening-product /
+product-reduction primitive facts and resource facts already added in recent
+slices.
 
 ## Direction Brief Source
 
@@ -69,6 +69,23 @@ slice should keep the facts provider-owned, expose a bounded target validation
 contract, and reject stale dtype/sign/SEW/LMUL/accumulator/reduction mirrors
 before artifact acceptance.
 
+Hermes now continues the same macro task with:
+
+```text
+RVV production-kernel capability campaign: Gearbox/resource-aware
+low-precision realization integration
+```
+
+This continuation keeps the macro task active after the widening-reduction
+primitive fact slice. The current round must move those provider-owned
+low-precision product/reduction primitive facts and resource facts into RVV
+plugin-local selected-body realization planning. The selected-body realization
+owner must consume typed product/reduction facts and resource facts before
+materializing realized `tcrv_rvv` structure, reject stale or missing
+primitive/resource combinations before route construction, and avoid deriving
+dtype, accumulator layout, reduction semantics, VL placement, or intrinsic
+spelling from route ids, artifact names, descriptors, tests, or Common EmitC.
+
 ## What I Already Know
 
 - The repository had no active Trellis task at session start, so this macro task
@@ -113,28 +130,32 @@ before artifact acceptance.
 
 ## Current Round Milestone
 
-Continue Gate 2 by adding the smallest production compiler submodule that makes
-low-precision product-reduction / `vwredsum` facts explicit and consumable by
-RVV provider and target validation. The slice starts after signed product facts
-and accepted unsigned u8 widening-product facts are already present.
+Integrate Gate 1 and Gate 2 by making RVV plugin-local
+Gearbox/resource-aware selected-body realization consume the low-precision
+product/reduction primitive facts and resource facts before it materializes
+realized `tcrv_rvv` structure.
 
-The preferred continuation slice is:
+The bounded continuation slice is:
 
-- Add or harden a provider-owned widening accumulation/reduction primitive fact
-  surface for the bounded signed product-reduction chains: i8 source, i16
-  product, i32 accumulator/result, signed widening product,
-  `__riscv_vwredsum_vs_i16mf2_i32m1`, scalar seed splat, reduction store VL,
-  accumulator layout, result layout, and product-reduction chain relation.
-- Validate those facts before `TCRVEmitCLowerableRoute` construction by
-  comparing the selected route description to canonical provider-owned facts,
-  not by trusting route IDs, target artifact names, metadata, or intrinsic
-  strings as authority.
-- Thread the same primitive-reduction facts into target validation only as exact
-  mirrors. Stale source/product/accumulator/result dtype, product SEW/LMUL,
-  reduction intrinsic, scalar seed, or store-VL mirrors must fail closed.
-- Keep Common EmitC neutral; it may carry provider payloads and metadata mirrors
-  but must not derive `vwredsum`, accumulator dtype, result dtype, sign, SEW,
-  LMUL, or resource facts.
+- Add or harden a realization-planning contract for the bounded signed
+  product-reduction-dequantize and product-reduction-dequant-clamp bodies. The
+  contract must compare the selected pre-realized body against provider-owned
+  widening-reduction primitive facts: i8 source, i16 product, i32 accumulator,
+  product and chain relations, `vwmul`, `vwredsum`, scalar seed splat,
+  accumulator/result layout, and reduction store VL.
+- Require the same realization planning step to consume pass-produced
+  low-precision resource facts: candidate set/selected candidate, legality
+  scope, source/product/accumulator/result dtype and SEW/LMUL, memory form,
+  policy, unroll, accumulator count, reduction layout, vsetvl region count,
+  runtime AVL source, runtime ABI order, target capability mirrors, and legal
+  result.
+- Fail closed on stale or missing primitive/resource combinations before
+  route construction. Good negative examples include stale accumulator dtype,
+  stale product-reduction relation, stale reduction layout, unsupported
+  SEW/LMUL relation, or missing resource facts.
+- Keep Common EmitC and target artifact metadata as mirror consumers only; this
+  slice must move production source in RVV realization/planning owners, not in a
+  report or artifact-only closeout.
 - Do not claim runtime correctness/performance in this slice unless emitted
   runtime behavior changes and `ssh rvv` evidence is collected.
 
@@ -158,22 +179,21 @@ The preferred continuation slice is:
 
 ## Acceptance Criteria For This Round
 
-- [x] A production source diff lands in the RVV dialect/plugin/provider/target
-      validation path, not only task/report/test evidence.
-- [x] Product-reduction / `vwredsum` primitive facts are provider-owned and
-      explicitly cover source/product/accumulator/result dtype, product
-      SEW/LMUL, signed widening product relation, product-reduction chain
-      relation, reduction intrinsic, scalar seed splat, accumulator/result
-      layout, and store-VL facts.
-- [x] Provider validation rejects stale or unsupported product-reduction facts
-      before route construction.
-- [x] Target artifact validation consumes the same primitive-reduction facts as
-      exact mirrors and rejects stale source/product/accumulator/result dtype,
-      product SEW/LMUL, reduction intrinsic, scalar seed, or store-VL mirrors.
-- [x] Focused lit/C++ tests prove accepted product-reduction facts remain
-      typed-fact gated and stale low-precision reduction facts fail closed.
-- [x] Existing signed i8 product and unsigned u8 widening-product provider /
-      target facts remain accepted.
+- [x] A production source diff lands in RVV selected-body realization,
+      Gearbox/resource planning, provider fact consumption, or target
+      validation as needed; docs/report-only changes are insufficient.
+- [x] Realization planning consumes provider-owned low-precision
+      widening-reduction primitive facts before materializing product/reduction
+      selected-body structure.
+- [x] Realization planning consumes pass-produced low-precision resource facts
+      before materializing product/reduction-dequantize or
+      product/reduction-dequant-clamp selected-body structure.
+- [x] Stale or missing primitive/resource fact combinations fail closed before
+      route construction with targeted diagnostics.
+- [x] Focused lit/C++ tests prove accepted realization consumes the facts and
+      stale or missing facts fail closed.
+- [x] Existing signed i8 product-reduction and unsigned u8 widening-product
+      provider/target facts remain accepted.
 - [x] A bounded old-authority scan over changed/added lines shows no new
       positive `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`,
       `!tcrv_rvv.i32m*`, descriptor, source-front-door, route-id, or artifact
@@ -184,6 +204,37 @@ The preferred continuation slice is:
       clean in the round report.
 
 ## Current Round Result
+
+Completed a bounded Gate 1/Gate 2 integration slice while keeping the macro
+campaign open:
+
+- `RVVContractionSelectedBodyRealizationOwner.cpp` now obtains provider-owned
+  `RVVLowPrecisionWideningReductionPrimitiveFacts` for the bounded signed
+  product-reduction dequantize/dequant-clamp operations before materializing
+  realized selected-body structure.
+- The realization owner validates the selected typed body plan against the
+  primitive facts: source/product/result SEW/LMUL, signed product kind,
+  product relation, product-reduction chain relation, accumulator/result
+  layout, reduction-store VL, and required primitive intrinsics.
+- The same realization step consumes pass-produced
+  `tcrv_rvv.low_precision_resource.*` facts before copying realization attrs
+  into producer/consumer `with_vl` scopes, including candidate selection,
+  legality scope, dtype/SEW/LMUL facts, memory form, policy, unroll,
+  accumulator count, reduction layout, `vsetvl` region count, runtime AVL/ABI
+  ordering, live-vector pressure, target profile, and legal-result mirrors.
+- Missing Gearbox/resource facts now fail before selected-body realization can
+  proceed; stale accumulator dtype and stale reduction layout are covered as
+  targeted fail-closed paths.
+- The RVV plugin spec now records that low-precision product-reduction
+  selected-body realization must consume both provider-owned primitive facts
+  and pass-produced resource facts before route construction.
+
+This slice does not claim new runtime correctness or performance, so no
+`ssh rvv` evidence was required. The macro campaign remains open: Gate 1 still
+needs the broader resource-aware build/prune/select closure, Gate 3 waits for a
+new executable behavior claim, and Gate 4 waits for same-target measurement.
+
+## Previous Round Result
 
 Completed the Gate 2 low-precision widening-reduction primitive facts slice
 while keeping the macro campaign open:

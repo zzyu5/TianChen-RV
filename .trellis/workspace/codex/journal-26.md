@@ -1047,7 +1047,7 @@ typed-surface diagnostic.
 
 ### Git Commits
 
-- Pending final commit in this session.
+- `rvv: consume low precision facts in realization` (this session commit).
 
 ### Testing
 
@@ -1259,3 +1259,63 @@ Continue the macro campaign by making low-precision product/reduction primitive
 and resource facts consumable by Gearbox/resource-aware selected-body
 realization. Collect Gate 3 runtime evidence only when a newly executable path
 is claimed, then continue to Gate 4 same-target comparison.
+
+
+## Session 569: RVV low-precision realization fact integration
+
+**Date**: 2026-06-08
+**Task**: RVV production-kernel capability campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro campaign with a bounded Gate 1/Gate 2 integration
+slice. The RVV contraction selected-body realization owner now consumes
+provider-owned low-precision widening-reduction primitive facts and
+pass-produced Gearbox/resource facts before it materializes realized
+product-reduction dequantize/dequant-clamp selected-body structure.
+
+### Main Changes
+
+- Added selected-body realization validation for provider-owned primitive facts:
+  source/product/result SEW/LMUL, signed product kind, product relation,
+  product-reduction chain relation, accumulator/result layout,
+  reduction-store VL, and required `vwmul` / `vwredsum` / scalar seed facts.
+- Hardened low-precision resource-fact consumption before route construction:
+  candidate set/selection, legality scope, dtype and SEW/LMUL facts, memory
+  form, policy, unroll, accumulator count, reduction layout, `vsetvl` region
+  count, runtime AVL source, runtime ABI order, live-vector pressure, target
+  profile, and legal-result mirrors.
+- Added focused lit coverage for accepted realized fact consumption and
+  fail-closed missing/stale resource facts on the product-reduction
+  dequant-clamp path.
+- Updated the RVV plugin resource-aware closure spec to make primitive/resource
+  fact consumption a selected-body realization contract, with Common EmitC and
+  artifact metadata remaining mirror consumers only.
+
+### Git Commits
+
+- Pending final commit in this session.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32'` from `build/test`: 1/1 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'widening-product|product-reduction|generic-widening-product'` from `build/test`: 13/13 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'generic-widening-product-dataflow|generic-widening-product-reduction-chain-dataflow|rvv-generic-stage2-widening-product-unsigned-u8|explicit-selected-body-artifact-widening-product(\\.mlir|$)|explicit-selected-body-artifact-widening-product-unsigned-u8|explicit-selected-body-artifact-widening-product-reduce-add|explicit-selected-body-artifact-widening-product-reduce-dequantize-f32|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32|explicit-selected-body-realization-widening-product-reduce-dequant-clamp-f32'` from `build/test`: 9/9 passed
+
+### Status
+
+[OPEN] Macro task remains active. This slice completes the current
+fact-to-selected-body-realization integration milestone, but the broader Gate 1
+resource-aware build/prune/select closure, Gate 3 runtime evidence for any newly
+claimed executable behavior, and Gate 4 same-target measurement remain open.
+
+### Next Steps
+
+Continue the macro campaign by replacing more of the fixed Gearbox MVP with
+real resource-aware candidate build/prune/select behavior, then validate the
+selected candidate against realized `tcrv_rvv` marker count/order/resource
+decision before any Gate 3 runtime or Gate 4 measurement claim.

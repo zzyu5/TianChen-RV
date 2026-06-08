@@ -5732,6 +5732,17 @@ the route provider claims resource-aware tuning.
   executable pipeline. Plain `dequantize_i32_to_f32` Gearbox evidence may still
   run the Gearbox pass after selected-boundary materialization because that MVP
   schedule pass consumes the realized `with_vl`/`dequantize` structure.
+- For low-precision product-reduction selected bodies, selected-body realization
+  must consume both provider-owned widening-reduction primitive facts and
+  pass-produced `tcrv_rvv.low_precision_resource.*` facts before materializing
+  realized product/reduction/dequantize structure. The realization owner must
+  compare typed source/product/accumulator/result dtype and SEW/LMUL, product
+  and product-reduction relations, accumulator/result layout, scalar seed and
+  reduction-store facts, policy, memory form, runtime AVL/ABI ordering,
+  `vsetvl` region count, live-vector pressure, and selected resource decision
+  with the RVV-owned facts. Missing or stale primitive/resource combinations
+  fail closed before route construction; Common EmitC and artifact metadata
+  remain mirror consumers only.
 - Runtime/performance parity claims require generated TianChen-RV output and the
   baseline RVV implementation to run on the same named `ssh rvv` environment with
   correctness checked before timing.

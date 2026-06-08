@@ -8,3 +8,10 @@
 {"file": "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir", "reason": "Covers product-reduction low-precision primitive contract metadata for i8/i16/i32 facts."}
 {"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Executed RVV extension plugin smoke test after provider changes."}
 {"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Executed target artifact export test after target support/validation changes."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Executed RVV extension plugin smoke test after selected-body realization fact-consumption changes."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Executed target artifact export test after selected-body realization fact-consumption changes."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32.mlir", "reason": "Focused lit accepted realized fact consumption and missing/stale low-precision resource fact fail-closed diagnostics."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir", "reason": "Focused lit kept product-reduction dequantize accepted after realization primitive/resource validation."}
+{"file": "test/Dialect/RVV/generic-widening-product-dataflow.mlir", "reason": "Focused lit kept generic low-precision widening-product typed dataflow accepted after realization integration."}
+{"file": "test/Dialect/RVV/generic-widening-product-reduction-chain-dataflow.mlir", "reason": "Focused lit kept generic widening-product/reduction chain typed dataflow accepted after realization integration."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-widening-product-unsigned-u8.mlir", "reason": "Focused lit kept accepted unsigned u8 widening-product provider/target facts accepted after signed product-reduction realization integration."}

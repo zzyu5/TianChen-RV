@@ -7,6 +7,9 @@
 // RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_pre_realized_body/s/product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"/product_reduction_chain_relation = "metadata-product-reduction"/' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-REDUCTION
 // RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_pre_realized_body/s/source_sew = 8 : i64/source_sew = 16 : i64/' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=DTYPE-CHAIN
 // RUN: sed 's/#tcrv_rvv.policy<tail = agnostic, mask = agnostic>/#tcrv_rvv.policy<tail = undisturbed, mask = agnostic>/g' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-POLICY
+// RUN: not tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-RESOURCE-FACTS
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | sed '0,/tcrv_rvv.low_precision_resource.accumulator_dtype = "i32"/s//tcrv_rvv.low_precision_resource.accumulator_dtype = "i16"/' | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE-ACC
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | sed '0,/tcrv_rvv.low_precision_resource.reduction_layout = "scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-chunks-final-f32-store.v1"/s//tcrv_rvv.low_precision_resource.reduction_layout = "metadata-layout"/' | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE-REDUCTION-LAYOUT
 // RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_pre_realized_body/s/policy = /route_id = "rvv-i32m1", policy = /' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-AUTH
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-contraction-family-plan-validated/s//provider_supported_mirror:rvv-artifact-name-authority/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n/s//tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,lower_bound,scale,upper_bound,out,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
@@ -60,6 +63,8 @@ module {
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: selected_variant = @pre_realized_body_rvv_product_reduce_dequant_clamp
 // REALIZED-SAME: tcrv_rvv.gearbox.producer_scope = "gearbox-scope:product-reduction"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.realization_producer = "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 2 : i64
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"
 // REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
 // REALIZED-SAME: phase = "load-product-reduce"
@@ -230,6 +235,19 @@ module {
 // DTYPE-CHAIN: requires typed product-reduction-dequant-clamp config
 
 // UNSUPPORTED-POLICY: requires tail agnostic, mask agnostic policy
+
+// MISSING-RESOURCE-FACTS: requires pass-produced low-precision direct-contraction resource fact
+// MISSING-RESOURCE-FACTS-SAME: tcrv_rvv.low_precision_resource.candidate_set
+
+// STALE-RESOURCE-ACC: cannot consume stale or unsupported low-precision direct-contraction resource fact
+// STALE-RESOURCE-ACC-SAME: tcrv_rvv.low_precision_resource.accumulator_dtype
+// STALE-RESOURCE-ACC-SAME: expected 'i32'
+// STALE-RESOURCE-ACC-SAME: found 'i16'
+
+// STALE-RESOURCE-REDUCTION-LAYOUT: cannot consume stale or unsupported low-precision direct-contraction resource fact
+// STALE-RESOURCE-REDUCTION-LAYOUT-SAME: tcrv_rvv.low_precision_resource.reduction_layout
+// STALE-RESOURCE-REDUCTION-LAYOUT-SAME: scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-chunks-final-f32-store.v1
+// STALE-RESOURCE-REDUCTION-LAYOUT-SAME: metadata-layout
 
 // STALE-AUTH: does not accept authority metadata attribute
 // STALE-AUTH-SAME: route_id
