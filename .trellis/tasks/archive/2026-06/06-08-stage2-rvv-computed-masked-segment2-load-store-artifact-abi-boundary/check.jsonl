@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the final change still follows global RVV authority and Stage 2 boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV computed-mask/segment2 semantics remain plugin-owned and route-supported evidence is truthful."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify route payload, ABI/header binding, common EmitC neutrality, and target mirror validation."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Verify focused tests and runtime evidence satisfy the repository testing contract."}

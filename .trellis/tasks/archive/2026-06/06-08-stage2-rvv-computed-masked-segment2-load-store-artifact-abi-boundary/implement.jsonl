@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture invariants, RVV-first authority chain, and Stage 2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership for typed body facts, selected-body realization, route validation, ABI mapping, and ssh evidence."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, operand binding summary, common EmitC neutrality, and target mirror fail-closed contract."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused lit/C++/runtime evidence expectations for compiler and generated artifact changes."}

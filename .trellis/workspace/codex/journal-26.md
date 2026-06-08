@@ -589,3 +589,49 @@ Refreshed explicit and pre-realized plain segment2 deinterleave/interleave gener
 ### Next Steps
 
 - None - task complete
+
+
+## Session 559: Stage2 RVV computed-masked segment2 load/store artifact ABI evidence
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV computed-masked segment2 load/store artifact ABI evidence
+**Branch**: `main`
+
+### Summary
+
+Closed the computed-masked segment2 load/store generated-artifact ABI boundary with no production source changes and fresh ssh rvv evidence.
+
+### Main Changes
+
+- Created Trellis PRD for `stage2-rvv-computed-masked-segment2-load-store-artifact-abi-boundary`.
+- Verified the existing RVV plugin path already owns the executable boundary: selected-body realization, computed-mask segment2 route planning, statement planning, `TCRVEmitCLowerableRoute` construction, target artifact validation, generated bundle ABI, and ssh runtime evidence.
+- Recorded no-source-change justification because provider and target validation already reject stale route facts, ABI order, inactive-lane policy, field mapping, typed config, runtime AVL/VL, statement-plan, and route-control mismatches.
+- Generated dry-run evidence for explicit and pre-realized computed-mask segment2 load/store bundles.
+- Generated non-dry-run `ssh rvv` evidence for explicit and pre-realized computed-mask segment2 load/store bundles; all four runs reported remote compile/run success and PASS summaries.
+- Ran focused checks: script py_compile, script self-test, direct generated-bundle dry-runs, ssh rvv bundle runs, `tianchenrv-rvv-extension-plugin-test`, `tianchenrv-target-artifact-export-test`, focused emission-plan commands, diff checks, and bounded old-authority scans.
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Four direct generated-bundle dry-runs for explicit/pre-realized computed-mask segment2 load/store.
+- [OK] Four non-dry-run generated-bundle runs on `ssh rvv` for explicit/pre-realized computed-mask segment2 load/store.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Four focused computed-mask segment2 emission-plan commands.
+- [OK] `git diff --check`, `git diff --cached --check`, and bounded old-authority scans.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
