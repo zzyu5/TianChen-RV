@@ -17586,6 +17586,9 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
   const bool usesGroupedLowPrecisionHandoff =
       handoff.getResourceDecision() ==
       kRVVLowPrecisionResourceGroupedRealizationDecision;
+  const bool usesPackedI4LowPrecisionHandoff =
+      handoff.getResourceDecision() ==
+      kRVVLowPrecisionResourcePackedI4RealizationDecision;
   const std::int64_t expectedLowPrecisionRegionCount =
       usesGroupedLowPrecisionHandoff
           ? kRVVLowPrecisionResourceGroupedVSetVLRegions
@@ -17596,7 +17599,7 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
   const bool hasSupportedLowPrecisionDecision =
       handoff.getResourceDecision() ==
           kRVVLowPrecisionResourceRealizationDecision ||
-      usesGroupedLowPrecisionHandoff;
+      usesGroupedLowPrecisionHandoff || usesPackedI4LowPrecisionHandoff;
   if (handoff.getContract() !=
           "gearbox-product-reduce-to-dequant-cross-region-handoff.v1" ||
       handoff.getFromPhase() != expectedLowPrecisionFromPhase ||
@@ -17758,6 +17761,9 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
       const bool usesGroupedLowPrecisionDecision =
           marker.getResourceDecision() ==
           kRVVLowPrecisionResourceGroupedRealizationDecision;
+      const bool usesPackedI4LowPrecisionDecision =
+          marker.getResourceDecision() ==
+          kRVVLowPrecisionResourcePackedI4RealizationDecision;
       hasRegionMarker =
           marker.getVl() == producerWithVL.getVl() &&
           marker.getPhase() == "dequant-store" &&
@@ -17769,7 +17775,7 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
                    : kRVVLowPrecisionResourceVSetVLRegions) &&
           (marker.getResourceDecision() ==
                kRVVLowPrecisionResourceRealizationDecision ||
-           usesGroupedLowPrecisionDecision);
+           usesGroupedLowPrecisionDecision || usesPackedI4LowPrecisionDecision);
       continue;
     }
     if (auto dequantize = llvm::dyn_cast<tcrv::rvv::DequantizeOp>(op)) {

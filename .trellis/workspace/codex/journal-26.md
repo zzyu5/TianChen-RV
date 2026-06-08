@@ -1928,3 +1928,38 @@ construction.
 complete for the accepted byte product-reduction representative. Positive
 packed q4/q2 executable support, generated-bundle evidence, same-target
 correctness/timing, and parity claims remain open.
+
+## Session 570: RVV packed-i4 Gate 3 structural resource candidate
+
+**Date**: 2026-06-09
+**Task**: RVV low-precision packed-contraction primitive surface campaign
+
+### Summary
+
+Continued the active macro task. Added the first positive packed sub-byte
+resource family at the structural resource/provider boundary: signed
+packed-i4-in-i8 product-reduction dequant/dequant-clamp facts now carry storage
+width, effective width, low/high nibble layout, unpack intent, resource shape,
+realization decision, provider mirrors, and the statement-plan fail-closed
+target/export boundary. Statement planning deliberately fails closed at the
+missing RVV-owned nibble unpack/sign-extension boundary, so this is not an
+executable artifact/runtime claim.
+
+### Testing
+
+- [OK] built `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-target-artifact-export-test`, `tcrv-opt`, and `tcrv-translate`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] manual `FileCheck-20` pipelines for the focused Gearbox and target
+  artifact product-reduction-dequant fixtures; `llvm-lit` was unavailable.
+- [OK] `git diff --check`, `git diff --cached --check`
+- [OK] bounded added-line authority scan: no new legacy i32/source-front-door/
+  descriptor-driven/Common-EmitC semantic authority matches.
+
+### Status
+
+[OPEN] Macro task remains active. Gate 3 packed-i4 resource/provider surface is
+landed; next continuation is the nibble unpack/sign-extension statement
+boundary. Gate 4 generated-bundle/runtime evidence and Gate 5 same-target
+correctness/timing remain open.

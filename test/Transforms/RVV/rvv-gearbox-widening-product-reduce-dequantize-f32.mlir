@@ -5,7 +5,7 @@
 
 // CHECK-LABEL: tcrv.exec.kernel @rvv_gearbox_widening_product_reduce_dequantize_f32_kernel
 // CHECK: tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body
-// CHECK-SAME: tcrv_rvv.low_precision_resource.candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v3[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe]"
+// CHECK-SAME: tcrv_rvv.low_precision_resource.candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.effective_element_width = 8 : i64
 // CHECK-SAME: tcrv_rvv.low_precision_resource.memory_form = "unit-stride-widening-product-reduce-dequantize-f32"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.operand_form = "unpacked-byte-elements"

@@ -1028,6 +1028,43 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
                                         providerSelection.rejectionReason,
                                         familySelection.rejectionReason))
     return error;
+  const bool isPackedI4Resource =
+      isRVVLowPrecisionResourcePackedI4CandidateID(
+          familySelection.selectedCandidateID);
+  if (isPackedI4Resource) {
+    if (llvm::Error error = requireExpectedString(
+            "operand form", familySelection.operandForm,
+            kRVVLowPrecisionResourceOperandFormPackedI4Nibbles))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "source signedness", familySelection.sourceSignedness,
+            kRVVLowPrecisionResourceSourceSignednessSigned))
+      return error;
+    if (llvm::Error error = requireExpectedInteger(
+            "storage element width", familySelection.storageElementWidth,
+            kRVVLowPrecisionResourcePackedI4StorageElementWidth))
+      return error;
+    if (llvm::Error error = requireExpectedInteger(
+            "effective element width", familySelection.effectiveElementWidth,
+            kRVVLowPrecisionResourcePackedI4EffectiveElementWidth))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "packing layout", familySelection.packingLayout,
+            kRVVLowPrecisionResourcePackingLayoutPackedI4Nibbles))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "unpack intent", familySelection.unpackIntent,
+            kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles))
+      return error;
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction statement-plan owner cannot construct executable "
+        "product-reduction statements for selected packed-i4 low-precision "
+        "resource candidate '" +
+        familySelection.selectedCandidateID +
+        "': missing RVV-owned nibble unpack/sign-extension statement boundary "
+        "before the widening product");
+  }
   if (llvm::Error error =
           requireExpectedString("operand form", familySelection.operandForm,
                                 kRVVLowPrecisionResourceOperandFormUnpackedByte))

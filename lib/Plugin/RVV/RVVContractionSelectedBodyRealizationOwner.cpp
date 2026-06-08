@@ -221,13 +221,28 @@ materializeLowPrecisionResourceRealizationAttrs(
                 ProductReductionDequantClampF32
           : RVVLowPrecisionContractionResourceOperation::
                 ProductReductionDequantizeF32;
-  llvm::SmallVector<RVVLowPrecisionContractionResourceCandidate, 2>
+  llvm::SmallVector<RVVLowPrecisionContractionResourceCandidate, 3>
       candidates = buildRVVLowPrecisionProductReductionResourceCandidates(
           operation, tailPolicy, maskPolicy, sourceSEW, sourceLMUL,
           productSEW, productLMUL, reductionResultSEW, reductionResultLMUL,
           reductionResultSEW, reductionResultLMUL, *vectorRegisterBudget);
   std::optional<RVVLowPrecisionContractionResourceCandidate> selected =
       selectRVVLowPrecisionProductReductionResourceCandidate(candidates);
+  if (llvm::Expected<std::string> selectedCandidateID =
+          requireLowPrecisionResourceStringFact(
+              source, kRVVLowPrecisionResourceSelectedCandidateAttrName)) {
+    selected = findRVVLowPrecisionProductReductionResourceCandidate(
+        candidates, *selectedCandidateID);
+    if (!selected)
+      return makeRVVPluginError(
+          llvm::Twine("pre-realized RVV contraction selected-body "
+                      "realization cannot match explicit selected "
+                      "low-precision resource candidate '") +
+          *selectedCandidateID +
+          "' in the provider-owned product-reduction candidate set");
+  } else {
+    return selectedCandidateID.takeError();
+  }
   if (!selected) {
     llvm::StringRef rejection =
         candidates.empty() ? llvm::StringRef("no-resource-candidates-built")

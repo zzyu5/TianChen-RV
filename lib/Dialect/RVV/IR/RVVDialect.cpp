@@ -4034,6 +4034,10 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
       getResourceDecision() ==
       tianchenrv::plugin::rvv::
           kRVVLowPrecisionResourceGroupedRealizationDecision;
+  const bool usesPackedI4LowPrecisionDecision =
+      getResourceDecision() ==
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourcePackedI4RealizationDecision;
   const std::int64_t expectedProducerMarkerIndex =
       usesGroupedLowPrecisionDecision ? 2 : 1;
   const std::int64_t expectedConsumerMarkerIndex =
@@ -4049,7 +4053,7 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   const bool hasSupportedResourceDecision =
       getResourceDecision() ==
           tianchenrv::plugin::rvv::kRVVLowPrecisionResourceRealizationDecision ||
-      usesGroupedLowPrecisionDecision;
+      usesGroupedLowPrecisionDecision || usesPackedI4LowPrecisionDecision;
 
   tcrv::rvv::VSetVLRegionMarkerOp firstMarker;
   tcrv::rvv::VSetVLRegionMarkerOp secondMarker;

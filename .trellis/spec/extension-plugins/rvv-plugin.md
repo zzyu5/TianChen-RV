@@ -5723,6 +5723,8 @@ struct RVVLowPrecisionContractionResourceCandidate {
   element/source/result dtype facts;
   product and accumulator dtype facts;
   SEW, LMUL, product EMUL, accumulator EMUL;
+  operand form, source signedness, storage/effective element width;
+  packing layout and unpack intent when storage differs from effective width;
   memory form, stride facts, mask/tail policy;
   unroll factor, accumulator count, reduction layout;
   vsetvl placement / region count;
@@ -5812,6 +5814,20 @@ the route provider claims resource-aware tuning.
   `none-direct-widening-product`). Stale packed/sub-byte claims such as
   `packed-i4-nibbles` fail at this statement consumer boundary before Common
   EmitC or target artifact export can treat the path as executable.
+- A positive packed sub-byte product-reduction candidate may be introduced only
+  as explicit typed/resource facts, not as q4/q8/llama.cpp, route-id,
+  artifact-name, descriptor, or benchmark authority. The first bounded positive
+  packed family is `packed-i4-nibbles`: signed source, 8-bit storage element,
+  4-bit effective element, layout
+  `two-signed-i4-elements-per-byte-low-high-nibbles`, and unpack intent
+  `sign-extend-i4-nibbles-before-widening-product`. Selected-body realization
+  and provider planning may accept this candidate as a coherent structural
+  resource selection only if these facts, dtype/SEW/LMUL/product/accumulator/
+  result/runtime facts, resource decision, and mirrors all agree. Until an
+  RVV-owned nibble unpack/sign-extension statement boundary exists, statement
+  planning must fail closed at that exact missing boundary; it must not lower
+  packed-i4 through the byte widening-product statement path or claim target
+  artifact/runtime support.
 - Do not apply the product-reduction byte operand-form contract to every
   low-precision resource representative. For example, strided or computed-mask
   strided widening-dot resource representatives may use a different operand
@@ -5840,6 +5856,14 @@ the route provider claims resource-aware tuning.
   -> it is not performance evidence.
 - A q8/q4-named path bypasses typed `tcrv_rvv` body authority or RVV provider
   validation -> fail closed.
+- A selected packed-i4 product-reduction candidate carries storage width 8 but
+  effective width not 4, an unknown layout, missing signedness, stale unpack
+  intent, or byte operand-form mirrors -> fail closed in route-family/provider
+  validation before statement planning.
+- A selected packed-i4 product-reduction candidate reaches statement planning
+  before an RVV-owned nibble unpack/sign-extension statement boundary exists ->
+  fail closed with a diagnostic naming the missing unpack boundary before
+  widening product; do not emit byte-path widening-product statements.
 
 ### 5. Good/Base/Bad Cases
 
@@ -5848,11 +5872,20 @@ the route provider claims resource-aware tuning.
   candidate -> realized `tcrv_rvv` body or provider-consumed owner plan ->
   provider route -> generated RVV C/C++ -> same-target correctness/timing
   comparison against a named llama.cpp RVV baseline.
+- Good: typed signed packed-i4-in-i8 product-reduction-dequant candidate with
+  explicit `packed-i4-nibbles`, storage width 8, effective width 4, low/high
+  nibble layout, and sign-extension unpack intent -> selected-body realization
+  and provider mirrors consume the resource facts -> statement planning fails
+  closed at missing nibble unpack/sign-extension boundary until that boundary
+  is implemented.
 - Base: existing MAcc, widening dot-reduce, dequant, and Gearbox MVP routes keep
   their current route-support contracts without claiming performance parity.
 - Bad: q8_0_q8_0 appears in a test or artifact name -> route provider emits a
   handwritten intrinsic sequence and claims llama.cpp parity without typed body
   facts, resource estimates, correctness checks, or timing evidence.
+- Bad: packed-i4 selected candidate -> provider accepts mirrors -> statement
+  planner silently reuses `unpacked-byte-elements` widening-product statements
+  or target artifact export claims executability before nibble unpack exists.
 
 ### 6. Tests Required
 

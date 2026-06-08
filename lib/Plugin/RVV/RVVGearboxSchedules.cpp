@@ -332,13 +332,24 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
               "requires a supported product-reduction memory form";
   llvm::StringRef tailPolicy = stringifyGearboxTailPolicy(policy.getTail());
   llvm::StringRef maskPolicy = stringifyGearboxMaskPolicy(policy.getMask());
-  llvm::SmallVector<RVVLowPrecisionContractionResourceCandidate, 2>
+  llvm::SmallVector<RVVLowPrecisionContractionResourceCandidate, 3>
       candidates = buildRVVLowPrecisionProductReductionResourceCandidates(
           *operation, tailPolicy, maskPolicy, sourceSEW, sourceLMUL,
           productSEW, productLMUL, resultSEW, resultLMUL, resultSEW,
           resultLMUL, kRVVLowPrecisionResourceVectorRegisterBudget);
   std::optional<RVVLowPrecisionContractionResourceCandidate> selected =
       selectRVVLowPrecisionProductReductionResourceCandidate(candidates);
+  if (auto selectedAttr = op->getAttrOfType<mlir::StringAttr>(
+          kRVVLowPrecisionResourceSelectedCandidateAttrName)) {
+    selected = findRVVLowPrecisionProductReductionResourceCandidate(
+        candidates, selectedAttr.getValue());
+    if (!selected)
+      return op->emitError()
+             << "RVV low-precision Gearbox resource candidate derivation "
+                "cannot match explicit selected candidate '"
+             << selectedAttr.getValue()
+             << "' in the provider-owned candidate set for " << memoryForm;
+  }
   if (!selected) {
     llvm::StringRef rejection =
         candidates.empty() ? llvm::StringRef("no-resource-candidates-built")
@@ -876,6 +887,10 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
       handoff.getResourceDecision() ==
       tianchenrv::plugin::rvv::
           kRVVLowPrecisionResourceGroupedRealizationDecision;
+  const bool usesPackedI4LowPrecisionHandoff =
+      handoff.getResourceDecision() ==
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourcePackedI4RealizationDecision;
   const std::int64_t expectedLowPrecisionRegionCount =
       usesGroupedLowPrecisionHandoff
           ? tianchenrv::plugin::rvv::
@@ -888,7 +903,7 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
   const bool hasSupportedLowPrecisionDecision =
       handoff.getResourceDecision() ==
           tianchenrv::plugin::rvv::kRVVLowPrecisionResourceRealizationDecision ||
-      usesGroupedLowPrecisionHandoff;
+      usesGroupedLowPrecisionHandoff || usesPackedI4LowPrecisionHandoff;
   if (handoff.getContract() != kLowPrecisionCrossRegionHandoffContract ||
       handoff.getFromPhase() != expectedLowPrecisionFromPhase ||
       handoff.getToPhase() != kLowPrecisionCrossRegionHandoffToPhase ||
