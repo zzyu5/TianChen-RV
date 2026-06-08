@@ -3518,21 +3518,25 @@ def WideningDotReduceOp : TCRVRVV_Op<"widening_dot_reduce",
 
 def WideningProductOp : TCRVRVV_Op<"widening_product",
     [TCRVEmitCLowerableOpInterface]> {
-  let summary = "generic typed RVV signed widening product dataflow op";
+  let summary = "generic typed RVV widening product dataflow op";
   let description = [{
-    Records one bounded generic plugin-local RVV signed widening product
+    Records one bounded generic plugin-local RVV widening product
     dataflow step. The op is nested directly under tcrv_rvv.with_vl, consumes
-    two signed i8 !tcrv_rvv.vector source operands and the active
+    two typed low-precision !tcrv_rvv.vector source operands and the active
     !tcrv_rvv.vl token, carries explicit operation kind and widening product
-    relation facts, and produces one signed i16 !tcrv_rvv.vector result.
+    relation facts, and produces one widened !tcrv_rvv.vector result.
 
     For the current bounded Stage 2 low-precision foundation, kind is limited
-    to signed_widening_product, representing
-    sign_extend(lhs) * sign_extend(rhs). Lhs, rhs, result, VL, source/result
-    SEW/LMUL, policy, memory-form facts, and product relation are structural
-    in the selected RVV body. Route ids, helper names, ABI strings, artifact
-    names, status fields, exact intrinsic spellings, q8/q4 names, and common
-    EmitC/export code must not infer or choose widening product semantics.
+    to signed_widening_product or unsigned_widening_product. The signed i8
+    route is provider-supported when all typed source/product facts match the
+    provider-owned route contract. The unsigned u8 surface is verifier-legal
+    so the RVV provider can fail closed at the missing unsigned intrinsic and
+    target mirror boundary until production support is implemented. Lhs, rhs,
+    result, VL, source/result SEW/LMUL, policy, memory-form facts, and product
+    relation are structural in the selected RVV body. Route ids, helper names,
+    ABI strings, artifact names, status fields, exact intrinsic spellings,
+    q8/q4 names, and common EmitC/export code must not infer or choose
+    widening product semantics.
   }];
 
   let arguments = (ins

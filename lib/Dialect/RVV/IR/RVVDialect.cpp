@@ -1838,7 +1838,8 @@ bool isSupportedGenericWideningDotReduceKind(llvm::StringRef kind) {
 }
 
 bool isSupportedGenericWideningProductKind(llvm::StringRef kind) {
-  return kind == "signed_widening_product";
+  return kind == "signed_widening_product" ||
+         kind == "unsigned_widening_product";
 }
 
 bool isSupportedGenericMaskedWideningDotReduceKind(llvm::StringRef kind) {
@@ -1872,7 +1873,8 @@ bool isSupportedGenericWideningDotProductRelation(llvm::StringRef relation) {
 }
 
 bool isSupportedGenericWideningProductRelation(llvm::StringRef relation) {
-  return relation == "signed-i8mf4xi8mf4-to-i16mf2";
+  return relation == "signed-i8mf4xi8mf4-to-i16mf2" ||
+         relation == "unsigned-u8mf4xu8mf4-to-u16mf2";
 }
 
 bool isSupportedGenericWideningConvertKind(llvm::StringRef kind) {
@@ -2014,9 +2016,9 @@ bool isSupportedBoundedRuntimeABIValueCType(
   switch (role) {
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
-    return cType == "const int8_t *" || cType == "const int16_t *" ||
-           cType == "const int32_t *" || cType == "const int64_t *" ||
-           cType == "const float *";
+    return cType == "const int8_t *" || cType == "const uint8_t *" ||
+           cType == "const int16_t *" || cType == "const int32_t *" ||
+           cType == "const int64_t *" || cType == "const float *";
   case Role::SourceInputBuffer:
   case Role::TrueValueInputBuffer:
   case Role::FalseValueInputBuffer:
@@ -2040,8 +2042,9 @@ bool isSupportedBoundedRuntimeABIValueCType(
   case Role::UpperBoundScalarValue:
     return cType == "float";
   case Role::OutputBuffer:
-    return cType == "int16_t *" || cType == "int32_t *" ||
-           cType == "int64_t *" || cType == "float *";
+    return cType == "uint16_t *" || cType == "int16_t *" ||
+           cType == "int32_t *" || cType == "int64_t *" ||
+           cType == "float *";
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
   case Role::SegmentInterleavedOutputBuffer:
@@ -2065,8 +2068,8 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   switch (role) {
   case Role::LHSInputBuffer:
   case Role::RHSInputBuffer:
-    return "'const int8_t *', 'const int16_t *', 'const int32_t *', "
-           "'const int64_t *', or 'const float *'";
+    return "'const int8_t *', 'const uint8_t *', 'const int16_t *', "
+           "'const int32_t *', 'const int64_t *', or 'const float *'";
   case Role::SourceInputBuffer:
   case Role::TrueValueInputBuffer:
   case Role::FalseValueInputBuffer:
@@ -2089,7 +2092,8 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::UpperBoundScalarValue:
     return "'float'";
   case Role::OutputBuffer:
-    return "'int16_t *', 'int32_t *', 'int64_t *', or 'float *'";
+    return "'uint16_t *', 'int16_t *', 'int32_t *', 'int64_t *', or "
+           "'float *'";
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
   case Role::SegmentInterleavedOutputBuffer:
@@ -2595,12 +2599,28 @@ bool isGenericRVVVectorType(mlir::Type type, std::int64_t sew,
          vector.getLmul() == lmul;
 }
 
-bool isGenericRVVUnsignedIntegerVector(mlir::Type type) {
+bool isGenericRVVSignedOrSignlessIntegerVectorType(mlir::Type type,
+                                                   std::int64_t sew,
+                                                   llvm::StringRef lmul) {
   auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
   if (!vector)
     return false;
   auto elementType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
-  return elementType &&
+  if (!elementType || elementType.getWidth() != sew ||
+      vector.getLmul() != lmul)
+    return false;
+  return elementType.getSignedness() !=
+         mlir::IntegerType::SignednessSemantics::Unsigned;
+}
+
+bool isGenericRVVUnsignedIntegerVectorType(mlir::Type type, std::int64_t sew,
+                                           llvm::StringRef lmul) {
+  auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
+  if (!vector)
+    return false;
+  auto elementType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
+  return elementType && elementType.getWidth() == sew &&
+         vector.getLmul() == lmul &&
          elementType.getSignedness() ==
              mlir::IntegerType::SignednessSemantics::Unsigned;
 }
@@ -2616,6 +2636,26 @@ bool isGenericRVVVectorI8MF4(mlir::Type type) {
 
 bool isGenericRVVVectorI16MF2(mlir::Type type) {
   return isGenericRVVVectorType(type, getRVVSEW16Bits(), getRVVLMULMF2());
+}
+
+bool isGenericRVVVectorSignedI8MF4(mlir::Type type) {
+  return isGenericRVVSignedOrSignlessIntegerVectorType(
+      type, getRVVSEW8Bits(), getRVVLMULMF4());
+}
+
+bool isGenericRVVVectorSignedI16MF2(mlir::Type type) {
+  return isGenericRVVSignedOrSignlessIntegerVectorType(
+      type, getRVVSEW16Bits(), getRVVLMULMF2());
+}
+
+bool isGenericRVVVectorUnsignedI8MF4(mlir::Type type) {
+  return isGenericRVVUnsignedIntegerVectorType(type, getRVVSEW8Bits(),
+                                               getRVVLMULMF4());
+}
+
+bool isGenericRVVVectorUnsignedI16MF2(mlir::Type type) {
+  return isGenericRVVUnsignedIntegerVectorType(type, getRVVSEW16Bits(),
+                                               getRVVLMULMF2());
 }
 
 bool isGenericRVVVectorI64M2(mlir::Type type) {
@@ -3120,7 +3160,13 @@ bool isBoundedWideningProductSourceLoad(LoadOp load, WithVLOp withVL) {
         (product.getLhs() != load.getLoaded() &&
          product.getRhs() != load.getLoaded()))
       return false;
-    if (product.getKind() != "signed_widening_product")
+    const bool isSignedProduct =
+        product.getKind() == "signed_widening_product" &&
+        product.getProductRelation() == "signed-i8mf4xi8mf4-to-i16mf2";
+    const bool isUnsignedProduct =
+        product.getKind() == "unsigned_widening_product" &&
+        product.getProductRelation() == "unsigned-u8mf4xu8mf4-to-u16mf2";
+    if (!isSignedProduct && !isUnsignedProduct)
       return false;
     hasWideningProductUse = true;
   }
@@ -12050,40 +12096,58 @@ mlir::LogicalResult WideningProductOp::verify() {
              << attr.getName() << "'";
   }
 
-  if (isGenericRVVUnsignedIntegerVector(getLhs().getType()) ||
-      isGenericRVVUnsignedIntegerVector(getRhs().getType()) ||
-      isGenericRVVUnsignedIntegerVector(getResult().getType()))
-    return emitOpError()
-           << "does not yet support unsigned u8 widening-product routes; "
-              "u8 typed low-precision primitive support requires "
-              "provider-derived unsigned widening product and target "
-              "intrinsic facts before route acceptance";
-
   if (!isSupportedGenericWideningProductKind(getKind()))
     return emitOpError()
-           << "currently supports only kind \"signed_widening_product\" for "
-              "the bounded Stage 2 low-precision widening-product route";
+           << "currently supports only kind \"signed_widening_product\" or "
+              "\"unsigned_widening_product\" for the bounded Stage 2 "
+              "low-precision widening-product typed surface";
   if (!isSupportedGenericWideningProductRelation(getProductRelation()))
     return emitOpError()
            << "currently supports only product_relation "
-              "\"signed-i8mf4xi8mf4-to-i16mf2\" for the bounded Stage 2 "
-              "low-precision widening-product route";
+              "\"signed-i8mf4xi8mf4-to-i16mf2\" or "
+              "\"unsigned-u8mf4xu8mf4-to-u16mf2\" for the bounded Stage 2 "
+              "low-precision widening-product typed surface";
 
   if (op->getNumOperands() != 3 || op->getNumResults() != 1)
     return emitOpError()
            << "requires lhs and rhs i8 generic RVV vector operands, one "
               "!tcrv_rvv.vl operand, and one i16 generic RVV vector result";
-  if (!isGenericRVVVectorI8MF4(getLhs().getType()) ||
-      !isGenericRVVVectorI8MF4(getRhs().getType()))
-    return emitOpError()
-           << "requires lhs and rhs source vectors to have type "
-              "!tcrv_rvv.vector<i8, \"mf4\"> for the bounded signed "
-              "low-precision widening-product route";
-  if (!isGenericRVVVectorI16MF2(getResult().getType()))
-    return emitOpError()
-           << "requires result vector to have type "
-              "!tcrv_rvv.vector<i16, \"mf2\"> for the bounded signed "
-              "low-precision widening-product route";
+  const bool isUnsignedProduct = getKind() == "unsigned_widening_product";
+  if (isUnsignedProduct) {
+    if (getProductRelation() != "unsigned-u8mf4xu8mf4-to-u16mf2")
+      return emitOpError()
+             << "requires product_relation "
+                "\"unsigned-u8mf4xu8mf4-to-u16mf2\" when kind is "
+                "\"unsigned_widening_product\"";
+    if (!isGenericRVVVectorUnsignedI8MF4(getLhs().getType()) ||
+        !isGenericRVVVectorUnsignedI8MF4(getRhs().getType()))
+      return emitOpError()
+             << "requires lhs and rhs source vectors to have type "
+                "!tcrv_rvv.vector<ui8, \"mf4\"> for the bounded unsigned "
+                "low-precision widening-product typed surface";
+    if (!isGenericRVVVectorUnsignedI16MF2(getResult().getType()))
+      return emitOpError()
+             << "requires result vector to have type "
+                "!tcrv_rvv.vector<ui16, \"mf2\"> for the bounded unsigned "
+                "low-precision widening-product typed surface";
+  } else {
+    if (getProductRelation() != "signed-i8mf4xi8mf4-to-i16mf2")
+      return emitOpError()
+             << "requires product_relation "
+                "\"signed-i8mf4xi8mf4-to-i16mf2\" when kind is "
+                "\"signed_widening_product\"";
+    if (!isGenericRVVVectorSignedI8MF4(getLhs().getType()) ||
+        !isGenericRVVVectorSignedI8MF4(getRhs().getType()))
+      return emitOpError()
+             << "requires lhs and rhs source vectors to have type "
+                "!tcrv_rvv.vector<i8, \"mf4\"> for the bounded signed "
+                "low-precision widening-product route";
+    if (!isGenericRVVVectorSignedI16MF2(getResult().getType()))
+      return emitOpError()
+             << "requires result vector to have type "
+                "!tcrv_rvv.vector<i16, \"mf2\"> for the bounded signed "
+                "low-precision widening-product route";
+  }
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";

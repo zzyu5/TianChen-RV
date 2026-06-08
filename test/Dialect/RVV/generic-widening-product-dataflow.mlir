@@ -35,8 +35,8 @@ module {
     %rhs = "builtin.unrealized_conversion_cast"() : () -> !tcrv_rvv.vector<i8, "mf4">
     %vl = tcrv_rvv.setvl %avl {lmul = "mf2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 16 : i64} : index -> !tcrv_rvv.vl
     tcrv_rvv.with_vl %vl attributes {lmul = "mf2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 16 : i64} {
-      // expected-error@+1 {{currently supports only kind "signed_widening_product" for the bounded Stage 2 low-precision widening-product route}}
-      %product = tcrv_rvv.widening_product %lhs, %rhs, %vl {kind = "unsigned_widening_product", product_relation = "signed-i8mf4xi8mf4-to-i16mf2"} : !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
+      // expected-error@+1 {{currently supports only kind "signed_widening_product" or "unsigned_widening_product" for the bounded Stage 2 low-precision widening-product typed surface}}
+      %product = tcrv_rvv.widening_product %lhs, %rhs, %vl {kind = "metadata_widening_product", product_relation = "signed-i8mf4xi8mf4-to-i16mf2"} : !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
     } : !tcrv_rvv.vl
   }
 }
@@ -50,7 +50,7 @@ module {
     %rhs = "builtin.unrealized_conversion_cast"() : () -> !tcrv_rvv.vector<i8, "mf4">
     %vl = tcrv_rvv.setvl %avl {lmul = "mf2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 16 : i64} : index -> !tcrv_rvv.vl
     tcrv_rvv.with_vl %vl attributes {lmul = "mf2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 16 : i64} {
-      // expected-error@+1 {{currently supports only product_relation "signed-i8mf4xi8mf4-to-i16mf2" for the bounded Stage 2 low-precision widening-product route}}
+      // expected-error@+1 {{currently supports only product_relation "signed-i8mf4xi8mf4-to-i16mf2" or "unsigned-u8mf4xu8mf4-to-u16mf2" for the bounded Stage 2 low-precision widening-product typed surface}}
       %product = tcrv_rvv.widening_product %lhs, %rhs, %vl {kind = "signed_widening_product", product_relation = "signed-i8mf4xi8mf4-to-i32m1"} : !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vector<i8, "mf4">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i16, "mf2">
     } : !tcrv_rvv.vl
   }
@@ -59,13 +59,16 @@ module {
 // -----
 
 module {
-  tcrv.exec.kernel @rvv_generic_widening_product_reject_unsigned_u8_surface {
+  // CHECK-LABEL: tcrv.exec.kernel @rvv_generic_widening_product_unsigned_u8_surface_valid
+  tcrv.exec.kernel @rvv_generic_widening_product_unsigned_u8_surface_valid {
     %avl = "builtin.unrealized_conversion_cast"() : () -> index
     %lhs = "builtin.unrealized_conversion_cast"() : () -> !tcrv_rvv.vector<ui8, "mf4">
     %rhs = "builtin.unrealized_conversion_cast"() : () -> !tcrv_rvv.vector<ui8, "mf4">
     %vl = tcrv_rvv.setvl %avl {lmul = "mf2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 16 : i64} : index -> !tcrv_rvv.vl
     tcrv_rvv.with_vl %vl attributes {lmul = "mf2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 16 : i64} {
-      // expected-error@+1 {{does not yet support unsigned u8 widening-product routes; u8 typed low-precision primitive support requires provider-derived unsigned widening product and target intrinsic facts before route acceptance}}
+      // CHECK: tcrv_rvv.widening_product
+      // CHECK-SAME: kind = "unsigned_widening_product"
+      // CHECK-SAME: product_relation = "unsigned-u8mf4xu8mf4-to-u16mf2"
       %product = tcrv_rvv.widening_product %lhs, %rhs, %vl {kind = "unsigned_widening_product", product_relation = "unsigned-u8mf4xu8mf4-to-u16mf2"} : !tcrv_rvv.vector<ui8, "mf4">, !tcrv_rvv.vector<ui8, "mf4">, !tcrv_rvv.vl -> !tcrv_rvv.vector<ui16, "mf2">
     } : !tcrv_rvv.vl
   }

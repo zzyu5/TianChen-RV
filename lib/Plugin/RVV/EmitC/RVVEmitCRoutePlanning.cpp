@@ -17225,6 +17225,14 @@ recordRVVSelectedBodyWideningProduct(RVVSelectedBodyRouteSlice &slice,
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
+  if (product.getKind() == "unsigned_widening_product" ||
+      product.getProductRelation() == "unsigned-u8mf4xu8mf4-to-u16mf2")
+    return makeRVVEmitCRouteProviderError(
+        "low-precision unsigned u8 widening-product typed primitive is "
+        "verifier-legal but not route-supported: RVV provider is missing "
+        "the unsigned widening product intrinsic fact "
+        "'__riscv_vwmulu_vv_u16mf2' and matching target type/header mirror "
+        "validation before TCRVEmitCLowerableRoute construction");
   if (product.getKind() != "signed_widening_product")
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic tcrv_rvv.widening_product kind '") +

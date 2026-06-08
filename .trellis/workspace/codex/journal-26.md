@@ -956,7 +956,8 @@ before `TCRVEmitCLowerableRoute` construction.
 
 ### Git Commits
 
-- Pending final commit in this session.
+- One coherent Gate 2 second-slice commit created at session close; see final
+  report for the hash.
 
 ### Testing
 
@@ -1070,3 +1071,66 @@ and 4 remain open.
 Continue Gate 2 by adding accepted u8 widening-product provider/target facts or
 extending the unsigned fail-closed matrix, then deepen `vwredsum`/accumulator
 route-family validation for Gearbox consumption.
+
+
+## Session 566: RVV production-kernel u8 primitive boundary and vwredsum validation
+
+**Date**: 2026-06-08
+**Task**: RVV production-kernel capability campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro campaign Gate 2 second slice. Promoted unsigned u8
+widening-product from dialect-only rejection to verifier-legal typed RVV
+surface, kept it fail-closed at the RVV provider boundary with a diagnostic that
+names the missing unsigned intrinsic/target mirror facts, and added
+product-reduction stale-mirror coverage for `vwredsum` and primitive
+accumulator dtype facts.
+
+### Main Changes
+
+- Repaired the active macro PRD for the Gate 2 second slice rather than creating
+  a neighboring task.
+- Extended `tcrv_rvv.widening_product` verifier support for
+  `unsigned_widening_product` with
+  `!tcrv_rvv.vector<ui8, "mf4"> -> !tcrv_rvv.vector<ui16, "mf2">` typed facts.
+- Allowed the minimal u8 ABI/load surface needed for typed u8 bodies to reach
+  provider route analysis: `const uint8_t *` lhs/rhs, `uint16_t *` output, and
+  standalone u8 widening-product source-load bypass under SEW16/LMUL mf2.
+- Added provider fail-closed rejection before `TCRVEmitCLowerableRoute`
+  construction for unsigned u8, naming missing
+  `__riscv_vwmulu_vv_u16mf2` and matching target type/header mirror validation.
+- Added conversion lit coverage for the provider-owned u8 fail-closed boundary.
+- Added product-reduction target artifact stale-mirror checks for
+  `tcrv_rvv.widening_reduction_intrinsic` and
+  `tcrv_rvv.low_precision_primitive.accumulator_dtype`.
+
+### Git Commits
+
+- Pending final commit in this session.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'generic-widening-product-dataflow|rvv-generic-stage2-widening-product-unsigned-u8-negative|explicit-selected-body-artifact-widening-product(\.mlir|$)|explicit-selected-body-artifact-widening-product-reduce-add'` from `build/test`: 4/4 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'widening-product|product-reduction|generic-widening-product'` from `build/test`: 12/12 passed
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `git diff --check`
+- [OK] bounded added-line old-authority scan
+
+### Status
+
+[OPEN] Macro task remains active. Gate 2 second slice is complete as a
+fail-closed unsigned u8 provider-boundary slice plus `vwredsum` validation
+coverage; Gates 1, 3, and 4 remain open.
+
+### Next Steps
+
+Continue Gate 2 by implementing accepted unsigned u8 provider/target facts if
+the materializer is ready: unsigned vector C type mapping, u8/u16 load-store
+leaves, `vwmulu.vv` intrinsic mapping, and target mirror support. Then continue
+Gearbox-consumable primitive/resource facts for product, accumulator, and
+result validation.

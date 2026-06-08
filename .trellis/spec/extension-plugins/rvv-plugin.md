@@ -191,6 +191,107 @@ This is not permission to build a current Linalg frontend, high-level kernel
 ops, one-intrinsic wrappers, dtype/LMUL clone batches, global autotuning
 databases, dashboards, or readiness state machines.
 
+## Unsigned u8 Low-Precision Widening-Product Boundary
+
+### 1. Scope / Trigger
+
+Use this contract when a selected typed RVV body contains:
+
+```text
+tcrv_rvv.widening_product
+  kind = "unsigned_widening_product"
+  product_relation = "unsigned-u8mf4xu8mf4-to-u16mf2"
+```
+
+This is a Stage 2 low-precision primitive boundary. It is not q8 route
+authority, not an artifact-name route, and not a Common EmitC semantic branch.
+
+### 2. Signatures
+
+The verifier-legal typed body surface is:
+
+```text
+lhs, rhs: !tcrv_rvv.vector<ui8, "mf4">
+vl:       !tcrv_rvv.vl
+result:   !tcrv_rvv.vector<ui16, "mf2">
+with_vl:  sew = 16, lmul = "mf2", policy = agnostic/agnostic
+ABI:      lhs/rhs use const uint8_t *, out uses uint16_t *, n uses size_t
+```
+
+Accepted route support additionally requires provider-owned unsigned facts:
+
+```text
+source dtype/sign: u8
+product/result dtype/sign: u16
+vector C types: vuint8mf4_t, vuint16mf2_t
+load/store leaves: unsigned u8/u16 RVV leaves
+widening product leaf: vwmulu.vv / __riscv_vwmulu_vv_u16mf2
+target mirrors: exact unsigned primitive, type, header, and intrinsic facts
+```
+
+### 3. Contracts
+
+- Dialect verifier legality only proves the typed u8 body/config surface.
+- Route support starts only after the RVV provider derives the unsigned
+  primitive facts above from typed body/config/runtime/capability facts.
+- Until those facts exist, the RVV provider must fail closed before
+  `TCRVEmitCLowerableRoute` construction and name the missing unsigned
+  intrinsic/target facts.
+- Common EmitC may carry provider payloads only; it must not infer unsigned
+  dtype, vector C types, load/store leaves, or intrinsic spelling.
+- Target artifact validation must compare provider-owned unsigned mirrors
+  exactly before accepting an artifact.
+
+### 4. Validation & Error Matrix
+
+- Wrong `kind`/`product_relation` pair -> dialect verifier error.
+- Wrong ui8/ui16 vector type, SEW, LMUL, policy, or VL use -> dialect verifier
+  error.
+- Verifier-legal u8 body but no unsigned provider intrinsic/type/target facts
+  -> RVV provider error before route construction.
+- Stale unsigned primitive/type/header/intrinsic mirror -> target artifact
+  validation error.
+- Common EmitC-derived unsigned route payload -> invalid architecture; move the
+  derivation back to the RVV provider.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed u8 body -> RVV provider derives unsigned primitive facts ->
+  provider-built route -> Common EmitC carries payload -> target mirrors match.
+- Base: typed u8 body parses/verifies, but provider lacks
+  `__riscv_vwmulu_vv_u16mf2` and matching target mirror support -> fail closed
+  at the provider boundary.
+- Bad: q8 artifact name, route id, ABI string, or Common EmitC branch decides
+  unsigned widening-product support.
+
+### 6. Tests Required
+
+- Dialect lit: verifier-legal unsigned u8 widening-product typed surface.
+- Provider/EmitC lit or C++: unsupported u8 fails at the RVV provider boundary
+  with a diagnostic naming missing unsigned intrinsic/target facts.
+- When accepted support is added: positive provider/target tests for unsigned
+  vector C types, load/store leaves, `vwmulu.vv`, and exact target mirrors.
+- Negative target tests: stale unsigned primitive source/product/result,
+  intrinsic, type, or header mirror fails before artifact acceptance.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+artifact says q8 route
+  -> Common EmitC chooses __riscv_vwmulu_vv_u16mf2
+```
+
+Correct:
+
+```text
+typed ui8/u16 tcrv_rvv body
+  -> RVV provider derives unsigned primitive facts or fails closed
+  -> provider-built TCRVEmitCLowerableRoute
+  -> Common EmitC carries provider payload unchanged
+```
+
 ### Stage 2 Performance Layer
 
 RVV plugin-local selected-body realization is one linear compiler step:

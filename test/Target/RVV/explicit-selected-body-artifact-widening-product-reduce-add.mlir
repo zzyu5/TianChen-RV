@@ -1,5 +1,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/__riscv_vwredsum_vs_i16mf2_i32m1/s//__riscv_vredsum_vs_i16mf2_i16m1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-VWREDSUM
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.accumulator_dtype", value = "i32/s//tcrv_rvv.low_precision_primitive.accumulator_dtype", value = "i16/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIM-ACC
 
 // Explicit selected-body input for one bounded Stage 2 signed low-precision
 // product-reduction chain. The typed tcrv_rvv body carries i8 source loads,
@@ -82,3 +84,9 @@ module {
 // HEADER: tianchenrv.rvv.contraction_route_family_plan: rvv-contraction-route-family-plan.v1
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,result:signed-e32m1
 // HEADER: void tcrv_emitc_explicit_selected_body_product_reduce_kernel_explicit_selected_body_rvv_product_reduce(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, int32_t *out, size_t n);
+
+// STALE-VWREDSUM: candidate tcrv_rvv.widening_reduction_intrinsic provenance must mirror selected typed RVV product-reduction widening reduction intrinsic '__riscv_vwredsum_vs_i16mf2_i32m1'
+// STALE-VWREDSUM-SAME: but was '__riscv_vredsum_vs_i16mf2_i16m1'
+
+// STALE-PRIM-ACC: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_primitive.accumulator_dtype' must mirror provider route description value 'i32'
+// STALE-PRIM-ACC-SAME: but was 'i16'

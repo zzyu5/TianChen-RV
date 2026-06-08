@@ -10,11 +10,12 @@ production behavior is claimed, and measured same-target comparison for
 production-like RVV kernels.
 
 This task remains open across rounds until the campaign gates below are met.
-This round starts Gate 2 with a bounded low-precision primitive-surface slice.
+This round continues Gate 2 with the unsigned low-precision primitive boundary
+and a bounded widening-reduction/`vwredsum` accumulator-result validation slice.
 
 ## Direction Brief Source
 
-Hermes selected:
+Hermes first selected:
 
 ```text
 RVV production-kernel capability campaign: low-precision primitive surface first slice
@@ -25,6 +26,17 @@ tasks and no-production-source generated-bundle closeouts. The current slice
 must change production compiler surface in the RVV dialect/plugin/provider or
 target validation path unless live repository evidence proves a narrower
 production blocker.
+
+Hermes then continued the same macro task with:
+
+```text
+RVV production-kernel capability campaign: Gate 2 unsigned low-precision primitive and vwredsum validation slice
+```
+
+The second slice must keep this macro task active, make the unsigned u8
+widening-product boundary explicit in the production provider/target contract,
+and deepen product-reduction/`vwredsum` accumulator/result validation facts
+without introducing q8/q4 route authority or metadata-derived semantics.
 
 ## What I Already Know
 
@@ -70,23 +82,31 @@ production blocker.
 
 ## Current Round Milestone
 
-Start Gate 2 by adding or repairing the smallest production compiler submodule
-that lets RVV represent and validate low-precision widening contraction facts
-from typed `tcrv_rvv` body/config facts.
+Continue Gate 2 by adding or repairing the smallest production compiler
+submodule that lets RVV represent and validate the unsigned u8 low-precision
+widening-product boundary from typed `tcrv_rvv` body/config facts, while
+keeping signed i8 product and product-reduction facts provider-owned.
 
-The preferred slice is:
+The preferred second slice is:
 
-- Add a production-owned low-precision widening primitive contract that names
-  the typed source/product/accumulator/result facts used by the RVV provider.
-- Extend or harden the signed i8 widening-product/product-reduction path so the
-  provider validates those facts through one contract rather than dispersed
-  route strings.
-- Add a truthful u8 boundary: either accepted typed u8 widening primitive facts
-  if the current intrinsic/materialization layer can support them in this
-  slice, or fail-closed diagnostics that explicitly reject unsupported u8 while
-  proving the rejection comes from typed body/config facts, not route names,
-  q8 labels, artifact names, or ABI strings.
-- Mirror the provider-owned facts into target validation only as exact mirrors,
+- Move the unsigned u8 widening-product boundary out of dialect-only rejection
+  when possible, so verifier-legal typed u8 bodies reach the RVV provider and
+  fail at the provider-owned primitive contract if production support is still
+  missing.
+- Accept unsigned u8 only if the typed IR, provider intrinsic mapping,
+  EmitC/materialization payload, and target validation can all support it
+  without q8/u8 route-name authority.
+- Otherwise reject unsigned u8 fail-closed at the provider or target boundary
+  with a targeted diagnostic naming the missing unsigned widening-product
+  provider/target intrinsic fact.
+- Keep signed i8 widening-product and product-reduction facts accepted only
+  through the low-precision primitive contract derived from typed
+  source/product/accumulator/result facts.
+- Deepen widening-reduction/`vwredsum` validation so accumulator/result dtype,
+  reduction intrinsic, and store-VL facts are checked as typed primitive facts
+  rather than dispersed strings. If this is too large, finish the u8 boundary
+  and leave the exact continuation point.
+- Mirror provider-owned facts into target validation only as exact mirrors,
   with stale/missing mirror rejection where the changed target validation owner
   is touched.
 
@@ -116,15 +136,21 @@ record the exact next continuation point.
 
 - [x] A production source diff lands in the RVV dialect/plugin/provider/target
       validation path, not only task/report/test evidence.
-- [x] The changed production path validates low-precision widening primitive
-      facts from typed `tcrv_rvv` structure and config facts.
-- [x] Signed i8 widening product or product-reduction facts remain accepted only
-      when typed source/product/accumulator/result facts agree.
-- [x] u8 low-precision facts are either supported through the same typed
-      contract, or rejected fail-closed with a targeted diagnostic that names
-      the missing unsupported primitive fact.
-- [x] Focused lit/C++ tests prove accepted and fail-closed cases for the changed
-      owners.
+- [x] The unsigned u8 widening-product boundary is explicit in the same
+      provider-owned low-precision primitive contract: either accepted through
+      typed provider/EmitC/target support, or rejected fail-closed at the
+      provider/target boundary with a diagnostic naming the missing unsigned
+      widening-product intrinsic/target fact.
+- [x] Signed i8 widening-product and product-reduction facts remain accepted
+      only when typed source/product/accumulator/result facts agree.
+- [x] Widening-reduction/`vwredsum` accumulator/result facts are validated as
+      typed primitive facts where this slice touches the route family; otherwise
+      the exact next continuation point is recorded.
+- [x] Focused lit/C++ tests prove accepted signed i8 remains typed-fact gated
+      and unsigned u8 takes the truthful accepted or fail-closed path.
+- [x] Target artifact validation coverage rejects stale/missing primitive
+      source/product/accumulator/result or widening-reduction mirrors where
+      touched.
 - [x] A bounded old-authority scan over changed/added lines shows no new
       positive `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`,
       `!tcrv_rvv.i32m*`, descriptor, source-front-door, route-id, or artifact
@@ -133,6 +159,35 @@ record the exact next continuation point.
 - [x] The worktree is clean after a coherent commit.
 
 ## Current Round Result
+
+Completed the Gate 2 second slice while keeping the macro campaign open:
+
+- Promoted the unsigned u8 widening-product boundary from dialect-only
+  rejection to a verifier-legal typed surface: `unsigned_widening_product` with
+  `!tcrv_rvv.vector<ui8, "mf4"> -> !tcrv_rvv.vector<ui16, "mf2">` and
+  `unsigned-u8mf4xu8mf4-to-u16mf2` relation now parses/verifies as a typed RVV
+  body fact.
+- Added the minimal ABI/type surface needed for that u8 body to reach the RVV
+  provider: `lhs`/`rhs` runtime ABI roles accept `const uint8_t *`, output
+  accepts `uint16_t *`, and u8 source loads may participate in the standalone
+  widening-product SEW16/LMUL mf2 body shape.
+- Kept executable u8 support fail-closed in the RVV provider before
+  `TCRVEmitCLowerableRoute` construction. The provider diagnostic names the
+  missing unsigned widening product intrinsic fact
+  `__riscv_vwmulu_vv_u16mf2` and the matching target type/header mirror
+  validation.
+- Preserved signed i8 widening-product and product-reduction support through
+  the provider-owned low-precision primitive contract.
+- Added target artifact stale-mirror coverage for product-reduction
+  `vwredsum` intrinsic provenance and low-precision primitive accumulator dtype
+  provenance, proving accumulator/result facts are not metadata authority.
+
+This round does not claim new executable/runtime behavior, so no `ssh rvv`
+evidence was required. The campaign is not complete. Gate 2 still needs
+accepted unsigned u8 provider/target facts if executable u8 support is desired,
+and Gates 1, 3, and 4 remain open.
+
+## Previous Round Result
 
 Completed the Gate 2 first slice while keeping the macro campaign open:
 
@@ -190,9 +245,10 @@ facts or a broader unsigned fail-closed/provider contract, plus deeper
 
 ## Continuation Point
 
-Continue Gate 2 by implementing accepted unsigned u8 widening-product facts
-where the typed IR/materializer can support them, or by extending the same
-provider-owned primitive contract into a broader unsigned fail-closed matrix.
-Then deepen the widening-reduction/`vwredsum` route-family validation so Gearbox
-can consume product, accumulator, and result facts without relying on metadata
+Continue Gate 2 by implementing accepted unsigned u8 widening-product provider
+and target facts if the materializer is ready: unsigned vector C type mapping,
+u8/u16 load-store leaves, `vwmulu.vv` intrinsic mapping, target mirror support,
+and focused artifact tests. Then continue broadening the
+widening-reduction/`vwredsum` primitive contract for product, accumulator,
+result, and resource facts that Gearbox can consume without relying on metadata
 or route names.
