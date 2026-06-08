@@ -3371,6 +3371,7 @@ llvm::Error validateRVVWideningProductTargetArtifactCandidateMirrors(
       "tcrv_rvv.widening_dot_accumulator_layout",
       "tcrv_rvv.widening_dot_result_layout",
       "tcrv_rvv.widening_dot_relation",
+      "tcrv_rvv.widening_dot_source_accumulator_result_contract",
       "tcrv_rvv.widening_dot_reduction_store_vl",
       "tcrv_rvv.masked_widening_product_intrinsic"};
   for (llvm::StringRef key : staleRouteFamilyMirrors)
@@ -3649,6 +3650,12 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
             contract.consumerLabel, "widening dot relation",
             description.wideningDotProductRelation,
             contract.wideningDotProductRelation))
+      return error;
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel,
+            "widening dot source/accumulator/result contract",
+            description.wideningDotSourceAccumulatorResultContract,
+            contract.wideningDotSourceAccumulatorResultContract))
       return error;
   }
   if (llvm::Error error = requireRVVWideningDotContractStringField(
@@ -4898,6 +4905,12 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
             "selected typed RVV product-reduction route without dot relation"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate,
+            "tcrv_rvv.widening_dot_source_accumulator_result_contract", "",
+            "selected typed RVV product-reduction route without widening dot "
+            "source/accumulator/result contract"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.widening_reduction_intrinsic",
             contract->intrinsic,
             "selected typed RVV product-reduction widening reduction intrinsic"))
@@ -5064,6 +5077,13 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
             candidate, "tcrv_rvv.widening_dot_relation",
             contract->wideningDotProductRelation,
             "selected typed RVV widening dot relation"))
+      return error;
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate,
+            "tcrv_rvv.widening_dot_source_accumulator_result_contract",
+            contract->wideningDotSourceAccumulatorResultContract,
+            "selected typed RVV widening dot source/accumulator/result "
+            "contract"))
       return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.widening_dot_reduction_store_vl",

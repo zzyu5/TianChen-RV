@@ -23503,8 +23503,8 @@ module {
               "computed-mask strided contraction stale layout unit test")
               .takeError(),
           {"route-control provider plan requires contraction widening "
-           "dot-reduction accumulator, result, product, seed, and compute "
-           "facts",
+           "dot-reduction accumulator, result, source/accumulator/result "
+           "contract, product, seed, and compute facts",
            "computed_masked_strided_input_widening_dot_reduce_add"}))
     return result;
 

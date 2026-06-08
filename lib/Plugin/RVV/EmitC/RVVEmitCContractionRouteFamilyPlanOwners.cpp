@@ -74,6 +74,11 @@ constexpr llvm::StringLiteral kRVVContractionRequiredHeaderDeclarations(
 constexpr llvm::StringLiteral
     kRVVContractionMaskedInactiveLaneZeroingRequirement(
         "masked-widening-products-zero-inactive-lanes-before-reduction");
+constexpr llvm::StringLiteral
+    kRVVComputedMaskStridedInputWideningDotSourceAccumulatorResultContract(
+        "computed-mask-strided-source-before-skipped-source-ignored;"
+        "inactive-products-zero-before-reduction;accumulator-out0-seed-carry;"
+        "scalar-output-only-tail-preserve.v1");
 constexpr llvm::StringLiteral kRVVStridedInputWideningDotMemoryLayout(
     "element-strided-lhs-rhs-dot-source-unit-stride-output-runtime-abi");
 constexpr llvm::StringLiteral
@@ -1352,6 +1357,10 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
       TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
           "widening dot relation", description.wideningDotProductRelation,
           wideningDotFacts->wideningDotProductRelation);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "widening dot source/accumulator/result contract",
+          description.wideningDotSourceAccumulatorResultContract,
+          wideningDotFacts->wideningDotSourceAccumulatorResultContract);
     }
     TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
         "widening product intrinsic", description.wideningProductIntrinsic,
@@ -1525,6 +1534,8 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
                  plan.resultLayout ||
              analysis.description.wideningDotProductRelation !=
                  plan.relation ||
+             analysis.description.wideningDotSourceAccumulatorResultContract !=
+                 plan.sourceAccumulatorResultContract ||
              analysis.description.intrinsic !=
                  plan.contractionComputeIntrinsic ||
              analysis.description.wideningProductIntrinsic !=
@@ -2134,6 +2145,10 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
         productRelation);
   } else {
     facts.wideningDotProductRelation = relation;
+    if (operation == RVVSelectedBodyOperationKind::
+                         ComputedMaskStridedInputWideningDotReduceAdd)
+      facts.wideningDotSourceAccumulatorResultContract =
+          kRVVComputedMaskStridedInputWideningDotSourceAccumulatorResultContract;
     facts.wideningProductIntrinsic = getContractionWideningProductIntrinsic(
         kSourceSEW, kSourceLMUL, kResultSEW, kResultLMUL, relation);
   }
@@ -2518,6 +2533,8 @@ static void populateRVVWideningDotValidationContract(
       facts.wideningDotProductResultLayout.str();
   contract.wideningDotProductRelation =
       facts.wideningDotProductRelation.str();
+  contract.wideningDotSourceAccumulatorResultContract =
+      facts.wideningDotSourceAccumulatorResultContract.str();
   contract.productReductionChainRelation =
       facts.productReductionChainRelation.str();
   contract.wideningProductIntrinsic = facts.wideningProductIntrinsic.str();
@@ -6151,6 +6168,10 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
                                                      typedConfig.lmul)
             : llvm::StringRef();
     plan.reductionStoreVL = kRVVWideningDotProductStoreVL;
+    if (operation == RVVSelectedBodyOperationKind::
+                         ComputedMaskStridedInputWideningDotReduceAdd)
+      plan.sourceAccumulatorResultContract =
+          kRVVComputedMaskStridedInputWideningDotSourceAccumulatorResultContract;
     if (plan.usesStridedInputs) {
       plan.stridedMemoryLayout =
           plan.usesComputedMask
@@ -6291,6 +6312,8 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
   description.wideningDotProductAccumulatorLayout = plan.accumulatorLayout;
   description.wideningDotProductResultLayout = plan.resultLayout;
   description.wideningDotProductRelation = plan.relation;
+  description.wideningDotSourceAccumulatorResultContract =
+      plan.sourceAccumulatorResultContract;
   description.intrinsic = plan.contractionComputeIntrinsic;
   description.compareIntrinsic = plan.compareIntrinsic;
   description.maskedMergeIntrinsic = plan.maskedMergeIntrinsic;
@@ -6762,6 +6785,16 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
             getContractionWideningDotProductRelation(
                 description.sourceSEW, description.sourceLMUL,
                 description.sew, description.lmul)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "widening dot source/accumulator/result contract",
+            description.wideningDotSourceAccumulatorResultContract,
+            description.operation ==
+                    RVVSelectedBodyOperationKind::
+                        ComputedMaskStridedInputWideningDotReduceAdd
+                ? llvm::StringRef(
+                      kRVVComputedMaskStridedInputWideningDotSourceAccumulatorResultContract)
+                : llvm::StringRef()))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "widening product intrinsic",

@@ -1,0 +1,21 @@
+{"file": ".trellis/tasks/06-08-stage2-rvv-computed-masked-strided-dot-acceptance-boundary/prd.md", "reason": "Verify implementation against the current task acceptance criteria and non-goals."}
+{"file": ".trellis/spec/index.md", "reason": "Check no architecture authority drift, descriptor/source-front-door route authority, or stack violation was introduced."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider ownership, typed-body authority, and runtime evidence claims."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider route facts, operand binding, common EmitC neutrality, and target consume-only validation."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused lit/C++/runtime evidence choices match testing policy."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check computed-mask widening dot-reduction generated-bundle and fail-closed evidence requirements."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check selected-body/runtime/config facts are consumed before route construction when relevant."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-runtime-scalar-indexed-write-boundary/prd.md", "reason": "Compare against prior provider/target contract promotion pattern."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-computed-masked-strided-widening-dot-artifact-abi/prd.md", "reason": "Ensure this task does not regress into prior artifact/ABI evidence-only closure."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Passed after updating the route-control stale-layout expected error text to include the new source/accumulator/result contract field."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Passed with new provider canonical fact checks and stale metadata mirror fail-closed tests."}
+{"file": "build/bin/tcrv-opt", "reason": "Rebuilt after provider/metadata changes so lit used current emission-plan metadata."}
+{"file": "build/bin/tcrv-translate", "reason": "Rebuilt after target validation/header metadata changes so lit used current target export validation."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "python3 -m py_compile passed; --self-test passed after moving the expected contract metadata from plain/strided dot branches into computed-mask strided dot only."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Focused lit filter passed; plan/header positive contract checks and stale contract target rejection are covered."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Focused lit filter passed; plan/header positive contract checks and stale contract target rejection are covered."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Focused lit filter passed with generated bundle metadata evidence for the contract."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Focused lit filter passed with generated bundle metadata evidence for the contract."}
+{"file": ".trellis/tasks/06-08-stage2-rvv-computed-masked-strided-dot-acceptance-boundary/check.jsonl", "reason": "git diff --check passed with no whitespace errors."}
+{"file": ".trellis/tasks/06-08-stage2-rvv-computed-masked-strided-dot-acceptance-boundary/check.jsonl", "reason": "Bounded old-authority scan over added diff lines found no RVVI32M1, rvv-i32m1, tcrv_rvv.i32_*, !tcrv_rvv.i32m*, descriptor, direct-C, source-front-door, or source-export stale authority tokens."}
+{"file": ".trellis/tasks/06-08-stage2-rvv-computed-masked-strided-dot-acceptance-boundary/check.jsonl", "reason": "ssh rvv was not rerun because this round promoted existing runtime-proven semantics into provider/target acceptance and did not claim refreshed runtime correctness or performance evidence."}

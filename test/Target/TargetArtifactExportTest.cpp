@@ -12954,6 +12954,8 @@ bool expectRVVTargetArtifactExporterShape(
             routeFacts->wideningDotProductResultLayout ||
         description.wideningDotProductRelation !=
             routeFacts->wideningDotProductRelation ||
+        description.wideningDotSourceAccumulatorResultContract !=
+            routeFacts->wideningDotSourceAccumulatorResultContract ||
         description.wideningProductIntrinsic !=
             routeFacts->wideningProductIntrinsic ||
         description.maskedWideningProductIntrinsic !=
@@ -13038,6 +13040,8 @@ bool expectRVVTargetArtifactExporterShape(
         validationContract->resultLMUL != routeFacts->resultLMUL ||
         validationContract->wideningDotProductRelation !=
             routeFacts->wideningDotProductRelation ||
+        validationContract->wideningDotSourceAccumulatorResultContract !=
+            routeFacts->wideningDotSourceAccumulatorResultContract ||
         validationContract->expectedPreLoopStepCount != 3 ||
         validationContract->expectedLoopBodyStepCount !=
             (isComputedMask ? 12u : 7u) ||
@@ -13750,6 +13754,22 @@ bool expectRVVTargetArtifactExporterShape(
           {"provider-derived compare predicate"}))
     return false;
 
+  RVVRouteDescription staleComputedMaskStridedDotSourceAccumulatorContract =
+      computedMaskStridedWideningDotDescription;
+  staleComputedMaskStridedDotSourceAccumulatorContract
+      .wideningDotSourceAccumulatorResultContract =
+      "metadata-derived-source-accumulator-result-contract";
+  if (!expectWideningDotProviderFailure(
+          computedMaskStridedWideningDotFixture.candidate,
+          computedMaskStridedWideningDotRoute,
+          staleComputedMaskStridedDotSourceAccumulatorContract,
+          "computed-mask strided widening-dot registry rejects stale "
+          "source/accumulator/result contract",
+          {"source/accumulator/result contract",
+           "computed-mask-strided-source-before-skipped-source-ignored",
+           "metadata-derived-source-accumulator-result-contract"}))
+    return false;
+
   RVVRouteDescription staleComputedMaskDotNonFamily =
       computedMaskWideningDotDescription;
   staleComputedMaskDotNonFamily.plainMAccRouteFamilyPlanID =
@@ -14260,6 +14280,28 @@ bool expectRVVTargetArtifactExporterShape(
           "computed-mask widening-dot registry rejects missing strided source "
           "form mirror",
           {"source_memory_form", "provenance"}))
+    return false;
+
+  TargetArtifactCandidate staleComputedMaskStridedDotSourceAccumulatorMirror =
+      computedMaskStridedWideningDotFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleComputedMaskStridedDotSourceAccumulatorMirror,
+          "tcrv_rvv.widening_dot_source_accumulator_result_contract",
+          "metadata-derived-source-accumulator-result-contract")) {
+    llvm::errs() << "test fixture did not contain computed-mask strided "
+                    "widening-dot source/accumulator/result contract "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          staleComputedMaskStridedDotSourceAccumulatorMirror,
+          computedMaskStridedWideningDotRoute,
+          computedMaskStridedWideningDotDescription,
+          "computed-mask strided widening-dot registry rejects stale "
+          "source/accumulator/result contract mirror",
+          {"widening_dot_source_accumulator_result_contract",
+           "computed-mask-strided-source-before-skipped-source-ignored",
+           "metadata-derived-source-accumulator-result-contract"}))
     return false;
 
   TargetArtifactCandidate staleComputedMaskDotNonFamilyMirror =

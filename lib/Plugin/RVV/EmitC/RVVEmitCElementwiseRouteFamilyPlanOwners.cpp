@@ -3184,7 +3184,8 @@ buildRVVElementwiseArithmeticRouteMetadataMirrorContract(
       "tcrv_rvv.dest_lmul",
       "tcrv_rvv.conversion_relation",
       "tcrv_rvv.widening_macc_relation",
-      "tcrv_rvv.widening_dot_relation"};
+      "tcrv_rvv.widening_dot_relation",
+      "tcrv_rvv.widening_dot_source_accumulator_result_contract"};
   for (llvm::StringRef key : staleMirrorKeys)
     contract.staleMirrorKeys.push_back(key);
   contract.staleMirrorLabel =

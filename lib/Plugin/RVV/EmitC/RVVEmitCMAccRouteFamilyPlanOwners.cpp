@@ -1852,6 +1852,7 @@ getRVVMAccRouteMetadataMirrorContract(
         "tcrv_rvv.widening_dot_accumulator_layout",
         "tcrv_rvv.widening_dot_result_layout",
         "tcrv_rvv.widening_dot_relation",
+        "tcrv_rvv.widening_dot_source_accumulator_result_contract",
         "tcrv_rvv.widening_product_intrinsic"};
     appendRVVMAccStaleMetadataMirrors(
         contract, staleWideningMirrors,

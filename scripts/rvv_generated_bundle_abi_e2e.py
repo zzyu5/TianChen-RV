@@ -325,6 +325,11 @@ WIDENING_MACC_COMPUTE_INTRINSIC = "__riscv_vwmacc_vv_i32m1"
 WIDENING_DOT_ACCUMULATOR_LAYOUT = "scalar-i32-seed-lane0-from-accumulator-input"
 WIDENING_DOT_RESULT_LAYOUT = "store-dot-reduction-lane0-to-output-scalar"
 WIDENING_DOT_RELATION = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"
+COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_SOURCE_ACCUMULATOR_RESULT_CONTRACT = (
+    "computed-mask-strided-source-before-skipped-source-ignored;"
+    "inactive-products-zero-before-reduction;accumulator-out0-seed-carry;"
+    "scalar-output-only-tail-preserve.v1"
+)
 WIDENING_DOT_REDUCTION_STORE_VL = "1"
 WIDENING_DOT_RUNTIME_ABI_ORDER = "lhs,rhs,acc,out,n"
 STANDALONE_REDUCE_ACCUMULATOR_LAYOUT = "scalar-i32-seed-lane0-from-accumulator-input"
@@ -8475,6 +8480,7 @@ COMPUTED_MASKED_WIDENING_DOT_METADATA_KEYS = (
     "tcrv_rvv.widening_dot_accumulator_layout",
     "tcrv_rvv.widening_dot_result_layout",
     "tcrv_rvv.widening_dot_relation",
+    "tcrv_rvv.widening_dot_source_accumulator_result_contract",
     "tcrv_rvv.widening_product_intrinsic",
     "tcrv_rvv.masked_widening_product_intrinsic",
     "tcrv_rvv.strided_load_intrinsic",
@@ -11723,6 +11729,9 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.widening_dot_result_layout": WIDENING_DOT_RESULT_LAYOUT,
                 "tcrv_rvv.widening_dot_relation": WIDENING_DOT_RELATION,
+                "tcrv_rvv.widening_dot_source_accumulator_result_contract": (
+                    COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_SOURCE_ACCUMULATOR_RESULT_CONTRACT
+                ),
                 "tcrv_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i32m1",
                 "tcrv_rvv.masked_widening_product_intrinsic": (
                     "__riscv_vwmul_vv_i32m1_m"
@@ -36117,6 +36126,10 @@ def run_self_test() -> int:
                             "tcrv_rvv.strided_memory_layout"
                         )
                         != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_MEMORY_LAYOUT
+                        or computed_masked_widening_dot_metadata.get(
+                            "tcrv_rvv.widening_dot_source_accumulator_result_contract"
+                        )
+                        != COMPUTED_MASK_STRIDED_INPUT_WIDENING_DOT_SOURCE_ACCUMULATOR_RESULT_CONTRACT
                         or computed_masked_widening_dot_metadata.get(
                             "tcrv_rvv.low_precision_resource.selected_candidate"
                         )

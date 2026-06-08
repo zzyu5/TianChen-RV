@@ -1483,7 +1483,8 @@ getRVVBaseMemoryRouteMetadataMirrorContract(
        "tcrv_rvv.mask_tail_policy_route_family_plan",
        "tcrv_rvv.mask_tail_policy_owner",
        "tcrv_rvv.widening_macc_relation",
-       "tcrv_rvv.widening_dot_relation"});
+       "tcrv_rvv.widening_dot_relation",
+       "tcrv_rvv.widening_dot_source_accumulator_result_contract"});
   contract.staleMirrorLabel =
       "selected typed RVV non-base-memory route-family mirror";
   return contract;

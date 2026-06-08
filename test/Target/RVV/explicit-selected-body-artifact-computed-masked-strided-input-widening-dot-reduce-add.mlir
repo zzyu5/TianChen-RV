@@ -7,6 +7,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32/s//vl:size_t,source:signed-e32m1,result:signed-e32m1,mask:b32/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-TYPE
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/rvv-contraction-route-family-plan.v1/s//rvv-script-derived-contraction-plan.v1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CONTRACTION
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.widening_dot_relation", value = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"/s//tcrv_rvv.widening_dot_relation", value = "route-id-derived-relation"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RELATION
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.widening_dot_source_accumulator_result_contract", value = "computed-mask-strided-source-before-skipped-source-ignored;inactive-products-zero-before-reduction;accumulator-out0-seed-carry;scalar-output-only-tail-preserve.v1"/s//tcrv_rvv.widening_dot_source_accumulator_result_contract", value = "metadata-derived-source-accumulator-result-contract"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CONTRACT
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.widening_dot_reduction_store_vl", value = "1"/s//tcrv_rvv.widening_dot_reduction_store_vl", value = "4"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STOREVL
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/__riscv_vlse16_v_i16mf2/s//__riscv_vle16_v_i16mf2/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STRIDE
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/__riscv_vwmul_vv_i32m1_m/s//__riscv_vwmul_vv_i32m1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-MASKPROD
@@ -78,6 +79,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.mask_source", value = "compare-produced-mask-same-vl-scope"}
 // PLAN-SAME: {key = "tcrv_rvv.mask_memory_form", value = "compare-produced-mask"}
 // PLAN-SAME: {key = "tcrv_rvv.widening_dot_relation", value = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"}
+// PLAN-SAME: {key = "tcrv_rvv.widening_dot_source_accumulator_result_contract", value = "computed-mask-strided-source-before-skipped-source-ignored;inactive-products-zero-before-reduction;accumulator-out0-seed-carry;scalar-output-only-tail-preserve.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.masked_widening_product_intrinsic", value = "__riscv_vwmul_vv_i32m1_m"}
 // PLAN-SAME: {key = "tcrv_rvv.strided_load_intrinsic", value = "__riscv_vlse16_v_i16mf2"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-computed-masked-strided-input-widening-dot-reduce-add-callable-c-abi.v1"
@@ -103,6 +105,7 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.vector_register_budget: 32
 // HEADER: tianchenrv.rvv.low_precision_resource.runtime_abi_order: cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride
 // HEADER: tianchenrv.rvv.widening_dot_relation: signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32
+// HEADER: tianchenrv.rvv.widening_dot_source_accumulator_result_contract: computed-mask-strided-source-before-skipped-source-ignored;inactive-products-zero-before-reduction;accumulator-out0-seed-carry;scalar-output-only-tail-preserve.v1
 // HEADER: tianchenrv.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:masked_strided_wdot.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_operands: rvv-route-operand-binding:masked_strided_wdot.v1;cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp|mask|hdr;cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp|mask|hdr;dot_lhs=dot-lhs-input-buffer:lhs:abi|sld|mlhs|i16|hdr;dot_rhs=dot-rhs-input-buffer:rhs:abi|sld|mrhs|i16|hdr;acc=accumulator-input-buffer:acc:abi|seed|red|i32|hdr;out=output-buffer:out:abi|store|i32|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr;lhs_stride=lhs-input-stride:lhs_stride:abi|str|addr|hdr;rhs_stride=rhs-input-stride:rhs_stride:abi|str|addr|hdr
@@ -116,6 +119,7 @@ module {
 // STALE-TYPE: candidate tcrv_rvv.c_type_mapping provenance must mirror selected typed RVV widening dot route type mapping summary
 // STALE-CONTRACTION: candidate tcrv_rvv.contraction_route_family_plan provenance must mirror selected typed RVV widening dot contraction route-family plan
 // STALE-RELATION: candidate tcrv_rvv.widening_dot_relation provenance must mirror selected typed RVV widening dot relation
+// STALE-CONTRACT: candidate tcrv_rvv.widening_dot_source_accumulator_result_contract provenance must mirror selected typed RVV widening dot source/accumulator/result contract
 // STALE-STOREVL: candidate tcrv_rvv.widening_dot_reduction_store_vl provenance must mirror selected typed RVV widening dot reduction store VL
 // STALE-STRIDE: candidate tcrv_rvv.strided_load_intrinsic provenance must mirror selected typed RVV strided widening dot source load intrinsic
 // STALE-MASKPROD: candidate tcrv_rvv.masked_widening_product_intrinsic provenance must mirror selected typed RVV computed-mask widening dot product intrinsic

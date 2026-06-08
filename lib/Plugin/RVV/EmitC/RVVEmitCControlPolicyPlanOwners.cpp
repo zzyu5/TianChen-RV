@@ -1593,6 +1593,8 @@ static llvm::Error buildContractionRouteControlProviderPlan(
              contractionPlan.resultLayout !=
                  description.wideningDotProductResultLayout ||
              contractionPlan.relation != description.wideningDotProductRelation ||
+             contractionPlan.sourceAccumulatorResultContract !=
+                 description.wideningDotSourceAccumulatorResultContract ||
              contractionPlan.contractionComputeIntrinsic !=
                  description.intrinsic ||
              contractionPlan.wideningProductIntrinsic !=
@@ -1605,8 +1607,9 @@ static llvm::Error buildContractionRouteControlProviderPlan(
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " route-control provider plan requires contraction widening "
-        "dot-reduction accumulator, result, product, seed, and compute facts "
-        "from the verified route-family plan before provider route "
+        "dot-reduction accumulator, result, source/accumulator/result "
+        "contract, product, seed, and compute facts from the verified "
+        "route-family plan before provider route "
         "construction for operation '" +
         stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
   }

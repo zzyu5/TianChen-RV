@@ -2805,6 +2805,7 @@ buildRVVStandaloneReductionRouteMetadataMirrorContract(
       "tcrv_rvv.base_memory_movement_route_family_plan",
       "tcrv_rvv.widening_macc_relation",
       "tcrv_rvv.widening_dot_relation",
+      "tcrv_rvv.widening_dot_source_accumulator_result_contract",
       "tcrv_rvv.widening_dot_reduction_store_vl"};
   appendRVVStandaloneReductionStaleMetadataMirrors(
       contract, staleRouteFamilyMirrors,
@@ -25751,7 +25752,8 @@ buildRVVConversionDtypePolicyRouteMetadataMirrorContract(
       "tcrv_rvv.contraction_route_family_plan",
       "tcrv_rvv.base_memory_movement_route_family_plan",
       "tcrv_rvv.widening_macc_relation",
-      "tcrv_rvv.widening_dot_relation"};
+      "tcrv_rvv.widening_dot_relation",
+      "tcrv_rvv.widening_dot_source_accumulator_result_contract"};
   for (llvm::StringRef key : staleMirrorKeys)
     contract.staleMirrorKeys.push_back(key);
   if (facts.kind ==
@@ -28170,7 +28172,8 @@ getRVVSegment2MemoryRouteMetadataMirrorContract(
        "tcrv_rvv.contraction_route_family_plan",
        "tcrv_rvv.base_memory_movement_route_family_plan",
        "tcrv_rvv.widening_macc_relation",
-       "tcrv_rvv.widening_dot_relation"});
+       "tcrv_rvv.widening_dot_relation",
+       "tcrv_rvv.widening_dot_source_accumulator_result_contract"});
   contract.staleMirrorLabel =
       "selected typed RVV non-segment2 route-family mirror";
   return contract;
@@ -29090,7 +29093,8 @@ buildRVVCompareSelectRouteMetadataMirrorContract(
        "tcrv_rvv.base_memory_movement_route_family_plan",
        "tcrv_rvv.segment2_memory_route_family_plan",
        "tcrv_rvv.widening_macc_relation",
-       "tcrv_rvv.widening_dot_relation"});
+       "tcrv_rvv.widening_dot_relation",
+       "tcrv_rvv.widening_dot_source_accumulator_result_contract"});
   contract.staleMirrorLabel =
       "selected typed RVV non-compare/select route-family mirror";
 
@@ -42941,6 +42945,9 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         description.wideningDotProductResultLayout});
     metadata.push_back({"tcrv_rvv.widening_dot_relation",
                         description.wideningDotProductRelation});
+    metadata.push_back(
+        {"tcrv_rvv.widening_dot_source_accumulator_result_contract",
+         description.wideningDotSourceAccumulatorResultContract});
     metadata.push_back({"tcrv_rvv.widening_product_intrinsic",
                         description.wideningProductIntrinsic});
     metadata.push_back({"tcrv_rvv.masked_widening_product_intrinsic",

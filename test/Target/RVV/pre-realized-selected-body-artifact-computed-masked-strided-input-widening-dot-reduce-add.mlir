@@ -4,6 +4,7 @@
 // RUN: sed 's/source_lmul = "mf2"/route_id = "rvv-i32m1", source_lmul = "mf2"/' %s | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-AUTH
 // RUN: sed 's/mask_source = "compare-produced-mask-same-vl-scope"/mask_source = "runtime_abi:mask"/' %s | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-MASK-PROVENANCE
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.lhs_stride_source", value = "runtime_abi:lhs_stride/s//tcrv_rvv.lhs_stride_source", value = "metadata-derived-stride/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-STRIDE-SOURCE
+// RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.widening_dot_source_accumulator_result_contract", value = "computed-mask-strided-source-before-skipped-source-ignored;inactive-products-zero-before-reduction;accumulator-out0-seed-carry;scalar-output-only-tail-preserve.v1"/s//tcrv_rvv.widening_dot_source_accumulator_result_contract", value = "metadata-derived-source-accumulator-result-contract"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CONTRACT
 // RUN: tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.selected_candidate", value = "[^"]*"/s//tcrv_rvv.low_precision_resource.selected_candidate", value = "artifact-name-derived-resource-candidate"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE
 
 // Pre-realized selected-body input for one bounded Stage 2 signed computed-mask
@@ -105,6 +106,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.widening_dot_accumulator_layout", value = "scalar-i32-seed-lane0-from-accumulator-input"}
 // PLAN-SAME: {key = "tcrv_rvv.widening_dot_result_layout", value = "store-dot-reduction-lane0-to-output-scalar"}
 // PLAN-SAME: {key = "tcrv_rvv.widening_dot_relation", value = "signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32"}
+// PLAN-SAME: {key = "tcrv_rvv.widening_dot_source_accumulator_result_contract", value = "computed-mask-strided-source-before-skipped-source-ignored;inactive-products-zero-before-reduction;accumulator-out0-seed-carry;scalar-output-only-tail-preserve.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.widening_product_intrinsic", value = "__riscv_vwmul_vv_i32m1"}
 // PLAN-SAME: {key = "tcrv_rvv.masked_widening_product_intrinsic", value = "__riscv_vwmul_vv_i32m1_m"}
 // PLAN-SAME: {key = "tcrv_rvv.strided_load_intrinsic", value = "__riscv_vlse16_v_i16mf2"}
@@ -132,6 +134,7 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.vector_register_budget: 32
 // HEADER: tianchenrv.rvv.low_precision_resource.runtime_abi_order: cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride
 // HEADER: tianchenrv.rvv.widening_dot_relation: signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32
+// HEADER: tianchenrv.rvv.widening_dot_source_accumulator_result_contract: computed-mask-strided-source-before-skipped-source-ignored;inactive-products-zero-before-reduction;accumulator-out0-seed-carry;scalar-output-only-tail-preserve.v1
 // HEADER: tianchenrv.rvv.widening_dot_reduction_store_vl: 1
 // HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1
 // HEADER: tianchenrv.rvv.runtime_control_plan: rvv-runtime-avl-vl-control-plan.v1
@@ -147,6 +150,7 @@ module {
 // STALE-AUTH: does not accept authority metadata attribute '"route_id"'
 // MISSING-MASK-PROVENANCE: currently supports only mask_source "compare-produced-mask-same-vl-scope"
 // STALE-STRIDE-SOURCE: candidate tcrv_rvv.lhs_stride_source provenance must mirror selected typed RVV strided widening dot lhs stride source 'runtime_abi:lhs_stride' but was 'metadata-derived-stride'
+// STALE-CONTRACT: candidate tcrv_rvv.widening_dot_source_accumulator_result_contract provenance must mirror selected typed RVV widening dot source/accumulator/result contract
 // STALE-RESOURCE: target artifact candidate validation failed
 // STALE-RESOURCE-SAME: low_precision_resource.selected_candidate
 // STALE-RESOURCE-SAME: provider-selected low-precision direct-contraction resource selected candidate

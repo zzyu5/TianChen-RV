@@ -325,6 +325,7 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   llvm::StringRef accumulatorLayout;
   llvm::StringRef resultLayout;
   llvm::StringRef relation;
+  llvm::StringRef sourceAccumulatorResultContract;
   llvm::StringRef productReductionChainRelation;
   llvm::StringRef wideningProductRelation;
   llvm::StringRef wideningMAccArithmeticKind;
