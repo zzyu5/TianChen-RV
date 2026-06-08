@@ -9213,6 +9213,45 @@ module {
           "direct-contraction provider facts before returning statements"))
     return result;
 
+  auto stalePackedProductDequantStatementAnalysis = *productDequantAnalysis;
+  stalePackedProductDequantStatementAnalysis.contractionRouteFamilyPlan
+      ->lowPrecisionResourceSelection.operandForm = "packed-i4-nibbles";
+  auto stalePackedProductDequantMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          stalePackedProductDequantStatementAnalysis,
+          "selected-boundary stale packed product-reduction-dequant "
+          "statement test");
+  if (!stalePackedProductDequantMaterializationFacts)
+    return fail("stale packed product-reduction-dequant materialization "
+                "facts: " +
+                llvm::toString(
+                    stalePackedProductDequantMaterializationFacts.takeError()));
+  auto stalePackedProductDequantMathFacts =
+      getRVVSelectedBodyMathRouteOperandBindingFacts(
+          stalePackedProductDequantStatementAnalysis,
+          "selected-boundary stale packed product-reduction-dequant "
+          "statement test");
+  if (!stalePackedProductDequantMathFacts)
+    return fail("stale packed product-reduction-dequant math facts: " +
+                llvm::toString(
+                    stalePackedProductDequantMathFacts.takeError()));
+  auto stalePackedProductDequantSelectedStatementPlan =
+      getRVVSelectedBodyRouteStatementPlanOwnerSelection(
+          stalePackedProductDequantStatementAnalysis,
+          *stalePackedProductDequantMaterializationFacts,
+          emptyProductDequantElementwiseFacts,
+          emptyProductDequantMemoryFacts,
+          *stalePackedProductDequantMathFacts,
+          emptyProductDequantResidualFacts,
+          "selected-boundary stale packed product-reduction-dequant "
+          "statement test");
+  if (int result = expectErrorContains(
+          stalePackedProductDequantSelectedStatementPlan.takeError(),
+          {"low-precision direct-contraction resource selection",
+           "operand form", "unpacked-byte-elements",
+           "packed-i4-nibbles"}))
+    return result;
+
   auto staleProductDequantAnalysis = *productDequantAnalysis;
   staleProductDequantAnalysis.contractionRouteFamilyPlan->elementTypeName =
       "i16";

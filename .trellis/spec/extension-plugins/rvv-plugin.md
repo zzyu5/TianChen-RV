@@ -5803,6 +5803,21 @@ the route provider claims resource-aware tuning.
   selected candidate. The provider must derive the expected resource decision
   from the selected candidate and reject stale marker/handoff/resource facts
   before constructing `TCRVEmitCLowerableRoute`.
+- For product-reduction dequant/dequant-clamp direct-contraction routes, the
+  statement-plan owner must re-consume the provider-owned low-precision resource
+  selection before constructing statement steps. It must compare the provider
+  plan and route-family plan selection mirrors, then require the accepted byte
+  operand facts (`unpacked-byte-elements`, signed source, 8-bit
+  storage/effective element width, `one-element-per-byte`, and
+  `none-direct-widening-product`). Stale packed/sub-byte claims such as
+  `packed-i4-nibbles` fail at this statement consumer boundary before Common
+  EmitC or target artifact export can treat the path as executable.
+- Do not apply the product-reduction byte operand-form contract to every
+  low-precision resource representative. For example, strided or computed-mask
+  strided widening-dot resource representatives may use a different operand
+  form such as `unpacked-source-elements`; those families need their own
+  explicit resource contract and tests. A product-reduction packed-fact guard
+  that rejects sibling low-precision representatives is over-broad.
 - Runtime/performance parity claims require generated TianChen-RV output and the
   baseline RVV implementation to run on the same named `ssh rvv` environment with
   correctness checked before timing.

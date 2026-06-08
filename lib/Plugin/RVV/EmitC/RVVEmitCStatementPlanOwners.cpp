@@ -767,6 +767,295 @@ llvm::Error addRVVDirectContractionStatementOwnerPreLoopAssignment(
   return llvm::Error::success();
 }
 
+llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
+    const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  const bool needsLowPrecisionSelection =
+      providerPlan.plansProductReductionDequantization;
+  if (!needsLowPrecisionSelection)
+    return llvm::Error::success();
+
+  if (!providerPlan.contractionPlan)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction statement-plan owner requires a contraction "
+        "family plan before consuming low-precision direct-contraction "
+        "resource facts for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  const RVVLowPrecisionContractionResourceSelection &providerSelection =
+      providerPlan.lowPrecisionResourceSelection;
+  const RVVLowPrecisionContractionResourceSelection &familySelection =
+      providerPlan.contractionPlan->lowPrecisionResourceSelection;
+  if (!providerSelection.hasSelection || !familySelection.hasSelection)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction statement-plan owner requires selected "
+        "low-precision direct-contraction resource facts before statement "
+        "construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+
+  auto makeMismatchError = [&](llvm::StringRef field, const llvm::Twine &actual,
+                               const llvm::Twine &expected) {
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction statement-plan owner cannot consume stale "
+        "low-precision direct-contraction resource selection field '" + field +
+        "' before statement construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) +
+        "': provider plan has '" + actual + "' but family plan requires '" +
+        expected + "'");
+  };
+  auto requireString = [&](llvm::StringRef field, const std::string &actual,
+                           const std::string &expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeMismatchError(field, actual, expected);
+  };
+  auto requireInteger = [&](llvm::StringRef field, std::int64_t actual,
+                            std::int64_t expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeMismatchError(field, llvm::Twine(actual), llvm::Twine(expected));
+  };
+  auto requireBool = [&](llvm::StringRef field, bool actual,
+                         bool expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeMismatchError(field, actual ? "true" : "false",
+                             expected ? "true" : "false");
+  };
+  auto requireExpectedString = [&](llvm::StringRef field,
+                                   const std::string &actual,
+                                   llvm::StringRef expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction statement-plan owner requires "
+        "low-precision direct-contraction resource selection field '" + field +
+        "' to be '" + expected +
+        "' before statement construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) +
+        "' but found '" + actual + "'");
+  };
+  auto requireExpectedInteger = [&](llvm::StringRef field, std::int64_t actual,
+                                    std::int64_t expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction statement-plan owner requires "
+        "low-precision direct-contraction resource selection field '" + field +
+        "' to be '" + llvm::Twine(expected) +
+        "' before statement construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) +
+        "' but found '" + llvm::Twine(actual) + "'");
+  };
+
+  if (llvm::Error error = requireString("candidate set",
+                                        providerSelection.candidateSetID,
+                                        familySelection.candidateSetID))
+    return error;
+  if (llvm::Error error = requireString("selected candidate",
+                                        providerSelection.selectedCandidateID,
+                                        familySelection.selectedCandidateID))
+    return error;
+  if (llvm::Error error = requireString("selection reason",
+                                        providerSelection.selectionReason,
+                                        familySelection.selectionReason))
+    return error;
+  if (llvm::Error error = requireString("legality scope",
+                                        providerSelection.legalityScope,
+                                        familySelection.legalityScope))
+    return error;
+  if (llvm::Error error = requireString("source dtype",
+                                        providerSelection.sourceElementTypeName,
+                                        familySelection.sourceElementTypeName))
+    return error;
+  if (llvm::Error error =
+          requireInteger("source SEW", providerSelection.sourceSEW,
+                         familySelection.sourceSEW))
+    return error;
+  if (llvm::Error error = requireString("source LMUL",
+                                        providerSelection.sourceLMUL,
+                                        familySelection.sourceLMUL))
+    return error;
+  if (llvm::Error error = requireString("operand form",
+                                        providerSelection.operandForm,
+                                        familySelection.operandForm))
+    return error;
+  if (llvm::Error error = requireString("source signedness",
+                                        providerSelection.sourceSignedness,
+                                        familySelection.sourceSignedness))
+    return error;
+  if (llvm::Error error =
+          requireInteger("storage element width",
+                         providerSelection.storageElementWidth,
+                         familySelection.storageElementWidth))
+    return error;
+  if (llvm::Error error =
+          requireInteger("effective element width",
+                         providerSelection.effectiveElementWidth,
+                         familySelection.effectiveElementWidth))
+    return error;
+  if (llvm::Error error = requireString("packing layout",
+                                        providerSelection.packingLayout,
+                                        familySelection.packingLayout))
+    return error;
+  if (llvm::Error error = requireString("unpack intent",
+                                        providerSelection.unpackIntent,
+                                        familySelection.unpackIntent))
+    return error;
+  if (llvm::Error error =
+          requireString("product dtype",
+                        providerSelection.productElementTypeName,
+                        familySelection.productElementTypeName))
+    return error;
+  if (llvm::Error error =
+          requireInteger("product SEW", providerSelection.productSEW,
+                         familySelection.productSEW))
+    return error;
+  if (llvm::Error error = requireString("product LMUL",
+                                        providerSelection.productLMUL,
+                                        familySelection.productLMUL))
+    return error;
+  if (llvm::Error error = requireString("product EMUL",
+                                        providerSelection.productEMUL,
+                                        familySelection.productEMUL))
+    return error;
+  if (llvm::Error error =
+          requireString("accumulator dtype",
+                        providerSelection.accumulatorElementTypeName,
+                        familySelection.accumulatorElementTypeName))
+    return error;
+  if (llvm::Error error =
+          requireInteger("accumulator SEW",
+                         providerSelection.accumulatorSEW,
+                         familySelection.accumulatorSEW))
+    return error;
+  if (llvm::Error error = requireString("accumulator LMUL",
+                                        providerSelection.accumulatorLMUL,
+                                        familySelection.accumulatorLMUL))
+    return error;
+  if (llvm::Error error = requireString("accumulator EMUL",
+                                        providerSelection.accumulatorEMUL,
+                                        familySelection.accumulatorEMUL))
+    return error;
+  if (llvm::Error error = requireString("result dtype",
+                                        providerSelection.resultElementTypeName,
+                                        familySelection.resultElementTypeName))
+    return error;
+  if (llvm::Error error =
+          requireInteger("result SEW", providerSelection.resultSEW,
+                         familySelection.resultSEW))
+    return error;
+  if (llvm::Error error = requireString("result LMUL",
+                                        providerSelection.resultLMUL,
+                                        familySelection.resultLMUL))
+    return error;
+  if (llvm::Error error = requireString("memory form",
+                                        providerSelection.memoryForm,
+                                        familySelection.memoryForm))
+    return error;
+  if (llvm::Error error = requireString("tail policy",
+                                        providerSelection.tailPolicy,
+                                        familySelection.tailPolicy))
+    return error;
+  if (llvm::Error error = requireString("mask policy",
+                                        providerSelection.maskPolicy,
+                                        familySelection.maskPolicy))
+    return error;
+  if (llvm::Error error =
+          requireInteger("unroll factor", providerSelection.unrollFactor,
+                         familySelection.unrollFactor))
+    return error;
+  if (llvm::Error error =
+          requireInteger("accumulator count",
+                         providerSelection.accumulatorCount,
+                         familySelection.accumulatorCount))
+    return error;
+  if (llvm::Error error = requireString("reduction layout",
+                                        providerSelection.reductionLayout,
+                                        familySelection.reductionLayout))
+    return error;
+  if (llvm::Error error =
+          requireInteger("vsetvl region count",
+                         providerSelection.vsetvlRegionCount,
+                         familySelection.vsetvlRegionCount))
+    return error;
+  if (llvm::Error error =
+          requireInteger("peak live vector groups",
+                         providerSelection.peakLiveVectorGroups,
+                         familySelection.peakLiveVectorGroups))
+    return error;
+  if (llvm::Error error =
+          requireInteger("vector register budget",
+                         providerSelection.vectorRegisterBudget,
+                         familySelection.vectorRegisterBudget))
+    return error;
+  if (llvm::Error error = requireString("runtime AVL source",
+                                        providerSelection.runtimeAVLSource,
+                                        familySelection.runtimeAVLSource))
+    return error;
+  if (llvm::Error error = requireString("producer scope",
+                                        providerSelection.producerScope,
+                                        familySelection.producerScope))
+    return error;
+  if (llvm::Error error = requireString("consumer scope",
+                                        providerSelection.consumerScope,
+                                        familySelection.consumerScope))
+    return error;
+  if (llvm::Error error = requireString("runtime ABI order",
+                                        providerSelection.runtimeABIOrder,
+                                        familySelection.runtimeABIOrder))
+    return error;
+  if (llvm::Error error =
+          requireString("target capability provider mirror",
+                        providerSelection.targetCapabilityProviderMirror,
+                        familySelection.targetCapabilityProviderMirror))
+    return error;
+  if (llvm::Error error =
+          requireString("target capability legality mirror",
+                        providerSelection.targetCapabilityLegalityMirror,
+                        familySelection.targetCapabilityLegalityMirror))
+    return error;
+  if (llvm::Error error = requireBool("legality", providerSelection.isLegal,
+                                      familySelection.isLegal))
+    return error;
+  if (llvm::Error error = requireString("rejection reason",
+                                        providerSelection.rejectionReason,
+                                        familySelection.rejectionReason))
+    return error;
+  if (llvm::Error error =
+          requireExpectedString("operand form", familySelection.operandForm,
+                                kRVVLowPrecisionResourceOperandFormUnpackedByte))
+    return error;
+  if (llvm::Error error = requireExpectedString(
+          "source signedness", familySelection.sourceSignedness,
+          kRVVLowPrecisionResourceSourceSignednessSigned))
+    return error;
+  if (llvm::Error error =
+          requireExpectedInteger("storage element width",
+                                 familySelection.storageElementWidth,
+                                 kRVVLowPrecisionResourceByteStorageElementWidth))
+    return error;
+  if (llvm::Error error = requireExpectedInteger(
+          "effective element width", familySelection.effectiveElementWidth,
+          kRVVLowPrecisionResourceByteEffectiveElementWidth))
+    return error;
+  if (llvm::Error error = requireExpectedString(
+          "packing layout", familySelection.packingLayout,
+          kRVVLowPrecisionResourcePackingLayoutByte))
+    return error;
+  if (llvm::Error error = requireExpectedString(
+          "unpack intent", familySelection.unpackIntent,
+          kRVVLowPrecisionResourceUnpackIntentNone))
+    return error;
+  return llvm::Error::success();
+}
+
 llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
@@ -815,6 +1104,10 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
   const bool isStridedInput = providerPlan.plansStridedInput;
   const RVVSelectedBodyDirectContractionRouteProviderPlan &providerFacts =
       providerPlan;
+  if (llvm::Error error =
+          requireRVVDirectContractionStatementLowPrecisionResourceSelection(
+              providerFacts, description, context))
+    return error;
   const bool usesGroupedLowPrecisionProductReduction =
       isProductReductionDequantization &&
       isRVVLowPrecisionResourceGroupedCandidateID(

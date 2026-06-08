@@ -1874,6 +1874,9 @@ realization, provider route construction, or target artifact acceptance.
 - [OK] `git diff --check`
 - [OK] Bounded added-line authority scan over touched production/test files:
   no new legacy i32/source-front-door/descriptor/Common-EmitC authority matches.
+- [OK] Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the
+  product-reduction statement consumer contract and the sibling-resource
+  over-breadth guardrail.
 
 ### Status
 
@@ -1887,3 +1890,41 @@ bundle evidence, same-target correctness/timing, and parity claims remain open.
   family, then extend provider-owned packed facts through statement planning,
   generated-bundle evidence, and `ssh rvv` evidence only after executable route
   support exists.
+
+## Session 569: RVV packed low-bit Gate 3 statement consumer boundary
+
+**Date**: 2026-06-09
+**Task**: RVV low-precision packed-contraction primitive surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task at Gate 3. Repaired the PRD current slice from
+the completed Gate 2 fact/fail-closed boundary to the Gate 3
+selected-body/route/statement consumer boundary. The production source change
+is in the RVV direct-contraction statement-plan owner: product-reduction
+dequant/dequant-clamp statement construction now requires the same provider-
+owned low-precision resource selection as the route-family/provider plan and
+fails closed on stale packed/sub-byte operand facts before statement
+construction.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate`
+- [OK] focused lit from `build/test` with filter
+  `rvv-gearbox-widening-product-reduce-dequantize-f32|pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32`
+  passed 2/2.
+- [OK] `git diff --check`
+- [OK] Bounded added-line authority scan over touched production/test files:
+  no new legacy i32/source-front-door/descriptor/Common-EmitC authority matches.
+
+### Status
+
+[OPEN] Macro task remains active. Gate 3 statement consumer boundary is
+complete for the accepted byte product-reduction representative. Positive
+packed q4/q2 executable support, generated-bundle evidence, same-target
+correctness/timing, and parity claims remain open.

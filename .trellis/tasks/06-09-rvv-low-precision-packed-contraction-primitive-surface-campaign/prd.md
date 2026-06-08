@@ -9,11 +9,13 @@ signedness, packing width, and unpack/dequant intent explicit before selected
 body realization, route planning, target validation, or artifact claims can
 accept the path.
 
-This is a macro task. This first round implements Gate 1 and the first bounded
-Gate 2 production slice: classify the current gap from repository evidence and
-land the smallest coherent typed-fact/fail-closed boundary for packed low-bit
-operands. The task remains active after this slice unless all campaign gates are
-genuinely complete.
+This is a macro task. Gate 1 and the first Gate 2 production boundary are
+complete. The current round is a bounded Gate 3 slice: make the selected-body
+realization, route-provider, and statement-planning consumers rely on
+provider-owned low-precision primitive/resource facts for the accepted byte
+representative, and fail closed when stale packed/sub-byte facts reach a
+production consumer. The task remains active after this slice unless all
+campaign gates are genuinely complete.
 
 ## Direction Brief Source
 
@@ -72,22 +74,30 @@ boundary for unsupported q4/q8-like pressure-test shapes.
 
 ## Current Round Slice
 
-Complete the first Gate 2 production slice by adding provider-owned packed
-operand primitive/resource facts and a fail-closed guard:
+Complete one bounded Gate 3 production slice by making the current accepted
+low-precision product-reduction dequant/dequant-clamp path consume the
+provider-owned packed/operand resource facts at the realization and
+route/statement-planning boundary:
 
-- existing byte `i8` product-reduction dequant/dequant-clamp resource
-  candidates must explicitly carry `unpacked byte elements`, signed source
-  operands, 8-bit storage/effective element width, and no-unpack widening
-  product intent;
-- stale or unsupported packed/sub-byte claims such as `packed_i4`, `q4`, or
-  `q2` in the same RVV resource fact surface must be rejected before selected
-  body realization or route construction can treat them as executable;
+- selected-body realization must continue to compare pass-produced resource
+  facts against provider-owned widening-reduction primitive facts before it
+  materializes the realized producer/consumer `with_vl` regions;
+- direct-contraction route/provider and statement-planning consumers must
+  require the selected resource facts for operand form, source signedness,
+  storage/effective element width, packing layout, unpack intent,
+  source/product/accumulator/result dtype, runtime AVL/VL, runtime ABI order,
+  target capability mirrors, and resource shape before constructing statement
+  plans or `TCRVEmitCLowerableRoute`;
+- stale packed/sub-byte claims such as `packed-i4-nibbles`, `q4`, or `q2` must
+  fail closed at the RVV consumer boundary before Common EmitC or target
+  artifact code can treat them as executable;
 - Common EmitC and target artifact code may only carry provider mirrors after
-  the provider-owned boundary accepts them; they must not infer packing.
+  the RVV provider-owned boundary accepts them; they must not infer packing.
 
-This slice may leave positive packed q4/q2 support unimplemented. That is
-intentional for the first milestone if the production boundary and targeted
-fail-closed diagnostics are landed.
+This slice may still leave positive packed q4/q2 support unimplemented. If the
+repository evidence does not yet contain a full typed packed sub-byte primitive
+family, this round should land the exact production fail-closed consumer
+boundary and leave positive packed support as a continuation point.
 
 ## Requirements
 
@@ -106,16 +116,25 @@ fail-closed diagnostics are landed.
 
 ## Acceptance Criteria
 
-- [x] Production RVV primitive/resource/provider code carries explicit
+- [x] Gate 2: production RVV primitive/resource/provider code carries explicit
       low-precision operand form, source signedness, packed storage/effective
       element width, packing layout, and unpack intent facts for the active
       byte product-reduction dequant/dequant-clamp path.
-- [x] The RVV-owned resource/realization/provider boundary fails closed when
+- [x] Gate 2: the RVV-owned resource/realization/provider boundary fails closed when
       those facts are missing, stale, or claim unsupported packed sub-byte
       operands.
-- [x] Focused tests cover the positive byte fact surface and at least one
+- [x] Gate 2: focused tests cover the positive byte fact surface and at least one
       unsupported packed/stale fact diagnostic before route construction or
       realization support.
+- [x] Gate 3: selected-body realization, direct-contraction provider planning,
+      and statement-plan owner selection consume the provider-owned
+      low-precision primitive/resource facts for the accepted byte
+      product-reduction representative before statement construction or route
+      construction.
+- [x] Gate 3: focused tests prove stale packed/sub-byte operand facts at the
+      route/statement consumer boundary fail closed with diagnostics naming the
+      low-precision direct-contraction resource selection instead of relying on
+      route ids, artifact names, descriptors, or Common EmitC inference.
 - [x] `build/bin/tianchenrv-rvv-extension-plugin-test` and
       `build/bin/tianchenrv-target-artifact-export-test` pass after the change.
 - [x] `tcrv-opt` / `tcrv-translate` are built or verified available if touched
@@ -201,3 +220,35 @@ Focused validation completed:
 The macro task remains active. This round does not claim positive q4/q2 packed
 execution, generated-bundle evidence, runtime correctness, performance, or
 llama.cpp parity.
+
+## Current Gate 3 Round Result
+
+This slice completes the bounded Gate 3 route/statement consumer boundary for
+the current accepted byte product-reduction representative. The
+direct-contraction statement-plan owner now requires product-reduction
+dequant/dequant-clamp routes to consume the same provider-owned
+low-precision resource selection as the route-family/provider plan before
+constructing statement plans. It cross-checks the selection mirror and
+fail-closes stale packed/sub-byte operand facts such as `packed-i4-nibbles`
+before Common EmitC or target artifact export can treat them as executable.
+
+Focused validation completed:
+
+- built `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-target-artifact-export-test`, `tcrv-opt`, and `tcrv-translate`;
+- ran `build/bin/tianchenrv-rvv-extension-plugin-test`;
+- ran `build/bin/tianchenrv-target-artifact-export-test`;
+- ran focused lit from `build/test` for
+  `rvv-gearbox-widening-product-reduce-dequantize-f32` and
+  `pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32`;
+- ran `git diff --check`;
+- ran a bounded added-line authority scan over touched production/test files
+  with no new legacy i32/source-front-door/descriptor/Common-EmitC authority
+  matches.
+- updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the
+  product-reduction statement consumer contract and the non-goal of applying
+  byte operand-form checks to sibling low-precision resource representatives.
+
+The macro task remains active. Positive packed q4/q2 executable support,
+generated-bundle evidence, same-target correctness/timing, and parity claims
+remain open.
