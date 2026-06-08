@@ -125,6 +125,22 @@ python3 scripts/rvv_generated_bundle_same_target_measure.py \
   --ssh-target rvv
 ```
 
+For a single pre-realized selected-body fixture override, for example the
+accepted signed packed-i4 representative, the bounded command may add:
+
+```bash
+python3 scripts/rvv_generated_bundle_same_target_measure.py \
+  --op-kind widening_product_reduce_dequantize_f32 \
+  --input test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir \
+  --measure-count 257 \
+  --measure-count 4096 \
+  --measure-count 65536 \
+  --ssh-target rvv
+```
+
+`--input` is a fixture override for exactly one op kind. It is not route,
+dtype, packed-form, or benchmark authority.
+
 The command records evidence under an artifact root containing:
 
 ```text
@@ -163,6 +179,14 @@ Root evidence must expose:
 - The baseline side must have an explicit identity such as
   `scalar-c-reference/product-reduction-dequant-v1`; baseline names are
   comparator/oracle identities only, not RVV route authority.
+- For accepted signed packed-i4 product-reduction-dequant timing, the baseline
+  identity is
+  `scalar-c-reference/product-reduction-dequant-packed-i4-v1`. The measurement
+  harness may select that baseline only after generated object/header metadata
+  validates the provider-owned `packed-i4-nibbles` low-precision resource
+  facts. The default unpacked-byte product-dequant measurement must keep
+  `scalar-c-reference/product-reduction-dequant-v1` and must not emit
+  `packed_i4_reference_oracle`.
 - Both sides must compile and run on the same named `ssh rvv` target in the same
   measurement run.
 - The harness must run correctness checks before timing every measured case and
@@ -179,6 +203,13 @@ Root evidence must expose:
 
 - Missing generated object/header identity or hash -> evidence is incomplete.
 - Missing baseline identity -> comparison evidence is incomplete.
+- `--input` is used with multiple op kinds -> command must fail before bundle
+  generation.
+- Packed-i4 timing switches to the packed scalar baseline because of fixture
+  name, op kind, route id, or artifact path rather than validated provider
+  low-precision resource metadata -> not same-target comparison evidence.
+- Default unpacked-byte timing emits `packed_i4_reference_oracle` or uses the
+  packed-i4 baseline identity -> not same-target comparison evidence.
 - Generated and baseline paths are not run through the same `ssh rvv` target and
   compile command family -> not same-target evidence.
 - Missing target profile, compile flags, timing method, input sizes, warmups,
@@ -195,16 +226,26 @@ Root evidence must expose:
 - Good: generated pre-realized RVV artifact -> same-target scalar C baseline ->
   correctness guard -> raw `CLOCK_MONOTONIC_RAW` timing records -> evidence JSON
   with target profile and parsed summaries.
+- Good: validated packed-i4 resource metadata -> named packed scalar C
+  baseline -> correctness guard over signed low/high i4 nibbles -> raw same
+  target timing records against the generated RVV artifact.
 - Base: dry-run measurement tests generate and FileCheck the measurement harness
   and evidence schema without claiming runtime or performance evidence.
 - Bad: generated-bundle ABI success, dry-run harness generation, or a single
   remote PASS marker is described as same-target performance evidence.
+- Bad: a packed-i4 fixture path alone selects the packed baseline before
+  object/header low-precision resource metadata has validated the generated
+  bundle.
 
 ### 6. Tests Required
 
 - Script self-test must check harness generation keeps baseline identity,
   generated function calls, timing method, warmup/repeat/iteration loops,
   correctness-before-timing, and stdout parsing.
+- Script self-test must also check that the default product-dequant harness does
+  not contain packed-i4 oracle text, while the packed-i4 harness contains the
+  packed baseline identity, low/high signed-i4 unpack, and
+  `runtime_n_unit=packed_bytes`.
 - lit/FileCheck dry-run coverage must assert root/per-op evidence fields and the
   generated C harness structure for each measured op kind.
 - Non-dry-run `ssh rvv` evidence must be collected for any runtime or timing

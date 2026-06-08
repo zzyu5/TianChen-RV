@@ -5865,6 +5865,16 @@ the route provider claims resource-aware tuning.
   signed i4 nibbles from each byte, accumulates both products per byte into the
   scalar seed, then applies the runtime f32 scale. The default unpacked-byte
   product-dequant path must keep the existing byte-wise `i8*i8` oracle.
+- Same-target timing for the accepted packed-i4 product-reduction representative
+  must use generated TianChen-RV output and a named scalar C baseline on the
+  same `ssh rvv` target after correctness guards pass. The packed baseline
+  identity is `scalar-c-reference/product-reduction-dequant-packed-i4-v1`; it is
+  a comparator/oracle identity only. The measurement harness may select that
+  baseline only after the generated object/header bundle metadata validates the
+  provider-owned `packed-i4-nibbles` resource facts. A default unpacked-byte
+  product-dequant measurement must keep
+  `scalar-c-reference/product-reduction-dequant-v1` and must not emit
+  `packed_i4_reference_oracle`.
 - Full runtime autotuning caches are not required for the first closure. A
   bounded static resource model is acceptable if it is explicit, tested, and
   consumed by provider/target contracts.
@@ -5910,6 +5920,14 @@ the route provider claims resource-aware tuning.
   low/high signed-i4 semantics because of a fixture name or script option rather
   than validated provider resource metadata -> fail closed as a same-target
   reference-oracle violation.
+- A packed-i4 same-target measurement omits the packed scalar baseline identity,
+  target profile, compile flags, input sizes, correctness guard, timing method,
+  raw `ssh rvv` timing records, or parsed summaries -> it is not packed-i4
+  timing evidence.
+- A default product-dequant timing dry-run or runtime measurement emits
+  `packed_i4_reference_oracle`, or a packed-i4 timing measurement selects its
+  baseline before object/header metadata validates provider-owned packed facts
+  -> fail closed as an evidence-boundary violation.
 
 ### 5. Good/Base/Bad Cases
 
@@ -5962,6 +5980,12 @@ the route provider claims resource-aware tuning.
   accumulation per packed byte, runtime scale application, source/accumulator
   preservation, output sentinel preservation, and no change to the default
   unpacked-byte product-dequant oracle.
+- Packed-i4 same-target timing coverage must assert the validated metadata
+  switch, the named packed scalar baseline identity, `CLOCK_MONOTONIC_RAW`
+  timing records, correctness guards before every measured case, target profile
+  capture, raw repeat measurements, parsed summaries, and a default
+  product-dequant regression proving packed timing/oracle text does not leak to
+  the unpacked-byte baseline.
 - Real `ssh rvv` correctness evidence for executable claims and real same-target
   timing evidence for performance or llama.cpp-parity claims.
 

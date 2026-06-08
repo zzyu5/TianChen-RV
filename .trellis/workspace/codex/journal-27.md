@@ -154,3 +154,71 @@ win, llama.cpp parity, or q4/q8 route-authority claim is made. Next
 continuation point: add a named same-target scalar/baseline timing measurement
 on `ssh rvv` for the accepted packed-i4 representative and report
 win/regression honestly.
+
+## Session 574: RVV packed-i4 Gate 5 same-target timing
+
+**Date**: 2026-06-09
+**Task**: RVV low-precision packed-contraction primitive surface campaign
+
+### Summary
+
+Continued the active macro task for the final Gate 5 timing milestone. This
+round did not change production compiler C++/MLIR/TableGen code because the
+accepted packed-i4 generated RVV artifact, provider route, target export, and
+non-dry-run correctness path were already complete. The remaining owner was
+evidence tooling: measure that accepted generated artifact against a named
+scalar C baseline on the same `ssh rvv` target.
+
+Extended `scripts/rvv_generated_bundle_same_target_measure.py` so a single
+`--input` pre-realized selected-body fixture can be measured. The packed-i4
+timing baseline is selected only after generated object/header metadata
+validates provider-owned low-precision resource facts. The default unpacked
+byte product-dequant measurement remains on
+`scalar-c-reference/product-reduction-dequant-v1`; the accepted packed-i4
+representative switches to
+`scalar-c-reference/product-reduction-dequant-packed-i4-v1`.
+
+Collected same-target timing evidence on `ssh rvv` for counts
+`257,4096,65536`, patterns `0,1`, scales `-0.125,0.375`, warmups `2`,
+repeats `5`, and iterations `8`. The raw evidence includes target profile,
+compile flags, correctness guards before timing, 60 raw `MEASURE` records, and
+12 parsed `SUMMARY` records. The generated RVV artifact did not beat the
+scalar packed-i4 baseline: best speedup ranged from `0.752187` to `0.804100`,
+so this is a no-win/regression result, not a performance-win or llama.cpp
+parity claim.
+
+Updated `.trellis/spec/testing/mlir-testing-contract.md` and
+`.trellis/spec/extension-plugins/rvv-plugin.md` with the packed-i4
+same-target timing contract: `--input` is a fixture override for one op only,
+packed baseline selection must come from validated provider metadata, and
+default product-dequant timing must not emit `packed_i4_reference_oracle`.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_same_target_measure.py`
+- [OK] `scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] default byte/grouped same-target measurement dry-run:
+  `artifacts/tmp/gate4-same-target-measurement/gate5_default_byte_grouped_timing_regression_dry`
+- [OK] packed-i4 same-target measurement dry-run:
+  `artifacts/tmp/gate4-same-target-measurement/gate5_packed_i4_timing_dry`
+- [OK] packed-i4 same-target measurement on `ssh rvv`:
+  `artifacts/tmp/gate4-same-target-measurement/gate5_packed_i4_same_target_timing_ssh`
+- [OK] default byte/grouped ABI e2e dry-run:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/gate5_default_byte_grouped_regression_after_timing_dry`
+- [OK] packed-i4 ABI e2e dry-run:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/gate5_packed_i4_after_timing_dry`
+- [OK] packed-i4 ABI e2e non-dry-run on `ssh rvv`:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/gate5_packed_i4_after_timing_ssh`
+- [OK] built `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-target-artifact-export-test`, `tcrv-opt`, and `tcrv-translate`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+
+### Status
+
+[COMPLETE] Macro campaign gates are complete for the accepted signed packed-i4
+product-reduction-dequant representative. The Trellis task is archived as
+completed; final pre-commit checks and a coherent commit remain before
+wrap-up.

@@ -12,15 +12,15 @@ accept the path.
 This is a macro task. Gate 1, Gate 2, Gate 3, and Gate 4 are complete for the
 accepted signed packed-i4/nibble representative through selected-body
 realization, provider planning, provider-owned route statement payloads, target
-artifact/export validation, and generated-bundle dry-run evidence. The current
-round is a bounded Gate 5 executable same-target comparison slice: carry the
-accepted packed-i4 path from typed `tcrv_rvv`/resource facts through generated
-artifact execution on `ssh rvv`, correct the external harness/reference oracle
-only where it consumes provider-owned packed-i4 facts, and record same-target
-correctness plus scalar/reference comparison evidence. If executable support
-cannot truthfully proceed, the slice must land the smallest production
-compiler/runtime/export fix that removes the blocker or leave a precise active
-continuation point. The task remains active until Gate 5 is genuinely complete.
+artifact/export validation, generated-bundle dry-run evidence, and Gate 5
+executable correctness evidence. The current round is a bounded Gate 5
+same-target timing slice: measure the accepted packed-i4 generated RVV artifact
+against a named scalar C baseline on the same `ssh rvv` target, preserve the
+existing correctness oracle, record raw timing evidence, and report
+win/regression/no-win honestly. If timing cannot truthfully proceed, the slice
+must land the smallest production compiler/runtime/export/harness fix that
+removes the blocker or leave a precise active continuation point. The task
+remains active until Gate 5 is genuinely complete.
 
 ## Direction Brief Source
 
@@ -74,13 +74,13 @@ boundary for unsupported q4/q8-like pressure-test shapes.
       inference.
 - [x] Gate 4: add focused artifact/runtime evidence only for production support
       changed by this campaign.
-- [ ] Gate 5: when executable support exists, run same-target correctness and
+- [x] Gate 5: when executable support exists, run same-target correctness and
       timing against a named scalar baseline and report win/regression honestly.
 
 ## Current Round Slice
 
-Complete one bounded Gate 5 executable same-target comparison slice for the
-accepted signed packed-i4 resource family:
+Complete one bounded Gate 5 same-target timing slice for the accepted signed
+packed-i4 resource family:
 
 - keep the selected packed-i4 resource facts as the only authority: byte
   storage width, four-bit effective width, low/high nibble packing layout,
@@ -91,28 +91,21 @@ accepted signed packed-i4 resource family:
   rebuilt RVV provider route, not fixture names, metadata, route ids, artifact
   names, or script-side packed semantics, to detect whether the generated
   artifact consumes the packed-i4 representative;
-- make the generated-bundle harness/reference oracle distinguish default
-  unpacked-byte product-dequant from explicit signed packed-i4 product-dequant
-  by consuming the provider-owned low-precision resource metadata already
-  validated in Gate 4;
-- for packed-i4 runtime evidence, generate inputs whose bytes carry two signed
-  i4 lanes, compare the generated artifact against a scalar/reference
-  same-target calculation that sign-extends low and high nibbles, accumulates
-  both lanes per packed byte, applies the runtime scale, checks source and
-  accumulator preservation, and preserves non-scalar output sentinels;
-- run non-dry-run `ssh rvv` correctness for the accepted packed-i4
-  representative when the harness and generated artifact are executable;
-- record a same-target scalar/reference comparison boundary. If timing is not
-  yet implemented or not production-ready, leave Gate 5 open with the exact
-  next continuation point instead of claiming performance or parity;
-- if executable support cannot truthfully proceed, identify and fix or
-  fail-close the exact production blocker without claiming runtime correctness,
-  timing, parity, or performance.
-
-This slice may complete Gate 5 correctness and scalar/reference comparison for
-the accepted packed-i4 representative. It does not claim performance win,
-llama.cpp parity, or q4/q8 route authority unless same-target timing evidence
-and a named baseline are present.
+- reuse the already proven executable correctness path and correctness oracle
+  for the accepted packed-i4 product-dequant representative;
+- add same-target timing against the named scalar C baseline
+  `scalar-c-reference/product-reduction-dequant-packed-i4-v1`, selected only
+  after generated object/header metadata validates provider-owned packed-i4
+  low-precision resource facts;
+- keep the default unpacked-byte product-dequant measurement on
+  `scalar-c-reference/product-reduction-dequant-v1` and prove packed timing or
+  oracle text does not leak into that path;
+- record target profile, compile flags, input sizes, warmups/repeats/iterations,
+  correctness guards before timing, raw `MEASURE` records, parsed `SUMMARY`
+  records, and raw stdout artifacts;
+- report win/regression/no-win from the raw same-target evidence without
+  claiming llama.cpp parity, q4/q8 route-authority, or performance win when the
+  generated artifact is slower than the scalar baseline.
 
 ## Requirements
 
@@ -205,9 +198,18 @@ and a named baseline are present.
       representative, and records a same-target scalar/reference comparison
       boundary without treating fixture names, route ids, artifact names,
       provider mirrors, or dry-run JSON as runtime authority.
-- [x] Gate 5 current packed-i4 executable slice: if same-target timing is not
-      implemented in this round, the task remains open with an exact
-      continuation point and no performance win, parity, or llama.cpp claim.
+- [x] Gate 5 current packed-i4 timing slice: same-target timing runs on
+      `ssh rvv` for the accepted packed-i4 representative against the named
+      scalar C baseline
+      `scalar-c-reference/product-reduction-dequant-packed-i4-v1`, records raw
+      timing and parsed summaries for counts `257,4096,65536`, patterns `0,1`,
+      scales `-0.125,0.375`, warmups `2`, repeats `5`, and iterations `8`, and
+      reports the generated RVV artifact as a no-win/regression signal rather
+      than a performance win.
+- [x] Gate 5 current packed-i4 timing slice: default unpacked-byte
+      product-dequant timing remains on
+      `scalar-c-reference/product-reduction-dequant-v1` and the dry-run
+      evidence/harness do not emit `packed_i4_reference_oracle`.
 - [x] `build/bin/tianchenrv-rvv-extension-plugin-test` and
       `build/bin/tianchenrv-target-artifact-export-test` pass after the change.
 - [x] `tcrv-opt` / `tcrv-translate` are built or verified available if touched
@@ -252,10 +254,11 @@ and a named baseline are present.
 
 ## Continuation Point
 
-This slice should either close the generated-bundle artifact evidence part of
-Gate 4 for the artifact-supported packed-i4 path or name the exact production
-blocker that prevents it. Same-target correctness or timing evidence must be
-collected only after executable packed-i4 generated artifact support exists.
+All campaign gates are now complete for the accepted signed packed-i4
+product-reduction-dequant representative. Future work should start a new task
+for broader low-precision contraction coverage, better resource-aware
+realization, or a stronger same-target baseline; do not reopen this macro task
+as another generated-bundle evidence seam.
 
 ## Current Round Result
 
@@ -505,3 +508,81 @@ representative, but it still does not claim timing, performance win, llama.cpp
 parity, or q4/q8 route authority. The exact next continuation point is Gate 5
 same-target timing: add a named scalar/baseline timing measurement on `ssh rvv`
 for the accepted packed-i4 representative and report win/regression honestly.
+
+## Current Gate 5 Packed-I4 Same-Target Timing Round Result
+
+This slice completes Gate 5 timing for the accepted signed packed-i4
+product-reduction-dequant representative. The measurement path reuses the
+generated-bundle ABI e2e flow to build and validate the generated RVV
+object/header, then builds an external same-target measurement harness. The
+harness selects the packed scalar baseline only after the generated bundle's
+object/header metadata validates the provider-owned packed-i4 low-precision
+resource facts. The default unpacked-byte product-dequant timing path remains
+on `scalar-c-reference/product-reduction-dequant-v1` and does not emit
+`packed_i4_reference_oracle`.
+
+Raw timing evidence was collected on `ssh rvv` with remote `riscv64`,
+64 CPUs, `/usr/bin/clang`, Ubuntu clang 18.1.3, compile flags `-O2
+-march=rv64gcv -mabi=lp64d -I.`, timing method
+`clock_gettime(CLOCK_MONOTONIC_RAW)`, counts `257,4096,65536`, patterns `0,1`,
+scales `-0.125,0.375`, warmups `2`, repeats `5`, and iterations `8`.
+
+Evidence artifacts:
+
+- root:
+  `artifacts/tmp/gate4-same-target-measurement/gate5_packed_i4_same_target_timing_ssh/evidence.json`;
+- per-op timing evidence:
+  `artifacts/tmp/gate4-same-target-measurement/gate5_packed_i4_same_target_timing_ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`;
+- raw target profile:
+  `artifacts/tmp/gate4-same-target-measurement/gate5_packed_i4_same_target_timing_ssh/widening_product_reduce_dequantize_f32/remote_target_profile_stdout.txt`;
+- raw timing stdout:
+  `artifacts/tmp/gate4-same-target-measurement/gate5_packed_i4_same_target_timing_ssh/widening_product_reduce_dequantize_f32/remote_measure_run_stdout.txt`.
+
+Parsed best-per-iteration timing summaries:
+
+```text
+n      pattern  scale   scalar ns/iter  generated ns/iter  speedup
+257    0       -0.125   647.500         855.000            0.757310
+257    0        0.375   645.000         857.500            0.752187
+257    1       -0.125   647.500         852.500            0.759531
+257    1        0.375   647.500         855.000            0.757310
+4096   0       -0.125   9512.500        11830.000          0.804100
+4096   0        0.375   9510.000        11830.000          0.803888
+4096   1       -0.125   9510.000        11830.000          0.803888
+4096   1        0.375   9512.500        11830.000          0.804100
+65536  0       -0.125   151537.500      189000.000         0.801786
+65536  0        0.375   151517.500      188997.500         0.801690
+65536  1       -0.125   151520.000      189005.000         0.801672
+65536  1        0.375   151517.500      188997.500         0.801690
+```
+
+All 12 timing summaries are no-win/regression signals for the generated RVV
+artifact against the named scalar C packed-i4 baseline: best speedup ranges
+from `0.752187` to `0.804100`, so no performance win, llama.cpp parity, or
+q4/q8 route-authority claim is made.
+
+Focused validation completed:
+
+- built `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-target-artifact-export-test`, `tcrv-opt`, and `tcrv-translate`;
+- ran `build/bin/tianchenrv-rvv-extension-plugin-test`;
+- ran `build/bin/tianchenrv-target-artifact-export-test`;
+- ran `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`;
+- ran `python3 -m py_compile scripts/rvv_generated_bundle_same_target_measure.py`;
+- ran `scripts/rvv_generated_bundle_abi_e2e.py --self-test`;
+- ran `scripts/rvv_generated_bundle_same_target_measure.py --self-test`;
+- ran default byte/grouped same-target measurement dry-run and confirmed
+  baseline `scalar-c-reference/product-reduction-dequant-v1` with no
+  `packed_i4_reference_oracle`;
+- ran packed-i4 same-target measurement dry-run and confirmed baseline
+  `scalar-c-reference/product-reduction-dequant-packed-i4-v1`;
+- ran packed-i4 ABI e2e dry-run and non-dry-run `ssh rvv` correctness after the
+  timing change.
+
+The macro campaign gates are complete for the accepted signed packed-i4
+representative. No production compiler source changed in this round; the
+changed production behavior is evidence tooling that measures the already
+accepted generated RVV artifact against a named scalar baseline on the same
+target.
+
+The Trellis task is archived as completed after this Gate 5 timing result.
