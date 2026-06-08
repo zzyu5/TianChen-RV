@@ -1,3 +1,9 @@
 {"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "focused testing and evidence contract"}
 {"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir", "reason": "packed-i4 focused lit coverage"}
 {"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir", "reason": "non-packed product-reduction-dequant regression coverage"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py --self-test", "reason": "missing/stale generated artifact schedule mirror verifier coverage"}
+{"file": "packed-i4 generated-bundle dry-run", "reason": "Gate 3 packed-resource schedule evidence JSON and bundle metadata"}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "RVV plugin smoke regression"}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "target artifact export smoke regression"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "spec sync for generated artifact schedule evidence checks"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "spec sync for packed-i4 provider-owned schedule mirrors"}

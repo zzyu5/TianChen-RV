@@ -1,0 +1,78 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widening-product-reduce-dequantize-f32-packed-i4 --overwrite --op-kind widening_product_reduce_dequantize_f32 --input %S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32-packed-i4/evidence.json
+# RUN: FileCheck %s --check-prefix=WPRD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32-packed-i4/widening_product_reduce_dequantize_f32/evidence.json
+# RUN: FileCheck %s --check-prefix=INDEX --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32-packed-i4/widening_product_reduce_dequantize_f32/generated_bundle/tianchenrv-target-artifact-bundle.index
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="q8" --implicit-check-not="q4" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32-packed-i4/widening_product_reduce_dequantize_f32/rvv_generated_bundle_abi_widening_product_reduce_dequantize_f32_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+# ROOT-DAG: "widening_product_reduce_dequantize_f32"
+
+# WPRD-DAG: "path": "{{.*}}pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir"
+# WPRD-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# WPRD-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# WPRD-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# WPRD-DAG: "route_entry_realization": false
+# WPRD-DAG: "generated_artifact_resource_schedule_evidence"
+# WPRD-DAG: "object_header_agreement_checked": true
+# WPRD-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# WPRD-DAG: "realization_producer": "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
+# WPRD-DAG: "realization_decision": "consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1"
+# WPRD-DAG: "realized_unroll_factor": "1"
+# WPRD-DAG: "realized_vsetvl_region_count": "2"
+# WPRD-DAG: "realized_peak_live_vector_groups": "6"
+# WPRD-DAG: "product_region_index": "1"
+# WPRD-DAG: "dequant_region_index": "2"
+# WPRD-DAG: "product_phase": "load-product-reduce"
+# WPRD-DAG: "dequant_phase": "dequant-store"
+# WPRD-DAG: "runtime_abi_order": "lhs,rhs,acc,scale,out,n"
+# WPRD-DAG: "target_capability_provider_mirror": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
+# WPRD-DAG: "target_capability_legality_mirror": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
+# WPRD-DAG: "operand_form": "packed-i4-nibbles"
+# WPRD-DAG: "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles"
+# WPRD-DAG: "unpack_intent": "sign-extend-i4-nibbles-before-widening-product"
+# WPRD-DAG: "packed_i4_statement_payload"
+# WPRD-DAG: "low_nibble_sign_extension": "shift-left-4-then-arithmetic-shift-right-4"
+# WPRD-DAG: "high_nibble_sign_extension": "arithmetic-shift-right-4"
+# WPRD-DAG: "packed_i4_reference_oracle"
+# WPRD-DAG: "runtime_n_unit": "packed input bytes"
+# WPRD-DAG: "product_distinguishing_contract": "multi-byte packed-i4 cases include mixed-sign low/high nibble products
+# WPRD-DAG: "status": "dry_run_success"
+
+# INDEX-DAG: key: "tcrv_rvv.low_precision_resource.realization_producer"
+# INDEX-DAG: value: "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
+# INDEX-DAG: key: "tcrv_rvv.low_precision_resource.realization_decision"
+# INDEX-DAG: value: "consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1"
+# INDEX-DAG: key: "tcrv_rvv.low_precision_resource.realized_unroll_factor"
+# INDEX-DAG: value: "1"
+# INDEX-DAG: key: "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count"
+# INDEX-DAG: value: "2"
+# INDEX-DAG: key: "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups"
+# INDEX-DAG: value: "6"
+# INDEX-DAG: key: "tcrv_rvv.low_precision_resource.product_region_index"
+# INDEX-DAG: value: "1"
+# INDEX-DAG: key: "tcrv_rvv.low_precision_resource.dequant_region_index"
+# INDEX-DAG: value: "2"
+# INDEX-DAG: key: "tcrv_rvv.low_precision_resource.product_phase"
+# INDEX-DAG: value: "load-product-reduce"
+# INDEX-DAG: key: "tcrv_rvv.low_precision_resource.dequant_phase"
+# INDEX-DAG: value: "dequant-store"
+# INDEX-DAG: key: "tcrv_rvv.low_precision_resource.operand_form"
+# INDEX-DAG: value: "packed-i4-nibbles"
+
+# HARNESS-DAG: static int32_t sign_extend_i4(uint8_t nibble)
+# HARNESS-DAG: static int8_t pack_signed_i4_pair(int32_t low, int32_t high)
+# HARNESS-DAG: int32_t low_product = lhs_low * rhs_low;
+# HARNESS-DAG: int32_t high_product = lhs_high * rhs_high;
+# HARNESS-DAG: expected_acc += low_product + high_product;
+# HARNESS-DAG: packed-i4 case
+# HARNESS-DAG: source_preserved accumulator_preserved tail_preserved
+# HARNESS-DAG: packed_i4_reference_oracle
+# HARNESS-DAG: PASS op=widening_product_reduce_dequantize_f32 counts=0,1,16,17,257 patterns=0,1 scales=-0.125,0.375 tolerance=1e-05 packed_i4_reference_oracle

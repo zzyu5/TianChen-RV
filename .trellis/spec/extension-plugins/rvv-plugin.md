@@ -5865,6 +5865,15 @@ the route provider claims resource-aware tuning.
   signed i4 nibbles from each byte, accumulates both products per byte into the
   scalar seed, then applies the runtime f32 scale. The default unpacked-byte
   product-dequant path must keep the existing byte-wise `i8*i8` oracle.
+- Generated-bundle evidence for the accepted packed-i4 product-reduction
+  representative must also verify object/header mirrors for the provider-owned
+  low-precision realization schedule: realization producer/decision, realized
+  unroll, realized `vsetvl` region count, realized peak live-vector groups,
+  product/dequant region indices, product/dequant phases, runtime ABI order, and
+  target capability mirrors. The evidence JSON may expose these facts through a
+  mirror-only summary such as `generated_artifact_resource_schedule_evidence`,
+  but the summary is valid only when object/header metadata and expected
+  provider facts agree exactly.
 - Same-target timing for the accepted packed-i4 product-reduction representative
   must use generated TianChen-RV output and a named scalar C baseline on the
   same `ssh rvv` target after correctness guards pass. The packed baseline
@@ -5920,6 +5929,10 @@ the route provider claims resource-aware tuning.
   low/high signed-i4 semantics because of a fixture name or script option rather
   than validated provider resource metadata -> fail closed as a same-target
   reference-oracle violation.
+- A packed-i4 generated-bundle evidence path accepts missing or stale
+  low-precision realization schedule mirrors, or lets artifact/header metadata
+  disagree with provider-owned expected fields -> fail closed before evidence is
+  accepted.
 - A packed-i4 same-target measurement omits the packed scalar baseline identity,
   target profile, compile flags, input sizes, correctness guard, timing method,
   raw `ssh rvv` timing records, or parsed summaries -> it is not packed-i4

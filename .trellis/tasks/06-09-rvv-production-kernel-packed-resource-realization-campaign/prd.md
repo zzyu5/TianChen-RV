@@ -7,24 +7,24 @@ Advance the RVV production-kernel capability campaign from the accepted packed i
 ## Campaign Gates
 
 - [x] Gate 1: Resource-aware selected-body planning boundary for packed low-precision contraction is represented in RVV plugin/source and verified with focused tests.
-- [ ] Gate 2: Route, statement, and artifact validation consume those resource facts without Common EmitC inventing RVV semantics.
-- [ ] Gate 3: Generated artifact evidence reflects the new production path.
+- [x] Gate 2: Route, statement, and artifact validation consume those resource facts without Common EmitC inventing RVV semantics.
+- [x] Gate 3: Generated artifact evidence reflects the new production path.
 - [ ] Gate 4: Same-target measurement is rerun only after a production compiler/resource-aware change and honestly reports win, regression, or no-win.
 
 ## Current Round Slice
 
-This round implements a bounded Gate 2 production compiler slice: route-family planning, statement-plan ownership, route metadata, and target artifact validation/export must consume the same packed low-precision Gearbox/resource schedule facts that Gate 1 materialized in the RVV selected-body realization boundary.
+This round implements a bounded Gate 3 generated-artifact evidence slice: the packed-i4 generated bundle evidence must be regenerated from the now-validated production route/statement/artifact path and must mirror provider-owned packed-resource schedule facts without becoming route or compute authority.
 
-The slice focuses on the accepted signed packed-i4 product-reduction-dequant representative. The explicit consumed facts are the selected low-precision resource candidate, operand form, storage/effective widths, packing layout, unpack intent, resource realization producer, resource realization decision, realized unroll factor, realized `vsetvl` region count, realized peak live-vector groups, product/dequant marker indices, product/dequant phases, runtime AVL source, producer/consumer scopes, runtime ABI order, and provider target capability mirrors.
+The slice focuses on the accepted signed packed-i4 product-reduction-dequant representative. The generated evidence must expose the selected low-precision resource candidate, operand form, storage/effective widths, packing layout, unpack intent, resource realization producer, resource realization decision, realized unroll factor, realized `vsetvl` region count, realized peak live-vector groups, product/dequant marker indices, product/dequant phases, runtime AVL source, producer/consumer scopes, runtime ABI order, provider target capability mirrors, packed low/high nibble statement payloads, generated header/object mirror agreement, and the packed harness oracle switch derived from validated provider metadata.
 
-If full Gate 2 completion is too large, this round must still land one coherent production-source sub-slice that advances route/statement/artifact validation consumption of these facts and leaves a precise continuation point. It must not switch to a generated-bundle, measurement-only, report-only, or unrelated route-family task.
+Gate 3 completion does not claim runtime correctness, performance, or llama.cpp/q4/q8 parity. The generated bundle is evidence that the production path preserved provider-owned facts; Gate 4 same-target measurement remains a later slice.
 
 ## Repository Findings For This Round
 
 - Gate 1 is complete in commit `a2c7f126`: the selected-body realizer, RVV dialect handoff verifier, route-family realization-structure validator, and route collector consume shared Gearbox helper facts for expected region count, product/dequant marker indices, product phase, and realization decision.
-- Current source already carries low-precision resource selection through route-family planning and statement-plan ownership, but `RVVLowPrecisionContractionResourceSelection` does not structurally retain the Gate 1 realization schedule facts after the selected-body/handoff validation step.
-- Target artifact metadata and candidate mirror validation already check packed-i4 operand facts and packed low/high nibble statement payloads, but the artifact/export boundary does not yet mirror and compare the realization decision, realized region count, product/dequant marker indices, or product/dequant phases.
-- The Gate 2 production gap is therefore to make route description, direct-contraction statement-plan ownership, and target artifact validation consume those schedule facts as provider-owned payload, while Common EmitC remains a neutral materializer.
+- Gate 2 is complete in commit `104df15a`: route-family planning, statement-plan ownership, route metadata, target support bundle export, and target artifact validation consume packed-i4 realization schedule facts without Common EmitC inventing RVV semantics.
+- The generated-bundle script already selected the packed scalar oracle from validated low-precision metadata, but its object/header verifier and evidence summary did not explicitly require the Gate 2 realization schedule mirror fields.
+- The Gate 3 production-evidence gap is therefore to make generated bundle verification and dry-run evidence assert the same provider-owned schedule mirrors, then add a focused packed-i4 dry-run test that checks evidence JSON, bundle index metadata, emitted C++ statement shape, and harness oracle selection.
 
 ## Requirements
 
@@ -48,21 +48,20 @@ If full Gate 2 completion is too large, this round must still land one coherent 
 
 ## Acceptance Criteria For This Round
 
-- [x] PRD and Trellis context identify this as the active macro campaign and this round as Gate 2.
-- [x] Route-family planning and `RVVSelectedBodyEmitCRouteDescription` retain provider-owned packed-resource realization schedule facts instead of dropping them after selected-body validation.
-- [x] Direct-contraction statement-plan ownership compares the provider plan and family plan schedule fields before constructing packed-i4 statement payloads.
-- [x] Target artifact metadata/export mirrors the provider-owned schedule fields and target artifact candidate validation rejects stale or missing packed-resource realization mirrors before artifact acceptance.
-- [x] Common EmitC remains a neutral materializer; no Common EmitC or artifact metadata path infers packed-i4 semantics, region counts, phases, marker roles, or resource decisions.
-- [x] Focused positive checks show packed-resource facts are propagated/consumed by route planning, statement plans, and target artifact validation/export.
-- [x] Focused fail-closed checks cover stale or missing packed resource decision/realization schedule facts at route or artifact validation boundaries.
-- [x] Regression check confirms the non-packed product-reduction-dequant representative still follows its existing resource facts and fails only where expected.
+- [x] PRD and Trellis context identify this as the active macro campaign and this round as Gate 3, with Gate 2 reconciled complete from commit `104df15a`.
+- [x] Generated-bundle verification treats low-precision realization schedule metadata as required object/header mirrors for product-dequant routes.
+- [x] Packed-i4 generated evidence exposes realization producer/decision, realized unroll, realized `vsetvl` region count, realized peak live-vector groups, product/dequant region indices, product/dequant phases, runtime ABI order, and target capability mirrors.
+- [x] Packed-i4 dry-run evidence checks the production pipeline from pre-realized selected body through materialized selected body, emitted RVV C++, target artifact bundle index, and external ABI harness.
+- [x] Packed-i4 harness oracle selection remains driven by validated provider-owned `packed-i4-nibbles` metadata and records runtime `n` as packed input bytes.
+- [x] Focused fail-closed checks cover stale or missing generated-artifact realization schedule mirrors in script verification and target artifact export.
+- [x] Regression checks confirm the default unpacked product-dequant and dequant-clamp generated bundle paths still follow their own schedule facts.
 - [x] `build/bin/tianchenrv-rvv-extension-plugin-test` passes.
 - [x] `build/bin/tianchenrv-target-artifact-export-test` passes.
-- [x] Relevant packed-i4 and non-packed product-reduction-dequant fixture behavior is checked with the same `tcrv-opt` / `tcrv-translate` pipelines and key output assertions; `FileCheck` / `llvm-lit` availability is recorded honestly.
+- [x] Relevant packed-i4, unpacked product-dequant, and dequant-clamp dry-run pipelines are checked with `tcrv-opt` / `tcrv-translate`; `FileCheck` / `llvm-lit` availability is recorded honestly.
 - [x] Bounded old-authority scan over touched files and added diff lines is clean.
 - [x] `git diff --check` and `git diff --cached --check` pass.
 - [x] One coherent commit is created for the slice.
-- [x] `.trellis/.current-task` remains active unless Gates 2, 3, and 4 are complete.
+- [x] `.trellis/.current-task` remains active because Gate 4 remains incomplete.
 
 ## Current Gate 2 Round Result
 
@@ -85,6 +84,32 @@ Focused validation completed:
 - ran a bounded added-line authority scan; the only match was the intentional negative-test string `artifact-name-derived-resource-decision`.
 
 Gate 2 is complete for this production-source consumption slice. The macro task remains active because Gate 3 generated artifact evidence and Gate 4 same-target measurement rerun are still unfinished. The next continuation point is Gate 3: regenerate and inspect the packed-i4 generated artifact evidence from the now-validated production route/statement/artifact consumption path, without treating generated artifacts as semantic authority.
+
+## Current Gate 3 Round Result
+
+This slice reconciles Gate 2 as complete from commit `104df15a` and closes Gate 3 generated-artifact evidence for the accepted signed packed-i4 product-reduction-dequant representative.
+
+`scripts/rvv_generated_bundle_abi_e2e.py` now treats low-precision realization schedule mirrors as required product-dequant object/header metadata. The verifier checks the provider-owned realization producer, realization decision, realized unroll factor, realized `vsetvl` region count, realized peak live-vector groups, product/dequant region indices, product/dequant phases, runtime ABI order, and target capability mirrors. The product-dequant evidence summary now emits `generated_artifact_resource_schedule_evidence` with object/header agreement and expected-field mirrors so Gate 3 evidence is visible in JSON instead of only as raw bundle index text.
+
+The focused packed-i4 dry-run test `rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequantize-f32-packed-i4-dry-run.test` regenerates the artifact from the packed fixture through the production materialize/export path. It checks evidence JSON, target artifact bundle index metadata, packed low/high nibble statement payloads, and the external ABI harness oracle switch derived from validated `packed-i4-nibbles` metadata. The default unpacked product-dequant and dequant-clamp dry-run paths still pass with their own non-packed schedule facts.
+
+The generated-bundle schedule mirror contract is also recorded in the testing and RVV plugin specs so future Gate 3-style evidence checks require the same provider-owned schedule mirrors and missing/stale fail-closed behavior.
+
+Focused validation completed:
+
+- ran `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`;
+- manually executed the packed-i4 generated-bundle dry-run with `--input test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir`;
+- manually executed default unpacked product-dequant and dequant-clamp generated-bundle dry-run regressions;
+- manually confirmed packed-i4 stale artifact realization decision fails at target artifact export with the provider-selected realization decision diagnostic;
+- ran `build/bin/tianchenrv-rvv-extension-plugin-test`;
+- ran `build/bin/tianchenrv-target-artifact-export-test`;
+- recorded that `FileCheck`, `llvm-lit`, and `llvm-readobj` are not available in this local environment, so the dry-run checks were executed directly with `--llvm-readobj ""` and targeted `rg` assertions over generated evidence;
+- ran `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`;
+- ran `git diff --check`;
+- ran `git diff --cached --check`;
+- ran a bounded added-line authority scan.
+
+Gate 3 is complete for generated artifact evidence. The macro task remains active because Gate 4 same-target measurement rerun is still unfinished. The next continuation point is Gate 4: rerun same-target measurement after this production compiler/resource-aware evidence change and honestly report win, regression, or no-win.
 
 ## Technical Notes
 

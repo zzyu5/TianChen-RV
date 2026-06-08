@@ -349,3 +349,66 @@ same-target measurement rerun are still unfinished. Next continuation point:
 Gate 3 regenerate and inspect packed-i4 generated artifact evidence from the
 validated production route/statement/artifact path, without treating generated
 artifacts as semantic authority.
+
+## Session 577: RVV production-kernel Gate 3 generated artifact evidence
+
+**Date**: 2026-06-09
+**Task**: RVV production-kernel capability campaign: resource-aware packed low-precision contraction realization
+
+### Summary
+
+Continued the active macro campaign at Gate 3. The PRD top-level checklist now
+reconciles Gate 2 as complete from commit `104df15a` and marks Gate 3 complete
+for generated artifact evidence. Gate 4 remains open.
+
+This slice strengthens generated-bundle evidence for the accepted signed
+packed-i4 product-reduction-dequant representative. The ABI e2e verifier now
+requires object/header low-precision realization schedule mirrors for
+product-dequant routes: realization producer, realization decision, realized
+unroll, realized `vsetvl` region count, realized peak live-vector groups,
+product/dequant region indices, product/dequant phases, runtime ABI order, and
+target capability mirrors. The evidence JSON now includes
+`generated_artifact_resource_schedule_evidence` so the generated artifact's role
+is explicit: mirror-only after RVV provider route construction and target
+artifact validation.
+
+Added a focused packed-i4 generated-bundle dry-run test that uses the packed
+fixture through `--input`, checks evidence JSON, target artifact bundle index
+metadata, packed low/high nibble statement payloads, and the packed external ABI
+harness oracle selected from validated `packed-i4-nibbles` metadata.
+
+Synchronized the testing and RVV plugin specs with the Gate 3 generated-bundle
+schedule mirror contract: provider-owned realization schedule fields must agree
+between object/header metadata and expected evidence fields, and missing/stale
+mirrors fail before evidence is accepted.
+
+### Testing
+
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] packed-i4 generated-bundle dry-run with the packed fixture override and
+  `--llvm-readobj ""`
+- [OK] default unpacked product-dequant generated-bundle dry-run regression with
+  `--llvm-readobj ""`
+- [OK] product-dequant-clamp generated-bundle dry-run regression with
+  `--llvm-readobj ""`
+- [OK] stale packed artifact realization decision fails target artifact export
+  with the provider-selected realization decision diagnostic.
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded added-line authority scan
+
+`FileCheck`, `llvm-lit`, and `llvm-readobj` are unavailable in this local
+environment, so the new lit file was validated through equivalent dry-run
+commands and targeted `rg` assertions over generated evidence, bundle index,
+and harness source.
+
+### Status
+
+[OPEN] Gate 3 generated artifact evidence is complete and committed in the
+active macro task. The macro task remains active because Gate 4 same-target
+measurement rerun is still unfinished. Next continuation point: Gate 4 rerun
+same-target measurement after this production compiler/resource-aware evidence
+change and report win, regression, or no-win.

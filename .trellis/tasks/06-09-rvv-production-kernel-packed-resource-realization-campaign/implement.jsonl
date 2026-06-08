@@ -13,3 +13,8 @@
 {"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "target artifact validation boundary for provider-owned mirrors"}
 {"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir", "reason": "packed-i4 positive and fail-closed fixture"}
 {"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir", "reason": "non-packed regression fixture"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Gate 3 generated artifact verifier and evidence summary for packed-resource schedule mirrors"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequantize-f32-packed-i4-dry-run.test", "reason": "Gate 3 packed-i4 generated-bundle dry-run evidence coverage"}
+{"file": ".trellis/tasks/06-09-rvv-production-kernel-packed-resource-realization-campaign/prd.md", "reason": "Gate 2 reconciliation and Gate 3 completion state"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Gate 3 generated-bundle schedule mirror evidence contract"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "packed-i4 provider-owned schedule mirror contract"}

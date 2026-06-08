@@ -1673,6 +1673,13 @@ python3 scripts/rvv_generated_bundle_abi_e2e.py \
 - Bundle checks must validate provider-owned route metadata, runtime ABI order,
   generated header/object paths, and absence of descriptor/direct-C/source
   export residue.
+- For low-precision product-reduction-dequant pre-realized selected bodies,
+  per-op evidence must expose `generated_artifact_resource_schedule_evidence`
+  as a mirror-only object after provider route construction and target artifact
+  validation. Its `fields` and `expected_fields` must agree for realization
+  producer/decision, realized unroll, realized `vsetvl` region count, realized
+  peak live-vector groups, product/dequant region indices, product/dequant
+  phases, runtime ABI order, and target capability mirrors.
 - Runtime/correctness claims still require non-dry-run `ssh rvv` compile/run
   evidence.
 
@@ -1687,6 +1694,10 @@ python3 scripts/rvv_generated_bundle_abi_e2e.py \
 - Pipeline omits `--tcrv-materialize-selected-lowering-boundaries` in positive
   pre-realized selected-body mode -> fail.
 - Bundle metadata contains descriptor/direct-C/source-export residue -> fail.
+- Product-reduction-dequant object/header metadata lacks a required
+  `tcrv_rvv.low_precision_resource.*` schedule mirror, or evidence
+  `fields`/`expected_fields` disagree for those mirrors -> fail before
+  generated-bundle evidence is accepted.
 - Non-dry-run remote compile or run fails -> report blocked/failed evidence
   with command output; do not claim runtime correctness.
 
@@ -1709,6 +1720,11 @@ python3 scripts/rvv_generated_bundle_abi_e2e.py \
 - The test must check selected-boundary materialized body consumption, provider
   route metadata, generated harness invocation, runtime ABI order, and absence
   of descriptor/direct-C/source-export/source-front-door authority.
+- Packed-i4 product-reduction-dequant dry-run tests must assert the generated
+  resource schedule evidence object, the bundle index low-precision schedule
+  mirrors, and the harness oracle selected from validated `packed-i4-nibbles`
+  metadata. Script self-tests must include missing and stale schedule-mirror
+  fake-bundle failures.
 - Negative CLI checks must cover missing `--pre-realized-selected-body` and at
   least one current selected pre-realized op kind rejected by
   `--direct-pre-realized-route-entry`.

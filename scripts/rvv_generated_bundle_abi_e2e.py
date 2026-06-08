@@ -687,6 +687,9 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION = (
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_DECISION = (
     "consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1"
 )
+LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER = (
+    "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
+)
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_BYTE_OPERAND_FORM = (
     "unpacked-byte-elements"
 )
@@ -8296,6 +8299,15 @@ LOW_PRECISION_RESOURCE_METADATA_KEYS = (
     "tcrv_rvv.low_precision_resource.vector_register_budget",
     "tcrv_rvv.low_precision_resource.runtime_avl_source",
     "tcrv_rvv.low_precision_resource.runtime_abi_order",
+    "tcrv_rvv.low_precision_resource.realization_producer",
+    "tcrv_rvv.low_precision_resource.realization_decision",
+    "tcrv_rvv.low_precision_resource.realized_unroll_factor",
+    "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count",
+    "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups",
+    "tcrv_rvv.low_precision_resource.product_region_index",
+    "tcrv_rvv.low_precision_resource.dequant_region_index",
+    "tcrv_rvv.low_precision_resource.product_phase",
+    "tcrv_rvv.low_precision_resource.dequant_phase",
     "tcrv_rvv.low_precision_resource.target_capability_provider_mirror",
     "tcrv_rvv.low_precision_resource.target_capability_legality_mirror",
     "tcrv_rvv.low_precision_resource.legality",
@@ -9208,6 +9220,13 @@ def product_dequant_low_precision_resource_profile(
             "accumulator_count": "1",
             "vsetvl_region_count": "2",
             "peak_live_vector_groups": "6",
+            "realization_producer": LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER,
+            "realization_decision": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_DECISION
+            ),
+            "realized_unroll_factor": "1",
+            "realized_vsetvl_region_count": "2",
+            "realized_peak_live_vector_groups": "6",
             "producer_phase": "load-product-reduce",
             "consumer_phase": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE,
             "producer_region_index": "1",
@@ -9243,6 +9262,11 @@ def product_dequant_low_precision_resource_profile(
         "accumulator_count": "2",
         "vsetvl_region_count": "3",
         "peak_live_vector_groups": "7",
+        "realization_producer": LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER,
+        "realization_decision": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION,
+        "realized_unroll_factor": "2",
+        "realized_vsetvl_region_count": "3",
+        "realized_peak_live_vector_groups": "7",
         "producer_phase": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_PHASE,
         "consumer_phase": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE,
         "producer_region_index": "2",
@@ -9298,6 +9322,17 @@ def validate_low_precision_resource_metadata(
         "vector_register_budget": "32",
         "runtime_avl_source": "runtime_abi:n",
         "runtime_abi_order": expectation.runtime_abi_order,
+        "realization_producer": profile["realization_producer"],
+        "realization_decision": profile["realization_decision"],
+        "realized_unroll_factor": profile["realized_unroll_factor"],
+        "realized_vsetvl_region_count": profile["realized_vsetvl_region_count"],
+        "realized_peak_live_vector_groups": (
+            profile["realized_peak_live_vector_groups"]
+        ),
+        "product_region_index": profile["producer_region_index"],
+        "dequant_region_index": profile["consumer_region_index"],
+        "product_phase": profile["producer_phase"],
+        "dequant_phase": profile["consumer_phase"],
         "target_capability_provider_mirror": RVV_TARGET_CAPABILITY_PROVIDER_MIRROR,
         "target_capability_legality_mirror": (
             RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
@@ -11725,6 +11760,33 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.low_precision_resource.runtime_abi_order": (
                     expectation.runtime_abi_order
+                ),
+                "tcrv_rvv.low_precision_resource.realization_producer": (
+                    resource_profile["realization_producer"]
+                ),
+                "tcrv_rvv.low_precision_resource.realization_decision": (
+                    resource_profile["realization_decision"]
+                ),
+                "tcrv_rvv.low_precision_resource.realized_unroll_factor": (
+                    resource_profile["realized_unroll_factor"]
+                ),
+                "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count": (
+                    resource_profile["realized_vsetvl_region_count"]
+                ),
+                "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups": (
+                    resource_profile["realized_peak_live_vector_groups"]
+                ),
+                "tcrv_rvv.low_precision_resource.product_region_index": (
+                    resource_profile["producer_region_index"]
+                ),
+                "tcrv_rvv.low_precision_resource.dequant_region_index": (
+                    resource_profile["consumer_region_index"]
+                ),
+                "tcrv_rvv.low_precision_resource.product_phase": (
+                    resource_profile["producer_phase"]
+                ),
+                "tcrv_rvv.low_precision_resource.dequant_phase": (
+                    resource_profile["consumer_phase"]
                 ),
                 "tcrv_rvv.low_precision_resource.target_capability_provider_mirror": (
                     RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
@@ -33393,6 +33455,39 @@ def widening_product_reduction_boundary_summary(
             "runtime_abi_order": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.runtime_abi_order"
             ),
+            "realization_producer": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.realization_producer"
+            ),
+            "realization_decision": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.realization_decision"
+            ),
+            "realized_unroll_factor": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.realized_unroll_factor"
+            ),
+            "realized_vsetvl_region_count": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count"
+            ),
+            "realized_peak_live_vector_groups": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups"
+            ),
+            "product_region_index": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.product_region_index"
+            ),
+            "dequant_region_index": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.dequant_region_index"
+            ),
+            "product_phase": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.product_phase"
+            ),
+            "dequant_phase": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.dequant_phase"
+            ),
+            "target_capability_provider_mirror": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.target_capability_provider_mirror"
+            ),
+            "target_capability_legality_mirror": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.target_capability_legality_mirror"
+            ),
             "legality": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.legality"
             ),
@@ -33624,6 +33719,11 @@ def widening_product_reduction_boundary_summary(
                 "Gearbox producer and nested consumer with_vl scopes",
                 "Gearbox cross-region handoff contract and VL/AVL source",
                 "low-precision resource selection and two-vsetvl-region budget",
+                (
+                    "provider-owned realization decision, realized "
+                    "region/live-vector schedule, and product/dequant marker "
+                    "phases"
+                ),
                 "dequant-store consumer marker and post-loop f32 store ABI",
                 header_object_abi_fact,
             ]
@@ -33638,6 +33738,81 @@ def widening_product_reduction_boundary_summary(
                     "final carry assignment into dot_acc_vec",
                 ]
             )
+    generated_artifact_resource_schedule_evidence: dict[str, Any] = {}
+    if is_dequant or is_dequant_clamp:
+        generated_artifact_resource_schedule_evidence = {
+            "source": (
+                "generated object/header bundle metadata after RVV provider "
+                "route construction and target artifact validation"
+            ),
+            "authority": (
+                "RVV provider-owned low-precision realization schedule facts"
+            ),
+            "artifact_metadata_role": "mirror-only-after-provider-route",
+            "object_header_agreement_checked": True,
+            "fields": {
+                "realization_producer": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.realization_producer"
+                ),
+                "realization_decision": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.realization_decision"
+                ),
+                "realized_unroll_factor": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.realized_unroll_factor"
+                ),
+                "realized_vsetvl_region_count": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count"
+                ),
+                "realized_peak_live_vector_groups": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups"
+                ),
+                "product_region_index": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.product_region_index"
+                ),
+                "dequant_region_index": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.dequant_region_index"
+                ),
+                "product_phase": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.product_phase"
+                ),
+                "dequant_phase": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.dequant_phase"
+                ),
+                "runtime_abi_order": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.runtime_abi_order"
+                ),
+                "target_capability_provider_mirror": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.target_capability_provider_mirror"
+                ),
+                "target_capability_legality_mirror": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.target_capability_legality_mirror"
+                ),
+            },
+            "expected_fields": {
+                "realization_producer": resource_profile["realization_producer"],
+                "realization_decision": resource_profile["realization_decision"],
+                "realized_unroll_factor": resource_profile[
+                    "realized_unroll_factor"
+                ],
+                "realized_vsetvl_region_count": resource_profile[
+                    "realized_vsetvl_region_count"
+                ],
+                "realized_peak_live_vector_groups": resource_profile[
+                    "realized_peak_live_vector_groups"
+                ],
+                "product_region_index": resource_profile["producer_region_index"],
+                "dequant_region_index": resource_profile["consumer_region_index"],
+                "product_phase": resource_profile["producer_phase"],
+                "dequant_phase": resource_profile["consumer_phase"],
+                "runtime_abi_order": expectation.runtime_abi_order,
+                "target_capability_provider_mirror": (
+                    RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
+                ),
+                "target_capability_legality_mirror": (
+                    RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
+                ),
+            },
+        }
     return {
         "source": (
             "typed tcrv_rvv.widening_product + standalone_reduce + Gearbox "
@@ -33671,6 +33846,9 @@ def widening_product_reduction_boundary_summary(
             "product-reduction target-owned consumer"
         ),
         "artifact_metadata_role": "mirror-only-after-provider-route",
+        "generated_artifact_resource_schedule_evidence": (
+            generated_artifact_resource_schedule_evidence
+        ),
         "direct_pre_realized_route_entry_supported": False,
         "contraction_kind": expectation.kind,
         "typed_compute_op": expectation.typed_compute_op,
@@ -36680,6 +36858,11 @@ def run_self_test() -> int:
                     if is_product_dequant_clamp
                     else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM
                 )
+                expected_resource_profile = (
+                    product_dequant_low_precision_resource_profile(
+                        expectation, packed_i4=False
+                    )
+                )
                 expected_header_object_abi_fact = (
                     "generated header/object ABI agreement for "
                     "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
@@ -36724,6 +36907,13 @@ def run_self_test() -> int:
                 gearbox_handoff = provider_facts.get(
                     "gearbox_cross_region_handoff", {}
                 )
+                schedule_evidence = product_dequant_boundary.get(
+                    "generated_artifact_resource_schedule_evidence", {}
+                )
+                schedule_fields = schedule_evidence.get("fields", {})
+                expected_schedule_fields = schedule_evidence.get(
+                    "expected_fields", {}
+                )
                 target_consumed = product_dequant_boundary.get(
                     "target_validator_consumed_facts", []
                 )
@@ -36762,6 +36952,34 @@ def run_self_test() -> int:
                     != "runtime_abi:n"
                     or low_precision_resource.get("runtime_abi_order")
                     != expectation.runtime_abi_order
+                    or low_precision_resource.get("realization_producer")
+                    != expected_resource_profile["realization_producer"]
+                    or low_precision_resource.get("realization_decision")
+                    != expected_resource_profile["realization_decision"]
+                    or low_precision_resource.get("realized_unroll_factor")
+                    != expected_resource_profile["realized_unroll_factor"]
+                    or low_precision_resource.get("realized_vsetvl_region_count")
+                    != expected_resource_profile["realized_vsetvl_region_count"]
+                    or low_precision_resource.get(
+                        "realized_peak_live_vector_groups"
+                    )
+                    != expected_resource_profile["realized_peak_live_vector_groups"]
+                    or low_precision_resource.get("product_region_index")
+                    != expected_resource_profile["producer_region_index"]
+                    or low_precision_resource.get("dequant_region_index")
+                    != expected_resource_profile["consumer_region_index"]
+                    or low_precision_resource.get("product_phase")
+                    != expected_resource_profile["producer_phase"]
+                    or low_precision_resource.get("dequant_phase")
+                    != expected_resource_profile["consumer_phase"]
+                    or low_precision_resource.get(
+                        "target_capability_provider_mirror"
+                    )
+                    != RVV_TARGET_CAPABILITY_PROVIDER_MIRROR
+                    or low_precision_resource.get(
+                        "target_capability_legality_mirror"
+                    )
+                    != RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
                     or gearbox_handoff.get("contract")
                     != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT
                     or gearbox_handoff.get("producer_scope")
@@ -36770,6 +36988,19 @@ def run_self_test() -> int:
                     != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE
                     or gearbox_handoff.get("runtime_avl_source") != "runtime_abi:n"
                     or gearbox_handoff.get("region_count") != "3"
+                    or schedule_evidence.get("artifact_metadata_role")
+                    != "mirror-only-after-provider-route"
+                    or schedule_evidence.get("object_header_agreement_checked")
+                    is not True
+                    or schedule_fields != expected_schedule_fields
+                    or schedule_fields.get("realization_decision")
+                    != expected_resource_profile["realization_decision"]
+                    or schedule_fields.get("realized_vsetvl_region_count")
+                    != expected_resource_profile["realized_vsetvl_region_count"]
+                    or schedule_fields.get("product_phase")
+                    != expected_resource_profile["producer_phase"]
+                    or schedule_fields.get("dequant_phase")
+                    != expected_resource_profile["consumer_phase"]
                     or (
                         "Gearbox producer and nested consumer with_vl scopes"
                         not in target_consumed
@@ -37927,6 +38158,45 @@ def run_self_test() -> int:
         expect_self_test_failure(
             "missing multi-VL metadata",
             lambda: verify_bundle(missing_metadata, None, expectation),
+        )
+
+        product_dequant_expectation = PRE_REALIZED_SELECTED_BODY_OP_EXPECTATIONS[
+            "widening_product_reduce_dequantize_f32"
+        ]
+        missing_schedule_metadata = make_fake_bundle(
+            tmp / "missing-schedule-metadata", product_dequant_expectation
+        )
+        index_path = missing_schedule_metadata / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace(
+            'key: "tcrv_rvv.low_precision_resource.realization_decision"',
+            'key: "tcrv_rvv.low_precision_resource.realization_decision_missing"',
+            1,
+        )
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "missing low-precision realization schedule metadata",
+            lambda: verify_bundle(
+                missing_schedule_metadata, None, product_dequant_expectation
+            ),
+        )
+
+        stale_schedule_metadata = make_fake_bundle(
+            tmp / "stale-schedule-metadata", product_dequant_expectation
+        )
+        index_path = stale_schedule_metadata / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace(
+            WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION,
+            "artifact-name-derived-resource-decision",
+            1,
+        )
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "stale low-precision realization schedule metadata",
+            lambda: verify_bundle(
+                stale_schedule_metadata, None, product_dequant_expectation
+            ),
         )
 
         sub_expectation = EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS["sub"]
