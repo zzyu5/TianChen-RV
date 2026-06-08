@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-26.md`
-- **Total Sessions**: 561
+- **Total Sessions**: 562
 - **Last Active**: 2026-06-08
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-26.md` | ~758 | Active |
+| `journal-26.md` | ~1010 | Active |
 | `journal-25.md` | ~1968 | Archived |
 | `journal-24.md` | ~1991 | Archived |
 | `journal-23.md` | ~1982 | Archived |
@@ -54,6 +54,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 562 | 2026-06-08 | Stage2 RVV runtime-scalar reduce-add executable ABI evidence | pending | `main` |
 | 561 | 2026-06-08 | Stage2 RVV runtime-scalar segment2 store ABI boundary | - | `main` |
 | 560 | 2026-06-08 | Stage2 RVV runtime-scalar segment2 load ABI boundary | - | `main` |
 | 559 | 2026-06-08 | Stage2 RVV computed-masked segment2 load/store artifact ABI evidence | - | `main` |

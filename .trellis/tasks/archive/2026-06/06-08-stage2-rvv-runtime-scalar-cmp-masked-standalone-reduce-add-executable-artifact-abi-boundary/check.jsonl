@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global RVV-first authority chain, Stage 1/2 boundaries, and old-authority restrictions."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV standalone reduction provider ownership, runtime-scalar mask facts, scalar channel facts, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check EmitC route neutrality, provider mirrors, runtime AVL/VL validation, and target artifact acceptance boundaries."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/C++/generated-bundle/ssh rvv evidence coverage and runtime claim discipline."}

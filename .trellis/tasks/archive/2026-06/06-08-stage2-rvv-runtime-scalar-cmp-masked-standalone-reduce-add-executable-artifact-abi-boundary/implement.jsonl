@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage 1/2 boundaries, and descriptor/source-front-door red lines for implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned standalone reduction, runtime-scalar mask, scalar channel, provider preflight, and selected-body realization contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute, standalone reduction mirror, runtime AVL/VL, header/type, and target validation contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle, dry-run, fail-closed, and ssh rvv evidence requirements for runtime/correctness claims."}
