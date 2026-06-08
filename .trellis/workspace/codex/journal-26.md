@@ -1388,3 +1388,79 @@ Continue from the remaining macro gates: finish any explicitly named Gate 2
 low-precision primitive integration gap, collect Gate 3 runtime correctness
 evidence only when a newly executable production behavior is claimed, and defer
 Gate 4 same-target measurement until correctness evidence exists.
+
+
+## Session 571: RVV Gate 3 resource-aware runtime correctness
+
+**Date**: 2026-06-08
+**Task**: RVV production-kernel capability campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro campaign with the Gate 3 runtime correctness slice
+for the resource-aware Gearbox selected-body path changed in `ad665e20`.
+The production C++ path already executed with the required pass order, so this
+slice did not change compiler source. It added one narrow script dry-run hook
+for the pre-realized product-reduction dequantize path and collected real
+`ssh rvv` correctness evidence for both dequantize and dequant-clamp.
+
+### Main Changes
+
+- Repaired `.trellis/tasks/06-08-rvv-production-kernel-capability-campaign/prd.md`
+  so the current round is explicitly Gate 3 runtime correctness for the
+  resource-aware Gearbox path, while Gate 4 same-target measurement remains open.
+- Added `test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequantize-f32-dry-run.test`.
+  The new script lit fixes coverage symmetry with the existing dequant-clamp
+  hook and checks pre-realized input mode, selected-body realization, Gearbox
+  selected candidate/resource facts, cross-region handoff, provider route facts,
+  target artifact validation, generated ABI agreement, and harness assertions.
+- Kept C++ production source unchanged because the live production path already
+  ran through `--tcrv-rvv-materialize-gearbox-schedules` before
+  `--tcrv-materialize-selected-lowering-boundaries`, then emission-plan
+  materialization, RVV EmitC C++ export, target artifact bundle export, and
+  external harness execution.
+
+### Runtime Evidence
+
+- [OK] Non-dry-run `ssh rvv` run:
+  `python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --artifact-root artifacts/tmp/gate3-resource-aware-pre-realized-runtime --run-id gate3-resource-aware-wpr-dequant-and-clamp-rvv --overwrite --op-kind widening_product_reduce_dequantize_f32 --op-kind widening_product_reduce_dequant_clamp_f32 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj --ssh-target rvv --timeout 180`
+- Evidence root:
+  `artifacts/tmp/gate3-resource-aware-pre-realized-runtime/gate3-resource-aware-wpr-dequant-and-clamp-rvv`
+- `widening_product_reduce_dequantize_f32/evidence.json`: `status=success`,
+  `ssh_evidence=true`, `remote_compile_succeeded=true`,
+  `remote_run_succeeded=true`.
+- `widening_product_reduce_dequant_clamp_f32/evidence.json`: `status=success`,
+  `ssh_evidence=true`, `remote_compile_succeeded=true`,
+  `remote_run_succeeded=true`.
+- Harness coverage: `n = 0, 1, 16, 17, 257`, two signed i8 source patterns,
+  runtime scales `-0.125` and `0.375`; dequant-clamp additionally checks ordered
+  bound pairs `[-1.5, 2.25]` and `[-8, -0.75]`. Both harnesses check expected
+  accumulation, output value, source/accumulator preservation, and tail sentinel
+  preservation.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequantize-f32-dry-run'` from `build/test`: 1/1 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequant-clamp-f32-dry-run'` from `build/test`: 1/1 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32|explicit-selected-body-realization-widening-product-reduce-dequant-clamp-f32'` from `build/test`: 3/3 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'widening-product|product-reduction|generic-widening-product'` from `build/test`: 14/14 passed
+
+### Status
+
+[OPEN] Macro task remains active. Gate 3 runtime correctness for the bounded
+resource-aware product-reduction dequantize/dequant-clamp path is complete.
+Gate 4 same-target measurement remains open.
+
+### Next Steps
+
+Continue with Gate 4: same-target measurement for the bounded low-precision
+product-reduction dequantize/dequant-clamp generated TianChen-RV RVV artifacts
+against an explicitly named baseline on the same `ssh rvv` environment, after
+correctness passes and with timing method, input sizes, compile flags, target
+profile, and raw evidence recorded.

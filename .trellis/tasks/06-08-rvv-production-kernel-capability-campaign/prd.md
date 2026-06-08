@@ -103,6 +103,37 @@ validation. The provider must reject stale or inconsistent selected candidates
 before constructing `TCRVEmitCLowerableRoute`; it must not infer resource
 decisions from artifact metadata, route ids, helper names, or Common EmitC.
 
+Hermes now continues the same macro task with:
+
+```text
+RVV production-kernel capability campaign: Gate 3 resource-aware low-precision
+runtime correctness slice
+```
+
+This continuation keeps the macro task active after commit `ad665e20` closed
+the resource-aware Gearbox candidate build/prune/select production path. The
+current round must prove that the newly compiler-generated resource-aware
+pre-realized selected-body path remains executable on real `ssh rvv` for the
+bounded signed low-precision product-reduction dequantize and dequant-clamp
+kernels. The required evidence is the production path:
+
+```text
+selected typed low-precision pre-realized tcrv_rvv body
+  -> RVV Gearbox resource schedule pass
+  -> RVV plugin-local selected-body realization
+  -> provider pre-route validation
+  -> TCRVEmitCLowerableRoute
+  -> common EmitC
+  -> target artifact bundle
+  -> ssh rvv correctness harness
+```
+
+Production source changes are required only if this path cannot execute or if
+stale resource/runtime/marker/handoff/provider/ABI facts are accepted. If the
+path already executes, this slice may close with bounded script/test evidence
+tied explicitly to the resource-aware pre-realized product-reduction path rather
+than a generic generated-bundle closeout.
+
 ## What I Already Know
 
 - The repository had no active Trellis task at session start, so this macro task
@@ -131,14 +162,14 @@ decisions from artifact metadata, route ids, helper names, or Common EmitC.
 
 ## Campaign Gates
 
-- [ ] Gate 1 Gearbox/resource-aware selected-body realization:
+- [x] Gate 1 Gearbox/resource-aware selected-body realization:
       build/prune/select/realize phases, resource facts, and
       provider-consumed plan or realized `tcrv_rvv` structure.
-- [ ] Gate 2 Low-precision contraction primitive surface:
+- [x] Gate 2 Low-precision contraction primitive surface:
       typed i8/u8 vector/config, i8/u8 loads, i8*i8 or u8*u8 widening
       product, widening reduction or `vwredsum`-style provider route facts,
       and fail-closed validation.
-- [ ] Gate 3 Generated artifact/runtime correctness evidence:
+- [x] Gate 3 Generated artifact/runtime correctness evidence:
       only when executable behavior is newly claimed by production compiler
       path or is the named blocker.
 - [ ] Gate 4 Measured same-target comparison path:
@@ -147,32 +178,34 @@ decisions from artifact metadata, route ids, helper names, or Common EmitC.
 
 ## Current Round Milestone
 
-Close the Gate 1 resource-aware Gearbox candidate build/prune/select slice for
-the bounded signed low-precision product-reduction-dequantize and
-product-reduction-dequant-clamp selected bodies.
+Close the Gate 3 runtime correctness slice for the resource-aware Gearbox path
+changed in `ad665e20`.
 
 The bounded continuation slice is:
 
-- Build canonical Gearbox resource candidates from typed selected-body facts,
-  pass-produced resource facts, RVV policy, SEW/LMUL, runtime AVL, and vector
-  register budget.
-- Prune unsupported or stale candidates with targeted diagnostics before
-  selected-body realization. Good negative examples include unsupported
-  tail/mask policy, stale resource candidate facts, stale realized marker
-  count/order/resource decision, and a vector-register budget below the
-  candidate peak-live estimate.
-- Select one deterministic legal candidate and use that selected candidate to
-  materialize realization attrs, producer/consumer `vsetvl` markers, and the
-  Gearbox cross-region handoff.
-- Validate before route construction that pass facts, realized attrs, marker
-  count/order/resource decision, handoff scope/resource decision, and the
-  provider-selected candidate all agree.
-- Keep Common EmitC and artifact metadata as mirror consumers only; this slice
-  must move production source in the RVV plugin realization/provider path, not
-  into a generated-bundle or report-only closeout.
-- Do not claim runtime correctness/performance in this slice because it changes
-  pre-route compiler validation and realized structure checks rather than adding
-  a newly measured executable behavior.
+- Run the resource-aware pre-realized product-reduction dequantize and
+  dequant-clamp paths through the production compiler chain:
+  `--tcrv-rvv-materialize-gearbox-schedules` before
+  `--tcrv-materialize-selected-lowering-boundaries`, then emission-plan
+  materialization, RVV EmitC C++ export, target artifact bundle export, external
+  ABI harness generation, and non-dry-run `ssh rvv` execution.
+- Prove the generated harnesses validate runtime `n`/AVL cases, signed i8
+  widening products, i32 reduction carry, runtime dequant scale, dequant-clamp
+  runtime bounds, output/tail sentinel preservation, and source/accumulator
+  preservation.
+- Keep the evidence tied to the changed compiler path by checking the evidence
+  JSON for pre-realized input mode, selected-body realization boundary,
+  resource-aware low-precision selected candidate, Gearbox cross-region
+  handoff, provider route facts, target artifact validation facts, runtime ABI
+  order, and generated header/object ABI agreement.
+- Add or repair only the narrow e2e driver/test hooks needed to cover the
+  resource-aware pre-realized product-reduction path. Do not add a new route
+  family, q8/q4 route id, source-front-door positive path, Common EmitC semantic
+  inference, broad generated-bundle matrix, or performance measurement.
+- If live repository evidence shows stale resource/runtime/marker/handoff/
+  provider/ABI facts are accepted, add a focused fail-closed check before
+  claiming correctness. If existing focused fail-closed coverage already rejects
+  those cases, cite it and avoid redundant production-source churn.
 
 ## Requirements
 
@@ -194,33 +227,76 @@ The bounded continuation slice is:
 
 ## Acceptance Criteria For This Round
 
-- [x] A production source diff lands in the RVV Gearbox/resource candidate,
-      selected-body realization, or provider pre-route validation path;
-      docs/report-only changes are insufficient.
-- [x] The low-precision product-reduction resource path builds, prunes, and
-      deterministically selects a Gearbox candidate from typed body/config,
-      policy, memory form, runtime AVL, and vector-register budget facts.
-- [x] Selected-body realization consumes the selected candidate to materialize
-      realization attrs, producer/consumer `vsetvl` markers, and the Gearbox
-      cross-region handoff.
-- [x] Provider route preconditions reject stale or inconsistent pass facts,
-      realized attrs, marker count/order/resource decision, or handoff
-      scope/resource decision before `TCRVEmitCLowerableRoute` construction.
-- [x] Focused lit/C++ tests prove accepted selection, budget pruning, stale
-      selected-candidate rejection, and realized marker/provider agreement for
-      the low-precision product-reduction path.
-- [x] Existing signed i8 product-reduction and unsigned u8 widening-product
-      provider/target facts remain accepted.
+- [x] The macro PRD names this as Gate 3 runtime correctness for the
+      resource-aware Gearbox path changed in `ad665e20`, while leaving Gate 4
+      same-target measurement open.
+- [x] `tcrv-opt`, `tcrv-translate`,
+      `tianchenrv-rvv-extension-plugin-test`, and
+      `tianchenrv-target-artifact-export-test` build.
+- [x] Focused lit/script coverage proves the resource-aware pre-realized
+      product-reduction dequantize and dequant-clamp generated-bundle paths use
+      pre-realized selected-body input, selected-body realization, Gearbox
+      selected candidates, provider route facts, target artifact validation,
+      and generated harness checks.
+- [x] Non-dry-run `ssh rvv` generated-bundle evidence passes for
+      `widening_product_reduce_dequantize_f32` using the pre-realized
+      selected-body path.
+- [x] Non-dry-run `ssh rvv` generated-bundle evidence passes for
+      `widening_product_reduce_dequant_clamp_f32` using the pre-realized
+      selected-body path.
+- [x] Fail-closed evidence is present for stale resource/runtime/marker/
+      handoff/provider/ABI facts, either via existing focused tests or a new
+      narrow check if a gap is found.
 - [x] A bounded old-authority scan over changed/added lines shows no new
       positive `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`,
-      `!tcrv_rvv.i32m*`, descriptor, source-front-door, route-id, or artifact
-      authority.
-- [x] `git diff --check` and `git diff --cached --check` pass for this coherent
-      slice.
-- [x] The slice is committed coherently and final worktree status is verified
-      clean in the round report.
+      `!tcrv_rvv.i32m*`, descriptor, source-front-door, route-id, artifact-name,
+      or q8/q4 authority.
+- [x] `git diff --check`, `git diff --cached --check`, and final clean git
+      status pass.
+- [x] The slice is committed coherently while the macro task remains active.
 
 ## Current Round Result
+
+Completed the Gate 3 resource-aware low-precision runtime correctness slice
+while keeping the macro campaign open:
+
+- Repaired this macro PRD so the current round is explicitly Gate 3 runtime
+  correctness for the resource-aware Gearbox path changed in `ad665e20`, not a
+  neighboring generated-bundle seam.
+- Added a narrow script lit hook for the pre-realized
+  `widening_product_reduce_dequantize_f32` path, matching the existing
+  dequant-clamp hook. The hook proves pre-realized input mode, selected-body
+  realization, Gearbox selected candidate/resource facts, cross-region handoff,
+  provider route facts, target artifact validation, generated header/object ABI
+  agreement, and external harness checks.
+- Made no C++ production source changes. Live evidence showed the production
+  path already executes with the required pass order:
+  `--tcrv-rvv-materialize-gearbox-schedules` before
+  `--tcrv-materialize-selected-lowering-boundaries`, followed by
+  emission-plan materialization, RVV EmitC C++ export, target artifact bundle
+  export, and harness execution.
+- Collected non-dry-run `ssh rvv` evidence for the pre-realized
+  `widening_product_reduce_dequantize_f32` and
+  `widening_product_reduce_dequant_clamp_f32` paths in:
+  `artifacts/tmp/gate3-resource-aware-pre-realized-runtime/gate3-resource-aware-wpr-dequant-and-clamp-rvv`.
+  Both evidence JSON files report `status: success`, `ssh_evidence: true`,
+  `remote_compile_succeeded: true`, and `remote_run_succeeded: true`.
+- The runtime harnesses cover `n = 0, 1, 16, 17, 257`, two signed i8 source
+  patterns, two runtime scale values, and for dequant-clamp two ordered runtime
+  bound pairs. They check expected i32 accumulation, f32 dequantization,
+  lower/upper clamp behavior, output/tail sentinel preservation, and
+  source/accumulator preservation.
+- Existing fail-closed coverage remains the stale-fact guard for this slice:
+  missing resource pass, stale selected candidate, stale realized region count,
+  pruned vector-register budget, stale region phase, stale handoff consumer,
+  stale Gearbox scope, stale provider mirror, stale ABI order, stale operand
+  binding, stale handoff typed-compute mirror, stale header/type mirrors, and
+  stale primitive/intrinsic mirrors.
+
+Gate 4 same-target measurement remains open; this round does not claim
+performance or llama.cpp parity.
+
+## Previous Round Result
 
 Completed the Gate 1 resource-aware Gearbox candidate build/prune/select closure
 slice while keeping the macro campaign open:
@@ -437,10 +513,10 @@ facts or a broader unsigned fail-closed/provider contract, plus deeper
 
 ## Continuation Point
 
-Continue the macro campaign after the Gate 1 candidate build/prune/select
-closure slice. The next owner should either finish any explicitly named
-remaining Gate 2 low-precision primitive integration gap, or move to Gate 3
-runtime correctness evidence only when a newly executable behavior from the
-production compiler path is being claimed. Gate 4 same-target comparison remains
-after typed primitive facts, resource-aware realization, and runtime correctness
-evidence are all in place.
+Continue the macro campaign after the Gate 3 runtime correctness slice. The
+next owner is Gate 4 same-target measurement for the bounded low-precision
+product-reduction dequantize/dequant-clamp paths: compare generated
+TianChen-RV RVV artifacts against an explicitly named baseline on the same
+`ssh rvv` environment after correctness passes, with timing method, input
+sizes, compile flags, target profile, and raw evidence recorded. Do not archive
+the macro task before Gate 4 is complete or human steering redirects it.

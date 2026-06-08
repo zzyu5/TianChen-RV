@@ -1,0 +1,91 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widening-product-reduce-dequantize-f32 --overwrite --op-kind widening_product_reduce_dequantize_f32 --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32/evidence.json
+# RUN: FileCheck %s --check-prefix=WPRD --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32/widening_product_reduce_dequantize_f32/evidence.json
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" < %t.artifacts/pre-realized-widening-product-reduce-dequantize-f32/widening_product_reduce_dequantize_f32/rvv_generated_bundle_abi_widening_product_reduce_dequantize_f32_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+# ROOT-DAG: "widening_product_reduce_dequantize_f32"
+
+# WPRD-DAG: "input_mode": "pre-realized-selected-body"
+# WPRD-DAG: "op_kind": "widening_product_reduce_dequantize_f32"
+# WPRD-DAG: "path": "{{.*}}test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir"
+# WPRD-DAG: "prototype": "void tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float *out, size_t n);"
+# WPRD-DAG: "expected_function": "tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize"
+# WPRD-DAG: "expected_runtime_abi_name": "rvv-generic-widening-product-reduce-dequantize-f32-callable-c-abi.v1"
+# WPRD-DAG: "expected_selected_variant": "pre_realized_body_rvv_product_reduce_dequantize"
+# WPRD-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# WPRD-DAG: "materializer": "tcrv-materialize-selected-lowering-boundaries"
+# WPRD-DAG: "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry"
+# WPRD-DAG: "route_entry_realization": false
+# WPRD-DAG: "pre_realized_body_consumed": true
+# WPRD-DAG: "key": "rvv_selected_body_operation"
+# WPRD-DAG: "value": "widening_product_reduce_dequantize_f32"
+# WPRD-DAG: "key": "rvv_selected_body_typed_compute_op"
+# WPRD-DAG: "value": "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize"
+# WPRD-DAG: "key": "tcrv_rvv.runtime_abi_order"
+# WPRD-DAG: "value": "lhs,rhs,acc,scale,out,n"
+# WPRD-DAG: "key": "tcrv_rvv.route_operand_binding_plan"
+# WPRD-DAG: "value": "rvv-route-operand-binding:widening_product_reduce_dequantize_f32.v1"
+# WPRD-DAG: "key": "tcrv_rvv.route_operand_binding_operands"
+# WPRD-DAG: "value": "rvv-route-operand-binding:widening_product_reduce_dequantize_f32.v1;lhs=lhs-input-buffer:lhs:abi|src-load|wprod-lhs|src-i8mf4|hdr;rhs=rhs-input-buffer:rhs:abi|src-load|wprod-rhs|src-i8mf4|hdr;acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;scale=dequant-scale-value:scale:abi|runtime-scale|scale-f32|dequant|hdr;out=output-buffer:out:abi|dequant-result|store|res-f32m1|hdr;n=runtime-element-count:n:abi|setvl-avl|loop|hdr"
+# WPRD-DAG: "key": "tcrv_rvv.contraction_route_family_plan"
+# WPRD-DAG: "value": "rvv-contraction-route-family-plan.v1"
+# WPRD-DAG: "key": "tcrv_rvv.target_leaf_profile"
+# WPRD-DAG: "value": "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequantization-leaf-profile.v1"
+# WPRD-DAG: "key": "tcrv_rvv.provider_supported_mirror"
+# WPRD-DAG: "value": "provider_supported_mirror:rvv-contraction-family-plan-validated"
+# WPRD-DAG: "key": "tcrv_rvv.required_header_declarations"
+# WPRD-DAG: "value": "stddef.h,stdint.h,riscv_vector.h"
+# WPRD-DAG: "key": "tcrv_rvv.c_type_mapping"
+# WPRD-DAG: "value": "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,converted/scaled:float-e32m1,scale:float"
+# WPRD-DAG: "key": "tcrv_rvv.product_vector_c_type"
+# WPRD-DAG: "value": "vint16mf2_t"
+# WPRD-DAG: "key": "tcrv_rvv.widening_product_relation"
+# WPRD-DAG: "value": "signed-i8mf4xi8mf4-to-i16mf2"
+# WPRD-DAG: "key": "tcrv_rvv.product_reduction_chain_relation"
+# WPRD-DAG: "value": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
+# WPRD-DAG: "key": "tcrv_rvv.dequantization_relation"
+# WPRD-DAG: "value": "signed-i32m1-to-f32m1-scale-f32"
+# WPRD-DAG: "key": "tcrv_rvv.low_precision_resource.selected_candidate"
+# WPRD-DAG: "value": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"
+# WPRD-DAG: "key": "tcrv_rvv.low_precision_resource.memory_form"
+# WPRD-DAG: "value": "unit-stride-widening-product-reduce-dequantize-f32"
+# WPRD-DAG: "key": "tcrv_rvv.low_precision_resource.runtime_abi_order"
+# WPRD-DAG: "value": "lhs,rhs,acc,scale,out,n"
+# WPRD-DAG: "key": "tcrv_rvv.gearbox.producer_scope"
+# WPRD-DAG: "value": "gearbox-scope:product-reduction"
+# WPRD-DAG: "key": "tcrv_rvv.gearbox.consumer_scope"
+# WPRD-DAG: "value": "gearbox-scope:dequant-store"
+# WPRD-DAG: "key": "tcrv_rvv.dequantize_convert_intrinsic"
+# WPRD-DAG: "value": "__riscv_vfcvt_f_x_v_f32m1"
+# WPRD-DAG: "key": "tcrv_rvv.dequantize_scale_intrinsic"
+# WPRD-DAG: "value": "__riscv_vfmul_vf_f32m1"
+# WPRD-DAG: "widening_product_reduction_boundary"
+# WPRD-DAG: "gearbox_cross_region_handoff"
+# WPRD-DAG: "contract": "gearbox-product-reduce-to-dequant-cross-region-handoff.v1"
+# WPRD-DAG: "expected_selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"
+# WPRD-DAG: "dequantization_boundary"
+# WPRD-DAG: "provider_route_facts"
+# WPRD-DAG: "target_artifact_validator": "RVVTargetArtifactRouteFamilyValidation.cpp:product-reduction target-owned consumer"
+# WPRD-DAG: "target_validator_consumed_facts"
+# WPRD-DAG: "generated header/object ABI agreement for lhs,rhs,acc,scale,out,n"
+# WPRD-DAG: "status": "dry_run_success"
+
+# HARNESS: static int run_case(size_t n, int pattern, float scale)
+# HARNESS: tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize(lhs, rhs, acc, scale, out, n);
+# HARNESS: int32_t product = (int32_t)lhs[index] * (int32_t)rhs[index];
+# HARNESS: expected_acc += product;
+# HARNESS: float expected = ((float)expected_acc) * scale;
+# HARNESS: source_preserved accumulator_preserved tail_preserved
+# HARNESS: const size_t counts[] = {0, 1, 16, 17, 257};
+# HARNESS: const float scale_values[] = {-0.125f, 0.375f};
+# HARNESS: tcrv_rvv_generated_bundle_abi_widening_product_reduce_dequantize_f32_ok counts=0,1,16,17,257 patterns=0,1 scales=-0.125,0.375 tolerance=1e-05
+# HARNESS: PASS op=widening_product_reduce_dequantize_f32 counts=0,1,16,17,257 patterns=0,1 scales=-0.125,0.375 tolerance=1e-05
