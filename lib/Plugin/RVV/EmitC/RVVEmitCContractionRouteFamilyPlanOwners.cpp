@@ -4345,6 +4345,21 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceSelectionReason(
   return {};
 }
 
+llvm::Error requireRVVLowPrecisionProductReductionCandidateForOperation(
+    llvm::StringRef context,
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    RVVLowPrecisionContractionResourceOperation operation) {
+  if (isRVVLowPrecisionResourceCandidateForOperation(
+          operation, selection.selectedCandidateID))
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " low-precision direct-contraction resource selection requires a "
+      "selected product-reduction candidate for operation memory form '" +
+      getRVVLowPrecisionResourceMemoryForm(operation) + "' but found '" +
+      selection.selectedCandidateID + "'");
+}
+
 llvm::StringRef getExpectedRVVLowPrecisionResourceLegalityScope(
     RVVSelectedBodyOperationKind operation) {
   if (isRVVComputedMaskStridedInputWideningDotLowPrecisionResourceOperation(
@@ -4789,8 +4804,16 @@ llvm::Error requireRVVLowPrecisionRealizedVSetVLRegionStructure(
         "facts, but found " +
         llvm::Twine(slice.vsetvlRegionMarkers.size()));
 
-  llvm::ArrayRef<llvm::StringRef> expectedPhases = {
-      "load-product-reduce", "dequant-store"};
+  llvm::SmallVector<llvm::StringRef, 3> expectedPhases;
+  if (isRVVLowPrecisionResourceGroupedCandidateID(
+          selection.selectedCandidateID)) {
+    expectedPhases.push_back("grouped-product-reduce-main");
+    expectedPhases.push_back("tail-product-reduce");
+    expectedPhases.push_back("dequant-store");
+  } else {
+    expectedPhases.push_back("load-product-reduce");
+    expectedPhases.push_back("dequant-store");
+  }
   const llvm::StringRef expectedResourceDecision =
       getRVVLowPrecisionContractionResourceRealizationDecision(
           selection.selectedCandidateID);
@@ -4875,9 +4898,13 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
         " selected-body realization low-precision direct-contraction "
         "structure requires tcrv_rvv.gearbox_cross_region_handoff to consume "
         "the selected with_vl token and runtime n/AVL SSA value");
+  const llvm::StringRef expectedFromPhase =
+      isRVVLowPrecisionResourceGroupedCandidateID(selection.selectedCandidateID)
+          ? llvm::StringRef("tail-product-reduce")
+          : llvm::StringRef("load-product-reduce");
   if (handoff.getContract() !=
           "gearbox-product-reduce-to-dequant-cross-region-handoff.v1" ||
-      handoff.getFromPhase() != "load-product-reduce" ||
+      handoff.getFromPhase() != expectedFromPhase ||
       handoff.getToPhase() != "dequant-store" ||
       static_cast<std::int64_t>(handoff.getRegionCount()) !=
           selection.vsetvlRegionCount ||
@@ -5128,23 +5155,6 @@ llvm::Error requireRVVLowPrecisionResourceIntegerField(
       selection.selectedCandidateID + "'");
 }
 
-llvm::Error rejectUnsupportedGroupedLowPrecisionResourceCandidate(
-    llvm::StringRef context,
-    const RVVLowPrecisionContractionResourceSelection &selection) {
-  if (!isRVVLowPrecisionResourceUnsupportedGroupedCandidateID(
-          selection.selectedCandidateID))
-    return llvm::Error::success();
-  return makeRVVEmitCRouteProviderError(
-      llvm::Twine(context) +
-      " low-precision direct-contraction resource selection rejects grouped "
-      "u2 candidate '" +
-      selection.selectedCandidateID +
-      "' because tail-safe grouped product-reduction statement-plan payload "
-      "support is not implemented; keep the legal u1 vector-carry candidate "
-      "until the RVV statement-plan owner can materialize grouped main/tail "
-      "loops without relying on metadata or VL=0 tail behavior");
-}
-
 bool isRVVLowPrecisionResourceSelectionEqual(
     const RVVLowPrecisionContractionResourceSelection &lhs,
     const RVVLowPrecisionContractionResourceSelection &rhs) {
@@ -5255,18 +5265,33 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
           context, selection, "candidate set", selection.candidateSetID,
           getExpectedRVVLowPrecisionResourceCandidateSet(plan.operation)))
     return error;
-  if (llvm::Error error =
-          rejectUnsupportedGroupedLowPrecisionResourceCandidate(context,
-                                                               selection))
-    return error;
-  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "selected candidate", selection.selectedCandidateID,
-          getExpectedRVVLowPrecisionResourceCandidate(plan)))
-    return error;
-  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "selection reason", selection.selectionReason,
-          getExpectedRVVLowPrecisionResourceSelectionReason(plan)))
-    return error;
+  if (plan.usesProductReductionDequantization) {
+    const RVVLowPrecisionContractionResourceOperation resourceOperation =
+        plan.usesProductReductionDequantClamp
+            ? RVVLowPrecisionContractionResourceOperation::
+                  ProductReductionDequantClampF32
+            : RVVLowPrecisionContractionResourceOperation::
+                  ProductReductionDequantizeF32;
+    if (llvm::Error error =
+            requireRVVLowPrecisionProductReductionCandidateForOperation(
+                context, selection, resourceOperation))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "selection reason", selection.selectionReason,
+            getRVVLowPrecisionResourceSelectionReasonForCandidate(
+                selection.selectedCandidateID)))
+      return error;
+  } else {
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "selected candidate",
+            selection.selectedCandidateID,
+            getExpectedRVVLowPrecisionResourceCandidate(plan)))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "selection reason", selection.selectionReason,
+            getExpectedRVVLowPrecisionResourceSelectionReason(plan)))
+      return error;
+  }
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "legality scope", selection.legalityScope,
           getExpectedRVVLowPrecisionResourceLegalityScope(plan.operation)))
@@ -5340,11 +5365,14 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "unroll factor", selection.unrollFactor,
-          kRVVLowPrecisionResourceStaticUnroll))
+          getRVVLowPrecisionResourceExpectedUnrollFactor(
+              selection.selectedCandidateID)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "accumulator count",
-          selection.accumulatorCount, kRVVLowPrecisionResourceAccumulatorCount))
+          selection.accumulatorCount,
+          getRVVLowPrecisionResourceExpectedAccumulatorCount(
+              selection.selectedCandidateID)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "reduction layout", selection.reductionLayout,
@@ -5352,15 +5380,18 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "vsetvl region count",
-          selection.vsetvlRegionCount, kRVVLowPrecisionResourceVSetVLRegions))
+          selection.vsetvlRegionCount,
+          getRVVLowPrecisionResourceExpectedVSetVLRegionCount(
+              selection.selectedCandidateID)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "peak live vector-group estimate",
           selection.peakLiveVectorGroups,
-          kRVVLowPrecisionResourcePeakLiveVectorGroups))
+          getRVVLowPrecisionResourceExpectedPeakLiveVectorGroups(
+              selection.selectedCandidateID)))
     return error;
   if (selection.vectorRegisterBudget <
-      kRVVLowPrecisionResourcePeakLiveVectorGroups)
+      selection.peakLiveVectorGroups)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " low-precision direct-contraction resource selection peak live "
@@ -5442,35 +5473,51 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
           getExpectedRVVLowPrecisionResourceCandidateSet(
               description.operation)))
     return error;
-  if (llvm::Error error =
-          rejectUnsupportedGroupedLowPrecisionResourceCandidate(context,
-                                                               selection))
-    return error;
-  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "selected candidate",
-          selection.selectedCandidateID,
-          isRVVComputedMaskStridedInputWideningDotLowPrecisionResourceOperation(
-              description.operation)
-              ? kRVVLowPrecisionResourceComputedMaskStridedInputWideningDotCandidate
-          : isRVVStridedInputWideningDotLowPrecisionResourceOperation(
+  if (description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32) {
+    const RVVLowPrecisionContractionResourceOperation resourceOperation =
+        isClamp ? RVVLowPrecisionContractionResourceOperation::
+                      ProductReductionDequantClampF32
+                : RVVLowPrecisionContractionResourceOperation::
+                      ProductReductionDequantizeF32;
+    if (llvm::Error error =
+            requireRVVLowPrecisionProductReductionCandidateForOperation(
+                context, selection, resourceOperation))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "selection reason", selection.selectionReason,
+            getRVVLowPrecisionResourceSelectionReasonForCandidate(
+                selection.selectedCandidateID)))
+      return error;
+  } else {
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "selected candidate",
+            selection.selectedCandidateID,
+            isRVVComputedMaskStridedInputWideningDotLowPrecisionResourceOperation(
                 description.operation)
-              ? kRVVLowPrecisionResourceStridedInputWideningDotCandidate
-          : isClamp
-              ? kRVVLowPrecisionResourceDequantClampCandidate
-              : kRVVLowPrecisionResourceDequantCandidate))
-    return error;
-  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "selection reason", selection.selectionReason,
-          isRVVComputedMaskStridedInputWideningDotLowPrecisionResourceOperation(
-              description.operation)
-              ? kRVVLowPrecisionResourceComputedMaskStridedInputWideningDotSelectionReason
-          : isRVVStridedInputWideningDotLowPrecisionResourceOperation(
+                ? kRVVLowPrecisionResourceComputedMaskStridedInputWideningDotCandidate
+            : isRVVStridedInputWideningDotLowPrecisionResourceOperation(
+                  description.operation)
+                ? kRVVLowPrecisionResourceStridedInputWideningDotCandidate
+                : isClamp
+                      ? kRVVLowPrecisionResourceDequantClampCandidate
+                      : kRVVLowPrecisionResourceDequantCandidate))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "selection reason", selection.selectionReason,
+            isRVVComputedMaskStridedInputWideningDotLowPrecisionResourceOperation(
                 description.operation)
-              ? kRVVLowPrecisionResourceStridedInputWideningDotSelectionReason
-          : isClamp
-              ? kRVVLowPrecisionResourceDequantClampSelectionReason
-              : kRVVLowPrecisionResourceDequantSelectionReason))
-    return error;
+                ? kRVVLowPrecisionResourceComputedMaskStridedInputWideningDotSelectionReason
+            : isRVVStridedInputWideningDotLowPrecisionResourceOperation(
+                  description.operation)
+                ? kRVVLowPrecisionResourceStridedInputWideningDotSelectionReason
+                : isClamp
+                      ? kRVVLowPrecisionResourceDequantClampSelectionReason
+                      : kRVVLowPrecisionResourceDequantSelectionReason))
+      return error;
+  }
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "legality scope", selection.legalityScope,
           getExpectedRVVLowPrecisionResourceLegalityScope(
@@ -5547,11 +5594,14 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "unroll factor", selection.unrollFactor,
-          kRVVLowPrecisionResourceStaticUnroll))
+          getRVVLowPrecisionResourceExpectedUnrollFactor(
+              selection.selectedCandidateID)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "accumulator count",
-          selection.accumulatorCount, kRVVLowPrecisionResourceAccumulatorCount))
+          selection.accumulatorCount,
+          getRVVLowPrecisionResourceExpectedAccumulatorCount(
+              selection.selectedCandidateID)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "reduction layout", selection.reductionLayout,
@@ -5559,12 +5609,15 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "vsetvl region count",
-          selection.vsetvlRegionCount, kRVVLowPrecisionResourceVSetVLRegions))
+          selection.vsetvlRegionCount,
+          getRVVLowPrecisionResourceExpectedVSetVLRegionCount(
+              selection.selectedCandidateID)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "peak live vector-group estimate",
           selection.peakLiveVectorGroups,
-          kRVVLowPrecisionResourcePeakLiveVectorGroups))
+          getRVVLowPrecisionResourceExpectedPeakLiveVectorGroups(
+              selection.selectedCandidateID)))
     return error;
   if (selection.vectorRegisterBudget <
       selection.peakLiveVectorGroups)

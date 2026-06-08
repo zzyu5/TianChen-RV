@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
+#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
@@ -142,6 +143,9 @@ void moveMigratedStatementPlan(
       std::make_move_iterator(plan.localVariables.end()));
   plan.localVariables.clear();
   selection.loop = std::move(plan.loop);
+  selection.extraLoops.append(std::make_move_iterator(plan.extraLoops.begin()),
+                              std::make_move_iterator(plan.extraLoops.end()));
+  plan.extraLoops.clear();
   selection.postLoopSteps.append(
       std::make_move_iterator(plan.postLoopSteps.begin()),
       std::make_move_iterator(plan.postLoopSteps.end()));
@@ -168,6 +172,9 @@ void moveDirectContractionStatementPlan(
       std::make_move_iterator(plan.preLoopAssignments.end()));
   plan.preLoopAssignments.clear();
   selection.loop = std::move(plan.loop);
+  selection.extraLoops.append(std::make_move_iterator(plan.extraLoops.begin()),
+                              std::make_move_iterator(plan.extraLoops.end()));
+  plan.extraLoops.clear();
   selection.postLoopSteps.append(
       std::make_move_iterator(plan.postLoopSteps.begin()),
       std::make_move_iterator(plan.postLoopSteps.end()));
@@ -639,6 +646,7 @@ llvm::Error addRVVDirectContractionStatementOwnerPreLoopStep(
 }
 
 llvm::Error addRVVDirectContractionStatementOwnerLoopStep(
+    conversion::emitc::TCRVEmitCForLoop &loop,
     RVVSelectedBodyDirectContractionRouteStatementPlan &plan,
     mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef callee,
     llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
@@ -652,8 +660,21 @@ llvm::Error addRVVDirectContractionStatementOwnerLoopStep(
           std::move(result));
   if (!step)
     return step.takeError();
-  plan.loop.bodySteps.push_back(std::move(*step));
+  loop.bodySteps.push_back(std::move(*step));
   return llvm::Error::success();
+}
+
+llvm::Error addRVVDirectContractionStatementOwnerLoopStep(
+    RVVSelectedBodyDirectContractionRouteStatementPlan &plan,
+    mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef callee,
+    llvm::ArrayRef<conversion::emitc::TCRVEmitCCallOpaqueOperand> operands,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context,
+    std::optional<conversion::emitc::TCRVEmitCCallOpaqueResult> result =
+        std::nullopt) {
+  return addRVVDirectContractionStatementOwnerLoopStep(
+      plan.loop, plan, op, expectedRole, callee, operands, description, context,
+      std::move(result));
 }
 
 llvm::Error addRVVDirectContractionStatementOwnerPostLoopStep(
@@ -697,6 +718,7 @@ llvm::Error addRVVDirectContractionStatementOwnerLocalVariable(
 }
 
 llvm::Error addRVVDirectContractionStatementOwnerLoopAssignment(
+    conversion::emitc::TCRVEmitCForLoop &loop,
     RVVSelectedBodyDirectContractionRouteStatementPlan &plan,
     mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef target,
     conversion::emitc::TCRVEmitCCallOpaqueOperand value,
@@ -711,8 +733,19 @@ llvm::Error addRVVDirectContractionStatementOwnerLoopAssignment(
   step.sourceOp = std::move(*source);
   step.targetName = target.str();
   step.value = std::move(value);
-  plan.loop.bodyAssignments.push_back(std::move(step));
+  loop.bodyAssignments.push_back(std::move(step));
   return llvm::Error::success();
+}
+
+llvm::Error addRVVDirectContractionStatementOwnerLoopAssignment(
+    RVVSelectedBodyDirectContractionRouteStatementPlan &plan,
+    mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef target,
+    conversion::emitc::TCRVEmitCCallOpaqueOperand value,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  return addRVVDirectContractionStatementOwnerLoopAssignment(
+      plan.loop, plan, op, expectedRole, target, std::move(value),
+      description, context);
 }
 
 llvm::Error addRVVDirectContractionStatementOwnerPreLoopAssignment(
@@ -782,6 +815,10 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
   const bool isStridedInput = providerPlan.plansStridedInput;
   const RVVSelectedBodyDirectContractionRouteProviderPlan &providerFacts =
       providerPlan;
+  const bool usesGroupedLowPrecisionProductReduction =
+      isProductReductionDequantization &&
+      isRVVLowPrecisionResourceGroupedCandidateID(
+          providerFacts.lowPrecisionResourceSelection.selectedCandidateID);
   const support::RuntimeABIParameter *boundLHSABI = providerPlan.lhsABI;
   const support::RuntimeABIParameter *boundRHSABI = providerPlan.rhsABI;
   const support::RuntimeABIParameter *boundDotLHSABI =
@@ -815,6 +852,12 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
   const llvm::StringRef inductionName = description.emitCLoopInductionName;
   const llvm::StringRef fullChunkVLName = description.emitCFullChunkVLName;
   const llvm::StringRef loopVLName = description.emitCLoopVLName;
+  constexpr llvm::StringLiteral kGroupedTailStartName("grouped_tail_start");
+  constexpr llvm::StringLiteral kGroupedSecondVLName("grouped_loop_vl_u1");
+  constexpr llvm::StringLiteral kGroupedLHSVecName("lhs_vec_u1");
+  constexpr llvm::StringLiteral kGroupedRHSVecName("rhs_vec_u1");
+  constexpr llvm::StringLiteral kGroupedProductVecName("product_vec_u1");
+  constexpr llvm::StringLiteral kGroupedReducedVecName("reduced_i32_vec_u1");
 
   plan.contractionPlan = providerPlan.contractionPlan;
   plan.plansDirectContractionRoute = true;
@@ -867,6 +910,26 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
                     kDequantAccumulatorVectorCType.str()},
                 description, context))
       return error;
+    if (usesGroupedLowPrecisionProductReduction) {
+      if (llvm::Error error =
+              addRVVDirectContractionStatementOwnerLocalVariable(
+                  plan, slice.setvl.getOperation(), "configure",
+                  kGroupedTailStartName, vlCType,
+                  TCRVEmitCCallOpaqueOperand{}, description, context, "0"))
+        return error;
+      const std::string groupedTailStartExpression =
+          (llvm::Twine("((") + boundRuntimeElementCountABI->cName + " / (" +
+           fullChunkVLName + " * 2)) * (" + fullChunkVLName + " * 2))")
+              .str();
+      if (llvm::Error error =
+              addRVVDirectContractionStatementOwnerPreLoopAssignment(
+                  plan, slice.setvl.getOperation(), "configure",
+                  kGroupedTailStartName,
+                  TCRVEmitCCallOpaqueOperand{groupedTailStartExpression,
+                                             vlCType.str()},
+                  description, context))
+        return error;
+    }
   } else if (isDotReduction) {
     if (llvm::Error error = addRVVDirectContractionStatementOwnerPreLoopStep(
             plan, slice.arithmeticOp, "compute",
@@ -932,10 +995,17 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
 
   plan.loop.inductionVarName = inductionName.str();
   plan.loop.lowerBound = TCRVEmitCCallOpaqueOperand{"0", vlCType.str()};
-  plan.loop.upperBound = TCRVEmitCCallOpaqueOperand{
-      boundRuntimeElementCountABI->cName, boundRuntimeElementCountABI->cType};
+  plan.loop.upperBound =
+      usesGroupedLowPrecisionProductReduction
+          ? TCRVEmitCCallOpaqueOperand{kGroupedTailStartName.str(),
+                                       vlCType.str()}
+          : TCRVEmitCCallOpaqueOperand{boundRuntimeElementCountABI->cName,
+                                       boundRuntimeElementCountABI->cType};
   plan.loop.step =
-      TCRVEmitCCallOpaqueOperand{fullChunkVLName.str(), vlCType.str()};
+      usesGroupedLowPrecisionProductReduction
+          ? TCRVEmitCCallOpaqueOperand{
+                (llvm::Twine(fullChunkVLName) + " * 2").str(), vlCType.str()}
+          : TCRVEmitCCallOpaqueOperand{fullChunkVLName.str(), vlCType.str()};
 
   if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
           plan, slice.setvl.getOperation(), "configure",
@@ -1152,6 +1222,45 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
     const std::string accumulatorVectorCType =
         isProductReductionDequantization ? std::string("vint32m1_t")
                                          : resultVectorCType.str();
+    auto addProductReductionSlice =
+        [&](conversion::emitc::TCRVEmitCForLoop &loop,
+            llvm::StringRef lhsVecName, llvm::StringRef rhsVecName,
+            llvm::StringRef vlName, llvm::StringRef accumulatorVecName,
+            llvm::StringRef productVecName,
+            llvm::StringRef reducedVecName) -> llvm::Error {
+      if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+              loop, plan, slice.wideningProductOp.getOperation(), "compute",
+              providerFacts.wideningProductLeaf,
+              {TCRVEmitCCallOpaqueOperand{lhsVecName.str(),
+                                          sourceVectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{rhsVecName.str(),
+                                          sourceVectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{vlName.str(), vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{productVecName.str(),
+                                        productVectorCType.str()}))
+        return error;
+      if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+              loop, plan, slice.standaloneReduceOp.getOperation(), "compute",
+              providerFacts.contractionComputeLeaf,
+              {TCRVEmitCCallOpaqueOperand{productVecName.str(),
+                                          productVectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{accumulatorVecName.str(),
+                                          accumulatorVectorCType},
+               TCRVEmitCCallOpaqueOperand{vlName.str(), vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{reducedVecName.str(),
+                                        accumulatorVectorCType}))
+        return error;
+      if (isProductReductionDequantization)
+        return addRVVDirectContractionStatementOwnerLoopAssignment(
+            loop, plan, slice.standaloneReduceOp.getOperation(), "compute",
+            "dot_acc_vec",
+            TCRVEmitCCallOpaqueOperand{reducedVecName.str(),
+                                       accumulatorVectorCType},
+            description, context);
+      return llvm::Error::success();
+    };
     if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
             plan, slice.wideningProductOp.getOperation(), "compute",
             providerFacts.wideningProductLeaf,
@@ -1197,6 +1306,113 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
                                              accumulatorVectorCType},
                   description, context))
         return error;
+      if (usesGroupedLowPrecisionProductReduction) {
+        const std::string groupedSecondRemainingAVL =
+            (llvm::Twine(boundRuntimeElementCountABI->cName) + " - " +
+             inductionName + " - " + loopVLName)
+                .str();
+        const std::string groupedSecondLHSPointer =
+            (llvm::Twine(boundLHSABI->cName) + " + " + inductionName + " + " +
+             loopVLName)
+                .str();
+        const std::string groupedSecondRHSPointer =
+            (llvm::Twine(boundRHSABI->cName) + " + " + inductionName + " + " +
+             loopVLName)
+                .str();
+        if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+                plan, slice.setvl.getOperation(), "configure",
+                providerFacts.setVLLeaf,
+                {TCRVEmitCCallOpaqueOperand{groupedSecondRemainingAVL,
+                                            vlCType.str()}},
+                description, context,
+                TCRVEmitCCallOpaqueResult{kGroupedSecondVLName.str(),
+                                          vlCType.str()}))
+          return error;
+        if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+                plan, slice.lhsLoadOperation, "load",
+                providerFacts.sourceLoadLeaf,
+                {TCRVEmitCCallOpaqueOperand{groupedSecondLHSPointer,
+                                            boundLHSABI->cType},
+                 TCRVEmitCCallOpaqueOperand{kGroupedSecondVLName.str(),
+                                            vlCType.str()}},
+                description, context,
+                TCRVEmitCCallOpaqueResult{kGroupedLHSVecName.str(),
+                                          sourceVectorCType.str()}))
+          return error;
+        if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+                plan, slice.rhsLoadOperation, "load",
+                providerFacts.sourceLoadLeaf,
+                {TCRVEmitCCallOpaqueOperand{groupedSecondRHSPointer,
+                                            boundRHSABI->cType},
+                 TCRVEmitCCallOpaqueOperand{kGroupedSecondVLName.str(),
+                                            vlCType.str()}},
+                description, context,
+                TCRVEmitCCallOpaqueResult{kGroupedRHSVecName.str(),
+                                          sourceVectorCType.str()}))
+          return error;
+        if (llvm::Error error = addProductReductionSlice(
+                plan.loop, kGroupedLHSVecName, kGroupedRHSVecName,
+                kGroupedSecondVLName, "reduced_i32_vec", kGroupedProductVecName,
+                kGroupedReducedVecName))
+          return error;
+
+        conversion::emitc::TCRVEmitCForLoop tailLoop;
+        tailLoop.inductionVarName = inductionName.str();
+        tailLoop.lowerBound =
+            TCRVEmitCCallOpaqueOperand{kGroupedTailStartName.str(),
+                                       vlCType.str()};
+        tailLoop.upperBound = TCRVEmitCCallOpaqueOperand{
+            boundRuntimeElementCountABI->cName,
+            boundRuntimeElementCountABI->cType};
+        tailLoop.step =
+            TCRVEmitCCallOpaqueOperand{fullChunkVLName.str(), vlCType.str()};
+        if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+                tailLoop, plan, slice.setvl.getOperation(), "configure",
+                providerFacts.setVLLeaf,
+                {TCRVEmitCCallOpaqueOperand{
+                    tcrv::rvv::getRVVSelectedBodyEmitCRemainingAVLExpression(
+                        boundRuntimeElementCountABI->cName, inductionName),
+                    vlCType.str()}},
+                description, context,
+                TCRVEmitCCallOpaqueResult{loopVLName.str(), vlCType.str()}))
+          return error;
+        if (llvm::Error error =
+                addRVVDirectContractionStatementOwnerLoopStep(
+                    tailLoop, plan, slice.lhsLoadOperation, "load",
+                    providerFacts.sourceLoadLeaf,
+                    {TCRVEmitCCallOpaqueOperand{
+                         (llvm::StringRef(boundLHSABI->cName) + " + " +
+                          inductionName)
+                             .str(),
+                         boundLHSABI->cType},
+                     TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                                vlCType.str()}},
+                    description, context,
+                    TCRVEmitCCallOpaqueResult{"lhs_vec",
+                                              sourceVectorCType.str()}))
+          return error;
+        if (llvm::Error error =
+                addRVVDirectContractionStatementOwnerLoopStep(
+                    tailLoop, plan, slice.rhsLoadOperation, "load",
+                    providerFacts.sourceLoadLeaf,
+                    {TCRVEmitCCallOpaqueOperand{
+                         (llvm::StringRef(boundRHSABI->cName) + " + " +
+                          inductionName)
+                             .str(),
+                         boundRHSABI->cType},
+                     TCRVEmitCCallOpaqueOperand{loopVLName.str(),
+                                                vlCType.str()}},
+                    description, context,
+                    TCRVEmitCCallOpaqueResult{"rhs_vec",
+                                              sourceVectorCType.str()}))
+          return error;
+        if (llvm::Error error =
+                addProductReductionSlice(tailLoop, "lhs_vec", "rhs_vec",
+                                         loopVLName, "dot_acc_vec",
+                                         "product_vec", "reduced_i32_vec"))
+          return error;
+        plan.extraLoops.push_back(std::move(tailLoop));
+      }
       if (llvm::Error error = addRVVDirectContractionStatementOwnerPostLoopStep(
               plan, slice.standaloneReduceOp.getOperation(), "compute",
               "__riscv_vmv_x_s_i32m1_i32",
@@ -1796,9 +2012,15 @@ llvm::Error verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
     return false;
   };
   auto selectionHasCallee = [&](llvm::StringRef callee) {
-    return hasCallee(statementPlanOwnerSelection.preLoopSteps, callee) ||
-           hasCallee(statementPlanOwnerSelection.loop.bodySteps, callee) ||
-           hasCallee(statementPlanOwnerSelection.postLoopSteps, callee);
+    if (hasCallee(statementPlanOwnerSelection.preLoopSteps, callee) ||
+        hasCallee(statementPlanOwnerSelection.loop.bodySteps, callee) ||
+        hasCallee(statementPlanOwnerSelection.postLoopSteps, callee))
+      return true;
+    for (const conversion::emitc::TCRVEmitCForLoop &loop :
+         statementPlanOwnerSelection.extraLoops)
+      if (hasCallee(loop.bodySteps, callee))
+        return true;
+    return false;
   };
   auto requireStatementLeaf = [&](llvm::StringRef leaf,
                                   llvm::StringRef leafName) -> llvm::Error {
@@ -1990,6 +2212,8 @@ llvm::Error attachRVVSelectedBodyRouteStatementPlanOwnerSelection(
        selection.preLoopAssignments)
     route.addPreLoopAssignment(std::move(step));
   route.addForLoop(std::move(selection.loop));
+  for (conversion::emitc::TCRVEmitCForLoop &loop : selection.extraLoops)
+    route.addForLoop(std::move(loop));
   for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        selection.postLoopSteps)
     route.addPostLoopStep(std::move(step));

@@ -48,10 +48,15 @@ module {
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: selected_variant = @explicit_rvv_wprdc
 // REALIZED-SAME: tcrv_rvv.gearbox.producer_scope = "gearbox-scope:product-reduction"
-// REALIZED-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
 // REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
-// REALIZED-SAME: phase = "load-product-reduce"
+// REALIZED-SAME: phase = "grouped-product-reduce-main"
+// REALIZED-SAME: region_count = 3 : i64
 // REALIZED-SAME: region_index = 1 : i64
+// REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
+// REALIZED-SAME: phase = "tail-product-reduce"
+// REALIZED-SAME: region_count = 3 : i64
+// REALIZED-SAME: region_index = 2 : i64
 // REALIZED: %[[LHS:.*]] = tcrv_rvv.load
 // REALIZED-SAME: !tcrv_rvv.vector<i8, "mf4">
 // REALIZED: %[[RHS:.*]] = tcrv_rvv.load
@@ -65,12 +70,15 @@ module {
 // REALIZED: %[[HANDOFF:.*]] = tcrv_rvv.gearbox_cross_region_handoff %[[REDUCED]], %[[VL]], %{{[0-9]+}}
 // REALIZED-SAME: consumer_scope = "gearbox-scope:dequant-store"
 // REALIZED-SAME: contract = "gearbox-product-reduce-to-dequant-cross-region-handoff.v1"
+// REALIZED-SAME: from_phase = "tail-product-reduce"
+// REALIZED-SAME: region_count = 3 : i64
 // REALIZED-SAME: runtime_avl_source = "runtime_abi:n"
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: tcrv_rvv.gearbox.consumer_scope = "gearbox-scope:dequant-store"
 // REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
 // REALIZED-SAME: phase = "dequant-store"
-// REALIZED-SAME: region_index = 2 : i64
+// REALIZED-SAME: region_count = 3 : i64
+// REALIZED-SAME: region_index = 3 : i64
 // REALIZED: %[[DEQUANT:.*]] = tcrv_rvv.dequantize %[[HANDOFF]], %{{[0-9]+}}, %[[VL]]
 // REALIZED-SAME: dequant_relation = "signed-i32m1-to-f32m1-scale-f32"
 // REALIZED-SAME: -> !tcrv_rvv.vector<f32, "m1">
@@ -96,7 +104,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.dequantization_relation", value = "signed-i32m1-to-f32m1-scale-f32"}
 // PLAN-SAME: {key = "tcrv_rvv.lower_bound_role", value = "lower-bound-scalar-value"}
 // PLAN-SAME: {key = "tcrv_rvv.upper_bound_role", value = "upper-bound-scalar-value"}
-// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.memory_form", value = "unit-stride-widening-product-reduce-dequant-clamp-f32"}
 // PLAN-SAME: {key = "tcrv_rvv.gearbox.producer_scope", value = "gearbox-scope:product-reduction"}
 // PLAN-SAME: {key = "tcrv_rvv.gearbox.consumer_scope", value = "gearbox-scope:dequant-store"}
@@ -112,7 +120,7 @@ module {
 // HEADER-DAG: tianchenrv.rvv.provider_supported_mirror: provider_supported_mirror:rvv-contraction-family-plan-validated
 // HEADER-DAG: tianchenrv.rvv.product_vector_c_type: vint16mf2_t
 // HEADER-DAG: tianchenrv.rvv.dequant_scale_role: dequant-scale-value
-// HEADER-DAG: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u1]
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]
 // HEADER-DAG: tianchenrv.rvv.low_precision_resource.memory_form: unit-stride-widening-product-reduce-dequant-clamp-f32
 // HEADER-DAG: tianchenrv.rvv.gearbox_producer_scope: gearbox-scope:product-reduction
 // HEADER-DAG: tianchenrv.rvv.gearbox_consumer_scope: gearbox-scope:dequant-store

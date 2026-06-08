@@ -1683,3 +1683,77 @@ across runtime VL chunks, then extract one scalar after the loop.
 - Continue reducing main-loop overhead through larger/grouped active work per
   loop, improved accumulator/reduction structure, fewer repeated VL/control
   costs, and explicit live vector group budgeting.
+
+
+## Session 567: RVV grouped u2 statement plan
+
+**Date**: 2026-06-09
+**Task**: RVV low-precision production-kernel performance optimization campaign
+**Branch**: `main`
+
+### Summary
+
+Implemented the grouped `u2` tail-safe product-reduction
+dequant/dequant-clamp statement-plan payload in the active macro task. The RVV
+provider now selects grouped `u2` for the supported typed low-precision body
+shape, emits a grouped main loop plus a u1 tail loop, validates grouped facts
+through route/target/generated-bundle mirrors, and has ssh rvv correctness plus
+raw same-target timing evidence. The macro task remains active for final
+cleanup/audit rather than being archived.
+
+### Main Changes
+
+- Updated low-precision resource facts to candidate-set v3 with grouped `u2`
+  selected candidates for dequantize and dequant-clamp.
+- Added provider-owned extra-loop statement-plan plumbing so Common EmitC only
+  carries RVV-built loops and does not infer RVV schedule, dtype, intrinsic, or
+  tail semantics.
+- Emitted `grouped_tail_start = (n / (full_chunk_vl * 2)) *
+  (full_chunk_vl * 2)`, a grouped main loop over the full grouped prefix, and a
+  u1 tail loop over the remainder.
+- Preserved `dot_acc_vec` carry semantics by feeding the second grouped
+  reduction from the first grouped reduction result instead of reseeding from
+  the original accumulator.
+- Updated selected-body realization phases, route-family validation,
+  route-description validation, target artifact validation, generated-bundle
+  parsing, focused FileCheck fixtures, and plugin smoke assertions.
+- Repaired the active PRD/checklist and task notes to record this as a
+  completed grouped-u2 milestone while leaving the macro campaign in progress.
+
+### Git Commits
+
+- Final slice commit created after this journal entry; see `git log -1`.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py scripts/rvv_generated_bundle_same_target_measure.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Focused manual FileCheck equivalents for Gearbox transform,
+  pre-realized dequantize/dequant-clamp artifacts, explicit artifact/
+  realization fixtures, and stale grouped-u2 fail-closed diagnostics. `lit`
+  itself was unavailable in this environment.
+- [OK] Generated-bundle ABI dry-run checks for the touched dequantize/
+  dequant-clamp script fixtures.
+- [OK] `ssh rvv` generated-bundle correctness for dequantize and dequant-clamp
+  with runtime counts `0,1,16,17,257`.
+- [OK] Same-target timing on `ssh rvv` for counts `257,1024`: dequantize
+  produced 8 summaries / 16 measurements; dequant-clamp produced 16 summaries /
+  32 measurements. Raw timing remained below scalar baseline, so no
+  performance-win claim was made.
+- [OK] `git diff --check`, Trellis task validation, bounded old-authority scan,
+  and `git diff --cached --check`.
+
+### Status
+
+[OPEN] Macro task remains active. This slice completes the grouped `u2`
+tail-safe statement-plan milestone, but final campaign cleanup/audit and
+closeout remain.
+
+### Next Steps
+
+- Continue with the final campaign cleanup/audit: remove or justify any stale
+  measurement-only scaffolding and only close/archive the macro task if the
+  production path and evidence gates still honestly support it.

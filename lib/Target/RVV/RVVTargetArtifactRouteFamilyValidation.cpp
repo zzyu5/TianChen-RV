@@ -3,6 +3,7 @@
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 
@@ -4180,6 +4181,10 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
       contract.kind == plugin::rvv::
                            RVVWideningDotReduceRouteValidationKind::
                                ComputedMaskStridedInput;
+  const bool usesGroupedLowPrecisionProductReduction =
+      isProductReductionDequantization &&
+      plugin::rvv::isRVVLowPrecisionResourceGroupedCandidateID(
+          contract.lowPrecisionResourceSelection.selectedCandidateID);
   if (description.runtimeABIParameters.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
@@ -4307,13 +4312,17 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           llvm::Twine(consumerLabel) +
           " requires dequant scale and optional lower/upper bound ABI before "
           "validating product-reduction dequantization carry/dequant statements");
-    if (route.getLocalVariables().size() != 1)
+    const std::size_t expectedLocalVariableCount =
+        usesGroupedLowPrecisionProductReduction ? 2 : 1;
+    if (route.getLocalVariables().size() != expectedLocalVariableCount)
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) +
-          " requires exactly one provider-built local vector carry variable "
-          "before artifact export");
+          " requires exact provider-built local vector carry and grouped "
+          "tail-start variable count " +
+          llvm::Twine(expectedLocalVariableCount) +
+          " before artifact export");
     const conversion::emitc::TCRVEmitCLocalVariable &carry =
-        route.getLocalVariables().front();
+        route.getLocalVariables()[0];
     if (!routeLocalVariableSourceIsSelectedRVVBody(carry) ||
         carry.name != "dot_acc_vec" ||
         carry.cType != accumulatorVectorCType ||
@@ -4321,9 +4330,23 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
         !carry.initialValue.expression.empty() ||
         !carry.initialValue.cType.empty())
       return makeRVVTargetRouteError(
-          llvm::Twine(consumerLabel) +
-          " requires provider-built local i32m1 vector carry to initialize "
-          "from a safe declaration value before pre-loop acc[0] seeding");
+        llvm::Twine(consumerLabel) +
+        " requires provider-built local i32m1 vector carry to initialize "
+        "from a safe declaration value before pre-loop acc[0] seeding");
+    if (usesGroupedLowPrecisionProductReduction) {
+      const conversion::emitc::TCRVEmitCLocalVariable &tailStart =
+          route.getLocalVariables()[1];
+      if (!routeLocalVariableSourceIsSelectedRVVBody(tailStart) ||
+          tailStart.name != "grouped_tail_start" ||
+          tailStart.cType != runtimeContract.vlCType ||
+          tailStart.declarationInitializer != "0" ||
+          !tailStart.initialValue.expression.empty() ||
+          !tailStart.initialValue.cType.empty())
+        return makeRVVTargetRouteError(
+            llvm::Twine(consumerLabel) +
+            " requires provider-built grouped tail-start local to initialize "
+            "from zero before deriving the grouped main-loop bound");
+    }
     const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSeed =
         route.getCallOpaqueSteps()[1];
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
@@ -4333,13 +4356,17 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
              {description.reductionStoreVL, runtimeContract.vlCType}},
             "dot_acc_vec_seed", accumulatorVectorCType))
       return error;
-    if (route.getPreLoopAssignments().size() != 1)
+    const std::size_t expectedPreLoopAssignmentCount =
+        usesGroupedLowPrecisionProductReduction ? 2 : 1;
+    if (route.getPreLoopAssignments().size() !=
+        expectedPreLoopAssignmentCount)
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) +
-          " requires exactly one provider-built pre-loop assignment from "
-          "the acc[0] seed splat to the local vector carry before export");
+          " requires exact provider-built pre-loop assignment count " +
+          llvm::Twine(expectedPreLoopAssignmentCount) +
+          " for vector carry and grouped tail-start facts before export");
     const conversion::emitc::TCRVEmitCAssignStep &seedAssign =
-        route.getPreLoopAssignments().front();
+        route.getPreLoopAssignments()[0];
     if (!routeAssignSourceIsSelectedRVVBody(seedAssign) ||
         seedAssign.targetName != "dot_acc_vec" ||
         seedAssign.value.expression != "dot_acc_vec_seed" ||
@@ -4348,6 +4375,24 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           llvm::Twine(consumerLabel) +
           " requires pre-loop assignment to seed the local i32m1 vector carry "
           "from acc[0] before the runtime VL loop");
+    if (usesGroupedLowPrecisionProductReduction) {
+      const std::string expectedGroupedTailStartExpression =
+          (llvm::Twine("((") + runtimeContract.runtimeAVLParameter.cName +
+           " / (" + runtimeContract.emitCFullChunkVLName + " * 2)) * (" +
+           runtimeContract.emitCFullChunkVLName + " * 2))")
+              .str();
+      const conversion::emitc::TCRVEmitCAssignStep &tailStartAssign =
+          route.getPreLoopAssignments()[1];
+      if (!routeAssignSourceIsSelectedRVVBody(tailStartAssign) ||
+          tailStartAssign.targetName != "grouped_tail_start" ||
+          tailStartAssign.value.expression != expectedGroupedTailStartExpression ||
+          tailStartAssign.value.cType != runtimeContract.vlCType)
+        return makeRVVTargetRouteError(
+            llvm::Twine(consumerLabel) +
+            " requires grouped tail-start pre-loop assignment to derive the "
+            "largest tail-safe u2 main-loop bound from runtime AVL and "
+            "full_chunk_vl");
+    }
   } else {
     if (!route.getPreLoopAssignments().empty())
       return makeRVVTargetRouteError(
@@ -4386,28 +4431,48 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           "widening dot-reduction target artifact consumer requires pre-loop "
           "statements to carry selected typed RVV source provenance");
 
-  if (route.getForLoops().size() != 1)
+  const std::size_t expectedLoopCount =
+      usesGroupedLowPrecisionProductReduction ? 2 : 1;
+  if (route.getForLoops().size() != expectedLoopCount)
     return makeRVVTargetRouteError(
-        "widening dot-reduction target artifact consumer requires exactly one "
-        "provider-built runtime AVL/VL loop before artifact export");
+        llvm::Twine("widening dot-reduction target artifact consumer requires "
+                    "exactly ") +
+        llvm::Twine(expectedLoopCount) +
+        " provider-built runtime AVL/VL loop(s) before artifact export");
   const conversion::emitc::TCRVEmitCForLoop &loop = route.getForLoops().front();
+  const std::string expectedMainLoopUpperBound =
+      usesGroupedLowPrecisionProductReduction
+          ? std::string("grouped_tail_start")
+          : runtimeContract.runtimeAVLParameter.cName;
+  const std::string expectedMainLoopUpperBoundCType =
+      usesGroupedLowPrecisionProductReduction
+          ? runtimeContract.vlCType
+          : runtimeContract.runtimeAVLParameter.cType;
+  const std::string expectedMainLoopStep =
+      usesGroupedLowPrecisionProductReduction
+          ? (llvm::Twine(runtimeContract.emitCFullChunkVLName) + " * 2").str()
+          : runtimeContract.emitCFullChunkVLName;
   if (loop.inductionVarName != runtimeContract.emitCLoopInductionName ||
       loop.lowerBound.expression != "0" ||
       loop.lowerBound.cType != runtimeContract.vlCType ||
-      loop.upperBound.expression != runtimeContract.runtimeAVLParameter.cName ||
-      loop.upperBound.cType != runtimeContract.runtimeAVLParameter.cType ||
-      loop.step.expression != runtimeContract.emitCFullChunkVLName ||
+      loop.upperBound.expression != expectedMainLoopUpperBound ||
+      loop.upperBound.cType != expectedMainLoopUpperBoundCType ||
+      loop.step.expression != expectedMainLoopStep ||
       loop.step.cType != runtimeContract.vlCType)
     return makeRVVTargetRouteError(
         "widening dot-reduction target artifact consumer requires "
         "provider-built loop bounds and step to mirror runtime AVL/VL route "
         "facts");
 
-  if (loop.bodySteps.size() != contract.expectedLoopBodyStepCount)
+  const std::size_t expectedMainLoopBodyStepCount =
+      usesGroupedLowPrecisionProductReduction
+          ? contract.expectedLoopBodyStepCount + 5
+          : contract.expectedLoopBodyStepCount;
+  if (loop.bodySteps.size() != expectedMainLoopBodyStepCount)
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
         " requires exact provider-built widening dot loop statement count " +
-        llvm::Twine(contract.expectedLoopBodyStepCount) +
+        llvm::Twine(expectedMainLoopBodyStepCount) +
         " before artifact export");
 
   const std::string expectedRemainingAVL =
@@ -4427,6 +4492,17 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           "widening dot-reduction target artifact consumer requires loop "
           "statements to carry selected typed RVV source provenance");
 
+  auto validateUnitSourceLoadAt =
+      [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
+          const support::RuntimeABIParameter &abi,
+          llvm::StringRef expectedPointer, llvm::StringRef vlName,
+          llvm::StringRef resultName, llvm::StringRef stepLabel) -> llvm::Error {
+    return validateRVVProviderBuiltRouteStep(
+        step, consumerLabel, stepLabel, description.sourceVectorLoadIntrinsic,
+        {{expectedPointer, abi.cType},
+         {vlName, runtimeContract.vlCType}},
+        resultName, description.sourceVectorCType);
+  };
   auto validateUnitSourceLoad =
       [&](const conversion::emitc::TCRVEmitCCallOpaqueStep &step,
           const support::RuntimeABIParameter &abi, llvm::StringRef resultName,
@@ -4435,11 +4511,9 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
         (llvm::StringRef(abi.cName) + " + " +
          runtimeContract.emitCLoopInductionName)
             .str();
-    return validateRVVProviderBuiltRouteStep(
-        step, consumerLabel, stepLabel, description.sourceVectorLoadIntrinsic,
-        {{expectedPointer, abi.cType},
-         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
-        resultName, description.sourceVectorCType);
+    return validateUnitSourceLoadAt(step, abi, expectedPointer,
+                                    runtimeContract.emitCLoopVLName,
+                                    resultName, stepLabel);
   };
 
   auto validateStridedSourceLoad =
@@ -4602,21 +4676,159 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           llvm::Twine(consumerLabel) +
           " requires dequant scale ABI before validating post-loop dequant "
           "statements");
-    if (loop.bodyAssignments.size() != 1)
+    const std::size_t expectedLoopAssignmentCount =
+        usesGroupedLowPrecisionProductReduction ? 2 : 1;
+    if (loop.bodyAssignments.size() != expectedLoopAssignmentCount)
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) +
-          " requires exactly one provider-built loop assignment from the "
-          "reduced vector to the local vector carry before artifact export");
-    const conversion::emitc::TCRVEmitCAssignStep &carryAssign =
-        loop.bodyAssignments.front();
-    if (!routeAssignSourceIsSelectedRVVBody(carryAssign) ||
-        carryAssign.targetName != "dot_acc_vec" ||
-        carryAssign.value.expression != reductionResultName ||
-        carryAssign.value.cType != accumulatorVectorCType)
-      return makeRVVTargetRouteError(
-          llvm::Twine(consumerLabel) +
-          " requires loop assignment to carry the reduced i32m1 vector across "
-          "runtime VL chunks before artifact export");
+          " requires exact provider-built loop assignment count " +
+          llvm::Twine(expectedLoopAssignmentCount) +
+          " from reduced vectors to the local vector carry before artifact "
+          "export");
+    auto validateCarryAssignment =
+        [&](const conversion::emitc::TCRVEmitCAssignStep &assign,
+            llvm::StringRef resultName, llvm::StringRef label) -> llvm::Error {
+      if (!routeAssignSourceIsSelectedRVVBody(assign) ||
+          assign.targetName != "dot_acc_vec" ||
+          assign.value.expression != resultName ||
+          assign.value.cType != accumulatorVectorCType)
+        return makeRVVTargetRouteError(
+            llvm::Twine(consumerLabel) + " requires " + label +
+            " assignment to carry the reduced i32m1 vector across runtime VL "
+            "chunks before artifact export");
+      return llvm::Error::success();
+    };
+    if (llvm::Error error = validateCarryAssignment(
+            loop.bodyAssignments[0], reductionResultName,
+            "first product-reduction"))
+      return error;
+    if (usesGroupedLowPrecisionProductReduction) {
+      const std::string expectedGroupedSecondRemainingAVL =
+          (llvm::Twine(runtimeContract.runtimeAVLParameter.cName) + " - " +
+           runtimeContract.emitCLoopInductionName + " - " +
+           runtimeContract.emitCLoopVLName)
+              .str();
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              loop.bodySteps[5], consumerLabel, "grouped second loop setvl",
+              runtimeContract.setVLIntrinsic,
+              {{expectedGroupedSecondRemainingAVL, runtimeContract.vlCType}},
+              "grouped_loop_vl_u1", runtimeContract.vlCType))
+        return error;
+      const std::string expectedGroupedLHSPointer =
+          (llvm::Twine(lhsABI->cName) + " + " +
+           runtimeContract.emitCLoopInductionName + " + " +
+           runtimeContract.emitCLoopVLName)
+              .str();
+      const std::string expectedGroupedRHSPointer =
+          (llvm::Twine(rhsABI->cName) + " + " +
+           runtimeContract.emitCLoopInductionName + " + " +
+           runtimeContract.emitCLoopVLName)
+              .str();
+      if (llvm::Error error = validateUnitSourceLoadAt(
+              loop.bodySteps[6], *lhsABI, expectedGroupedLHSPointer,
+              "grouped_loop_vl_u1", "lhs_vec_u1",
+              "grouped second lhs source load"))
+        return error;
+      if (llvm::Error error = validateUnitSourceLoadAt(
+              loop.bodySteps[7], *rhsABI, expectedGroupedRHSPointer,
+              "grouped_loop_vl_u1", "rhs_vec_u1",
+              "grouped second rhs source load"))
+        return error;
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              loop.bodySteps[8], consumerLabel,
+              "grouped second widening product",
+              description.wideningProductIntrinsic,
+              {{"lhs_vec_u1", description.sourceVectorCType},
+               {"rhs_vec_u1", description.sourceVectorCType},
+               {"grouped_loop_vl_u1", runtimeContract.vlCType}},
+              "product_vec_u1", description.productVectorCType))
+        return error;
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              loop.bodySteps[9], consumerLabel,
+              "grouped second widening dot reduction", description.intrinsic,
+              {{"product_vec_u1", description.productVectorCType},
+               {"reduced_i32_vec", accumulatorVectorCType},
+               {"grouped_loop_vl_u1", runtimeContract.vlCType}},
+              "reduced_i32_vec_u1", accumulatorVectorCType))
+        return error;
+      if (llvm::Error error = validateCarryAssignment(
+              loop.bodyAssignments[1], "reduced_i32_vec_u1",
+              "grouped second product-reduction"))
+        return error;
+      const conversion::emitc::TCRVEmitCForLoop &tailLoop =
+          route.getForLoops()[1];
+      if (tailLoop.inductionVarName !=
+              runtimeContract.emitCLoopInductionName ||
+          tailLoop.lowerBound.expression != "grouped_tail_start" ||
+          tailLoop.lowerBound.cType != runtimeContract.vlCType ||
+          tailLoop.upperBound.expression !=
+              runtimeContract.runtimeAVLParameter.cName ||
+          tailLoop.upperBound.cType !=
+              runtimeContract.runtimeAVLParameter.cType ||
+          tailLoop.step.expression !=
+              runtimeContract.emitCFullChunkVLName ||
+          tailLoop.step.cType != runtimeContract.vlCType)
+        return makeRVVTargetRouteError(
+            llvm::Twine(consumerLabel) +
+            " requires grouped u2 tail loop bounds to cover "
+            "grouped_tail_start..runtime AVL with single-chunk VL steps");
+      if (tailLoop.bodySteps.size() != contract.expectedLoopBodyStepCount)
+        return makeRVVTargetRouteError(
+            llvm::Twine(consumerLabel) +
+            " requires exact provider-built grouped tail loop statement "
+            "count " +
+            llvm::Twine(contract.expectedLoopBodyStepCount) +
+            " before artifact export");
+      for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
+           tailLoop.bodySteps)
+        if (!routeStepSourceIsSelectedRVVBody(step))
+          return makeRVVTargetRouteError(
+              "widening dot-reduction target artifact consumer requires "
+              "grouped tail loop statements to carry selected typed RVV "
+              "source provenance");
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              tailLoop.bodySteps[0], consumerLabel,
+              "grouped tail loop setvl", runtimeContract.setVLIntrinsic,
+              {{expectedRemainingAVL, runtimeContract.vlCType}},
+              runtimeContract.emitCLoopVLName, runtimeContract.vlCType))
+        return error;
+      if (llvm::Error error =
+              validateDotSourceLoad(tailLoop.bodySteps[1], *lhsABI,
+                                    lhsStrideABI, "lhs_vec",
+                                    "grouped tail lhs source load"))
+        return error;
+      if (llvm::Error error =
+              validateDotSourceLoad(tailLoop.bodySteps[2], *rhsABI,
+                                    rhsStrideABI, "rhs_vec",
+                                    "grouped tail rhs source load"))
+        return error;
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              tailLoop.bodySteps[3], consumerLabel,
+              "grouped tail widening product",
+              description.wideningProductIntrinsic,
+              {{"lhs_vec", description.sourceVectorCType},
+               {"rhs_vec", description.sourceVectorCType},
+               {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+              "product_vec", description.productVectorCType))
+        return error;
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              tailLoop.bodySteps[4], consumerLabel,
+              "grouped tail widening dot reduction", description.intrinsic,
+              {{"product_vec", description.productVectorCType},
+               {"dot_acc_vec", accumulatorVectorCType},
+               {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+              "reduced_i32_vec", accumulatorVectorCType))
+        return error;
+      if (tailLoop.bodyAssignments.size() != 1)
+        return makeRVVTargetRouteError(
+            llvm::Twine(consumerLabel) +
+            " requires exactly one provider-built grouped tail assignment "
+            "from the reduced vector to the local vector carry");
+      if (llvm::Error error = validateCarryAssignment(
+              tailLoop.bodyAssignments[0], "reduced_i32_vec",
+              "grouped tail product-reduction"))
+        return error;
+    }
     const std::size_t expectedPostLoopStepCount =
         isProductReductionDequantClamp ? 9 : 3;
     if (route.getPostLoopSteps().size() != expectedPostLoopStepCount)

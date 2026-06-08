@@ -310,6 +310,33 @@ parseLeftAssociativeBinaryChain(llvm::StringRef expression) {
 }
 
 std::optional<std::pair<llvm::StringRef, llvm::StringRef>>
+splitTopLevelSpacedBinary(llvm::StringRef expression, char op) {
+  std::int64_t depth = 0;
+  for (std::size_t index = 0; index + 2 < expression.size(); ++index) {
+    char c = expression[index];
+    if (c == '(') {
+      ++depth;
+      continue;
+    }
+    if (c == ')') {
+      --depth;
+      if (depth < 0)
+        return std::nullopt;
+      continue;
+    }
+    if (depth == 0 && c == ' ' && expression[index + 1] == op &&
+        expression[index + 2] == ' ') {
+      llvm::StringRef lhs = expression.slice(0, index).trim();
+      llvm::StringRef rhs = expression.drop_front(index + 3).trim();
+      if (lhs.empty() || rhs.empty())
+        return std::nullopt;
+      return std::pair<llvm::StringRef, llvm::StringRef>(lhs, rhs);
+    }
+  }
+  return std::nullopt;
+}
+
+std::optional<std::pair<llvm::StringRef, llvm::StringRef>>
 parseSimpleProductExpression(llvm::StringRef expression) {
   std::pair<llvm::StringRef, llvm::StringRef> parts =
       expression.split(" * ");
@@ -319,6 +346,52 @@ parseSimpleProductExpression(llvm::StringRef expression) {
     return std::nullopt;
   return std::pair<llvm::StringRef, llvm::StringRef>(parts.first.trim(),
                                                      parts.second.trim());
+}
+
+std::optional<std::tuple<llvm::StringRef, llvm::StringRef, std::uint64_t>>
+parseFloorMultipleExpression(llvm::StringRef expression) {
+  expression = expression.trim();
+  if (!expression.starts_with("((") || !expression.ends_with("))"))
+    return std::nullopt;
+
+  llvm::StringRef inner = expression.drop_front().drop_back().trim();
+  std::optional<std::pair<llvm::StringRef, llvm::StringRef>> outerProduct =
+      splitTopLevelSpacedBinary(inner, '*');
+  if (!outerProduct)
+    return std::nullopt;
+
+  llvm::StringRef quotient = outerProduct->first.trim();
+  llvm::StringRef multiple = outerProduct->second.trim();
+  if (!quotient.starts_with("(") || !quotient.ends_with(")") ||
+      !multiple.starts_with("(") || !multiple.ends_with(")"))
+    return std::nullopt;
+
+  quotient = quotient.drop_front().drop_back().trim();
+  multiple = multiple.drop_front().drop_back().trim();
+  std::optional<std::pair<llvm::StringRef, llvm::StringRef>> division =
+      splitTopLevelSpacedBinary(quotient, '/');
+  if (!division)
+    return std::nullopt;
+
+  llvm::StringRef avlName = division->first.trim();
+  llvm::StringRef divisor = division->second.trim();
+  if (!isSafeIdentifier(avlName) || !divisor.starts_with("(") ||
+      !divisor.ends_with(")"))
+    return std::nullopt;
+
+  divisor = divisor.drop_front().drop_back().trim();
+  if (divisor != multiple)
+    return std::nullopt;
+
+  std::optional<std::pair<llvm::StringRef, llvm::StringRef>> product =
+      parseSimpleProductExpression(multiple);
+  if (!product || !isSafeIdentifier(product->first))
+    return std::nullopt;
+  std::uint64_t factor = 0;
+  if (product->second.getAsInteger(10, factor) || factor == 0)
+    return std::nullopt;
+  return std::tuple<llvm::StringRef, llvm::StringRef, std::uint64_t>(
+      avlName, product->first, factor);
 }
 
 std::optional<std::tuple<llvm::StringRef, llvm::StringRef, llvm::StringRef>>
@@ -634,6 +707,72 @@ private:
               builder.getUnknownLoc(), getEmitCTypeForCType(context,
                                                             operand.cType),
               byteAdvanced)
+          .getResult();
+    }
+
+    if (std::optional<std::tuple<llvm::StringRef, llvm::StringRef,
+                                 std::uint64_t>>
+            floorMultiple = parseFloorMultipleExpression(expression)) {
+      llvm::StringRef avlName = std::get<0>(*floorMultiple);
+      llvm::StringRef chunkName = std::get<1>(*floorMultiple);
+      std::uint64_t factor = std::get<2>(*floorMultiple);
+      mlir::Value avl = valueMap.lookup(avlName);
+      mlir::Value chunk = valueMap.lookup(chunkName);
+      if (!avl || !chunk)
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("operand expression '") + expression +
+                "' references values that are not materialized in the "
+                "current EmitC scope");
+      mlir::Type resultType = getEmitCTypeForCType(context, operand.cType);
+      if (avl.getType() != resultType)
+        avl = builder
+                  .create<mlir::emitc::CastOp>(builder.getUnknownLoc(),
+                                               resultType, avl)
+                  .getResult();
+      if (chunk.getType() != resultType)
+        chunk = builder
+                    .create<mlir::emitc::CastOp>(builder.getUnknownLoc(),
+                                                 resultType, chunk)
+                    .getResult();
+      mlir::Value factorValue =
+          builder
+              .create<mlir::emitc::LiteralOp>(builder.getUnknownLoc(),
+                                              resultType,
+                                              llvm::Twine(factor).str())
+              .getResult();
+      mlir::Value multiple =
+          builder
+              .create<mlir::emitc::MulOp>(builder.getUnknownLoc(), resultType,
+                                          chunk, factorValue)
+              .getResult();
+      mlir::Value quotient =
+          builder
+              .create<mlir::emitc::DivOp>(builder.getUnknownLoc(), resultType,
+                                          avl, multiple)
+              .getResult();
+      return builder
+          .create<mlir::emitc::MulOp>(builder.getUnknownLoc(), resultType,
+                                      quotient, multiple)
+          .getResult();
+    }
+
+    if (expression.trim().starts_with("(")) {
+      llvm::SmallVector<llvm::StringRef, 4> identifiers;
+      collectExpressionIdentifiers(expression, identifiers);
+      for (llvm::StringRef identifier : identifiers) {
+        if (valueMap.contains(identifier) || implicitValues.contains(identifier))
+          continue;
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("operand expression '") + expression +
+                "' references unknown value name '" + identifier + "'");
+      }
+      return builder
+          .create<mlir::emitc::LiteralOp>(
+              builder.getUnknownLoc(), getEmitCTypeForCType(context,
+                                                            operand.cType),
+              expression)
           .getResult();
     }
 

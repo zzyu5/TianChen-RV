@@ -1738,6 +1738,7 @@ struct RVVSelectedBodyDirectContractionRouteStatementPlan {
   llvm::SmallVector<conversion::emitc::TCRVEmitCAssignStep, 2>
       preLoopAssignments;
   conversion::emitc::TCRVEmitCForLoop loop;
+  llvm::SmallVector<conversion::emitc::TCRVEmitCForLoop, 1> extraLoops;
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 4>
       postLoopSteps;
 };
@@ -1769,6 +1770,7 @@ struct RVVSelectedBodyMigratedRouteStatementPlan {
   llvm::SmallVector<conversion::emitc::TCRVEmitCLocalVariable, 2>
       localVariables;
   conversion::emitc::TCRVEmitCForLoop loop;
+  llvm::SmallVector<conversion::emitc::TCRVEmitCForLoop, 1> extraLoops;
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 4>
       postLoopSteps;
 };

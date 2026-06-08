@@ -4030,6 +4030,27 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
               "the same producer tcrv_rvv.with_vl body and consume the same "
               "!tcrv_rvv.vl token as the handoff";
 
+  const bool usesGroupedLowPrecisionDecision =
+      getResourceDecision() ==
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourceGroupedRealizationDecision;
+  const std::int64_t expectedProducerMarkerIndex =
+      usesGroupedLowPrecisionDecision ? 2 : 1;
+  const std::int64_t expectedConsumerMarkerIndex =
+      usesGroupedLowPrecisionDecision ? 3 : 2;
+  const llvm::StringRef expectedFromPhase =
+      usesGroupedLowPrecisionDecision ? llvm::StringRef("tail-product-reduce")
+                                      : llvm::StringRef("load-product-reduce");
+  const std::int64_t expectedRegionCount =
+      usesGroupedLowPrecisionDecision
+          ? tianchenrv::plugin::rvv::
+                kRVVLowPrecisionResourceGroupedVSetVLRegions
+          : tianchenrv::plugin::rvv::kRVVLowPrecisionResourceVSetVLRegions;
+  const bool hasSupportedResourceDecision =
+      getResourceDecision() ==
+          tianchenrv::plugin::rvv::kRVVLowPrecisionResourceRealizationDecision ||
+      usesGroupedLowPrecisionDecision;
+
   tcrv::rvv::VSetVLRegionMarkerOp firstMarker;
   tcrv::rvv::VSetVLRegionMarkerOp secondMarker;
   bool sawHandoff = false;
@@ -4048,10 +4069,14 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
              << "requires surrounding tcrv_rvv.vsetvl_region_marker ops to "
                 "consume the same !tcrv_rvv.vl token and carry matching "
                 "region_count/resource_decision";
-    if (!sawHandoff && marker.getRegionIndex() == 1 &&
-        marker.getPhase() == getFromPhase())
+    if (!sawHandoff &&
+        static_cast<std::int64_t>(marker.getRegionIndex()) ==
+            expectedProducerMarkerIndex &&
+        marker.getPhase() == expectedFromPhase)
       firstMarker = marker;
-    if (sawHandoff && marker.getRegionIndex() == 2 &&
+    if (sawHandoff &&
+        static_cast<std::int64_t>(marker.getRegionIndex()) ==
+            expectedConsumerMarkerIndex &&
         marker.getPhase() == getToPhase()) {
       secondMarker = marker;
       break;
@@ -4059,8 +4084,8 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   }
   if (!firstMarker)
     return emitOpError()
-           << "requires a preceding load-product-reduce "
-              "tcrv_rvv.vsetvl_region_marker in the producer scope with "
+           << "requires a preceding " << expectedFromPhase
+           << " tcrv_rvv.vsetvl_region_marker in the producer scope with "
               "matching VL/resource facts";
   if (!secondMarker)
     if (mlir::failed(findNestedWithVLConsumerAfter(
@@ -4098,7 +4123,8 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
                         llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(
                             consumerNested)) {
                   if (marker.getVl() == getVl() &&
-                      marker.getRegionIndex() == 2 &&
+                      static_cast<std::int64_t>(marker.getRegionIndex()) ==
+                          expectedConsumerMarkerIndex &&
                       marker.getRegionCount() == getRegionCount() &&
                       marker.getPhase() == getToPhase() &&
                       marker.getResourceDecision() == getResourceDecision())
@@ -4127,8 +4153,8 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
                      static_cast<bool>(consumerStore);
             })))
       return emitOpError()
-             << "requires a preceding load-product-reduce "
-                "tcrv_rvv.vsetvl_region_marker in the producer scope and a "
+             << "requires a preceding " << expectedFromPhase
+             << " tcrv_rvv.vsetvl_region_marker in the producer scope and a "
                 "following dequant-store tcrv_rvv.vsetvl_region_marker plus "
                 "handoff-consuming dequant/store chain in the consumer "
                 "tcrv_rvv.with_vl scope with matching VL/resource facts";
@@ -4138,21 +4164,19 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return emitOpError()
            << "requires contract "
               "'gearbox-product-reduce-to-dequant-cross-region-handoff.v1'";
-  if (getFromPhase() != "load-product-reduce")
+  if (getFromPhase() != expectedFromPhase)
     return emitOpError()
-           << "requires from_phase 'load-product-reduce'";
+           << "requires from_phase '" << expectedFromPhase << "'";
   if (getToPhase() != "dequant-store")
     return emitOpError() << "requires to_phase 'dequant-store'";
-  if (getRegionCount() !=
-      tianchenrv::plugin::rvv::kRVVLowPrecisionResourceVSetVLRegions)
+  if (static_cast<std::int64_t>(getRegionCount()) != expectedRegionCount)
     return emitOpError()
-           << "requires region_count to match the bounded Gearbox two-region "
+           << "requires region_count to match the bounded Gearbox "
               "resource decision";
   if (getRuntimeAvlSource() != "runtime_abi:n")
     return emitOpError()
            << "requires runtime_avl_source 'runtime_abi:n'";
-  if (getResourceDecision() !=
-      tianchenrv::plugin::rvv::kRVVLowPrecisionResourceRealizationDecision)
+  if (!hasSupportedResourceDecision)
     return emitOpError()
            << "requires resource_decision to match the RVV low-precision "
               "realization decision";

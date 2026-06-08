@@ -649,30 +649,30 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY = (
     "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET = (
-    "rvv-low-precision-direct-contraction-resource-candidate-set.v2"
+    "rvv-low-precision-direct-contraction-resource-candidate-set.v3"
     "[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,"
-    "u2-grouped-tail-safe-pending]"
+    "u2-grouped-tail-safe]"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE = (
     "rvv-low-precision-direct-contraction-resource-candidate.v1"
-    "[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"
+    "[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTED_CANDIDATE = (
     "rvv-low-precision-direct-contraction-resource-candidate.v1"
-    "[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"
+    "[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTION_REASON = (
-    "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-runtime-avl"
+    "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-u2-grouped-tail-safe-runtime-avl"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON = (
     "static-bounded-product-reduction-dequant-clamp-i8mf4-i16mf2-i32m1-"
-    "f32m1-runtime-avl"
+    "f32m1-u2-grouped-tail-safe-runtime-avl"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE = (
     "typed-low-precision-product-reduction-dequant-resource-legality.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION = (
-    "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"
+    "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM = (
     "unit-stride-widening-product-reduce-dequantize-f32"
@@ -690,7 +690,7 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_HANDOFF_CONTRACT = (
     "gearbox-product-reduce-to-dequant-cross-region-handoff.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_PRODUCER_PHASE = (
-    "load-product-reduce"
+    "tail-product-reduce"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE = (
     "dequant-store"
@@ -11496,13 +11496,13 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.low_precision_resource.tail_policy": "agnostic",
                 "tcrv_rvv.low_precision_resource.mask_policy": "agnostic",
-                "tcrv_rvv.low_precision_resource.unroll_factor": "1",
-                "tcrv_rvv.low_precision_resource.accumulator_count": "1",
+                "tcrv_rvv.low_precision_resource.unroll_factor": "2",
+                "tcrv_rvv.low_precision_resource.accumulator_count": "2",
                 "tcrv_rvv.low_precision_resource.reduction_layout": (
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY
                 ),
-                "tcrv_rvv.low_precision_resource.vsetvl_region_count": "2",
-                "tcrv_rvv.low_precision_resource.peak_live_vector_groups": "4",
+                "tcrv_rvv.low_precision_resource.vsetvl_region_count": "3",
+                "tcrv_rvv.low_precision_resource.peak_live_vector_groups": "7",
                 "tcrv_rvv.low_precision_resource.vector_register_budget": "32",
                 "tcrv_rvv.low_precision_resource.runtime_avl_source": (
                     "runtime_abi:n"
@@ -13372,6 +13372,7 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
         rf"(?P<reduced>v[0-9]+) = "
         rf"{re.escape(WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC)}"
         rf"\((?P=product), (?P=current_carry), (?P=loop_vl)\);\s*"
+        rf".*?"
         rf"(?://[^\n]*tcrv_emitc\.assign target=dot_acc_vec[^\n]*\n\s*)"
         rf"{local_carry} = (?P=reduced);",
         "emitted RVV C/C++ product-reduction dequant vector carry reduction",
@@ -16511,8 +16512,8 @@ def verify_materialized_selected_body(
             )
             require_contains(
                 text,
-                "region_count = 2 : i64",
-                "materialized selected-body MLIR Gearbox two-region count",
+                "region_count = 3 : i64",
+                "materialized selected-body MLIR Gearbox three-region count",
             )
             require_contains(
                 text,
@@ -16521,7 +16522,17 @@ def verify_materialized_selected_body(
             )
             require_contains(
                 text,
+                'phase = "grouped-product-reduce-main"',
+                "materialized selected-body MLIR Gearbox grouped main phase marker",
+            )
+            require_contains(
+                text,
                 "region_index = 2 : i64",
+                "materialized selected-body MLIR Gearbox tail producer region marker",
+            )
+            require_contains(
+                text,
+                "region_index = 3 : i64",
                 "materialized selected-body MLIR Gearbox consumer region marker",
             )
             require_contains(
@@ -16566,12 +16577,12 @@ def verify_materialized_selected_body(
             )
             require_contains(
                 text,
-                "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 2 : i64",
+                "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 3 : i64",
                 "materialized selected-body MLIR realized Gearbox vsetvl region count",
             )
             require_contains(
                 text,
-                "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups = 4 : i64",
+                "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups = 7 : i64",
                 "materialized selected-body MLIR realized Gearbox resource budget",
             )
             widening_product_reduction_boundary["selected_source_abi"][
@@ -16595,7 +16606,7 @@ def verify_materialized_selected_body(
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE
                 ),
                 "runtime_avl_source": "runtime_abi:n",
-                "region_count": 2,
+                "region_count": 3,
                 "resource_decision": (
                     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION
                 ),
@@ -16616,8 +16627,8 @@ def verify_materialized_selected_body(
                 "memory_form": (
                     expected_resource_memory_form
                 ),
-                "vsetvl_region_count": 2,
-                "peak_live_vector_groups": 4,
+                "vsetvl_region_count": 3,
+                "peak_live_vector_groups": 7,
                 "vector_register_budget": 32,
                 "runtime_avl_source": "runtime_abi:n",
             }
@@ -35982,7 +35993,7 @@ def run_self_test() -> int:
                     != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE
                     or low_precision_resource.get("memory_form")
                     != expected_resource_memory_form
-                    or low_precision_resource.get("vsetvl_region_count") != "2"
+                    or low_precision_resource.get("vsetvl_region_count") != "3"
                     or low_precision_resource.get("runtime_avl_source")
                     != "runtime_abi:n"
                     or low_precision_resource.get("runtime_abi_order")
@@ -35994,7 +36005,7 @@ def run_self_test() -> int:
                     or gearbox_handoff.get("consumer_scope")
                     != WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_SCOPE
                     or gearbox_handoff.get("runtime_avl_source") != "runtime_abi:n"
-                    or gearbox_handoff.get("region_count") != "2"
+                    or gearbox_handoff.get("region_count") != "3"
                     or (
                         "Gearbox producer and nested consumer with_vl scopes"
                         not in target_consumed

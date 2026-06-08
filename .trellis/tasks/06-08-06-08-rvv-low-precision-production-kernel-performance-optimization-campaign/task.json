@@ -21,6 +21,6 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "Grouped-candidate fail-closed slice complete: product-reduction dequant/dequant-clamp resource facts now publish a v2 candidate set with legal u1 vector-carry and pending grouped u2 candidates; RVV provider validation rejects forced grouped u2 selection with a tail-safe statement-plan diagnostic, including the clamp pass-facts path. Executable generated code is unchanged, so ssh rvv measurement was not rerun. Macro task remains active for the tail-safe grouped statement-plan implementation and final Gate 3/Gate 4 evidence.",
+  "notes": "Grouped u2 tail-safe statement-plan slice complete: product-reduction dequant/dequant-clamp resource facts now publish v3 with u2 grouped selected for the supported typed shape; the RVV-owned statement plan emits a grouped main loop plus u1 tail loop, preserves dot_acc_vec carry semantics, and validates route/target/generated-bundle mirrors. ssh rvv correctness passed for counts 0,1,16,17,257; same-target timing passed for counts 257,1024 but remains a regression signal, not a performance-win claim. Macro task remains active for final cleanup/audit and campaign closeout.",
   "meta": {}
 }

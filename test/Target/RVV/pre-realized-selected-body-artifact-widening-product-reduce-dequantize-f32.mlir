@@ -1,8 +1,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: not tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-RESOURCE-PASS
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.selected_candidate = "[^"]*"/tcrv_rvv.low_precision_resource.selected_candidate = "artifact-name-derived-resource-candidate"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER-RESOURCE
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.selected_candidate = "[^"]*"/tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=GROUPED-RESOURCE
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 2 : i64/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 1 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZATION-RESOURCE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 3 : i64/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 1 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZATION-RESOURCE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | sed '0,/tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64/s//tcrv_rvv.low_precision_resource.vector_register_budget = 3 : i64/' | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=PRUNED-RESOURCE-BUDGET
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/phase = "dequant-store"/phase = "artifact-metadata-region"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZED-REGION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.dequantize %[^,]*/tcrv_rvv.dequantize %10/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-CONSUMER
@@ -46,18 +45,23 @@ module {
 // REALIZED: %[[VL:.*]] = tcrv_rvv.setvl %{{.*}} {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: selected_variant = @pre_realized_body_rvv_product_reduce_dequantize
-// REALIZED-SAME: tcrv_rvv.low_precision_resource.realization_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.realization_decision = "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.realization_producer = "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
-// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups = 4 : i64
-// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_unroll_factor = 1 : i64
-// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 2 : i64
-// REALIZED-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups = 7 : i64
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_unroll_factor = 2 : i64
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 3 : i64
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64
 // REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
-// REALIZED-SAME: phase = "load-product-reduce"
-// REALIZED-SAME: region_count = 2 : i64
+// REALIZED-SAME: phase = "grouped-product-reduce-main"
+// REALIZED-SAME: region_count = 3 : i64
 // REALIZED-SAME: region_index = 1 : i64
-// REALIZED-SAME: resource_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"
+// REALIZED-SAME: resource_decision = "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
+// REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
+// REALIZED-SAME: phase = "tail-product-reduce"
+// REALIZED-SAME: region_count = 3 : i64
+// REALIZED-SAME: region_index = 2 : i64
+// REALIZED-SAME: resource_decision = "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
 // REALIZED: %[[LHS:.*]] = tcrv_rvv.load
 // REALIZED-SAME: !tcrv_rvv.vector<i8, "mf4">
 // REALIZED: %[[RHS:.*]] = tcrv_rvv.load
@@ -74,27 +78,27 @@ module {
 // REALIZED: %[[HANDOFF:.*]] = tcrv_rvv.gearbox_cross_region_handoff %[[REDUCED]], %[[VL]], %{{[^ ]+}}
 // REALIZED-SAME: consumer_scope = "gearbox-scope:dequant-store"
 // REALIZED-SAME: contract = "gearbox-product-reduce-to-dequant-cross-region-handoff.v1"
-// REALIZED-SAME: from_phase = "load-product-reduce"
+// REALIZED-SAME: from_phase = "tail-product-reduce"
 // REALIZED-SAME: producer_scope = "gearbox-scope:product-reduction"
-// REALIZED-SAME: region_count = 2 : i64
-// REALIZED-SAME: resource_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"
+// REALIZED-SAME: region_count = 3 : i64
+// REALIZED-SAME: resource_decision = "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
 // REALIZED-SAME: runtime_avl_source = "runtime_abi:n"
 // REALIZED-SAME: to_phase = "dequant-store"
 // REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m1">
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: selected_variant = @pre_realized_body_rvv_product_reduce_dequantize
-// REALIZED-SAME: tcrv_rvv.low_precision_resource.realization_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.realization_decision = "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.realization_producer = "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
-// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups = 4 : i64
-// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_unroll_factor = 1 : i64
-// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 2 : i64
-// REALIZED-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups = 7 : i64
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_unroll_factor = 2 : i64
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 3 : i64
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64
 // REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
 // REALIZED-SAME: phase = "dequant-store"
-// REALIZED-SAME: region_count = 2 : i64
-// REALIZED-SAME: region_index = 2 : i64
-// REALIZED-SAME: resource_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"
+// REALIZED-SAME: region_count = 3 : i64
+// REALIZED-SAME: region_index = 3 : i64
+// REALIZED-SAME: resource_decision = "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
 // REALIZED: %[[DEQUANT:.*]] = tcrv_rvv.dequantize %[[HANDOFF]], %{{.*}}, %[[VL]]
 // REALIZED-SAME: dequant_relation = "signed-i32m1-to-f32m1-scale-f32"
 // REALIZED-SAME: kind = "i32_to_f32_scaled"
@@ -113,7 +117,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.dequantization_relation", value = "signed-i32m1-to-f32m1-scale-f32"}
 // PLAN-SAME: {key = "tcrv_rvv.dequant_scale_role", value = "dequant-scale-value"}
 // PLAN-SAME: {key = "tcrv_rvv.rhs_broadcast_intrinsic", value = "__riscv_vfmv_v_f_f32m1"}
-// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.memory_form", value = "unit-stride-widening-product-reduce-dequantize-f32"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.vector_register_budget", value = "32"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.runtime_avl_source", value = "runtime_abi:n"}
@@ -128,7 +132,7 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_order: lhs,rhs,acc,scale,out,n
 // HEADER: tianchenrv.rvv.dequantization_relation: signed-i32m1-to-f32m1-scale-f32
 // HEADER: tianchenrv.rvv.dequant_scale_role: dequant-scale-value
-// HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]
+// HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]
 // HEADER: tianchenrv.rvv.low_precision_resource.memory_form: unit-stride-widening-product-reduce-dequantize-f32
 // HEADER: tianchenrv.rvv.low_precision_resource.vector_register_budget: 32
 // HEADER: tianchenrv.rvv.gearbox_producer_scope: gearbox-scope:product-reduction
@@ -140,16 +144,12 @@ module {
 // MISSING-RESOURCE-PASS: requires pass-produced low-precision direct-contraction resource fact
 // MISSING-RESOURCE-PASS-SAME: tcrv_rvv.low_precision_resource.candidate_set
 
-// STALE-PROVIDER-RESOURCE: low-precision direct-contraction resource selection requires selected candidate
+// STALE-PROVIDER-RESOURCE: low-precision direct-contraction resource selection requires a selected product-reduction candidate
 // STALE-PROVIDER-RESOURCE-SAME: artifact-name-derived-resource-candidate
-
-// GROUPED-RESOURCE: low-precision direct-contraction resource selection rejects grouped u2 candidate
-// GROUPED-RESOURCE-SAME: product-reduction-dequantize-f32
-// GROUPED-RESOURCE-SAME: tail-safe grouped product-reduction statement-plan payload support is not implemented
 
 // STALE-REALIZATION-RESOURCE: selected-body realization low-precision direct-contraction resource fact
 // STALE-REALIZATION-RESOURCE-SAME: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count
-// STALE-REALIZATION-RESOURCE-SAME: requires realized vsetvl region count 2
+// STALE-REALIZATION-RESOURCE-SAME: requires realized vsetvl region count 3
 
 // PRUNED-RESOURCE-BUDGET: pruned every low-precision direct-contraction resource candidate
 // PRUNED-RESOURCE-BUDGET-SAME: peak-live-vector-groups-exceed-vector-register-budget
@@ -157,7 +157,7 @@ module {
 
 // STALE-REALIZED-REGION: 'tcrv_rvv.gearbox_cross_region_handoff' op requires to_phase 'dequant-store'
 
-// STALE-HANDOFF-CONSUMER: requires a preceding load-product-reduce tcrv_rvv.vsetvl_region_marker in the producer scope
+// STALE-HANDOFF-CONSUMER: requires a preceding tail-product-reduce tcrv_rvv.vsetvl_region_marker in the producer scope
 // STALE-HANDOFF-CONSUMER-SAME: handoff-consuming dequant/store chain in the consumer tcrv_rvv.with_vl scope
 
 // STALE-GEARBOX-SCOPE: requires consumer_scope 'gearbox-scope:dequant-store'

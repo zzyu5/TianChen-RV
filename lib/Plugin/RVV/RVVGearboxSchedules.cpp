@@ -848,16 +848,31 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
               "requires dequantize kind '"
            << kDequantizationKind << "', relation '"
            << kDequantizationRelation << "', and the active with_vl token";
+  const bool usesGroupedLowPrecisionHandoff =
+      handoff.getResourceDecision() ==
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourceGroupedRealizationDecision;
+  const std::int64_t expectedLowPrecisionRegionCount =
+      usesGroupedLowPrecisionHandoff
+          ? tianchenrv::plugin::rvv::
+                kRVVLowPrecisionResourceGroupedVSetVLRegions
+          : tianchenrv::plugin::rvv::kRVVLowPrecisionResourceVSetVLRegions;
+  const llvm::StringRef expectedLowPrecisionFromPhase =
+      usesGroupedLowPrecisionHandoff
+          ? llvm::StringRef("tail-product-reduce")
+          : llvm::StringRef(kLowPrecisionCrossRegionHandoffFromPhase);
+  const bool hasSupportedLowPrecisionDecision =
+      handoff.getResourceDecision() ==
+          tianchenrv::plugin::rvv::kRVVLowPrecisionResourceRealizationDecision ||
+      usesGroupedLowPrecisionHandoff;
   if (handoff.getContract() != kLowPrecisionCrossRegionHandoffContract ||
-      handoff.getFromPhase() != kLowPrecisionCrossRegionHandoffFromPhase ||
+      handoff.getFromPhase() != expectedLowPrecisionFromPhase ||
       handoff.getToPhase() != kLowPrecisionCrossRegionHandoffToPhase ||
-      handoff.getRegionCount() !=
-          tianchenrv::plugin::rvv::kRVVLowPrecisionResourceVSetVLRegions ||
+      static_cast<std::int64_t>(handoff.getRegionCount()) !=
+          expectedLowPrecisionRegionCount ||
       handoff.getRuntimeAvlSource() !=
           tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceN ||
-      handoff.getResourceDecision() !=
-          tianchenrv::plugin::rvv::
-              kRVVLowPrecisionResourceRealizationDecision ||
+      !hasSupportedLowPrecisionDecision ||
       handoff.getProducerScope() !=
           tianchenrv::plugin::rvv::kRVVGearboxProducerScope ||
       handoff.getConsumerScope() !=

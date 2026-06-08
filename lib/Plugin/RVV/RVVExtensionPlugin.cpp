@@ -133,12 +133,20 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
   bool hasStore = false;
   for (mlir::Operation &op : candidate.getBody().front()) {
     if (auto marker = llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(op)) {
+      const bool usesGroupedLowPrecisionDecision =
+          marker.getResourceDecision() ==
+          rvv::kRVVLowPrecisionResourceGroupedRealizationDecision;
       hasRegionMarker =
           marker.getPhase() == "dequant-store" &&
-          static_cast<std::int64_t>(marker.getRegionIndex()) == 2 &&
-          static_cast<std::int64_t>(marker.getRegionCount()) == 2 &&
-          marker.getResourceDecision() ==
-              rvv::kRVVLowPrecisionResourceRealizationDecision &&
+          static_cast<std::int64_t>(marker.getRegionIndex()) ==
+              (usesGroupedLowPrecisionDecision ? 3 : 2) &&
+          static_cast<std::int64_t>(marker.getRegionCount()) ==
+              (usesGroupedLowPrecisionDecision
+                   ? rvv::kRVVLowPrecisionResourceGroupedVSetVLRegions
+                   : rvv::kRVVLowPrecisionResourceVSetVLRegions) &&
+          (marker.getResourceDecision() ==
+               rvv::kRVVLowPrecisionResourceRealizationDecision ||
+           usesGroupedLowPrecisionDecision) &&
           marker.getVl() == producerWithVL.getVl();
       continue;
     }

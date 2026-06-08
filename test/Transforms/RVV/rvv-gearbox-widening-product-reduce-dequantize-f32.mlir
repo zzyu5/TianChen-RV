@@ -4,13 +4,13 @@
 
 // CHECK-LABEL: tcrv.exec.kernel @rvv_gearbox_widening_product_reduce_dequantize_f32_kernel
 // CHECK: tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body
-// CHECK-SAME: tcrv_rvv.low_precision_resource.candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v2[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe-pending]"
+// CHECK-SAME: tcrv_rvv.low_precision_resource.candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v3[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe]"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.memory_form = "unit-stride-widening-product-reduce-dequantize-f32"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.product_dtype = "i16"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.result_dtype = "f32"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.runtime_abi_order = "lhs,rhs,acc,scale,out,n"
-// CHECK-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]"
-// CHECK-SAME: tcrv_rvv.low_precision_resource.selection_reason = "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-runtime-avl"
+// CHECK-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
+// CHECK-SAME: tcrv_rvv.low_precision_resource.selection_reason = "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-u2-grouped-tail-safe-runtime-avl"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.source_dtype = "i8"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64
 
