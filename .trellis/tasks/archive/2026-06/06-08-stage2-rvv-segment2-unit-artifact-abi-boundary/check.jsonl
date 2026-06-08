@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider ownership, selected-body realization, and segment2 statement-plan boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check plain segment2 ABI/header/type/binding summary and target validation contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check focused lit/C++ tests and ssh rvv evidence requirements before runtime claims."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check common EmitC remains neutral and route facts stay plugin-owned."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-segment2-unit-artifact-abi-boundary/prd.md", "reason": "Task-local acceptance criteria and evidence requirements for this round."}

@@ -425,7 +425,11 @@ Refreshed explicit and pre-realized generated object/header bundle ABI evidence 
 
 ### Main Changes
 
-(Add details)
+- Created, completed, and archived Trellis task `06-08-stage2-rvv-segment2-unit-artifact-abi-boundary`.
+- Recorded a bounded PRD for the plain segment2 unit interleave/deinterleave executable artifact ABI seam: typed body facts, field0/field1 tuple roles, unit interleave/deinterleave direction, ABI/header binding, runtime AVL/VL, provider route validation, target artifact export, generated bundle ABI, and `ssh rvv` evidence.
+- Proved explicit and pre-realized `segment2_deinterleave_unit_store` generated bundles on `ssh rvv` with `dry_run=false`, `ssh_evidence=true`, remote compile success, remote run success, field-order distinction, and output tail sentinel preservation.
+- Proved explicit and pre-realized `segment2_interleave_unit_load` generated bundles on `ssh rvv` with the same executable ABI boundary, even/odd interleaved destination field order, and destination tail sentinel preservation past runtime `2*n`.
+- No production C++/MLIR/Python source diff was introduced; generated evidence lives under ignored `artifacts/tmp`.
 
 ### Git Commits
 
@@ -435,7 +439,19 @@ Refreshed explicit and pre-realized generated object/header bundle ABI evidence 
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] explicit segment2 deinterleave `ssh rvv`: `PASS op=segment2_deinterleave_unit_store counts=0,1,16,17,257`
+- [OK] pre-realized segment2 deinterleave `ssh rvv`: `PASS op=segment2_deinterleave_unit_store counts=0,1,16,17,257`
+- [OK] explicit segment2 interleave `ssh rvv`: `PASS op=segment2_interleave_unit_load counts=0,1,7,16,23,257`
+- [OK] pre-realized segment2 interleave `ssh rvv`: `PASS op=segment2_interleave_unit_load counts=0,1,7,16,23,257`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'segment2-(deinterleave|interleave)|selected-body-artifact-segment2-(deinterleave|interleave)'` from `build/test`: 13/13 passed
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] production source diff list empty; bounded authority scan found only negative/historical/checklist mentions in task docs
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] task context validation passed
 
 ### Status
 
@@ -536,6 +552,39 @@ Demoted RVV bounded vector source-front-door families to explicit-only materiali
 ### Status
 
 [OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 558: Stage2 RVV segment2 unit artifact ABI evidence
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV segment2 unit artifact ABI evidence
+**Branch**: `main`
+
+### Summary
+
+Refreshed explicit and pre-realized plain segment2 deinterleave/interleave generated-bundle ssh rvv evidence; no production source change required; focused lit and C++ checks passed.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
 
 ### Next Steps
 

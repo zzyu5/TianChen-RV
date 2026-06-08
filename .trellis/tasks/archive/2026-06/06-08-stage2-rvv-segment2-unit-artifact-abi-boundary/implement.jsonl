@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV project invariants and RVV Stage1/Stage2 route authority boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, plain segment2 realization, statement-plan, provider, and target export contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route, provider-owned ABI/header/type summaries, and plain segment2 artifact validation contracts."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle dry-run and ssh rvv runtime evidence requirements."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Plugin-locality checks for RVV provider-owned route and common EmitC neutrality."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Compute boundary checks for typed low-level tcrv_rvv bodies and no high-level frontend drift."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability/profile facts must constrain legality and not invent dtype, intrinsic, or artifact authority."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-rvv-source-front-door-positive-route-demotion/prd.md", "reason": "Prior task that removed source-front-door generated-bundle authority before this artifact ABI evidence round."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-executable-artifact-abi/prd.md", "reason": "Adjacent segment2 executable artifact evidence pattern and no-source-change closeout precedent."}
