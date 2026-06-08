@@ -759,6 +759,23 @@ getRVVSelectedBodyWideningProductRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 4>
+getRVVSelectedBodyUnsignedWideningProductRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 4> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const uint8_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs", "const uint8_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "uint16_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyI16MF2ConfigVLContract.runtimeAVLABIParameterName,
+      "size_t", support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 5>
 getRVVSelectedBodyWideningProductReductionRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
@@ -1923,6 +1940,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
   if (support::runtimeABIParametersEqual(parameters, wideningProductExpected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 4>
+      unsignedWideningProductExpected =
+          getRVVSelectedBodyUnsignedWideningProductRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(parameters,
+                                         unsignedWideningProductExpected))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 5>
       wideningProductReductionExpected =
           getRVVSelectedBodyWideningProductReductionRuntimeABIParameters();
@@ -2009,8 +2033,10 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "or i16-to-i32 widening conversion routes; lhs, rhs, acc, out, n for "
       "the bounded i32 multiply-add accumulator, i16 widening "
       "multiply-accumulate, or unit-stride dot-reduction route; lhs, rhs, "
-      "acc, scale, out, n for the bounded low-precision product-reduction "
-      "dequantization route; lhs, scale, lower_bound, upper_bound, out, n "
+      "out, n for the bounded signed int8_t or unsigned uint8_t "
+      "widening-product route; lhs, rhs, acc, scale, out, n for the bounded "
+      "low-precision product-reduction dequantization route; lhs, scale, "
+      "lower_bound, upper_bound, out, n "
       "for the bounded dequant-clamp f32 epilogue route; lhs, "
       "rhs_scalar, acc, out, n for the bounded scalar-broadcast "
       "multiply-add accumulator composition route; cmp_lhs, rhs_scalar, "

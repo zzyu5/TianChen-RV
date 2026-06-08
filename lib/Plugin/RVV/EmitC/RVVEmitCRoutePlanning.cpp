@@ -1759,6 +1759,9 @@ llvm::Error verifyRVVRouteOperandBindingClosure(
     llvm::StringRef context) {
   llvm::StringRef expectedPlanID =
       getExpectedRVVRouteOperandBindingPlanID(description.operation);
+  if (std::optional<RVVWideningProductRouteFacts> wideningProductFacts =
+          getRVVWideningProductRouteFacts(description))
+    expectedPlanID = wideningProductFacts->routeOperandBindingPlanID;
   if (expectedPlanID.empty()) {
     if (!plan.planID.empty() || !description.routeOperandBindingPlanID.empty())
       return makeRVVEmitCRouteProviderError(
@@ -3401,11 +3404,34 @@ llvm::StringRef getRVVSelectedBodyIntegerElementTypeName(std::int64_t sew) {
   return {};
 }
 
+llvm::StringRef
+getRVVSelectedBodyUnsignedIntegerElementTypeName(std::int64_t sew) {
+  if (sew <= 0)
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("u") + llvm::Twine(sew)).str());
+}
+
+llvm::StringRef
+getRVVSelectedBodyUnsignedMLIRIntegerElementTypeName(std::int64_t sew) {
+  if (sew <= 0)
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("ui") + llvm::Twine(sew)).str());
+}
+
 llvm::StringRef getRVVSelectedBodySignedScalarCType(std::int64_t sew) {
   if (getRVVSelectedBodyIntegerElementTypeName(sew).empty())
     return {};
   return internRVVSelectedBodyDerivedText(
       (llvm::Twine("int") + llvm::Twine(sew) + "_t").str());
+}
+
+llvm::StringRef getRVVSelectedBodyUnsignedScalarCType(std::int64_t sew) {
+  if (getRVVSelectedBodyUnsignedIntegerElementTypeName(sew).empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("uint") + llvm::Twine(sew) + "_t").str());
 }
 
 llvm::StringRef getRVVSelectedBodyConstInputPointerCType(std::int64_t sew) {
@@ -3415,11 +3441,27 @@ llvm::StringRef getRVVSelectedBodyConstInputPointerCType(std::int64_t sew) {
       (llvm::Twine("const int") + llvm::Twine(sew) + "_t *").str());
 }
 
+llvm::StringRef
+getRVVSelectedBodyUnsignedConstInputPointerCType(std::int64_t sew) {
+  if (getRVVSelectedBodyUnsignedIntegerElementTypeName(sew).empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("const uint") + llvm::Twine(sew) + "_t *").str());
+}
+
 llvm::StringRef getRVVSelectedBodyOutputPointerCType(std::int64_t sew) {
   if (getRVVSelectedBodyIntegerElementTypeName(sew).empty())
     return {};
   return internRVVSelectedBodyDerivedText(
       (llvm::Twine("int") + llvm::Twine(sew) + "_t *").str());
+}
+
+llvm::StringRef
+getRVVSelectedBodyUnsignedOutputPointerCType(std::int64_t sew) {
+  if (getRVVSelectedBodyUnsignedIntegerElementTypeName(sew).empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("uint") + llvm::Twine(sew) + "_t *").str());
 }
 
 llvm::StringRef getRVVSelectedBodyFloatElementTypeName(std::int64_t sew) {
@@ -3450,6 +3492,18 @@ llvm::StringRef getRVVSelectedBodyElementByteSize(std::int64_t sew) {
 llvm::StringRef getRVVSelectedBodyVectorTypeName(std::int64_t sew,
                                                  llvm::StringRef lmul) {
   llvm::StringRef elementType = getRVVSelectedBodyIntegerElementTypeName(sew);
+  if (elementType.empty() || lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("!tcrv_rvv.vector<") + elementType + ", \"" + lmul +
+       "\">")
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyUnsignedVectorTypeName(std::int64_t sew,
+                                                         llvm::StringRef lmul) {
+  llvm::StringRef elementType =
+      getRVVSelectedBodyUnsignedMLIRIntegerElementTypeName(sew);
   if (elementType.empty() || lmul.empty())
     return {};
   return internRVVSelectedBodyDerivedText(
@@ -3495,6 +3549,15 @@ llvm::StringRef getRVVSelectedBodySignedVectorCType(std::int64_t sew,
     return {};
   return internRVVSelectedBodyDerivedText(
       (llvm::Twine("vint") + llvm::Twine(sew) + lmul + "_t").str());
+}
+
+llvm::StringRef getRVVSelectedBodyUnsignedVectorCType(std::int64_t sew,
+                                                      llvm::StringRef lmul) {
+  if (getRVVSelectedBodyUnsignedIntegerElementTypeName(sew).empty() ||
+      lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("vuint") + llvm::Twine(sew) + lmul + "_t").str());
 }
 
 llvm::StringRef getRVVSelectedBodyFloatVectorCType(std::int64_t sew,
@@ -3546,6 +3609,18 @@ llvm::StringRef getRVVSelectedBodyVectorLoadIntrinsic(std::int64_t sew,
           .str());
 }
 
+llvm::StringRef
+getRVVSelectedBodyUnsignedVectorLoadIntrinsic(std::int64_t sew,
+                                              llvm::StringRef lmul) {
+  if (getRVVSelectedBodyUnsignedIntegerElementTypeName(sew).empty() ||
+      lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vle") + llvm::Twine(sew) + "_v_u" +
+       llvm::Twine(sew) + lmul)
+          .str());
+}
+
 llvm::StringRef getRVVSelectedBodyFloatVectorLoadIntrinsic(
     std::int64_t sew, llvm::StringRef lmul) {
   if (getRVVSelectedBodyFloatElementTypeName(sew).empty() || lmul.empty())
@@ -3574,6 +3649,16 @@ llvm::StringRef getRVVSelectedBodyScalarSplatIntrinsic(std::int64_t sew,
       (llvm::Twine("__riscv_vmv_v_x_i") + llvm::Twine(sew) + lmul).str());
 }
 
+llvm::StringRef
+getRVVSelectedBodyUnsignedScalarSplatIntrinsic(std::int64_t sew,
+                                               llvm::StringRef lmul) {
+  if (getRVVSelectedBodyUnsignedIntegerElementTypeName(sew).empty() ||
+      lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vmv_v_x_u") + llvm::Twine(sew) + lmul).str());
+}
+
 llvm::StringRef getRVVSelectedBodyFloatScalarSplatIntrinsic(
     std::int64_t sew, llvm::StringRef lmul) {
   if (getRVVSelectedBodyFloatElementTypeName(sew).empty() || lmul.empty())
@@ -3588,6 +3673,17 @@ llvm::StringRef getRVVSelectedBodyStoreIntrinsic(std::int64_t sew,
     return {};
   return internRVVSelectedBodyDerivedText(
       (llvm::Twine("__riscv_vse") + llvm::Twine(sew) + "_v_i" +
+       llvm::Twine(sew) + lmul)
+          .str());
+}
+
+llvm::StringRef getRVVSelectedBodyUnsignedStoreIntrinsic(std::int64_t sew,
+                                                         llvm::StringRef lmul) {
+  if (getRVVSelectedBodyUnsignedIntegerElementTypeName(sew).empty() ||
+      lmul.empty())
+    return {};
+  return internRVVSelectedBodyDerivedText(
+      (llvm::Twine("__riscv_vse") + llvm::Twine(sew) + "_v_u" +
        llvm::Twine(sew) + lmul)
           .str());
 }
@@ -4986,6 +5082,10 @@ deriveRVVSelectedBodyConfigProfile(
           RVVSelectedBodyOperationKind::DequantClampF32Epilogue ||
       description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  const bool isUnsignedWideningProductResult =
+      description.operation == RVVSelectedBodyOperationKind::WideningProduct &&
+      description.wideningProductRelation ==
+          "unsigned-u8mf4xu8mf4-to-u16mf2";
   const bool isMaskedStorePolicy =
       description.operation ==
       RVVSelectedBodyOperationKind::MaskedUnitStore;
@@ -5057,6 +5157,9 @@ deriveRVVSelectedBodyConfigProfile(
   profile.vectorTypeName =
       isF32ResultClampSelect
           ? getRVVSelectedBodyFloatVectorTypeName(profile.sew, profile.lmul)
+      : isUnsignedWideningProductResult
+          ? getRVVSelectedBodyUnsignedVectorTypeName(profile.sew,
+                                                     profile.lmul)
           : getRVVSelectedBodyVectorTypeName(profile.sew, profile.lmul);
   profile.indexVectorTypeName =
       isF32ResultClampSelect
@@ -5069,6 +5172,8 @@ deriveRVVSelectedBodyConfigProfile(
   profile.vectorCType =
       isF32ResultClampSelect
           ? getRVVSelectedBodyFloatVectorCType(profile.sew, profile.lmul)
+      : isUnsignedWideningProductResult
+          ? getRVVSelectedBodyUnsignedVectorCType(profile.sew, profile.lmul)
           : getRVVSelectedBodySignedVectorCType(profile.sew, profile.lmul);
   profile.indexVectorCType =
       isF32ResultClampSelect
@@ -5076,15 +5181,22 @@ deriveRVVSelectedBodyConfigProfile(
           : getRVVSelectedBodyIndexVectorCType(profile.sew, profile.lmul);
   profile.maskCType = getRVVSelectedBodyMaskCType(profile.sew, profile.lmul);
   profile.scalarCType =
-      isF32ResultClampSelect ? llvm::StringRef("float")
-                             : getRVVSelectedBodySignedScalarCType(profile.sew);
+      isF32ResultClampSelect
+          ? llvm::StringRef("float")
+      : isUnsignedWideningProductResult
+          ? getRVVSelectedBodyUnsignedScalarCType(profile.sew)
+          : getRVVSelectedBodySignedScalarCType(profile.sew);
   profile.constInputPointerCType =
       isF32ResultClampSelect
           ? getRVVSelectedBodyFloatConstInputPointerCType(profile.sew)
+      : isUnsignedWideningProductResult
+          ? getRVVSelectedBodyUnsignedConstInputPointerCType(profile.sew)
           : getRVVSelectedBodyConstInputPointerCType(profile.sew);
   profile.outputPointerCType =
       isF32ResultClampSelect
           ? getRVVSelectedBodyFloatOutputPointerCType(profile.sew)
+      : isUnsignedWideningProductResult
+          ? getRVVSelectedBodyUnsignedOutputPointerCType(profile.sew)
           : getRVVSelectedBodyOutputPointerCType(profile.sew);
   profile.elementByteSize = getRVVSelectedBodyElementByteSize(profile.sew);
   profile.setVLIntrinsic =
@@ -5093,6 +5205,9 @@ deriveRVVSelectedBodyConfigProfile(
       isF32ResultClampSelect
           ? getRVVSelectedBodyFloatVectorLoadIntrinsic(profile.sew,
                                                        profile.lmul)
+      : isUnsignedWideningProductResult
+          ? getRVVSelectedBodyUnsignedVectorLoadIntrinsic(profile.sew,
+                                                          profile.lmul)
           : getRVVSelectedBodyVectorLoadIntrinsic(profile.sew, profile.lmul);
   profile.indexLoadIntrinsic =
       isF32ResultClampSelect
@@ -5118,10 +5233,15 @@ deriveRVVSelectedBodyConfigProfile(
       isF32ResultClampSelect
           ? getRVVSelectedBodyFloatScalarSplatIntrinsic(profile.sew,
                                                         profile.lmul)
+      : isUnsignedWideningProductResult
+          ? getRVVSelectedBodyUnsignedScalarSplatIntrinsic(profile.sew,
+                                                           profile.lmul)
           : getRVVSelectedBodyScalarSplatIntrinsic(profile.sew, profile.lmul);
   profile.storeIntrinsic =
       isF32ResultClampSelect
           ? getRVVSelectedBodyFloatStoreIntrinsic(profile.sew, profile.lmul)
+      : isUnsignedWideningProductResult
+          ? getRVVSelectedBodyUnsignedStoreIntrinsic(profile.sew, profile.lmul)
           : getRVVSelectedBodyStoreIntrinsic(profile.sew, profile.lmul);
   profile.stridedStoreIntrinsic =
       isF32ResultClampSelect
@@ -12540,6 +12660,15 @@ deriveRVVSelectedBodyTypedConfigFacts(
           llvm::Twine(context) +
           " typed config facts require a supported f32 element type for SEW " +
           llvm::Twine(config.sew));
+  } else if (configProfile.vectorTypeName.contains("!tcrv_rvv.vector<u")) {
+    elementTypeNameStorage =
+        getRVVSelectedBodyUnsignedIntegerElementTypeName(config.sew);
+    if (elementTypeNameStorage.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " typed config facts require a supported unsigned integer element "
+          "type for SEW " +
+          llvm::Twine(config.sew));
   } else {
     llvm::Expected<llvm::StringRef> elementTypeName =
         getRVVSelectedBodyElementTypeNameForSEW(config.sew, context);
@@ -12637,6 +12766,10 @@ llvm::Error verifyRVVSelectedBodyTypedConfigFactsMirror(
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
       description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  const bool hasUnsignedWideningProductResultVector =
+      description.operation == RVVSelectedBodyOperationKind::WideningProduct &&
+      description.wideningProductRelation ==
+          "unsigned-u8mf4xu8mf4-to-u16mf2";
 
   if (llvm::Error error = requireText("facts id", facts.factsID))
     return error;
@@ -12663,6 +12796,23 @@ llvm::Error verifyRVVSelectedBodyTypedConfigFactsMirror(
             requireMatch("dequantized result element type",
                          description.elementTypeName,
                          dequantizedResultElementType))
+      return error;
+  } else if (hasUnsignedWideningProductResultVector) {
+    const llvm::StringRef unsignedResultElementType =
+        getRVVSelectedBodyUnsignedIntegerElementTypeName(description.sew);
+    if (facts.elementTypeName != unsignedResultElementType)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " typed config facts element type must mirror the unsigned "
+          "widening-product result element type '" +
+          unsignedResultElementType + "' but was '" + facts.elementTypeName +
+          "' for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) +
+          "', memory_form '" +
+          stringifyRVVSelectedBodyMemoryForm(description.memoryForm) + "'");
+    if (llvm::Error error = requireMatch("unsigned result element type",
+                                         description.elementTypeName,
+                                         unsignedResultElementType))
       return error;
   } else if (llvm::Error error =
                  requireMatch("element type", facts.elementTypeName,
@@ -17225,24 +17375,16 @@ recordRVVSelectedBodyWideningProduct(RVVSelectedBodyRouteSlice &slice,
   if (slice.arithmeticOp)
     return makeRVVEmitCRouteProviderError(
         "bounded RVV EmitC route requires exactly one selected compute op");
-  if (product.getKind() == "unsigned_widening_product" ||
-      product.getProductRelation() == "unsigned-u8mf4xu8mf4-to-u16mf2")
-    return makeRVVEmitCRouteProviderError(
-        "low-precision unsigned u8 widening-product typed primitive is "
-        "verifier-legal but not route-supported: RVV provider is missing "
-        "the unsigned widening product intrinsic fact "
-        "'__riscv_vwmulu_vv_u16mf2' and matching target type/header mirror "
-        "validation before TCRVEmitCLowerableRoute construction");
-  if (product.getKind() != "signed_widening_product")
+  const bool isUnsignedProduct =
+      product.getKind() == "unsigned_widening_product" &&
+      product.getProductRelation() == "unsigned-u8mf4xu8mf4-to-u16mf2";
+  const bool isSignedProduct =
+      product.getKind() == "signed_widening_product" &&
+      product.getProductRelation() == "signed-i8mf4xi8mf4-to-i16mf2";
+  if (!isSignedProduct && !isUnsignedProduct)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine("unsupported generic tcrv_rvv.widening_product kind '") +
         product.getKind() +
-        "' for bounded RVV low-precision widening-product route");
-  if (product.getProductRelation() != "signed-i8mf4xi8mf4-to-i16mf2")
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine("unsupported generic tcrv_rvv.widening_product "
-                    "product_relation '") +
-        product.getProductRelation() +
         "' for bounded RVV low-precision widening-product route");
   slice.wideningProductOp = product;
   slice.arithmeticOp = product.getOperation();
@@ -35282,55 +35424,61 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
             "widening_product requires a low-precision widening-product "
             "contraction plan before binding math operands"))
       return std::move(error);
-    facts.bindsWideningProduct = true;
-    if (llvm::Error error =
-            bindOperand(facts.lhsABI, "lhs", "src-load",
-                        "widening_product lhs i8 source load operand"))
-      return std::move(error);
-    if (llvm::Error error =
-            requireOperandUse("lhs", "wprod-lhs",
-                              "widening_product lhs i8 source compute operand"))
-      return std::move(error);
-    if (llvm::Error error =
-            requireOperandUse("lhs", "src-i8mf4",
-                              "widening_product lhs source width mirror"))
-      return std::move(error);
-    if (llvm::Error error =
-            requireOperandUse("lhs", "hdr",
-                              "widening_product lhs header mirror"))
-      return std::move(error);
-    if (llvm::Error error =
-            bindOperand(facts.rhsABI, "rhs", "src-load",
-                        "widening_product rhs i8 source load operand"))
-      return std::move(error);
-    if (llvm::Error error =
-            requireOperandUse("rhs", "wprod-rhs",
-                              "widening_product rhs i8 source compute operand"))
-      return std::move(error);
-    if (llvm::Error error =
-            requireOperandUse("rhs", "src-i8mf4",
-                              "widening_product rhs source width mirror"))
-      return std::move(error);
-    if (llvm::Error error =
-            requireOperandUse("rhs", "hdr",
-                              "widening_product rhs header mirror"))
-      return std::move(error);
-    if (llvm::Error error =
-            bindOperand(facts.outABI, "out", "res-store",
-                        "widening_product i16 result store operand"))
-      return std::move(error);
-    if (llvm::Error error =
-            requireOperandUse("out", "res-i16mf2",
-                              "widening_product result width mirror"))
-      return std::move(error);
-    if (llvm::Error error =
-            requireOperandUse("out", "hdr",
-                              "widening_product result header mirror"))
-      return std::move(error);
-    if (llvm::Error error =
-            bindRuntimeCount("loop", "hdr", "widening_product"))
-      return std::move(error);
-    return facts;
+    {
+      const bool isUnsignedWideningProduct =
+          analysis.description.wideningProductRelation ==
+          "unsigned-u8mf4xu8mf4-to-u16mf2";
+      const llvm::StringRef sourceWidthUse =
+          isUnsignedWideningProduct ? "src-u8mf4" : "src-i8mf4";
+      const llvm::StringRef resultWidthUse =
+          isUnsignedWideningProduct ? "res-u16mf2" : "res-i16mf2";
+      facts.bindsWideningProduct = true;
+      if (llvm::Error error =
+              bindOperand(facts.lhsABI, "lhs", "src-load",
+                          "widening_product lhs i8 source load operand"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "wprod-lhs",
+              "widening_product lhs i8 source compute operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("lhs", sourceWidthUse,
+                                "widening_product lhs source width mirror"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "lhs", "hdr", "widening_product lhs header mirror"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.rhsABI, "rhs", "src-load",
+                          "widening_product rhs i8 source load operand"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "wprod-rhs",
+              "widening_product rhs i8 source compute operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("rhs", sourceWidthUse,
+                                "widening_product rhs source width mirror"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "rhs", "hdr", "widening_product rhs header mirror"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindOperand(facts.outABI, "out", "res-store",
+                          "widening_product i16 result store operand"))
+        return std::move(error);
+      if (llvm::Error error =
+              requireOperandUse("out", resultWidthUse,
+                                "widening_product result width mirror"))
+        return std::move(error);
+      if (llvm::Error error = requireOperandUse(
+              "out", "hdr", "widening_product result header mirror"))
+        return std::move(error);
+      if (llvm::Error error =
+              bindRuntimeCount("loop", "hdr", "widening_product"))
+        return std::move(error);
+      return facts;
+    }
 
   case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
     if (llvm::Error error = requireFamilyPlan(
@@ -37038,6 +37186,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
   analysis.slice = std::move(*slice);
   analysis.description.operation = analysis.slice.arithmeticKind;
   analysis.description.memoryForm = analysis.slice.memoryForm;
+  if (analysis.slice.wideningProductOp)
+    analysis.description.wideningProductRelation =
+        analysis.slice.wideningProductOp.getProductRelation();
   if ((analysis.slice.arithmeticKind == RVVSelectedBodyOperationKind::CmpSelect ||
       analysis.slice.arithmeticKind ==
           RVVSelectedBodyOperationKind::ComputedMaskSelect ||
@@ -38953,6 +39104,18 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           llvm::Twine(context) +
           " f32 clamp/select route requires a supported f32 element type for SEW " +
           llvm::Twine(description.sew));
+  } else if (description.operation ==
+                 RVVSelectedBodyOperationKind::WideningProduct &&
+             description.wideningProductRelation ==
+                 "unsigned-u8mf4xu8mf4-to-u16mf2") {
+    expectedElementTypeStorage =
+        getRVVSelectedBodyUnsignedIntegerElementTypeName(description.sew);
+    if (expectedElementTypeStorage.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " unsigned widening-product route requires a supported unsigned "
+          "integer element type for SEW " +
+          llvm::Twine(description.sew));
   } else {
     llvm::Expected<llvm::StringRef> expectedElementType =
         getRVVSelectedBodyElementTypeNameForSEW(description.sew, context);
@@ -40052,6 +40215,10 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   }
   llvm::StringRef expectedOperandBindingPlanID =
       getExpectedRVVRouteOperandBindingPlanID(operationProfile.operation);
+  if (std::optional<RVVWideningProductRouteFacts> wideningProductFacts =
+          getRVVWideningProductRouteFacts(description))
+    expectedOperandBindingPlanID =
+        wideningProductFacts->routeOperandBindingPlanID;
   if (!expectedOperandBindingPlanID.empty()) {
     if (llvm::Error error = requireRouteDescriptionField(
             context, "route operand ABI binding plan",

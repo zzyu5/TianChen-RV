@@ -2392,6 +2392,10 @@ struct RVVWideningProductRouteFacts {
 std::optional<RVVWideningProductRouteFacts>
 getRVVWideningProductRouteFacts(RVVSelectedBodyOperationKind operation);
 
+std::optional<RVVWideningProductRouteFacts>
+getRVVWideningProductRouteFacts(
+    const RVVSelectedBodyEmitCRouteDescription &description);
+
 struct RVVWideningProductRouteTypeMappingContract {
   std::string sourceType;
   std::string cType;

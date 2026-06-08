@@ -5755,8 +5755,15 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
           wideningProductParameters =
               tcrv::rvv::
                   getRVVSelectedBodyWideningProductRuntimeABIParameters();
-      acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
-          facts.runtimeABIParameters, wideningProductParameters);
+      llvm::SmallVector<support::RuntimeABIParameter, 4>
+          unsignedWideningProductParameters =
+              tcrv::rvv::
+                  getRVVSelectedBodyUnsignedWideningProductRuntimeABIParameters();
+      acceptsTypedI64Parameters =
+          support::runtimeABIParametersEqual(facts.runtimeABIParameters,
+                                             wideningProductParameters) ||
+          support::runtimeABIParametersEqual(facts.runtimeABIParameters,
+                                             unsignedWideningProductParameters);
     }
     if (!acceptsTypedI64Parameters)
       return makeRVVConstructionError(

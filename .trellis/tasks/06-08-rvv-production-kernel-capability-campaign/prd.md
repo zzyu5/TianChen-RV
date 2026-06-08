@@ -10,8 +10,11 @@ production behavior is claimed, and measured same-target comparison for
 production-like RVV kernels.
 
 This task remains open across rounds until the campaign gates below are met.
-This round continues Gate 2 with the unsigned low-precision primitive boundary
-and a bounded widening-reduction/`vwredsum` accumulator-result validation slice.
+This round continues Gate 2 with accepted unsigned u8 widening-product
+provider/target facts, moving the already verifier-legal unsigned body from the
+provider fail-closed boundary to route-supported only through typed RVV
+body/config facts, provider-owned intrinsic/type facts, exact target mirrors,
+and neutral EmitC materialization.
 
 ## Direction Brief Source
 
@@ -37,6 +40,20 @@ The second slice must keep this macro task active, make the unsigned u8
 widening-product boundary explicit in the production provider/target contract,
 and deepen product-reduction/`vwredsum` accumulator/result validation facts
 without introducing q8/q4 route authority or metadata-derived semantics.
+
+Hermes now continues the same macro task with:
+
+```text
+RVV production-kernel capability campaign: Gate 2 accepted unsigned u8
+widening-product provider/target facts
+```
+
+This continuation must keep the macro task active and implement the bounded
+unsigned route-supported path if production facts are complete: unsigned vector
+C type/header mapping, unsigned u8/u16 load/store leaves, `vwmulu.vv` /
+`__riscv_vwmulu_vv_u16mf2` intrinsic mapping, provider route-description
+facts, target mirror validation, and focused fail-closed tests for stale or
+missing mirrors.
 
 ## What I Already Know
 
@@ -82,23 +99,22 @@ without introducing q8/q4 route authority or metadata-derived semantics.
 
 ## Current Round Milestone
 
-Continue Gate 2 by adding or repairing the smallest production compiler
-submodule that lets RVV represent and validate the unsigned u8 low-precision
-widening-product boundary from typed `tcrv_rvv` body/config facts, while
-keeping signed i8 product and product-reduction facts provider-owned.
+Continue Gate 2 by adding the smallest production compiler submodule that lets
+RVV route-support the unsigned u8 low-precision widening-product primitive from
+typed `tcrv_rvv` body/config facts, while keeping signed i8 product and
+product-reduction facts provider-owned.
 
-The preferred second slice is:
+The preferred continuation slice is:
 
-- Move the unsigned u8 widening-product boundary out of dialect-only rejection
-  when possible, so verifier-legal typed u8 bodies reach the RVV provider and
-  fail at the provider-owned primitive contract if production support is still
-  missing.
-- Accept unsigned u8 only if the typed IR, provider intrinsic mapping,
-  EmitC/materialization payload, and target validation can all support it
-  without q8/u8 route-name authority.
-- Otherwise reject unsigned u8 fail-closed at the provider or target boundary
-  with a targeted diagnostic naming the missing unsigned widening-product
-  provider/target intrinsic fact.
+- Move verifier-legal unsigned u8 widening-product bodies past the previous
+  provider fail-closed boundary only when the RVV provider derives unsigned
+  primitive facts from the typed body/config/runtime facts.
+- Accept unsigned u8 only through provider-owned unsigned source/product/result
+  facts: `ui8`, `ui16`, `vuint8mf4_t`, `vuint16mf2_t`, unsigned load/store
+  leaves, `__riscv_vwmulu_vv_u16mf2`, and exact target type/header mirrors.
+- Keep target artifact metadata as mirror-only output from the provider-owned
+  route description; stale unsigned intrinsic/type/header/primitive mirrors
+  must fail before artifact acceptance.
 - Keep signed i8 widening-product and product-reduction facts accepted only
   through the low-precision primitive contract derived from typed
   source/product/accumulator/result facts.
@@ -136,29 +152,65 @@ record the exact next continuation point.
 
 - [x] A production source diff lands in the RVV dialect/plugin/provider/target
       validation path, not only task/report/test evidence.
-- [x] The unsigned u8 widening-product boundary is explicit in the same
-      provider-owned low-precision primitive contract: either accepted through
-      typed provider/EmitC/target support, or rejected fail-closed at the
-      provider/target boundary with a diagnostic naming the missing unsigned
-      widening-product intrinsic/target fact.
+- [x] The unsigned u8 widening-product boundary is accepted through the same
+      provider-owned low-precision primitive contract, with unsigned typed
+      source/product/result facts, unsigned RVV vector C types, unsigned
+      load/store leaves, `__riscv_vwmulu_vv_u16mf2`, and exact target mirrors.
 - [x] Signed i8 widening-product and product-reduction facts remain accepted
       only when typed source/product/accumulator/result facts agree.
-- [x] Widening-reduction/`vwredsum` accumulator/result facts are validated as
+- [x] Widening-reduction/`vwredsum` accumulator/result facts remain validated as
       typed primitive facts where this slice touches the route family; otherwise
       the exact next continuation point is recorded.
 - [x] Focused lit/C++ tests prove accepted signed i8 remains typed-fact gated
-      and unsigned u8 takes the truthful accepted or fail-closed path.
-- [x] Target artifact validation coverage rejects stale/missing primitive
-      source/product/accumulator/result or widening-reduction mirrors where
+      and unsigned u8 takes the accepted provider/target mirror path.
+- [x] Target artifact validation coverage rejects stale/missing unsigned
+      primitive source/product/result, intrinsic, type, or header mirrors where
       touched.
 - [x] A bounded old-authority scan over changed/added lines shows no new
       positive `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`,
       `!tcrv_rvv.i32m*`, descriptor, source-front-door, route-id, or artifact
       authority.
-- [x] `git diff --check` and `git diff --cached --check` pass.
-- [x] The worktree is clean after a coherent commit.
+- [x] `git diff --check` and `git diff --cached --check` pass for this coherent
+      slice.
+- [x] The slice is committed coherently and final worktree status is verified
+      clean in the round report.
 
 ## Current Round Result
+
+Completed the Gate 2 accepted unsigned u8 widening-product provider/target
+facts slice while keeping the macro campaign open:
+
+- Removed the previous provider fail-closed boundary for the bounded unsigned
+  u8 widening-product body. The accepted path is still typed-fact gated:
+  `!tcrv_rvv.vector<ui8, "mf4">` sources, `!tcrv_rvv.vector<ui16, "mf2">`
+  result, relation `unsigned-u8mf4xu8mf4-to-u16mf2`, and runtime ABI roles
+  `const uint8_t *` / `uint16_t *`.
+- Added provider-owned unsigned route facts for the standalone
+  widening-product primitive: `u8` source dtype, `u16` product/result dtype,
+  `vuint8mf4_t` / `vuint16mf2_t`, `__riscv_vle8_v_u8mf4`,
+  `__riscv_vwmulu_vv_u16mf2`, `__riscv_vse16_v_u16mf2`,
+  `rvv-route-operand-binding:widening_product_u8_u16.v1`, unsigned C type
+  mapping, and target leaf profile
+  `rvv-v1-u8mf4-u16mf2-contraction-leaf-profile.v1`.
+- Threaded the unsigned facts through route planning, contraction
+  route-family plan validation, runtime ABI/config construction contracts,
+  `TCRVEmitCLowerableRoute`, common EmitC materialization, emission-plan
+  metadata, and target artifact mirror validation.
+- Added accepted conversion coverage proving the common EmitC materializer
+  emits unsigned RVV load/product/store intrinsics from provider facts, and
+  target artifact coverage proving stale unsigned intrinsic, primitive dtype,
+  and C type mapping mirrors fail before header acceptance.
+- Preserved signed i8 widening-product and product-reduction coverage through
+  the existing typed low-precision primitive facts and the focused
+  widening/product-reduction lit matrix.
+
+This round does not claim runtime correctness/performance, so no `ssh rvv`
+evidence was required. Gate 2 has advanced to accepted unsigned product facts,
+but the macro campaign is not complete: Gearbox/resource-aware selected-body
+realization, executable/runtime evidence for newly claimed behavior, and
+measured same-target comparison remain open.
+
+## Previous Round Result
 
 Completed the Gate 2 second slice while keeping the macro campaign open:
 

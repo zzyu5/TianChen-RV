@@ -1134,3 +1134,67 @@ the materializer is ready: unsigned vector C type mapping, u8/u16 load-store
 leaves, `vwmulu.vv` intrinsic mapping, and target mirror support. Then continue
 Gearbox-consumable primitive/resource facts for product, accumulator, and
 result validation.
+
+
+## Session 567: RVV accepted unsigned u8 widening-product provider/target facts
+
+**Date**: 2026-06-08
+**Task**: RVV production-kernel capability campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro campaign Gate 2 accepted unsigned u8 slice. Moved
+the verifier-legal unsigned u8 widening-product body from provider
+fail-closed to route-supported through typed RVV body/config facts,
+provider-owned unsigned intrinsic/type facts, common EmitC materialization,
+and target artifact mirror validation.
+
+### Main Changes
+
+- Removed the provider fail-closed boundary for bounded
+  `unsigned_widening_product` on
+  `!tcrv_rvv.vector<ui8, "mf4"> -> !tcrv_rvv.vector<ui16, "mf2">`.
+- Added relation-aware unsigned route facts for `u8/u16`, `vuint8mf4_t`,
+  `vuint16mf2_t`, `__riscv_vle8_v_u8mf4`,
+  `__riscv_vwmulu_vv_u16mf2`, `__riscv_vse16_v_u16mf2`, unsigned C type
+  mapping, unsigned target leaf profile, and
+  `rvv-route-operand-binding:widening_product_u8_u16.v1`.
+- Threaded unsigned facts through route planning, contraction route-family
+  validation, runtime ABI/config construction contracts,
+  `TCRVEmitCLowerableRoute`, and target artifact mirror validation.
+- Replaced the previous unsigned u8 fail-closed conversion fixture with an
+  accepted conversion fixture that checks provider facts and emitted unsigned
+  RVV intrinsics.
+- Added target artifact coverage for accepted unsigned header export and stale
+  unsigned intrinsic/source-dtype/C-type mirror rejection.
+
+### Git Commits
+
+- Pending final commit in this session.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+  - Existing `TargetArtifactExportTest.cpp` switch-coverage warnings were
+    observed during compilation; the build linked successfully.
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'generic-widening-product-dataflow|rvv-generic-stage2-widening-product-unsigned-u8|explicit-selected-body-artifact-widening-product(\.mlir|$)|explicit-selected-body-artifact-widening-product-unsigned-u8|explicit-selected-body-artifact-widening-product-reduce-add'` from `build/test`: 5/5 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'widening-product|product-reduction|generic-widening-product'` from `build/test`: 13/13 passed
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `git diff --check`
+- [OK] bounded added-line old-authority scan
+
+### Status
+
+[OPEN] Macro task remains active. Gate 2 accepted unsigned u8
+widening-product provider/target facts slice is complete; Gates 1, 3, and 4
+remain open.
+
+### Next Steps
+
+Continue the production-kernel capability campaign with Gate 1
+Gearbox/resource-aware selected-body realization and the remaining
+Gearbox-consumable product/accumulator/result primitive-resource facts. Gate 3
+runtime evidence should only be collected when a newly executable unsigned
+path is explicitly claimed.
