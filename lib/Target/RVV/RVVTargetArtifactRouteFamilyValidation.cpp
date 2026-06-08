@@ -3500,6 +3500,131 @@ llvm::Error requireRVVWideningDotContractIntField(
                                  llvm::Twine(actual));
 }
 
+llvm::Error validateRVVLowPrecisionWideningReductionPrimitiveProviderFacts(
+    const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
+    const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
+  const plugin::rvv::RVVLowPrecisionWideningReductionPrimitiveFacts
+      &primitive = contract.lowPrecisionWideningReductionPrimitiveFacts;
+  if (!primitive.hasFacts)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned low-precision widening-reduction primitive "
+        "facts before artifact export");
+  if (primitive.contractID.empty() || primitive.kind.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires non-empty low-precision widening-reduction primitive "
+        "contract and kind before artifact export");
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive source dtype",
+          description.lowPrecisionPrimitiveSourceElementTypeName,
+          primitive.sourceElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive product dtype",
+          description.lowPrecisionPrimitiveProductElementTypeName,
+          primitive.productElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive accumulator dtype",
+          description.lowPrecisionPrimitiveAccumulatorElementTypeName,
+          primitive.accumulatorElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive final result dtype",
+          description.lowPrecisionPrimitiveResultElementTypeName,
+          primitive.finalResultElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive source SEW",
+          description.sourceSEW, primitive.sourceSEW))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive source LMUL",
+          description.sourceLMUL, primitive.sourceLMUL))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive product SEW",
+          description.productSEW, primitive.productSEW))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive product LMUL",
+          description.productLMUL, primitive.productLMUL))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive accumulator SEW",
+          description.sew, primitive.accumulatorSEW))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive accumulator LMUL",
+          description.lmul, primitive.accumulatorLMUL))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive result SEW",
+          description.sew, primitive.reductionResultSEW))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive result LMUL",
+          description.lmul, primitive.reductionResultLMUL))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive product relation",
+          description.wideningProductRelation,
+          primitive.wideningProductRelation))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive reduction relation",
+          description.productReductionChainRelation,
+          primitive.productReductionChainRelation))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive product intrinsic",
+          description.wideningProductIntrinsic,
+          primitive.wideningProductIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive reduction intrinsic",
+          description.intrinsic, primitive.reductionIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive scalar seed splat",
+          description.scalarSeedSplatIntrinsic,
+          primitive.scalarSeedSplatIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive accumulator layout",
+          description.reductionAccumulatorLayout,
+          primitive.accumulatorLayout))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive result layout",
+          description.reductionResultLayout, primitive.resultLayout))
+    return error;
+  return requireRVVWideningDotContractStringField(
+      contract.consumerLabel,
+      "low-precision widening-reduction primitive store VL",
+      description.reductionStoreVL, primitive.reductionStoreVL);
+}
+
 llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
@@ -3699,6 +3824,10 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
             isProductReductionDequantization
                 ? kRVVProductReductionDequantLocalCarryBoundary
                 : kRVVProductReductionOutCarryBoundary))
+      return error;
+    if (llvm::Error error =
+            validateRVVLowPrecisionWideningReductionPrimitiveProviderFacts(
+                description, contract))
       return error;
   } else {
     if (llvm::Error error = requireRVVWideningDotContractStringField(
@@ -4811,6 +4940,115 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
       selection.rejectionReason, "rejection reason");
 }
 
+llvm::Error validateRVVLowPrecisionWideningReductionPrimitiveCandidateMirrors(
+    const TargetArtifactCandidate &candidate,
+    const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
+  const plugin::rvv::RVVLowPrecisionWideningReductionPrimitiveFacts
+      &primitive = contract.lowPrecisionWideningReductionPrimitiveFacts;
+  if (!primitive.hasFacts)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned low-precision widening-reduction primitive "
+        "facts before validating artifact mirrors");
+
+  auto requirePrimitiveMirror =
+      [&](llvm::StringRef key, llvm::StringRef expected,
+          llvm::StringRef label) -> llvm::Error {
+    std::string fullLabel =
+        (llvm::Twine("selected typed RVV product-reduction low-precision "
+                     "widening-reduction primitive ")
+             + label)
+            .str();
+    return requireCandidateMetadataMirror(candidate, key, expected, fullLabel);
+  };
+
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.low_precision_primitive.contract",
+          primitive.lowPrecisionPrimitiveContractID, "contract"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.low_precision_primitive.kind",
+          primitive.lowPrecisionPrimitiveKind, "kind"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.low_precision_primitive.source_dtype",
+          primitive.sourceElementTypeName, "source dtype"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.low_precision_primitive.product_dtype",
+          primitive.productElementTypeName, "product dtype"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.low_precision_primitive.accumulator_dtype",
+          primitive.accumulatorElementTypeName, "accumulator dtype"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.low_precision_primitive.result_dtype",
+          primitive.finalResultElementTypeName, "final result dtype"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.source_sew", llvm::Twine(primitive.sourceSEW).str(),
+          "source SEW"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.source_lmul", primitive.sourceLMUL, "source LMUL"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.product_sew", llvm::Twine(primitive.productSEW).str(),
+          "product SEW"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.product_lmul", primitive.productLMUL, "product LMUL"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.accumulator_sew",
+          llvm::Twine(primitive.accumulatorSEW).str(), "accumulator SEW"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.accumulator_lmul", primitive.accumulatorLMUL,
+          "accumulator LMUL"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.result_sew",
+          llvm::Twine(primitive.reductionResultSEW).str(), "result SEW"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.result_lmul", primitive.reductionResultLMUL,
+          "result LMUL"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.widening_product_relation",
+          primitive.wideningProductRelation, "widening product relation"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.product_reduction_chain_relation",
+          primitive.productReductionChainRelation,
+          "product-reduction relation"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.widening_product_intrinsic",
+          primitive.wideningProductIntrinsic, "widening product intrinsic"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.widening_reduction_intrinsic",
+          primitive.reductionIntrinsic, "widening reduction intrinsic"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.scalar_seed_splat_intrinsic",
+          primitive.scalarSeedSplatIntrinsic, "scalar seed splat intrinsic"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.reduction_accumulator_layout",
+          primitive.accumulatorLayout, "accumulator layout"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.reduction_result_layout", primitive.resultLayout,
+          "result layout"))
+    return error;
+  return requirePrimitiveMirror("tcrv_rvv.reduction_store_vl",
+                                primitive.reductionStoreVL, "store VL");
+}
+
 llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
     const RVVTargetArtifactRouteFamilyValidationContext &context) {
   const TargetArtifactCandidate &candidate = context.candidate;
@@ -4942,6 +5180,10 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
             candidate, contract->lowPrecisionResourceSelection))
       return error;
   if (isProductReductionChain) {
+    if (llvm::Error error =
+            validateRVVLowPrecisionWideningReductionPrimitiveCandidateMirrors(
+                candidate, *contract))
+      return error;
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.reduction_accumulator_layout",
             contract->wideningDotProductAccumulatorLayout,

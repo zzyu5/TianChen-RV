@@ -75,6 +75,9 @@ constexpr llvm::StringLiteral kRVVContractionRequiredHeaderDeclarations(
     "stddef.h,stdint.h,riscv_vector.h");
 constexpr llvm::StringLiteral kRVVLowPrecisionPrimitiveContractID(
     "rvv-low-precision-widening-primitive-facts.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionWideningReductionPrimitiveContractID(
+        "rvv-low-precision-widening-reduction-primitive-facts.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionPrimitiveSignedProductKind(
     "signed-i8mf4xi8mf4-to-i16mf2-widening-product.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionPrimitiveUnsignedProductKind(
@@ -90,6 +93,9 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionPrimitiveSignedProductReductionDequantClampKind(
         "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-"
         "dequant-clamp.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionWideningReductionPrimitiveKind(
+        "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1");
 constexpr llvm::StringLiteral
     kRVVContractionMaskedInactiveLaneZeroingRequirement(
         "masked-widening-products-zero-inactive-lanes-before-reduction");
@@ -1460,6 +1466,98 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
           "product-reduction relation",
           description.productReductionChainRelation,
           wideningDotFacts->productReductionChainRelation);
+      const RVVLowPrecisionWideningReductionPrimitiveFacts &primitiveFacts =
+          wideningDotFacts->lowPrecisionWideningReductionPrimitiveFacts;
+      if (!primitiveFacts.hasFacts)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) + " " + familyName +
+            " product-reduction provider requires low-precision "
+            "widening-reduction primitive facts before route construction");
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision widening-reduction primitive contract",
+          primitiveFacts.contractID,
+          kRVVLowPrecisionWideningReductionPrimitiveContractID);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision widening-reduction primitive kind",
+          primitiveFacts.kind,
+          kRVVLowPrecisionWideningReductionPrimitiveKind);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive contract",
+          description.lowPrecisionPrimitiveContractID,
+          primitiveFacts.lowPrecisionPrimitiveContractID);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive kind",
+          description.lowPrecisionPrimitiveKind,
+          primitiveFacts.lowPrecisionPrimitiveKind);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive source dtype",
+          description.lowPrecisionPrimitiveSourceElementTypeName,
+          primitiveFacts.sourceElementTypeName);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive product dtype",
+          description.lowPrecisionPrimitiveProductElementTypeName,
+          primitiveFacts.productElementTypeName);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive accumulator dtype",
+          description.lowPrecisionPrimitiveAccumulatorElementTypeName,
+          primitiveFacts.accumulatorElementTypeName);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive final result dtype",
+          description.lowPrecisionPrimitiveResultElementTypeName,
+          primitiveFacts.finalResultElementTypeName);
+      TCRV_REQUIRE_WIDENING_DOT_INTEGER_FACT(
+          "low-precision primitive source SEW", description.sourceSEW,
+          primitiveFacts.sourceSEW);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive source LMUL", description.sourceLMUL,
+          primitiveFacts.sourceLMUL);
+      TCRV_REQUIRE_WIDENING_DOT_INTEGER_FACT(
+          "low-precision primitive product SEW", description.productSEW,
+          primitiveFacts.productSEW);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive product LMUL", description.productLMUL,
+          primitiveFacts.productLMUL);
+      TCRV_REQUIRE_WIDENING_DOT_INTEGER_FACT(
+          "low-precision primitive accumulator SEW", description.sew,
+          primitiveFacts.accumulatorSEW);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive accumulator LMUL", description.lmul,
+          primitiveFacts.accumulatorLMUL);
+      TCRV_REQUIRE_WIDENING_DOT_INTEGER_FACT(
+          "low-precision primitive reduction result SEW", description.sew,
+          primitiveFacts.reductionResultSEW);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive reduction result LMUL", description.lmul,
+          primitiveFacts.reductionResultLMUL);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive product relation",
+          description.wideningProductRelation,
+          primitiveFacts.wideningProductRelation);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive product-reduction relation",
+          description.productReductionChainRelation,
+          primitiveFacts.productReductionChainRelation);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive widening product intrinsic",
+          description.wideningProductIntrinsic,
+          primitiveFacts.wideningProductIntrinsic);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive widening reduction intrinsic",
+          description.intrinsic, primitiveFacts.reductionIntrinsic);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive scalar seed splat intrinsic",
+          description.scalarSeedSplatIntrinsic,
+          primitiveFacts.scalarSeedSplatIntrinsic);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive accumulator layout",
+          description.reductionAccumulatorLayout,
+          primitiveFacts.accumulatorLayout);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive result layout",
+          description.reductionResultLayout, primitiveFacts.resultLayout);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive reduction store VL",
+          description.reductionStoreVL, primitiveFacts.reductionStoreVL);
     } else {
       TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
           "widening dot accumulator layout",
@@ -2100,6 +2198,109 @@ getRVVWideningMAccRouteFacts(RVVSelectedBodyOperationKind operation) {
   return facts;
 }
 
+std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
+getRVVLowPrecisionWideningReductionPrimitiveFacts(
+    RVVSelectedBodyOperationKind operation) {
+  const bool isProductReductionDequantClamp =
+      operation ==
+      RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  const bool isProductReductionDequantization =
+      operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+      isProductReductionDequantClamp;
+  const bool isProductReductionChain =
+      operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
+      isProductReductionDequantization;
+  if (!isProductReductionChain)
+    return std::nullopt;
+
+  constexpr std::int64_t kSourceSEW = 8;
+  constexpr llvm::StringLiteral kSourceLMUL("mf4");
+  constexpr std::int64_t kProductSEW = 16;
+  constexpr llvm::StringLiteral kProductLMUL("mf2");
+  constexpr std::int64_t kAccumulatorSEW = 32;
+  constexpr llvm::StringLiteral kAccumulatorLMUL("m1");
+
+  const llvm::StringRef productRelation = getContractionWideningProductRelation(
+      kSourceSEW, kSourceLMUL, kProductSEW, kProductLMUL);
+  const llvm::StringRef chainRelation =
+      getContractionProductReductionChainRelation(
+          kSourceSEW, kSourceLMUL, kProductSEW, kProductLMUL, kAccumulatorSEW,
+          kAccumulatorLMUL);
+
+  RVVLowPrecisionWideningReductionPrimitiveFacts facts;
+  facts.hasFacts = true;
+  facts.contractID = kRVVLowPrecisionWideningReductionPrimitiveContractID.str();
+  facts.lowPrecisionPrimitiveContractID =
+      kRVVLowPrecisionPrimitiveContractID.str();
+  facts.lowPrecisionPrimitiveKind =
+      (isProductReductionDequantClamp
+           ? llvm::StringRef(
+                 kRVVLowPrecisionPrimitiveSignedProductReductionDequantClampKind)
+       : isProductReductionDequantization
+           ? llvm::StringRef(
+                 kRVVLowPrecisionPrimitiveSignedProductReductionDequantKind)
+           : llvm::StringRef(
+                 kRVVLowPrecisionPrimitiveSignedProductReductionKind))
+          .str();
+  facts.kind = kRVVLowPrecisionWideningReductionPrimitiveKind.str();
+
+  facts.sourceElementTypeName =
+      getContractionIntegerElementTypeName(kSourceSEW).str();
+  facts.sourceSEW = kSourceSEW;
+  facts.sourceLMUL = kSourceLMUL.str();
+  facts.sourceVectorTypeName =
+      getContractionVectorTypeName(kSourceSEW, kSourceLMUL).str();
+  facts.sourceVectorCType =
+      getContractionSignedVectorCType(kSourceSEW, kSourceLMUL).str();
+
+  facts.productElementTypeName =
+      getContractionIntegerElementTypeName(kProductSEW).str();
+  facts.productSEW = kProductSEW;
+  facts.productLMUL = kProductLMUL.str();
+  facts.productVectorTypeName =
+      getContractionVectorTypeName(kProductSEW, kProductLMUL).str();
+  facts.productVectorCType =
+      getContractionSignedVectorCType(kProductSEW, kProductLMUL).str();
+
+  facts.accumulatorElementTypeName =
+      getContractionIntegerElementTypeName(kAccumulatorSEW).str();
+  facts.accumulatorSEW = kAccumulatorSEW;
+  facts.accumulatorLMUL = kAccumulatorLMUL.str();
+  facts.accumulatorVectorTypeName =
+      getContractionVectorTypeName(kAccumulatorSEW, kAccumulatorLMUL).str();
+  facts.accumulatorVectorCType =
+      getContractionSignedVectorCType(kAccumulatorSEW, kAccumulatorLMUL).str();
+
+  facts.reductionResultElementTypeName = facts.accumulatorElementTypeName;
+  facts.reductionResultSEW = kAccumulatorSEW;
+  facts.reductionResultLMUL = kAccumulatorLMUL.str();
+  facts.finalResultElementTypeName =
+      isProductReductionDequantization
+          ? getContractionFloatElementTypeName(kAccumulatorSEW).str()
+          : facts.reductionResultElementTypeName;
+
+  facts.wideningProductRelation = productRelation.str();
+  facts.productReductionChainRelation = chainRelation.str();
+  facts.wideningProductIntrinsic =
+      getContractionWideningProductIntrinsic(
+          kSourceSEW, kSourceLMUL, kProductSEW, kProductLMUL, productRelation)
+          .str();
+  facts.reductionIntrinsic =
+      getContractionWideningReductionIntrinsic(
+          kProductSEW, kProductLMUL, kAccumulatorSEW, kAccumulatorLMUL,
+          chainRelation)
+          .str();
+  facts.scalarSeedSplatIntrinsic =
+      getContractionScalarSeedSplatIntrinsic(kAccumulatorSEW,
+                                             kAccumulatorLMUL)
+          .str();
+  facts.accumulatorLayout = kRVVWideningDotProductAccumulatorLayout.str();
+  facts.resultLayout = kRVVProductReductionResultLayout.str();
+  facts.reductionStoreVL = kRVVWideningDotProductStoreVL.str();
+  return facts;
+}
+
 std::optional<RVVWideningDotReduceRouteFacts>
 getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
   if (!isContractionDotReductionOperation(operation))
@@ -2147,6 +2348,15 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
 
   RVVWideningDotReduceRouteFacts facts;
   facts.operation = operation;
+  if (isProductReductionChain) {
+    std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
+        primitiveFacts =
+            getRVVLowPrecisionWideningReductionPrimitiveFacts(operation);
+    if (!primitiveFacts)
+      return std::nullopt;
+    facts.lowPrecisionWideningReductionPrimitiveFacts =
+        std::move(*primitiveFacts);
+  }
   if (isProductReductionDequantClamp) {
     facts.memoryForm =
         RVVSelectedBodyMemoryForm::
@@ -2777,6 +2987,8 @@ static void populateRVVWideningDotValidationContract(
                                        core.runtimeABIParameters.end());
   contract.lowPrecisionResourceSelection =
       description.lowPrecisionResourceSelection;
+  contract.lowPrecisionWideningReductionPrimitiveFacts =
+      facts.lowPrecisionWideningReductionPrimitiveFacts;
   populateRVVWideningDotDynamicDescriptionPayload(contract, description);
   if (std::optional<RVVRuntimeAVLVLSelectedBoundaryContract> runtimeContract =
           getRVVRuntimeAVLVLSelectedBoundaryContract(

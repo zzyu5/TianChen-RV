@@ -2697,6 +2697,50 @@ std::optional<RVVMAccRouteValidationContract>
 getRVVMAccRouteValidationContract(
     const RVVSelectedBodyEmitCRouteDescription &description);
 
+struct RVVLowPrecisionWideningReductionPrimitiveFacts {
+  bool hasFacts = false;
+  std::string contractID;
+  std::string lowPrecisionPrimitiveContractID;
+  std::string lowPrecisionPrimitiveKind;
+  std::string kind;
+
+  std::string sourceElementTypeName;
+  std::int64_t sourceSEW = 0;
+  std::string sourceLMUL;
+  std::string sourceVectorTypeName;
+  std::string sourceVectorCType;
+
+  std::string productElementTypeName;
+  std::int64_t productSEW = 0;
+  std::string productLMUL;
+  std::string productVectorTypeName;
+  std::string productVectorCType;
+
+  std::string accumulatorElementTypeName;
+  std::int64_t accumulatorSEW = 0;
+  std::string accumulatorLMUL;
+  std::string accumulatorVectorTypeName;
+  std::string accumulatorVectorCType;
+
+  std::string reductionResultElementTypeName;
+  std::int64_t reductionResultSEW = 0;
+  std::string reductionResultLMUL;
+  std::string finalResultElementTypeName;
+
+  std::string wideningProductRelation;
+  std::string productReductionChainRelation;
+  std::string wideningProductIntrinsic;
+  std::string reductionIntrinsic;
+  std::string scalarSeedSplatIntrinsic;
+  std::string accumulatorLayout;
+  std::string resultLayout;
+  std::string reductionStoreVL;
+};
+
+std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
+getRVVLowPrecisionWideningReductionPrimitiveFacts(
+    RVVSelectedBodyOperationKind operation);
+
 struct RVVWideningDotReduceRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
@@ -2783,6 +2827,8 @@ struct RVVWideningDotReduceRouteFacts {
   llvm::StringRef resultVectorCType;
   llvm::StringRef maskTypeName;
   llvm::StringRef maskCType;
+  RVVLowPrecisionWideningReductionPrimitiveFacts
+      lowPrecisionWideningReductionPrimitiveFacts;
   std::string routeOperandBindingSummary;
   llvm::SmallVector<std::string, 9> logicalOperands;
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 9>
@@ -2910,6 +2956,8 @@ struct RVVWideningDotReduceRouteValidationContract {
 
   RVVLowPrecisionContractionResourceSelection
       lowPrecisionResourceSelection;
+  RVVLowPrecisionWideningReductionPrimitiveFacts
+      lowPrecisionWideningReductionPrimitiveFacts;
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 9>
       runtimeABIParameters;
   RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;

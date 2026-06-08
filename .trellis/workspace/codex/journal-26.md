@@ -1198,3 +1198,64 @@ Gearbox/resource-aware selected-body realization and the remaining
 Gearbox-consumable product/accumulator/result primitive-resource facts. Gate 3
 runtime evidence should only be collected when a newly executable unsigned
 path is explicitly claimed.
+
+
+## Session 568: RVV low-precision widening-reduction primitive facts
+
+**Date**: 2026-06-08
+**Task**: RVV production-kernel capability campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro campaign Gate 2 widening-reduction slice. Added
+provider-owned low-precision product-reduction primitive facts for the bounded
+signed i8 -> i16 -> i32 `vwredsum` chain, threaded them through provider route
+validation and target mirror validation, and kept the macro campaign open.
+
+### Main Changes
+
+- Added `RVVLowPrecisionWideningReductionPrimitiveFacts` to make the
+  product-reduction primitive contract explicit: source/product/accumulator/
+  result dtype, SEW/LMUL, product and chain relations, `vwmul`, `vwredsum`,
+  scalar seed splat, layouts, and reduction store VL.
+- Threaded the primitive facts into widening dot-reduce route facts and
+  validation contracts so stale provider facts fail before
+  `TCRVEmitCLowerableRoute` construction.
+- Hardened target artifact validation so `low_precision_primitive.*`,
+  product/reduction relation, intrinsic, layout, seed, and store-VL metadata are
+  mirrors of provider facts only.
+- Added focused C++ negative coverage for stale accumulator dtype and kept the
+  lit stale `vwredsum` / primitive accumulator mirror diagnostics aligned.
+- Updated the RVV plugin and EmitC route specs with the executable
+  product-reduction primitive-fact contract.
+
+### Git Commits
+
+- Pending final commit in this session.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+  - Existing `TargetArtifactExportTest.cpp` switch-coverage warnings and target
+    validation helper warnings were observed during compilation; the build
+    linked successfully.
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'generic-widening-product-dataflow|generic-widening-product-reduction-chain-dataflow|rvv-generic-stage2-widening-product-unsigned-u8|explicit-selected-body-artifact-widening-product(\.mlir|$)|explicit-selected-body-artifact-widening-product-unsigned-u8|explicit-selected-body-artifact-widening-product-reduce-add|explicit-selected-body-artifact-widening-product-reduce-dequantize-f32|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32|explicit-selected-body-realization-widening-product-reduce-dequant-clamp-f32'` from `build/test`: 9/9 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'widening-product|product-reduction|generic-widening-product'` from `build/test`: 13/13 passed
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `git diff --check`
+- [OK] bounded production/test added-line old-authority scan
+
+### Status
+
+[OPEN] Macro task remains active. Gate 2 widening-reduction primitive facts
+slice is complete as provider/target compiler-surface work; Gates 1, 3, and 4
+remain open.
+
+### Next Steps
+
+Continue the macro campaign by making low-precision product/reduction primitive
+and resource facts consumable by Gearbox/resource-aware selected-body
+realization. Collect Gate 3 runtime evidence only when a newly executable path
+is claimed, then continue to Gate 4 same-target comparison.

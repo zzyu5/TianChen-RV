@@ -292,6 +292,139 @@ typed ui8/u16 tcrv_rvv body
   -> Common EmitC carries provider payload unchanged
 ```
 
+## Low-Precision Widening-Reduction Primitive Facts
+
+### 1. Scope / Trigger
+
+Use this contract when a selected typed RVV body or provider-owned product
+reduction chain claims low-precision widening accumulation/reduction facts,
+including the bounded signed chain:
+
+```text
+i8mf4 lhs/rhs
+  -> signed i8*i8 widening product to i16mf2
+  -> signed widening reduction / vwredsum-style accumulation to i32m1
+```
+
+This is a Stage 2 primitive-fact contract. It is not a q8/q4 route, not a
+llama.cpp-specific path, not an artifact-name authority, and not a Common EmitC
+semantic branch.
+
+### 2. Signatures
+
+The provider-owned primitive facts must have a structural home equivalent to:
+
+```c++
+struct RVVLowPrecisionWideningReductionPrimitiveFacts {
+  bool hasFacts;
+  StringRef contractID;
+  StringRef lowPrecisionPrimitiveContractID;
+  StringRef lowPrecisionPrimitiveKind;
+  StringRef kind;
+  StringRef sourceElementTypeName;
+  StringRef productElementTypeName;
+  StringRef accumulatorElementTypeName;
+  StringRef reductionResultElementTypeName;
+  StringRef finalResultElementTypeName;
+  int sourceSEW;
+  StringRef sourceLMUL;
+  int productSEW;
+  StringRef productLMUL;
+  int accumulatorSEW;
+  StringRef accumulatorLMUL;
+  int reductionResultSEW;
+  StringRef reductionResultLMUL;
+  StringRef wideningProductRelation;
+  StringRef productReductionChainRelation;
+  StringRef wideningProductIntrinsic;
+  StringRef reductionIntrinsic;
+  StringRef scalarSeedSplatIntrinsic;
+  StringRef accumulatorLayout;
+  StringRef resultLayout;
+  StringRef reductionStoreVL;
+};
+```
+
+Exact C++ names may differ, but those facts must be derived by the RVV provider
+from the selected typed body/config/runtime facts before route construction.
+
+### 3. Contracts
+
+- Source and product facts must mirror the typed low-precision product surface:
+  source `i8/mf4`, product `i16/mf2`, and relation
+  `signed-i8mf4xi8mf4-to-i16mf2` for the bounded signed chain.
+- Accumulator and reduction-result facts must be explicit and distinct from
+  final epilogue result facts: the primitive reduction result is `i32/m1`, while
+  dequantized epilogues may have a later `f32` final result.
+- The chain relation, widening product intrinsic, widening reduction intrinsic,
+  scalar seed splat, accumulator layout, result layout, and reduction store VL
+  are provider-owned facts. They must not be reconstructed from route ids,
+  artifact names, test names, ABI strings, or Common EmitC helpers.
+- Target artifact metadata may carry these fields only as exact mirrors. A
+  stale mirror must fail target validation before candidate acceptance.
+- Common EmitC may materialize only the provider-built route payload. It must
+  not choose dtype/sign/SEW/LMUL, `vwmul`, `vwredsum`, seed splat, layout, or
+  store-VL semantics itself.
+
+### 4. Validation & Error Matrix
+
+- Product-reduction chain without primitive facts -> RVV provider error before
+  `TCRVEmitCLowerableRoute` construction.
+- Primitive facts disagree with the selected typed body source/product dtype,
+  SEW, LMUL, or product relation -> provider fail-closed diagnostic.
+- Primitive facts use stale accumulator/result dtype, SEW, LMUL, layout, seed
+  splat, reduction intrinsic, or store VL -> provider fail-closed diagnostic.
+- Target candidate mirror disagrees with any primitive fact -> target
+  validation error before artifact acceptance.
+- Common EmitC or target validation locally reconstructs primitive facts from
+  metadata or intrinsic spellings -> invalid architecture; move the derivation
+  back to the RVV provider contract.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed `i8mf4` product-reduction body -> RVV provider derives product
+  and widening-reduction primitive facts -> route validation consumes them ->
+  target mirrors compare exactly.
+- Base: standalone signed or unsigned widening-product routes keep their own
+  product facts without claiming a widening-reduction primitive chain.
+- Bad: artifact metadata says `vwredsum`, so the target accepts the candidate
+  even though the provider contract lacks accumulator/result facts.
+- Bad: the final dequantized `f32` result is treated as the primitive reduction
+  result and replaces the required `i32/m1` accumulator/reduction boundary.
+
+### 6. Tests Required
+
+- Provider/C++ coverage for positive product-reduction primitive facts:
+  source/product/accumulator/result dtype, SEW/LMUL, relation, intrinsics, seed
+  splat, layouts, and store VL.
+- Provider negative coverage for stale or unsupported primitive facts before
+  route construction.
+- Target artifact coverage proving exact mirror acceptance and stale
+  source/product/accumulator/result dtype, SEW/LMUL, intrinsic, seed, layout, or
+  store-VL rejection.
+- Focused lit coverage for the selected product-reduction artifact path when
+  metadata mirror diagnostics are user-visible.
+- Runtime `ssh rvv` evidence is required only when the task claims executable
+  correctness or performance.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+candidate metadata has tcrv_rvv.widening_reduction_intrinsic
+  -> target accepts the product-reduction route
+```
+
+Correct:
+
+```text
+typed product-reduction tcrv_rvv body
+  -> RVV provider derives widening-reduction primitive facts
+  -> route/provider validation consumes those facts
+  -> target metadata mirrors those facts exactly or fails closed
+```
+
 ### Stage 2 Performance Layer
 
 RVV plugin-local selected-body realization is one linear compiler step:

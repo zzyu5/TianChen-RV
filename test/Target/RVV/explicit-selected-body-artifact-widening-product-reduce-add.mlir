@@ -85,8 +85,8 @@ module {
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,result:signed-e32m1
 // HEADER: void tcrv_emitc_explicit_selected_body_product_reduce_kernel_explicit_selected_body_rvv_product_reduce(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, int32_t *out, size_t n);
 
-// STALE-VWREDSUM: candidate tcrv_rvv.widening_reduction_intrinsic provenance must mirror selected typed RVV product-reduction widening reduction intrinsic '__riscv_vwredsum_vs_i16mf2_i32m1'
+// STALE-VWREDSUM: candidate tcrv_rvv.widening_reduction_intrinsic provenance must mirror selected typed RVV product-reduction low-precision widening-reduction primitive widening reduction intrinsic '__riscv_vwredsum_vs_i16mf2_i32m1'
 // STALE-VWREDSUM-SAME: but was '__riscv_vredsum_vs_i16mf2_i16m1'
 
-// STALE-PRIM-ACC: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_primitive.accumulator_dtype' must mirror provider route description value 'i32'
+// STALE-PRIM-ACC: candidate tcrv_rvv.low_precision_primitive.accumulator_dtype provenance must mirror selected typed RVV product-reduction low-precision widening-reduction primitive accumulator dtype 'i32'
 // STALE-PRIM-ACC-SAME: but was 'i16'

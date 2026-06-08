@@ -13111,12 +13111,19 @@ bool expectRVVTargetArtifactExporterShape(
           tianchenrv::plugin::rvv::getRVVWideningDotReduceRouteFacts(
               OperationKind::WideningProductReduceAdd);
   std::optional<tianchenrv::plugin::rvv::
+                    RVVLowPrecisionWideningReductionPrimitiveFacts>
+      productReductionPrimitiveFacts =
+          tianchenrv::plugin::rvv::
+              getRVVLowPrecisionWideningReductionPrimitiveFacts(
+                  OperationKind::WideningProductReduceAdd);
+  std::optional<tianchenrv::plugin::rvv::
                     RVVWideningDotReduceRouteValidationContract>
       productReductionContract =
           tianchenrv::plugin::rvv::
               getRVVWideningDotReduceRouteValidationContract(
                   productReductionDescription);
-  if (!productReductionFacts || !productReductionContract ||
+  if (!productReductionFacts || !productReductionPrimitiveFacts ||
+      !productReductionContract ||
       productReductionDescription.sourceSEW != productReductionFacts->sourceSEW ||
       productReductionDescription.sourceLMUL !=
           productReductionFacts->sourceLMUL ||
@@ -13158,7 +13165,38 @@ bool expectRVVTargetArtifactExporterShape(
       productReductionContract->expectedPreLoopStepCount != 3 ||
       productReductionContract->expectedLoopBodyStepCount != 7 ||
       productReductionContract->runtimeABIParameters.size() != 5 ||
-      productReductionContract->typeMappings.size() != 4) {
+      productReductionContract->typeMappings.size() != 4 ||
+      !productReductionFacts->lowPrecisionWideningReductionPrimitiveFacts
+           .hasFacts ||
+      !productReductionContract->lowPrecisionWideningReductionPrimitiveFacts
+           .hasFacts ||
+      productReductionFacts->lowPrecisionWideningReductionPrimitiveFacts
+              .contractID !=
+          productReductionPrimitiveFacts->contractID ||
+      productReductionFacts->lowPrecisionWideningReductionPrimitiveFacts.kind !=
+          productReductionPrimitiveFacts->kind ||
+      productReductionFacts->lowPrecisionWideningReductionPrimitiveFacts
+              .sourceElementTypeName != "i8" ||
+      productReductionFacts->lowPrecisionWideningReductionPrimitiveFacts
+              .productElementTypeName != "i16" ||
+      productReductionFacts->lowPrecisionWideningReductionPrimitiveFacts
+              .accumulatorElementTypeName != "i32" ||
+      productReductionFacts->lowPrecisionWideningReductionPrimitiveFacts
+              .reductionResultElementTypeName != "i32" ||
+      productReductionFacts->lowPrecisionWideningReductionPrimitiveFacts
+              .finalResultElementTypeName != "i32" ||
+      productReductionFacts->lowPrecisionWideningReductionPrimitiveFacts
+              .reductionIntrinsic !=
+          "__riscv_vwredsum_vs_i16mf2_i32m1" ||
+      productReductionFacts->lowPrecisionWideningReductionPrimitiveFacts
+              .scalarSeedSplatIntrinsic != "__riscv_vmv_v_x_i32m1" ||
+      productReductionFacts->lowPrecisionWideningReductionPrimitiveFacts
+              .reductionStoreVL != "1" ||
+      productReductionContract->lowPrecisionWideningReductionPrimitiveFacts
+              .contractID != productReductionPrimitiveFacts->contractID ||
+      productReductionContract->lowPrecisionWideningReductionPrimitiveFacts
+              .productReductionChainRelation !=
+          productReductionFacts->productReductionChainRelation) {
     llvm::errs()
         << "low-precision product-reduction fixture did not mirror provider "
            "canonical route facts\n";
@@ -13229,6 +13267,19 @@ bool expectRVVTargetArtifactExporterShape(
           {"product LMUL", "mf2", "m1"}))
     return false;
 
+  RVVRouteDescription staleProductReductionPrimitiveAccumulator =
+      productReductionDescription;
+  staleProductReductionPrimitiveAccumulator
+      .lowPrecisionPrimitiveAccumulatorElementTypeName = "i16";
+  if (!expectWideningDotProviderFailure(
+          productReductionFixture.candidate, productReductionRoute,
+          staleProductReductionPrimitiveAccumulator,
+          "product-reduction registry rejects stale primitive accumulator "
+          "dtype",
+          {"low-precision widening-reduction primitive accumulator dtype",
+           "i32", "i16"}))
+    return false;
+
   TargetArtifactCandidate staleProductReductionProductLMULMirror =
       productReductionFixture.candidate;
   if (!rewriteArtifactMetadataValue(staleProductReductionProductLMULMirror,
@@ -13239,6 +13290,20 @@ bool expectRVVTargetArtifactExporterShape(
           productReductionDescription,
           "product-reduction registry rejects stale product LMUL metadata",
           {"tcrv_rvv.product_lmul", "mf2", "m1"}))
+    return false;
+
+  TargetArtifactCandidate staleProductReductionPrimitiveAccumulatorMirror =
+      productReductionFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleProductReductionPrimitiveAccumulatorMirror,
+          "tcrv_rvv.low_precision_primitive.accumulator_dtype", "i16"))
+    return false;
+  if (!expectWideningDotCandidateFailure(
+          staleProductReductionPrimitiveAccumulatorMirror, productReductionRoute,
+          productReductionDescription,
+          "product-reduction registry rejects stale primitive accumulator "
+          "dtype metadata",
+          {"low_precision_primitive.accumulator_dtype", "i32", "i16"}))
     return false;
 
   RVVRouteDescription staleWideningDotRuntimeAVLSource =

@@ -10,11 +10,10 @@ production behavior is claimed, and measured same-target comparison for
 production-like RVV kernels.
 
 This task remains open across rounds until the campaign gates below are met.
-This round continues Gate 2 with accepted unsigned u8 widening-product
-provider/target facts, moving the already verifier-legal unsigned body from the
-provider fail-closed boundary to route-supported only through typed RVV
-body/config facts, provider-owned intrinsic/type facts, exact target mirrors,
-and neutral EmitC materialization.
+This round continues Gate 2 with low-precision widening-reduction primitive
+facts, making the product-reduction / `vwredsum`-style path consume typed RVV
+source/product/accumulator facts, provider-owned intrinsics/layouts, exact
+target mirrors, and neutral EmitC materialization.
 
 ## Direction Brief Source
 
@@ -54,6 +53,21 @@ C type/header mapping, unsigned u8/u16 load/store leaves, `vwmulu.vv` /
 `__riscv_vwmulu_vv_u16mf2` intrinsic mapping, provider route-description
 facts, target mirror validation, and focused fail-closed tests for stale or
 missing mirrors.
+
+Hermes now continues the same macro task with:
+
+```text
+RVV production-kernel capability campaign: Gate 2 low-precision
+widening-reduction primitive facts
+```
+
+This continuation keeps the macro task active after the accepted unsigned u8
+widening-product slice. The current round must advance product-reduction /
+`vwredsum`-style primitive facts that consume typed signed i8 source, i16
+product, i32 accumulator/result, and the existing widening-product facts. The
+slice should keep the facts provider-owned, expose a bounded target validation
+contract, and reject stale dtype/sign/SEW/LMUL/accumulator/reduction mirrors
+before artifact acceptance.
 
 ## What I Already Know
 
@@ -99,36 +113,30 @@ missing mirrors.
 
 ## Current Round Milestone
 
-Continue Gate 2 by adding the smallest production compiler submodule that lets
-RVV route-support the unsigned u8 low-precision widening-product primitive from
-typed `tcrv_rvv` body/config facts, while keeping signed i8 product and
-product-reduction facts provider-owned.
+Continue Gate 2 by adding the smallest production compiler submodule that makes
+low-precision product-reduction / `vwredsum` facts explicit and consumable by
+RVV provider and target validation. The slice starts after signed product facts
+and accepted unsigned u8 widening-product facts are already present.
 
 The preferred continuation slice is:
 
-- Move verifier-legal unsigned u8 widening-product bodies past the previous
-  provider fail-closed boundary only when the RVV provider derives unsigned
-  primitive facts from the typed body/config/runtime facts.
-- Accept unsigned u8 only through provider-owned unsigned source/product/result
-  facts: `ui8`, `ui16`, `vuint8mf4_t`, `vuint16mf2_t`, unsigned load/store
-  leaves, `__riscv_vwmulu_vv_u16mf2`, and exact target type/header mirrors.
-- Keep target artifact metadata as mirror-only output from the provider-owned
-  route description; stale unsigned intrinsic/type/header/primitive mirrors
-  must fail before artifact acceptance.
-- Keep signed i8 widening-product and product-reduction facts accepted only
-  through the low-precision primitive contract derived from typed
-  source/product/accumulator/result facts.
-- Deepen widening-reduction/`vwredsum` validation so accumulator/result dtype,
-  reduction intrinsic, and store-VL facts are checked as typed primitive facts
-  rather than dispersed strings. If this is too large, finish the u8 boundary
-  and leave the exact continuation point.
-- Mirror provider-owned facts into target validation only as exact mirrors,
-  with stale/missing mirror rejection where the changed target validation owner
-  is touched.
-
-If live implementation inspection shows the IR/type surface blocks accepted u8
-support, this milestone may close that prerequisite in the same slice and
-record the exact next continuation point.
+- Add or harden a provider-owned widening accumulation/reduction primitive fact
+  surface for the bounded signed product-reduction chains: i8 source, i16
+  product, i32 accumulator/result, signed widening product,
+  `__riscv_vwredsum_vs_i16mf2_i32m1`, scalar seed splat, reduction store VL,
+  accumulator layout, result layout, and product-reduction chain relation.
+- Validate those facts before `TCRVEmitCLowerableRoute` construction by
+  comparing the selected route description to canonical provider-owned facts,
+  not by trusting route IDs, target artifact names, metadata, or intrinsic
+  strings as authority.
+- Thread the same primitive-reduction facts into target validation only as exact
+  mirrors. Stale source/product/accumulator/result dtype, product SEW/LMUL,
+  reduction intrinsic, scalar seed, or store-VL mirrors must fail closed.
+- Keep Common EmitC neutral; it may carry provider payloads and metadata mirrors
+  but must not derive `vwredsum`, accumulator dtype, result dtype, sign, SEW,
+  LMUL, or resource facts.
+- Do not claim runtime correctness/performance in this slice unless emitted
+  runtime behavior changes and `ssh rvv` evidence is collected.
 
 ## Requirements
 
@@ -152,20 +160,20 @@ record the exact next continuation point.
 
 - [x] A production source diff lands in the RVV dialect/plugin/provider/target
       validation path, not only task/report/test evidence.
-- [x] The unsigned u8 widening-product boundary is accepted through the same
-      provider-owned low-precision primitive contract, with unsigned typed
-      source/product/result facts, unsigned RVV vector C types, unsigned
-      load/store leaves, `__riscv_vwmulu_vv_u16mf2`, and exact target mirrors.
-- [x] Signed i8 widening-product and product-reduction facts remain accepted
-      only when typed source/product/accumulator/result facts agree.
-- [x] Widening-reduction/`vwredsum` accumulator/result facts remain validated as
-      typed primitive facts where this slice touches the route family; otherwise
-      the exact next continuation point is recorded.
-- [x] Focused lit/C++ tests prove accepted signed i8 remains typed-fact gated
-      and unsigned u8 takes the accepted provider/target mirror path.
-- [x] Target artifact validation coverage rejects stale/missing unsigned
-      primitive source/product/result, intrinsic, type, or header mirrors where
-      touched.
+- [x] Product-reduction / `vwredsum` primitive facts are provider-owned and
+      explicitly cover source/product/accumulator/result dtype, product
+      SEW/LMUL, signed widening product relation, product-reduction chain
+      relation, reduction intrinsic, scalar seed splat, accumulator/result
+      layout, and store-VL facts.
+- [x] Provider validation rejects stale or unsupported product-reduction facts
+      before route construction.
+- [x] Target artifact validation consumes the same primitive-reduction facts as
+      exact mirrors and rejects stale source/product/accumulator/result dtype,
+      product SEW/LMUL, reduction intrinsic, scalar seed, or store-VL mirrors.
+- [x] Focused lit/C++ tests prove accepted product-reduction facts remain
+      typed-fact gated and stale low-precision reduction facts fail closed.
+- [x] Existing signed i8 product and unsigned u8 widening-product provider /
+      target facts remain accepted.
 - [x] A bounded old-authority scan over changed/added lines shows no new
       positive `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`,
       `!tcrv_rvv.i32m*`, descriptor, source-front-door, route-id, or artifact
@@ -176,6 +184,38 @@ record the exact next continuation point.
       clean in the round report.
 
 ## Current Round Result
+
+Completed the Gate 2 low-precision widening-reduction primitive facts slice
+while keeping the macro campaign open:
+
+- Added provider-owned `RVVLowPrecisionWideningReductionPrimitiveFacts` for the
+  bounded signed product-reduction chains. The facts cover source `i8/mf4`,
+  product `i16/mf2`, accumulator/reduction result `i32/m1`, final result dtype,
+  signed product relation, product-reduction chain relation, `vwmul`,
+  `vwredsum`, scalar seed splat, accumulator/result layouts, and reduction
+  store VL.
+- Threaded the primitive facts through widening dot-reduce route facts and the
+  provider validation contract so stale dtype, SEW/LMUL, intrinsic, relation,
+  layout, or store-VL facts fail before `TCRVEmitCLowerableRoute`
+  construction.
+- Hardened target artifact validation so existing metadata is consumed only as
+  exact mirrors of the provider-owned primitive facts. Stale
+  `tcrv_rvv.low_precision_primitive.accumulator_dtype` and stale
+  `tcrv_rvv.widening_reduction_intrinsic` mirrors now fail before artifact
+  acceptance.
+- Preserved the accepted signed i8 product-reduction and unsigned u8
+  widening-product paths through the focused widening/product-reduction lit
+  matrix and C++ target artifact checks.
+- Updated the RVV plugin and EmitC route specs with the executable
+  product-reduction primitive-fact contract.
+
+This round does not claim runtime correctness/performance, so no `ssh rvv`
+evidence was required. Gate 2 has advanced with provider/target-consumable
+primitive-reduction facts, but the macro campaign is not complete: Gearbox/
+resource-aware selected-body realization, runtime evidence for newly claimed
+executable behavior, and measured same-target comparison remain open.
+
+## Previous Round Result
 
 Completed the Gate 2 accepted unsigned u8 widening-product provider/target
 facts slice while keeping the macro campaign open:
@@ -297,10 +337,9 @@ facts or a broader unsigned fail-closed/provider contract, plus deeper
 
 ## Continuation Point
 
-Continue Gate 2 by implementing accepted unsigned u8 widening-product provider
-and target facts if the materializer is ready: unsigned vector C type mapping,
-u8/u16 load-store leaves, `vwmulu.vv` intrinsic mapping, target mirror support,
-and focused artifact tests. Then continue broadening the
-widening-reduction/`vwredsum` primitive contract for product, accumulator,
-result, and resource facts that Gearbox can consume without relying on metadata
-or route names.
+Continue the macro campaign from Gate 1/Gate 2 integration: make the
+low-precision product/reduction primitive and resource facts consumable by
+Gearbox/resource-aware selected-body realization, then collect Gate 3 runtime
+evidence only when a newly executable behavior is claimed. Gate 4 same-target
+comparison remains after the production-kernel path has typed primitive facts,
+realization/resource facts, and runtime correctness evidence.
