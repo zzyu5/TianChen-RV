@@ -4683,8 +4683,9 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         out_initializer="(int32_t)(-25000 - (int32_t)(index * 53))",
         expected_expression=(
             "(cmp_lhs[index] <= rhs_scalar "
-            "? (int32_t)(acc[index] + "
-            "(int32_t)gather_src[indices[index]] * (int32_t)payload[index]) "
+            "? (int32_t)(acc_before[index] + "
+            "(int32_t)gather_src_before[indices[index]] * "
+            "(int32_t)payload_before[index]) "
             ": old_dst[indices[index]])"
         ),
         compare_predicate_kind="sle",
@@ -22118,8 +22119,8 @@ static int run_case(size_t n, int32_t rhs_scalar, size_t pattern) {{
       ++active_lanes;
     else
       ++inactive_lanes;
-    int64_t product =
-        (int64_t)gather_src[indices[index]] * (int64_t)payload[index];
+    int64_t product = (int64_t)gather_src_before[indices[index]] *
+                      (int64_t)payload_before[index];
     if (product < 0)
       ++signed_product_lanes;
     int32_t expected = {expectation.expected_expression};
@@ -22127,8 +22128,8 @@ static int run_case(size_t n, int32_t rhs_scalar, size_t pattern) {{
       fprintf(stderr,
               "{expectation.kind} mismatch n=%zu rhs_scalar=%d pattern=%zu index=%zu scatter_index=%u got=%d expected=%d cmp_lhs=%d gather=%d payload=%d acc=%d old_dst=%d\\n",
               n, rhs_scalar, pattern, index, indices[index], dst[dst_index],
-              expected, cmp_lhs[index], gather_src[indices[index]],
-              payload[index], acc[index], old_dst[dst_index]);
+              expected, cmp_lhs[index], gather_src_before[indices[index]],
+              payload_before[index], acc_before[index], old_dst[dst_index]);
       free(cmp_lhs);
       free(gather_src);
       free(gather_src_before);
@@ -36660,9 +36661,9 @@ def run_self_test() -> int:
             if expectation.is_runtime_scalar_cmp_masked_indexed_gather_macc_scatter:
                 if (
                     "runtime_scalar_cmp indexed_gather_macc_scatter" not in harness
-                    or "gather_src[indices[index]]" not in harness
-                    or "payload[index]" not in harness
-                    or "acc[index]" not in harness
+                    or "gather_src_before[indices[index]]" not in harness
+                    or "payload_before[index]" not in harness
+                    or "acc_before[index]" not in harness
                     or "dst[dst_index]" not in harness
                     or "signed_product_lanes" not in harness
                     or "payload_acc_preserved" not in harness
@@ -37451,6 +37452,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "runtime_scalar_cmp_masked_segment2_load_unit_store/"
             "runtime_scalar_cmp_masked_segment2_store_unit_load/"
             "runtime_scalar_cmp_masked_macc_add/"
+            "runtime_scalar_cmp_masked_indexed_gather_macc_scatter/"
             "runtime_scalar_cmp_masked_standalone_reduce_add/min/max; may be "
             "repeated to prove the same generated artifact consumes multiple "
             "runtime scalar values"

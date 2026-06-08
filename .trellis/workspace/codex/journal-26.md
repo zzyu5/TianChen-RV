@@ -41,7 +41,7 @@ Focused checks:
 
 | Hash | Message |
 |------|---------|
-| `pending-in-this-commit` | (see git log) |
+| `final-commit-see-git-log` | `rvv: prove runtime scalar indexed gms evidence` |
 
 ### Testing
 
@@ -114,6 +114,84 @@ Focused checks:
 | Hash | Message |
 |------|---------|
 | `pending-in-this-commit` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 552: Stage2 RVV runtime-scalar indexed gather MAcc scatter artifact ABI
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV runtime-scalar indexed gather MAcc scatter artifact ABI
+**Branch**: `main`
+
+### Summary
+
+Hardened runtime-scalar cmp masked indexed gather-MAcc-scatter generated-bundle evidence to compute expected values from pre-call snapshots; proved pre-realized bundle on ssh rvv; documented snapshot-backed evidence rule.
+
+### Main Changes
+
+- Created and completed Trellis task
+  `06-08-stage2-rvv-runtime-scalar-cmp-gather-macc-scatter-abi`.
+- Inspected the production composite seam: the RVV plugin-local composite
+  realization owner already requires exactly one runtime-scalar indexed gather,
+  one runtime-scalar MAcc, and one runtime-scalar indexed scatter body; it
+  validates shared runtime scalar, mask, runtime n/AVL, index, destination,
+  dtype/config/policy, inactive-lane policy, MAcc accumulator/result layout,
+  and ABI roles before realization. Target artifact validation requires
+  provider-owned composite route-family plan, typed compute chain, legal
+  resource selection, runtime ABI order, headers, type mappings, ABI mappings,
+  and statement plan shape before export.
+- Updated `scripts/rvv_generated_bundle_abi_e2e.py` so
+  `runtime_scalar_cmp_masked_indexed_gather_macc_scatter` generated harnesses
+  compute signed products, expected results, and mismatch diagnostics from
+  pre-call `gather_src_before`, `payload_before`, and `acc_before` snapshots.
+  The harness still separately compares live buffers with those snapshots and
+  prints `source_preserved payload_acc_preserved tail_preserved` only after
+  preservation checks pass.
+- Updated the explicit/pre-realized generated-bundle dry-run FileCheck test to
+  assert the snapshot-backed expected expression.
+- Added the composite op to `--rhs-scalar` help text, matching the existing
+  multiple-runtime-scalar execution path.
+- Updated `.trellis/spec/testing/mlir-testing-contract.md` to record the
+  reusable rule that preservation evidence must use snapshots in expected-value
+  computation and mismatch diagnostics, not only compare snapshots after the
+  call.
+- Proved the pre-realized generated bundle on `ssh rvv` with counts
+  `0,1,16,17,257`, RHS scalars `-37,91`, patterns `0,1`, active/inactive lane
+  mixes, inactive destination preservation, noncontiguous unique indices,
+  signed products, source preservation, payload/accumulator preservation, and
+  tail preservation.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] explicit generated-bundle dry-run + `FileCheck`
+  `STDOUT`/`EXPL`/`EXPLH`
+- [OK] pre-realized generated-bundle dry-run + `FileCheck`
+  `STDOUT`/`PRE`/`PREH`
+- [OK] `ssh rvv` generated bundle:
+  `PASS op=runtime_scalar_cmp_masked_indexed_gather_macc_scatter counts=0,1,16,17,257 rhs_scalars=-37,91 patterns=0,1`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] explicit target artifact fixture PLAN/HEADER and stale
+  provider/ABI/operand-binding negative checks with `FileCheck`
+- [OK] pre-realized target artifact fixture REALIZED/PLAN/HEADER and stale
+  provider/ABI/operand-binding/composite-resource negative checks with
+  `FileCheck`
+- [OK] bounded old-authority scan over touched files
+- [OK] `git diff --check`
 
 ### Status
 

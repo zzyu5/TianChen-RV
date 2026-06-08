@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify global authority placement and Stage 2 scope after implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify runtime-scalar indexed gather-MAcc-scatter route contract and fail-closed checks."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify provider-built route payload, ABI binding, and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Verify evidence level matches runtime/correctness claims."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify focused lit/FileCheck coverage remains aligned with compiler behavior."}

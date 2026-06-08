@@ -113,6 +113,17 @@ the mutation diagnostic path and the success marker such as
 `source_preserved` or `accumulator_preserved`. Allocating `*_before` buffers
 without comparing them is not preservation evidence.
 
+For routes whose expected result depends on snapshotted inputs, accumulators,
+passthrough values, gather sources, payload buffers, or seed buffers, the
+expected-value computation and mismatch diagnostics must read the pre-call
+snapshots, not the post-call live buffers. A harness that first computes
+`expected` from post-call `src`, `payload`, or `acc` and only later compares
+those arrays against `*_before` snapshots can mask a generated route that
+mutates an input and then produces output consistent with the mutated value.
+Dry-run `HARNESS` FileCheck should assert the snapshot-backed expression, for
+example `acc_before[index] + gather_src_before[index] * payload_before[index]`,
+whenever preservation is part of the evidence claim.
+
 For multi-pattern generated-bundle harnesses, the pattern dimension is part of
 the evidence surface. If `run_case` accepts a pattern argument, `main` must
 iterate every required pattern, pass the pattern into `run_case`, and print the

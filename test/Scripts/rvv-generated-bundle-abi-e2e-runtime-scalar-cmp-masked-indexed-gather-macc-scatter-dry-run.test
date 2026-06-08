@@ -72,7 +72,7 @@
 
 # EXPLH: tcrv_emitc_explicit_composite_masked_indexed_gather_macc_scatter_kernel_rvv_explicit_composite(cmp_lhs, rhs_scalar, gather_src, payload, acc,
 # EXPLH: indices, dst, n);
-# EXPLH: int32_t expected = (cmp_lhs[index] <= rhs_scalar ? (int32_t)(acc[index] + (int32_t)gather_src[indices[index]] * (int32_t)payload[index]) : old_dst[indices[index]]);
+# EXPLH: int32_t expected = (cmp_lhs[index] <= rhs_scalar ? (int32_t)(acc_before[index] + (int32_t)gather_src_before[indices[index]] * (int32_t)payload_before[index]) : old_dst[indices[index]]);
 # EXPLH: inactive lane did not preserve destination
 # EXPLH: noncontiguous_index_lanes
 # EXPLH: signed_product_lanes
@@ -125,7 +125,7 @@
 
 # PREH: tcrv_emitc_pre_realized_composite_masked_indexed_gather_macc_scatter_kernel_rvv_pre_composite(cmp_lhs, rhs_scalar, gather_src, payload, acc,
 # PREH: indices, dst, n);
-# PREH: int32_t expected = (cmp_lhs[index] <= rhs_scalar ? (int32_t)(acc[index] + (int32_t)gather_src[indices[index]] * (int32_t)payload[index]) : old_dst[indices[index]]);
+# PREH: int32_t expected = (cmp_lhs[index] <= rhs_scalar ? (int32_t)(acc_before[index] + (int32_t)gather_src_before[indices[index]] * (int32_t)payload_before[index]) : old_dst[indices[index]]);
 # PREH: inactive lane did not preserve destination
 # PREH: noncontiguous_index_lanes
 # PREH: signed_product_lanes

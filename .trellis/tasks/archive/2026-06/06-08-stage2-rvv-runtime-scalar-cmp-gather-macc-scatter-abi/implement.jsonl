@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global project boundaries, RVV-first authority chain, and Stage 2 scope for typed RVV coverage and selected-body realization."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Runtime-scalar indexed gather-MAcc-scatter route contract, RVV authority placement, provider validation matrix, and required tests."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route contract and provider-owned operand binding/header participation requirements."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Testing evidence policy for MLIR/compiler/runtime claims."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck and compiler behavior test expectations."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-computed-masked-strided-widening-dot-artifact-abi/prd.md", "reason": "Previous completed Stage 2 artifact/ABI evidence closeout pattern and ssh rvv evidence bar."}
