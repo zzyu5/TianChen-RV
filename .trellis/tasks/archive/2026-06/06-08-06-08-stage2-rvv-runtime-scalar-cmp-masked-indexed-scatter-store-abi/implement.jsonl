@@ -1,0 +1,7 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "Global project boundaries, RVV-first authority chain, and Stage 2 scope for typed RVV coverage and selected-body realization."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV authority placement and Stage 2 route-supported selected-body constraints; composite route is reference only."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Computed-mask indexed memory fact surface, route validation contract, provider-owned ABI/header binding, and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Testing evidence policy for MLIR/compiler/runtime claims."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle dry-run, snapshot-backed preservation evidence, and ssh rvv runtime evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-runtime-scalar-cmp-gather-macc-scatter-abi/prd.md", "reason": "Previous completed composite evidence closeout pattern; bounded reference only, not current task scope."}

@@ -45,7 +45,7 @@
 # RTSCATTER-DAG: "status": "dry_run_success"
 
 # HARNESS: tcrv_emitc_pre_realized_body_rt_scalar_cmidx_store_kernel_pre_realized_body_rvv_rt_scalar_cmidx_store(lhs, rhs_scalar, src, indices, dst, n);
-# HARNESS: int32_t expected = (lhs[index] <= rhs_scalar ? src[index] : old_dst[indices[index]]);
+# HARNESS: int32_t expected = (lhs[index] <= rhs_scalar ? src_before[index] : old_dst[indices[index]]);
 # HARNESS: inactive lane did not preserve destination
 # HARNESS: noncontiguous_index_lanes
 # HARNESS: pattern=%zu ok runtime_scalar_cmp indexed_scatter

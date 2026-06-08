@@ -1,0 +1,6 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/index.md", "reason": "Verify global authority placement and Stage 2 scope after implementation."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify standalone RVV scatter-store route remains plugin-owned and does not drift into composite or common EmitC authority."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify provider-built computed-mask indexed memory route payload, ABI binding, target validation, and common EmitC neutrality."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Verify evidence level matches runtime/correctness claims."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify dry-run and runtime harness evidence remains snapshot-backed where preservation is claimed."}

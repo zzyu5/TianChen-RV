@@ -56,6 +56,80 @@ Focused checks:
 - None - task complete
 
 
+## Session 553: Stage2 RVV runtime-scalar indexed scatter-store artifact ABI
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV runtime-scalar-cmp masked indexed scatter-store executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Hardened the standalone runtime-scalar cmp masked indexed scatter-store
+generated-bundle evidence so the correctness oracle uses pre-call source
+snapshots; proved the pre-realized generated bundle on `ssh rvv`.
+
+### Main Changes
+
+- Created and completed Trellis task
+  `06-08-stage2-rvv-runtime-scalar-cmp-masked-indexed-scatter-store-abi`.
+- Inspected the production standalone scatter-store seam: the pre-realized body
+  validator checks op kind, predicate `sle`, computed-mask indexed scatter
+  memory form, unique indices, inactive-lane policy, SEW/LMUL/policy, and ABI
+  roles before realization; the route owner checks canonical runtime-scalar
+  indexed route facts, binding summary, ABI parameters, statement leaves, and
+  typed config before `TCRVEmitCLowerableRoute`; target artifact validation
+  rebuilds provider payload before candidate mirror checks.
+- Updated `scripts/rvv_generated_bundle_abi_e2e.py` so
+  `runtime_scalar_cmp_masked_indexed_scatter_store_unit_load` computes expected
+  active-lane destination values and mismatch diagnostics from
+  `src_before[index]`, not post-call `src[index]`.
+- Updated explicit/pre-realized generated-bundle dry-run FileCheck tests to
+  assert the snapshot-backed expected expression.
+- Added `runtime_scalar_cmp_masked_indexed_scatter_store_unit_load` to the
+  `--rhs-scalar` help text, matching the existing multiple-runtime-scalar
+  execution path.
+- No `.trellis/spec/` update: the existing MLIR testing contract already
+  records the reusable snapshot-backed preservation evidence rule, and this
+  round applied it to the standalone scatter-store harness.
+- Proved the pre-realized generated bundle on `ssh rvv` with counts
+  `0,1,16,17,257`, RHS scalars `-37,91`, patterns `0,1`, active/inactive lane
+  mixes, noncontiguous unique indexed destination writes, inactive destination
+  preservation, source preservation, and tail preservation.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] explicit generated-bundle dry-run plus direct `ROOT`/`RTSCATTER`/`HARNESS`
+  FileCheck
+- [OK] pre-realized generated-bundle dry-run plus direct
+  `ROOT`/`RTSCATTER`/`HARNESS` FileCheck
+- [OK] explicit target artifact fixture `PLAN`/`HEADER` and stale producer
+  fail-closed RUN-line equivalents
+- [OK] pre-realized target artifact fixture `REALIZED`/`PLAN`/`HEADER`
+  RUN-line equivalents
+- [OK] `ssh rvv` generated bundle:
+  `PASS op=runtime_scalar_cmp_masked_indexed_scatter_store_unit_load counts=0,1,16,17,257 rhs_scalars=-37,91 patterns=0,1`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] bounded added-line old-authority scan
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 551: Stage2 RVV computed-masked strided widening dot artifact ABI
 
 **Date**: 2026-06-08

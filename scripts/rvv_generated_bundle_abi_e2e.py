@@ -4645,7 +4645,7 @@ EXPLICIT_SELECTED_BODY_OP_EXPECTATIONS = {
         source_initializer="(int32_t)(9100 + (int32_t)(index * 67))",
         out_initializer="(int32_t)(-23000 - (int32_t)(index * 47))",
         expected_expression=(
-            "(lhs[index] <= rhs_scalar ? src[index] : old_dst[indices[index]])"
+            "(lhs[index] <= rhs_scalar ? src_before[index] : old_dst[indices[index]])"
         ),
         compare_predicate_kind="sle",
     ),
@@ -22898,7 +22898,7 @@ static int run_case(size_t n, int32_t rhs_scalar, size_t pattern) {{
       fprintf(stderr,
               "{expectation.kind} mismatch n=%zu rhs_scalar=%d pattern=%zu index=%zu scatter_index=%u got=%d expected=%d lhs=%d src=%d old_dst_at_scatter=%d\\n",
               n, rhs_scalar, pattern, index, indices[index], dst[dst_index],
-              expected, lhs[index], src[index], old_dst[dst_index]);
+              expected, lhs[index], src_before[index], old_dst[dst_index]);
       free(lhs);
       free(src);
       free(src_before);
@@ -36608,7 +36608,7 @@ def run_self_test() -> int:
                 if (
                     "runtime_scalar_cmp indexed_scatter" not in harness
                     or "dst[dst_index]" not in harness
-                    or "src[index]" not in harness
+                    or "src_before[index]" not in harness
                     or "const size_t patterns[] = {0, 1}" not in harness
                     or "pattern=%zu ok runtime_scalar_cmp indexed_scatter"
                     not in harness
@@ -37449,6 +37449,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "runtime_scalar_cmp_masked_store/"
             "runtime_scalar_cmp_masked_load_store/"
             "runtime_scalar_cmp_masked_indexed_gather_load_unit_store/"
+            "runtime_scalar_cmp_masked_indexed_scatter_store_unit_load/"
             "runtime_scalar_cmp_masked_segment2_load_unit_store/"
             "runtime_scalar_cmp_masked_segment2_store_unit_load/"
             "runtime_scalar_cmp_masked_macc_add/"
