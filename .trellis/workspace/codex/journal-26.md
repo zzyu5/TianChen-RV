@@ -56,6 +56,71 @@ Focused checks:
 - None - task complete
 
 
+## Session 563: Stage2 RVV runtime-scalar-cmp masked segment2 memory executable artifact ABI boundary
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV runtime-scalar-cmp masked segment2 memory executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the current-HEAD executable artifact ABI evidence boundary for
+runtime-scalar-cmp masked segment2 load/store after the shared provider splat
+contract landed. No production source changes were required; the current
+provider, target validator, generated bundle ABI, and `ssh rvv` runtime
+evidence already line up.
+
+### Main Changes
+
+- Created Trellis task
+  `06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-memory-executable-artifact-abi-boundary`.
+- Recorded a bounded PRD for selected explicit/pre-realized
+  runtime-scalar-cmp masked segment2 load/store bodies, runtime scalar
+  `rhs_scalar` binding and splat, computed-mask facts, active/inactive lane
+  policy, segment2 field layout, ABI/header binding, runtime AVL/VL, target
+  artifact export, generated bundle ABI, and `ssh rvv` evidence.
+- Confirmed the current production path already validates the seam through
+  RVV-owned provider plans, the shared runtime-scalar splat provider contract,
+  migrated segment2 statement-plan owner selection, target rebuilt-route
+  validation, and generated bundle ABI checks.
+- Refreshed explicit and pre-realized segment2 load generated-bundle evidence
+  on `ssh rvv` with active/inactive lanes, runtime scalar compare, field
+  distinction, source preservation, old-field passthrough preservation, and
+  tail preservation.
+- Refreshed explicit and pre-realized segment2 store generated-bundle evidence
+  on `ssh rvv` with active/inactive lanes, inactive interleaved destination
+  preservation, field distinction, source preservation, and tail preservation.
+
+### Git Commits
+
+- Pending final commit in this session.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-memory-executable-artifact-abi-boundary`
+- [OK] Four generated-bundle dry-runs for explicit/pre-realized runtime-scalar-cmp masked segment2 load/store, rerun with explicit `build/bin/tcrv-opt`, `build/bin/tcrv-translate`, and `/usr/bin/llvm-readobj-20` after PATH-only tool lookup failed.
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'runtime-scalar-cmp-masked-segment2'` from `build/test`: 8/8 passed.
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] explicit load `ssh rvv`: `PASS op=runtime_scalar_cmp_masked_segment2_load_unit_store counts=0,1,16,17,257 patterns=0,1`
+- [OK] pre-realized load `ssh rvv`: `PASS op=runtime_scalar_cmp_masked_segment2_load_unit_store counts=0,1,16,17,257 patterns=0,1`
+- [OK] explicit store `ssh rvv`: `PASS op=runtime_scalar_cmp_masked_segment2_store_unit_load counts=0,1,16,17,257 patterns=0,1`
+- [OK] pre-realized store `ssh rvv`: `PASS op=runtime_scalar_cmp_masked_segment2_store_unit_load counts=0,1,7,16,23,257 patterns=0,1`
+- [OK] Evidence JSON spot checks found `dry_run=false`, `ssh_evidence=true`, `remote_compile_succeeded=true`, `remote_run_succeeded=true`, provider-supported mirrors, route operand binding summaries, and expected runtime ABI orders.
+
+### Status
+
+[OK] **Completed and archived; pending commit**
+
+### Next Steps
+
+- Create the final evidence commit.
+
+
 ## Session 560: Stage2 RVV computed-masked segment2 update artifact ABI evidence
 
 **Date**: 2026-06-08

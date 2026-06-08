@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV authority chain and Stage 2 constraints"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV provider, selected-body realization, segment2 statement-plan, and runtime-scalar segment2 contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider-built TCRVEmitCLowerableRoute and target mirror validation contracts"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "generated-bundle and ssh rvv evidence requirements for executable correctness claims"}

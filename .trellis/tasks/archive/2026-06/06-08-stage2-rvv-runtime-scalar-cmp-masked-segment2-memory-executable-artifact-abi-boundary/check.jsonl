@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "verify no route-authority, descriptor, source-front-door, or Common EmitC semantic drift"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "check runtime-scalar segment2 load/store ownership stays in RVV plugin facts and statement-plan owners"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "check provider route and target artifact mirror validation remain aligned"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "check dry-run, lit, C++ tests, and ssh rvv evidence meet executable correctness bar"}
