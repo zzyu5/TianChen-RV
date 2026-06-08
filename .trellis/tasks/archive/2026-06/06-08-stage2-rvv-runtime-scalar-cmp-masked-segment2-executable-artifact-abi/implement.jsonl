@@ -1,0 +1,25 @@
+{"file": ".trellis/tasks/06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-executable-artifact-abi/prd.md", "reason": "Current task goal, boundaries, acceptance criteria, and no-source-change/evidence decision rules."}
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, stack constraints, and RVV stage ordering."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body authority, runtime-scalar segment2 pre-realized store contract, segment2 statement-plan boundary, and target export contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute, common EmitC neutrality, computed-mask segment2 provider fact surface, segment2 route validation contract, operand binding/header ABI boundary, and generated artifact validation rules."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-executable-artifact-abi/prd.md", "reason": "Previous executable artifact evidence closeout pattern and no-source-change justification model."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVSegment2MemorySelectedBodyRealizationOwner.h", "reason": "Public selected-body realization owner boundary for pre-realized segment2 memory bodies."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h", "reason": "Segment2 route-family owner API and provider-plan facts."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Route planning structures for segment2 facts, computed-mask memory facts, runtime ABI facts, and statement plans."}
+{"file": "lib/Plugin/RVV/RVVSegment2MemorySelectedBodyRealizationOwner.cpp", "reason": "Pre-realized runtime-scalar segment2 selected-body realization into explicit load/splat/compare/segment2 operations."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCSegment2RouteFamilyPlanOwners.cpp", "reason": "Segment2 provider-family plan ownership and fail-closed validation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCMemoryStatementPlanOwners.cpp", "reason": "Segment2 statement plan construction and memory statement facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCCompareSelectStatementPlanOwners.cpp", "reason": "Runtime-scalar compare/mask statement facts and producer-source validation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Provider-built TCRVEmitCLowerableRoute construction and segment2 statement-plan consumption."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target artifact consume-only validation, segment2 route validation contract, stale mirror rejection, and generated bundle acceptance."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated bundle ABI evidence tooling, segment2 expectations, harness oracle, dry-run, and ssh rvv execution path."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-segment2-load-dry-run.test", "reason": "Explicit selected-body segment2 load generated-bundle dry-run evidence."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-segment2-load-dry-run.test", "reason": "Pre-realized selected-body segment2 load generated-bundle dry-run evidence."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-segment2-store-dry-run.test", "reason": "Explicit selected-body segment2 store generated-bundle dry-run evidence."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-segment2-store-dry-run.test", "reason": "Pre-realized selected-body segment2 store generated-bundle dry-run evidence."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-segment2-load.mlir", "reason": "Explicit segment2 load target artifact fixture and fail-closed target validation checks."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-segment2-load.mlir", "reason": "Pre-realized segment2 load target artifact fixture and fail-closed checks."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-segment2-store.mlir", "reason": "Explicit segment2 store target artifact fixture and fail-closed target validation checks."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-segment2-store.mlir", "reason": "Pre-realized segment2 store target artifact fixture and fail-closed checks."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "C++ RVV plugin validation and stale structural fact checks for RVV route families."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "C++ target artifact validation positive and stale-mirror negative checks for route boundaries."}

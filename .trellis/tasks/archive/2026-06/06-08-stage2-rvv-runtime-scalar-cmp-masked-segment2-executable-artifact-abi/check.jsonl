@@ -1,0 +1,17 @@
+{"file": ".trellis/tasks/06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-executable-artifact-abi/prd.md", "reason": "Verify implementation and evidence against current acceptance criteria and non-goals."}
+{"file": ".trellis/spec/index.md", "reason": "Check no architecture authority drift, stack violation, descriptor route, source-front-door authority, or mirror-only authority was introduced."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider ownership, typed-body authority, runtime-scalar segment2 contracts, segment2 statement-plan boundary, and ssh rvv correctness claim rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated artifact ABI boundary, provider-built route payloads, operand binding/header markers, segment2 route validation contract, and common EmitC neutrality."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "py_compile, self-test, dry-run evidence, and ssh rvv generated bundle execution if touched or used."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Regression for RVV provider route-family validation and stale-fact fail-closed behavior."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Regression for target artifact validation, header/prototype binding, segment2 validation contracts, and stale metadata rejection."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-segment2-load-dry-run.test", "reason": "Focused generated-bundle dry-run lit evidence for explicit segment2 load selected body."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-segment2-load-dry-run.test", "reason": "Focused generated-bundle dry-run lit evidence for pre-realized segment2 load selected body."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-segment2-store-dry-run.test", "reason": "Focused generated-bundle dry-run lit evidence for explicit segment2 store selected body."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-segment2-store-dry-run.test", "reason": "Focused generated-bundle dry-run lit evidence for pre-realized segment2 store selected body."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-segment2-load.mlir", "reason": "Explicit segment2 load target artifact positive and stale-contract fail-closed lit evidence."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-segment2-load.mlir", "reason": "Pre-realized segment2 load target artifact positive and stale-contract fail-closed lit evidence."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-segment2-store.mlir", "reason": "Explicit segment2 store target artifact positive and stale-contract fail-closed lit evidence."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-segment2-store.mlir", "reason": "Pre-realized segment2 store target artifact positive and stale-contract fail-closed lit evidence."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "C++ plugin validation for route-family facts and stale/missing structural fact failures."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "C++ target artifact validation positive and negative coverage for the route boundary."}

@@ -444,3 +444,54 @@ Refreshed explicit and pre-realized generated object/header bundle ABI evidence 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 556: Stage2 RVV runtime-scalar-cmp masked segment2 executable artifact ABI
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV runtime-scalar-cmp masked segment2 executable artifact ABI
+**Branch**: `main`
+
+### Summary
+
+Refreshed executable generated object/header bundle ABI evidence for
+runtime-scalar-cmp masked segment2 load and store, covering explicit and
+pre-realized selected-body paths on `ssh rvv`. No compiler source changes were
+required because the existing provider/target contract already generated
+executable artifacts.
+
+### Main Changes
+
+- Created and archived Trellis task `06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-executable-artifact-abi`.
+- Recorded a bounded PRD for runtime-scalar compare, scalar splat, compare-produced mask, segment2 field roles, ABI/header binding, runtime AVL/VL, target artifact export, and `ssh rvv` evidence.
+- Proved explicit and pre-realized segment2 load generated bundles on `ssh rvv` with `dry_run=false`, `ssh_evidence=true`, remote compile success, remote run success, active/inactive lanes, field distinction, source preservation, and tail preservation.
+- Proved explicit and pre-realized segment2 store generated bundles on `ssh rvv` with the same executable ABI boundary and inactive interleaved destination preservation.
+- No production C++/MLIR/Python source diff was introduced; generated evidence lives under ignored `artifacts/tmp`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] explicit segment2 load `ssh rvv`: `PASS op=runtime_scalar_cmp_masked_segment2_load_unit_store counts=0,1,16,17,257 patterns=0,1`
+- [OK] pre-realized segment2 load `ssh rvv`: `PASS op=runtime_scalar_cmp_masked_segment2_load_unit_store counts=0,1,16,17,257 patterns=0,1`
+- [OK] explicit segment2 store `ssh rvv`: `PASS op=runtime_scalar_cmp_masked_segment2_store_unit_load counts=0,1,16,17,257 patterns=0,1`
+- [OK] pre-realized segment2 store `ssh rvv`: `PASS op=runtime_scalar_cmp_masked_segment2_store_unit_load counts=0,1,7,16,23,257 patterns=0,1`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'runtime-scalar-cmp-masked-segment2'` from `build/test`: 8/8 passed
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] production source diff list empty; bounded authority scan found only negative/checklist mentions in task docs
+- [OK] task context validation passed
+
+### Status
+
+[OK] **Completed and archived**
+
+### Next Steps
+
+- None - task complete
