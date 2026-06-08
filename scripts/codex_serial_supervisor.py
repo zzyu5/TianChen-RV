@@ -1064,6 +1064,274 @@ def current_task_info(snapshot: dict[str, Any]) -> dict[str, str | bool]:
     }
 
 
+def task_progress_summary(snapshot: dict[str, Any]) -> str:
+    current = (snapshot.get("trellis") or {}).get("current_task") or {}
+    if not isinstance(current, dict):
+        current = {}
+    ref = str(current.get("ref") or "").strip()
+    task_json = current.get("task_json") if isinstance(current.get("task_json"), dict) else {}
+    status = str(task_json.get("status") or "").strip() or "(unknown)"
+    title = str(task_json.get("title") or "").strip() or "(unknown)"
+    prd = str(current.get("prd_head") or "")
+    marker_text = " ".join([title, prd[:5000]]).lower()
+    macro_markers = (
+        "macro-task",
+        "macro owner",
+        "macro-owner",
+        "campaign",
+        "campaign-level",
+        "milestone",
+        "production-kernel capability",
+    )
+    is_macro = any(marker in marker_text for marker in macro_markers)
+    completed: list[str] = []
+    remaining: list[str] = []
+    checklist_pattern = re.compile(r"^\s*(?:[-*]|\d+[.])\s+\[([ xX])\]\s+(.*\S)\s*$")
+    for line in prd.splitlines():
+        match = checklist_pattern.match(line)
+        if not match:
+            continue
+        text = compact_text(match.group(2).strip(), max_chars=220, max_lines=3)
+        if match.group(1).lower() == "x":
+            completed.append(text)
+        else:
+            remaining.append(text)
+
+    def render_items(items: list[str], fallback: str) -> str:
+        if not items:
+            return fallback
+        rendered = [f"- {item}" for item in items[:10]]
+        if len(items) > 10:
+            rendered.append(f"- ... {len(items) - 10} more")
+        return "\n".join(rendered)
+
+    active = current_task_info(snapshot).get("active", False)
+    return "\n".join(
+        [
+            f"ref: {ref or '(none)'}",
+            f"title: {title}",
+            f"status: {status}",
+            f"active: {'yes' if active else 'no'}",
+            f"macro_markers_present: {'yes' if is_macro else 'no'}",
+            "completed_checklist:",
+            render_items(completed, "(none found)"),
+            "remaining_checklist:",
+            render_items(remaining, "(none found)"),
+        ]
+    )
+
+
+def is_production_compiler_source(path: str) -> bool:
+    normalized = path.strip().lstrip("./")
+    if not normalized:
+        return False
+    return normalized.startswith(("include/", "lib/", "tools/", "cmake/")) or normalized in {
+        "CMakeLists.txt",
+        "cmake",
+    }
+
+
+def changed_file_category(path: str) -> str:
+    normalized = path.strip().lstrip("./")
+    if is_production_compiler_source(normalized):
+        return "production-source"
+    if normalized.startswith("test/"):
+        return "test"
+    if normalized.startswith(".trellis/tasks/archive/"):
+        return "trellis-archive"
+    if normalized.startswith(".trellis/tasks/"):
+        return "trellis-task"
+    if normalized.startswith(".trellis/workspace/"):
+        return "trellis-workspace"
+    if normalized.startswith(".trellis/spec/"):
+        return "spec"
+    if normalized.startswith("scripts/"):
+        return "tooling-script"
+    if normalized.startswith("artifacts/"):
+        return "artifact"
+    if normalized.startswith("docs/") or normalized.endswith(".md"):
+        return "doc"
+    return "other"
+
+
+def read_jsonl(path: Path, max_chars: int = 2_000_000) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    text = read_text(path, max_chars=max_chars)
+    if not text:
+        return rows
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            data = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            rows.append(data)
+    return rows
+
+
+def inferred_loop_events_paths(run_dir: Path, loop_dir: Path | None = None) -> list[Path]:
+    paths: list[Path] = []
+    if loop_dir is not None:
+        paths.append(loop_dir / "events.jsonl")
+    match = re.match(r"^(\d{8}T\d{6}Z)-r\d{4}-", run_dir.name)
+    if match:
+        artifact_root = run_dir.parent.parent
+        paths.append(artifact_root / "loops" / match.group(1) / "events.jsonl")
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for path in paths:
+        key = str(path.resolve()) if path.exists() else str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        if path.exists():
+            unique.append(path)
+    return unique
+
+
+def extract_direction_title(text: str) -> str:
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if line.strip().lower().startswith("direction title"):
+            for follow in lines[index + 1 : index + 5]:
+                stripped = follow.strip()
+                if stripped:
+                    return stripped[:220]
+    for line in lines:
+        stripped = line.strip()
+        if stripped:
+            return stripped[:220]
+    return ""
+
+
+def run_commit_and_changed_files(repo: Path, run_dir: Path) -> tuple[str, list[str]]:
+    before = load_json(run_dir / "snapshot_before.json")
+    after = load_json(run_dir / "snapshot_after.json")
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        return "(missing snapshots)", []
+    snapshot_repo = Path(str(after.get("repo") or before.get("repo") or repo))
+    diff = git_range(snapshot_repo, before, after)
+    commits_result = diff.get("new_commits") if isinstance(diff.get("new_commits"), dict) else {}
+    files_result = diff.get("changed_files") if isinstance(diff.get("changed_files"), dict) else {}
+    commit_lines = [line.strip() for line in str(commits_result.get("stdout") or "").splitlines() if line.strip()]
+    changed_files = [line.strip() for line in str(files_result.get("stdout") or "").splitlines() if line.strip()]
+    return (commit_lines[0] if commit_lines else "(none)"), changed_files
+
+
+def recent_round_drift_summary(
+    repo: Path,
+    run_dir: Path,
+    loop_dir: Path | None = None,
+    current_round: int = 0,
+    limit: int = 6,
+) -> str:
+    event_paths = inferred_loop_events_paths(run_dir, loop_dir)
+    rounds: dict[int, dict[str, Any]] = {}
+    for event_path in event_paths:
+        for event in read_jsonl(event_path):
+            try:
+                round_id = int(event.get("round") or 0)
+            except (TypeError, ValueError):
+                round_id = 0
+            if round_id <= 0:
+                continue
+            bucket = rounds.setdefault(round_id, {})
+            if event.get("event") == "worker_finished":
+                bucket["worker"] = event
+            elif event.get("event") == "hermes_review_finished":
+                bucket["review"] = event
+    if current_round > 0:
+        rounds.setdefault(current_round, {}).setdefault("worker", {"run_dir": str(run_dir)})
+    if not rounds:
+        return "No recent loop events found. Apply macro/evidence-closeout rules from the current live summary."
+
+    selected_rounds = sorted(rounds)[-limit:]
+    records: list[dict[str, Any]] = []
+    for round_id in selected_rounds:
+        bucket = rounds[round_id]
+        worker = bucket.get("worker") if isinstance(bucket.get("worker"), dict) else {}
+        review = bucket.get("review") if isinstance(bucket.get("review"), dict) else {}
+        round_run_dir = Path(str(worker.get("run_dir") or run_dir))
+        commit, changed_files = run_commit_and_changed_files(repo, round_run_dir)
+        categories = sorted({changed_file_category(path) for path in changed_files})
+        prod_changed = any(is_production_compiler_source(path) for path in changed_files)
+        review_reason = str(review.get("reason") or "")
+        telegram_note = str(review.get("telegram_note") or "")
+        next_prompt_path = Path(str(review.get("next_prompt_path") or ""))
+        next_owner = extract_direction_title(read_text(next_prompt_path, max_chars=8000)) if next_prompt_path.exists() else ""
+        evidence_text = " ".join([review_reason, telegram_note, next_owner]).lower()
+        metadata_only = "metadata-only" in evidence_text or (
+            bool(changed_files)
+            and not prod_changed
+            and all(changed_file_category(path) != "tooling-script" for path in changed_files)
+        )
+        no_production_source_gap = "production source did not need changes" in evidence_text or "no production-source gap" in evidence_text
+        evidence_closeout = any(
+            marker in evidence_text
+            for marker in (
+                "evidence closeout",
+                "generated bundle",
+                "generated-bundle",
+                "ssh rvv",
+                "artifact abi",
+                "executable evidence",
+                "proved",
+            )
+        )
+        records.append(
+            {
+                "round": round_id,
+                "commit": commit,
+                "categories": categories or ["none"],
+                "production_source_changed": prod_changed,
+                "metadata_only": metadata_only,
+                "no_production_source_gap": no_production_source_gap,
+                "evidence_closeout": evidence_closeout,
+                "review_reason": compact_text(review_reason or "(pending current review)", max_chars=420, max_lines=4),
+                "next_owner": next_owner or "(none/pending)",
+            }
+        )
+
+    recent = records[-3:]
+    metadata_like_count = sum(
+        1
+        for row in recent
+        if row["metadata_only"] or row["no_production_source_gap"] or not row["production_source_changed"]
+    )
+    evidence_count = sum(1 for row in recent if row["evidence_closeout"])
+    escalation = len(recent) >= 3 and (metadata_like_count >= 3 or evidence_count >= 3)
+    lines = [
+        f"event_sources: {', '.join(str(path) for path in event_paths) or '(none)'}",
+        f"window_rounds: {', '.join('r%04d' % row['round'] for row in records)}",
+        (
+            "recent_drift_escalation_required: yes"
+            if escalation
+            else "recent_drift_escalation_required: no"
+        ),
+        f"last3_metadata_or_no_production_source_count: {metadata_like_count}/{len(recent)}",
+        f"last3_evidence_closeout_count: {evidence_count}/{len(recent)}",
+        "",
+    ]
+    for row in records:
+        lines.extend(
+            [
+                f"- round: r{row['round']:04d}",
+                f"  commit: {row['commit']}",
+                f"  changed_file_categories: {', '.join(row['categories'])}",
+                f"  production_compiler_source_changed: {'yes' if row['production_source_changed'] else 'no'}",
+                f"  metadata_only_signal: {'yes' if row['metadata_only'] else 'no'}",
+                f"  no_production_source_gap_signal: {'yes' if row['no_production_source_gap'] else 'no'}",
+                f"  evidence_closeout_signal: {'yes' if row['evidence_closeout'] else 'no'}",
+                f"  selected_next_owner: {row['next_owner']}",
+                f"  review_reason: {row['review_reason']}",
+            ]
+        )
+    return compact_text("\n".join(lines), max_chars=8000, max_lines=140)
+
+
 def manual_steering_names_single_owner(text: str) -> bool:
     stripped = text.strip()
     if not stripped:
@@ -1100,6 +1368,14 @@ def write_review_input(run_dir: Path, before: dict[str, Any], after: dict[str, A
         f"- before_current_task: `{before_task.get('ref', '')}` status `{task_status(before)}`",
         f"- after_current_task: `{after_task.get('ref', '')}` status `{task_status(after)}`",
         "",
+        "## Current Trellis Task Progress",
+        "",
+        task_progress_summary(after),
+        "",
+        "## Recent Round Drift Summary",
+        "",
+        recent_round_drift_summary(repo, run_dir),
+        "",
         "## Supervisor Delta Used",
         "",
         delta.strip() or "(none)",
@@ -1130,7 +1406,7 @@ def write_review_input(run_dir: Path, before: dict[str, Any], after: dict[str, A
         "",
         "- Did Codex stay on the TianchenRV capability-driven MLIR execution-layer mainline and respect the red lines?",
         "- Was the milestone right-bigsize, or did it shrink into metadata/test/status/report-only work?",
-        "- If it used TianchenRV Trellis, did it finish/archive the current local task instead of leaving stale completed tasks at `.trellis/tasks/` top level?",
+        "- If it used TianchenRV Trellis, did it either finish/archive a completed normal task or keep an incomplete macro-task active with completed gates, remaining gates, and a precise continuation point?",
         "- Did it produce active code/schema/build/RVV evidence, not just docs or scaffolding labels?",
         "- Did it keep `tcrv.exec` compute-free and extension-specific behavior plugin-local?",
         "- Did any RVV correctness/performance claim rely on real `ssh rvv` evidence?",
@@ -1138,6 +1414,8 @@ def write_review_input(run_dir: Path, before: dict[str, Any], after: dict[str, A
         "- Did RVV dtype/config/operation authority come from the explicit typed `tcrv_rvv` body plus RVV plugin validation, not from i32 helper names, route ids, ABI strings, artifacts, descriptors, tests, or common EmitC/export code?",
         "- Did it avoid treating legacy `RVVI32M1*` route-table expansion as Stage 2 RVV progress?",
         "- Did it keep source-front-door/source-artifact paths fail-closed by default and treat emission-plan result/status, manifests, route ids, and artifact metadata as mirrors only?",
+        "- If recent rounds show metadata-only/no-production-source/evidence-closeout drift, did Hermes escalate to a macro production-capability owner rather than another adjacent artifact seam?",
+        "- If an active macro-task has incomplete campaign gates, did Hermes continue that same Trellis task and name the next unfinished milestone?",
         "- If continuing, Hermes must generate a focused Direction Brief from current evidence; the runner prepends the base prompt.",
     ]
     (run_dir / "review_input.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
@@ -1486,6 +1764,8 @@ def build_review_prompt(
     if isinstance(after_task_json, dict):
         after_task_status = str(after_task_json.get("status") or "")
         after_task_title = str(after_task_json.get("title") or "")
+    current_task_progress = task_progress_summary(after)
+    recent_drift = recent_round_drift_summary(repo, run_dir, loop_dir, current_round=round_index)
     codex_exit_code = manifest.get("codex_exit_code", "")
     previous_context = summarize_previous_prompt(previous_delta)
     base_prompt_hash = file_sha256(base_prompt)
@@ -1522,7 +1802,9 @@ Default review evidence is the live summary below:
 2. diff stat
 3. latest commit summary
 4. current Trellis task status/title
-5. git status summary
+5. current Trellis task progress and macro-task checklist state
+6. recent round drift summary
+7. git status summary
 
 Only read more files when that live summary does not answer the owner /
 direction question. If more evidence is needed, keep the inspection bounded to
@@ -1566,8 +1848,10 @@ redirect direction: previous task drifted from the current architecture or evide
 ```
 
 The next owner should be large enough to move a real compiler path or workflow
-path, but still bounded enough for one Codex round to complete a coherent
-submodule. Good owners make one of these more real:
+path. The current slice must be bounded enough for one Codex round to complete
+a coherent milestone, but the owner itself may be a macro-owner or campaign
+that intentionally spans multiple Codex rounds. Good owners make one of these
+more real:
 
 ```text
 TianChen-RV MLIR -> selected boundary -> plugin-owned lowering/emission -> artifact/runtime evidence
@@ -1583,6 +1867,61 @@ Tiny helpers, one-off negative tests, broad smoke matrices, metadata-only
 changes, wrapper-only work, status/report work, and standalone evidence
 packaging are not valid default owners. Use them only when they are the single
 named blocker for the chosen module.
+
+## Macro-Owner Task Discovery Algorithm
+
+Apply this algorithm before choosing the next owner:
+
+1. If the current Trellis task is active, has macro/campaign markers, and its
+   campaign-level checklist has remaining items, default to continuing that
+   same Trellis task. Name the next unfinished milestone and the bounded slice
+   for the next Codex round. Do not reinterpret the just-finished slice as a
+   complete module and switch to a neighboring artifact/evidence seam.
+2. Inspect the Recent Round Drift Summary below. If the last three rounds are
+   metadata-only, no-production-source-change, archive/journal-heavy, or
+   repeated generated-bundle / `ssh rvv` evidence closeouts, the next owner
+   must be a macro production-capability owner or `continue=false` for human
+   steering. Do not select another adjacent route-family evidence seam by
+   default.
+3. After one generated-bundle / `ssh rvv` evidence closeout for a module, the
+   next owner must normally upgrade to production compiler surface,
+   selected-body realization, resource-aware planning, typed primitive
+   coverage, or a measured performance path. A second evidence closeout is
+   valid only when it validates production code changed in the same or
+   immediately previous round, or when it is explicitly the named blocker for
+   an active macro-owner milestone.
+4. Enforce a size floor after drift: the owner must not be one op variant, one
+   generated-bundle ABI fixture, one fail-closed case, one provider test, or
+   one adjacent route-family seam. It must advance a named production
+   capability family, pass pipeline, primitive surface, selected-body
+   realization surface, or performance-comparison workflow with milestone
+   gates.
+5. The Codex-visible Trellis task should also be macro-sized when the owner is
+   macro-sized. The next prompt must tell Codex to create or repair one macro
+   PRD with campaign gates, implement the current slice, commit a coherent
+   slice when appropriate, and leave the task active until macro-level gates are
+   actually complete.
+
+Stage 2 priority ladder after Stage 1 gates are clean:
+
+```text
+1. RVV production-kernel capability campaign:
+   Gearbox/resource-aware selected-body realization plus low-precision
+   contraction primitive surface plus measured same-target comparison path.
+2. RVV plugin-local selected-body realization / Gearbox resource-aware pass
+   structure when performance-sensitive or low-precision work is the blocker.
+3. Low-precision / quantized contraction primitive surface foundation:
+   typed i8/u8 vector/config, i8/u8 loads, i8*i8 widening product, widening
+   reduction or vwredsum-style provider route facts, fail-closed validation.
+4. Typed primitive coverage gaps that unblock structured-kernel classes.
+5. Generated-bundle / ssh rvv evidence only when it is the single blocker for a
+   newly changed production path or active macro-owner milestone.
+```
+
+For the current human steering around production RVV kernels, llama.cpp q8/q4
+examples are pressure tests for low-precision and contraction maturity. They
+are not route authority and must not become q8-named route ids, artifact names,
+or hand-written wrapper owners.
 
 ## TianChen-RV Context For Task Selection
 
@@ -1770,6 +2109,7 @@ into Stage 3.
 
 Choose exactly one next owner:
 
+- continue the active macro-task if it has incomplete campaign-level gates;
 - continue the current owner if it is still the real bottleneck;
 - expand it if the previous round was too small for the module boundary;
 - switch only when the module converged or Stage 1 evidence says the workflow
@@ -1782,6 +2122,22 @@ loop-health bookkeeping, helper-only changes, prompt-only churn, or repeated
 test-only rounds as the default owner. A test/evidence owner is valid only when
 it is the single focused blocker for a production path changed in this or the
 immediately previous round.
+
+After Recent Round Drift Summary reports three metadata/no-production-source or
+evidence-closeout signals, the default owner is a macro production-capability
+campaign. For the current RVV Stage 2 maturity pressure, prefer:
+
+```text
+RVV production-kernel capability campaign:
+Gearbox resource-aware selected-body realization
++ low-precision contraction primitive surface
++ measured same-target comparison path
+```
+
+The campaign may span several Codex rounds. If Gearbox realization is blocked by
+missing primitive surface, stay inside the same macro-owner and execute the
+low-precision primitive-surface milestone first; do not switch to another
+standalone generated-bundle evidence seam.
 
 While Stage 1 is open, do not send Codex to Scalar, IME, Offload, TensorExt,
 high-level Linalg/Vector/StableHLO frontend generalization, Stage 2 coverage
@@ -1825,19 +2181,28 @@ Read first:
   specific specs, task files, and code directories
 What Codex should turn into a Trellis PRD:
   module goal, boundary, and acceptance criteria, not detailed implementation steps
+Macro campaign gates, when applicable:
+  campaign-level acceptance gates and the current unfinished milestone
+Current round slice:
+  one coherent bounded slice under the macro-owner
+Continuation rule:
+  whether Codex must keep the same Trellis task active after this slice
 Non-goals:
   what Codex must not do
 Minimal evidence expected:
   focused checks and evidence only for this module
 Final report:
-  task id/title, phase, files changed, checks, self-repair, finish/archive, commit
+  task id/title, phase, files changed, checks, self-repair, task status,
+  completed milestone(s), remaining milestone(s), continuation point, commit
 ```
 
 The brief must not contain three candidate tasks for Codex to choose from. Do
 not write a full PRD or detailed implementation plan. If the PRD is unclear,
 tell Codex to repair the PRD first rather than choosing a different direction.
 If the module is too large, tell Codex to finish one coherent submodule and
-keep the task state truthful for the next Hermes round.
+keep the task state truthful for the next Hermes round. For a macro-task, a
+clean committed slice with `.trellis/.current-task` still active is valid and
+expected until campaign-level gates are complete.
 
 ## Stop Conditions
 
@@ -1880,6 +2245,18 @@ current_trellis_task_title: {after_task_title or "(unknown)"}
 previous_prompt_mode: {previous_prompt_mode or "base"}
 previous_direction_summary:
 {previous_context}
+
+## Current Trellis Task Progress
+
+```text
+{current_task_progress}
+```
+
+## Recent Round Drift Summary
+
+```text
+{recent_drift}
+```
 
 ## Canonical Codex Base Prompt
 

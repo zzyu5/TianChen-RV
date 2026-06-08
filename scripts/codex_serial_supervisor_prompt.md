@@ -30,6 +30,13 @@ If no current task exists, create or repair a Trellis task from the Hermes task
 brief before changing source files. If the task has no clear PRD, write or fix
 the PRD first; do not choose an unrelated direction.
 
+If `.trellis/.current-task` points at an in-progress macro-task or campaign and
+its PRD still has incomplete campaign-level acceptance criteria, continue that
+same Trellis task. Do not create a neighboring small task just because the next
+slice is bounded. Read the current macro PRD, identify the next unfinished
+milestone, and keep the task active unless the macro-level gates are actually
+met.
+
 ## Stack And Red Lines
 
 - Compiler implementation stays in C++ / MLIR / LLVM / TableGen / CMake /
@@ -87,6 +94,13 @@ Hermes' Direction Brief is the task source. Do not replace it with your own
 task selection unless repository evidence shows it is unsafe, stale, or
 contradicts the specs. Turn the brief into a truthful Trellis PRD, then execute
 that bounded module owner.
+
+Hermes may intentionally select a macro-owner or campaign that spans multiple
+Codex rounds. In that mode, the current round's slice must be bounded, but the
+Trellis PRD should stay macro-sized with campaign gates. If the Direction Brief
+or existing PRD is too small after recent evidence-only drift, repair it into
+the named macro-task instead of completing and archiving another one-fixture,
+one-provider-test, or generated-bundle-only task.
 
 Human grill notes under `artifacts/` are interpretation notes only. Durable
 rules must live in `.trellis/spec/` or this prompt. If the brief and specs
@@ -242,9 +256,45 @@ Linalg, while staying at a Vector-like RVV execution level. It is not current
 high-level frontend work. Global/cross-plugin autotuning, tuning databases, and
 profile systems are later work; Stage 2 internal realization is not.
 
+When Stage 2 has drifted into repeated generated-bundle or `ssh rvv` evidence
+closeouts, prefer the macro production-kernel capability owner:
+
+```text
+RVV production-kernel capability campaign:
+Gearbox/resource-aware selected-body realization
++ low-precision contraction primitive surface
++ measured same-target comparison path
+```
+
+Treat llama.cpp-style q8/q4 kernels as production pressure tests for coverage,
+low-precision contraction, and measurement. They are not route authority, not
+artifact-name authority, and not a request to hand-write one q8 wrapper.
+
+## Macro-Task Continuation Contract
+
+Some correct worker rounds intentionally finish only one milestone slice of a
+larger Trellis task. For a PRD that names a macro-task, macro-owner, campaign,
+campaign-level gates, production-kernel capability campaign, or multi-milestone
+owner:
+
+- Keep one Trellis task as the owner across rounds.
+- Implement one coherent unfinished milestone slice in the current round.
+- Update the PRD/checklist/journal with completed milestone(s), remaining
+  milestone(s), and the exact next continuation point.
+- Create a clean coherent commit for the slice when the slice is valid to land.
+- Do not finish/archive the macro-task after a partial milestone.
+- Leave `.trellis/.current-task` active until the macro-level acceptance gates
+  are met or human steering redirects the task.
+
+If a macro-task PRD is undersized, repair it before implementation. The repair
+should add campaign gates and make the current slice explicit; it should not
+expand into a vague architecture essay.
+
 ## One-Round Trellis Flow
 
-Execute the current task through one coherent Trellis round:
+Execute the current task through one coherent Trellis round. For a normal task,
+the task may finish in this round. For a macro-task, the round may complete and
+commit one slice while intentionally leaving the Trellis task active.
 
 1. **brainstorm / research**: understand the task, read relevant specs and code,
    and add task context if needed.
@@ -257,10 +307,14 @@ Execute the current task through one coherent Trellis round:
 5. **minimal validation**: validate only the changed module behavior; avoid broad
    test matrices unless the task brief justifies them.
 6. **task status update**: keep Trellis task status, context, and notes truthful.
-7. **finish / archive**: when complete, use this repo's Trellis convention to
-   finish/archive the task and record the workspace journal.
-8. **commit**: create one coherent commit. If the task is not complete, leave it
-   open, explain why, and name the exact next continuation point.
+7. **finish / archive or continue macro-task**: when a normal task is complete,
+   use this repo's Trellis convention to finish/archive it and record the
+   workspace journal. When a macro-task has completed only the current slice,
+   do not archive it; keep it active with truthful completed/remaining
+   milestone state and a precise continuation point.
+8. **commit**: create one coherent commit for a completed normal task or for a
+   coherent macro-task slice. If the task is not complete, leave it open,
+   explain why, and name the exact next continuation point.
 
 ## Final Report
 
@@ -272,7 +326,7 @@ Report briefly:
 3. Module behavior completed
 4. Files changed
 5. Checks run and self-repair performed
-6. Task status: open, finished, archived
+6. Task status: open macro-task, finished, or archived
 7. Commit hash, or why no commit was created
 8. Next continuation point if unfinished
 ```

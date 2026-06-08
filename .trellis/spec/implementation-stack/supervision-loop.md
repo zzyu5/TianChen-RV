@@ -231,8 +231,10 @@ brief, and Codex creates or repairs the Trellis PRD before implementation.
 Hermes is the planner/reviewer. It chooses one coherent engineering owner and
 does not ask Codex to choose among several candidates. Internally Hermes should
 decide whether to continue the current module, expand the current module, or
-switch modules because the current one has converged or stalled. Good owners
-include:
+switch modules because the current one has converged or stalled. The owner may
+be a macro-owner or campaign that intentionally spans several Codex rounds; the
+current slice must be bounded, but the owner does not need to be finishable in
+one round. Good owners include:
 
 - CMake and MLIR project integration;
 - capability model;
@@ -253,6 +255,21 @@ lowering or runtime semantic change in the same round, prevents a specific
 observed regression in an already implemented path, or is the single blocker to
 the next real compiler implementation step. If that standard is not met, Hermes
 must choose the next real compiler implementation owner instead.
+
+When recent rounds show repeated metadata-only, no-production-source-change,
+archive/journal-heavy, or generated-bundle / `ssh rvv` evidence closeouts,
+Hermes must promote task discovery to a macro production-capability owner or
+set `continue=false` for human steering. The default after three such rounds is
+not another adjacent route-family evidence seam. A valid post-drift owner must
+advance a named production capability family, pass pipeline, primitive surface,
+selected-body realization surface, or measured performance-comparison workflow
+with milestone gates.
+
+If an active Trellis task is a macro-task or campaign and its campaign-level
+acceptance gates remain incomplete, Hermes should continue that same Trellis
+task by naming the next unfinished milestone. It must not treat one completed
+slice as completion of the macro-owner and then select a neighboring small
+task.
 
 For migration and architecture cleanup tasks, Hermes must also ask whether the
 production/default path actually changed. Adding a replacement helper,
@@ -418,6 +435,27 @@ families for reductions, accumulators, multiply-accumulate, conversion, or
 memory forms. Those concepts must be modeled on the corrected vector-level
 value/config/body surface.
 
+After Stage 1 gates are clean, the Stage 2 priority ladder is:
+
+1. RVV production-kernel capability campaign: Gearbox/resource-aware
+   selected-body realization, low-precision contraction primitive surface, and
+   measured same-target comparison path.
+2. RVV plugin-local selected-body realization / Gearbox resource-aware pass
+   structure when performance-sensitive or low-precision work is the blocker.
+3. Low-precision / quantized contraction primitive surface foundation: typed
+   i8/u8 vector/config, i8/u8 loads, i8*i8 widening product, widening
+   reduction or `vwredsum`-style provider route facts, and fail-closed
+   validation.
+4. Typed primitive coverage gaps that unblock structured-kernel classes.
+5. Generated-bundle / `ssh rvv` evidence only when it validates a production
+   path changed in the same or immediately previous round, or is the named
+   blocker for an active macro-owner milestone.
+
+llama.cpp-style q8/q4 kernels are production pressure tests for low-precision
+coverage, contraction support, resource-aware realization, and measurement.
+They are not route ids, artifact names, wrapper owners, or permission to infer
+compute from benchmark names.
+
 If the just-finished run added broadcast, compare/select, reduction,
 conversion, dtype, LMUL, source-shape, or intrinsic cases by extending a legacy
 `RVVI32M1*` route table, Hermes must treat that as a redirect case, not as a
@@ -445,8 +483,11 @@ should choose a different owner.
 
 Anti-stall rule: if several recent rounds do not make an end-to-end path closer
 to completion, Hermes must stop refining the same micro-surface and choose a
-larger module owner. It should repair or create a module-level Trellis PRD when
-the current task is too small, stale, or unclear.
+larger module owner. It should repair or create a module-level or macro-level
+Trellis PRD when the current task is too small, stale, or unclear. The review
+input should expose recent-round drift evidence, including whether production
+compiler source changed and whether the review reason described metadata-only
+or evidence-closeout work.
 
 The next prompt must state the Trellis task handling, module owner, why that
 owner is now the bottleneck, files or directories to inspect first, the
@@ -467,9 +508,13 @@ Worker prompts must preserve these rules:
 - read the current Trellis task, PRD, relevant specs, and workspace journal;
 - if no current task exists, create or repair a Trellis task from the Hermes
   brief before editing source files;
+- continue the active macro-task when campaign-level gates are incomplete
+  rather than creating a neighboring small Trellis task;
 - follow one Trellis round: brainstorm/research, PRD repair if needed,
   implementation, check/self-repair, minimal validation, task status update,
-  finish/archive when complete, and coherent commit;
+  finish/archive when a normal task is complete or leave an incomplete
+  macro-task active with completed/remaining milestone state, and coherent
+  commit;
 - keep compiler implementation in C++ / MLIR / LLVM / TableGen / CMake;
 - use Python only for tooling, probes, runners, artifact parsing, and small support scripts;
 - keep `tcrv.exec` compute-free;

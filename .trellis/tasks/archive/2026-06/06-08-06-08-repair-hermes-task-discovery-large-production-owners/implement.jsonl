@@ -1,0 +1,5 @@
+{"file":"scripts/codex_serial_supervisor.py","reason":"Hermes review prompt construction and live review evidence packaging are the main implementation surfaces for task discovery repair."}
+{"file":"scripts/codex_serial_supervisor_prompt.md","reason":"Canonical Codex worker base prompt must reject undersized evidence-only PRDs and repair them into coherent module owners."}
+{"file":".trellis/spec/implementation-stack/supervision-loop.md","reason":"Durable supervisor owner-selection contract, anti-stall rule, and prompt behavior requirements."}
+{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Stage 2 selected-body realization, resource-aware tuning, and anti-generated-bundle-evidence-closeout contract."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV plugin-local selected-body realization, low-precision contraction, Gearbox/resource-aware contract, and evidence rules."}

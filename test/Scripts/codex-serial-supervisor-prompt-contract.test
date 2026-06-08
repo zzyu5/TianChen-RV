@@ -1,0 +1,3 @@
+# RUN: python3 %S/check-codex-serial-supervisor-prompt-contract.py --supervisor %S/../../scripts/codex_serial_supervisor.py --worker-prompt %S/../../scripts/codex_serial_supervisor_prompt.md | FileCheck %s
+
+# CHECK: supervisor macro-owner prompt contract ok

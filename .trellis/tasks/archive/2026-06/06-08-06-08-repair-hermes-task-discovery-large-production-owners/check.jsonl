@@ -1,0 +1,4 @@
+{"file":"scripts/codex_serial_supervisor.py","reason":"Verify rendered Hermes review prompt/review input includes recent-drift context and large-owner selection rules without breaking strict JSON workflow."}
+{"file":"scripts/codex_serial_supervisor_prompt.md","reason":"Check worker prompt remains compatible with Hermes Direction Brief execution while preventing too-small PRD completion."}
+{"file":".trellis/spec/implementation-stack/supervision-loop.md","reason":"Check any spec updates remain consistent with existing serial supervisor contract."}
+{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Check Stage 2 owner priority and anti-evidence-only wording is preserved or clarified consistently."}

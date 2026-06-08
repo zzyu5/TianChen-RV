@@ -94,6 +94,30 @@ correctness, or performance is newly claimed. It is not a substitute for
 advancing typed primitive coverage, selected-body realization, resource-aware
 tuning, or a measured performance comparison path.
 
+When repeated Stage 2 rounds are metadata-only, no-production-source-change, or
+artifact-evidence closeouts, the next owner should be promoted to a macro
+production-kernel capability campaign rather than another adjacent route seam.
+The default priority ladder after Stage 1 gates are clean is:
+
+1. RVV production-kernel capability campaign: resource-aware selected-body
+   realization / Gearbox pass structure, low-precision contraction primitive
+   surface, and measured same-target comparison path.
+2. RVV plugin-local selected-body realization / Gearbox resource-aware pass
+   structure when performance-sensitive or low-precision work is the blocker.
+3. Low-precision / quantized contraction primitive surface foundation: typed
+   i8/u8 vector/config, i8/u8 loads, i8*i8 widening product, widening
+   reduction or `vwredsum`-style provider route facts, and fail-closed
+   validation.
+4. Typed primitive coverage gaps that unblock structured-kernel classes.
+5. Generated-bundle / `ssh rvv` evidence only when it validates a production
+   path changed in the same or immediately previous round, or is the named
+   blocker for an active macro-owner milestone.
+
+llama.cpp-style q8/q4 kernels are pressure tests for this coverage,
+realization, and measurement capability. They must not be treated as q8-named
+route authority, benchmark-name authority, artifact-name authority, or a reason
+to bypass typed `tcrv_rvv` body/provider facts.
+
 ### Stage 3: Extension Generalization
 
 IME, Offload, TensorExtLite, Template/Toy source-front-door examples, and
