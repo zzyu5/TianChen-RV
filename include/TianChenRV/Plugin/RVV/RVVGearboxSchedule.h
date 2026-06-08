@@ -794,6 +794,80 @@ inline llvm::StringRef getRVVLowPrecisionContractionResourceRealizationDecision(
   return {};
 }
 
+inline bool isRVVLowPrecisionResourceGroupedRealizationDecision(
+    llvm::StringRef realizationDecision) {
+  return realizationDecision ==
+         kRVVLowPrecisionResourceGroupedRealizationDecision;
+}
+
+inline bool isRVVLowPrecisionResourcePackedI4RealizationDecision(
+    llvm::StringRef realizationDecision) {
+  return realizationDecision ==
+         kRVVLowPrecisionResourcePackedI4RealizationDecision;
+}
+
+inline bool isRVVLowPrecisionResourceBaseRealizationDecision(
+    llvm::StringRef realizationDecision) {
+  return realizationDecision == kRVVLowPrecisionResourceRealizationDecision;
+}
+
+inline bool isRVVLowPrecisionResourceSupportedRealizationDecision(
+    llvm::StringRef realizationDecision) {
+  return isRVVLowPrecisionResourceBaseRealizationDecision(realizationDecision) ||
+         isRVVLowPrecisionResourceGroupedRealizationDecision(
+             realizationDecision) ||
+         isRVVLowPrecisionResourcePackedI4RealizationDecision(
+             realizationDecision);
+}
+
+inline std::int64_t
+getRVVLowPrecisionResourceExpectedVSetVLRegionCountForRealizationDecision(
+    llvm::StringRef realizationDecision) {
+  if (isRVVLowPrecisionResourceGroupedRealizationDecision(realizationDecision))
+    return kRVVLowPrecisionResourceGroupedVSetVLRegions;
+  if (isRVVLowPrecisionResourcePackedI4RealizationDecision(realizationDecision))
+    return kRVVLowPrecisionResourcePackedI4VSetVLRegions;
+  if (isRVVLowPrecisionResourceBaseRealizationDecision(realizationDecision))
+    return kRVVLowPrecisionResourceVSetVLRegions;
+  return 0;
+}
+
+inline std::int64_t
+getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
+    llvm::StringRef realizationDecision) {
+  if (isRVVLowPrecisionResourceGroupedRealizationDecision(realizationDecision))
+    return 2;
+  if (isRVVLowPrecisionResourcePackedI4RealizationDecision(
+          realizationDecision) ||
+      isRVVLowPrecisionResourceBaseRealizationDecision(realizationDecision))
+    return 1;
+  return 0;
+}
+
+inline std::int64_t
+getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+    llvm::StringRef realizationDecision) {
+  if (isRVVLowPrecisionResourceGroupedRealizationDecision(realizationDecision))
+    return 3;
+  if (isRVVLowPrecisionResourcePackedI4RealizationDecision(
+          realizationDecision) ||
+      isRVVLowPrecisionResourceBaseRealizationDecision(realizationDecision))
+    return 2;
+  return 0;
+}
+
+inline llvm::StringRef
+getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
+    llvm::StringRef realizationDecision) {
+  if (isRVVLowPrecisionResourceGroupedRealizationDecision(realizationDecision))
+    return "tail-product-reduce";
+  if (isRVVLowPrecisionResourcePackedI4RealizationDecision(
+          realizationDecision) ||
+      isRVVLowPrecisionResourceBaseRealizationDecision(realizationDecision))
+    return "load-product-reduce";
+  return {};
+}
+
 constexpr llvm::StringLiteral kRVVCompositeResourceCandidateSet(
     "rvv-composite-gather-macc-scatter-resource-candidate-set.v1["
     "rt-scmp-indexed-gather-macc-scatter-e32m1-u1]");

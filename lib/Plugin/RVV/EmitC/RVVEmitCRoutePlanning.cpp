@@ -17583,23 +17583,15 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
         "low-precision product-reduction dequantization RVV route requires "
         "tcrv_rvv.gearbox_cross_region_handoff runtime AVL source to bind "
         "runtime-element-count");
-  const bool usesGroupedLowPrecisionHandoff =
-      handoff.getResourceDecision() ==
-      kRVVLowPrecisionResourceGroupedRealizationDecision;
-  const bool usesPackedI4LowPrecisionHandoff =
-      handoff.getResourceDecision() ==
-      kRVVLowPrecisionResourcePackedI4RealizationDecision;
   const std::int64_t expectedLowPrecisionRegionCount =
-      usesGroupedLowPrecisionHandoff
-          ? kRVVLowPrecisionResourceGroupedVSetVLRegions
-          : kRVVLowPrecisionResourceVSetVLRegions;
+      getRVVLowPrecisionResourceExpectedVSetVLRegionCountForRealizationDecision(
+          handoff.getResourceDecision());
   const llvm::StringRef expectedLowPrecisionFromPhase =
-      usesGroupedLowPrecisionHandoff ? llvm::StringRef("tail-product-reduce")
-                                     : llvm::StringRef("load-product-reduce");
+      getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
+          handoff.getResourceDecision());
   const bool hasSupportedLowPrecisionDecision =
-      handoff.getResourceDecision() ==
-          kRVVLowPrecisionResourceRealizationDecision ||
-      usesGroupedLowPrecisionHandoff || usesPackedI4LowPrecisionHandoff;
+      isRVVLowPrecisionResourceSupportedRealizationDecision(
+          handoff.getResourceDecision());
   if (handoff.getContract() !=
           "gearbox-product-reduce-to-dequant-cross-region-handoff.v1" ||
       handoff.getFromPhase() != expectedLowPrecisionFromPhase ||
@@ -17758,24 +17750,17 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
   bool hasStore = false;
   for (mlir::Operation &op : candidate.getBody().front()) {
     if (auto marker = llvm::dyn_cast<tcrv::rvv::VSetVLRegionMarkerOp>(op)) {
-      const bool usesGroupedLowPrecisionDecision =
-          marker.getResourceDecision() ==
-          kRVVLowPrecisionResourceGroupedRealizationDecision;
-      const bool usesPackedI4LowPrecisionDecision =
-          marker.getResourceDecision() ==
-          kRVVLowPrecisionResourcePackedI4RealizationDecision;
       hasRegionMarker =
           marker.getVl() == producerWithVL.getVl() &&
           marker.getPhase() == "dequant-store" &&
           static_cast<std::int64_t>(marker.getRegionIndex()) ==
-              (usesGroupedLowPrecisionDecision ? 3 : 2) &&
+              getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+                  marker.getResourceDecision()) &&
           static_cast<std::int64_t>(marker.getRegionCount()) ==
-              (usesGroupedLowPrecisionDecision
-                   ? kRVVLowPrecisionResourceGroupedVSetVLRegions
-                   : kRVVLowPrecisionResourceVSetVLRegions) &&
-          (marker.getResourceDecision() ==
-               kRVVLowPrecisionResourceRealizationDecision ||
-           usesGroupedLowPrecisionDecision || usesPackedI4LowPrecisionDecision);
+              getRVVLowPrecisionResourceExpectedVSetVLRegionCountForRealizationDecision(
+                  marker.getResourceDecision()) &&
+          isRVVLowPrecisionResourceSupportedRealizationDecision(
+              marker.getResourceDecision());
       continue;
     }
     if (auto dequantize = llvm::dyn_cast<tcrv::rvv::DequantizeOp>(op)) {

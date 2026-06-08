@@ -1,0 +1,11 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/06-09-rvv-production-kernel-packed-resource-realization-campaign/prd.md", "reason": "current macro PRD and Gate 1 slice"}
+{"file": ".trellis/spec/index.md", "reason": "global TianChen-RV authority chain"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV resource-aware realization and packed-i4 contracts"}
+{"file": ".trellis/tasks/archive/2026-06/06-09-rvv-low-precision-packed-contraction-primitive-surface-campaign/prd.md", "reason": "previous packed-i4 campaign endpoint and next continuation"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "provider-built route and Common EmitC neutrality"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h", "reason": "shared packed-resource schedule constants/helpers"}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "selected-body realization resource facts"}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Gearbox handoff dialect verifier boundary"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "provider route-family realization structure validation"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "selected-body route collection handoff validation"}

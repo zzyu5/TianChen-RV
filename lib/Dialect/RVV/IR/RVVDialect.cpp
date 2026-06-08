@@ -4030,30 +4030,30 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
               "the same producer tcrv_rvv.with_vl body and consume the same "
               "!tcrv_rvv.vl token as the handoff";
 
-  const bool usesGroupedLowPrecisionDecision =
-      getResourceDecision() ==
-      tianchenrv::plugin::rvv::
-          kRVVLowPrecisionResourceGroupedRealizationDecision;
-  const bool usesPackedI4LowPrecisionDecision =
-      getResourceDecision() ==
-      tianchenrv::plugin::rvv::
-          kRVVLowPrecisionResourcePackedI4RealizationDecision;
-  const std::int64_t expectedProducerMarkerIndex =
-      usesGroupedLowPrecisionDecision ? 2 : 1;
-  const std::int64_t expectedConsumerMarkerIndex =
-      usesGroupedLowPrecisionDecision ? 3 : 2;
-  const llvm::StringRef expectedFromPhase =
-      usesGroupedLowPrecisionDecision ? llvm::StringRef("tail-product-reduce")
-                                      : llvm::StringRef("load-product-reduce");
-  const std::int64_t expectedRegionCount =
-      usesGroupedLowPrecisionDecision
-          ? tianchenrv::plugin::rvv::
-                kRVVLowPrecisionResourceGroupedVSetVLRegions
-          : tianchenrv::plugin::rvv::kRVVLowPrecisionResourceVSetVLRegions;
   const bool hasSupportedResourceDecision =
-      getResourceDecision() ==
-          tianchenrv::plugin::rvv::kRVVLowPrecisionResourceRealizationDecision ||
-      usesGroupedLowPrecisionDecision || usesPackedI4LowPrecisionDecision;
+      tianchenrv::plugin::rvv::
+          isRVVLowPrecisionResourceSupportedRealizationDecision(
+              getResourceDecision());
+  if (!hasSupportedResourceDecision)
+    return emitOpError()
+           << "requires resource_decision to match the RVV low-precision "
+              "realization decision";
+  const std::int64_t expectedProducerMarkerIndex =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
+              getResourceDecision());
+  const std::int64_t expectedConsumerMarkerIndex =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+              getResourceDecision());
+  const llvm::StringRef expectedFromPhase =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
+              getResourceDecision());
+  const std::int64_t expectedRegionCount =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionResourceExpectedVSetVLRegionCountForRealizationDecision(
+              getResourceDecision());
 
   tcrv::rvv::VSetVLRegionMarkerOp firstMarker;
   tcrv::rvv::VSetVLRegionMarkerOp secondMarker;
@@ -4180,10 +4180,6 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   if (getRuntimeAvlSource() != "runtime_abi:n")
     return emitOpError()
            << "requires runtime_avl_source 'runtime_abi:n'";
-  if (!hasSupportedResourceDecision)
-    return emitOpError()
-           << "requires resource_decision to match the RVV low-precision "
-              "realization decision";
   if (getProducerScope() !=
       tianchenrv::plugin::rvv::kRVVGearboxProducerScope)
     return emitOpError()

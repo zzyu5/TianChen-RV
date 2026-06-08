@@ -222,3 +222,63 @@ default product-dequant timing must not emit `packed_i4_reference_oracle`.
 product-reduction-dequant representative. The Trellis task is archived as
 completed; final pre-commit checks and a coherent commit remain before
 wrap-up.
+
+## Session 575: RVV production-kernel Gate 1 packed resource realization
+
+**Date**: 2026-06-09
+**Task**: RVV production-kernel capability campaign: resource-aware packed low-precision contraction realization
+
+### Summary
+
+Created the new macro campaign task after the packed-i4 primitive surface
+campaign was archived. The new owner is production compiler/resource-aware
+selected-body realization, not another generated-bundle or timing evidence
+seam.
+
+Repository inspection showed the Gate 1 foundation already existed:
+`RVVContractionSelectedBodyRealizationOwner.cpp` consumes pass-produced
+low-precision resource facts into producer/consumer `with_vl` realization,
+`vsetvl_region_marker`, and `gearbox_cross_region_handoff`, and
+`RVVEmitCContractionRouteFamilyPlanOwners.cpp` re-consumes those realization
+facts before route acceptance. The bounded production gap was narrower:
+several verifier and route-collection helpers still treated packed-i4 as
+"not grouped, therefore default two-region schedule". That worked only because
+the current packed-i4 region count equals the base byte path.
+
+This slice added shared RVV Gearbox helpers in
+`RVVGearboxSchedule.h` to derive support class, expected `vsetvl` region
+count, producer/dequant marker indices, and product phase from the selected
+low-precision realization decision. The selected-body realizer, RVV dialect
+handoff verifier, route-family realization-structure validator, and route
+collector now call those helpers. Packed-i4 realization decision is therefore
+explicitly consumed across producer/consumer scope and fails closed for stale
+decision, stale region count, or stale `from_phase`.
+
+### Testing
+
+- [OK] built `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-rvv-extension-plugin-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] manual packed-i4 fixture pipelines for realized body, target header,
+  emitted C++, stale packed resource decision, stale packed region count, and
+  stale packed `from_phase`.
+- [OK] manual non-packed product-reduction-dequant fixture pipelines for
+  realized body, target header, and missing-resource fail-close.
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded added-line authority scan found no new legacy i32,
+  source-front-door, descriptor, or Common-EmitC authority drift.
+
+`FileCheck` and `llvm-lit` are unavailable in this environment, so the fixture
+checks were run as equivalent `tcrv-opt` / `tcrv-translate` pipelines with
+targeted `rg` assertions over key output and diagnostics.
+
+### Status
+
+[OPEN] Gate 1 production compiler slice is complete and committed in the active
+macro task. The macro task remains active because Gates 2-4 are not complete.
+Next continuation point: Gate 2 route/statement/artifact validation must consume
+the explicit packed-resource schedule facts without Common EmitC or metadata
+mirrors becoming semantic authority.

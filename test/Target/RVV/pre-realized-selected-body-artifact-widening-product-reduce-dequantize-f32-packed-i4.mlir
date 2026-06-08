@@ -1,4 +1,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/resource_decision = "consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1"/resource_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-DECISION
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/region_count = 2 : i64/region_count = 3 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-REGION-COUNT
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/from_phase = "load-product-reduce"/from_phase = "tail-product-reduce"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-FROM-PHASE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-rvv-emitc-to-cpp | FileCheck %s --check-prefix=CPP
 
@@ -76,3 +79,10 @@ module {
 // CPP: __riscv_vwmul_vv_i16mf2
 // CPP: __riscv_vwredsum_vs_i16mf2_i32m1
 // CPP: tcrv_emitc.assign target=dot_acc_vec
+
+// STALE-PACKED-DECISION: selected-body realization low-precision direct-contraction structure has stale or inconsistent vsetvl region marker
+// STALE-PACKED-DECISION-SAME: resource decision 'consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1'
+
+// STALE-PACKED-REGION-COUNT: requires region_count to match the bounded Gearbox resource decision
+
+// STALE-PACKED-FROM-PHASE: requires from_phase 'load-product-reduce'

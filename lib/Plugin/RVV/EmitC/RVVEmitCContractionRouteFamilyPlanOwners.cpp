@@ -4886,7 +4886,10 @@ llvm::Error requireRVVLowPrecisionRealizedVSetVLRegionStructure(
     expectedPhases.push_back("tail-product-reduce");
     expectedPhases.push_back("dequant-store");
   } else {
-    expectedPhases.push_back("load-product-reduce");
+    expectedPhases.push_back(
+        getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
+            getRVVLowPrecisionContractionResourceRealizationDecision(
+                selection.selectedCandidateID)));
     expectedPhases.push_back("dequant-store");
   }
   const llvm::StringRef expectedResourceDecision =
@@ -4974,9 +4977,8 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
         "structure requires tcrv_rvv.gearbox_cross_region_handoff to consume "
         "the selected with_vl token and runtime n/AVL SSA value");
   const llvm::StringRef expectedFromPhase =
-      isRVVLowPrecisionResourceGroupedCandidateID(selection.selectedCandidateID)
-          ? llvm::StringRef("tail-product-reduce")
-          : llvm::StringRef("load-product-reduce");
+      getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
+          expectedResourceDecision);
   if (handoff.getContract() !=
           "gearbox-product-reduce-to-dequant-cross-region-handoff.v1" ||
       handoff.getFromPhase() != expectedFromPhase ||

@@ -695,10 +695,8 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
   state.addAttribute(
       "from_phase",
       builder.getStringAttr(
-          isRVVLowPrecisionResourceGroupedCandidateID(
-              selectedCandidate.candidateID)
-              ? llvm::StringRef("tail-product-reduce")
-              : llvm::StringRef("load-product-reduce")));
+          getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
+              resourceDecision)));
   state.addAttribute("to_phase", builder.getStringAttr("dequant-store"));
   state.addAttribute(
       "region_count",
@@ -1229,25 +1227,22 @@ realizePreRealizedRVVSelectedContractionFamily(
   mlir::Value compareLHSValue;
   mlir::Value compareRHSValue;
   if (plan.usesProductReductionDequantization) {
-    const bool usesGroupedLowPrecisionProductReduction =
-        selectedResourceCandidate &&
-        isRVVLowPrecisionResourceGroupedCandidateID(
+    const llvm::StringRef resourceDecision =
+        getRVVLowPrecisionContractionResourceRealizationDecision(
             selectedResourceCandidate->candidateID);
+    const bool usesGroupedLowPrecisionProductReduction =
+        isRVVLowPrecisionResourceGroupedRealizationDecision(resourceDecision);
     createRealizedVSetVLRegionMarker(
         builder, loc, setvl.getVl(),
         usesGroupedLowPrecisionProductReduction
             ? llvm::StringRef("grouped-product-reduce-main")
-            : llvm::StringRef("load-product-reduce"),
-        1,
-        selectedResourceCandidate->vsetvlRegionCount,
-        getRVVLowPrecisionContractionResourceRealizationDecision(
-            selectedResourceCandidate->candidateID));
+            : getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
+                  resourceDecision),
+        1, selectedResourceCandidate->vsetvlRegionCount, resourceDecision);
     if (usesGroupedLowPrecisionProductReduction)
       createRealizedVSetVLRegionMarker(
           builder, loc, setvl.getVl(), "tail-product-reduce", 2,
-          selectedResourceCandidate->vsetvlRegionCount,
-          getRVVLowPrecisionContractionResourceRealizationDecision(
-              selectedResourceCandidate->candidateID));
+          selectedResourceCandidate->vsetvlRegionCount, resourceDecision);
   }
   if (plan.usesComputedMask) {
     auto compareLHSLoad =
@@ -1331,10 +1326,9 @@ realizePreRealizedRVVSelectedContractionFamily(
     builder.setInsertionPointToStart(&consumerWithVL.getBody().front());
     createRealizedVSetVLRegionMarker(
         builder, loc, setvl.getVl(), "dequant-store",
-        isRVVLowPrecisionResourceGroupedCandidateID(
-            consumerCandidate->candidateID)
-            ? 3
-            : 2,
+        getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+            getRVVLowPrecisionContractionResourceRealizationDecision(
+                consumerCandidate->candidateID)),
         consumerCandidate->vsetvlRegionCount,
         getRVVLowPrecisionContractionResourceRealizationDecision(
             consumerCandidate->candidateID));
