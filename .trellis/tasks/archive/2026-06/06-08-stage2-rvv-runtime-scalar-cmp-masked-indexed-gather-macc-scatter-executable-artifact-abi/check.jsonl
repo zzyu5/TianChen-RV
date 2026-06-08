@@ -1,0 +1,20 @@
+{"file": ".trellis/tasks/06-08-stage2-rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-executable-artifact-abi/prd.md", "reason": "Verify implementation and evidence against the current acceptance criteria and non-goals."}
+{"file": ".trellis/spec/index.md", "reason": "Check no architecture authority drift, stack violation, descriptor route, or source-front-door authority was introduced."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider ownership, typed-body authority, composite gather-MAcc-scatter contract, and ssh rvv correctness claim rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated artifact ABI boundary, provider-built route payloads, operand binding/header markers, and common EmitC neutrality."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "py_compile, self-test, dry-run evidence, and ssh rvv generated bundle execution if touched or used."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Regression for RVV provider route-family validation and stale-fact fail-closed behavior."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Regression for target artifact validation, header/prototype binding, and stale metadata rejection."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-dry-run.test", "reason": "Focused generated-bundle dry-run lit evidence for explicit and pre-realized selected bodies."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter.mlir", "reason": "Explicit target artifact positive and stale-contract fail-closed lit evidence."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter.mlir", "reason": "Pre-realized target artifact positive, composite realization, and stale-contract fail-closed lit evidence."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "C++ plugin validation for route-family facts and stale/missing structural fact failures."}
+{"file": "test/Plugin/ConstructionProtocolCommonTest.cpp", "reason": "C++ construction protocol and provider-built route boundary checks."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "C++ target artifact validation positive and negative coverage for the route boundary."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-explicit-runtime-scalar-cmp-masked-indexed-gms-ssh/runtime_scalar_cmp_masked_indexed_gather_macc_scatter/evidence.json", "reason": "Explicit selected-body generated object/header bundle compiled and ran on ssh rvv with dry_run=false, ssh_evidence=true, remote compile success, remote run success, and PASS summary."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-prerealized-runtime-scalar-cmp-masked-indexed-gms-ssh/runtime_scalar_cmp_masked_indexed_gather_macc_scatter/evidence.json", "reason": "Pre-realized selected-body generated object/header bundle compiled and ran on ssh rvv with dry_run=false, ssh_evidence=true, remote compile success, remote run success, and PASS summary."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "python3 -m py_compile passed; --self-test passed; explicit and pre-realized dry-run runs passed with configured LLVM 20 llvm-readobj."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Passed."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Passed."}
+{"file": "build/test", "reason": "Filtered lit with --filter runtime-scalar-cmp-masked-indexed-gather-macc-scatter passed 3/3 tests from the generated site config."}
+{"file": ".trellis/tasks/06-08-stage2-rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-executable-artifact-abi/check.jsonl", "reason": "git diff --check and git diff --cached --check passed; production source diff list was empty, so no new positive legacy authority was introduced."}

@@ -1,0 +1,24 @@
+{"file": ".trellis/tasks/06-08-stage2-rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-executable-artifact-abi/prd.md", "reason": "Current task goal, boundaries, acceptance criteria, and no-source-change/evidence decision rules."}
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, stack constraints, and RVV stage ordering."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body authority and the runtime-scalar indexed gather-MAcc-scatter route contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute, common EmitC neutrality, generated target artifact, and operand binding/header ABI boundary contracts."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-computed-masked-strided-dot-executable-artifact-abi/prd.md", "reason": "Previous RVV executable artifact evidence closeout and no-source-change justification pattern."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVConfigContract.h", "reason": "Runtime ABI parameter contract for the selected-body route family."}
+{"file": "lib/Dialect/RVV/IR/RVVConfigContract.cpp", "reason": "Verifier/runtime ABI contract implementation for runtime-scalar computed-mask indexed gather-MAcc-scatter."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Provider planning facts for masks, indexed memory, MAcc, composite route family, and runtime ABI facts."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Provider route description fields and selected-body route operation contracts."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h", "reason": "Composite resource selection and scheduling facts for the route family."}
+{"file": "lib/Plugin/RVV/Construction/RVVConstructionProtocol.cpp", "reason": "Selected/pre-realized body construction protocol and composite realization boundary."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.cpp", "reason": "Computed-mask memory family owner validation for indexed gather/scatter and runtime scalar compare facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCControlPolicyPlanOwners.cpp", "reason": "Route-control validation that consumes mask/policy/resource facts before route construction."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCMemoryStatementPlanOwners.cpp", "reason": "Memory statement owner planning for indexed gather and indexed scatter leaves."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "Statement owner planning for the composite route family."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Provider-built route metadata, statement planning, ABI/header payloads, and stale mirror handling for target artifacts."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target consume-only validation and fail-closed checks for provider facts and metadata mirrors."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated bundle ABI evidence tooling, route expectation, harness oracle, and ssh rvv execution path."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-dry-run.test", "reason": "Focused explicit and pre-realized generated-bundle dry-run evidence and harness assertions."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter.mlir", "reason": "Explicit selected-body target artifact fixture and fail-closed target validation checks."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-indexed-gather-macc-scatter.mlir", "reason": "Pre-realized selected-body composite realization, target artifact fixture, and fail-closed checks."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "C++ RVV plugin route-family validation and stale structural fact checks."}
+{"file": "test/Plugin/ConstructionProtocolCommonTest.cpp", "reason": "Construction protocol/common route checks for provider-built routes."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "C++ target artifact validation positive and stale-mirror negative checks for route boundaries."}

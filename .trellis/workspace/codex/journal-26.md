@@ -56,6 +56,76 @@ Focused checks:
 - None - task complete
 
 
+## Session 555: Stage2 RVV runtime-scalar-cmp masked indexed gather-MAcc-scatter executable artifact ABI
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV runtime-scalar-cmp masked indexed gather-MAcc-scatter executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Refreshed explicit and pre-realized generated object/header bundle ABI evidence
+for `runtime_scalar_cmp_masked_indexed_gather_macc_scatter` on `ssh rvv`; no
+compiler source changes were required because the existing provider/target
+contract already generated executable artifacts.
+
+### Main Changes
+
+- Created and completed Trellis task
+  `06-08-stage2-rvv-runtime-scalar-cmp-masked-indexed-gather-macc-scatter-executable-artifact-abi`.
+- Recorded a bounded PRD for the runtime-scalar compare, compare-produced mask,
+  indexed gather, masked MAcc, indexed scatter, ABI/header, target artifact,
+  and `ssh rvv` evidence boundary.
+- Proved the explicit selected-body generated object/header bundle on
+  `ssh rvv` with `dry_run=false`, `ssh_evidence=true`, remote compile success,
+  remote run success, and generated harness PASS.
+- Proved the pre-realized selected-body generated object/header bundle on
+  `ssh rvv` after composite realization with the same correctness scope.
+- Both remote harnesses covered counts `0,1,16,17,257`, RHS scalars `-37,91`,
+  two patterns, active/inactive lanes, noncontiguous index lanes, signed
+  product lanes, source preservation, payload/accumulator preservation, and
+  tail preservation.
+- No compiler source diff was introduced; this round recorded Trellis
+  PRD/context/journal/archive evidence and fresh generated-bundle artifacts
+  under ignored `artifacts/tmp`.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] explicit generated-bundle dry-run:
+  `runtime_scalar_cmp_masked_indexed_gather_macc_scatter`
+- [OK] pre-realized generated-bundle dry-run:
+  `runtime_scalar_cmp_masked_indexed_gather_macc_scatter`
+- [OK] explicit `ssh rvv` generated bundle:
+  `PASS op=runtime_scalar_cmp_masked_indexed_gather_macc_scatter counts=0,1,16,17,257 rhs_scalars=-37,91 patterns=0,1`
+- [OK] pre-realized `ssh rvv` generated bundle:
+  `PASS op=runtime_scalar_cmp_masked_indexed_gather_macc_scatter counts=0,1,16,17,257 rhs_scalars=-37,91 patterns=0,1`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] filtered lit from `build/test`:
+  `--filter runtime-scalar-cmp-masked-indexed-gather-macc-scatter`
+  passed 3/3 tests
+- [OK] production source diff list empty; no new positive legacy RVV authority
+  was introduced
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 553: Stage2 RVV runtime-scalar indexed scatter-store artifact ABI
 
 **Date**: 2026-06-08
