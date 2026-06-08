@@ -1,0 +1,15 @@
+{"file":".trellis/tasks/06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-store-artifact-abi-boundary/prd.md","reason":"Current task goal, requirements, acceptance criteria, and non-goals."}
+{"file":".trellis/spec/index.md","reason":"Global TianChen-RV stack, RVV-first authority chain, Stage2 scope, and mirror-only metadata rules."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV plugin ownership, runtime-scalar segment2 store pre-realized boundary, segment2 route-family planning, statement-plan, and target export contracts."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Common EmitC neutrality, TCRVEmitCLowerableRoute, computed-mask segment2 fact surface, and segment2 route validation contract."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Generated-bundle dry-run and ssh rvv runtime evidence quality requirements."}
+{"file":".trellis/tasks/archive/2026-06/06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-load-artifact-abi-boundary/prd.md","reason":"Previous load seam fix and evidence baseline for the paired store direction."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.cpp","reason":"Computed-mask memory and segment2 classification for runtime-scalar segment2 store."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCSegment2RouteFamilyPlanOwners.cpp","reason":"Runtime-scalar segment2 store planning owner, ABI binding, provider-plan and realization owner behavior."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCMemoryStatementPlanOwners.cpp","reason":"Segment2 statement-plan construction and runtime-scalar splat/compare/store loop steps."}
+{"file":"test/Plugin/RVVExtensionPluginTest.cpp","reason":"Focused C++ provider and fail-closed coverage for the store artifact ABI seam."}
+{"file":"test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-segment2-store.mlir","reason":"Explicit selected-body target artifact and fail-closed fixture."}
+{"file":"test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-segment2-store.mlir","reason":"Pre-realized selected-body materialization, target artifact, and fail-closed fixture."}
+{"file":"scripts/rvv_generated_bundle_abi_e2e.py","reason":"Generated bundle ABI harness and ssh rvv evidence for runtime-scalar segment2 store."}
+{"file":"test/Scripts/rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-segment2-store-dry-run.test","reason":"Explicit generated-bundle dry-run FileCheck coverage."}
+{"file":"test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-segment2-store-dry-run.test","reason":"Pre-realized generated-bundle dry-run FileCheck coverage."}

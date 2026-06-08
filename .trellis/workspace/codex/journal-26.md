@@ -708,6 +708,60 @@ Hardened runtime-scalar computed-mask segment2 load route-family classification,
 
 ### Main Changes
 
+- Created, completed, and archived Trellis task
+  `06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-store-artifact-abi-boundary`.
+- Confirmed production source already classifies
+  `RuntimeScalarComputedMaskSegment2StoreUnitLoad` as computed-mask segment2
+  memory, store-only, and `ComputedMaskUnitLoadSegment2Store`; no production
+  source rewrite was needed.
+- Added focused C++ provider coverage in
+  `test/Plugin/RVVExtensionPluginTest.cpp` for
+  `runtime_scalar_cmp_masked_segment2_store_unit_load`: route analysis,
+  computed-mask memory family facts, segment2 provider-plan flags,
+  `rhs_scalar` ABI/splat facts, statement-plan callees, and provider-built
+  `TCRVEmitCLowerableRoute` consumption.
+- Refreshed explicit and pre-realized generated-bundle evidence on `ssh rvv`
+  with active/inactive lanes, inactive interleaved destination preservation,
+  field distinction, source preservation, and tail preservation.
+
+### Git Commits
+
+- Pending final commit in this session.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'runtime-scalar-cmp-masked-segment2-store|pre-realized-runtime-scalar-cmp-segment2-store|explicit-selected-body-artifact-runtime-scalar-cmp-masked-segment2-store|pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-segment2-store'` from `build/test`: 4/4 passed
+- [OK] explicit store `ssh rvv`: `PASS op=runtime_scalar_cmp_masked_segment2_store_unit_load counts=0,1,16,17,257 patterns=0,1`
+- [OK] pre-realized store `ssh rvv`: `PASS op=runtime_scalar_cmp_masked_segment2_store_unit_load counts=0,1,7,16,23,257 patterns=0,1`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-store-artifact-abi-boundary`
+- [OK] bounded added-line old-authority scan
+- [OK] `git diff --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 561: Stage2 RVV runtime-scalar segment2 store ABI boundary
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV runtime-scalar segment2 store ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Added focused C++ provider coverage for runtime-scalar computed-mask segment2 store, verified target export and lit store fixtures, and refreshed explicit/pre-realized ssh rvv generated-bundle evidence.
+
+### Main Changes
+
 (Add details)
 
 ### Git Commits

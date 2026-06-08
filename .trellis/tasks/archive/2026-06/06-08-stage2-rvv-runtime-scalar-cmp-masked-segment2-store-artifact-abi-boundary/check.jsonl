@@ -1,0 +1,13 @@
+{"file":".trellis/tasks/06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-store-artifact-abi-boundary/prd.md","reason":"Verify implementation and evidence against current acceptance criteria and non-goals."}
+{"file":".trellis/spec/index.md","reason":"Check no stack, old-authority, descriptor, source-front-door, or mirror-authority drift was introduced."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Check RVV plugin locality, segment2 owner, statement-plan, target export, and ssh evidence contracts."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Check provider-built route facts, common EmitC neutrality, computed-mask segment2 fact surface, and ABI/header validation."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Check generated-bundle harness, inactive-lane, source/tail preservation, and ssh rvv evidence quality."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.cpp","reason":"Check runtime-scalar segment2 store remains classified as computed-mask segment2, not generic computed-mask memory."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCSegment2RouteFamilyPlanOwners.cpp","reason":"Check runtime-scalar segment2 store provider plan and ABI binding facts."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCMemoryStatementPlanOwners.cpp","reason":"Check runtime-scalar segment2 store statement-plan step ownership."}
+{"file":"test/Plugin/RVVExtensionPluginTest.cpp","reason":"Check focused plugin coverage and fail-closed assertions."}
+{"file":"test/Target/RVV/explicit-selected-body-artifact-runtime-scalar-cmp-masked-segment2-store.mlir","reason":"Check explicit target artifact ABI and fail-closed coverage."}
+{"file":"test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-segment2-store.mlir","reason":"Check pre-realized materialization, target artifact ABI, and fail-closed coverage."}
+{"file":"test/Scripts/rvv-generated-bundle-abi-e2e-runtime-scalar-cmp-masked-segment2-store-dry-run.test","reason":"Check explicit generated-bundle dry-run coverage."}
+{"file":"test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-segment2-store-dry-run.test","reason":"Check pre-realized generated-bundle dry-run coverage."}

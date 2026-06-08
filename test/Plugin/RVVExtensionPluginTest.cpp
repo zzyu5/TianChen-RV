@@ -15407,6 +15407,8 @@ int runComputedMaskMemoryRouteFamilyProviderPlanTest(
         RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore,
         RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad,
         RVVSelectedBodyOperationKind::ComputedMaskSegment2LoadUnitStore,
+        RVVSelectedBodyOperationKind::
+            RuntimeScalarComputedMaskSegment2StoreUnitLoad,
         RVVSelectedBodyOperationKind::ComputedMaskSegment2StoreUnitLoad}) {
     if (int result = expect(
             isRVVSelectedBodyComputedMaskMemoryRouteFamilyConsumer(op),
@@ -15666,6 +15668,27 @@ module {
     }
   }
 
+  tcrv.exec.kernel @runtime_scalar_cmp_masked_segment2_store_provider_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.variant @rvv_runtime_scalar_cmp_masked_segment2_store attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs_scalar = tcrv_rvv.runtime_abi_value {c_name = "rhs_scalar", c_type = "int32_t", ownership = "target-export-abi-owned", role = "rhs-scalar-value"} : i32
+      %src0 = tcrv_rvv.runtime_abi_value {c_name = "src0", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "segment-field0-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %src1 = tcrv_rvv.runtime_abi_value {c_name = "src1", c_type = "const int32_t *", ownership = "target-export-abi-owned", role = "segment-field1-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %dst = tcrv_rvv.runtime_abi_value {c_name = "dst", c_type = "int32_t *", ownership = "target-export-abi-owned", role = "segment-interleaved-output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
+      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64} : index -> !tcrv_rvv.vl
+      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_runtime_scalar_cmp_masked_segment2_store, sew = 32 : i64, source_kernel = "runtime_scalar_cmp_masked_segment2_store_provider_kernel", status = "selected-lowering-boundary"} {
+        %lhs_vec = tcrv_rvv.load %lhs, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %rhs_vec = tcrv_rvv.splat %rhs_scalar, %vl : i32, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %field0 = tcrv_rvv.load %src0, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %field1 = tcrv_rvv.load %src1, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
+        %mask = tcrv_rvv.compare %lhs_vec, %rhs_vec, %vl {kind = "sle"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.mask<i32, "m1">
+        tcrv_rvv.masked_segment2_store %dst, %mask, %field0, %field1, %vl {destination_memory_form = "segment2-interleaved-unit-stride-store", field0_role = "segment-field0-input-buffer", field1_role = "segment-field1-input-buffer", inactive_lane_policy = "preserve-output-on-false-lanes", segment_count = 2 : i64} : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.mask<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+      } : !tcrv_rvv.vl
+    }
+  }
+
   tcrv.exec.kernel @computed_masked_segment2_update_provider_kernel {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
     tcrv.exec.variant @rvv_computed_masked_segment2_update attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
@@ -15900,8 +15923,9 @@ module {
 
   auto expectComputedMaskSegment2MemoryStatementPlan =
       [&](RVVSelectedBodyRouteAnalysis &analysis, llvm::StringRef kernelName,
-          llvm::StringRef variantName, bool segment2Load, bool segment2Store,
-          bool segment2Update,
+          llvm::StringRef variantName, bool segment2Load,
+          bool runtimeScalarSegment2Load, bool segment2Store,
+          bool runtimeScalarSegment2Store, bool segment2Update,
           std::initializer_list<llvm::StringRef> expectedBodyCallees) -> int {
     if (int result = expectSuccess(
             verifyRVVSelectedBodyRouteFamilyProviderPlans(
@@ -15952,8 +15976,14 @@ module {
     if (int result = expect(
             providerPlan->plansComputedMaskSegment2LoadUnitStore ==
                     segment2Load &&
+                providerPlan
+                        ->plansRuntimeScalarComputedMaskSegment2LoadUnitStore ==
+                    runtimeScalarSegment2Load &&
                 providerPlan->plansComputedMaskSegment2StoreUnitLoad ==
                     segment2Store &&
+                providerPlan
+                        ->plansRuntimeScalarComputedMaskSegment2StoreUnitLoad ==
+                    runtimeScalarSegment2Store &&
                 providerPlan->plansComputedMaskSegment2UpdateUnitLoad ==
                     segment2Update &&
                 !providerPlan->selectedBodyFamilyName.empty(),
@@ -15978,8 +16008,14 @@ module {
                 !statementPlan->plansPlainSegment2InterleaveUnitLoad &&
                 statementPlan->plansComputedMaskSegment2LoadUnitStore ==
                     segment2Load &&
+                statementPlan
+                        ->plansRuntimeScalarComputedMaskSegment2LoadUnitStore ==
+                    runtimeScalarSegment2Load &&
                 statementPlan->plansComputedMaskSegment2StoreUnitLoad ==
                     segment2Store &&
+                statementPlan
+                        ->plansRuntimeScalarComputedMaskSegment2StoreUnitLoad ==
+                    runtimeScalarSegment2Store &&
                 statementPlan->plansComputedMaskSegment2UpdateUnitLoad ==
                     segment2Update,
             "statement plan exposes the expected computed-mask segment2 "
@@ -17077,7 +17113,8 @@ module {
     return result;
   if (int result = expectComputedMaskSegment2MemoryStatementPlan(
           *segmentAnalysis, "computed_masked_segment2_load_provider_kernel",
-          "rvv_computed_masked_segment2_load", true, false, false,
+          "rvv_computed_masked_segment2_load", true, false, false, false,
+          false,
           {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vle32_v_i32m1", "__riscv_vmslt_vv_i32m1_b32",
@@ -17134,10 +17171,90 @@ module {
   if (int result = expectComputedMaskSegment2MemoryStatementPlan(
           *segmentStoreAnalysis,
           "computed_masked_segment2_store_provider_kernel",
-          "rvv_computed_masked_segment2_store", false, true, false,
+          "rvv_computed_masked_segment2_store", false, false, true, false,
+          false,
           {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vle32_v_i32m1", "__riscv_vmslt_vv_i32m1_b32",
+           "__riscv_vcreate_v_i32m1x2",
+           "__riscv_vsseg2e32_v_i32m1x2_m"}))
+    return result;
+
+  llvm::Expected<RVVSelectedBodyRouteAnalysis>
+      runtimeScalarSegmentStoreAnalysis = analyzeRouteInModule(
+          *module, "runtime_scalar_cmp_masked_segment2_store_provider_kernel",
+          "rvv_runtime_scalar_cmp_masked_segment2_store");
+  if (!runtimeScalarSegmentStoreAnalysis)
+    return fail("analyze runtime-scalar segment2 store provider route: " +
+                llvm::toString(runtimeScalarSegmentStoreAnalysis.takeError()));
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyComputedMaskMemoryRouteFamilyProviderPlans(
+              *runtimeScalarSegmentStoreAnalysis,
+              "runtime-scalar segment2 store provider unit test"),
+          "valid runtime-scalar segment2 store computed-mask memory family "
+          "provider plan"))
+    return result;
+  if (int result = expect(
+          runtimeScalarSegmentStoreAnalysis
+              ->computedMaskMemoryRouteFamilyPlan &&
+              runtimeScalarSegmentStoreAnalysis
+                  ->computedMaskMemoryRouteFamilyPlan
+                  ->usesRuntimeScalarProducer &&
+              !runtimeScalarSegmentStoreAnalysis
+                   ->computedMaskMemoryRouteFamilyPlan
+                   ->usesVectorCompareProducer &&
+              runtimeScalarSegmentStoreAnalysis
+                  ->computedMaskMemoryRouteFamilyPlan->usesSegment2Store &&
+              runtimeScalarSegmentStoreAnalysis
+                  ->computedMaskMemoryRouteFamilyPlan->usesStoreOnly &&
+              runtimeScalarSegmentStoreAnalysis
+                      ->computedMaskMemoryRouteFamilyPlan->maskProducerSource ==
+                  "runtime-scalar-splat-compare-rhs" &&
+              runtimeScalarSegmentStoreAnalysis
+                      ->computedMaskMemoryRouteFamilyPlan->rhsScalarSplatIntrinsic ==
+                  "__riscv_vmv_v_x_i32m1" &&
+              runtimeScalarSegmentStoreAnalysis->routeOperandBindingPlan.planID ==
+                  "rvv-route-operand-binding:"
+                  "runtime_scalar_cmp_masked_segment2_store_unit_load.v1",
+          "runtime_scalar_cmp_masked_segment2_store plan carries runtime "
+          "scalar producer, segment2 store, splat, and binding facts"))
+    return result;
+  llvm::Expected<RVVSelectedBodyMemoryRouteOperandBindingFacts>
+      runtimeScalarSegmentStoreBindingFacts =
+          getRVVSelectedBodyMemoryRouteOperandBindingFacts(
+              *runtimeScalarSegmentStoreAnalysis,
+              "runtime-scalar segment2 store memory operand binding facts unit "
+              "test");
+  if (!runtimeScalarSegmentStoreBindingFacts)
+    return fail("runtime-scalar segment2 store binding facts: " +
+                llvm::toString(
+                    runtimeScalarSegmentStoreBindingFacts.takeError()));
+  if (int result = expect(
+          runtimeScalarSegmentStoreBindingFacts->bindsComputedMaskMemory &&
+              runtimeScalarSegmentStoreBindingFacts->bindsSegment2Memory &&
+              runtimeScalarSegmentStoreBindingFacts->compareLhsABI->cName ==
+                  "lhs" &&
+              runtimeScalarSegmentStoreBindingFacts->rhsScalarABI->cName ==
+                  "rhs_scalar" &&
+              runtimeScalarSegmentStoreBindingFacts->field0ABI->cName ==
+                  "src0" &&
+              runtimeScalarSegmentStoreBindingFacts->field1ABI->cName ==
+                  "src1" &&
+              runtimeScalarSegmentStoreBindingFacts->destinationABI->cName ==
+                  "dst" &&
+              runtimeScalarSegmentStoreBindingFacts->runtimeElementCountABI
+                      ->cName == "n",
+          "runtime-scalar segment2 store binding facts expose scalar compare, "
+          "field payloads, interleaved destination, and runtime operands"))
+    return result;
+  if (int result = expectComputedMaskSegment2MemoryStatementPlan(
+          *runtimeScalarSegmentStoreAnalysis,
+          "runtime_scalar_cmp_masked_segment2_store_provider_kernel",
+          "rvv_runtime_scalar_cmp_masked_segment2_store", false, false, false,
+          true, false,
+          {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vmv_v_x_i32m1", "__riscv_vle32_v_i32m1",
+           "__riscv_vle32_v_i32m1", "__riscv_vmsle_vv_i32m1_b32",
            "__riscv_vcreate_v_i32m1x2",
            "__riscv_vsseg2e32_v_i32m1x2_m"}))
     return result;
@@ -17172,7 +17289,8 @@ module {
   if (int result = expectComputedMaskSegment2MemoryStatementPlan(
           *segmentUpdateAnalysis,
           "computed_masked_segment2_update_provider_kernel",
-          "rvv_computed_masked_segment2_update", false, false, true,
+          "rvv_computed_masked_segment2_update", false, false, false, false,
+          true,
           {"__riscv_vsetvl_e32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vle32_v_i32m1", "__riscv_vle32_v_i32m1",
            "__riscv_vle32_v_i32m1", "__riscv_vmslt_vv_i32m1_b32",
