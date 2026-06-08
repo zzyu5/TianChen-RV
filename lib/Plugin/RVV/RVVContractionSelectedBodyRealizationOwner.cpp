@@ -11,6 +11,7 @@
 #include "llvm/Support/Errc.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -18,17 +19,6 @@ namespace tianchenrv::plugin::rvv {
 namespace {
 
 constexpr llvm::StringLiteral kRVVPluginName("rvv-plugin");
-constexpr llvm::StringLiteral
-    kRVVLowPrecisionResourceDequantClampCandidate(
-        "rvv-low-precision-direct-contraction-resource-candidate.v1["
-        "product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u1]");
-constexpr llvm::StringLiteral
-    kRVVLowPrecisionResourceDequantClampSelectionReason(
-        "static-bounded-product-reduction-dequant-clamp-i8mf4-i16mf2-i32m1-"
-        "f32m1-runtime-avl");
-constexpr llvm::StringLiteral
-    kRVVLowPrecisionResourceDequantClampRuntimeABIOrder(
-        "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n");
 
 llvm::Error makeRVVPluginError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -117,13 +107,6 @@ llvm::Error requireLowPrecisionResourceExpectedIntegerFact(
       llvm::Twine(*value));
 }
 
-llvm::Error requireLowPrecisionResourceExpectedStringFact(
-    mlir::Operation *op, llvm::StringRef attrName,
-    const std::string &expected) {
-  return requireLowPrecisionResourceExpectedStringFact(
-      op, attrName, llvm::StringRef(expected));
-}
-
 llvm::Error requireLowPrecisionResourceExpectedIntegerFact(
     mlir::Operation *op, llvm::StringRef attrName,
     std::int64_t actual, std::int64_t expected) {
@@ -147,6 +130,19 @@ llvm::Error requireLowPrecisionResourceExpectedIntegerFact(
       attrName + "': expected " + llvm::Twine(expected) +
       " matching the selected primitive/resource plan but found " +
       llvm::Twine(*value));
+}
+
+llvm::Error requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+    llvm::StringRef field, llvm::StringRef candidateValue,
+    llvm::StringRef primitiveValue) {
+  if (!primitiveValue.empty() && candidateValue == primitiveValue)
+    return llvm::Error::success();
+  return makeRVVPluginError(
+      llvm::Twine("pre-realized RVV contraction selected-body realization "
+                  "cannot consume stale or unsupported low-precision "
+                  "direct-contraction resource candidate for '") +
+      field + "': candidate selected '" + candidateValue +
+      "' but provider primitive facts require '" + primitiveValue + "'");
 }
 
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
@@ -190,7 +186,8 @@ tcrv::rvv::WithVLOp createRealizedWithVL(
   return withVL;
 }
 
-llvm::Error materializeLowPrecisionResourceRealizationAttrs(
+llvm::Expected<RVVLowPrecisionContractionResourceCandidate>
+materializeLowPrecisionResourceRealizationAttrs(
     mlir::OpBuilder &builder, mlir::Operation *source,
     mlir::Operation *destination, bool usesProductReductionDequantClamp,
     const RVVLowPrecisionWideningReductionPrimitiveFacts &primitiveFacts,
@@ -205,171 +202,225 @@ llvm::Error materializeLowPrecisionResourceRealizationAttrs(
         "realized with_vl operation before consuming low-precision resource "
         "facts");
 
-  const llvm::StringRef expectedSelectedCandidate =
+  if (llvm::Expected<std::string> candidateSet =
+          requireLowPrecisionResourceStringFact(
+              source, kRVVLowPrecisionResourceCandidateSetAttrName)) {
+    (void)*candidateSet;
+  } else {
+    return candidateSet.takeError();
+  }
+  llvm::Expected<std::int64_t> vectorRegisterBudget =
+      requireLowPrecisionResourceIntegerFact(
+          source, kRVVLowPrecisionResourceVectorRegisterBudgetAttrName);
+  if (!vectorRegisterBudget)
+    return vectorRegisterBudget.takeError();
+
+  const RVVLowPrecisionContractionResourceOperation operation =
       usesProductReductionDequantClamp
-          ? kRVVLowPrecisionResourceDequantClampCandidate
-          : kRVVLowPrecisionResourceDequantCandidate;
-  const llvm::StringRef expectedSelectionReason =
-      usesProductReductionDequantClamp
-          ? kRVVLowPrecisionResourceDequantClampSelectionReason
-          : kRVVLowPrecisionResourceDequantSelectionReason;
-  const llvm::StringRef expectedRuntimeABIOrder =
-      usesProductReductionDequantClamp
-          ? kRVVLowPrecisionResourceDequantClampRuntimeABIOrder
-          : kRVVLowPrecisionResourceRuntimeABIOrder;
+          ? RVVLowPrecisionContractionResourceOperation::
+                ProductReductionDequantClampF32
+          : RVVLowPrecisionContractionResourceOperation::
+                ProductReductionDequantizeF32;
+  llvm::SmallVector<RVVLowPrecisionContractionResourceCandidate, 2>
+      candidates = buildRVVLowPrecisionProductReductionResourceCandidates(
+          operation, tailPolicy, maskPolicy, sourceSEW, sourceLMUL,
+          productSEW, productLMUL, reductionResultSEW, reductionResultLMUL,
+          reductionResultSEW, reductionResultLMUL, *vectorRegisterBudget);
+  std::optional<RVVLowPrecisionContractionResourceCandidate> selected =
+      selectRVVLowPrecisionProductReductionResourceCandidate(candidates);
+  if (!selected) {
+    llvm::StringRef rejection =
+        candidates.empty() ? llvm::StringRef("no-resource-candidates-built")
+                           : candidates.front().rejectionReason;
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV contraction selected-body realization "
+                    "pruned every low-precision direct-contraction resource "
+                    "candidate before selected-body realization: ") +
+        rejection + " for vector register budget " +
+        llvm::Twine(*vectorRegisterBudget));
+  }
+  const llvm::StringRef realizationDecision =
+      getRVVLowPrecisionContractionResourceRealizationDecision(
+          selected->candidateID);
+  if (realizationDecision.empty())
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV contraction selected-body realization "
+                    "cannot derive a resource decision for selected candidate '") +
+        selected->candidateID + "'");
+
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "source dtype", selected->sourceElementTypeName,
+              primitiveFacts.sourceElementTypeName))
+    return std::move(error);
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "product dtype", selected->productElementTypeName,
+              primitiveFacts.productElementTypeName))
+    return std::move(error);
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "accumulator dtype", selected->accumulatorElementTypeName,
+              primitiveFacts.accumulatorElementTypeName))
+    return std::move(error);
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "final result dtype", selected->resultElementTypeName,
+              primitiveFacts.finalResultElementTypeName))
+    return std::move(error);
 
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceCandidateSetAttrName,
-          kRVVLowPrecisionResourceCandidateSet))
-    return error;
+          selected->candidateSetID))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceSelectedCandidateAttrName,
-          expectedSelectedCandidate))
-    return error;
+          selected->candidateID))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceSelectionReasonAttrName,
-          expectedSelectionReason))
-    return error;
+          selected->selectionReason))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceLegalityScopeAttrName,
-          kRVVLowPrecisionResourceLegalityScope))
-    return error;
+          selected->legalityScope))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceSourceDTypeAttrName,
-          primitiveFacts.sourceElementTypeName))
-    return error;
+          selected->sourceElementTypeName))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
           source, kRVVLowPrecisionResourceSourceSEWAttrName, sourceSEW,
           primitiveFacts.sourceSEW))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-          source, kRVVLowPrecisionResourceSourceLMULAttrName, sourceLMUL))
-    return error;
+          source, kRVVLowPrecisionResourceSourceLMULAttrName,
+          selected->sourceLMUL))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceProductDTypeAttrName,
-          primitiveFacts.productElementTypeName))
-    return error;
+          selected->productElementTypeName))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
           source, kRVVLowPrecisionResourceProductSEWAttrName, productSEW,
           primitiveFacts.productSEW))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-          source, kRVVLowPrecisionResourceProductLMULAttrName, productLMUL))
-    return error;
+          source, kRVVLowPrecisionResourceProductLMULAttrName,
+          selected->productLMUL))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceProductEMULAttrName,
-          kRVVLowPrecisionResourceProductEMUL))
-    return error;
+          selected->productEMUL))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceAccumulatorDTypeAttrName,
-          primitiveFacts.accumulatorElementTypeName))
-    return error;
+          selected->accumulatorElementTypeName))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
           source, kRVVLowPrecisionResourceAccumulatorSEWAttrName,
           reductionResultSEW, primitiveFacts.accumulatorSEW))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceAccumulatorLMULAttrName,
-          reductionResultLMUL))
-    return error;
+          selected->accumulatorLMUL))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceAccumulatorEMULAttrName,
-          kRVVLowPrecisionResourceAccumulatorEMUL))
-    return error;
+          selected->accumulatorEMUL))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceResultDTypeAttrName,
-          primitiveFacts.finalResultElementTypeName))
-    return error;
+          selected->resultElementTypeName))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
           source, kRVVLowPrecisionResourceResultSEWAttrName,
           reductionResultSEW, primitiveFacts.reductionResultSEW))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceResultLMULAttrName,
-          reductionResultLMUL))
-    return error;
+          selected->resultLMUL))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceMemoryFormAttrName,
-          usesProductReductionDequantClamp
-              ? llvm::StringRef(
-                    "unit-stride-widening-product-reduce-dequant-clamp-f32")
-              : llvm::StringRef(
-                    "unit-stride-widening-product-reduce-dequantize-f32")))
-    return error;
+          selected->memoryForm))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-          source, kRVVLowPrecisionResourceTailPolicyAttrName, tailPolicy))
-    return error;
+          source, kRVVLowPrecisionResourceTailPolicyAttrName,
+          selected->tailPolicy))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-          source, kRVVLowPrecisionResourceMaskPolicyAttrName, maskPolicy))
-    return error;
+          source, kRVVLowPrecisionResourceMaskPolicyAttrName,
+          selected->maskPolicy))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
           source, kRVVLowPrecisionResourceUnrollFactorAttrName,
-          kRVVLowPrecisionResourceStaticUnroll))
-    return error;
+          selected->unrollFactor))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
           source, kRVVLowPrecisionResourceAccumulatorCountAttrName,
-          kRVVLowPrecisionResourceAccumulatorCount))
-    return error;
+          selected->accumulatorCount))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceReductionLayoutAttrName,
-          kRVVLowPrecisionResourceReductionLayout))
-    return error;
+          selected->reductionLayout))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
           source, kRVVLowPrecisionResourceVSetVLRegionCountAttrName,
-          kRVVLowPrecisionResourceVSetVLRegions))
-    return error;
+          selected->vsetvlRegionCount))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
           source, kRVVLowPrecisionResourcePeakLiveVectorGroupsAttrName,
-          kRVVLowPrecisionResourcePeakLiveVectorGroups))
-    return error;
+          selected->peakLiveVectorGroups))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedIntegerFact(
           source, kRVVLowPrecisionResourceVectorRegisterBudgetAttrName,
-          kRVVLowPrecisionResourceVectorRegisterBudget))
-    return error;
+          selected->vectorRegisterBudget))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceRuntimeAVLSourceAttrName,
-          kRVVGearboxRuntimeAVLSourceN))
-    return error;
+          selected->runtimeAVLSource))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-          source, kRVVGearboxProducerScopeAttrName, kRVVGearboxProducerScope))
-    return error;
+          source, kRVVGearboxProducerScopeAttrName, selected->producerScope))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-          source, kRVVGearboxConsumerScopeAttrName, kRVVGearboxConsumerScope))
-    return error;
+          source, kRVVGearboxConsumerScopeAttrName, selected->consumerScope))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceRuntimeABIOrderAttrName,
-          expectedRuntimeABIOrder))
-    return error;
+          selected->runtimeABIOrder))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceLegalityAttrName,
-          kRVVLowPrecisionResourceLegal))
-    return error;
+          selected->isLegal ? llvm::StringRef(kRVVLowPrecisionResourceLegal)
+                            : llvm::StringRef("rejected")))
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceRejectionReasonAttrName,
-          kRVVLowPrecisionResourceNoRejectionReason))
-    return error;
+          selected->rejectionReason))
+    return std::move(error);
 
   destination->setAttr(
       kRVVLowPrecisionResourceRealizationProducerAttrName,
       builder.getStringAttr(kRVVLowPrecisionResourceRealizationProducer));
   destination->setAttr(
       kRVVLowPrecisionResourceRealizationDecisionAttrName,
-      builder.getStringAttr(kRVVLowPrecisionResourceRealizationDecision));
+      builder.getStringAttr(realizationDecision));
   destination->setAttr(kRVVGearboxProducerScopeAttrName,
-                       builder.getStringAttr(kRVVGearboxProducerScope));
+                       builder.getStringAttr(selected->producerScope));
   destination->setAttr(kRVVGearboxConsumerScopeAttrName,
-                       builder.getStringAttr(kRVVGearboxConsumerScope));
+                       builder.getStringAttr(selected->consumerScope));
   destination->setAttr(
       kRVVLowPrecisionResourceRealizedUnrollFactorAttrName,
-      builder.getI64IntegerAttr(kRVVLowPrecisionResourceStaticUnroll));
+      builder.getI64IntegerAttr(selected->unrollFactor));
   destination->setAttr(
       kRVVLowPrecisionResourceRealizedVSetVLRegionCountAttrName,
-      builder.getI64IntegerAttr(kRVVLowPrecisionResourceVSetVLRegions));
+      builder.getI64IntegerAttr(selected->vsetvlRegionCount));
   destination->setAttr(
       kRVVLowPrecisionResourceRealizedPeakLiveVectorGroupsAttrName,
-      builder.getI64IntegerAttr(
-          kRVVLowPrecisionResourcePeakLiveVectorGroups));
-  return llvm::Error::success();
+      builder.getI64IntegerAttr(selected->peakLiveVectorGroups));
+  return *selected;
 }
 
 mlir::Type getGenericVectorType(mlir::OpBuilder &builder, std::int64_t sew,
@@ -577,22 +628,26 @@ void createRealizedVSetVLRegionMarker(mlir::OpBuilder &builder,
                                       mlir::Location loc, mlir::Value vl,
                                       llvm::StringRef phase,
                                       std::int64_t regionIndex,
-                                      std::int64_t regionCount) {
+                                      std::int64_t regionCount,
+                                      llvm::StringRef resourceDecision) {
   mlir::OperationState state(loc, "tcrv_rvv.vsetvl_region_marker");
   state.addOperands(vl);
   state.addAttribute("phase", builder.getStringAttr(phase));
   state.addAttribute("region_index", builder.getI64IntegerAttr(regionIndex));
   state.addAttribute("region_count", builder.getI64IntegerAttr(regionCount));
   state.addAttribute("resource_decision",
-                     builder.getStringAttr(
-                         kRVVLowPrecisionResourceRealizationDecision));
+                     builder.getStringAttr(resourceDecision));
   (void)builder.create(state);
 }
 
 mlir::Operation *createRealizedGearboxCrossRegionHandoff(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value input,
-    mlir::Value vl, mlir::Value runtimeAVL) {
+    mlir::Value vl, mlir::Value runtimeAVL,
+    const RVVLowPrecisionContractionResourceCandidate &selectedCandidate) {
   mlir::OperationState state(loc, "tcrv_rvv.gearbox_cross_region_handoff");
+  const llvm::StringRef resourceDecision =
+      getRVVLowPrecisionContractionResourceRealizationDecision(
+          selectedCandidate.candidateID);
   state.addOperands({input, vl, runtimeAVL});
   state.addAttribute(
       "contract",
@@ -603,16 +658,15 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
   state.addAttribute("to_phase", builder.getStringAttr("dequant-store"));
   state.addAttribute(
       "region_count",
-      builder.getI64IntegerAttr(kRVVLowPrecisionResourceVSetVLRegions));
+      builder.getI64IntegerAttr(selectedCandidate.vsetvlRegionCount));
   state.addAttribute("runtime_avl_source",
-                     builder.getStringAttr("runtime_abi:n"));
+                     builder.getStringAttr(selectedCandidate.runtimeAVLSource));
   state.addAttribute("resource_decision",
-                     builder.getStringAttr(
-                         kRVVLowPrecisionResourceRealizationDecision));
+                     builder.getStringAttr(resourceDecision));
   state.addAttribute("producer_scope",
-                     builder.getStringAttr(kRVVGearboxProducerScope));
+                     builder.getStringAttr(selectedCandidate.producerScope));
   state.addAttribute("consumer_scope",
-                     builder.getStringAttr(kRVVGearboxConsumerScope));
+                     builder.getStringAttr(selectedCandidate.consumerScope));
   state.addTypes(input.getType());
   return builder.create(state);
 }
@@ -746,69 +800,69 @@ llvm::Error validateLowPrecisionPrimitiveFactsForRealization(
 
   if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
           "contract", primitiveFacts.contractID))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
           "low-precision primitive contract",
           primitiveFacts.lowPrecisionPrimitiveContractID))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
           "low-precision primitive kind",
           primitiveFacts.lowPrecisionPrimitiveKind))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
           "widening product intrinsic",
           primitiveFacts.wideningProductIntrinsic))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
           "widening reduction intrinsic", primitiveFacts.reductionIntrinsic))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
           "scalar seed splat intrinsic",
           primitiveFacts.scalarSeedSplatIntrinsic))
-    return error;
+    return std::move(error);
 
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "product kind", plan.productKind, "signed_widening_product"))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "source LMUL", plan.sourceLMUL, primitiveFacts.sourceLMUL))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveIntegerField(
           "source SEW", plan.sourceSEW, primitiveFacts.sourceSEW))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "product LMUL", plan.productLMUL, primitiveFacts.productLMUL))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveIntegerField(
           "product SEW", plan.productSEW, primitiveFacts.productSEW))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "reduction result LMUL", plan.resultLMUL,
           primitiveFacts.reductionResultLMUL))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveIntegerField(
           "reduction result SEW", plan.resultSEW,
           primitiveFacts.reductionResultSEW))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "widening product relation", plan.productRelation,
           primitiveFacts.wideningProductRelation))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "product-reduction chain relation",
           plan.productReductionChainRelation,
           primitiveFacts.productReductionChainRelation))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "accumulator layout", plan.accumulatorLayout,
           primitiveFacts.accumulatorLayout))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "result layout", plan.resultLayout, primitiveFacts.resultLayout))
-    return error;
+    return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "reduction store VL", primitiveFacts.reductionStoreVL, "1"))
-    return error;
+    return std::move(error);
   return llvm::Error::success();
 }
 
@@ -1106,20 +1160,25 @@ realizePreRealizedRVVSelectedContractionFamily(
                            request.getRole(), requires, plan.resultSEW,
                            plan.resultLMUL, plan.policy);
   copyLowPrecisionResourceAttrs(plan.preRealizedBody, withVL.getOperation());
+  std::optional<RVVLowPrecisionContractionResourceCandidate>
+      selectedResourceCandidate;
   if (plan.usesProductReductionDequantization) {
     if (!lowPrecisionPrimitiveFacts)
       return makeRVVPluginError(
           "pre-realized RVV contraction selected-body realization lost "
           "provider-owned low-precision primitive facts before materializing "
           "resource-aware realization attributes");
-    if (llvm::Error error = materializeLowPrecisionResourceRealizationAttrs(
+    llvm::Expected<RVVLowPrecisionContractionResourceCandidate> candidate =
+        materializeLowPrecisionResourceRealizationAttrs(
             builder, plan.preRealizedBody, withVL.getOperation(),
             plan.usesProductReductionDequantClamp, *lowPrecisionPrimitiveFacts,
             stringifyLowPrecisionRealizationTailPolicy(plan.policy.getTail()),
             stringifyLowPrecisionRealizationMaskPolicy(plan.policy.getMask()),
             plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
-            plan.productLMUL, plan.resultSEW, plan.resultLMUL))
-      return std::move(error);
+            plan.productLMUL, plan.resultSEW, plan.resultLMUL);
+    if (!candidate)
+      return candidate.takeError();
+    selectedResourceCandidate = *candidate;
   }
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
@@ -1128,7 +1187,9 @@ realizePreRealizedRVVSelectedContractionFamily(
   if (plan.usesProductReductionDequantization)
     createRealizedVSetVLRegionMarker(
         builder, loc, setvl.getVl(), "load-product-reduce", 1,
-        kRVVLowPrecisionResourceVSetVLRegions);
+        selectedResourceCandidate->vsetvlRegionCount,
+        getRVVLowPrecisionContractionResourceRealizationDecision(
+            selectedResourceCandidate->candidateID));
   if (plan.usesComputedMask) {
     auto compareLHSLoad =
         llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
@@ -1184,7 +1245,8 @@ realizePreRealizedRVVSelectedContractionFamily(
     tcrv::rvv::WithVLOp consumerWithVL;
     auto handoff = llvm::cast<tcrv::rvv::GearboxCrossRegionHandoffOp>(
         createRealizedGearboxCrossRegionHandoff(
-            builder, loc, reduced.getResult(), setvl.getVl(), plan.n));
+            builder, loc, reduced.getResult(), setvl.getVl(), plan.n,
+            *selectedResourceCandidate));
     dequantSource = handoff.getOutput();
     consumerWithVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
@@ -1192,18 +1254,27 @@ realizePreRealizedRVVSelectedContractionFamily(
                              plan.resultLMUL, plan.policy);
     copyLowPrecisionResourceAttrs(plan.preRealizedBody,
                                   consumerWithVL.getOperation());
-    if (llvm::Error error = materializeLowPrecisionResourceRealizationAttrs(
+    llvm::Expected<RVVLowPrecisionContractionResourceCandidate>
+        consumerCandidate = materializeLowPrecisionResourceRealizationAttrs(
             builder, plan.preRealizedBody, consumerWithVL.getOperation(),
             plan.usesProductReductionDequantClamp, *lowPrecisionPrimitiveFacts,
             stringifyLowPrecisionRealizationTailPolicy(plan.policy.getTail()),
             stringifyLowPrecisionRealizationMaskPolicy(plan.policy.getMask()),
             plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
-            plan.productLMUL, plan.resultSEW, plan.resultLMUL))
-      return std::move(error);
+            plan.productLMUL, plan.resultSEW, plan.resultLMUL);
+    if (!consumerCandidate)
+      return consumerCandidate.takeError();
+    if (consumerCandidate->candidateID != selectedResourceCandidate->candidateID)
+      return makeRVVPluginError(
+          "pre-realized RVV contraction selected-body realization requires "
+          "producer and consumer scopes to consume the same selected "
+          "low-precision resource candidate");
     builder.setInsertionPointToStart(&consumerWithVL.getBody().front());
     createRealizedVSetVLRegionMarker(builder, loc, setvl.getVl(),
                                      "dequant-store", 2,
-                                     kRVVLowPrecisionResourceVSetVLRegions);
+                                     consumerCandidate->vsetvlRegionCount,
+                                     getRVVLowPrecisionContractionResourceRealizationDecision(
+                                         consumerCandidate->candidateID));
     auto dequantized = llvm::cast<tcrv::rvv::DequantizeOp>(
         createRealizedGenericDequantizeCompute(
             builder, loc, plan.dequantizationRelation, dequantSource,

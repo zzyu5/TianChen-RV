@@ -5644,10 +5644,11 @@ Current implementation calibration:
   Gearbox MVP pass. It materializes bounded static schedule facts for selected
   typed `dequantize_i32_to_f32` bodies and must not be described as the completed
   resource-aware autotuner.
-- The low-precision direct-contraction resource candidate seed introduced after
-  the product-dequant route repairs is a provider/target-validation contract for
-  future pass output. It is a structural home for resource candidate and selected
-  candidate facts, not yet a separately registered MLIR pass.
+- The low-precision direct-contraction resource candidate contract introduced
+  after the product-dequant route repairs is now shared by the bounded Gearbox
+  pass, selected-body realization owner, and provider pre-route validator for
+  product-reduction-dequantize and product-reduction-dequant-clamp selected
+  bodies. It is still a bounded static model, not a completed runtime autotuner.
 - Product-dequant and product-dequant-clamp executable ABI evidence proves route
   and artifact behavior for those representatives. It is not a performance or
   llama.cpp parity claim.
@@ -5743,6 +5744,21 @@ the route provider claims resource-aware tuning.
   with the RVV-owned facts. Missing or stale primitive/resource combinations
   fail closed before route construction; Common EmitC and artifact metadata
   remain mirror consumers only.
+- For bounded low-precision product-reduction Gearbox candidates, candidate
+  build/prune/select semantics must be shared by the Gearbox pass,
+  selected-body realization owner, and provider pre-route validator. Selection
+  inputs include memory form, policy, source/product/accumulator/result
+  SEW/LMUL, runtime AVL source, and vector-register budget. A candidate whose
+  peak-live vector-group estimate exceeds the vector-register budget, whose
+  policy is unsupported, or whose typed shape is unsupported must be pruned with
+  a targeted diagnostic before realization or route construction.
+- Once a candidate is selected, that candidate owns the realization decision:
+  realized `with_vl` attrs, producer/consumer `tcrv_rvv.vsetvl_region_marker`
+  ops, and the Gearbox cross-region handoff must carry marker count, ordering,
+  phase, scope, runtime AVL source, and resource decision derived from the
+  selected candidate. The provider must derive the expected resource decision
+  from the selected candidate and reject stale marker/handoff/resource facts
+  before constructing `TCRVEmitCLowerableRoute`.
 - Runtime/performance parity claims require generated TianChen-RV output and the
   baseline RVV implementation to run on the same named `ssh rvv` environment with
   correctness checked before timing.

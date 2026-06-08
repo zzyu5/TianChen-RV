@@ -9,6 +9,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -219,14 +220,6 @@ constexpr llvm::StringLiteral kRVVContractionProductReductionDequantClampRelatio
 constexpr llvm::StringLiteral
     kRVVProductReductionDequantClampStoreBoundary(
         "store-clamped-dequantized-f32-vector-to-output-buffer");
-constexpr llvm::StringLiteral
-    kRVVLowPrecisionResourceDequantClampCandidate(
-        "rvv-low-precision-direct-contraction-resource-candidate.v1["
-        "product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u1]");
-constexpr llvm::StringLiteral
-    kRVVLowPrecisionResourceDequantClampSelectionReason(
-        "static-bounded-product-reduction-dequant-clamp-i8mf4-i16mf2-i32m1-"
-        "f32m1-runtime-avl");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceStridedInputWideningDotCandidateSet(
         "rvv-low-precision-direct-contraction-resource-candidate-set.v1["
@@ -4507,11 +4500,77 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceReductionLayout(
   return kRVVProductReductionDequantLocalCarryBoundary;
 }
 
+void populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
+    RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionContractionResourceCandidate &candidate,
+    const RVVSelectedTargetCapabilityFacts &targetFacts) {
+  selection.hasSelection = true;
+  selection.candidateSetID = candidate.candidateSetID.str();
+  selection.selectedCandidateID = candidate.candidateID.str();
+  selection.selectionReason = candidate.selectionReason.str();
+  selection.legalityScope = candidate.legalityScope.str();
+  selection.sourceElementTypeName = candidate.sourceElementTypeName.str();
+  selection.sourceSEW = candidate.sourceSEW;
+  selection.sourceLMUL = candidate.sourceLMUL.str();
+  selection.productElementTypeName = candidate.productElementTypeName.str();
+  selection.productSEW = candidate.productSEW;
+  selection.productLMUL = candidate.productLMUL.str();
+  selection.productEMUL = candidate.productEMUL.str();
+  selection.accumulatorElementTypeName =
+      candidate.accumulatorElementTypeName.str();
+  selection.accumulatorSEW = candidate.accumulatorSEW;
+  selection.accumulatorLMUL = candidate.accumulatorLMUL.str();
+  selection.accumulatorEMUL = candidate.accumulatorEMUL.str();
+  selection.resultElementTypeName = candidate.resultElementTypeName.str();
+  selection.resultSEW = candidate.resultSEW;
+  selection.resultLMUL = candidate.resultLMUL.str();
+  selection.memoryForm = candidate.memoryForm.str();
+  selection.tailPolicy = candidate.tailPolicy.str();
+  selection.maskPolicy = candidate.maskPolicy.str();
+  selection.unrollFactor = candidate.unrollFactor;
+  selection.accumulatorCount = candidate.accumulatorCount;
+  selection.reductionLayout = candidate.reductionLayout.str();
+  selection.vsetvlRegionCount = candidate.vsetvlRegionCount;
+  selection.peakLiveVectorGroups = candidate.peakLiveVectorGroups;
+  selection.vectorRegisterBudget = candidate.vectorRegisterBudget;
+  selection.runtimeAVLSource = candidate.runtimeAVLSource.str();
+  selection.producerScope = candidate.producerScope.str();
+  selection.consumerScope = candidate.consumerScope.str();
+  selection.runtimeABIOrder = candidate.runtimeABIOrder.str();
+  selection.targetCapabilityProviderMirror = targetFacts.providerMirror;
+  selection.targetCapabilityLegalityMirror = targetFacts.legalityMirror;
+  selection.isLegal = candidate.isLegal;
+  selection.rejectionReason = candidate.rejectionReason.str();
+}
+
 RVVLowPrecisionContractionResourceSelection
 deriveRVVLowPrecisionContractionResourceSelection(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan,
     const RVVSelectedTargetCapabilityFacts &targetFacts) {
   RVVLowPrecisionContractionResourceSelection selection;
+  if (plan.usesProductReductionDequantization) {
+    const RVVLowPrecisionContractionResourceOperation operation =
+        plan.usesProductReductionDequantClamp
+            ? RVVLowPrecisionContractionResourceOperation::
+                  ProductReductionDequantClampF32
+            : RVVLowPrecisionContractionResourceOperation::
+                  ProductReductionDequantizeF32;
+    llvm::SmallVector<RVVLowPrecisionContractionResourceCandidate, 2>
+        candidates = buildRVVLowPrecisionProductReductionResourceCandidates(
+            operation, plan.tailPolicy, plan.maskPolicy, plan.sourceSEW,
+            plan.sourceLMUL, plan.productSEW, plan.productLMUL, plan.sew,
+            plan.lmul, plan.sew, plan.lmul,
+            kRVVLowPrecisionResourceVectorRegisterBudget);
+    if (std::optional<RVVLowPrecisionContractionResourceCandidate> selected =
+            selectRVVLowPrecisionProductReductionResourceCandidate(candidates))
+      populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
+          selection, *selected, targetFacts);
+    else if (!candidates.empty())
+      populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
+          selection, candidates.front(), targetFacts);
+    return selection;
+  }
+
   selection.hasSelection = true;
   selection.candidateSetID =
       getExpectedRVVLowPrecisionResourceCandidateSet(plan.operation).str();
@@ -4685,6 +4744,16 @@ llvm::Error requireRVVLowPrecisionResourceRealizationIntegerFact(
 llvm::Error requireRVVLowPrecisionResourceRealizationFacts(
     mlir::Operation *op, llvm::StringRef context,
     const RVVLowPrecisionContractionResourceSelection &selection) {
+  const llvm::StringRef expectedResourceDecision =
+      getRVVLowPrecisionContractionResourceRealizationDecision(
+          selection.selectedCandidateID);
+  if (expectedResourceDecision.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "resource facts cannot derive a realization decision for selected "
+        "candidate '" +
+        selection.selectedCandidateID + "'");
   if (llvm::Error error = requireRVVLowPrecisionResourceRealizationStringFact(
           op, context, selection,
           kRVVLowPrecisionResourceRealizationProducerAttrName,
@@ -4694,27 +4763,25 @@ llvm::Error requireRVVLowPrecisionResourceRealizationFacts(
   if (llvm::Error error = requireRVVLowPrecisionResourceRealizationStringFact(
           op, context, selection,
           kRVVLowPrecisionResourceRealizationDecisionAttrName,
-          "realization decision",
-          kRVVLowPrecisionResourceRealizationDecision))
+          "realization decision", expectedResourceDecision))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceRealizationIntegerFact(
           op, context, selection,
           kRVVLowPrecisionResourceRealizedUnrollFactorAttrName,
           "realized unroll factor", selection.unrollFactor,
-          kRVVLowPrecisionResourceStaticUnroll))
+          selection.unrollFactor))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceRealizationIntegerFact(
           op, context, selection,
           kRVVLowPrecisionResourceRealizedVSetVLRegionCountAttrName,
           "realized vsetvl region count", selection.vsetvlRegionCount,
-          kRVVLowPrecisionResourceVSetVLRegions))
+          selection.vsetvlRegionCount))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceRealizationIntegerFact(
           op, context, selection,
           kRVVLowPrecisionResourceRealizedPeakLiveVectorGroupsAttrName,
           "realized peak live vector-group estimate",
-          selection.peakLiveVectorGroups,
-          kRVVLowPrecisionResourcePeakLiveVectorGroups))
+          selection.peakLiveVectorGroups, selection.peakLiveVectorGroups))
     return error;
   return llvm::Error::success();
 }
@@ -4735,6 +4802,16 @@ llvm::Error requireRVVLowPrecisionRealizedVSetVLRegionStructure(
 
   llvm::ArrayRef<llvm::StringRef> expectedPhases = {
       "load-product-reduce", "dequant-store"};
+  const llvm::StringRef expectedResourceDecision =
+      getRVVLowPrecisionContractionResourceRealizationDecision(
+          selection.selectedCandidateID);
+  if (expectedResourceDecision.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure cannot derive a vsetvl marker resource decision for "
+        "selected candidate '" +
+        selection.selectedCandidateID + "'");
   if (expectedRegionCount !=
       static_cast<std::int64_t>(expectedPhases.size()))
     return makeRVVEmitCRouteProviderError(
@@ -4758,8 +4835,7 @@ llvm::Error requireRVVLowPrecisionRealizedVSetVLRegionStructure(
         static_cast<std::int64_t>(marker.getRegionCount()) !=
             expectedRegionCount ||
         marker.getPhase() != expectedPhases[index] ||
-        marker.getResourceDecision() !=
-            kRVVLowPrecisionResourceRealizationDecision)
+        marker.getResourceDecision() != expectedResourceDecision)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " selected-body realization low-precision direct-contraction "
@@ -4769,7 +4845,7 @@ llvm::Error requireRVVLowPrecisionRealizedVSetVLRegionStructure(
           expectedPhases[index] + "', region_index " +
           llvm::Twine(expectedIndex) + ", region_count " +
           llvm::Twine(expectedRegionCount) + ", resource decision '" +
-          kRVVLowPrecisionResourceRealizationDecision + "'");
+          expectedResourceDecision + "'");
   }
   return llvm::Error::success();
 }
@@ -4779,6 +4855,16 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
     const RVVLowPrecisionContractionResourceSelection &selection) {
   tcrv::rvv::GearboxCrossRegionHandoffOp handoff =
       slice.gearboxCrossRegionHandoffOp;
+  const llvm::StringRef expectedResourceDecision =
+      getRVVLowPrecisionContractionResourceRealizationDecision(
+          selection.selectedCandidateID);
+  if (expectedResourceDecision.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure cannot derive a Gearbox handoff resource decision for "
+        "selected candidate '" +
+        selection.selectedCandidateID + "'");
   if (!handoff)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -4807,10 +4893,9 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
       static_cast<std::int64_t>(handoff.getRegionCount()) !=
           selection.vsetvlRegionCount ||
       handoff.getRuntimeAvlSource() != selection.runtimeAVLSource ||
-      handoff.getResourceDecision() !=
-          kRVVLowPrecisionResourceRealizationDecision ||
-      handoff.getProducerScope() != kRVVGearboxProducerScope ||
-      handoff.getConsumerScope() != kRVVGearboxConsumerScope ||
+      handoff.getResourceDecision() != expectedResourceDecision ||
+      handoff.getProducerScope() != selection.producerScope ||
+      handoff.getConsumerScope() != selection.consumerScope ||
       handoff.getProducerScope() == handoff.getConsumerScope())
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +

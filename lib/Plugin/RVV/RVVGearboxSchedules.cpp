@@ -111,14 +111,6 @@ constexpr llvm::StringLiteral kLowPrecisionDequantStoreBoundary(
     "store-dequantized-f32-vector-to-output-buffer");
 constexpr llvm::StringLiteral kLowPrecisionDequantClampStoreBoundary(
     "store-clamped-dequantized-f32-vector-to-output-buffer");
-constexpr llvm::StringLiteral kLowPrecisionDequantClampSelectedCandidate(
-    "rvv-low-precision-direct-contraction-resource-candidate.v1["
-    "product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u1]");
-constexpr llvm::StringLiteral kLowPrecisionDequantClampSelectionReason(
-    "static-bounded-product-reduction-dequant-clamp-i8mf4-i16mf2-i32m1-"
-    "f32m1-runtime-avl");
-constexpr llvm::StringLiteral kLowPrecisionDequantClampRuntimeABIOrder(
-    "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n");
 constexpr llvm::StringLiteral kLowPrecisionDequantClampLowerBoundRole(
     "lower-bound-scalar-value");
 constexpr llvm::StringLiteral kLowPrecisionDequantClampUpperBoundRole(
@@ -128,10 +120,6 @@ constexpr llvm::StringLiteral kLowPrecisionDequantClampBoundOrder(
     "lower-bound-before-upper-bound");
 constexpr llvm::StringLiteral kLowPrecisionDequantClampSelectLayout(
     "clamp-lower-then-upper");
-constexpr llvm::StringLiteral kLowPrecisionSourceDType("i8");
-constexpr llvm::StringLiteral kLowPrecisionProductDType("i16");
-constexpr llvm::StringLiteral kLowPrecisionAccumulatorDType("i32");
-constexpr llvm::StringLiteral kLowPrecisionResultDType("f32");
 constexpr llvm::StringLiteral kLowPrecisionCrossRegionHandoffContract(
     "gearbox-product-reduce-to-dequant-cross-region-handoff.v1");
 constexpr llvm::StringLiteral kLowPrecisionCrossRegionHandoffFromPhase(
@@ -336,138 +324,165 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
     return mlir::failure();
 
   using namespace tianchenrv::plugin::rvv;
-  const bool isClamp =
-      memoryForm == kLowPrecisionProductDequantClampMemoryForm;
+  std::optional<RVVLowPrecisionContractionResourceOperation> operation =
+      getRVVLowPrecisionResourceOperationForMemoryForm(memoryForm);
+  if (!operation)
+    return op->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires a supported product-reduction memory form";
+  llvm::StringRef tailPolicy = stringifyGearboxTailPolicy(policy.getTail());
+  llvm::StringRef maskPolicy = stringifyGearboxMaskPolicy(policy.getMask());
+  llvm::SmallVector<RVVLowPrecisionContractionResourceCandidate, 2>
+      candidates = buildRVVLowPrecisionProductReductionResourceCandidates(
+          *operation, tailPolicy, maskPolicy, sourceSEW, sourceLMUL,
+          productSEW, productLMUL, resultSEW, resultLMUL, resultSEW,
+          resultLMUL, kRVVLowPrecisionResourceVectorRegisterBudget);
+  std::optional<RVVLowPrecisionContractionResourceCandidate> selected =
+      selectRVVLowPrecisionProductReductionResourceCandidate(candidates);
+  if (!selected) {
+    llvm::StringRef rejection =
+        candidates.empty() ? llvm::StringRef("no-resource-candidates-built")
+                           : candidates.front().rejectionReason;
+    return op->emitError()
+           << "RVV low-precision Gearbox resource candidate pruning rejected "
+              "all candidates for "
+           << memoryForm << ": " << rejection
+           << " (requires tail agnostic, mask agnostic policy and peak live "
+              "vector-group estimate within the vector register budget)";
+  }
+
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceCandidateSetAttrName,
-          kRVVLowPrecisionResourceCandidateSet)))
+          selected->candidateSetID)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceSelectedCandidateAttrName,
-          isClamp ? kLowPrecisionDequantClampSelectedCandidate
-                  : kRVVLowPrecisionResourceDequantCandidate)))
+          selected->candidateID)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceSelectionReasonAttrName,
-          isClamp ? kLowPrecisionDequantClampSelectionReason
-                  : kRVVLowPrecisionResourceDequantSelectionReason)))
+          selected->selectionReason)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceLegalityScopeAttrName,
-          kRVVLowPrecisionResourceLegalityScope)))
+          selected->legalityScope)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceSourceDTypeAttrName,
-          kLowPrecisionSourceDType)))
+          selected->sourceElementTypeName)))
     return mlir::failure();
   if (mlir::failed(requireIntegerAttr(
-          op, builder, kRVVLowPrecisionResourceSourceSEWAttrName, sourceSEW)))
+          op, builder, kRVVLowPrecisionResourceSourceSEWAttrName,
+          selected->sourceSEW)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceSourceLMULAttrName,
-          sourceLMUL)))
+          selected->sourceLMUL)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceProductDTypeAttrName,
-          kLowPrecisionProductDType)))
+          selected->productElementTypeName)))
     return mlir::failure();
   if (mlir::failed(requireIntegerAttr(
-          op, builder, kRVVLowPrecisionResourceProductSEWAttrName, productSEW)))
+          op, builder, kRVVLowPrecisionResourceProductSEWAttrName,
+          selected->productSEW)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceProductLMULAttrName,
-          productLMUL)))
+          selected->productLMUL)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceProductEMULAttrName,
-          kRVVLowPrecisionResourceProductEMUL)))
+          selected->productEMUL)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceAccumulatorDTypeAttrName,
-          kLowPrecisionAccumulatorDType)))
+          selected->accumulatorElementTypeName)))
     return mlir::failure();
   if (mlir::failed(requireIntegerAttr(
           op, builder, kRVVLowPrecisionResourceAccumulatorSEWAttrName,
-          resultSEW)))
+          selected->accumulatorSEW)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceAccumulatorLMULAttrName,
-          resultLMUL)))
+          selected->accumulatorLMUL)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceAccumulatorEMULAttrName,
-          kRVVLowPrecisionResourceAccumulatorEMUL)))
+          selected->accumulatorEMUL)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceResultDTypeAttrName,
-          kLowPrecisionResultDType)))
+          selected->resultElementTypeName)))
     return mlir::failure();
   if (mlir::failed(requireIntegerAttr(
-          op, builder, kRVVLowPrecisionResourceResultSEWAttrName, resultSEW)))
+          op, builder, kRVVLowPrecisionResourceResultSEWAttrName,
+          selected->resultSEW)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceResultLMULAttrName,
-          resultLMUL)))
+          selected->resultLMUL)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
-          op, builder, kRVVLowPrecisionResourceMemoryFormAttrName, memoryForm)))
+          op, builder, kRVVLowPrecisionResourceMemoryFormAttrName,
+          selected->memoryForm)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceTailPolicyAttrName,
-          stringifyGearboxTailPolicy(policy.getTail()))))
+          selected->tailPolicy)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceMaskPolicyAttrName,
-          stringifyGearboxMaskPolicy(policy.getMask()))))
+          selected->maskPolicy)))
     return mlir::failure();
   if (mlir::failed(requireIntegerAttr(
           op, builder, kRVVLowPrecisionResourceUnrollFactorAttrName,
-          kRVVLowPrecisionResourceStaticUnroll)))
+          selected->unrollFactor)))
     return mlir::failure();
   if (mlir::failed(requireIntegerAttr(
           op, builder, kRVVLowPrecisionResourceAccumulatorCountAttrName,
-          kRVVLowPrecisionResourceAccumulatorCount)))
+          selected->accumulatorCount)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceReductionLayoutAttrName,
-          kRVVLowPrecisionResourceReductionLayout)))
+          selected->reductionLayout)))
     return mlir::failure();
   if (mlir::failed(requireIntegerAttr(
           op, builder, kRVVLowPrecisionResourceVSetVLRegionCountAttrName,
-          kRVVLowPrecisionResourceVSetVLRegions)))
+          selected->vsetvlRegionCount)))
     return mlir::failure();
   if (mlir::failed(requireIntegerAttr(
           op, builder, kRVVLowPrecisionResourcePeakLiveVectorGroupsAttrName,
-          kRVVLowPrecisionResourcePeakLiveVectorGroups)))
+          selected->peakLiveVectorGroups)))
     return mlir::failure();
   if (mlir::failed(requireIntegerAttr(
           op, builder, kRVVLowPrecisionResourceVectorRegisterBudgetAttrName,
-          kRVVLowPrecisionResourceVectorRegisterBudget)))
+          selected->vectorRegisterBudget)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceRuntimeAVLSourceAttrName,
-          kRVVGearboxRuntimeAVLSourceN)))
+          selected->runtimeAVLSource)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(op, builder,
                                      kRVVGearboxProducerScopeAttrName,
-                                     kRVVGearboxProducerScope)))
+                                     selected->producerScope)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(op, builder,
                                      kRVVGearboxConsumerScopeAttrName,
-                                     kRVVGearboxConsumerScope)))
+                                     selected->consumerScope)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceRuntimeABIOrderAttrName,
-          isClamp ? kLowPrecisionDequantClampRuntimeABIOrder
-                  : kRVVLowPrecisionResourceRuntimeABIOrder)))
+          selected->runtimeABIOrder)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceLegalityAttrName,
-          kRVVLowPrecisionResourceLegal)))
+          selected->isLegal ? llvm::StringRef(kRVVLowPrecisionResourceLegal)
+                            : llvm::StringRef("rejected"))))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceRejectionReasonAttrName,
-          kRVVLowPrecisionResourceNoRejectionReason)))
+          selected->rejectionReason)))
     return mlir::failure();
   return mlir::success();
 }

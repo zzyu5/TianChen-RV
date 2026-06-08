@@ -1319,3 +1319,72 @@ Continue the macro campaign by replacing more of the fixed Gearbox MVP with
 real resource-aware candidate build/prune/select behavior, then validate the
 selected candidate against realized `tcrv_rvv` marker count/order/resource
 decision before any Gate 3 runtime or Gate 4 measurement claim.
+
+
+## Session 570: RVV Gearbox candidate build/prune/select closure
+
+**Date**: 2026-06-08
+**Task**: RVV production-kernel capability campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro campaign with the Gate 1 resource-aware Gearbox
+candidate build/prune/select closure slice. The bounded low-precision
+product-reduction dequantize/dequant-clamp path now shares one compiler-owned
+candidate decision chain across the Gearbox pass, selected-body realization, and
+provider pre-route validation.
+
+### Main Changes
+
+- Added canonical low-precision product-reduction Gearbox resource candidate
+  helpers carrying memory form, typed source/product/accumulator/result facts,
+  policy, unroll, accumulator count, reduction layout, `vsetvl` region count,
+  live-vector pressure, runtime AVL source, producer/consumer scopes, ABI order,
+  legality, and rejection reason.
+- Reworked the Gearbox schedule pass to build, prune, and select the bounded
+  product-reduction-dequantize/dequant-clamp resource candidate before writing
+  `tcrv_rvv.low_precision_resource.*` facts.
+- Reworked selected-body realization so the selected candidate drives realized
+  attrs, producer/consumer `tcrv_rvv.vsetvl_region_marker` count/order/resource
+  decisions, and the Gearbox cross-region handoff.
+- Reworked provider pre-route validation so stale selected candidates, realized
+  attrs, marker count/order/resource decisions, or handoff scope/resource facts
+  fail before `TCRVEmitCLowerableRoute` construction.
+- Added focused budget-pruning coverage for the low-precision product-reduction
+  fixture and updated the RVV plugin spec with the shared candidate
+  build/prune/select contract.
+
+### Self-Repair
+
+- The first RVV plugin C++ test run exposed a semantic check bug: the selected
+  resource candidate's final result dtype is `f32`, while the intermediate
+  reduction result dtype is `i32`. The realization consistency check now compares
+  the candidate result dtype against provider primitive `finalResultElementTypeName`.
+
+### Git Commits
+
+- Pending final commit in this session.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test` after the dtype self-repair
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32|explicit-selected-body-realization-widening-product-reduce-dequant-clamp-f32'` from `build/test`: 3/3 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'widening-product|product-reduction|generic-widening-product'` from `build/test`: 13/13 passed
+- [OK] `git diff --check`
+- [OK] Bounded added-line old-authority scan over touched production/test files: no hits
+
+### Status
+
+[OPEN] Macro task remains active. This slice completes the Gate 1 bounded
+resource-aware candidate build/prune/select closure milestone, but the macro
+campaign is not complete.
+
+### Next Steps
+
+Continue from the remaining macro gates: finish any explicitly named Gate 2
+low-precision primitive integration gap, collect Gate 3 runtime correctness
+evidence only when a newly executable production behavior is claimed, and defer
+Gate 4 same-target measurement until correctness evidence exists.
