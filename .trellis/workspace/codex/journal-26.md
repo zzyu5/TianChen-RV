@@ -54,3 +54,71 @@ Focused checks:
 ### Next Steps
 
 - None - task complete
+
+
+## Session 551: Stage2 RVV computed-masked strided widening dot artifact ABI
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV computed-masked strided widening dot artifact ABI
+**Branch**: `main`
+
+### Summary
+
+Closed the executable evidence gap for the computed-masked strided-input
+widening dot-reduce route. Production C++ already consumes the combined
+computed-mask, strided-input, widening dot/reduction, accumulator/result,
+runtime AVL/VL, ABI order, header/type, and target mirror facts through RVV
+owners/providers/target validation; this round hardened the generated bundle
+harness so runtime evidence also proves compare/source/accumulator preservation
+instead of only scalar output correctness.
+
+### Main Changes
+
+- Created and completed Trellis task
+  `06-08-stage2-rvv-computed-masked-strided-widening-dot-artifact-abi`.
+- Updated `scripts/rvv_generated_bundle_abi_e2e.py` for
+  `computed_masked_strided_input_widening_dot_reduce_add`: the generated harness
+  snapshots `cmp_lhs`, `cmp_rhs`, `lhs`, `rhs`, and `acc`; computes expected
+  results from snapshots; checks compare/source/accumulator buffers after the
+  generated call; and prints `source_preserved accumulator_preserved
+  tail_preserved` only after those checks pass.
+- Updated explicit and pre-realized generated-bundle dry-run tests to check
+  snapshot buffers, mutation diagnostics, and the strengthened preservation
+  success markers.
+- Proved the pre-realized generated bundle on `ssh rvv` for counts
+  `0,1,16,17,257`, stride pairs `2:3` and `3:2`, mask/input patterns `0` and
+  `1`, signed widened dot, seed contribution, inactive-lane skipping,
+  skipped-source ignoring, scalar-output-only behavior, and
+  source/accumulator/tail preservation.
+- No `.trellis/spec/` update: existing RVV plugin, EmitC route, and MLIR
+  testing specs already require provider-owned route authority and runtime
+  preservation evidence.
+
+Focused checks:
+- [OK] script dry-run:
+  `computed_masked_strided_input_widening_dot_reduce_add`
+- [OK] filtered lit for explicit/pre-realized computed-masked strided-input
+  dry-run and direct pre-realized fail-closed tests: `Total Discovered Tests: 3`
+- [OK] non-dry-run `ssh rvv` generated bundle:
+  `PASS op=computed_masked_strided_input_widening_dot_reduce_add counts=0,1,16,17,257 stride_pairs=2:3,3:2 mask_patterns=2 input_patterns=2 source_preserved accumulator_preserved tail_preserved`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] bounded added-line residue scan for legacy i32/source-front-door/common
+  EmitC authority
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -25783,19 +25783,31 @@ static int run_case(size_t n, size_t lhs_stride, size_t rhs_stride,
     cmp_alloc = 6;
   if (out_alloc == 5 && n == 0)
     out_alloc = 6;
+  int status = 0;
   int32_t *cmp_lhs = (int32_t *)malloc(sizeof(int32_t) * cmp_alloc);
+  int32_t *cmp_lhs_before = (int32_t *)malloc(sizeof(int32_t) * cmp_alloc);
   int32_t *cmp_rhs = (int32_t *)malloc(sizeof(int32_t) * cmp_alloc);
+  int32_t *cmp_rhs_before = (int32_t *)malloc(sizeof(int32_t) * cmp_alloc);
   int16_t *lhs = (int16_t *)malloc(sizeof(int16_t) * lhs_alloc);
+  int16_t *lhs_before = (int16_t *)malloc(sizeof(int16_t) * lhs_alloc);
   int16_t *rhs = (int16_t *)malloc(sizeof(int16_t) * rhs_alloc);
+  int16_t *rhs_before = (int16_t *)malloc(sizeof(int16_t) * rhs_alloc);
   int32_t *acc = (int32_t *)malloc(sizeof(int32_t) * out_alloc);
+  int32_t *acc_before = (int32_t *)malloc(sizeof(int32_t) * out_alloc);
   int32_t *out = (int32_t *)malloc(sizeof(int32_t) * out_alloc);
-  if (!cmp_lhs || !cmp_rhs || !lhs || !rhs || !acc || !out) {{
+  if (!cmp_lhs || !cmp_lhs_before || !cmp_rhs || !cmp_rhs_before || !lhs ||
+      !lhs_before || !rhs || !rhs_before || !acc || !acc_before || !out) {{
     fprintf(stderr, "allocation failed for n=%zu\\n", n);
     free(cmp_lhs);
+    free(cmp_lhs_before);
     free(cmp_rhs);
+    free(cmp_rhs_before);
     free(lhs);
+    free(lhs_before);
     free(rhs);
+    free(rhs_before);
     free(acc);
+    free(acc_before);
     free(out);
     return 11;
   }}
@@ -25836,11 +25848,21 @@ static int run_case(size_t n, size_t lhs_stride, size_t rhs_stride,
     acc[index] = {expectation.source_initializer};
     out[index] = {expectation.out_initializer};
   }}
+  for (size_t index = 0; index < cmp_alloc; ++index) {{
+    cmp_lhs_before[index] = cmp_lhs[index];
+    cmp_rhs_before[index] = cmp_rhs[index];
+  }}
+  for (size_t index = 0; index < lhs_alloc; ++index)
+    lhs_before[index] = lhs[index];
+  for (size_t index = 0; index < rhs_alloc; ++index)
+    rhs_before[index] = rhs[index];
+  for (size_t index = 0; index < out_alloc; ++index)
+    acc_before[index] = acc[index];
 
   {expectation.function_name}(cmp_lhs, cmp_rhs, lhs, rhs, acc, out, n,
                               lhs_stride, rhs_stride);
 
-  int32_t expected = acc[0];
+  int32_t expected = acc_before[0];
   size_t active_lanes = 0;
   size_t inactive_lanes = 0;
   size_t active_positive_products = 0;
@@ -25849,10 +25871,11 @@ static int run_case(size_t n, size_t lhs_stride, size_t rhs_stride,
   size_t lhs_skipped_nonzero = 0;
   size_t rhs_skipped_nonzero = 0;
   for (size_t index = 0; index < n; ++index) {{
-    int active = cmp_lhs[index] < cmp_rhs[index];
+    int active = cmp_lhs_before[index] < cmp_rhs_before[index];
     size_t lhs_index = index * lhs_stride;
     size_t rhs_index = index * rhs_stride;
-    int32_t product = (int32_t)lhs[lhs_index] * (int32_t)rhs[rhs_index];
+    int32_t product =
+        (int32_t)lhs_before[lhs_index] * (int32_t)rhs_before[rhs_index];
     if (active) {{
       ++active_lanes;
       if (product > 0)
@@ -25867,27 +25890,22 @@ static int run_case(size_t n, size_t lhs_stride, size_t rhs_stride,
     }}
   }}
   for (size_t index = 0; index < n * lhs_stride; ++index)
-    if ((index % lhs_stride) != 0 && lhs[index] != 0)
+    if ((index % lhs_stride) != 0 && lhs_before[index] != 0)
       ++lhs_skipped_nonzero;
   for (size_t index = 0; index < n * rhs_stride; ++index)
-    if ((index % rhs_stride) != 0 && rhs[index] != 0)
+    if ((index % rhs_stride) != 0 && rhs_before[index] != 0)
       ++rhs_skipped_nonzero;
 
   if (out[0] != expected) {{
     fprintf(stderr,
             "{expectation.kind} scalar mismatch n=%zu got=%d expected=%d seed=%d lhs_stride=%zu rhs_stride=%zu pattern=%d active=%zu inactive=%zu active_pos=%zu active_neg=%zu inactive_nonzero=%zu lhs_skipped_nonzero=%zu rhs_skipped_nonzero=%zu\\n",
-            n, out[0], expected, acc[0], lhs_stride, rhs_stride,
+            n, out[0], expected, acc_before[0], lhs_stride, rhs_stride,
             pattern,
             active_lanes, inactive_lanes, active_positive_products,
             active_negative_products, inactive_nonzero_products,
             lhs_skipped_nonzero, rhs_skipped_nonzero);
-    free(cmp_lhs);
-    free(cmp_rhs);
-    free(lhs);
-    free(rhs);
-    free(acc);
-    free(out);
-    return 12;
+    status = 12;
+    goto cleanup;
   }}
 
   for (size_t index = 1; index < out_alloc; ++index) {{
@@ -25895,13 +25913,8 @@ static int run_case(size_t n, size_t lhs_stride, size_t rhs_stride,
       fprintf(stderr,
               "{expectation.kind} touched non-scalar/tail sentinel n=%zu raw_index=%zu got=%d sentinel=%d\\n",
               n, index, out[index], {expectation.out_initializer});
-      free(cmp_lhs);
-      free(cmp_rhs);
-      free(lhs);
-      free(rhs);
-      free(acc);
-      free(out);
-      return 13;
+      status = 13;
+      goto cleanup;
     }}
   }}
 
@@ -25910,31 +25923,73 @@ static int run_case(size_t n, size_t lhs_stride, size_t rhs_stride,
                 active_negative_products == 0 ||
                 inactive_nonzero_products == 0 ||
                 lhs_skipped_nonzero == 0 || rhs_skipped_nonzero == 0 ||
-                acc[0] == 0)) {{
+                acc_before[0] == 0)) {{
     fprintf(stderr,
             "{expectation.kind} coverage missing n=%zu lhs_stride=%zu rhs_stride=%zu pattern=%d active=%zu inactive=%zu active_pos=%zu active_neg=%zu inactive_nonzero=%zu lhs_skipped_nonzero=%zu rhs_skipped_nonzero=%zu seed=%d\\n",
             n, lhs_stride, rhs_stride, pattern,
             active_lanes, inactive_lanes, active_positive_products,
             active_negative_products, inactive_nonzero_products,
-            lhs_skipped_nonzero, rhs_skipped_nonzero, acc[0]);
-    free(cmp_lhs);
-    free(cmp_rhs);
-    free(lhs);
-    free(rhs);
-    free(acc);
-    free(out);
-    return 14;
+            lhs_skipped_nonzero, rhs_skipped_nonzero, acc_before[0]);
+    status = 14;
+    goto cleanup;
   }}
 
+  for (size_t index = 0; index < cmp_alloc; ++index) {{
+    if (cmp_lhs[index] != cmp_lhs_before[index] ||
+        cmp_rhs[index] != cmp_rhs_before[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} compare buffer mutated n=%zu index=%zu cmp_lhs=%d cmp_lhs_before=%d cmp_rhs=%d cmp_rhs_before=%d\\n",
+              n, index, cmp_lhs[index], cmp_lhs_before[index], cmp_rhs[index],
+              cmp_rhs_before[index]);
+      status = 15;
+      goto cleanup;
+    }}
+  }}
+  for (size_t index = 0; index < lhs_alloc; ++index) {{
+    if (lhs[index] != lhs_before[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} lhs source buffer mutated n=%zu lhs_stride=%zu index=%zu got=%d before=%d\\n",
+              n, lhs_stride, index, lhs[index], lhs_before[index]);
+      status = 16;
+      goto cleanup;
+    }}
+  }}
+  for (size_t index = 0; index < rhs_alloc; ++index) {{
+    if (rhs[index] != rhs_before[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} rhs source buffer mutated n=%zu rhs_stride=%zu index=%zu got=%d before=%d\\n",
+              n, rhs_stride, index, rhs[index], rhs_before[index]);
+      status = 17;
+      goto cleanup;
+    }}
+  }}
+  for (size_t index = 0; index < out_alloc; ++index) {{
+    if (acc[index] != acc_before[index]) {{
+      fprintf(stderr,
+              "{expectation.kind} accumulator buffer mutated n=%zu index=%zu got=%d before=%d\\n",
+              n, index, acc[index], acc_before[index]);
+      status = 18;
+      goto cleanup;
+    }}
+  }}
+
+cleanup:
   free(cmp_lhs);
+  free(cmp_lhs_before);
   free(cmp_rhs);
+  free(cmp_rhs_before);
   free(lhs);
+  free(lhs_before);
   free(rhs);
+  free(rhs_before);
   free(acc);
+  free(acc_before);
   free(out);
-  printf("{expectation.kind} case n=%zu ok compare_masked_strided_signed_horizontal_dot seed_added inactive_lanes_skipped source_strides=%zu,%zu mask_pattern=%d input_pattern=%d skipped_source_elements_ignored scalar_output tail_preserved\\n",
+  if (status != 0)
+    return status;
+  printf("{expectation.kind} case n=%zu ok compare_masked_strided_signed_horizontal_dot seed_added inactive_lanes_skipped source_strides=%zu,%zu mask_pattern=%d input_pattern=%d skipped_source_elements_ignored scalar_output source_preserved accumulator_preserved tail_preserved\\n",
          n, lhs_stride, rhs_stride, pattern, pattern);
-  return 0;
+  return status;
 }}
 
 int main(void) {{
@@ -25955,8 +26010,8 @@ int main(void) {{
         return status;
     }}
   }}
-  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} stride_pairs=2:3,3:2 mask_patterns=2 input_patterns=2\\n");
-  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} stride_pairs=2:3,3:2 mask_patterns=2 input_patterns=2\\n");
+  printf("{expectation.pass_marker} counts={','.join(str(c) for c in runtime_counts)} stride_pairs=2:3,3:2 mask_patterns=2 input_patterns=2 source_preserved accumulator_preserved tail_preserved\\n");
+  printf("PASS op={expectation.kind} counts={','.join(str(c) for c in runtime_counts)} stride_pairs=2:3,3:2 mask_patterns=2 input_patterns=2 source_preserved accumulator_preserved tail_preserved\\n");
   return 0;
 }}
 """.lstrip()

@@ -1,0 +1,7 @@
+{"file": ".trellis/tasks/06-08-stage2-rvv-computed-masked-strided-widening-dot-artifact-abi/prd.md", "reason": "Task PRD defining the bounded computed-masked strided-input widening dot-reduce artifact/ABI seam."}
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV stack, authority, and RVV Stage ordering invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned legality, selected-body realization, route provider, ABI, mask, reduction, and runtime evidence boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned TCRVEmitCLowerableRoute and operand binding summary contract for combined route families."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Testing layer checklist for RVV generated artifact and runtime evidence."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "lit/FileCheck, fail-closed, generated bundle, preservation, and ssh rvv evidence requirements."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-strided-input-widening-dot-reduce-executable-artifact-abi-boundary/prd.md", "reason": "Previous base strided-input widening dot-reduce closeout used as reference only, not success substitution."}
