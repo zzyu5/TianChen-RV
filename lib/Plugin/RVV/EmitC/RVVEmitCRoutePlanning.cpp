@@ -42772,6 +42772,24 @@ getRVVSelectedBodyConfigArtifactMetadata(
       }
     }
   }
+  if (!description.lowPrecisionPrimitiveContractID.empty()) {
+    metadata.push_back({"tcrv_rvv.low_precision_primitive.contract",
+                        description.lowPrecisionPrimitiveContractID});
+    metadata.push_back({"tcrv_rvv.low_precision_primitive.kind",
+                        description.lowPrecisionPrimitiveKind});
+    metadata.push_back({"tcrv_rvv.low_precision_primitive.source_dtype",
+                        description.lowPrecisionPrimitiveSourceElementTypeName});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_primitive.product_dtype",
+         description.lowPrecisionPrimitiveProductElementTypeName});
+    if (!description.lowPrecisionPrimitiveAccumulatorElementTypeName.empty())
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_primitive.accumulator_dtype",
+           description.lowPrecisionPrimitiveAccumulatorElementTypeName});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_primitive.result_dtype",
+         description.lowPrecisionPrimitiveResultElementTypeName});
+  }
   if (description.lowPrecisionResourceSelection.hasSelection) {
     const RVVLowPrecisionContractionResourceSelection &selection =
         description.lowPrecisionResourceSelection;

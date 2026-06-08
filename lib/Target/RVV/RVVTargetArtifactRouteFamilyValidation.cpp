@@ -2939,6 +2939,36 @@ llvm::Error validateRVVWideningProductDescriptionAgainstContract(
           contract.wideningProductIntrinsic))
     return error;
   if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "low-precision primitive contract",
+          description.lowPrecisionPrimitiveContractID,
+          contract.lowPrecisionPrimitiveContractID))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "low-precision primitive kind",
+          description.lowPrecisionPrimitiveKind,
+          contract.lowPrecisionPrimitiveKind))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "low-precision primitive source dtype",
+          description.lowPrecisionPrimitiveSourceElementTypeName,
+          contract.lowPrecisionPrimitiveSourceElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "low-precision primitive product dtype",
+          description.lowPrecisionPrimitiveProductElementTypeName,
+          contract.lowPrecisionPrimitiveProductElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "low-precision primitive accumulator dtype",
+          description.lowPrecisionPrimitiveAccumulatorElementTypeName,
+          contract.lowPrecisionPrimitiveAccumulatorElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "low-precision primitive result dtype",
+          description.lowPrecisionPrimitiveResultElementTypeName,
+          contract.lowPrecisionPrimitiveResultElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
           contract.consumerLabel, "compute intrinsic", description.intrinsic,
           contract.intrinsic))
     return error;
@@ -3347,6 +3377,41 @@ llvm::Error validateRVVWideningProductTargetArtifactCandidateMirrors(
           candidate, "tcrv_rvv.widening_product_intrinsic",
           contract->wideningProductIntrinsic,
           "selected typed RVV widening product intrinsic"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.low_precision_primitive.contract",
+          contract->lowPrecisionPrimitiveContractID,
+          "selected typed RVV widening product low-precision primitive "
+          "contract"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.low_precision_primitive.kind",
+          contract->lowPrecisionPrimitiveKind,
+          "selected typed RVV widening product low-precision primitive kind"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.low_precision_primitive.source_dtype",
+          contract->lowPrecisionPrimitiveSourceElementTypeName,
+          "selected typed RVV widening product low-precision primitive source "
+          "dtype"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.low_precision_primitive.product_dtype",
+          contract->lowPrecisionPrimitiveProductElementTypeName,
+          "selected typed RVV widening product low-precision primitive product "
+          "dtype"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.low_precision_primitive.accumulator_dtype",
+          contract->lowPrecisionPrimitiveAccumulatorElementTypeName,
+          "selected typed RVV widening product low-precision primitive "
+          "accumulator dtype"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.low_precision_primitive.result_dtype",
+          contract->lowPrecisionPrimitiveResultElementTypeName,
+          "selected typed RVV widening product low-precision primitive result "
+          "dtype"))
     return error;
 
   constexpr llvm::StringLiteral staleRouteFamilyMirrors[] = {

@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global TianChen-RV boundaries and RVV-first stage order."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin-local typed-body/provider authority and low-precision coverage constraints."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-owned route contract and Common EmitC neutrality."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check campaign gates, resource-aware realization boundary, and evidence-only non-goals."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused MLIR/C++/lit/FileCheck evidence expectations for changed compiler owners."}
+{"file": "test/Dialect/RVV/generic-widening-product-dataflow.mlir", "reason": "Covers signed i8 accepted widening product and fail-closed unsigned u8 typed surface diagnostic."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-widening-product.mlir", "reason": "Covers product-only low-precision primitive plan/header mirrors and stale source dtype rejection."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir", "reason": "Covers product-reduction low-precision primitive contract metadata for i8/i16/i32 facts."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Executed RVV extension plugin smoke test after provider changes."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Executed target artifact export test after target support/validation changes."}

@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV-first stage invariants for this macro campaign."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, typed tcrv_rvv body contract, Stage 2 low-precision coverage boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-owned TCRVEmitCLowerableRoute and Common EmitC neutrality contract."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Macro campaign priority ladder and low-precision primitive surface requirements after evidence-only drift."}
+{"file": ".trellis/spec/implementation-stack/supervision-loop.md", "reason": "Worker/Hermes macro-task behavior and no-production-source evidence closeout guardrails."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Implemented provider-owned low-precision primitive facts for signed i8 widening product and product-reduction contraction plans."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Mirrored provider-derived low-precision primitive facts into emission-plan metadata without Common EmitC inferring RVV semantics."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Validated product-only widening primitive facts as target artifact mirrors and rejected stale source/product/result primitive metadata."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Added targeted fail-closed diagnostic for unsupported unsigned u8 widening-product typed surface."}

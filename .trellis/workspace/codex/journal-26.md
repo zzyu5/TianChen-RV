@@ -166,7 +166,7 @@ evidence already line up.
 
 ### Git Commits
 
-- Pending final commit in this session.
+- This commit: `rvv: add low precision primitive route facts`
 
 ### Testing
 
@@ -1008,3 +1008,65 @@ Archived the runtime-scalar-cmp masked standalone reduce-add executable artifact
 ### Next Steps
 
 - None - task complete
+
+
+## Session 565: RVV production-kernel low-precision primitive surface
+
+**Date**: 2026-06-08
+**Task**: RVV production-kernel capability campaign
+**Branch**: `main`
+
+### Summary
+
+Started the macro production-kernel campaign Gate 2 by adding provider-owned
+low-precision primitive facts for signed i8 widening product and
+product-reduction routes, with target mirror validation and a fail-closed u8
+typed-surface diagnostic.
+
+### Main Changes
+
+- Created and kept active the macro Trellis task
+  `06-08-rvv-production-kernel-capability-campaign`.
+- Added `lowPrecisionPrimitive*` fields to RVV contraction route-family plans,
+  selected-body route descriptions, product route facts, and product route
+  validation contracts.
+- Derived signed i8 widening product facts from typed body/config facts:
+  source `i8`, product/result `i16`, no accumulator.
+- Derived product-reduction primitive facts for the existing i8/i16/i32/f32
+  contraction routes, including accumulator and result dtype mirrors.
+- Emitted `tcrv_rvv.low_precision_primitive.*` metadata and registered the
+  corresponding target support bundle keys for header artifact export.
+- Extended product-only target artifact validation to reject stale primitive
+  contract/kind/source/product/accumulator/result mirrors.
+- Added a dialect fail-closed diagnostic for unsigned u8 widening-product typed
+  vectors until provider/target unsigned intrinsic facts exist.
+- Added product-only target lit coverage and widened product-reduction lit
+  checks; repaired two dequant-clamp negative RUN commands to target the actual
+  `tcrv_rvv.runtime_abi_order` candidate mirror.
+
+### Git Commits
+
+- Pending final commit in this session.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'generic-widening-product-dataflow|explicit-selected-body-artifact-widening-product(\.mlir|$)|explicit-selected-body-artifact-widening-product-reduce-add'` from `build/test`: 3/3 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'widening-product|product-reduction|generic-widening-product'` from `build/test`: 11/11 passed
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] bounded production added-line old-authority scan
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+
+### Status
+
+[OPEN] Macro task remains active. Gate 2 first slice is complete; Gates 1, 3,
+and 4 remain open.
+
+### Next Steps
+
+Continue Gate 2 by adding accepted u8 widening-product provider/target facts or
+extending the unsigned fail-closed matrix, then deepen `vwredsum`/accumulator
+route-family validation for Gearbox consumption.

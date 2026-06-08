@@ -350,6 +350,12 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef productReductionChainRelation;
   llvm::StringRef wideningProductRelation;
   llvm::StringRef wideningProductIntrinsic;
+  llvm::StringRef lowPrecisionPrimitiveContractID;
+  llvm::StringRef lowPrecisionPrimitiveKind;
+  llvm::StringRef lowPrecisionPrimitiveSourceElementTypeName;
+  llvm::StringRef lowPrecisionPrimitiveProductElementTypeName;
+  llvm::StringRef lowPrecisionPrimitiveAccumulatorElementTypeName;
+  llvm::StringRef lowPrecisionPrimitiveResultElementTypeName;
   llvm::StringRef maskedWideningProductIntrinsic;
   llvm::StringRef dequantizeConvertIntrinsic;
   llvm::StringRef dequantizeScaleIntrinsic;
@@ -2364,6 +2370,12 @@ struct RVVWideningProductRouteFacts {
   llvm::StringRef wideningProductRelation;
   llvm::StringRef sourceVectorLoadIntrinsic;
   llvm::StringRef wideningProductIntrinsic;
+  llvm::StringRef lowPrecisionPrimitiveContractID;
+  llvm::StringRef lowPrecisionPrimitiveKind;
+  llvm::StringRef lowPrecisionPrimitiveSourceElementTypeName;
+  llvm::StringRef lowPrecisionPrimitiveProductElementTypeName;
+  llvm::StringRef lowPrecisionPrimitiveAccumulatorElementTypeName;
+  llvm::StringRef lowPrecisionPrimitiveResultElementTypeName;
   llvm::StringRef storeIntrinsic;
   llvm::StringRef setVLIntrinsic;
   llvm::StringRef vlCType;
@@ -2457,6 +2469,12 @@ struct RVVWideningProductRouteValidationContract {
   std::string wideningProductRelation;
   std::string sourceVectorLoadIntrinsic;
   std::string wideningProductIntrinsic;
+  std::string lowPrecisionPrimitiveContractID;
+  std::string lowPrecisionPrimitiveKind;
+  std::string lowPrecisionPrimitiveSourceElementTypeName;
+  std::string lowPrecisionPrimitiveProductElementTypeName;
+  std::string lowPrecisionPrimitiveAccumulatorElementTypeName;
+  std::string lowPrecisionPrimitiveResultElementTypeName;
   std::string intrinsic;
   std::string storeIntrinsic;
   std::string setVLIntrinsic;

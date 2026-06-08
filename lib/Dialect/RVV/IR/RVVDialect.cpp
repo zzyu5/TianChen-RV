@@ -2595,6 +2595,16 @@ bool isGenericRVVVectorType(mlir::Type type, std::int64_t sew,
          vector.getLmul() == lmul;
 }
 
+bool isGenericRVVUnsignedIntegerVector(mlir::Type type) {
+  auto vector = llvm::dyn_cast<tianchenrv::tcrv::rvv::VectorType>(type);
+  if (!vector)
+    return false;
+  auto elementType = llvm::dyn_cast<mlir::IntegerType>(vector.getElementType());
+  return elementType &&
+         elementType.getSignedness() ==
+             mlir::IntegerType::SignednessSemantics::Unsigned;
+}
+
 bool isGenericRVVVectorI32M1(mlir::Type type) {
   return isGenericRVVVectorType(type, getRVVFirstSliceSEWBits(),
                                 getRVVLMULM1());
@@ -12039,6 +12049,15 @@ mlir::LogicalResult WideningProductOp::verify() {
                 "'product_relation'; unexpected attribute '"
              << attr.getName() << "'";
   }
+
+  if (isGenericRVVUnsignedIntegerVector(getLhs().getType()) ||
+      isGenericRVVUnsignedIntegerVector(getRhs().getType()) ||
+      isGenericRVVUnsignedIntegerVector(getResult().getType()))
+    return emitOpError()
+           << "does not yet support unsigned u8 widening-product routes; "
+              "u8 typed low-precision primitive support requires "
+              "provider-derived unsigned widening product and target "
+              "intrinsic facts before route acceptance";
 
   if (!isSupportedGenericWideningProductKind(getKind()))
     return emitOpError()
