@@ -1963,3 +1963,14 @@ executable artifact/runtime claim.
 landed; next continuation is the nibble unpack/sign-extension statement
 boundary. Gate 4 generated-bundle/runtime evidence and Gate 5 same-target
 correctness/timing remain open.
+
+## 2026-06-09 Gate 3 Packed-I4 Nibble Statement Slice
+
+Completed the provider-owned packed-i4 statement boundary for the accepted
+signed packed-i4 product-reduction-dequant representative. Statement planning
+now emits low/high nibble sign-extension for both operands, runs both
+widening-product reductions, and can build a provider-owned lowerable route.
+
+Target artifact export remains fail-closed at Gate 4; no generated-bundle,
+`ssh rvv`, correctness, timing, or parity claim was made. The next continuation
+is packed-i4 target artifact validation and focused generated-bundle evidence.

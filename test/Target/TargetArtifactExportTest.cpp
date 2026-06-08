@@ -11,6 +11,7 @@
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 #include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
 #include "TianChenRV/Plugin/Template/TemplateExtensionPlugin.h"
@@ -12869,6 +12870,23 @@ bool expectRVVTargetArtifactExporterShape(
                                  productReductionFixture,
                                  productReductionRoute,
                                  productReductionDescription))
+    return false;
+  RVVRouteDescription packedI4Gate4Description =
+      productReductionDescription;
+  packedI4Gate4Description.lowPrecisionResourceSelection.hasSelection = true;
+  packedI4Gate4Description.lowPrecisionResourceSelection.selectedCandidateID =
+      tianchenrv::plugin::rvv::kRVVLowPrecisionResourceDequantPackedI4Candidate
+          .str();
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyProviderFacts(
+                  RVVRouteValidationContext{productReductionFixture.candidate,
+                                            productReductionRoute,
+                                            packedI4Gate4Description}),
+          "widening-dot registry keeps packed-i4 artifact export behind Gate 4",
+          {"selected packed-i4 low-precision resource candidate",
+           "target artifact export fail-closed", "Gate 4",
+           "nibble unpack/sign-extension"}))
     return false;
 
   RVVTargetArtifactCandidateFixture stridedWideningDotFixture(

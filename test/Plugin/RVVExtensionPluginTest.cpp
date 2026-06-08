@@ -9420,11 +9420,110 @@ module {
           emptyProductDequantResidualFacts,
           "selected-boundary packed-i4 product-reduction-dequant statement "
           "test");
-  if (int result = expectErrorContains(
-          packedI4ProductDequantSelectedStatementPlan.takeError(),
-          {"selected packed-i4 low-precision resource candidate",
-           "missing RVV-owned nibble unpack/sign-extension statement boundary",
-           "widening product"}))
+  if (!packedI4ProductDequantSelectedStatementPlan)
+    return fail("packed-i4 product-reduction-dequant statement plan: " +
+                llvm::toString(
+                    packedI4ProductDequantSelectedStatementPlan.takeError()));
+  const auto &packedI4LoopSteps =
+      packedI4ProductDequantSelectedStatementPlan->loop.bodySteps;
+  auto stepResultName = [](const auto &step) -> llvm::StringRef {
+    if (!step.result)
+      return "";
+    return step.result->name;
+  };
+  auto stepOperandExpression = [](const auto &step,
+                                  std::size_t index) -> llvm::StringRef {
+    if (index >= step.operands.size())
+      return "";
+    return step.operands[index].expression;
+  };
+  if (int result = expect(
+              packedI4ProductDequantSelectedStatementPlan->plansSelectedBodyRoute &&
+              packedI4ProductDequantSelectedStatementPlan->ownerKind ==
+                  tianchenrv::plugin::rvv::
+                      RVVSelectedBodyRouteStatementPlanOwnerKind::
+                      DirectContraction &&
+              packedI4LoopSteps.size() == 13 &&
+              packedI4LoopSteps[1].callee ==
+                  packedI4ProductDequantDirectProviderPlan->sourceLoadLeaf &&
+              stepResultName(packedI4LoopSteps[1]) == "lhs_packed_i4_vec" &&
+              packedI4LoopSteps[2].callee ==
+                  packedI4ProductDequantDirectProviderPlan->sourceLoadLeaf &&
+              stepResultName(packedI4LoopSteps[2]) == "rhs_packed_i4_vec" &&
+              packedI4LoopSteps[3].callee == "__riscv_vsll_vx_i8mf4" &&
+              stepOperandExpression(packedI4LoopSteps[3], 0) ==
+                  "lhs_packed_i4_vec" &&
+              stepResultName(packedI4LoopSteps[3]) ==
+                  "lhs_low_i4_shifted_vec" &&
+              packedI4LoopSteps[4].callee == "__riscv_vsra_vx_i8mf4" &&
+              stepOperandExpression(packedI4LoopSteps[4], 0) ==
+                  "lhs_low_i4_shifted_vec" &&
+              stepResultName(packedI4LoopSteps[4]) == "lhs_low_i4_vec" &&
+              packedI4LoopSteps[5].callee == "__riscv_vsra_vx_i8mf4" &&
+              stepOperandExpression(packedI4LoopSteps[5], 0) ==
+                  "lhs_packed_i4_vec" &&
+              stepResultName(packedI4LoopSteps[5]) == "lhs_high_i4_vec" &&
+              packedI4LoopSteps[6].callee == "__riscv_vsll_vx_i8mf4" &&
+              stepOperandExpression(packedI4LoopSteps[6], 0) ==
+                  "rhs_packed_i4_vec" &&
+              stepResultName(packedI4LoopSteps[6]) ==
+                  "rhs_low_i4_shifted_vec" &&
+              packedI4LoopSteps[7].callee == "__riscv_vsra_vx_i8mf4" &&
+              stepOperandExpression(packedI4LoopSteps[7], 0) ==
+                  "rhs_low_i4_shifted_vec" &&
+              stepResultName(packedI4LoopSteps[7]) == "rhs_low_i4_vec" &&
+              packedI4LoopSteps[8].callee == "__riscv_vsra_vx_i8mf4" &&
+              stepOperandExpression(packedI4LoopSteps[8], 0) ==
+                  "rhs_packed_i4_vec" &&
+              stepResultName(packedI4LoopSteps[8]) == "rhs_high_i4_vec" &&
+              packedI4LoopSteps[9].callee ==
+                  packedI4ProductDequantDirectProviderPlan
+                      ->wideningProductLeaf &&
+              stepOperandExpression(packedI4LoopSteps[9], 0) ==
+                  "lhs_low_i4_vec" &&
+              stepOperandExpression(packedI4LoopSteps[9], 1) ==
+                  "rhs_low_i4_vec" &&
+              packedI4LoopSteps[11].callee ==
+                  packedI4ProductDequantDirectProviderPlan
+                      ->wideningProductLeaf &&
+              stepOperandExpression(packedI4LoopSteps[11], 0) ==
+                  "lhs_high_i4_vec" &&
+              stepOperandExpression(packedI4LoopSteps[11], 1) ==
+                  "rhs_high_i4_vec" &&
+              packedI4LoopSteps[12].callee ==
+                  packedI4ProductDequantDirectProviderPlan
+                      ->contractionComputeLeaf &&
+              stepOperandExpression(packedI4LoopSteps[12], 0) ==
+                  "product_vec_i4_high" &&
+              stepOperandExpression(packedI4LoopSteps[12], 1) ==
+                  "reduced_i32_vec" &&
+              stepResultName(packedI4LoopSteps[12]) ==
+                  "reduced_i32_vec_i4_high" &&
+              packedI4ProductDequantSelectedStatementPlan->loop.bodyAssignments
+                      .size() == 1 &&
+              packedI4ProductDequantSelectedStatementPlan->loop.bodyAssignments
+                      .front()
+                      .value.expression == "reduced_i32_vec_i4_high",
+          "packed-i4 product-reduction-dequant statement owner builds the "
+          "RVV-owned low/high nibble sign-extension boundary before widening "
+          "product and reduction"))
+    return result;
+
+  tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute packedI4Route;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::buildRVVSelectedBodyEmitCLowerableRoute(
+              VariantEmitCLowerableRequest(
+                  packedI4ProductDequantVariant, kernel, capabilities,
+                  VariantEmissionRole::DirectVariant),
+              packedI4Route),
+          "provider builds packed-i4 lowerable route after RVV-owned nibble "
+          "unpack statement planning"))
+    return result;
+  if (int result = expect(
+          packedI4Route.getForLoops().size() == 1 &&
+              packedI4Route.getForLoops().front().bodySteps.size() == 13,
+          "packed-i4 route carries the provider-owned nibble unpack "
+          "statements without target artifact/runtime claims"))
     return result;
 
   auto staleProductDequantAnalysis = *productDequantAnalysis;

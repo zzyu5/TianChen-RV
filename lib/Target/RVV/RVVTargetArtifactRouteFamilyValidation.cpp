@@ -3640,6 +3640,16 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
       contract.kind == plugin::rvv::RVVWideningDotReduceRouteValidationKind::
                            ProductReductionChain ||
       isProductReductionDequantization;
+  if (contract.lowPrecisionResourceSelection.hasSelection &&
+      plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
+          contract.lowPrecisionResourceSelection.selectedCandidateID))
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " keeps selected packed-i4 low-precision resource candidate '" +
+        contract.lowPrecisionResourceSelection.selectedCandidateID +
+        "' target artifact export fail-closed until Gate 4 validates the "
+        "provider-owned nibble unpack/sign-extension statement boundary and "
+        "collects artifact/runtime evidence");
   if (description.memoryForm != contract.memoryForm)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +

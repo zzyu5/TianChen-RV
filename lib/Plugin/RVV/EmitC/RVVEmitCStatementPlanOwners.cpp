@@ -544,6 +544,12 @@ namespace {
 constexpr llvm::StringLiteral
     kRVVDirectContractionStatementOwnerEmitCLowerableOpInterfaceName(
         "TCRVEmitCLowerableOpInterface");
+constexpr llvm::StringLiteral kRVVPackedI4ShiftLeftIntrinsic(
+    "__riscv_vsll_vx_i8mf4");
+constexpr llvm::StringLiteral kRVVPackedI4ArithmeticShiftRightIntrinsic(
+    "__riscv_vsra_vx_i8mf4");
+constexpr llvm::StringLiteral kRVVPackedI4ShiftAmount("4");
+constexpr llvm::StringLiteral kRVVPackedI4ShiftAmountCType("uint8_t");
 
 llvm::Error requireRVVDirectContractionStatementOwnerLeaf(
     llvm::StringRef leaf, const llvm::Twine &leafName,
@@ -1056,14 +1062,7 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
             "unpack intent", familySelection.unpackIntent,
             kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles))
       return error;
-    return makeRVVEmitCRouteProviderError(
-        llvm::Twine(context) +
-        " direct contraction statement-plan owner cannot construct executable "
-        "product-reduction statements for selected packed-i4 low-precision "
-        "resource candidate '" +
-        familySelection.selectedCandidateID +
-        "': missing RVV-owned nibble unpack/sign-extension statement boundary "
-        "before the widening product");
+    return llvm::Error::success();
   }
   if (llvm::Error error =
           requireExpectedString("operand form", familySelection.operandForm,
@@ -1149,6 +1148,10 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
       isProductReductionDequantization &&
       isRVVLowPrecisionResourceGroupedCandidateID(
           providerFacts.lowPrecisionResourceSelection.selectedCandidateID);
+  const bool usesPackedI4LowPrecisionProductReduction =
+      isProductReductionDequantization &&
+      isRVVLowPrecisionResourcePackedI4CandidateID(
+          providerFacts.lowPrecisionResourceSelection.selectedCandidateID);
   const support::RuntimeABIParameter *boundLHSABI = providerPlan.lhsABI;
   const support::RuntimeABIParameter *boundRHSABI = providerPlan.rhsABI;
   const support::RuntimeABIParameter *boundDotLHSABI =
@@ -1188,6 +1191,20 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
   constexpr llvm::StringLiteral kGroupedRHSVecName("rhs_vec_u1");
   constexpr llvm::StringLiteral kGroupedProductVecName("product_vec_u1");
   constexpr llvm::StringLiteral kGroupedReducedVecName("reduced_i32_vec_u1");
+  constexpr llvm::StringLiteral kPackedI4LHSPackedVecName("lhs_packed_i4_vec");
+  constexpr llvm::StringLiteral kPackedI4RHSPackedVecName("rhs_packed_i4_vec");
+  constexpr llvm::StringLiteral kPackedI4LHSLowShiftedVecName(
+      "lhs_low_i4_shifted_vec");
+  constexpr llvm::StringLiteral kPackedI4RHSLowShiftedVecName(
+      "rhs_low_i4_shifted_vec");
+  constexpr llvm::StringLiteral kPackedI4LHSLowVecName("lhs_low_i4_vec");
+  constexpr llvm::StringLiteral kPackedI4RHSLowVecName("rhs_low_i4_vec");
+  constexpr llvm::StringLiteral kPackedI4LHSHighVecName("lhs_high_i4_vec");
+  constexpr llvm::StringLiteral kPackedI4RHSHighVecName("rhs_high_i4_vec");
+  constexpr llvm::StringLiteral kPackedI4HighProductVecName(
+      "product_vec_i4_high");
+  constexpr llvm::StringLiteral kPackedI4HighReducedVecName(
+      "reduced_i32_vec_i4_high");
 
   plan.contractionPlan = providerPlan.contractionPlan;
   plan.plansDirectContractionRoute = true;
@@ -1379,6 +1396,44 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
         TCRVEmitCCallOpaqueResult{resultName.str(), sourceVectorCType.str()});
   };
 
+  auto addPackedI4SignExtend =
+      [&](mlir::Operation *op, llvm::StringRef packedVecName,
+          llvm::StringRef lowShiftedVecName, llvm::StringRef lowVecName,
+          llvm::StringRef highVecName) -> llvm::Error {
+    if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+            plan, op, "compute", kRVVPackedI4ShiftLeftIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{packedVecName.str(),
+                                        sourceVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{kRVVPackedI4ShiftAmount.str(),
+                                        kRVVPackedI4ShiftAmountCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{lowShiftedVecName.str(),
+                                      sourceVectorCType.str()}))
+      return error;
+    if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+            plan, op, "compute", kRVVPackedI4ArithmeticShiftRightIntrinsic,
+            {TCRVEmitCCallOpaqueOperand{lowShiftedVecName.str(),
+                                        sourceVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{kRVVPackedI4ShiftAmount.str(),
+                                        kRVVPackedI4ShiftAmountCType.str()},
+             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+            description, context,
+            TCRVEmitCCallOpaqueResult{lowVecName.str(),
+                                      sourceVectorCType.str()}))
+      return error;
+    return addRVVDirectContractionStatementOwnerLoopStep(
+        plan, op, "compute", kRVVPackedI4ArithmeticShiftRightIntrinsic,
+        {TCRVEmitCCallOpaqueOperand{packedVecName.str(),
+                                    sourceVectorCType.str()},
+         TCRVEmitCCallOpaqueOperand{kRVVPackedI4ShiftAmount.str(),
+                                    kRVVPackedI4ShiftAmountCType.str()},
+         TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+        description, context,
+        TCRVEmitCCallOpaqueResult{highVecName.str(),
+                                  sourceVectorCType.str()});
+  };
+
   if (isComputedMask) {
     if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
             plan, slice.lhsLoadOperation, "load", providerFacts.vectorLoadLeaf,
@@ -1476,12 +1531,33 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
               slice.rhsLoadOperation, boundRHSABI, boundRHSStrideABI, "rhs_vec"))
         return error;
     } else {
-      if (llvm::Error error =
-              addUnitSourceLoad(slice.lhsLoadOperation, boundLHSABI, "lhs_vec"))
-        return error;
-      if (llvm::Error error =
-              addUnitSourceLoad(slice.rhsLoadOperation, boundRHSABI, "rhs_vec"))
-        return error;
+      if (usesPackedI4LowPrecisionProductReduction) {
+        if (llvm::Error error =
+                addUnitSourceLoad(slice.lhsLoadOperation, boundLHSABI,
+                                  kPackedI4LHSPackedVecName))
+          return error;
+        if (llvm::Error error =
+                addUnitSourceLoad(slice.rhsLoadOperation, boundRHSABI,
+                                  kPackedI4RHSPackedVecName))
+          return error;
+        if (llvm::Error error = addPackedI4SignExtend(
+                slice.wideningProductOp.getOperation(),
+                kPackedI4LHSPackedVecName, kPackedI4LHSLowShiftedVecName,
+                kPackedI4LHSLowVecName, kPackedI4LHSHighVecName))
+          return error;
+        if (llvm::Error error = addPackedI4SignExtend(
+                slice.wideningProductOp.getOperation(),
+                kPackedI4RHSPackedVecName, kPackedI4RHSLowShiftedVecName,
+                kPackedI4RHSLowVecName, kPackedI4RHSHighVecName))
+          return error;
+      } else {
+        if (llvm::Error error = addUnitSourceLoad(slice.lhsLoadOperation,
+                                                  boundLHSABI, "lhs_vec"))
+          return error;
+        if (llvm::Error error = addUnitSourceLoad(slice.rhsLoadOperation,
+                                                  boundRHSABI, "rhs_vec"))
+          return error;
+      }
     }
   }
 
@@ -1591,11 +1667,21 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
             description, context);
       return llvm::Error::success();
     };
+    const llvm::StringRef primaryLHSVecName =
+        usesPackedI4LowPrecisionProductReduction
+            ? llvm::StringRef(kPackedI4LHSLowVecName)
+            : llvm::StringRef("lhs_vec");
+    const llvm::StringRef primaryRHSVecName =
+        usesPackedI4LowPrecisionProductReduction
+            ? llvm::StringRef(kPackedI4RHSLowVecName)
+            : llvm::StringRef("rhs_vec");
     if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
             plan, slice.wideningProductOp.getOperation(), "compute",
             providerFacts.wideningProductLeaf,
-            {TCRVEmitCCallOpaqueOperand{"lhs_vec", sourceVectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{"rhs_vec", sourceVectorCType.str()},
+            {TCRVEmitCCallOpaqueOperand{primaryLHSVecName.str(),
+                                        sourceVectorCType.str()},
+             TCRVEmitCCallOpaqueOperand{primaryRHSVecName.str(),
+                                        sourceVectorCType.str()},
              TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
             description, context,
             TCRVEmitCCallOpaqueResult{"product_vec",
@@ -1628,14 +1714,22 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
                                       accumulatorVectorCType}))
       return error;
     if (isProductReductionDequantization) {
-      if (llvm::Error error =
-              addRVVDirectContractionStatementOwnerLoopAssignment(
-                  plan, slice.standaloneReduceOp.getOperation(), "compute",
-                  "dot_acc_vec",
-                  TCRVEmitCCallOpaqueOperand{"reduced_i32_vec",
-                                             accumulatorVectorCType},
-                  description, context))
-        return error;
+      if (usesPackedI4LowPrecisionProductReduction) {
+        if (llvm::Error error = addProductReductionSlice(
+                plan.loop, kPackedI4LHSHighVecName, kPackedI4RHSHighVecName,
+                loopVLName, "reduced_i32_vec", kPackedI4HighProductVecName,
+                kPackedI4HighReducedVecName))
+          return error;
+      } else {
+        if (llvm::Error error =
+                addRVVDirectContractionStatementOwnerLoopAssignment(
+                    plan, slice.standaloneReduceOp.getOperation(), "compute",
+                    "dot_acc_vec",
+                    TCRVEmitCCallOpaqueOperand{"reduced_i32_vec",
+                                               accumulatorVectorCType},
+                    description, context))
+          return error;
+      }
       if (usesGroupedLowPrecisionProductReduction) {
         const std::string groupedSecondRemainingAVL =
             (llvm::Twine(boundRuntimeElementCountABI->cName) + " - " +
