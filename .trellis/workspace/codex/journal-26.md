@@ -1464,3 +1464,73 @@ product-reduction dequantize/dequant-clamp generated TianChen-RV RVV artifacts
 against an explicitly named baseline on the same `ssh rvv` environment, after
 correctness passes and with timing method, input sizes, compile flags, target
 profile, and raw evidence recorded.
+
+
+## Session 572: RVV Gate 4 same-target measurement path
+
+**Date**: 2026-06-08
+**Task**: RVV production-kernel capability campaign
+**Branch**: `main`
+
+### Summary
+
+Completed Gate 4 for the active macro campaign. The resource-aware
+pre-realized low-precision product-reduction dequantize/dequant-clamp generated
+RVV artifacts are now measured on the same `ssh rvv` target against explicitly
+named scalar C baselines after correctness guards pass.
+
+### Main Changes
+
+- Repaired the macro PRD from the completed Gate 3 slice to the Gate 4
+  same-target measurement milestone and marked all campaign gates complete.
+- Added `scripts/rvv_generated_bundle_same_target_measure.py`. The script
+  reuses the existing generated-bundle ABI e2e production path to generate and
+  verify pre-realized RVV object/header bundles, then builds a same-target C
+  measurement harness.
+- The measurement harness records baseline identity, generated artifact
+  identity, target profile, compile flags, input sizes, warmup/repetition
+  policy, `clock_gettime(CLOCK_MONOTONIC_RAW)` timing, correctness-before-timing
+  guards, raw stdout, parsed per-repeat timing records, and parsed summary
+  records.
+- Added
+  `test/Scripts/rvv-generated-bundle-same-target-measure-gate4-dry-run.test`
+  to lock the dry-run evidence schema and generated harness structure.
+- Updated `.trellis/spec/testing/mlir-testing-contract.md` with the concrete
+  RVV same-target measurement evidence contract.
+
+### Runtime Evidence
+
+- [OK] Non-dry-run `ssh rvv` run:
+  `python3 scripts/rvv_generated_bundle_same_target_measure.py --artifact-root artifacts/tmp/gate4-same-target-measurement --run-id gate4-wpr-dequant-and-clamp-rvv --overwrite --op-kind widening_product_reduce_dequantize_f32 --op-kind widening_product_reduce_dequant_clamp_f32 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj --ssh-target rvv --timeout 240`
+- Evidence root:
+  `artifacts/tmp/gate4-same-target-measurement/gate4-wpr-dequant-and-clamp-rvv`
+- Target profile captured: `ssh_target=rvv`, `remote_arch=riscv64`, `CPU(s): 64`,
+  Ubuntu clang `18.1.3`.
+- Compile flags: `-O2 -march=rv64gcv -mabi=lp64d -I.`
+- Input sizes: `257`, `4096`, `65536`; scales `-0.125`, `0.375`; clamp bound
+  pairs `[-1.5, 2.25]`, `[-8, -0.75]`; warmups `2`; repeats `5`;
+  measurement iterations `8`.
+- `widening_product_reduce_dequantize_f32`: `12` summary records and `60`
+  repeat timing records.
+- `widening_product_reduce_dequant_clamp_f32`: `24` summary records and `120`
+  repeat timing records.
+- Largest-size summaries show the generated path is slower than the scalar C
+  baseline in this first measurement harness: for `n=65536`, dequantize is about
+  `34.36-34.37 us` baseline vs `152.18-152.21 us` generated; dequant-clamp is
+  about `54.35-55.09 us` baseline vs `242.54-242.63 us` generated. This is raw
+  same-target measurement evidence, not a parity claim.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_same_target_measure.py scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-generated-bundle-same-target-measure-gate4-dry-run|rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequantize-f32-dry-run|rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequant-clamp-f32-dry-run'` from `build/test`: 3/3 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'widening-product|product-reduction|generic-widening-product'` from `build/test`: 14/14 passed
+
+### Status
+
+[DONE] All macro campaign gates are complete. The task is ready to archive and
+commit as one coherent Gate 4 closeout.

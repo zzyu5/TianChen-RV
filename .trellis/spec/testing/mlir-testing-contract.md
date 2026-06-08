@@ -97,6 +97,139 @@ An artifact ABI closeout, generated-bundle dry-run, local compile-only test, or
 single success marker is not performance evidence and must not be described as
 llama.cpp parity.
 
+## RVV Same-Target Measurement Evidence
+
+### 1. Scope / Trigger
+
+Use this contract when RVV work claims a measured same-target comparison for a
+generated TianChen-RV RVV artifact against a handwritten, scalar, or external
+baseline. This includes the bounded Gate 4 production-kernel campaign workflow
+for `widening_product_reduce_dequantize_f32` and
+`widening_product_reduce_dequant_clamp_f32`.
+
+The measurement harness is evidence tooling only. It must reuse the production
+compiler/export path for the generated object/header and must not become route,
+dtype, compute, artifact-name, or q8/q4 authority.
+
+### 2. Signatures
+
+The current bounded command shape is:
+
+```bash
+python3 scripts/rvv_generated_bundle_same_target_measure.py \
+  --op-kind widening_product_reduce_dequantize_f32 \
+  --op-kind widening_product_reduce_dequant_clamp_f32 \
+  --measure-count 257 \
+  --measure-count 4096 \
+  --measure-count 65536 \
+  --ssh-target rvv
+```
+
+The command records evidence under an artifact root containing:
+
+```text
+evidence.json
+<op>/same_target_measurement_evidence.json
+<op>/remote_target_profile_stdout.txt
+<op>/remote_measure_compile_stdout.txt
+<op>/remote_measure_run_stdout.txt
+<op>/rvv_generated_bundle_same_target_measure_<op>.c
+```
+
+Root evidence must expose:
+
+```json
+{
+  "same_target_measurement": true,
+  "ssh_evidence": true,
+  "timing_method": "clock_gettime(CLOCK_MONOTONIC_RAW)",
+  "measurement_config": {
+    "input_sizes": [257, 4096, 65536],
+    "warmup_count": 2,
+    "repeat_count": 5,
+    "measure_iterations": 8,
+    "compile_flags": ["-O2", "-march=rv64gcv", "-mabi=lp64d", "-I."],
+    "baseline_identities": {
+      "...": "scalar-c-reference/..."
+    }
+  }
+}
+```
+
+### 3. Contracts
+
+- The generated side must be identified by selected input, selected variant,
+  generated function name, object/header paths, and object/header hashes.
+- The baseline side must have an explicit identity such as
+  `scalar-c-reference/product-reduction-dequant-v1`; baseline names are
+  comparator/oracle identities only, not RVV route authority.
+- Both sides must compile and run on the same named `ssh rvv` target in the same
+  measurement run.
+- The harness must run correctness checks before timing every measured case and
+  print a `CORRECTNESS_GUARD_BEFORE_TIMING` record before `MEASURE` records.
+- Timing must use a declared monotonic timing method, explicit input sizes,
+  warmups, repeats, and per-repeat raw timing records for both generated and
+  baseline calls.
+- Evidence must include target profile stdout, compile flags, raw run stdout,
+  parsed timing records, and parsed summary records. A root `success` status is
+  valid only when every requested op has remote compile/run success and parsed
+  timing summaries.
+
+### 4. Validation & Error Matrix
+
+- Missing generated object/header identity or hash -> evidence is incomplete.
+- Missing baseline identity -> comparison evidence is incomplete.
+- Generated and baseline paths are not run through the same `ssh rvv` target and
+  compile command family -> not same-target evidence.
+- Missing target profile, compile flags, timing method, input sizes, warmups,
+  repeats, or iterations -> not performance-comparison evidence.
+- A `MEASURE` record appears without a preceding correctness guard for that case
+  -> timing is invalid for performance claims.
+- Remote compile/run failure or missing `PASS op=... measurement` marker ->
+  evidence is blocked.
+- Parsed timing records or summary records are empty -> evidence is blocked even
+  if raw stdout exists.
+
+### 5. Good/Base/Bad Cases
+
+- Good: generated pre-realized RVV artifact -> same-target scalar C baseline ->
+  correctness guard -> raw `CLOCK_MONOTONIC_RAW` timing records -> evidence JSON
+  with target profile and parsed summaries.
+- Base: dry-run measurement tests generate and FileCheck the measurement harness
+  and evidence schema without claiming runtime or performance evidence.
+- Bad: generated-bundle ABI success, dry-run harness generation, or a single
+  remote PASS marker is described as same-target performance evidence.
+
+### 6. Tests Required
+
+- Script self-test must check harness generation keeps baseline identity,
+  generated function calls, timing method, warmup/repeat/iteration loops,
+  correctness-before-timing, and stdout parsing.
+- lit/FileCheck dry-run coverage must assert root/per-op evidence fields and the
+  generated C harness structure for each measured op kind.
+- Non-dry-run `ssh rvv` evidence must be collected for any runtime or timing
+  claim and must preserve raw target profile, compile stdout, and run stdout.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+generated bundle runs once on ssh rvv
+  -> evidence JSON says success
+  -> claim same-target measurement or llama.cpp parity
+```
+
+Correct:
+
+```text
+provider-validated generated RVV object/header
+  -> same-target baseline with explicit identity
+  -> correctness guard before timing
+  -> raw generated and baseline timings on ssh rvv
+  -> parsed summary records in evidence JSON
+```
+
 For RVV generated-bundle evidence over runtime `n`, memory-writing routes must
 check both active-lane arithmetic/data movement and guard/tail preservation.
 Harnesses should initialize output storage beyond `n` (or inactive/passthrough

@@ -11,10 +11,11 @@ production-like RVV kernels.
 
 This task remains open across rounds until the campaign gates below are met.
 Recent completed slices made low-precision primitive facts and resource facts
-active inputs to RVV selected-body realization and route validation. The current
-round advances Gate 1 by making resource-aware Gearbox candidate construction,
-pruning, selection, realized marker emission, and provider pre-route validation a
-single compiler-owned decision chain.
+active inputs to RVV selected-body realization and route validation, then proved
+the resource-aware pre-realized product-reduction dequantize/dequant-clamp paths
+execute correctly on real `ssh rvv`. The current round advances Gate 4 by
+turning those already-correct generated artifacts into a measured same-target
+comparison workflow against an explicitly named baseline on the same RVV target.
 
 ## Direction Brief Source
 
@@ -134,6 +135,22 @@ path already executes, this slice may close with bounded script/test evidence
 tied explicitly to the resource-aware pre-realized product-reduction path rather
 than a generic generated-bundle closeout.
 
+Hermes now continues the same macro task with:
+
+```text
+RVV production-kernel capability campaign: Gate 4 same-target measurement path
+```
+
+This continuation keeps the macro task active after commit `9b574989` completed
+Gate 3 runtime correctness for the resource-aware pre-realized
+`widening_product_reduce_dequantize_f32` and
+`widening_product_reduce_dequant_clamp_f32` paths. The current round must create
+or repair the smallest production-adjacent measurement workflow that runs those
+generated TianChen-RV RVV artifacts and an explicitly named scalar C oracle
+baseline on the same `ssh rvv` target, after correctness passes, with a stable
+timing method, input-size set, compile flags, target profile, raw timing output,
+and pass/fail interpretation recorded as evidence.
+
 ## What I Already Know
 
 - The repository had no active Trellis task at session start, so this macro task
@@ -172,40 +189,40 @@ than a generic generated-bundle closeout.
 - [x] Gate 3 Generated artifact/runtime correctness evidence:
       only when executable behavior is newly claimed by production compiler
       path or is the named blocker.
-- [ ] Gate 4 Measured same-target comparison path:
+- [x] Gate 4 Measured same-target comparison path:
       production-like RVV kernels compared on the same target; llama.cpp-style
       q8/q4 kernels are pressure tests, not route authority.
 
 ## Current Round Milestone
 
-Close the Gate 3 runtime correctness slice for the resource-aware Gearbox path
-changed in `ad665e20`.
+Close Gate 4 with a measured same-target comparison path for the bounded
+resource-aware low-precision product-reduction dequantize and dequant-clamp
+paths that Gate 3 already proved executable.
 
 The bounded continuation slice is:
 
-- Run the resource-aware pre-realized product-reduction dequantize and
-  dequant-clamp paths through the production compiler chain:
-  `--tcrv-rvv-materialize-gearbox-schedules` before
-  `--tcrv-materialize-selected-lowering-boundaries`, then emission-plan
-  materialization, RVV EmitC C++ export, target artifact bundle export, external
-  ABI harness generation, and non-dry-run `ssh rvv` execution.
-- Prove the generated harnesses validate runtime `n`/AVL cases, signed i8
-  widening products, i32 reduction carry, runtime dequant scale, dequant-clamp
-  runtime bounds, output/tail sentinel preservation, and source/accumulator
-  preservation.
-- Keep the evidence tied to the changed compiler path by checking the evidence
-  JSON for pre-realized input mode, selected-body realization boundary,
-  resource-aware low-precision selected candidate, Gearbox cross-region
-  handoff, provider route facts, target artifact validation facts, runtime ABI
-  order, and generated header/object ABI agreement.
-- Add or repair only the narrow e2e driver/test hooks needed to cover the
-  resource-aware pre-realized product-reduction path. Do not add a new route
-  family, q8/q4 route id, source-front-door positive path, Common EmitC semantic
-  inference, broad generated-bundle matrix, or performance measurement.
-- If live repository evidence shows stale resource/runtime/marker/handoff/
-  provider/ABI facts are accepted, add a focused fail-closed check before
-  claiming correctness. If existing focused fail-closed coverage already rejects
-  those cases, cite it and avoid redundant production-source churn.
+- Generate the same pre-realized resource-aware
+  `widening_product_reduce_dequantize_f32` and
+  `widening_product_reduce_dequant_clamp_f32` TianChen-RV RVV artifacts through
+  the existing production compiler chain and reuse the provider/target checks
+  from the Gate 3 generated-bundle workflow.
+- Build a measurement harness that links the generated object/header and a
+  named same-target baseline:
+  `scalar-c-reference/product-reduction-dequant-v1` and
+  `scalar-c-reference/product-reduction-dequant-clamp-v1`. The baseline is only
+  a measurement comparator/oracle, not route authority.
+- Run both generated and baseline paths on the same named `ssh rvv` target after
+  correctness checks pass, using `clock_gettime(CLOCK_MONOTONIC_RAW)`, explicit
+  warmup/repetition policy, and at least the bounded production-like input-size
+  set recorded by this PRD.
+- Record raw evidence under `artifacts/tmp/gate4-same-target-measurement/`,
+  including target profile, compile flags, input sizes, dequant scales, clamp
+  bound pairs, warmup/repetition counts, generated artifact identity, baseline
+  identity, raw stdout, per-case generated/baseline nanosecond timings, and a
+  pass/fail interpretation.
+- Do not claim llama.cpp parity, q8/q4 authority, or global autotuning maturity.
+  The result is a same-target measurement path for the campaign kernels, not a
+  broad benchmark dashboard.
 
 ## Requirements
 
@@ -227,35 +244,94 @@ The bounded continuation slice is:
 
 ## Acceptance Criteria For This Round
 
-- [x] The macro PRD names this as Gate 3 runtime correctness for the
-      resource-aware Gearbox path changed in `ad665e20`, while leaving Gate 4
-      same-target measurement open.
+- [x] The macro PRD names this as Gate 4 same-target measurement for the
+      resource-aware pre-realized product-reduction dequantize/dequant-clamp
+      paths after `9b574989`, while preserving Gates 1-3 as complete.
+- [x] A reusable measurement workflow exists for the bounded campaign kernels
+      and records: baseline identity, generated artifact identity, same target
+      profile, compile flags, timing method, input sizes, warmup/repetition
+      policy, correctness-before-timing guard, raw timing output, and pass/fail
+      interpretation.
+- [x] Focused script/self-test or lit coverage proves the measurement harness
+      contains the named scalar C baselines, generated function calls,
+      `CLOCK_MONOTONIC_RAW` timing, warmup/repetition loops, and correctness
+      guard before timing.
+- [x] Non-dry-run `ssh rvv` measurement evidence passes for
+      `widening_product_reduce_dequantize_f32` using the pre-realized
+      selected-body generated artifact and named baseline on the same target.
+- [x] Non-dry-run `ssh rvv` measurement evidence passes for
+      `widening_product_reduce_dequant_clamp_f32` using the pre-realized
+      selected-body generated artifact and named baseline on the same target.
 - [x] `tcrv-opt`, `tcrv-translate`,
       `tianchenrv-rvv-extension-plugin-test`, and
-      `tianchenrv-target-artifact-export-test` build.
-- [x] Focused lit/script coverage proves the resource-aware pre-realized
-      product-reduction dequantize and dequant-clamp generated-bundle paths use
-      pre-realized selected-body input, selected-body realization, Gearbox
-      selected candidates, provider route facts, target artifact validation,
-      and generated harness checks.
-- [x] Non-dry-run `ssh rvv` generated-bundle evidence passes for
-      `widening_product_reduce_dequantize_f32` using the pre-realized
-      selected-body path.
-- [x] Non-dry-run `ssh rvv` generated-bundle evidence passes for
-      `widening_product_reduce_dequant_clamp_f32` using the pre-realized
-      selected-body path.
-- [x] Fail-closed evidence is present for stale resource/runtime/marker/
-      handoff/provider/ABI facts, either via existing focused tests or a new
-      narrow check if a gap is found.
+      `tianchenrv-target-artifact-export-test` build, unless no compiler source
+      changes are made and an explicitly narrower build/check justification is
+      recorded.
 - [x] A bounded old-authority scan over changed/added lines shows no new
       positive `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`,
       `!tcrv_rvv.i32m*`, descriptor, source-front-door, route-id, artifact-name,
       or q8/q4 authority.
 - [x] `git diff --check`, `git diff --cached --check`, and final clean git
       status pass.
-- [x] The slice is committed coherently while the macro task remains active.
+- [x] If Gate 4 is fully satisfied, the macro task can be finished and archived;
+      otherwise it remains active with the exact next continuation point.
 
 ## Current Round Result
+
+Completed Gate 4 and closed the macro RVV production-kernel capability
+campaign:
+
+- Added `scripts/rvv_generated_bundle_same_target_measure.py`, a bounded Gate 4
+  measurement workflow for the resource-aware pre-realized
+  `widening_product_reduce_dequantize_f32` and
+  `widening_product_reduce_dequant_clamp_f32` generated artifacts. The script
+  reuses the existing generated-bundle ABI e2e path for production artifact
+  generation/verification, then builds a same-target measurement harness.
+- The harness links the generated object/header against explicitly named scalar
+  C baselines:
+  `scalar-c-reference/product-reduction-dequant-v1` and
+  `scalar-c-reference/product-reduction-dequant-clamp-v1`. These baselines are
+  comparators/oracles only; they are not route, dtype, or artifact authority.
+- The harness records `clock_gettime(CLOCK_MONOTONIC_RAW)` timing after a
+  correctness-before-timing guard for every measured case, with input sizes
+  `257`, `4096`, and `65536`, scales `-0.125` and `0.375`, clamp bound pairs
+  `[-1.5, 2.25]` and `[-8, -0.75]`, `2` warmups, `5` repeats, and `8` measured
+  iterations per repeat.
+- Collected non-dry-run `ssh rvv` evidence in:
+  `artifacts/tmp/gate4-same-target-measurement/gate4-wpr-dequant-and-clamp-rvv`.
+  The root evidence reports `status: success`, `ssh_evidence: true`, target
+  profile `riscv64`, `64` CPUs, Ubuntu clang `18.1.3`, compile flags
+  `-O2 -march=rv64gcv -mabi=lp64d -I.`, and the required baseline/generated
+  identities.
+- Raw evidence paths:
+  `widening_product_reduce_dequantize_f32/remote_target_profile_stdout.txt`,
+  `widening_product_reduce_dequantize_f32/remote_measure_compile_stdout.txt`,
+  `widening_product_reduce_dequantize_f32/remote_measure_run_stdout.txt`,
+  `widening_product_reduce_dequant_clamp_f32/remote_target_profile_stdout.txt`,
+  `widening_product_reduce_dequant_clamp_f32/remote_measure_compile_stdout.txt`,
+  and
+  `widening_product_reduce_dequant_clamp_f32/remote_measure_run_stdout.txt`.
+- Parsed timing coverage:
+  `widening_product_reduce_dequantize_f32` produced `12` summary records and
+  `60` repeat timing records; `widening_product_reduce_dequant_clamp_f32`
+  produced `24` summary records and `120` repeat timing records. For `n=65536`,
+  dequantize best per-iteration summaries are approximately
+  `34.36-34.37 us` baseline vs `152.18-152.21 us` generated; dequant-clamp
+  summaries are approximately `54.35-55.09 us` baseline vs
+  `242.54-242.63 us` generated. This is recorded as raw same-target
+  measurement, not as parity or performance maturity.
+- Added
+  `test/Scripts/rvv-generated-bundle-same-target-measure-gate4-dry-run.test`
+  to lock the measurement evidence schema and generated C harness structure.
+- Updated `.trellis/spec/testing/mlir-testing-contract.md` with the concrete RVV
+  same-target measurement evidence contract: command shape, evidence fields,
+  correctness-before-timing requirement, validation matrix, and test
+  requirements.
+
+All campaign gates are now complete. This macro task is ready to finish/archive
+with one coherent commit.
+
+## Previous Round Result
 
 Completed the Gate 3 resource-aware low-precision runtime correctness slice
 while keeping the macro campaign open:
