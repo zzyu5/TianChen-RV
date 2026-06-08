@@ -1,0 +1,14 @@
+{"file": ".trellis/spec/index.md", "reason": "check final changes preserve RVV-first typed body -> provider -> EmitC -> artifact authority"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "check standalone min/max remains RVV plugin-local and not descriptor/common-EmitC semantic authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "check route facts, operand-binding, reduction kind, and runtime-scalar facts align with contract"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "check dry-run, fail-closed, and ssh rvv evidence meet computed-mask standalone reduction correctness bar"}
+{"file": ".trellis/tasks/06-08-stage2-rvv-runtime-scalar-cmp-masked-standalone-minmax-executable-artifact-abi-boundary/prd.md", "reason": "check implementation and evidence satisfy this bounded task"}
+{"file": "lib/Plugin/RVV/RVVStandaloneReductionSelectedBodyRealizationOwner.cpp", "reason": "check runtime-scalar standalone min/max pre-realized realization validation if touched"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCReductionAccumulationStatementPlanOwners.cpp", "reason": "check inactive neutral and statement-plan ownership if touched"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "check route planning, operand binding, reduction kind, and materialization facts if touched"}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "check fail-closed target artifact validation for runtime-scalar standalone min/max if touched"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "check generated bundle harness and evidence if touched"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-standalone-minmax-dry-run.test", "reason": "check dry-run evidence covers provider facts and generated C/C++ shape"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-runtime-scalar-cmp-masked-standalone-minmax-fail-closed.test", "reason": "check fail-closed evidence remains focused"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-min.mlir", "reason": "check min artifact/ABI fixture"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-max.mlir", "reason": "check max artifact/ABI fixture"}

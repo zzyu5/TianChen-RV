@@ -1,0 +1,18 @@
+{"file": ".trellis/spec/index.md", "reason": "RVV-first authority chain, Stage2 route-supported evidence boundary, and no descriptor/common-EmitC semantic authority"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, selected-body realization, route provider authority, and runtime-scalar computed-mask route locality"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "standalone reduction mirror contract, route value contract, operand-binding summary, and runtime-scalar standalone reduction facts"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "generated-bundle and ssh rvv correctness requirements for computed-mask standalone reductions"}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-runtime-scalar-cmp-masked-segment2-memory-executable-artifact-abi-boundary/prd.md", "reason": "previous converged runtime-scalar executable artifact ABI closure pattern"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVStandaloneReductionSelectedBodyRealizationOwner.h", "reason": "pre-realized standalone reduction selected-body realization owner API"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVReductionSelectedBodyRealizationOwner.h", "reason": "related reduction selected-body realization API boundary"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "standalone reduction route-family, operand-binding, and statement-plan fact structures"}
+{"file": "lib/Plugin/RVV/RVVStandaloneReductionSelectedBodyRealizationOwner.cpp", "reason": "runtime-scalar computed-mask standalone min/max pre-realized validation and realization"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCReductionAccumulationStatementPlanOwners.cpp", "reason": "standalone reduction statement-plan ownership and inactive neutral literal handling"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "runtime-scalar standalone reduction route planning, operand binding, metadata, and materialization facts"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "production route construction entry for standalone runtime-scalar min/max reduction"}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "target artifact fail-closed validation of standalone reduction provider facts and statement plan"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "generated bundle ABI, harness, dry-run, and ssh rvv evidence for runtime-scalar standalone min/max"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-runtime-scalar-cmp-masked-standalone-minmax-dry-run.test", "reason": "dry-run evidence for pre-realized runtime-scalar standalone min/max bundles"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-runtime-scalar-cmp-masked-standalone-minmax-fail-closed.test", "reason": "focused fail-closed evidence for unsupported direct pre-realized route-entry shortcut"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-min.mlir", "reason": "min selected-body, emission-plan, and target header fixture"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-max.mlir", "reason": "max selected-body, emission-plan, and target header fixture"}

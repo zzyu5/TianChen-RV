@@ -56,6 +56,79 @@ Focused checks:
 - None - task complete
 
 
+## Session 564: Stage2 RVV runtime-scalar-cmp masked standalone minmax executable artifact ABI boundary
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV runtime-scalar-cmp masked standalone minmax executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the runtime-scalar-cmp masked standalone min/max generated-artifact ABI
+boundary with no production source changes. Current HEAD already derives the
+pre-realized min/max route from typed `tcrv_rvv` runtime-scalar standalone
+reduction body facts through RVV-owned selected-body realization, route
+planning, target validation, generated bundle ABI, and `ssh rvv` runtime
+evidence.
+
+### Main Changes
+
+- Created Trellis task
+  `06-08-stage2-rvv-runtime-scalar-cmp-masked-standalone-minmax-executable-artifact-abi-boundary`.
+- Recorded a bounded PRD for the runtime scalar comparison, compare-produced
+  mask, standalone min/max reduction kind, inactive neutral policy, scalar
+  seed/result ABI, runtime AVL/VL, header/prototype binding, target artifact
+  validation, generated bundle ABI, and `ssh rvv` evidence boundary.
+- Verified production code already validates runtime-scalar min/max op kinds,
+  `rhs_scalar` ABI role/type, SEW/LMUL config, compare-produced mask facts,
+  accumulator/result layout, runtime AVL/VL, and pre-realized/realized body
+  exclusivity in the RVV standalone reduction realization owner.
+- Verified target validation already requires provider-built runtime-scalar
+  standalone reduction loop statements: loop setvl, compare lhs load,
+  RHS scalar splat, source load, compare, inactive neutral splat, merge,
+  scalar seed, min/max reduction, and scalar result store.
+- Proved pre-realized runtime-scalar-cmp masked standalone min/max generated
+  bundles on `ssh rvv` for LMUL m1 and LMUL m2, counts `0,1,16,23,257`,
+  runtime scalar thresholds `-37,91`, seeds `-11,17`, and patterns `0,1`.
+
+### Git Commits
+
+- Recorded in the final commit for this session.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-08-stage2-rvv-runtime-scalar-cmp-masked-standalone-minmax-executable-artifact-abi-boundary`
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'runtime-scalar-cmp-masked-standalone-minmax'` from `build/test`: 2/2 passed
+- [OK] `/usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-runtime-scalar-cmp-masked-standalone-reduce-(min|max)'` from `build/test`: 4/4 passed
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] Direct generated-bundle dry-run for pre-realized runtime-scalar-cmp masked standalone min/max m1 and m2
+- [OK] Non-dry-run `ssh rvv` generated bundles for
+  `runtime_scalar_cmp_masked_standalone_reduce_min`,
+  `runtime_scalar_cmp_masked_standalone_reduce_min_lmul_m2`,
+  `runtime_scalar_cmp_masked_standalone_reduce_max`, and
+  `runtime_scalar_cmp_masked_standalone_reduce_max_lmul_m2`: all reported
+  `PASS`, `remote_compile_succeeded: true`, `remote_run_succeeded: true`,
+  `dry_run: false`, and `ssh_evidence: true`
+- [OK] Evidence JSON spot checks for `runtime-scalar-splat-compare-rhs`,
+  `cmp_lhs,rhs_scalar,src,acc,out,n`, reduction kind min/max, inactive neutral
+  contract, all-inactive seed preservation, source preservation, and tail
+  preservation
+- [OK] `git diff --check`
+- [OK] bounded old-authority scan over the task directory; only negative PRD
+  language matched and there was no production source diff
+
+### Status
+
+[OK] **Completed, archived, and committed**
+
+### Next Steps
+
+- None - task complete
+
+
 ## Session 563: Stage2 RVV runtime-scalar-cmp masked segment2 memory executable artifact ABI boundary
 
 **Date**: 2026-06-08
