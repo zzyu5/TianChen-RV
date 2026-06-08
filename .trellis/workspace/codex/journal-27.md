@@ -412,3 +412,66 @@ active macro task. The macro task remains active because Gate 4 same-target
 measurement rerun is still unfinished. Next continuation point: Gate 4 rerun
 same-target measurement after this production compiler/resource-aware evidence
 change and report win, regression, or no-win.
+
+## Session 578: RVV production-kernel Gate 4 same-target measurement
+
+**Date**: 2026-06-09
+**Task**: RVV production-kernel capability campaign: resource-aware packed low-precision contraction realization
+
+### Summary
+
+Continued the active macro campaign at Gate 4 and reran same-target timing for
+the accepted signed packed-i4 product-reduction-dequant representative after
+the Gate 1-3 production compiler/resource-aware changes. The measurement used
+`scripts/rvv_generated_bundle_same_target_measure.py`, which regenerates and
+validates the generated RVV object/header through the generated-bundle ABI e2e
+path before selecting the packed scalar baseline from provider-owned
+`packed-i4-nibbles` metadata.
+
+The real run succeeded on `ssh rvv` against
+`scalar-c-reference/product-reduction-dequant-packed-i4-v1` with counts
+`257,4096,65536`, patterns `0,1`, scales `-0.125,0.375`, warmups `2`,
+repeats `5`, and iterations `8`. Remote profile: `riscv64`, 64 CPUs,
+`/usr/bin/clang`, Ubuntu clang 18.1.3. Evidence is under
+`artifacts/tmp/gate4-same-target-measurement/gate4_packed_i4_same_target_measure_ssh/`.
+
+All 12 parsed best-speedup summaries are below 1.0, from `0.761006` to
+`0.807006`. This is a no-win/regression signal for the generated RVV artifact
+against the named scalar C packed-i4 baseline; no performance win, llama.cpp
+parity, q4/q8 route authority, or benchmark-name authority is claimed.
+
+Updated the macro PRD to mark Gate 4 complete and record the raw evidence
+paths, generated artifact identity, object/header hashes, timing table, and
+outcome. Corrected the stale Gate 5 wording in the measurement script docstring
+and extended the Gate 4 dry-run lit test with packed-i4 measurement harness
+coverage for the metadata switch, packed baseline identity, correctness guard,
+timing record shape, and packed harness structure.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_same_target_measure.py`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] packed-i4 same-target measurement dry-run with the packed fixture
+  override and `--llvm-readobj ""`
+- [OK] packed-i4 same-target measurement on `ssh rvv` with the packed fixture,
+  counts `257,4096,65536`, warmups `2`, repeats `5`, iterations `8`, and
+  `--llvm-readobj ""`
+- [OK] default product-dequant and dequant-clamp same-target measurement
+  dry-run regression with `--llvm-readobj ""`; default product-dequant kept
+  `scalar-c-reference/product-reduction-dequant-v1` and
+  `packed_i4_reference_oracle=false`
+
+### Status
+
+[ARCHIVED] All four macro campaign gates are complete. Final Trellis quality
+verification passed, the macro task was archived, and one coherent commit was
+created for the Gate 4 closeout.
+
+### Spec Update Decision
+
+[NO-SPEC-CHANGE] The executable same-target measurement contract already lives
+in `.trellis/spec/testing/mlir-testing-contract.md` and the packed-i4 provider
+contract already lives in `.trellis/spec/extension-plugins/rvv-plugin.md`. This
+round executed those contracts and added focused dry-run coverage, but did not
+introduce a new command signature, metadata field, validation rule, or
+cross-layer behavior requiring a spec edit.

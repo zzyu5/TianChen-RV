@@ -9,35 +9,35 @@ Advance the RVV production-kernel capability campaign from the accepted packed i
 - [x] Gate 1: Resource-aware selected-body planning boundary for packed low-precision contraction is represented in RVV plugin/source and verified with focused tests.
 - [x] Gate 2: Route, statement, and artifact validation consume those resource facts without Common EmitC inventing RVV semantics.
 - [x] Gate 3: Generated artifact evidence reflects the new production path.
-- [ ] Gate 4: Same-target measurement is rerun only after a production compiler/resource-aware change and honestly reports win, regression, or no-win.
+- [x] Gate 4: Same-target measurement is rerun only after a production compiler/resource-aware change and honestly reports win, regression, or no-win.
 
 ## Current Round Slice
 
-This round implements a bounded Gate 3 generated-artifact evidence slice: the packed-i4 generated bundle evidence must be regenerated from the now-validated production route/statement/artifact path and must mirror provider-owned packed-resource schedule facts without becoming route or compute authority.
+This round implements the bounded Gate 4 same-target measurement slice: the accepted signed packed-i4 product-reduction-dequant generated RVV artifact is measured against the named scalar C packed-i4 baseline on the same `ssh rvv` target after the Gate 1-3 production compiler/resource-aware path changes.
 
-The slice focuses on the accepted signed packed-i4 product-reduction-dequant representative. The generated evidence must expose the selected low-precision resource candidate, operand form, storage/effective widths, packing layout, unpack intent, resource realization producer, resource realization decision, realized unroll factor, realized `vsetvl` region count, realized peak live-vector groups, product/dequant marker indices, product/dequant phases, runtime AVL source, producer/consumer scopes, runtime ABI order, provider target capability mirrors, packed low/high nibble statement payloads, generated header/object mirror agreement, and the packed harness oracle switch derived from validated provider metadata.
+The slice keeps the generated artifact tied to provider-owned packed-resource schedule facts and uses the packed scalar baseline only after object/header metadata validates `packed-i4-nibbles`. Acceptance is truthful same-target evidence with correctness guards before timing and an honest win/regression/no-win classification; a performance win is not required.
 
-Gate 3 completion does not claim runtime correctness, performance, or llama.cpp/q4/q8 parity. The generated bundle is evidence that the production path preserved provider-owned facts; Gate 4 same-target measurement remains a later slice.
+Gate 4 completion does not claim llama.cpp parity, q4/q8 route authority, or performance maturity. The measured result remains an evidence point for the current generated RVV artifact and named scalar baseline only.
 
 ## Repository Findings For This Round
 
 - Gate 1 is complete in commit `a2c7f126`: the selected-body realizer, RVV dialect handoff verifier, route-family realization-structure validator, and route collector consume shared Gearbox helper facts for expected region count, product/dequant marker indices, product phase, and realization decision.
 - Gate 2 is complete in commit `104df15a`: route-family planning, statement-plan ownership, route metadata, target support bundle export, and target artifact validation consume packed-i4 realization schedule facts without Common EmitC inventing RVV semantics.
-- The generated-bundle script already selected the packed scalar oracle from validated low-precision metadata, but its object/header verifier and evidence summary did not explicitly require the Gate 2 realization schedule mirror fields.
-- The Gate 3 production-evidence gap is therefore to make generated bundle verification and dry-run evidence assert the same provider-owned schedule mirrors, then add a focused packed-i4 dry-run test that checks evidence JSON, bundle index metadata, emitted C++ statement shape, and harness oracle selection.
+- Gate 3 is complete in commit `56027bb6`: generated-bundle verification and dry-run evidence assert provider-owned schedule mirrors for the packed-i4 production path.
+- The existing same-target measurement script already reuses generated-bundle ABI e2e artifact generation, selects packed-i4 timing only from validated provider metadata, and records correctness-before-timing plus raw `MEASURE`/`SUMMARY` records. The current production gap is to rerun that measurement after the Gate 1-3 resource-aware compiler changes, preserve the raw evidence path, and report the outcome without turning the measurement harness or baseline identity into route authority.
 
 ## Requirements
 
-- Change active RVV plugin/compiler owner code for the Gate 1 slice unless source evidence proves the boundary is already complete.
+- Do not modify production compiler/export source unless same-target measurement reveals a precise production compiler or resource-aware artifact blocker.
 - Keep resource facts plugin-owned and structural: packed nibble handling, unpack placement, VL/LMUL/resource constraints, accumulator/dequant role preservation, and schedule/resource diagnostics must not be inferred from route ids, artifact names, benchmark names, descriptor residue, or Common EmitC semantics.
 - Preserve the authority chain: selected `tcrv.exec` RVV variant -> typed low-level `tcrv_rvv` body -> RVV plugin-local realization/planning -> plugin-built route -> common EmitC materialization.
 - Fail closed for stale, missing, or unconsumed packed-resource facts when the packed low-precision route would otherwise make an unmeasured or resource-blind executable claim.
 - Add focused tests for resource fact propagation/consumption and fail-closed stale/missing packed-resource facts.
-- Keep the macro task active after this slice unless all campaign gates are complete.
+- Finish/archive the macro task after this slice only if all campaign gates are complete and final quality verification passes.
 
 ## Non-Goals
 
-- No standalone generated-bundle or `ssh rvv` evidence seam as the main task.
+- No standalone generated-bundle or `ssh rvv` evidence seam unrelated to the Gate 1-3 production compiler/resource-aware changes.
 - No q4/q8/llama.cpp route authority.
 - No route id, artifact name, benchmark name, or descriptor residue as semantic authority.
 - No high-level Linalg/Vector/StableHLO frontend work.
@@ -48,20 +48,19 @@ Gate 3 completion does not claim runtime correctness, performance, or llama.cpp/
 
 ## Acceptance Criteria For This Round
 
-- [x] PRD and Trellis context identify this as the active macro campaign and this round as Gate 3, with Gate 2 reconciled complete from commit `104df15a`.
-- [x] Generated-bundle verification treats low-precision realization schedule metadata as required object/header mirrors for product-dequant routes.
-- [x] Packed-i4 generated evidence exposes realization producer/decision, realized unroll, realized `vsetvl` region count, realized peak live-vector groups, product/dequant region indices, product/dequant phases, runtime ABI order, and target capability mirrors.
-- [x] Packed-i4 dry-run evidence checks the production pipeline from pre-realized selected body through materialized selected body, emitted RVV C++, target artifact bundle index, and external ABI harness.
-- [x] Packed-i4 harness oracle selection remains driven by validated provider-owned `packed-i4-nibbles` metadata and records runtime `n` as packed input bytes.
-- [x] Focused fail-closed checks cover stale or missing generated-artifact realization schedule mirrors in script verification and target artifact export.
-- [x] Regression checks confirm the default unpacked product-dequant and dequant-clamp generated bundle paths still follow their own schedule facts.
-- [x] `build/bin/tianchenrv-rvv-extension-plugin-test` passes.
-- [x] `build/bin/tianchenrv-target-artifact-export-test` passes.
-- [x] Relevant packed-i4, unpacked product-dequant, and dequant-clamp dry-run pipelines are checked with `tcrv-opt` / `tcrv-translate`; `FileCheck` / `llvm-lit` availability is recorded honestly.
+- [x] PRD and Trellis context identify this as the active macro campaign and this round as Gate 4, with Gates 1-3 reconciled complete through commit `56027bb6`.
+- [x] Same-target measurement uses the production generated-bundle ABI e2e path for the packed-i4 generated RVV artifact and records selected input, selected variant, generated function, object/header paths, and object/header hashes.
+- [x] Packed-i4 scalar baseline selection is driven by validated provider-owned `packed-i4-nibbles` metadata and uses baseline identity `scalar-c-reference/product-reduction-dequant-packed-i4-v1`.
+- [x] Measurement runs both generated RVV artifact and scalar baseline on the same `ssh rvv` target with target profile, compile flags, input sizes, warmups, repeats, iterations, timing method, raw `MEASURE` records, parsed `SUMMARY` records, and correctness guards before timing.
+- [x] The result is classified honestly as win, regression, or no-win; no llama.cpp parity, q4/q8 authority, or performance win is claimed without evidence.
+- [x] Focused dry-run coverage checks the packed-i4 measurement harness metadata switch, baseline identity, timing structure, correctness-before-timing marker, and no descriptor/source-front-door/direct-C/q4/q8 authority drift.
+- [x] Regression checks confirm the default unpacked product-dequant and dequant-clamp measurement dry-run paths keep their scalar baseline identities and do not enable the packed-i4 oracle.
+- [x] Timing-specific self-test and Python compile check pass for `scripts/rvv_generated_bundle_same_target_measure.py`.
+- [x] Relevant packed-i4 real measurement and default measurement dry-run commands are recorded with artifact paths.
 - [x] Bounded old-authority scan over touched files and added diff lines is clean.
 - [x] `git diff --check` and `git diff --cached --check` pass.
 - [x] One coherent commit is created for the slice.
-- [x] `.trellis/.current-task` remains active because Gate 4 remains incomplete.
+- [x] `.trellis/.current-task` is ready to archive because all four campaign gates are complete after final verification.
 
 ## Current Gate 2 Round Result
 
@@ -110,6 +109,95 @@ Focused validation completed:
 - ran a bounded added-line authority scan.
 
 Gate 3 is complete for generated artifact evidence. The macro task remains active because Gate 4 same-target measurement rerun is still unfinished. The next continuation point is Gate 4: rerun same-target measurement after this production compiler/resource-aware evidence change and honestly report win, regression, or no-win.
+
+## Current Gate 4 Round Result
+
+This slice completes Gate 4 same-target measurement for the accepted signed
+packed-i4 product-reduction-dequant representative after the Gate 1-3
+production compiler/resource-aware changes. The measurement path reuses
+`scripts/rvv_generated_bundle_same_target_measure.py`, which first regenerates
+and validates the generated RVV object/header through the generated-bundle ABI
+e2e path. The same-target harness selects
+`scalar-c-reference/product-reduction-dequant-packed-i4-v1` only after the
+generated bundle metadata validates provider-owned `packed-i4-nibbles` facts.
+
+Raw timing evidence was collected on `ssh rvv` with remote `riscv64`, 64 CPUs,
+`/usr/bin/clang`, Ubuntu clang 18.1.3, compile flags `-O2 -march=rv64gcv
+-mabi=lp64d -I.`, timing method `clock_gettime(CLOCK_MONOTONIC_RAW)`, counts
+`257,4096,65536`, patterns `0,1`, scales `-0.125,0.375`, warmups `2`,
+repeats `5`, and iterations `8`.
+
+Evidence artifacts:
+
+- root:
+  `artifacts/tmp/gate4-same-target-measurement/gate4_packed_i4_same_target_measure_ssh/evidence.json`;
+- per-op timing evidence:
+  `artifacts/tmp/gate4-same-target-measurement/gate4_packed_i4_same_target_measure_ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`;
+- raw target profile:
+  `artifacts/tmp/gate4-same-target-measurement/gate4_packed_i4_same_target_measure_ssh/widening_product_reduce_dequantize_f32/remote_target_profile_stdout.txt`;
+- raw timing stdout:
+  `artifacts/tmp/gate4-same-target-measurement/gate4_packed_i4_same_target_measure_ssh/widening_product_reduce_dequantize_f32/remote_measure_run_stdout.txt`.
+
+Generated artifact identity:
+
+- selected input:
+  `test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir`;
+- selected variant: `pre_realized_body_rvv_product_reduce_dequantize`;
+- generated function:
+  `tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize`;
+- object SHA-256:
+  `5398112321bb4744f5b41b1ae54c7507152b4502ac4e277342278836c416d95d`;
+- header SHA-256:
+  `0211a71ee3c9a31feb607157aed37a4cbb53a8a2693baaa7efb504245ed1e44b`.
+
+Parsed best-per-iteration timing summaries:
+
+```text
+n      pattern  scale   scalar ns/iter  generated ns/iter  speedup
+257    0       -0.125   907.500         1187.500           0.764211
+257    0        0.375   910.000         1185.000           0.767932
+257    1       -0.125   907.500         1192.500           0.761006
+257    1        0.375   907.500         1180.000           0.769068
+4096   0       -0.125   13315.000       16565.000          0.803803
+4096   0        0.375   13317.500       16565.000          0.803954
+4096   1       -0.125   13315.000       16565.000          0.803803
+4096   1        0.375   13315.000       16565.000          0.803803
+65536  0       -0.125   212217.500      264760.000         0.801547
+65536  0        0.375   213685.000      264787.500         0.807006
+65536  1       -0.125   212180.000      265900.000         0.797969
+65536  1        0.375   212182.500      264735.000         0.801490
+```
+
+All 12 timing summaries are no-win/regression signals for the generated RVV
+artifact against the named scalar C packed-i4 baseline: best speedup ranges
+from `0.761006` to `0.807006`. No performance win, llama.cpp parity, q4/q8
+route authority, or benchmark-name authority is claimed.
+
+Focused validation completed:
+
+- ran `python3 -m py_compile scripts/rvv_generated_bundle_same_target_measure.py`;
+- ran `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`;
+- ran the packed-i4 same-target measurement dry-run with the packed fixture
+  override and `--llvm-readobj ""`;
+- ran the packed-i4 same-target measurement on `ssh rvv` with the same fixture,
+  counts `257,4096,65536`, warmups `2`, repeats `5`, iterations `8`, and
+  `--llvm-readobj ""`;
+- ran default product-dequant and dequant-clamp same-target measurement dry-run
+  regression with `--llvm-readobj ""`; the per-op result keeps
+  `scalar-c-reference/product-reduction-dequant-v1`,
+  `packed_i4_reference_oracle=false`, and
+  `scalar-c-reference/product-reduction-dequant-clamp-v1`;
+- extended the Gate 4 same-target measurement dry-run lit test to check the
+  packed-i4 metadata switch, packed scalar baseline identity, correctness guard,
+  timing record shape, and packed harness structure;
+- recorded that `FileCheck`, `llvm-lit`, and `llvm-readobj` are not available in
+  this local environment, so dry-run checks were executed directly with
+  `--llvm-readobj ""` and targeted `jq` / `rg` assertions over generated
+  evidence and harness source.
+
+All campaign gates are now complete. Final Trellis quality verification passed,
+and the macro task is archived under
+`.trellis/tasks/archive/2026-06/06-09-rvv-production-kernel-packed-resource-realization-campaign/`.
 
 ## Technical Notes
 

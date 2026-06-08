@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Measure generated RVV bundles against scalar C baselines on one RVV target.
 
-This is Gate 5 evidence tooling for the bounded RVV production-kernel
+This is Gate 4 evidence tooling for the bounded RVV production-kernel
 capability campaign. It reuses the generated-bundle ABI e2e path to build and
 verify the generated TianChen-RV RVV object/header, then builds a small external
 C harness that runs the generated artifact and a named scalar C reference
