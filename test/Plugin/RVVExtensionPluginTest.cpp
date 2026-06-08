@@ -9104,9 +9104,9 @@ module {
                   ->plansProductReductionDequantization &&
               productDequantDirectStatementPlan->contractionPlan ==
                   productDequantMaterializationFacts->contractionPlan &&
-              productDequantDirectStatementPlan->postLoopSteps.size() == 4,
+              productDequantDirectStatementPlan->postLoopSteps.size() == 2,
           "product-reduction-dequant direct statement plan preserves "
-          "final-accumulator/dequant convert/scale/store post-loop structure"))
+          "scalar-dequant-splat/store post-loop structure"))
     return result;
   RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
       emptyProductDequantElementwiseFacts;
@@ -9127,7 +9127,7 @@ module {
   if (int result = expect(
           productDequantSelectedStatementPlan->ownerName ==
               "direct-provider contraction" &&
-              productDequantSelectedStatementPlan->postLoopSteps.size() == 4,
+              productDequantSelectedStatementPlan->postLoopSteps.size() == 2,
           "product-reduction-dequant owner selection consumes verified "
           "direct-contraction provider facts before returning statements"))
     return result;

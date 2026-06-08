@@ -4278,6 +4278,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
   const llvm::StringRef finalResultVectorCType =
       isProductReductionDequantization ? description.resultVectorCType
                                        : description.vectorCType;
+  const llvm::StringRef finalResultScalarCType = "float";
   if (route.getCallOpaqueSteps().size() != contract.expectedPreLoopStepCount)
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
@@ -4590,7 +4591,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           " requires loop assignment to update the local i32 carry from "
           "the extracted reduction scalar before artifact export");
     const std::size_t expectedPostLoopStepCount =
-        isProductReductionDequantClamp ? 10 : 4;
+        isProductReductionDequantClamp ? 8 : 2;
     if (route.getPostLoopSteps().size() != expectedPostLoopStepCount)
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) +
@@ -4604,43 +4605,28 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
             "widening dot-reduction target artifact consumer requires "
             "post-loop statements to carry selected typed RVV source "
             "provenance");
-    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-            route.getPostLoopSteps()[0], consumerLabel,
-            "post-loop scalar seed splat",
-            description.scalarSeedSplatIntrinsic,
-            {{"dot_acc_scalar", scalarI32CType},
-             {description.reductionStoreVL, runtimeContract.vlCType}},
-            "final_acc_vec", accumulatorVectorCType))
-      return error;
-    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-            route.getPostLoopSteps()[1], consumerLabel,
-            "post-loop i32-to-f32 dequant convert",
-            description.dequantizeConvertIntrinsic,
-            {{"final_acc_vec", accumulatorVectorCType},
-             {description.reductionStoreVL, runtimeContract.vlCType}},
-            "converted_f32_vec", finalResultVectorCType))
-      return error;
     const llvm::StringRef scaledResultName =
         isProductReductionDequantClamp ? llvm::StringRef("dequantized_vec")
                                        : description.resultName;
+    const std::string expectedScalarDequantExpression =
+        (llvm::Twine("dot_acc_scalar * ") + dequantScaleABI->cName).str();
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-            route.getPostLoopSteps()[2], consumerLabel,
-            "post-loop f32 scale", description.dequantizeScaleIntrinsic,
-            {{"converted_f32_vec", finalResultVectorCType},
-             {dequantScaleABI->cName, dequantScaleABI->cType},
+            route.getPostLoopSteps()[0], consumerLabel,
+            "post-loop scalar dequant splat", description.rhsBroadcastIntrinsic,
+            {{expectedScalarDequantExpression, finalResultScalarCType},
              {description.reductionStoreVL, runtimeContract.vlCType}},
             scaledResultName, finalResultVectorCType))
       return error;
     if (isProductReductionDequantClamp) {
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              route.getPostLoopSteps()[3], consumerLabel,
+              route.getPostLoopSteps()[1], consumerLabel,
               "post-loop lower bound splat", description.rhsBroadcastIntrinsic,
               {{lowerBoundABI->cName, lowerBoundABI->cType},
                {description.reductionStoreVL, runtimeContract.vlCType}},
               "lower_bound_vec", finalResultVectorCType))
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              route.getPostLoopSteps()[4], consumerLabel,
+              route.getPostLoopSteps()[2], consumerLabel,
               "post-loop lower clamp compare", description.compareIntrinsic,
               {{scaledResultName, finalResultVectorCType},
                {"lower_bound_vec", finalResultVectorCType},
@@ -4648,7 +4634,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
               "lower_clamp_mask", description.maskCType))
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              route.getPostLoopSteps()[5], consumerLabel,
+              route.getPostLoopSteps()[3], consumerLabel,
               "post-loop lower clamp select", description.maskedMergeIntrinsic,
               {{scaledResultName, finalResultVectorCType},
                {"lower_bound_vec", finalResultVectorCType},
@@ -4657,14 +4643,14 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
               "lower_clamped_vec", finalResultVectorCType))
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              route.getPostLoopSteps()[6], consumerLabel,
+              route.getPostLoopSteps()[4], consumerLabel,
               "post-loop upper bound splat", description.rhsBroadcastIntrinsic,
               {{upperBoundABI->cName, upperBoundABI->cType},
                {description.reductionStoreVL, runtimeContract.vlCType}},
               "upper_bound_vec", finalResultVectorCType))
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              route.getPostLoopSteps()[7], consumerLabel,
+              route.getPostLoopSteps()[5], consumerLabel,
               "post-loop upper clamp compare",
               description.secondaryCompareIntrinsic,
               {{"upper_bound_vec", finalResultVectorCType},
@@ -4673,7 +4659,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
               "upper_clamp_mask", description.maskCType))
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              route.getPostLoopSteps()[8], consumerLabel,
+              route.getPostLoopSteps()[6], consumerLabel,
               "post-loop upper clamp select", description.maskedMergeIntrinsic,
               {{"lower_clamped_vec", finalResultVectorCType},
                {"upper_bound_vec", finalResultVectorCType},
@@ -4682,14 +4668,14 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
               description.resultName, finalResultVectorCType))
         return error;
       return validateRVVProviderBuiltRouteStep(
-          route.getPostLoopSteps()[9], consumerLabel,
+          route.getPostLoopSteps()[7], consumerLabel,
           "post-loop output f32 store", description.storeIntrinsic,
           {{outABI->cName, outABI->cType},
            {description.resultName, finalResultVectorCType},
            {description.reductionStoreVL, runtimeContract.vlCType}});
     }
     return validateRVVProviderBuiltRouteStep(
-        route.getPostLoopSteps()[3], consumerLabel,
+        route.getPostLoopSteps()[1], consumerLabel,
         "post-loop output f32 store", description.storeIntrinsic,
         {{outABI->cName, outABI->cType},
          {description.resultName, finalResultVectorCType},

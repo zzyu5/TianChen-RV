@@ -5082,6 +5082,9 @@ deriveRVVSelectedBodyConfigProfile(
           RVVSelectedBodyOperationKind::DequantClampF32Epilogue ||
       description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  const bool isProductReductionDequantizeF32Result =
+      description.operation ==
+      RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32;
   const bool isUnsignedWideningProductResult =
       description.operation == RVVSelectedBodyOperationKind::WideningProduct &&
       description.wideningProductRelation ==
@@ -5230,7 +5233,7 @@ deriveRVVSelectedBodyConfigProfile(
           ? llvm::StringRef()
           : getRVVSelectedBodyStridedLoadIntrinsic(profile.sew, profile.lmul);
   profile.rhsBroadcastIntrinsic =
-      isF32ResultClampSelect
+      (isF32ResultClampSelect || isProductReductionDequantizeF32Result)
           ? getRVVSelectedBodyFloatScalarSplatIntrinsic(profile.sew,
                                                         profile.lmul)
       : isUnsignedWideningProductResult
@@ -12212,6 +12215,10 @@ deriveRVVSelectedBodyTargetLeafProfile(
           getRVVSelectedBodyFloatSelectIntrinsic(configProfile.sew,
                                                  configProfile.lmul),
           configProfile.rhsBroadcastIntrinsic};
+    if (description.operation ==
+        RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32)
+      return RVVSelectedBodyTargetLeafProfile{
+          "", "", "", configProfile.rhsBroadcastIntrinsic};
     return RVVSelectedBodyTargetLeafProfile{"", "", "", ""};
   }
 

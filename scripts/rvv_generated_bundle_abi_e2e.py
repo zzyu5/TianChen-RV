@@ -12557,8 +12557,7 @@ def verify_emitted_rvv_cpp(
             WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC,
             WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC,
             "__riscv_vmv_x_s_i32m1_i32",
-            DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
-            DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
+            F32_CLAMP_SELECT_SPLAT_INTRINSIC,
         ]
         if expectation.is_widening_product_reduce_dequant_clamp_f32:
             intrinsics.extend(
@@ -13365,13 +13364,21 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
         "emitted RVV C/C++ product-reduction dequant local carry update",
     )
     post_loop = text[loop_end:]
+    require_not_contains(
+        post_loop,
+        DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
+        "emitted RVV C/C++ product-reduction dequant optimized post-loop",
+    )
+    require_not_contains(
+        post_loop,
+        DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
+        "emitted RVV C/C++ product-reduction dequant optimized post-loop",
+    )
     if expectation.is_widening_product_reduce_dequant_clamp_f32:
         require_ordered_tokens(
             post_loop,
             [
-                WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC,
-                DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
-                DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
+                F32_CLAMP_SELECT_SPLAT_INTRINSIC,
                 F32_CLAMP_SELECT_SPLAT_INTRINSIC,
                 F32_CLAMP_SELECT_COMPARE_INTRINSIC,
                 F32_CLAMP_SELECT_SELECT_INTRINSIC,
@@ -13386,9 +13393,7 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
         require_ordered_tokens(
             post_loop,
             [
-                WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC,
-                DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
-                DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
+                F32_CLAMP_SELECT_SPLAT_INTRINSIC,
                 DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
             ],
             "emitted RVV C/C++ product-reduction dequant post-loop store chain",
@@ -13444,11 +13449,14 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
         "loop_updates_local_carry": True,
         "loop_dequantization_forbidden": True,
         "post_loop_dequantization": {
-            "seed_splat_intrinsic": (
-                WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC
+            "scalar_dequant_expression": "dot_acc_scalar * scale",
+            "splat_intrinsic": F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+            "forbids_vector_convert_intrinsic": (
+                DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC
             ),
-            "convert_intrinsic": DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC,
-            "scale_intrinsic": DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
+            "forbids_vector_scale_intrinsic": (
+                DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
+            ),
             "store_intrinsic": DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
             "scalar_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
         },

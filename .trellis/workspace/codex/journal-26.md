@@ -1534,3 +1534,36 @@ named scalar C baselines after correctness guards pass.
 
 [DONE] All macro campaign gates are complete. The task is ready to archive and
 commit as one coherent Gate 4 closeout.
+
+
+## Session 566: RVV low-precision production-kernel performance optimization slice
+
+**Date**: 2026-06-08
+**Task**: RVV low-precision production-kernel performance optimization slice
+**Branch**: `main`
+
+### Summary
+
+Created the RVV low-precision production-kernel performance optimization macro task, completed Gate 1 bottleneck attribution, landed a Gate 2 production-source scalar dequant epilogue optimization for widening product reduction dequant/dequant-clamp, validated focused build/lit/ssh rvv correctness and same-target measurement, and left the macro task active for main-loop/reduction resource optimization.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c3c4dc4e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

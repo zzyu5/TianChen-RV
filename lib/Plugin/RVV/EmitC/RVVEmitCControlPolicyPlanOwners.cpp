@@ -1546,6 +1546,8 @@ static llvm::Error buildContractionRouteControlProviderPlan(
           contractionPlan.dequantScaleCType !=
               description.dequantScaleCType ||
           contractionPlan.dequantScaleName != description.dequantScaleName ||
+          contractionPlan.rhsBroadcastIntrinsic !=
+              description.rhsBroadcastIntrinsic ||
           (isProductReductionDequantClamp &&
            (contractionPlan.lowerBoundRole != description.lowerBoundRole ||
             contractionPlan.upperBoundRole != description.upperBoundRole ||
@@ -1560,9 +1562,7 @@ static llvm::Error buildContractionRouteControlProviderPlan(
             contractionPlan.secondaryCompareIntrinsic !=
                 description.secondaryCompareIntrinsic ||
             contractionPlan.maskedMergeIntrinsic !=
-                description.maskedMergeIntrinsic ||
-            contractionPlan.rhsBroadcastIntrinsic !=
-                description.rhsBroadcastIntrinsic)) ||
+                description.maskedMergeIntrinsic)) ||
           (!isProductReductionDequantClamp &&
            (!description.lowerBoundRole.empty() ||
             !description.upperBoundRole.empty() ||
@@ -1572,8 +1572,7 @@ static llvm::Error buildContractionRouteControlProviderPlan(
             !description.clampRelation.empty() ||
             !description.selectLayout.empty() ||
             !description.secondaryComparePredicateKind.empty() ||
-            !description.secondaryCompareIntrinsic.empty() ||
-            !description.rhsBroadcastIntrinsic.empty())))) ||
+            !description.secondaryCompareIntrinsic.empty())))) ||
         (!isProductReductionDequantization &&
          (!contractionPlan.dequantizationRelation.empty() ||
           !contractionPlan.dequantizeConvertIntrinsic.empty() ||

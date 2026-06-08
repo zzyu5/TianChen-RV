@@ -1,0 +1,17 @@
+{"type":"spec","path":".trellis/spec/index.md","note":"Global TianChen-RV architecture and RVV-first stage order."}
+{"type":"spec","path":".trellis/spec/extension-plugins/rvv-plugin.md","note":"RVV plugin authority, low-precision primitive facts, Gearbox and statement-plan boundaries."}
+{"type":"spec","path":".trellis/spec/lowering-runtime/emitc-route.md","note":"Provider-owned EmitC route contract and common EmitC neutrality."}
+{"type":"spec","path":".trellis/spec/testing/mlir-testing-contract.md","note":"Focused MLIR/runtime/same-target evidence requirements."}
+{"type":"task","path":".trellis/tasks/06-08-06-08-rvv-low-precision-production-kernel-performance-optimization-campaign/prd.md","note":"Current macro PRD and round acceptance criteria."}
+{"type":"archive","path":".trellis/tasks/archive/2026-06/06-08-rvv-production-kernel-capability-campaign/prd.md","note":"Prior campaign closeout and Gate 4 measurement result."}
+{"type":"evidence","path":"artifacts/tmp/gate4-same-target-measurement/gate4-wpr-dequant-and-clamp-rvv/evidence.json","note":"Same-target Gate 4 timing/correctness evidence for bottleneck attribution."}
+{"type":"source","path":"include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h","note":"Low-precision resource candidate facts."}
+{"type":"source","path":"lib/Plugin/RVV/RVVGearboxSchedules.cpp","note":"Gearbox resource candidate materialization pass."}
+{"type":"source","path":"lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp","note":"Low-precision selected-body realization owner."}
+{"type":"source","path":"lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp","note":"Direct contraction statement-plan owner."}
+{"type":"source","path":"lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp","note":"Contraction route-family and low-precision resource validation."}
+{"type":"source","path":"lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp","note":"Route description, operand binding, metadata and provider plan facts."}
+{"type":"source","path":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","note":"Target artifact mirror validation for low-precision route families."}
+{"type":"implementation","phase":"gate1","note":"Attributed the measured slow low-precision product-reduction dequant/dequant-clamp path to RVV direct-contraction route/statement planning and validation mirrors. The old generated epilogue used VL=1 vector i32 splat, vector int-to-float convert, and vector scale after the scalar reduction carry, so the first bounded owner is the product-reduction dequant epilogue plan rather than measurement scaffolding."}
+{"type":"implementation","phase":"gate2","note":"Changed RVV product-reduction dequant statement planning to materialize dot_acc_scalar * scale as a scalar EmitC expression and then use the RVV-owned f32 scalar-splat intrinsic for the final VL=1 vector. Updated route-family facts, control-policy validation, route planning leaf facts, target artifact validation, generated-bundle ABI evidence checks, and focused plugin expectations to match the production path."}
+{"type":"implementation","phase":"self-repair","note":"An intermediate __builtin_fmaf scalar expression generated correct-looking C but failed remote measurement linking with an undefined fmaf reference. Reworked the production plan to ordinary scalar multiplication before f32 splat to avoid introducing a libm dependency in the current generated artifact compile route."}

@@ -1162,37 +1162,16 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
                                              "int32_t"},
                   description, context))
         return error;
-      if (llvm::Error error = addRVVDirectContractionStatementOwnerPostLoopStep(
-              plan, slice.arithmeticOp, "compute",
-              providerFacts.scalarSeedSplatLeaf,
-              {TCRVEmitCCallOpaqueOperand{"dot_acc_scalar", "int32_t"},
-               TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
-                                          vlCType.str()}},
-              description, context,
-              TCRVEmitCCallOpaqueResult{"final_acc_vec",
-                                        accumulatorVectorCType}))
-        return error;
-      if (llvm::Error error = addRVVDirectContractionStatementOwnerPostLoopStep(
-              plan, slice.dequantizeOp.getOperation(), "compute",
-              providerFacts.dequantizeConvertLeaf,
-              {TCRVEmitCCallOpaqueOperand{"final_acc_vec",
-                                          accumulatorVectorCType},
-               TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
-                                          vlCType.str()}},
-              description, context,
-              TCRVEmitCCallOpaqueResult{"converted_f32_vec",
-                                        dequantResultVectorCType.str()}))
-        return error;
       const llvm::StringRef scaledResultName =
           isProductReductionDequantClamp ? llvm::StringRef("dequantized_vec")
                                          : description.resultName;
+      const std::string scalarDequantExpression =
+          (llvm::Twine("dot_acc_scalar * ") + boundDequantScaleABI->cName)
+              .str();
       if (llvm::Error error = addRVVDirectContractionStatementOwnerPostLoopStep(
               plan, slice.dequantizeOp.getOperation(), "compute",
-              providerFacts.dequantizeScaleLeaf,
-              {TCRVEmitCCallOpaqueOperand{"converted_f32_vec",
-                                          dequantResultVectorCType.str()},
-               TCRVEmitCCallOpaqueOperand{boundDequantScaleABI->cName,
-                                          boundDequantScaleABI->cType},
+              description.rhsBroadcastIntrinsic,
+              {TCRVEmitCCallOpaqueOperand{scalarDequantExpression, "float"},
                TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
                                           vlCType.str()}},
               description, context,
@@ -1820,11 +1799,9 @@ llvm::Error verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
             providerPlan.scalarSeedSplatLeaf, "scalar seed splat"))
       return error;
   if (providerPlan.plansProductReductionDequantization) {
-    if (llvm::Error error = requireStatementLeaf(
-            providerPlan.dequantizeConvertLeaf, "dequantize convert"))
-      return error;
-    if (llvm::Error error = requireStatementLeaf(
-            providerPlan.dequantizeScaleLeaf, "dequantize scale"))
+    if (llvm::Error error =
+            requireStatementLeaf(description.rhsBroadcastIntrinsic,
+                                 "post-loop dequant scalar splat"))
       return error;
   }
   if (providerPlan.plansProductReductionDequantClamp) {

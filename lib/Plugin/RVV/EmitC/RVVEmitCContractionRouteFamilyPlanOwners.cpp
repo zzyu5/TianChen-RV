@@ -2561,11 +2561,12 @@ getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation) {
             ? getContractionFloatSelectIntrinsic(kResultSEW, kResultLMUL)
             : getContractionSelectIntrinsic(kResultSEW, kResultLMUL);
   }
+  if (isProductReductionDequantization)
+    facts.rhsBroadcastIntrinsic =
+        getContractionFloatScalarSplatIntrinsic(kResultSEW, kResultLMUL);
   if (isProductReductionDequantClamp) {
     facts.secondaryCompareIntrinsic =
         getContractionFloatLessThanCompareIntrinsic(kResultSEW, kResultLMUL);
-    facts.rhsBroadcastIntrinsic =
-        getContractionFloatScalarSplatIntrinsic(kResultSEW, kResultLMUL);
   }
   facts.reductionStoreVL = kRVVWideningDotProductStoreVL;
   if (isComputedMask)
@@ -6699,6 +6700,9 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
       plan.dequantScaleRole = kRVVContractionDequantScaleRole;
       plan.dequantScaleCType = kRVVContractionDequantScaleCType;
       plan.dequantScaleName = kRVVContractionDequantScaleName;
+      plan.rhsBroadcastIntrinsic =
+          getContractionFloatScalarSplatIntrinsic(typedConfig.sew,
+                                                  typedConfig.lmul);
       if (plan.usesProductReductionDequantClamp) {
         plan.lowerBoundRole = kRVVContractionLowerBoundRole;
         plan.upperBoundRole = kRVVContractionUpperBoundRole;
@@ -6720,9 +6724,6 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
         plan.maskedMergeIntrinsic =
             getContractionFloatSelectIntrinsic(typedConfig.sew,
                                                typedConfig.lmul);
-        plan.rhsBroadcastIntrinsic =
-            getContractionFloatScalarSplatIntrinsic(typedConfig.sew,
-                                                    typedConfig.lmul);
         plan.maskTypeName = internContractionDerivedText(
             (llvm::Twine("!tcrv_rvv.mask<") +
              getContractionFloatElementTypeName(typedConfig.sew) + ", \"" +

@@ -713,22 +713,41 @@ private:
             parseSimpleProductExpression(expression)) {
       llvm::StringRef lhsName = product->first;
       llvm::StringRef rhsToken = product->second;
-      mlir::Value lhs = valueMap.lookup(lhsName);
-      if (!lhs)
+      auto resolveNamedOperand = [&](llvm::StringRef name)
+          -> llvm::Expected<mlir::Value> {
+        if (mlir::Value value = valueMap.lookup(name))
+          return value;
+        if (mlir::Value lvalue = lvalueMap.lookup(name)) {
+          auto typedLValue =
+              llvm::dyn_cast<mlir::TypedValue<mlir::emitc::LValueType>>(
+                  lvalue);
+          if (!typedLValue)
+            return makeMaterializerError(
+                route.getRouteID(),
+                llvm::Twine("operand expression references local variable '") +
+                    name + "' that is not an EmitC lvalue");
+          return builder
+              .create<mlir::emitc::LoadOp>(
+                  builder.getUnknownLoc(),
+                  typedLValue.getType().getValueType(), typedLValue)
+              .getResult();
+        }
         return makeMaterializerError(
             route.getRouteID(),
             llvm::Twine("operand expression '") + expression +
                 "' references values that are not materialized in the "
                 "current EmitC scope");
+      };
+      llvm::Expected<mlir::Value> lhsValue = resolveNamedOperand(lhsName);
+      if (!lhsValue)
+        return lhsValue.takeError();
+      mlir::Value lhs = *lhsValue;
       mlir::Value rhs;
       if (isSafeIdentifier(rhsToken)) {
-        rhs = valueMap.lookup(rhsToken);
-        if (!rhs)
-          return makeMaterializerError(
-              route.getRouteID(),
-              llvm::Twine("operand expression '") + expression +
-                  "' references values that are not materialized in the "
-                  "current EmitC scope");
+        llvm::Expected<mlir::Value> rhsValue = resolveNamedOperand(rhsToken);
+        if (!rhsValue)
+          return rhsValue.takeError();
+        rhs = *rhsValue;
       } else {
         std::uint64_t immediate = 0;
         if (rhsToken.getAsInteger(10, immediate))
@@ -742,9 +761,20 @@ private:
                       llvm::Twine(immediate).str())
                   .getResult();
       }
+      mlir::Type resultType = getEmitCTypeForCType(context, operand.cType);
+      if (lhs.getType() != resultType)
+        lhs = builder
+                  .create<mlir::emitc::CastOp>(builder.getUnknownLoc(),
+                                               resultType, lhs)
+                  .getResult();
+      if (rhs.getType() != resultType)
+        rhs = builder
+                  .create<mlir::emitc::CastOp>(builder.getUnknownLoc(),
+                                               resultType, rhs)
+                  .getResult();
       return builder
-          .create<mlir::emitc::MulOp>(builder.getUnknownLoc(), lhs.getType(),
-                                      lhs, rhs)
+          .create<mlir::emitc::MulOp>(builder.getUnknownLoc(), resultType, lhs,
+                                      rhs)
           .getResult();
     }
 
