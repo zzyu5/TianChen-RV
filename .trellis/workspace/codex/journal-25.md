@@ -1906,3 +1906,63 @@ Moved direct-contraction aggregate provider-plan derivation into RVV statement-p
 ### Next Steps
 
 - None - task complete
+
+
+## Session 550: Stage2 RVV owner-consumed widening dot-reduce executable artifact ABI boundary
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV owner-consumed widening dot-reduce executable artifact ABI boundary
+**Branch**: `main`
+
+### Summary
+
+Closed the executable evidence gap for the owner-consumed
+`widening_dot_reduce_add` direct-contraction aggregate path. Current HEAD
+already routes central provider construction through
+`getRVVSelectedBodyRouteStatementPlanOwnerSelection(...)`, so no compiler
+source change was needed. This round proved the pre-realized selected-body
+route through generated bundle export and real `ssh rvv` execution.
+
+### Main Changes
+
+- Created and completed Trellis task
+  `06-08-stage2-rvv-owner-consumed-widening-dot-reduce-executable-artifact-abi-boundary`.
+- Recorded no-source-change justification in the PRD: `RVVEmitCRouteProvider.cpp`
+  has no direct call to
+  `getRVVSelectedBodyDirectContractionRouteProviderPlan(...)` or
+  `verifyRVVSelectedBodyDirectContractionRouteProviderFacts(...)`; owner
+  selection derives and verifies the direct-contraction provider plan before
+  route attachment.
+- Recorded non-dry-run `ssh rvv` generated-bundle evidence for
+  pre-realized `widening_dot_reduce_add`.
+- No `.trellis/spec/` update: existing RVV plugin, EmitC route, and testing
+  specs already define this owner-consumed executable evidence boundary.
+
+### Testing
+
+- [OK] dry-run generated-bundle:
+  `widening_dot_reduce_add` counts `0,1,16,17,257`
+- [OK] fail-closed direct pre-realized route-entry shortcut:
+  `--direct-pre-realized-route-entry is unsupported for selected pre-realized op kind(s): widening_dot_reduce_add`
+- [OK] non-dry-run `ssh rvv` generated-bundle:
+  `PASS op=widening_dot_reduce_add counts=0,1,16,17,257 patterns=0,1`
+- [OK] remote evidence: `remote_arch=riscv64`, `clang_version=Ubuntu clang version 18.1.3 (1ubuntu1)`, `ssh_evidence=true`
+- [OK] harness coverage: signed horizontal dot, seed contribution, widened
+  product distinction, scalar-output-only behavior, source preservation,
+  accumulator preservation, and tail sentinel preservation
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] lit filtered scripts:
+  `Scripts/rvv-generated-bundle-abi-e2e-pre-realized-widening-dot-reduce-add-dry-run.test`
+  and
+  `Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-widening-dot-reduce-add-fail-closed.test`
+- [OK] provider residue scan: no direct-contraction provider-plan getter or
+  verifier call remains in `RVVEmitCRouteProvider.cpp`
+- [OK] added-line old-authority scan: no new positive legacy
+  i32/source-front-door/descriptor/direct-C authority in tracked diff
+- [OK] `git diff --check`
+
+### Status
+
+[OK] Completed; generated artifact directory was validation output only and
+was not committed.

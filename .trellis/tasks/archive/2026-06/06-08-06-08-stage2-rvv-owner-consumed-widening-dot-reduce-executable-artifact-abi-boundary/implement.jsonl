@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack, RVV-first authority chain, Stage 2 boundaries, and route-authority constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership over selected bodies, direct-contraction aggregate owner selection, provider facts, ABI roles, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute and common EmitC/export neutrality rules for executable artifacts."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit/script evidence expectations and ssh rvv requirement for runtime correctness claims."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle executable evidence contracts for widening_dot_reduce_add and related fail-closed checks."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-contraction-aggregate-owner-consumed-boundary/prd.md", "reason": "Previous owner-consumed direct-contraction aggregate boundary and dry-run evidence that this task executes on ssh rvv."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h", "reason": "Public owner-selection API and direct-contraction aggregate plan boundary."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "Owner-local statement-plan selection, direct-contraction aggregate derivation, validation, and diagnostics."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "Central provider neutrality and absence of direct aggregate semantic authority."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target artifact validation for direct-contraction route family ABI/header facts."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated bundle creation, harness checks, and ssh rvv execution path for widening_dot_reduce_add."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-widening-dot-reduce-add-dry-run.test", "reason": "Existing dry-run positive evidence for pre-realized widening_dot_reduce_add."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-direct-pre-realized-widening-dot-reduce-add-fail-closed.test", "reason": "Existing fail-closed direct route-entry shortcut diagnostic for widening_dot_reduce_add."}

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global stack, RVV Stage 2, and route-authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check direct-contraction aggregate facts remain RVV owner-local and fail closed."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check lowerable-route payload boundaries and common EmitC/export neutrality."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused regression, generated-bundle, and ssh rvv evidence expectations."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check widening_dot_reduce_add executable evidence contract and stale-route fail-closed coverage."}
+{"file": ".trellis/tasks/06-08-06-08-stage2-rvv-owner-consumed-widening-dot-reduce-executable-artifact-abi-boundary/prd.md", "reason": "Check implementation and evidence against this task's acceptance criteria and out-of-scope limits."}
