@@ -414,6 +414,25 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
           op, builder, kRVVLowPrecisionResourceUnpackIntentAttrName,
           selected->unpackIntent)))
     return mlir::failure();
+  if (isRVVLowPrecisionResourcePackedI4CandidateID(selected->candidateID)) {
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourcePerformanceFeedbackAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceFeedback)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourcePerformanceBaselineAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceBaseline)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourcePerformanceBestSpeedupRangeAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourcePerformanceActionAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceAction)))
+      return mlir::failure();
+  }
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceProductDTypeAttrName,
           selected->productElementTypeName)))

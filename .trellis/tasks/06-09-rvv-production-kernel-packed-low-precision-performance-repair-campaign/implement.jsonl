@@ -1,0 +1,18 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV stage order, and descriptor/Common EmitC boundaries for the campaign."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "RVV plugin pre-development checklist and quality gate for performance-sensitive Stage 2 work."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV low-precision, selected-body realization, resource-fact, and target-mirror contracts."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Lowering/runtime checklist for common EmitC neutrality and provider-owned route payloads."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Unified EmitC route boundaries and provider-owned route value/mirror contracts."}
+{"file": ".trellis/tasks/06-09-rvv-production-kernel-packed-low-precision-performance-repair-campaign/prd.md", "reason": "Current macro campaign PRD, round slice, acceptance criteria, and continuation contract."}
+{"file": ".trellis/tasks/archive/2026-06/06-09-rvv-production-kernel-packed-resource-realization-campaign/prd.md", "reason": "Previous campaign evidence, completed gates, and no-win measurement endpoint that motivates this repair campaign."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h", "reason": "Added provider-owned packed-i4 performance-feedback resource attr names and registered them as low-precision resource attrs."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Extended RVVLowPrecisionContractionResourceSelection with performance feedback, baseline, speedup range, and action fields."}
+{"file": "lib/Plugin/RVV/RVVGearboxSchedules.cpp", "reason": "Materializes required packed-i4 no-win performance feedback attrs with fail-closed validation before selected-body realization."}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Copies and validates packed-i4 performance feedback attrs from pre-realized body to realized with_vl structure."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Populates, derives, verifies, and compares packed-i4 performance feedback facts in route-family planning."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "Re-consumes packed-i4 feedback facts at the statement-plan owner boundary and rejects provider/family mismatches."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Carries packed-i4 performance feedback facts into route metadata as provider-owned mirrors."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Exposes packed-i4 feedback metadata keys in target support bundle mapping."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Validates packed-i4 feedback facts and rejects stale candidate metadata mirrors before artifact acceptance."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Validates expected packed-i4 feedback metadata in generated bundle dry-run evidence."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Recorded the packed-i4 no-win performance feedback contract with exact fields, validation matrix, and tests."}

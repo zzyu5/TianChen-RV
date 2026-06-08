@@ -475,3 +475,65 @@ contract already lives in `.trellis/spec/extension-plugins/rvv-plugin.md`. This
 round executed those contracts and added focused dry-run coverage, but did not
 introduce a new command signature, metadata field, validation rule, or
 cross-layer behavior requiring a spec edit.
+
+## Session 579: RVV packed low-precision performance feedback repair campaign
+
+**Date**: 2026-06-09
+**Task**: RVV production-kernel packed low-precision performance repair campaign
+
+### Summary
+
+Started the new active macro repair campaign after the prior packed resource
+realization task was archived. The new PRD begins from the measured Gate 4
+packed-i4 no-win/regression evidence: same-target generated RVV artifact timing
+against `scalar-c-reference/product-reduction-dequant-packed-i4-v1` produced 12
+parsed summaries below 1.0, with best-speedup range `0.761006..0.807006`.
+
+Completed Gate 1 by tying that no-win signal to the production packed-i4
+resource-selection seam instead of to q4/q8, llama.cpp, benchmark names, route
+ids, or artifact names. The seam is
+`RVVLowPrecisionContractionResourceSelection` flowing through Gearbox resource
+attrs, selected-body realization, route-family planning, statement planning,
+route metadata, target support bundle metadata, target artifact validation, and
+generated-bundle dry-run evidence.
+
+Completed the first Gate 2 production-surface action by adding provider-owned
+packed-i4 performance feedback facts:
+`same-target-packed-i4-no-win.v1`,
+`scalar-c-reference/product-reduction-dequant-packed-i4-v1`,
+`0.761006..0.807006`, and
+`no-win-repair-required-before-performance-claim`. Packed-i4 selected bodies,
+route planning, statement planning, route metadata, target validation, and ABI
+dry-run evidence now preserve those facts and reject stale feedback mirrors
+before artifact acceptance.
+
+The RVV plugin code-spec now includes the packed-i4 no-win performance feedback
+contract, exact fields, validation matrix, good/bad cases, and required tests.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py scripts/rvv_generated_bundle_same_target_measure.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] packed-i4 generated-bundle ABI dry-run with
+  `--pre-realized-selected-body`, fixture override, runtime counts
+  `0,1,16,17,257`, and `--llvm-readobj ""`
+- [OK] direct compiler pipeline shows realized/body, route plan, header, bundle
+  index, and evidence metadata carrying the four packed-i4 feedback fields
+- [OK] stale `performance_feedback` edited to
+  `same-target-packed-i4-performance-win.v1` fails target artifact export with
+  a provider-mirror diagnostic
+
+`clang-format`, `FileCheck`, and `llvm-lit` are unavailable in this local
+environment, so lit/FileCheck tests were not run directly.
+
+### Status
+
+[OPEN] Gate 1 and Gate 2 are complete for the current slice. The macro task
+remains active because Gate 3 full generated artifact/header/C/correctness
+evidence and Gate 4 same-target timing rerun remain unfinished. Next
+continuation point: improve the RVV-owned packed execution structure or collect
+Gate 3 evidence while preserving the new fail-closed no-win feedback facts.

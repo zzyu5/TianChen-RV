@@ -1059,6 +1059,26 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
                                         familySelection.dequantPhase))
     return error;
   if (llvm::Error error =
+          requireString("performance feedback",
+                        providerSelection.performanceFeedback,
+                        familySelection.performanceFeedback))
+    return error;
+  if (llvm::Error error =
+          requireString("performance baseline",
+                        providerSelection.performanceBaseline,
+                        familySelection.performanceBaseline))
+    return error;
+  if (llvm::Error error =
+          requireString("performance best-speedup range",
+                        providerSelection.performanceBestSpeedupRange,
+                        familySelection.performanceBestSpeedupRange))
+    return error;
+  if (llvm::Error error =
+          requireString("performance action",
+                        providerSelection.performanceAction,
+                        familySelection.performanceAction))
+    return error;
+  if (llvm::Error error =
           requireString("target capability provider mirror",
                         providerSelection.targetCapabilityProviderMirror,
                         familySelection.targetCapabilityProviderMirror))
@@ -1142,6 +1162,23 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
       return error;
     if (llvm::Error error = requireExpectedString(
             "dequant phase", familySelection.dequantPhase, "dequant-store"))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "performance feedback", familySelection.performanceFeedback,
+            kRVVLowPrecisionResourcePackedI4PerformanceFeedback))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "performance baseline", familySelection.performanceBaseline,
+            kRVVLowPrecisionResourcePackedI4PerformanceBaseline))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "performance best-speedup range",
+            familySelection.performanceBestSpeedupRange,
+            kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "performance action", familySelection.performanceAction,
+            kRVVLowPrecisionResourcePackedI4PerformanceAction))
       return error;
     return llvm::Error::success();
   }

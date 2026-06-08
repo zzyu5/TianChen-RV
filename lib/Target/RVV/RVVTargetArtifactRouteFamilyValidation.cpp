@@ -3739,9 +3739,30 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
               getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
                   plugin::rvv::kRVVLowPrecisionResourcePackedI4RealizationDecision)))
     return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 dequant phase",
+          selection.dequantPhase, "dequant-store"))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 performance feedback",
+          selection.performanceFeedback,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceFeedback))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 performance baseline",
+          selection.performanceBaseline,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceBaseline))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 performance best-speedup range",
+          selection.performanceBestSpeedupRange,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange))
+    return error;
   return requireRVVWideningDotContractStringField(
-      contract.consumerLabel, "packed-i4 dequant phase",
-      selection.dequantPhase, "dequant-store");
+      contract.consumerLabel, "packed-i4 performance action",
+      selection.performanceAction,
+      plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceAction);
 }
 
 llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
@@ -5445,6 +5466,25 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
     if (llvm::Error error = requireResourceMirror(
             "tcrv_rvv.low_precision_resource.dequant_phase",
             selection.dequantPhase, "dequant phase"))
+      return error;
+  }
+  if (!selection.performanceFeedback.empty()) {
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.performance_feedback",
+            selection.performanceFeedback, "performance feedback"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.performance_baseline",
+            selection.performanceBaseline, "performance baseline"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
+            selection.performanceBestSpeedupRange,
+            "performance best-speedup range"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.performance_action",
+            selection.performanceAction, "performance action"))
       return error;
   }
   if (llvm::Error error = requireResourceMirror(

@@ -191,6 +191,10 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::int64_t dequantRegionIndex = 0;
   std::string productPhase;
   std::string dequantPhase;
+  std::string performanceFeedback;
+  std::string performanceBaseline;
+  std::string performanceBestSpeedupRange;
+  std::string performanceAction;
 
   std::string targetCapabilityProviderMirror;
   std::string targetCapabilityLegalityMirror;

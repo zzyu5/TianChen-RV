@@ -4640,6 +4640,17 @@ void populateRVVLowPrecisionContractionResourceRealizationSchedule(
           realizationDecision)
           .str();
   selection.dequantPhase = kRVVLowPrecisionResourceDequantStorePhase.str();
+  if (isRVVLowPrecisionResourcePackedI4CandidateID(
+          selection.selectedCandidateID)) {
+    selection.performanceFeedback =
+        kRVVLowPrecisionResourcePackedI4PerformanceFeedback.str();
+    selection.performanceBaseline =
+        kRVVLowPrecisionResourcePackedI4PerformanceBaseline.str();
+    selection.performanceBestSpeedupRange =
+        kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange.str();
+    selection.performanceAction =
+        kRVVLowPrecisionResourcePackedI4PerformanceAction.str();
+  }
 }
 
 RVVLowPrecisionContractionResourceSelection
@@ -4892,6 +4903,34 @@ llvm::Error requireRVVLowPrecisionResourceRealizationFacts(
           selection.realizedPeakLiveVectorGroups,
           selection.peakLiveVectorGroups))
     return error;
+  if (isRVVLowPrecisionResourcePackedI4CandidateID(
+          selection.selectedCandidateID)) {
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourcePerformanceFeedbackAttrName,
+                "performance feedback", selection.performanceFeedback))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourcePerformanceBaselineAttrName,
+                "performance baseline", selection.performanceBaseline))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourcePerformanceBestSpeedupRangeAttrName,
+                "performance best-speedup range",
+                selection.performanceBestSpeedupRange))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourcePerformanceActionAttrName,
+                "performance action", selection.performanceAction))
+      return error;
+  }
   return llvm::Error::success();
 }
 
@@ -5277,6 +5316,30 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
   else
     return value.takeError();
 
+  if (isRVVLowPrecisionResourcePackedI4CandidateID(
+          selection.selectedCandidateID)) {
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourcePerformanceFeedbackAttrName))
+      selection.performanceFeedback = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourcePerformanceBaselineAttrName))
+      selection.performanceBaseline = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourcePerformanceBestSpeedupRangeAttrName))
+      selection.performanceBestSpeedupRange = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourcePerformanceActionAttrName))
+      selection.performanceAction = *value;
+    else
+      return value.takeError();
+  }
+
   selection.targetCapabilityProviderMirror = targetFacts.providerMirror;
   selection.targetCapabilityLegalityMirror = targetFacts.legalityMirror;
 
@@ -5435,6 +5498,11 @@ bool isRVVLowPrecisionResourceSelectionEqual(
          lhs.dequantRegionIndex == rhs.dequantRegionIndex &&
          lhs.productPhase == rhs.productPhase &&
          lhs.dequantPhase == rhs.dequantPhase &&
+         lhs.performanceFeedback == rhs.performanceFeedback &&
+         lhs.performanceBaseline == rhs.performanceBaseline &&
+         lhs.performanceBestSpeedupRange ==
+             rhs.performanceBestSpeedupRange &&
+         lhs.performanceAction == rhs.performanceAction &&
          lhs.targetCapabilityProviderMirror ==
              rhs.targetCapabilityProviderMirror &&
          lhs.targetCapabilityLegalityMirror ==
@@ -5709,6 +5777,29 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
           verifyRVVLowPrecisionContractionRealizationScheduleSelection(
               context, selection))
     return error;
+  if (isRVVLowPrecisionResourcePackedI4CandidateID(
+          selection.selectedCandidateID)) {
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "performance feedback",
+            selection.performanceFeedback,
+            kRVVLowPrecisionResourcePackedI4PerformanceFeedback))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "performance baseline",
+            selection.performanceBaseline,
+            kRVVLowPrecisionResourcePackedI4PerformanceBaseline))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "performance best-speedup range",
+            selection.performanceBestSpeedupRange,
+            kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "performance action",
+            selection.performanceAction,
+            kRVVLowPrecisionResourcePackedI4PerformanceAction))
+      return error;
+  }
   if (selection.targetCapabilityProviderMirror.empty() ||
       selection.targetCapabilityLegalityMirror.empty())
     return makeRVVEmitCRouteProviderError(

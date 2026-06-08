@@ -43090,6 +43090,17 @@ getRVVSelectedBodyConfigArtifactMetadata(
       metadata.push_back({"tcrv_rvv.low_precision_resource.dequant_phase",
                           selection.dequantPhase});
     }
+    if (!selection.performanceFeedback.empty()) {
+      metadata.push_back({"tcrv_rvv.low_precision_resource.performance_feedback",
+                          selection.performanceFeedback});
+      metadata.push_back({"tcrv_rvv.low_precision_resource.performance_baseline",
+                          selection.performanceBaseline});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.performance_best_speedup_range",
+           selection.performanceBestSpeedupRange});
+      metadata.push_back({"tcrv_rvv.low_precision_resource.performance_action",
+                          selection.performanceAction});
+    }
     metadata.push_back(
         {"tcrv_rvv.low_precision_resource.target_capability_provider_mirror",
          selection.targetCapabilityProviderMirror});

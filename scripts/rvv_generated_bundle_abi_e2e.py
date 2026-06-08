@@ -687,6 +687,18 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION = (
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_DECISION = (
     "consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1"
 )
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_FEEDBACK = (
+    "same-target-packed-i4-no-win.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BASELINE = (
+    "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BEST_SPEEDUP_RANGE = (
+    "0.761006..0.807006"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION = (
+    "no-win-repair-required-before-performance-claim"
+)
 LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER = (
     "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
 )
@@ -8308,6 +8320,10 @@ LOW_PRECISION_RESOURCE_METADATA_KEYS = (
     "tcrv_rvv.low_precision_resource.dequant_region_index",
     "tcrv_rvv.low_precision_resource.product_phase",
     "tcrv_rvv.low_precision_resource.dequant_phase",
+    "tcrv_rvv.low_precision_resource.performance_feedback",
+    "tcrv_rvv.low_precision_resource.performance_baseline",
+    "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
+    "tcrv_rvv.low_precision_resource.performance_action",
     "tcrv_rvv.low_precision_resource.target_capability_provider_mirror",
     "tcrv_rvv.low_precision_resource.target_capability_legality_mirror",
     "tcrv_rvv.low_precision_resource.legality",
@@ -9231,6 +9247,18 @@ def product_dequant_low_precision_resource_profile(
             "consumer_phase": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE,
             "producer_region_index": "1",
             "consumer_region_index": "2",
+            "performance_feedback": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_FEEDBACK
+            ),
+            "performance_baseline": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BASELINE
+            ),
+            "performance_best_speedup_range": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BEST_SPEEDUP_RANGE
+            ),
+            "performance_action": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
+            ),
         }
     is_product_dequant_clamp = (
         expectation.is_widening_product_reduce_dequant_clamp_f32
@@ -9340,6 +9368,17 @@ def validate_low_precision_resource_metadata(
         "legality": "legal",
         "rejection_reason": "none",
     }
+    if packed_i4:
+        expected.update(
+            {
+                "performance_feedback": profile["performance_feedback"],
+                "performance_baseline": profile["performance_baseline"],
+                "performance_best_speedup_range": profile[
+                    "performance_best_speedup_range"
+                ],
+                "performance_action": profile["performance_action"],
+            }
+        )
     for suffix, expected_value in expected.items():
         key = f"tcrv_rvv.low_precision_resource.{suffix}"
         require_equal(metadata.get(key), expected_value, f"{context} metadata {key}")

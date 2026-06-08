@@ -6025,6 +6025,122 @@ typed low-precision tcrv_rvv body
   -> same-target correctness and timing against named baseline
 ```
 
+## Packed-I4 No-Win Performance Feedback Facts
+
+### 1. Scope / Trigger
+
+Use this contract after same-target packed-i4 product-reduction-dequant timing
+records an honest no-win/regression against the packed scalar baseline. The
+feedback is a production compiler guard for the selected packed-i4 resource
+surface. It is not a performance win claim, route id, benchmark label, q4/q8
+authority, or artifact-name authority.
+
+### 2. Signatures
+
+The selected packed-i4 resource selection must carry these provider-owned
+fields when `operand_form = "packed-i4-nibbles"`:
+
+```c++
+struct RVVLowPrecisionContractionResourceSelection {
+  std::string performanceFeedback;
+  std::string performanceBaseline;
+  std::string performanceBestSpeedupRange;
+  std::string performanceAction;
+};
+```
+
+The accepted packed-i4 values calibrated from Gate 4 timing evidence are:
+
+```text
+tcrv_rvv.low_precision_resource.performance_feedback =
+  "same-target-packed-i4-no-win.v1"
+tcrv_rvv.low_precision_resource.performance_baseline =
+  "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
+tcrv_rvv.low_precision_resource.performance_best_speedup_range =
+  "0.761006..0.807006"
+tcrv_rvv.low_precision_resource.performance_action =
+  "no-win-repair-required-before-performance-claim"
+```
+
+### 3. Contracts
+
+- The Gearbox resource pass must attach the four performance feedback attrs to
+  the selected packed-i4 pre-realized body; selected-body realization must copy
+  them into the realized `with_vl` structure before provider planning.
+- The route-family provider must parse, verify, and retain the fields as part
+  of `RVVLowPrecisionContractionResourceSelection` before route construction.
+- The statement-plan owner must compare provider and family-plan copies before
+  constructing the packed-i4 statement payload.
+- Route metadata, target support bundles, target artifact validation, and
+  generated-bundle dry-run indexes may expose these values only as exact
+  mirrors of provider-owned facts.
+- The `performance_action` value means the compiler path requires a repair or
+  an explicit fail-closed decision before any future packed-i4 performance win
+  claim. It must not be rewritten into success/readiness/status language.
+
+### 4. Validation & Error Matrix
+
+- Packed-i4 selected candidate missing any of the four feedback fields -> fail
+  closed in Gearbox/provider validation before route construction.
+- Realized body feedback differs from the selected resource facts -> fail
+  closed in selected-body/provider validation.
+- Statement provider and route-family copies disagree -> fail closed at the
+  statement-plan owner boundary.
+- Artifact/header metadata omits or changes any field -> fail closed in target
+  artifact validation before accepting generated-bundle evidence.
+- Same-target measurement or a report claims packed-i4 performance improvement
+  while the action remains `no-win-repair-required-before-performance-claim` and
+  no new same-target timing exists -> invalid evidence boundary.
+
+### 5. Good/Base/Bad Cases
+
+- Good: measured packed-i4 no-win evidence -> provider-owned feedback facts ->
+  realized body copies them -> statement planning and target export mirror them
+  exactly -> generated artifact remains correctness/evidence-capable but cannot
+  be reported as a performance win.
+- Base: unpacked-byte product-dequant and sibling low-precision representatives
+  keep their existing resource contracts and do not inherit the packed-i4
+  feedback fields unless their selected candidate defines an explicit feedback
+  contract.
+- Bad: a fixture name, benchmark name, or artifact path implies no-win or
+  performance repair status while provider-owned packed-i4 selection lacks the
+  four feedback fields.
+- Bad: artifact metadata is edited to
+  `same-target-packed-i4-performance-win.v1` without a provider-owned schedule
+  change and new same-target timing; target validation must reject it.
+
+### 6. Tests Required
+
+- Selected-body realization lit/FileCheck coverage showing the four feedback
+  fields on the realized packed-i4 body and on emitted route/header metadata.
+- C++ provider tests for accepted packed-i4 feedback fields and stale feedback
+  rejection.
+- C++ target artifact validation tests proving stale candidate metadata mirrors
+  fail before artifact acceptance.
+- Generated-bundle dry-run coverage proving the index/evidence metadata carries
+  the four fields only after provider/header validation.
+- Same-target timing is required only after a real production compiler change
+  claims a new packed-i4 performance result.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+same-target stdout says no-win
+  -> write a report
+  -> artifact metadata later claims performance win
+```
+
+Correct:
+
+```text
+same-target no-win evidence
+  -> provider-owned packed-i4 performance feedback facts
+  -> selected-body realization/provider/statement/target validators compare them
+  -> future performance claim requires a production repair plus new timing
+```
+
 ## Gearbox Product-Reduce-Dequant/Clamp Cross-Region Handoff
 
 ### 1. Scope / Trigger

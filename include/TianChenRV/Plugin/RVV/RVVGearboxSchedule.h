@@ -139,6 +139,18 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceRealizedPeakLiveVectorGroupsAttrName(
         "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePerformanceFeedbackAttrName(
+        "tcrv_rvv.low_precision_resource.performance_feedback");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePerformanceBaselineAttrName(
+        "tcrv_rvv.low_precision_resource.performance_baseline");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePerformanceBestSpeedupRangeAttrName(
+        "tcrv_rvv.low_precision_resource.performance_best_speedup_range");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePerformanceActionAttrName(
+        "tcrv_rvv.low_precision_resource.performance_action");
 
 constexpr llvm::StringLiteral kRVVCompositeResourceCandidateSetAttrName(
     "tcrv_rvv.composite_resource.candidate_set");
@@ -331,6 +343,17 @@ constexpr llvm::StringLiteral
         "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4RealizationDecision(
     "consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4PerformanceFeedback(
+        "same-target-packed-i4-no-win.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4PerformanceBaseline(
+        "scalar-c-reference/product-reduction-dequant-packed-i4-v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange(
+        "0.761006..0.807006");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4PerformanceAction(
+    "no-win-repair-required-before-performance-claim");
 constexpr std::int64_t kRVVLowPrecisionResourceStaticUnroll = 1;
 constexpr std::int64_t kRVVLowPrecisionResourceAccumulatorCount = 1;
 constexpr std::int64_t kRVVLowPrecisionResourceVSetVLRegions = 2;
@@ -939,7 +962,12 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name ==
              kRVVLowPrecisionResourceRealizedVSetVLRegionCountAttrName ||
          name ==
-             kRVVLowPrecisionResourceRealizedPeakLiveVectorGroupsAttrName;
+             kRVVLowPrecisionResourceRealizedPeakLiveVectorGroupsAttrName ||
+         name == kRVVLowPrecisionResourcePerformanceFeedbackAttrName ||
+         name == kRVVLowPrecisionResourcePerformanceBaselineAttrName ||
+         name ==
+             kRVVLowPrecisionResourcePerformanceBestSpeedupRangeAttrName ||
+         name == kRVVLowPrecisionResourcePerformanceActionAttrName;
 }
 
 inline bool isRVVCompositeResourceAttrName(llvm::StringRef name) {

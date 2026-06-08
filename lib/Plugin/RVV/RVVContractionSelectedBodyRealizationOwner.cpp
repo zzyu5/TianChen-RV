@@ -336,6 +336,27 @@ materializeLowPrecisionResourceRealizationAttrs(
           source, kRVVLowPrecisionResourceUnpackIntentAttrName,
           selected->unpackIntent))
     return std::move(error);
+  const bool isPackedI4Resource =
+      isRVVLowPrecisionResourcePackedI4CandidateID(selected->candidateID);
+  if (isPackedI4Resource) {
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourcePerformanceFeedbackAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceFeedback))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourcePerformanceBaselineAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceBaseline))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source,
+            kRVVLowPrecisionResourcePerformanceBestSpeedupRangeAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourcePerformanceActionAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceAction))
+      return std::move(error);
+  }
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceProductDTypeAttrName,
           selected->productElementTypeName))
@@ -459,6 +480,21 @@ materializeLowPrecisionResourceRealizationAttrs(
   destination->setAttr(
       kRVVLowPrecisionResourceRealizedPeakLiveVectorGroupsAttrName,
       builder.getI64IntegerAttr(selected->peakLiveVectorGroups));
+  if (isPackedI4Resource) {
+    destination->setAttr(
+        kRVVLowPrecisionResourcePerformanceFeedbackAttrName,
+        builder.getStringAttr(kRVVLowPrecisionResourcePackedI4PerformanceFeedback));
+    destination->setAttr(
+        kRVVLowPrecisionResourcePerformanceBaselineAttrName,
+        builder.getStringAttr(kRVVLowPrecisionResourcePackedI4PerformanceBaseline));
+    destination->setAttr(
+        kRVVLowPrecisionResourcePerformanceBestSpeedupRangeAttrName,
+        builder.getStringAttr(
+            kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange));
+    destination->setAttr(
+        kRVVLowPrecisionResourcePerformanceActionAttrName,
+        builder.getStringAttr(kRVVLowPrecisionResourcePackedI4PerformanceAction));
+  }
   return *selected;
 }
 
