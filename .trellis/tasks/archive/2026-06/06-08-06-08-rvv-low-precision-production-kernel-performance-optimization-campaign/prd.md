@@ -57,17 +57,19 @@ generated-bundle, measurement-dashboard, metadata, or report-only task.
   `__riscv_vwmul_vv_i16mf2`, `__riscv_vwredsum_vs_i16mf2_i32m1`, and
   scalar carry through `dot_acc_scalar`, followed by a VL=1 dequant or
   dequant-clamp epilogue.
-- The likely production bottleneck is in the RVV low-precision resource
-  candidate / selected-body realization / direct-contraction statement plan:
-  the current `i8mf4/i16mf2/u1` route uses a very small active element count per
-  runtime VL chunk and repeats reduction setup for many chunks. This is a
-  production compiler owner, not a measurement-script owner.
-- `RVVGearboxSchedule.h` already carries resource facts such as
-  `unroll_factor`, `accumulator_count`, `vsetvl_region_count`, and
-  `peak_live_vector_groups`, but current source treats the bounded product
-  reduction path as static `u1`/single-accumulator facts. Changing those mirrors
-  alone is not enough unless the production route consumes them into generated
-  code or fails closed.
+- At task start, the likely production bottleneck was in RVV low-precision
+  resource candidate / selected-body realization / direct-contraction statement
+  planning: the `i8mf4/i16mf2/u1` route used a very small active element count
+  per runtime VL chunk and repeated reduction setup for many chunks. The
+  campaign addressed that path through scalar-dequant epilogue cleanup,
+  vector-carry loop structure, fail-closed grouped-candidate validation, and
+  the final executable grouped `u2` statement plan.
+- `RVVGearboxSchedule.h` carries resource facts such as `unroll_factor`,
+  `accumulator_count`, `vsetvl_region_count`, and `peak_live_vector_groups`.
+  The final grouped `u2` path consumes those facts into selected-body
+  realization, provider statement planning, route/target validation, generated
+  artifacts, and same-target evidence. The evidence remains a regression/no-win
+  signal, not a performance parity claim.
 
 ## Campaign Gates
 
@@ -77,54 +79,40 @@ generated-bundle, measurement-dashboard, metadata, or report-only task.
 - [x] Gate 2: at least one production-source optimization or fail-closed
       production guard for low-precision widening
       product/reduction/dequant/dequant-clamp realization or route planning.
-- [~] Gate 3: runtime correctness for optimized generated artifacts on
-      `ssh rvv`, when this task claims executable optimized artifacts. Current
-      slice evidence passed for both bounded kernels; the macro gate remains
-      open for later production-kernel optimizations.
-- [~] Gate 4: same-target measurement against the same named scalar baseline,
+- [x] Gate 3: runtime correctness for optimized generated artifacts on
+      `ssh rvv`, when this task claims executable optimized artifacts. Final
+      audit confirmed the latest grouped `u2` executable artifacts passed
+      correctness for both bounded kernels.
+- [x] Gate 4: same-target measurement against the same named scalar baseline,
       with raw timing evidence and honest improvement/regression reporting.
-      Current slice evidence was collected and does not support a performance
-      win claim; the macro gate remains open for further optimization and final
-      campaign measurement.
+      Final audit confirmed the latest grouped `u2` measurement is
+      same-target `ssh rvv` evidence and remains a regression/no-win signal.
 - [x] Gate 5: cleanup of temporary measurement-only scaffolding so production
-      path remains plugin-owned and common EmitC/export stays neutral.
+      path remains plugin-owned and common EmitC/export stays neutral. Final
+      audit found no stale measurement-only scaffold used as production
+      authority; retained grouped `u2` expectations have active production,
+      test, or evidence consumers.
 
-## Current Round Milestone
+## Final Cleanup/Audit Milestone
 
-Implement the grouped `u2` product/reduction statement-plan payload, or keep it
-fail-closed with a narrower provider-owned reason if repository evidence proves
-the payload is still unsafe.
+Close the macro campaign only if the grouped `u2` production path and evidence
+remain truthful after a bounded stale-scaffolding audit.
 
-The previous grouped-candidate slice made the next main-loop optimization
-boundary explicit and rejected forced grouped `u2` selection because the
-statement-plan owner could not yet express a tail-safe grouped main loop. This
-round owns that missing payload for
-`widening_product_reduce_dequantize_f32`, and should include
-`widening_product_reduce_dequant_clamp_f32` if it uses the same production
-route-family seam.
+The final audit scope is:
 
-The intended executable shape is provider-owned:
+- production owners touched by grouped `u2`: resource candidate facts,
+  Gearbox materialization, selected-body realization, statement planning,
+  route-family validation, Common EmitC route-container plumbing, and target
+  artifact validation;
+- generated-bundle and same-target scripts touched by the campaign;
+- focused low-precision/Gearbox/target/generated-bundle tests;
+- current task PRD, implement/check context, journal entries, and
+  `artifacts/tmp/grouped-u2-same-target/grouped-u2-same-target-measure/`.
 
-- RVV resource selection chooses the grouped `u2` candidate only when the
-  typed product/reduction/dequant body, policy, runtime AVL facts, and vector
-  register budget all match the supported resource shape.
-- The direct-contraction statement-plan owner emits a tail-safe grouped main
-  loop plus a scalar-preserving tail loop. The grouped loop must not rely on
-  `VL=0` or no-op tail intrinsics and must not perform out-of-bounds second
-  slice loads.
-- The two-loop payload preserves the existing `dot_acc_vec` accumulator carry,
-  final scalar extract, scalar dequant multiply, f32 scalar splat, optional
-  clamp, and final store semantics.
-- Route-family validation, route description mirrors, target artifact
-  validation, generated-bundle parsing, and FileCheck expectations all consume
-  grouped `u2` as provider facts; none may infer route support from metadata,
-  artifact names, q8/q4 names, or Common EmitC scheduling.
-- If grouped `u2` becomes executable, collect `ssh rvv` correctness and raw
-  same-target timing against the existing scalar baseline. Report the timing
-  honestly without unsupported performance-win claims.
-- If a narrower blocker remains, the provider must fail closed before Common
-  EmitC or target export with the exact missing payload fact, and no new
-  runtime/performance claim is allowed.
+The closeout boundary is not a new performance hunt. If the audit finds a
+production or evidence blocker, leave the macro task open with the exact
+blocker. If it finds only historical notes or active consumers, close and
+archive the macro task without claiming a performance win.
 
 ## Requirements
 
@@ -145,49 +133,28 @@ The intended executable shape is provider-owned:
 - Keep this macro task active after the current slice unless all campaign gates
   are complete.
 
-## Acceptance Criteria For This Round
+## Final Cleanup/Audit Acceptance Criteria
 
-- [x] PRD/checklist names the grouped `u2` tail-safe statement-plan payload as
-      the current unfinished milestone and keeps this macro task active unless
-      all campaign gates are genuinely complete.
-- [x] RVV low-precision resource selection can choose grouped `u2` for the
-      supported product-reduction dequantize/dequant-clamp typed shape, or
-      fails closed with a narrower missing payload fact than the previous
-      generic pending diagnostic.
-- [x] The direct-contraction statement-plan owner emits a provider-owned
-      tail-safe grouped main loop and u1 tail loop for grouped `u2`, preserving
-      `dot_acc_vec` accumulator/result semantics and avoiding `VL=0` and
-      out-of-bounds second-slice loads.
-- [x] Route-family validation and route-description validation accept the
-      grouped `u2` resource facts only when the statement plan matches the
-      supported loop/resource shape, and still reject stale selected-candidate
-      or resource mirrors.
-- [x] Target artifact validation, generated-bundle ABI parsing, and focused
-      FileCheck expectations consume the grouped `u2` selected-candidate facts
-      and the two-loop payload shape as mirrors of provider-owned facts.
-- [x] Common EmitC remains neutral: any new generic route-container plumbing
-      only carries provider-built loops/steps and does not infer RVV dtype,
-      intrinsic, tail, schedule, or resource semantics.
-- [x] If grouped `u2` emits executable generated code, `ssh rvv` correctness
-      and same-target timing are collected for the dequantize path and the
-      dequant-clamp path when included. If it remains fail-closed, the exact
-      blocker is recorded and runtime/performance checks are not claimed.
-- [x] Required focused builds/checks are run or an exact blocker is recorded:
-      `tcrv-opt`, `tcrv-translate`,
-      `tianchenrv-rvv-extension-plugin-test`,
-      `tianchenrv-target-artifact-export-test`, relevant low-precision/
-      Gearbox/generated-bundle lit tests, script self-tests where touched,
-      `git diff --check`, Trellis task validation, and
-      `git diff --cached --check`.
-- [x] Bounded old-authority scan over touched files and added diff lines shows
-      no new positive `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`,
-      `!tcrv_rvv.i32m*`, descriptor, source-front-door, route-id,
-      artifact-name, or q8/q4 authority.
-- [x] Commit one coherent grouped `u2` payload or precise fail-closed slice and
-      leave `.trellis/.current-task` active unless final Gate 3/Gate 4 can
-      honestly close.
+- [x] Inventory grouped `u2`, low-precision measurement, script, test, artifact,
+      and task-context expectations touched by this macro task.
+- [x] Remove stale temporary scaffolding where it has no active consumer, or
+      document/encode the real active consumer where retained expectations must
+      remain.
+- [x] Confirm production RVV ownership remains layered: provider/resource facts
+      own schedule, dtype, policy, mask/tail, intrinsic, and statement
+      semantics; Common EmitC only materializes provider-built payloads.
+- [x] Confirm Gate 3 correctness evidence is current for the grouped `u2`
+      executable path and both bounded kernels.
+- [x] Confirm Gate 4 same-target timing evidence is current, names the scalar C
+      baselines, includes correctness guards before timing, and reports
+      regression/no-win truthfully.
+- [x] Confirm Gate 5 cleanup is complete: no temporary measurement-only
+      scaffold or artifact metadata is used as route, dtype, compute, or
+      performance authority.
+- [x] Run focused validation, Trellis validation, whitespace checks, old-authority
+      scans, and archive the task only if all macro gates are complete.
 
-## Current Round Result
+## Grouped `u2` Round Result
 
 This slice implements the grouped `u2` payload instead of keeping it pending.
 The RVV resource selector now selects the grouped
@@ -208,11 +175,50 @@ dequantize recorded 8 summary rows / 16 measurement rows and dequant-clamp
 recorded 16 summary rows / 32 measurement rows under
 `artifacts/tmp/grouped-u2-same-target/grouped-u2-same-target-measure/`.
 
-The macro task remains active. The next continuation point is final campaign
-cleanup/audit: decide whether any stale measurement-only scaffolding or
-temporary grouped-u2 evidence expectations should be removed or justified, then
-run the final macro-gate closeout only if the production path and evidence
-state are still truthful.
+This grouped `u2` slice left the macro task active for final campaign
+cleanup/audit.
+
+## Final Cleanup/Audit Result
+
+Final audit found no production compiler code to delete. The retained grouped
+`u2` facts and expectations have active consumers:
+
+- `include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h` owns candidate-set v3,
+  grouped selected candidates, realization decisions, and live-vector budget
+  facts.
+- `lib/Plugin/RVV/RVVGearboxSchedules.cpp` and
+  `lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp` consume
+  grouped decisions into three-region realization markers and grouped/tail
+  handoff phases.
+- `lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp` emits the
+  provider-owned `grouped_tail_start`, grouped main loop, and u1 tail loop.
+- `lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp`,
+  `lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp`, and
+  `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp` validate grouped
+  resource facts, route-description mirrors, tail-loop payload shape, and
+  target artifact mirrors before acceptance.
+- `scripts/rvv_generated_bundle_abi_e2e.py` and focused tests consume grouped
+  `u2` as generated-bundle/evidence mirrors of provider facts, not as route
+  authority.
+
+The only remaining `pending` / `unsupported-tail-safe` grouped `u2` references
+are historical task context or the retained unsupported-candidate factory for
+fail-closed candidate construction. They are not production support claims.
+
+Gate 3 closes on current `ssh rvv` correctness evidence for grouped `u2`:
+runtime counts `0,1,16,17,257` passed for both dequantize and dequant-clamp.
+
+Gate 4 closes on the current grouped `u2` same-target timing evidence under
+`artifacts/tmp/grouped-u2-same-target/grouped-u2-same-target-measure/`.
+Both op evidence files have `status: success`, `ssh_evidence: true`, explicit
+scalar C baseline identities, `CLOCK_MONOTONIC_RAW` timing, and
+`CORRECTNESS_GUARD_BEFORE_TIMING` records before raw `MEASURE` records. The
+timing remains a regression/no-win result: all recorded summary
+`best_speedup` values are below `1.0`.
+
+Gate 5 closes because no temporary measurement-only scaffold remains as
+production authority. The measurement harness remains evidence tooling only,
+and Common EmitC remains neutral.
 
 ## Out Of Scope
 
@@ -322,7 +328,7 @@ dequant epilogue optimization. Same-target `ssh rvv` measurement therefore
 remains the previous slice's evidence and was not rerun for this metadata/
 validation cleanup.
 
-## Current Main-Loop Vector-Carry Round Result
+## Previous Main-Loop Vector-Carry Round Result
 
 This slice consumes the bounded low-precision resource/reduction layout in the
 production statement plan for
@@ -355,7 +361,7 @@ below `1.0` for the measured sizes, roughly `0.56-0.65` for
 means the slice is a production loop-shape improvement and validation step, not
 the final performance closeout.
 
-## Current Grouped-Candidate Fail-Closed Round Result
+## Previous Grouped-Candidate Fail-Closed Round Result
 
 This slice makes the next resource-aware main-loop optimization boundary
 explicit without pretending the grouped loop is executable yet.
@@ -383,18 +389,14 @@ explicit without pretending the grouped loop is executable yet.
   resource inference. This slice only changes RVV-owned resource facts,
   provider validation, script mirrors, and focused tests.
 
-Generated executable C is unchanged because grouped `u2` remains fail-closed.
-`ssh rvv` correctness and timing were therefore not rerun in this slice; the
-macro task remains open and still cannot claim a performance win.
+Generated executable C was unchanged in that slice because grouped `u2`
+remained fail-closed. `ssh rvv` correctness and timing were therefore not rerun
+for that slice; at that point the macro task remained open and still could not
+claim a performance win.
 
-## Continuation Point
+## Final Macro Closeout
 
-Continue the open macro task in the RVV production compiler path. The next
-slice should implement the RVV statement-plan payload needed to make the
-grouped `u2` candidate tail-safe and executable: either a correct grouped
-main/tail loop structure or another provider-owned loop payload that avoids
-VL=0/no-op assumptions and out-of-bounds tail loads while preserving typed-body
-authority and the explicit live-vector budget. After that production-source
-change, reselect the grouped candidate, regenerate artifacts, and collect
-same-target `ssh rvv` correctness/timing without making an unsupported win
-claim. Do not create a neighboring generated-bundle evidence task.
+All macro gates are complete. The campaign closes with a real grouped `u2`
+production compiler path, `ssh rvv` correctness evidence, same-target timing
+evidence, and an honest regression/no-performance-win result. No continuation
+blocker remains for this macro task.

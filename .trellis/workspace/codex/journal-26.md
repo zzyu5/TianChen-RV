@@ -1757,3 +1757,70 @@ closeout remain.
 - Continue with the final campaign cleanup/audit: remove or justify any stale
   measurement-only scaffolding and only close/archive the macro task if the
   production path and evidence gates still honestly support it.
+
+
+## Session 567: RVV grouped u2 final cleanup/audit closeout
+
+**Date**: 2026-06-09
+**Task**: RVV low-precision production-kernel performance optimization campaign
+**Branch**: `main`
+
+### Summary
+
+Completed the final cleanup/audit slice for the active macro campaign. No
+production compiler source changes were needed: the retained grouped `u2`
+expectations all have active consumers in RVV resource facts, Gearbox
+materialization, selected-body realization, statement planning, route/target
+validation, generated-bundle parsing, focused tests, or current ssh evidence.
+Historical `pending` / `unsupported-tail-safe` references are either prior task
+context or the retained fail-closed unsupported-candidate factory, not route
+support claims.
+
+### Gate Closeout
+
+- Gate 3 closes on current `ssh rvv` correctness evidence for grouped `u2`
+  dequantize and dequant-clamp artifacts.
+- Gate 4 closes on same-target timing evidence under
+  `artifacts/tmp/grouped-u2-same-target/grouped-u2-same-target-measure/` with
+  explicit scalar C baselines, correctness guards before timing, PASS markers,
+  and summary `best_speedup` values below `1.0`.
+- Gate 5 closes because no measurement-only scaffold remains as production
+  authority; Common EmitC only carries provider-built payloads.
+- No `.trellis/spec/` update was needed. The existing RVV plugin, EmitC route,
+  and MLIR testing specs already encode the relevant contracts.
+
+### Main Changes
+
+- Updated the active PRD from grouped `u2` implementation mode to final
+  cleanup/audit closeout.
+- Updated task notes and context JSONL with the final audit result.
+- Prepared the macro task for archive.
+
+### Testing
+
+- [OK] Final stale-scaffolding inventory over grouped `u2` production owners,
+  scripts, tests, task context, and evidence artifacts.
+- [OK] Grouped `u2` evidence audit: per-op status success, `ssh_evidence: true`,
+  explicit scalar baselines, correctness guards before timing, and regression
+  summary timings.
+- [OK] Spec-update judgment: no new executable contract to add.
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py
+  scripts/rvv_generated_bundle_same_target_measure.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] Focused lit from `build/test`: 8/8 passed for grouped `u2` Gearbox,
+  Target/RVV, and generated-bundle dry-run filters.
+- [OK] `git diff --check` and added-line old-authority scan.
+
+### Status
+
+[OK] Macro task complete and ready to archive.
+
+### Next Steps
+
+- None - task complete.
