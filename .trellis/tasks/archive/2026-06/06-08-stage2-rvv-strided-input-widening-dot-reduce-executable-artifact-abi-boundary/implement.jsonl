@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV-first authority chain for this Stage2 task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned legality, selected-body realization, route provider, ABI, and fail-closed boundary."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route contract, provider-owned route values, and operand binding summary validation."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Testing layer checklist and RVV runtime evidence requirement."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Generated-bundle evidence rules for ssh rvv, sentinels, preservation, and selected dispatch metadata."}
+{"file": ".trellis/tasks/06-08-stage2-rvv-strided-input-widening-dot-reduce-executable-artifact-abi-boundary/prd.md", "reason": "This task's module goal, boundaries, acceptance criteria, and evidence plan."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-06-08-stage2-rvv-owner-consumed-widening-dot-reduce-executable-artifact-abi-boundary/prd.md", "reason": "Previous base widening dot-reduce executable evidence and no-source-change route ownership justification."}

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Check final implementation against global architecture and RVV-first authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin locality, typed body authority, and fail-closed provider behavior."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check provider-owned route payload and operand binding summary boundaries."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused lit/C++/runtime evidence selection."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Check generated-bundle evidence quality for ssh rvv, preservation, sentinels, and metadata mirrors."}
+{"file": ".trellis/tasks/06-08-stage2-rvv-strided-input-widening-dot-reduce-executable-artifact-abi-boundary/prd.md", "reason": "Check implementation and evidence against this task's acceptance criteria and non-goals."}
