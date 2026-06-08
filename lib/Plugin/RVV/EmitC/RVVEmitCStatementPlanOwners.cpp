@@ -1376,8 +1376,8 @@ bool isRVVSelectedBodyDirectContractionRouteProviderConsumer(
   return false;
 }
 
-llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
-getRVVSelectedBodyDirectContractionRouteStatementPlan(
+static llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
+getRVVSelectedBodyDirectContractionRouteStatementPlanFromProviderPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
     llvm::StringRef context) {
@@ -1420,12 +1420,6 @@ getRVVSelectedBodyDirectContractionRouteStatementPlan(
   }
 
   if (selectedOwners.empty()) {
-    if (providerPlan.plansDirectContractionRoute)
-      return makeRVVEmitCRouteProviderError(
-          llvm::Twine(context) +
-          " direct contraction route-provider owner registry has no owner for "
-          "a prevalidated provider plan for operation '" +
-          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
     return plan;
   }
 
@@ -1448,8 +1442,23 @@ getRVVSelectedBodyDirectContractionRouteStatementPlan(
         owner.familyName +
         "' failed to produce a provider statement plan before route "
         "construction for operation '" +
-        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+      stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
   return plan;
+}
+
+llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
+getRVVSelectedBodyDirectContractionRouteStatementPlan(
+    RVVSelectedBodyRouteAnalysis &analysis,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
+    llvm::StringRef context) {
+  llvm::Expected<RVVSelectedBodyDirectContractionRouteProviderPlan>
+      providerPlan = getRVVSelectedBodyDirectContractionRouteProviderPlan(
+          analysis, materializationFacts, mathOperandBindingFacts, context);
+  if (!providerPlan)
+    return providerPlan.takeError();
+  return getRVVSelectedBodyDirectContractionRouteStatementPlanFromProviderPlan(
+      analysis, *providerPlan, context);
 }
 
 llvm::Error verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
@@ -1869,8 +1878,6 @@ getRVVSelectedBodyRouteStatementPlanOwnerSelection(
     const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
     const RVVSelectedBodyResidualRouteOperandBindingFacts
         &residualOperandBindingFacts,
-    const RVVSelectedBodyDirectContractionRouteProviderPlan
-        &directContractionProviderPlan,
     llvm::StringRef context) {
   const RVVSelectedBodyEmitCRouteDescription &description =
       analysis.description;
@@ -1883,10 +1890,18 @@ getRVVSelectedBodyRouteStatementPlanOwnerSelection(
   if (!migratedStatementPlanOrError)
     return migratedStatementPlanOrError.takeError();
 
+  llvm::Expected<RVVSelectedBodyDirectContractionRouteProviderPlan>
+      directContractionProviderPlan =
+          getRVVSelectedBodyDirectContractionRouteProviderPlan(
+              analysis, materializationFacts, mathOperandBindingFacts,
+              context);
+  if (!directContractionProviderPlan)
+    return directContractionProviderPlan.takeError();
+
   llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
       directContractionStatementPlanOrError =
-          getRVVSelectedBodyDirectContractionRouteStatementPlan(
-              analysis, directContractionProviderPlan, context);
+          getRVVSelectedBodyDirectContractionRouteStatementPlanFromProviderPlan(
+              analysis, *directContractionProviderPlan, context);
   if (!directContractionStatementPlanOrError)
     return directContractionStatementPlanOrError.takeError();
 
@@ -1923,7 +1938,7 @@ getRVVSelectedBodyRouteStatementPlanOwnerSelection(
     if (llvm::Error error =
             verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
                 analysis, materializationFacts, mathOperandBindingFacts,
-                directContractionProviderPlan, selection, context))
+                *directContractionProviderPlan, selection, context))
       return std::move(error);
     return selection;
   }

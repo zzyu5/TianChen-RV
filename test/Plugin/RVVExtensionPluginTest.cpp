@@ -331,15 +331,10 @@ buildSegment2StatementPlanOwnerSelectionForTest(
       getRVVSelectedBodyResidualRouteOperandBindingFacts(analysis, context);
   if (!residualFacts)
     return residualFacts.takeError();
-  auto directProviderPlan = tianchenrv::plugin::rvv::
-      getRVVSelectedBodyDirectContractionRouteProviderPlan(
-          analysis, materializationFacts, *mathFacts, context);
-  if (!directProviderPlan)
-    return directProviderPlan.takeError();
   return tianchenrv::plugin::rvv::
       getRVVSelectedBodyRouteStatementPlanOwnerSelection(
           analysis, materializationFacts, *elementwiseFacts, memoryFacts,
-          *mathFacts, *residualFacts, *directProviderPlan, context);
+          *mathFacts, *residualFacts, context);
 }
 
 int expectSegment2ProviderBoundaryPreflight(
@@ -9015,7 +9010,8 @@ module {
 
   auto productDequantDirectStatementPlan =
       getRVVSelectedBodyDirectContractionRouteStatementPlan(
-          *productDequantAnalysis, *productDequantDirectProviderPlan,
+          *productDequantAnalysis, *productDequantMaterializationFacts,
+          *productDequantMathFacts,
           "selected-boundary product-reduction-dequant test");
   if (!productDequantDirectStatementPlan)
     return fail("product-reduction-dequant direct statement plan: " +
@@ -9041,7 +9037,6 @@ module {
           *productDequantAnalysis, *productDequantMaterializationFacts,
           emptyProductDequantElementwiseFacts, emptyProductDequantMemoryFacts,
           *productDequantMathFacts, emptyProductDequantResidualFacts,
-          *productDequantDirectProviderPlan,
           "selected-boundary product-reduction-dequant test");
   if (!productDequantSelectedStatementPlan)
     return fail("product-reduction-dequant statement owner selection: " +
@@ -9073,16 +9068,6 @@ module {
   if (!staleProductDequantMathFacts)
     return fail("stale product-reduction-dequant math facts: " +
                 llvm::toString(staleProductDequantMathFacts.takeError()));
-  auto staleProductDequantDirectProviderPlan =
-      getRVVSelectedBodyDirectContractionRouteProviderPlan(
-          staleProductDequantAnalysis,
-          *staleProductDequantMaterializationFacts,
-          *staleProductDequantMathFacts,
-          "selected-boundary stale product-reduction-dequant test");
-  if (!staleProductDequantDirectProviderPlan)
-    return fail("stale product-reduction-dequant direct provider plan: " +
-                llvm::toString(
-                    staleProductDequantDirectProviderPlan.takeError()));
   auto staleProductDequantSelectedStatementPlan =
       getRVVSelectedBodyRouteStatementPlanOwnerSelection(
           staleProductDequantAnalysis,
@@ -9090,7 +9075,6 @@ module {
           emptyProductDequantElementwiseFacts,
           emptyProductDequantMemoryFacts, *staleProductDequantMathFacts,
           emptyProductDequantResidualFacts,
-          *staleProductDequantDirectProviderPlan,
           "selected-boundary stale product-reduction-dequant test");
   if (int result = expectErrorContains(
           staleProductDequantSelectedStatementPlan.takeError(),
@@ -13358,7 +13342,6 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
   unownedAnalysis.description = makeDescription(
       RVVSelectedBodyOperationKind::Add,
       RVVSelectedBodyMemoryForm::RHSScalarBroadcast);
-  RVVSelectedBodyDirectContractionRouteProviderPlan emptyDirectProviderPlan;
   if (int result =
           expect(!isRVVSelectedBodyRouteStatementPlanOwnerConsumer(
                      unownedAnalysis.description),
@@ -13369,7 +13352,6 @@ int runMigratedRouteStatementPlanOwnerRegistryTest() {
           getRVVSelectedBodyRouteStatementPlanOwnerSelection(
               unownedAnalysis, emptyMaterializationFacts, emptyElementwiseFacts,
               emptyMemoryFacts, emptyMathFacts, emptyResidualFacts,
-              emptyDirectProviderPlan,
               "statement-plan owner module unit test")
               .takeError(),
           {"requires an explicit migrated or direct-contraction "
@@ -14526,12 +14508,10 @@ module {
       return fail("base memory residual operand-binding facts: " +
                   llvm::toString(residualFacts.takeError()));
 
-    RVVSelectedBodyDirectContractionRouteProviderPlan
-        emptyDirectProviderPlan;
     auto selectedStatementPlan =
         getRVVSelectedBodyRouteStatementPlanOwnerSelection(
             analysis, *materializationFacts, *elementwiseFacts, *memoryFacts,
-            *mathFacts, *residualFacts, emptyDirectProviderPlan,
+            *mathFacts, *residualFacts,
             "base memory provider-facts unit test");
     if (!selectedStatementPlan)
       return fail("base memory statement-plan owner selection: " +
@@ -18929,12 +18909,10 @@ module {
             "as one provider-neutral plan"))
       return result;
 
-    RVVSelectedBodyDirectContractionRouteProviderPlan emptyDirectProviderPlan;
     auto selectedStatementPlan =
         getRVVSelectedBodyRouteStatementPlanOwnerSelection(
             *analysis, *materializationFacts, *elementwiseFacts,
             emptyMemoryFacts, emptyMathFacts, *residualFacts,
-            emptyDirectProviderPlan,
             "elementwise arithmetic provider-facts unit test");
     if (!selectedStatementPlan)
       return fail("elementwise provider-facts statement owner selection: " +
@@ -21445,12 +21423,10 @@ module {
           "migrated statement-plan boundary exposes reduce_add as one "
           "provider-neutral plan"))
     return result;
-  RVVSelectedBodyDirectContractionRouteProviderPlan emptyDirectProviderPlan;
   auto selectedStatementPlan =
       getRVVSelectedBodyRouteStatementPlanOwnerSelection(
           *analysis, *materializationFacts, emptyElementwiseFacts,
           emptyMemoryFacts, *mathFacts, emptyResidualFacts,
-          emptyDirectProviderPlan,
           "selected statement-plan owner reduction unit test");
   if (!selectedStatementPlan)
     return fail("selected statement-plan owner reduction construction: " +
@@ -22639,7 +22615,11 @@ int runContractionTargetLeafProfileValidationTest(mlir::MLIRContext &context) {
   using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryForm;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyMemoryRouteOperandBindingFacts;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyMathRouteOperandBindingFacts;
   using tianchenrv::support::RuntimeABIParameterRole;
+  using tianchenrv::plugin::rvv::
+      RVVSelectedBodyRouteMaterializationFacts;
   using tianchenrv::plugin::rvv::
       RVVSelectedBodyResidualRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
@@ -22702,11 +22682,11 @@ int runContractionTargetLeafProfileValidationTest(mlir::MLIRContext &context) {
     return result;
   RVVSelectedBodyRouteAnalysis nonConsumerAnalysis;
   nonConsumerAnalysis.description = nonConsumerDescription;
-  tianchenrv::plugin::rvv::RVVSelectedBodyDirectContractionRouteProviderPlan
-      emptyDirectProviderPlan;
+  RVVSelectedBodyRouteMaterializationFacts emptyMaterializationFacts;
+  RVVSelectedBodyMathRouteOperandBindingFacts emptyMathFacts;
   auto emptyDirectStatementPlan =
       getRVVSelectedBodyDirectContractionRouteStatementPlan(
-          nonConsumerAnalysis, emptyDirectProviderPlan,
+          nonConsumerAnalysis, emptyMaterializationFacts, emptyMathFacts,
           "direct contraction owner non-consumer unit test");
   if (!emptyDirectStatementPlan)
     return fail("non-consumer direct contraction statement plan unexpectedly "
@@ -23010,7 +22990,7 @@ module {
 
     auto directStatementPlan =
         getRVVSelectedBodyDirectContractionRouteStatementPlan(
-            analysis, *directProviderPlan, label);
+            analysis, *materializationFacts, *mathFacts, label);
     if (!directStatementPlan)
       return fail((llvm::Twine(label) +
                    " direct contraction route-provider statement plan: " +
@@ -23046,8 +23026,7 @@ module {
     auto selectedStatementPlan =
         getRVVSelectedBodyRouteStatementPlanOwnerSelection(
             analysis, *materializationFacts, emptyElementwiseFacts,
-            emptyMemoryFacts, *mathFacts, emptyResidualFacts,
-            *directProviderPlan, label);
+            emptyMemoryFacts, *mathFacts, emptyResidualFacts, label);
     if (!selectedStatementPlan)
       return fail((llvm::Twine(label) +
                    " statement-plan owner module selection: " +
@@ -23067,18 +23046,17 @@ module {
             "statement-plan owner module selects the direct-contraction owner "
             "and preserves provider-ready statements"))
       return result;
-    auto staleDirectProviderPlan = *directProviderPlan;
-    staleDirectProviderPlan.routeControlPlan.typedConfigFacts = nullptr;
+    RVVSelectedBodyRouteMaterializationFacts staleMaterializationFacts =
+        *materializationFacts;
+    staleMaterializationFacts.contractionPlan = nullptr;
     auto staleDirectProviderSelection =
         getRVVSelectedBodyRouteStatementPlanOwnerSelection(
-            analysis, *materializationFacts, emptyElementwiseFacts,
-            emptyMemoryFacts, *mathFacts, emptyResidualFacts,
-            staleDirectProviderPlan, label);
+            analysis, staleMaterializationFacts, emptyElementwiseFacts,
+            emptyMemoryFacts, *mathFacts, emptyResidualFacts, label);
     if (int result = expectErrorContains(
             staleDirectProviderSelection.takeError(),
-            {"direct contraction route construction requires the RVV-owned "
-             "route-control provider plan from the same selected route "
-             "analysis",
+            {"direct contraction provider plan requires the verified "
+             "contraction route-family materialization facts",
              tianchenrv::plugin::rvv::stringifyRVVSelectedBodyOperationKind(
                  analysis.description.operation)}))
       return result;

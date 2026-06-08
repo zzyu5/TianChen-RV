@@ -37,7 +37,8 @@ bool isRVVSelectedBodyDirectContractionRouteProviderConsumer(
 llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
 getRVVSelectedBodyDirectContractionRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyDirectContractionRouteProviderPlan &providerPlan,
+    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
+    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
     llvm::StringRef context);
 
 llvm::Error verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
@@ -429,8 +430,6 @@ getRVVSelectedBodyRouteStatementPlanOwnerSelection(
     const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
     const RVVSelectedBodyResidualRouteOperandBindingFacts
         &residualOperandBindingFacts,
-    const RVVSelectedBodyDirectContractionRouteProviderPlan
-        &directContractionProviderPlan,
     llvm::StringRef context);
 
 llvm::Error attachRVVSelectedBodyRouteStatementPlanOwnerSelection(

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Check global stack, RVV Stage 2, and route-authority invariants."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check direct-contraction provider facts and statement plans remain RVV-owner-local."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check lowerable-route payload boundaries and central/common EmitC neutrality."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused regression, fail-closed, and script evidence expectations."}
+{"file": ".trellis/tasks/06-08-stage2-rvv-contraction-aggregate-owner-consumed-boundary/prd.md", "reason": "Check implementation against this task's acceptance criteria and out-of-scope limits."}

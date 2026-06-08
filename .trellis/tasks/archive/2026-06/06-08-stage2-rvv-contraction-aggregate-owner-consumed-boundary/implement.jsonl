@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV compiler stack, RVV-first authority chain, Stage 2 boundaries, and route-authority constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Defines RVV plugin ownership over typed body facts, selected-body realization, route provider facts, and fail-closed diagnostics."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Defines TCRVEmitCLowerableRoute as provider-built neutral payload and forbids common/central code from reconstructing RVV semantics."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Defines focused C++/MLIR/script evidence expectations and RVV runtime-evidence boundaries."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-contraction-family-statement-plan-provider-consumption-boundary/prd.md", "reason": "Previous direct-contraction owner-consumed provider-fact validation boundary that this aggregate round extends."}

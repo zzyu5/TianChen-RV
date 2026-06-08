@@ -1873,3 +1873,36 @@ Moved direct-contraction provider-fact validation into RVV statement-plan owner 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 549: Stage2 RVV contraction aggregate owner-consumed boundary
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV contraction aggregate owner-consumed boundary
+**Branch**: `main`
+
+### Summary
+
+Moved direct-contraction aggregate provider-plan derivation into RVV statement-plan owner selection; central provider now only attaches owner-built statements, updated contract spec, and verified C++ plus generated-bundle dry-run/fail-closed evidence.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

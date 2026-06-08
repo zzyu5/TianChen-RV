@@ -277,16 +277,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
           "selected RVV EmitC route construction"))
     return error;
 
-  llvm::Expected<RVVSelectedBodyDirectContractionRouteProviderPlan>
-      directContractionProviderPlanOrError =
-          getRVVSelectedBodyDirectContractionRouteProviderPlan(
-              analysis, materializationFacts, mathOperandBindingFacts,
-              "selected RVV EmitC route construction");
-  if (!directContractionProviderPlanOrError)
-    return directContractionProviderPlanOrError.takeError();
-  const RVVSelectedBodyDirectContractionRouteProviderPlan
-      directContractionProviderPlan = *directContractionProviderPlanOrError;
-
   RVVSelectedBodyBaseMemoryMovementRouteProviderPlan
       baseMemoryRouteConstructionPlan;
   if (isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(description)) {
@@ -331,7 +321,7 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
               analysis, materializationFacts,
               elementwiseSelectOperandBindingFacts,
               memoryOperandBindingFacts, mathOperandBindingFacts,
-              residualOperandBindingFacts, directContractionProviderPlan,
+              residualOperandBindingFacts,
               "selected RVV EmitC route construction");
   if (!statementPlanOwnerSelection)
     return statementPlanOwnerSelection.takeError();
