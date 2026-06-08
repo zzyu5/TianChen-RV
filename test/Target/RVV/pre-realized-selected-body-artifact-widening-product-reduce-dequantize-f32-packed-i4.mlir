@@ -2,6 +2,8 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/resource_decision = "consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1"/resource_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-DECISION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/region_count = 2 : i64/region_count = 3 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-REGION-COUNT
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/from_phase = "load-product-reduce"/from_phase = "tail-product-reduce"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-FROM-PHASE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.realization_decision", value = "consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1"/s//tcrv_rvv.low_precision_resource.realization_decision", value = "artifact-name-derived-resource-decision"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-REALIZATION-DECISION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-rvv-emitc-to-cpp | FileCheck %s --check-prefix=CPP
 
@@ -56,6 +58,13 @@ module {
 // REALIZED-SAME: region_count = 2 : i64
 // REALIZED-SAME: region_index = 2 : i64
 
+// PLAN: {key = "tcrv_rvv.low_precision_resource.realization_decision", value = "consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count", value = "2"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.product_region_index", value = "1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.dequant_region_index", value = "2"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.product_phase", value = "load-product-reduce"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.dequant_phase", value = "dequant-store"}
+
 // HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]
 // HEADER: tianchenrv.rvv.low_precision_resource.operand_form: packed-i4-nibbles
 // HEADER: tianchenrv.rvv.low_precision_resource.source_signedness: signed
@@ -64,6 +73,12 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.packing_layout: two-signed-i4-elements-per-byte-low-high-nibbles
 // HEADER: tianchenrv.rvv.low_precision_resource.unpack_intent: sign-extend-i4-nibbles-before-widening-product
 // HEADER: tianchenrv.rvv.low_precision_resource.peak_live_vector_groups: 6
+// HEADER: tianchenrv.rvv.low_precision_resource.realization_decision: consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.realized_vsetvl_region_count: 2
+// HEADER: tianchenrv.rvv.low_precision_resource.product_region_index: 1
+// HEADER: tianchenrv.rvv.low_precision_resource.dequant_region_index: 2
+// HEADER: tianchenrv.rvv.low_precision_resource.product_phase: load-product-reduce
+// HEADER: tianchenrv.rvv.low_precision_resource.dequant_phase: dequant-store
 // HEADER: void tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float *out, size_t n);
 
 // CPP: __riscv_vle8_v_i8mf4
@@ -86,3 +101,6 @@ module {
 // STALE-PACKED-REGION-COUNT: requires region_count to match the bounded Gearbox resource decision
 
 // STALE-PACKED-FROM-PHASE: requires from_phase 'load-product-reduce'
+
+// STALE-ARTIFACT-REALIZATION-DECISION: low_precision_resource.realization_decision provenance must mirror provider-selected low-precision direct-contraction resource realization decision 'consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1'
+// STALE-ARTIFACT-REALIZATION-DECISION-SAME: artifact-name-derived-resource-decision

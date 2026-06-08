@@ -3687,10 +3687,61 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
           selection.vsetvlRegionCount,
           plugin::rvv::kRVVLowPrecisionResourcePackedI4VSetVLRegions))
     return error;
-  return requireRVVWideningDotContractIntField(
-      contract.consumerLabel, "packed-i4 peak live vector groups",
-      selection.peakLiveVectorGroups,
-      plugin::rvv::kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups);
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "packed-i4 peak live vector groups",
+          selection.peakLiveVectorGroups,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 realization producer",
+          selection.realizationProducer,
+          plugin::rvv::kRVVLowPrecisionResourceRealizationProducer))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 realization decision",
+          selection.realizationDecision,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4RealizationDecision))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "packed-i4 realized unroll factor",
+          selection.realizedUnrollFactor,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4Unroll))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "packed-i4 realized vsetvl region count",
+          selection.realizedVSetVLRegionCount,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4VSetVLRegions))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel,
+          "packed-i4 realized peak live vector groups",
+          selection.realizedPeakLiveVectorGroups,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "packed-i4 product region index",
+          selection.productRegionIndex,
+          plugin::rvv::
+              getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
+                  plugin::rvv::kRVVLowPrecisionResourcePackedI4RealizationDecision)))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "packed-i4 dequant region index",
+          selection.dequantRegionIndex,
+          plugin::rvv::
+              getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+                  plugin::rvv::kRVVLowPrecisionResourcePackedI4RealizationDecision)))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 product phase",
+          selection.productPhase,
+          plugin::rvv::
+              getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
+                  plugin::rvv::kRVVLowPrecisionResourcePackedI4RealizationDecision)))
+    return error;
+  return requireRVVWideningDotContractStringField(
+      contract.consumerLabel, "packed-i4 dequant phase",
+      selection.dequantPhase, "dequant-store");
 }
 
 llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
@@ -5353,6 +5404,49 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
           "tcrv_rvv.low_precision_resource.runtime_abi_order",
           selection.runtimeABIOrder, "runtime ABI order"))
     return error;
+  if (!selection.realizationDecision.empty()) {
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.realization_producer",
+            selection.realizationProducer, "realization producer"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.realization_decision",
+            selection.realizationDecision, "realization decision"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.realized_unroll_factor",
+            llvm::Twine(selection.realizedUnrollFactor).str(),
+            "realized unroll factor"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count",
+            llvm::Twine(selection.realizedVSetVLRegionCount).str(),
+            "realized vsetvl region count"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups",
+            llvm::Twine(selection.realizedPeakLiveVectorGroups).str(),
+            "realized peak live vector-group estimate"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.product_region_index",
+            llvm::Twine(selection.productRegionIndex).str(),
+            "product region index"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.dequant_region_index",
+            llvm::Twine(selection.dequantRegionIndex).str(),
+            "dequant region index"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.product_phase",
+            selection.productPhase, "product phase"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.dequant_phase",
+            selection.dequantPhase, "dequant phase"))
+      return error;
+  }
   if (llvm::Error error = requireResourceMirror(
           "tcrv_rvv.low_precision_resource.target_capability_provider_mirror",
           selection.targetCapabilityProviderMirror,

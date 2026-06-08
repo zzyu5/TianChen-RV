@@ -1017,6 +1017,47 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
                                         providerSelection.runtimeABIOrder,
                                         familySelection.runtimeABIOrder))
     return error;
+  if (llvm::Error error = requireString("realization producer",
+                                        providerSelection.realizationProducer,
+                                        familySelection.realizationProducer))
+    return error;
+  if (llvm::Error error = requireString("realization decision",
+                                        providerSelection.realizationDecision,
+                                        familySelection.realizationDecision))
+    return error;
+  if (llvm::Error error =
+          requireInteger("realized unroll factor",
+                         providerSelection.realizedUnrollFactor,
+                         familySelection.realizedUnrollFactor))
+    return error;
+  if (llvm::Error error =
+          requireInteger("realized vsetvl region count",
+                         providerSelection.realizedVSetVLRegionCount,
+                         familySelection.realizedVSetVLRegionCount))
+    return error;
+  if (llvm::Error error =
+          requireInteger("realized peak live vector groups",
+                         providerSelection.realizedPeakLiveVectorGroups,
+                         familySelection.realizedPeakLiveVectorGroups))
+    return error;
+  if (llvm::Error error =
+          requireInteger("product region index",
+                         providerSelection.productRegionIndex,
+                         familySelection.productRegionIndex))
+    return error;
+  if (llvm::Error error =
+          requireInteger("dequant region index",
+                         providerSelection.dequantRegionIndex,
+                         familySelection.dequantRegionIndex))
+    return error;
+  if (llvm::Error error = requireString("product phase",
+                                        providerSelection.productPhase,
+                                        familySelection.productPhase))
+    return error;
+  if (llvm::Error error = requireString("dequant phase",
+                                        providerSelection.dequantPhase,
+                                        familySelection.dequantPhase))
+    return error;
   if (llvm::Error error =
           requireString("target capability provider mirror",
                         providerSelection.targetCapabilityProviderMirror,
@@ -1061,6 +1102,46 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
     if (llvm::Error error = requireExpectedString(
             "unpack intent", familySelection.unpackIntent,
             kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "realization producer", familySelection.realizationProducer,
+            kRVVLowPrecisionResourceRealizationProducer))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "realization decision", familySelection.realizationDecision,
+            kRVVLowPrecisionResourcePackedI4RealizationDecision))
+      return error;
+    if (llvm::Error error = requireExpectedInteger(
+            "realized unroll factor", familySelection.realizedUnrollFactor,
+            kRVVLowPrecisionResourcePackedI4Unroll))
+      return error;
+    if (llvm::Error error = requireExpectedInteger(
+            "realized vsetvl region count",
+            familySelection.realizedVSetVLRegionCount,
+            kRVVLowPrecisionResourcePackedI4VSetVLRegions))
+      return error;
+    if (llvm::Error error = requireExpectedInteger(
+            "realized peak live vector groups",
+            familySelection.realizedPeakLiveVectorGroups,
+            kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups))
+      return error;
+    if (llvm::Error error = requireExpectedInteger(
+            "product region index", familySelection.productRegionIndex,
+            getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
+                kRVVLowPrecisionResourcePackedI4RealizationDecision)))
+      return error;
+    if (llvm::Error error = requireExpectedInteger(
+            "dequant region index", familySelection.dequantRegionIndex,
+            getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+                kRVVLowPrecisionResourcePackedI4RealizationDecision)))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "product phase", familySelection.productPhase,
+            getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
+                kRVVLowPrecisionResourcePackedI4RealizationDecision)))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "dequant phase", familySelection.dequantPhase, "dequant-store"))
       return error;
     return llvm::Error::success();
   }

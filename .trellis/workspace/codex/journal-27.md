@@ -282,3 +282,70 @@ macro task. The macro task remains active because Gates 2-4 are not complete.
 Next continuation point: Gate 2 route/statement/artifact validation must consume
 the explicit packed-resource schedule facts without Common EmitC or metadata
 mirrors becoming semantic authority.
+
+## Session 576: RVV production-kernel Gate 2 route/statement/artifact consumption
+
+**Date**: 2026-06-09
+**Task**: RVV production-kernel capability campaign: resource-aware packed low-precision contraction realization
+
+### Summary
+
+Continued the active macro campaign at Gate 2. This slice carries the packed-i4
+Gearbox/resource schedule facts from selected-body realization into the
+production route planning, direct-contraction statement planning, route
+metadata, target support bundle, and target artifact validation/export
+boundary.
+
+`RVVLowPrecisionContractionResourceSelection` now retains the provider-owned
+realization producer, realization decision, realized unroll factor, realized
+`vsetvl` region count, realized peak live-vector groups, product/dequant region
+indices, and product/dequant phases. Route-family planning derives or imports
+those facts from RVV-owned typed body/config/resource facts. Statement-plan
+ownership compares the provider plan and family plan before constructing the
+packed-i4 statement payload. Target artifact validation now mirrors and checks
+the same schedule facts before accepting a header artifact.
+
+The packed-i4 statement path still consumes explicit typed/resource facts:
+`packed-i4-nibbles`, signed source, storage width 8, effective width 4, two
+signed i4 elements per byte, sign-extension before widening product, unroll 1,
+two realized `vsetvl` regions, peak live vector groups 6, product region 1
+with phase `load-product-reduce`, and dequant region 2 with phase
+`dequant-store`. Common EmitC remains a neutral materializer.
+
+### Testing
+
+- [OK] built `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-rvv-extension-plugin-test`, and
+  `tianchenrv-target-artifact-export-test`.
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] manual packed-i4 PLAN pipeline showed provider-owned realization
+  decision, realized region count, product/dequant indices, and product/dequant
+  phases in route metadata.
+- [OK] manual packed-i4 HEADER pipeline exported the same schedule facts as
+  target artifact mirrors.
+- [OK] manual packed-i4 C++ emission pipeline found low/high nibble
+  sign-extension, widening product, and widening reduction intrinsics.
+- [OK] stale packed resource decision, stale packed region count, stale packed
+  `from_phase`, and stale artifact realization decision fail closed with
+  targeted diagnostics.
+- [OK] non-packed product-reduction-dequant header export still follows its
+  u2/grouped resource facts, and the missing-resource-pass negative check still
+  fails closed.
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded added-line authority scan found only the intentional
+  `artifact-name-derived-resource-decision` negative-test string.
+
+`FileCheck` is not available in this environment, so the fixture RUN lines were
+validated through equivalent `tcrv-opt` / `tcrv-translate` pipelines with
+targeted `rg` assertions.
+
+### Status
+
+[OPEN] Gate 2 is complete for this production-source consumption slice. The
+macro task remains active because Gate 3 generated artifact evidence and Gate 4
+same-target measurement rerun are still unfinished. Next continuation point:
+Gate 3 regenerate and inspect packed-i4 generated artifact evidence from the
+validated production route/statement/artifact path, without treating generated
+artifacts as semantic authority.

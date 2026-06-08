@@ -1,5 +1,4 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
-{"file": ".trellis/tasks/06-09-rvv-production-kernel-packed-resource-realization-campaign/prd.md", "reason": "current macro PRD and Gate 1 slice"}
+{"file": ".trellis/tasks/06-09-rvv-production-kernel-packed-resource-realization-campaign/prd.md", "reason": "current macro PRD and Gate 2 slice"}
 {"file": ".trellis/spec/index.md", "reason": "global TianChen-RV authority chain"}
 {"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV resource-aware realization and packed-i4 contracts"}
 {"file": ".trellis/tasks/archive/2026-06/06-09-rvv-low-precision-packed-contraction-primitive-surface-campaign/prd.md", "reason": "previous packed-i4 campaign endpoint and next continuation"}
@@ -9,3 +8,8 @@
 {"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Gearbox handoff dialect verifier boundary"}
 {"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "provider route-family realization structure validation"}
 {"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "selected-body route collection handoff validation"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "direct-contraction statement-plan ownership for packed-resource facts"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRouteProvider.cpp", "reason": "route provider path for RVV-selected route construction"}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "target artifact validation boundary for provider-owned mirrors"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir", "reason": "packed-i4 positive and fail-closed fixture"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir", "reason": "non-packed regression fixture"}

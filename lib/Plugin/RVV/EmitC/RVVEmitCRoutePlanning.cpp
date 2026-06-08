@@ -43065,6 +43065,31 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         selection.consumerScope});
     metadata.push_back({"tcrv_rvv.low_precision_resource.runtime_abi_order",
                         selection.runtimeABIOrder});
+    if (!selection.realizationDecision.empty()) {
+      metadata.push_back({"tcrv_rvv.low_precision_resource.realization_producer",
+                          selection.realizationProducer});
+      metadata.push_back({"tcrv_rvv.low_precision_resource.realization_decision",
+                          selection.realizationDecision});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.realized_unroll_factor",
+           llvm::Twine(selection.realizedUnrollFactor).str()});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.realized_vsetvl_region_count",
+           llvm::Twine(selection.realizedVSetVLRegionCount).str()});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups",
+           llvm::Twine(selection.realizedPeakLiveVectorGroups).str()});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.product_region_index",
+           llvm::Twine(selection.productRegionIndex).str()});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.dequant_region_index",
+           llvm::Twine(selection.dequantRegionIndex).str()});
+      metadata.push_back({"tcrv_rvv.low_precision_resource.product_phase",
+                          selection.productPhase});
+      metadata.push_back({"tcrv_rvv.low_precision_resource.dequant_phase",
+                          selection.dequantPhase});
+    }
     metadata.push_back(
         {"tcrv_rvv.low_precision_resource.target_capability_provider_mirror",
          selection.targetCapabilityProviderMirror});

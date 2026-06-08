@@ -13,15 +13,18 @@ Advance the RVV production-kernel capability campaign from the accepted packed i
 
 ## Current Round Slice
 
-This round implements only a bounded Gate 1 production compiler slice: establish or strengthen the RVV plugin-local resource-aware schedule/realization boundary for packed low-precision product-reduction-dequant so selected-body realization or route planning carries explicit packed-resource facts and fails closed when those facts are stale, missing, or not consumed.
+This round implements a bounded Gate 2 production compiler slice: route-family planning, statement-plan ownership, route metadata, and target artifact validation/export must consume the same packed low-precision Gearbox/resource schedule facts that Gate 1 materialized in the RVV selected-body realization boundary.
 
-If repository evidence shows this Gate 1 boundary already exists and is complete, this round must identify the next concrete production-source blocker inside the same macro owner and close that slice. It must not switch to a generated-bundle, measurement-only, report-only, or unrelated route-family task.
+The slice focuses on the accepted signed packed-i4 product-reduction-dequant representative. The explicit consumed facts are the selected low-precision resource candidate, operand form, storage/effective widths, packing layout, unpack intent, resource realization producer, resource realization decision, realized unroll factor, realized `vsetvl` region count, realized peak live-vector groups, product/dequant marker indices, product/dequant phases, runtime AVL source, producer/consumer scopes, runtime ABI order, and provider target capability mirrors.
+
+If full Gate 2 completion is too large, this round must still land one coherent production-source sub-slice that advances route/statement/artifact validation consumption of these facts and leaves a precise continuation point. It must not switch to a generated-bundle, measurement-only, report-only, or unrelated route-family task.
 
 ## Repository Findings For This Round
 
-- The previous packed-i4 campaign is archived and complete through primitive/resource facts, statement planning, target artifact validation, generated-bundle evidence, executable correctness, and same-target timing.
-- Current source already has a Gate 1 foundation: `RVVContractionSelectedBodyRealizationOwner.cpp` consumes pass-produced low-precision resource facts, copies realization attrs to producer/consumer `with_vl`, emits `vsetvl_region_marker` ops, and builds a Gearbox cross-region handoff; `RVVEmitCContractionRouteFamilyPlanOwners.cpp` re-consumes realization attrs and realized marker/handoff structure before route acceptance.
-- The remaining Gate 1 production-source gap is narrower: several verifier/route-collection helpers still encode the packed-i4 resource decision as "not grouped, therefore use the default two-region schedule". That is true only because the current packed-i4 region count equals the default byte count. The slice should make packed-i4 realization decision consumption explicit through shared resource-decision helpers and focused stale packed-resource tests.
+- Gate 1 is complete in commit `a2c7f126`: the selected-body realizer, RVV dialect handoff verifier, route-family realization-structure validator, and route collector consume shared Gearbox helper facts for expected region count, product/dequant marker indices, product phase, and realization decision.
+- Current source already carries low-precision resource selection through route-family planning and statement-plan ownership, but `RVVLowPrecisionContractionResourceSelection` does not structurally retain the Gate 1 realization schedule facts after the selected-body/handoff validation step.
+- Target artifact metadata and candidate mirror validation already check packed-i4 operand facts and packed low/high nibble statement payloads, but the artifact/export boundary does not yet mirror and compare the realization decision, realized region count, product/dequant marker indices, or product/dequant phases.
+- The Gate 2 production gap is therefore to make route description, direct-contraction statement-plan ownership, and target artifact validation consume those schedule facts as provider-owned payload, while Common EmitC remains a neutral materializer.
 
 ## Requirements
 
@@ -45,16 +48,43 @@ If repository evidence shows this Gate 1 boundary already exists and is complete
 
 ## Acceptance Criteria For This Round
 
-- [x] PRD and Trellis context identify this as the macro campaign and this round as Gate 1.
-- [x] Active RVV plugin/compiler owner code changes for packed low-precision resource-aware realization/planning, or the PRD/journal records exact source-backed evidence that the Gate 1 boundary was already complete and names the same-campaign substitute production slice.
-- [x] Focused tests cover positive resource fact propagation/consumption and fail-closed stale or missing packed-resource facts.
+- [x] PRD and Trellis context identify this as the active macro campaign and this round as Gate 2.
+- [x] Route-family planning and `RVVSelectedBodyEmitCRouteDescription` retain provider-owned packed-resource realization schedule facts instead of dropping them after selected-body validation.
+- [x] Direct-contraction statement-plan ownership compares the provider plan and family plan schedule fields before constructing packed-i4 statement payloads.
+- [x] Target artifact metadata/export mirrors the provider-owned schedule fields and target artifact candidate validation rejects stale or missing packed-resource realization mirrors before artifact acceptance.
+- [x] Common EmitC remains a neutral materializer; no Common EmitC or artifact metadata path infers packed-i4 semantics, region counts, phases, marker roles, or resource decisions.
+- [x] Focused positive checks show packed-resource facts are propagated/consumed by route planning, statement plans, and target artifact validation/export.
+- [x] Focused fail-closed checks cover stale or missing packed resource decision/realization schedule facts at route or artifact validation boundaries.
+- [x] Regression check confirms the non-packed product-reduction-dequant representative still follows its existing resource facts and fails only where expected.
 - [x] `build/bin/tianchenrv-rvv-extension-plugin-test` passes.
 - [x] `build/bin/tianchenrv-target-artifact-export-test` passes.
-- [x] Relevant packed i4 and non-packed product-reduction-dequant fixture behavior is checked with the same `tcrv-opt` / `tcrv-translate` pipelines and key output assertions; `FileCheck` / `llvm-lit` are unavailable in this environment.
+- [x] Relevant packed-i4 and non-packed product-reduction-dequant fixture behavior is checked with the same `tcrv-opt` / `tcrv-translate` pipelines and key output assertions; `FileCheck` / `llvm-lit` availability is recorded honestly.
 - [x] Bounded old-authority scan over touched files and added diff lines is clean.
 - [x] `git diff --check` and `git diff --cached --check` pass.
 - [x] One coherent commit is created for the slice.
-- [x] `.trellis/.current-task` remains active unless all campaign gates, including post-change same-target measurement, are complete.
+- [x] `.trellis/.current-task` remains active unless Gates 2, 3, and 4 are complete.
+
+## Current Gate 2 Round Result
+
+This slice carries the Gate 1 packed-resource realization schedule facts into the Gate 2 production consumption path. `RVVLowPrecisionContractionResourceSelection` now retains the provider-owned realization producer, realization decision, realized unroll factor, realized `vsetvl` region count, realized peak live-vector groups, product/dequant region indices, and product/dequant phases. Route-family planning derives those facts from the same RVV Gearbox resource-decision helpers used by selected-body realization, and pass-fact reconstruction imports them from the typed body before route acceptance.
+
+Direct-contraction statement planning now compares the provider plan against the route-family plan for the same schedule fields before constructing the packed-i4 statement payload. The packed-i4 owner still requires the explicit operand/resource facts: `packed-i4-nibbles`, signed source, storage width 8, effective width 4, two signed i4 nibbles per byte, sign-extension before widening product, unroll 1, two realized `vsetvl` regions, peak live vector groups 6, product region 1 with phase `load-product-reduce`, and dequant region 2 with phase `dequant-store`.
+
+Route metadata and target artifact support bundle export those schedule facts as provider-owned mirrors. Target artifact route-family validation now rejects stale realization schedule mirrors before header artifact acceptance; the added packed-i4 stale-realization-decision check fails when the artifact payload is mutated to `artifact-name-derived-resource-decision`.
+
+Focused validation completed:
+
+- built `tcrv-opt`, `tcrv-translate`, `tianchenrv-rvv-extension-plugin-test`, and `tianchenrv-target-artifact-export-test`;
+- ran `build/bin/tianchenrv-rvv-extension-plugin-test`;
+- ran `build/bin/tianchenrv-target-artifact-export-test`;
+- manually executed packed-i4 PLAN, HEADER, and C++ emission pipelines because this environment has no `FileCheck` in `PATH`;
+- manually executed stale packed decision, stale packed region count, stale packed `from_phase`, and stale artifact realization decision fail-closed pipelines;
+- manually executed non-packed product-reduction-dequant header export and missing-resource fail-closed regression pipelines;
+- ran `git diff --check`;
+- ran `git diff --cached --check`;
+- ran a bounded added-line authority scan; the only match was the intentional negative-test string `artifact-name-derived-resource-decision`.
+
+Gate 2 is complete for this production-source consumption slice. The macro task remains active because Gate 3 generated artifact evidence and Gate 4 same-target measurement rerun are still unfinished. The next continuation point is Gate 3: regenerate and inspect the packed-i4 generated artifact evidence from the now-validated production route/statement/artifact consumption path, without treating generated artifacts as semantic authority.
 
 ## Technical Notes
 

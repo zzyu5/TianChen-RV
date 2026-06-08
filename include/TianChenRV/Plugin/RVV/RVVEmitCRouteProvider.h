@@ -181,6 +181,17 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::string producerScope;
   std::string consumerScope;
   std::string runtimeABIOrder;
+
+  std::string realizationProducer;
+  std::string realizationDecision;
+  std::int64_t realizedUnrollFactor = 0;
+  std::int64_t realizedVSetVLRegionCount = 0;
+  std::int64_t realizedPeakLiveVectorGroups = 0;
+  std::int64_t productRegionIndex = 0;
+  std::int64_t dequantRegionIndex = 0;
+  std::string productPhase;
+  std::string dequantPhase;
+
   std::string targetCapabilityProviderMirror;
   std::string targetCapabilityLegalityMirror;
 
