@@ -1,6 +1,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
 // RUN: not tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-RESOURCE-PASS
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.selected_candidate = "[^"]*"/tcrv_rvv.low_precision_resource.selected_candidate = "artifact-name-derived-resource-candidate"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER-RESOURCE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.selected_candidate = "[^"]*"/tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=GROUPED-RESOURCE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 2 : i64/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 1 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZATION-RESOURCE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | sed '0,/tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64/s//tcrv_rvv.low_precision_resource.vector_register_budget = 3 : i64/' | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=PRUNED-RESOURCE-BUDGET
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/phase = "dequant-store"/phase = "artifact-metadata-region"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZED-REGION
@@ -141,6 +142,10 @@ module {
 
 // STALE-PROVIDER-RESOURCE: low-precision direct-contraction resource selection requires selected candidate
 // STALE-PROVIDER-RESOURCE-SAME: artifact-name-derived-resource-candidate
+
+// GROUPED-RESOURCE: low-precision direct-contraction resource selection rejects grouped u2 candidate
+// GROUPED-RESOURCE-SAME: product-reduction-dequantize-f32
+// GROUPED-RESOURCE-SAME: tail-safe grouped product-reduction statement-plan payload support is not implemented
 
 // STALE-REALIZATION-RESOURCE: selected-body realization low-precision direct-contraction resource fact
 // STALE-REALIZATION-RESOURCE-SAME: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count

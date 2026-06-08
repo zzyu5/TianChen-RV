@@ -225,8 +225,9 @@ constexpr llvm::StringLiteral kRVVGearboxConsumerScope(
     "gearbox-scope:dequant-store");
 
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceCandidateSet(
-    "rvv-low-precision-direct-contraction-resource-candidate-set.v1["
-    "i8mf4-i16mf2-i32m1-f32m1]");
+    "rvv-low-precision-direct-contraction-resource-candidate-set.v2["
+    "i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,"
+    "u2-grouped-tail-safe-pending]");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantMemoryForm(
     "unit-stride-widening-product-reduce-dequantize-f32");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantClampMemoryForm(
@@ -234,15 +235,33 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantClampMemoryForm(
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantCandidate(
     "rvv-low-precision-direct-contraction-resource-candidate.v1["
     "product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceDequantGroupedCandidate(
+        "rvv-low-precision-direct-contraction-resource-candidate.v1["
+        "product-reduction-dequantize-f32,"
+        "i8mf4-i16mf2-i32m1-f32m1,u2-grouped]");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantSelectionReason(
     "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-"
     "runtime-avl");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceDequantGroupedSelectionReason(
+        "rejected-pending-tail-safe-grouped-product-reduction-dequant-"
+        "statement-plan");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantClampCandidate(
     "rvv-low-precision-direct-contraction-resource-candidate.v1["
     "product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u1]");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceDequantClampGroupedCandidate(
+        "rvv-low-precision-direct-contraction-resource-candidate.v1["
+        "product-reduction-dequant-clamp-f32,"
+        "i8mf4-i16mf2-i32m1-f32m1,u2-grouped]");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantClampSelectionReason(
     "static-bounded-product-reduction-dequant-clamp-i8mf4-i16mf2-i32m1-"
     "f32m1-runtime-avl");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceDequantClampGroupedSelectionReason(
+        "rejected-pending-tail-safe-grouped-product-reduction-dequant-clamp-"
+        "statement-plan");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceLegalityScope(
     "typed-low-precision-product-reduction-dequant-resource-legality.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductEMUL("mf2");
@@ -265,6 +284,9 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceOverBudgetRejectionReason(
         "peak-live-vector-groups-exceed-vector-register-budget");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceUnsupportedGroupedStatementPlanRejectionReason(
+        "unsupported-tail-safe-grouped-product-reduction-statement-plan");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRealizationProducer(
     "rvv-plugin-local-selected-body-realization-resource-consumer.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRealizationDecision(
@@ -338,6 +360,15 @@ inline llvm::StringRef getRVVLowPrecisionResourceSelectedCandidateID(
              : kRVVLowPrecisionResourceDequantCandidate;
 }
 
+inline llvm::StringRef getRVVLowPrecisionResourceGroupedCandidateID(
+    RVVLowPrecisionContractionResourceOperation operation) {
+  return operation ==
+                 RVVLowPrecisionContractionResourceOperation::
+                     ProductReductionDequantClampF32
+             ? kRVVLowPrecisionResourceDequantClampGroupedCandidate
+             : kRVVLowPrecisionResourceDequantGroupedCandidate;
+}
+
 inline llvm::StringRef getRVVLowPrecisionResourceSelectionReason(
     RVVLowPrecisionContractionResourceOperation operation) {
   return operation ==
@@ -345,6 +376,15 @@ inline llvm::StringRef getRVVLowPrecisionResourceSelectionReason(
                      ProductReductionDequantClampF32
              ? kRVVLowPrecisionResourceDequantClampSelectionReason
              : kRVVLowPrecisionResourceDequantSelectionReason;
+}
+
+inline llvm::StringRef getRVVLowPrecisionResourceGroupedSelectionReason(
+    RVVLowPrecisionContractionResourceOperation operation) {
+  return operation ==
+                 RVVLowPrecisionContractionResourceOperation::
+                     ProductReductionDequantClampF32
+             ? kRVVLowPrecisionResourceDequantClampGroupedSelectionReason
+             : kRVVLowPrecisionResourceDequantGroupedSelectionReason;
 }
 
 inline llvm::StringRef getRVVLowPrecisionResourceRuntimeABIOrder(
@@ -372,7 +412,21 @@ inline bool isRVVLowPrecisionResourceCandidateSetMember(
   if (candidateSetID != kRVVLowPrecisionResourceCandidateSet)
     return false;
   return candidateID == kRVVLowPrecisionResourceDequantCandidate ||
+         candidateID == kRVVLowPrecisionResourceDequantClampCandidate ||
+         candidateID == kRVVLowPrecisionResourceDequantGroupedCandidate ||
+         candidateID == kRVVLowPrecisionResourceDequantClampGroupedCandidate;
+}
+
+inline bool isRVVLowPrecisionResourceSelectedLegalCandidateID(
+    llvm::StringRef candidateID) {
+  return candidateID == kRVVLowPrecisionResourceDequantCandidate ||
          candidateID == kRVVLowPrecisionResourceDequantClampCandidate;
+}
+
+inline bool isRVVLowPrecisionResourceUnsupportedGroupedCandidateID(
+    llvm::StringRef candidateID) {
+  return candidateID == kRVVLowPrecisionResourceDequantGroupedCandidate ||
+         candidateID == kRVVLowPrecisionResourceDequantClampGroupedCandidate;
 }
 
 inline llvm::SmallVector<RVVLowPrecisionContractionResourceCandidate, 2>
@@ -446,6 +500,19 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
 
   llvm::SmallVector<RVVLowPrecisionContractionResourceCandidate, 2> candidates;
   candidates.push_back(candidate);
+  RVVLowPrecisionContractionResourceCandidate groupedCandidate = candidate;
+  groupedCandidate.candidateID =
+      getRVVLowPrecisionResourceGroupedCandidateID(operation);
+  groupedCandidate.selectionReason =
+      getRVVLowPrecisionResourceGroupedSelectionReason(operation);
+  groupedCandidate.unrollFactor = 2;
+  groupedCandidate.accumulatorCount = 2;
+  groupedCandidate.vsetvlRegionCount = 3;
+  groupedCandidate.peakLiveVectorGroups = 7;
+  groupedCandidate.isLegal = false;
+  groupedCandidate.rejectionReason =
+      kRVVLowPrecisionResourceUnsupportedGroupedStatementPlanRejectionReason;
+  candidates.push_back(groupedCandidate);
   return candidates;
 }
 
@@ -461,8 +528,7 @@ selectRVVLowPrecisionProductReductionResourceCandidate(
 
 inline llvm::StringRef getRVVLowPrecisionContractionResourceRealizationDecision(
     llvm::StringRef selectedCandidateID) {
-  if (isRVVLowPrecisionResourceCandidateSetMember(
-          kRVVLowPrecisionResourceCandidateSet, selectedCandidateID))
+  if (isRVVLowPrecisionResourceSelectedLegalCandidateID(selectedCandidateID))
     return kRVVLowPrecisionResourceRealizationDecision;
   return {};
 }

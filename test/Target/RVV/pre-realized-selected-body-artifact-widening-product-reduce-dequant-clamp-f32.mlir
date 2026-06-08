@@ -10,6 +10,7 @@
 // RUN: not tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=MISSING-RESOURCE-FACTS
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | sed '0,/tcrv_rvv.low_precision_resource.accumulator_dtype = "i32"/s//tcrv_rvv.low_precision_resource.accumulator_dtype = "i16"/' | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE-ACC
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | sed '0,/tcrv_rvv.low_precision_resource.reduction_layout = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1"/s//tcrv_rvv.low_precision_resource.reduction_layout = "metadata-layout"/' | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE-REDUCTION-LAYOUT
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.selected_candidate = "[^"]*"/tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=GROUPED-RESOURCE
 // RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_pre_realized_body/s/policy = /route_id = "rvv-i32m1", policy = /' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-AUTH
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-contraction-family-plan-validated/s//provider_supported_mirror:rvv-artifact-name-authority/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n/s//tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,lower_bound,scale,upper_bound,out,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
@@ -244,6 +245,10 @@ module {
 // STALE-RESOURCE-REDUCTION-LAYOUT-SAME: tcrv_rvv.low_precision_resource.reduction_layout
 // STALE-RESOURCE-REDUCTION-LAYOUT-SAME: vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1
 // STALE-RESOURCE-REDUCTION-LAYOUT-SAME: metadata-layout
+
+// GROUPED-RESOURCE: low-precision direct-contraction resource selection rejects grouped u2 candidate
+// GROUPED-RESOURCE-SAME: product-reduction-dequant-clamp-f32
+// GROUPED-RESOURCE-SAME: tail-safe grouped product-reduction statement-plan payload support is not implemented
 
 // STALE-AUTH: does not accept authority metadata attribute
 // STALE-AUTH-SAME: route_id

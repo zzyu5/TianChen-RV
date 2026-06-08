@@ -91,29 +91,37 @@ generated-bundle, measurement-dashboard, metadata, or report-only task.
 
 ## Current Round Milestone
 
-Consume the low-precision Gearbox resource decision in the production
-product/reduction main loop.
+Make the next main-loop optimization boundary explicit and fail closed.
 
-The current slice is:
+The previous vector-carry slice removed per-chunk scalar extract/resplat, but
+the remaining measured bottleneck is still the single-chunk product/reduction
+loop. The next natural optimization is a grouped or multi-accumulator main-loop
+shape that amortizes repeated VL/control and reduction overhead. While reading
+the current neutral EmitC route payload, this round found that a correct grouped
+loop needs a tail-safe multi-loop or conditional/mutable-induction payload.
+Forcing a second chunk into the existing one-loop payload would either rely on
+VL=0/no-op intrinsic behavior or risk out-of-bounds tail loads.
 
-- Reuse the existing bounded candidate family for
+The current slice is therefore the bounded fail-closed interface correction:
+
+- Extend the RVV-owned low-precision resource candidate set to name the
+  intended grouped `u2` product/reduction candidate for
   `widening_product_reduce_dequantize_f32` and
-  `widening_product_reduce_dequant_clamp_f32`, but make the selected reduction
-  layout explicit as a vector accumulator carry across runtime VL chunks rather
-  than a scalar extract/resplat on every chunk.
-- Move statement planning for the product/reduction main loop from
-  `dot_acc_scalar -> splat -> vwredsum -> scalar extract` inside every chunk to
-  a provider-owned `dot_acc_vec` vector carry: seed once before the loop, reduce
-  into the vector carry each chunk, extract once after the loop, then perform
-  scalar dequantization and f32 splat.
-- Keep the selected-body realization and provider validation fail-closed when
-  the pass-produced resource facts, realized resource facts, region markers,
-  handoff, runtime ABI order, or reduction layout disagree.
-- Preserve standalone `dequantize_i32_to_f32` and standalone dequant-clamp
-  epilogue route contracts. They are not part of this main-loop optimization.
+  `widening_product_reduce_dequant_clamp_f32`.
+- Keep the currently executable `u1` vector-carry candidate as the selected
+  legal candidate until the RVV statement-plan payload can represent a
+  tail-safe grouped main loop.
+- Reject a stale or forced grouped `u2` selected candidate at the RVV provider
+  boundary with a diagnostic that names the missing tail-safe grouped
+  statement-plan support, before Common EmitC or target artifact export can
+  treat it as executable route authority.
+- Preserve the current generated executable loop shape and evidence
+  interpretation. This round does not claim a performance win or new runtime
+  behavior unless a later source change actually emits a grouped loop and is
+  measured on `ssh rvv`.
 - Keep scripts and evidence artifacts as consumers/verifiers only. They may
-  assert the changed generated loop shape and metadata contract, but they must
-  not supply dtype/config, selected-body semantics, intrinsic spelling,
+  assert the resource candidate set and selected-candidate contract, but they
+  must not supply dtype/config, selected-body semantics, intrinsic spelling,
   artifact authority, or performance readiness state.
 
 ## Requirements
@@ -137,44 +145,38 @@ The current slice is:
 
 ## Acceptance Criteria For This Round
 
-- [x] PRD names main-loop resource-aware selected-body realization and
-      statement planning as the current unfinished milestone, and keeps this
-      macro task active because final Gate 3/Gate 4 remain open for later
-      production-loop optimization and final measurement.
-- [x] The RVV low-precision resource candidate/reduction-layout contract for
-      product-reduction dequant/dequant-clamp names the vector accumulator carry
-      loop shape and rejects stale scalar-carry resource facts.
-- [x] The RVV direct-contraction statement plan consumes that selected resource
-      layout by seeding one `dot_acc_vec` before the loop, carrying the reduced
-      vector across chunks, and extracting the scalar only after the loop.
-- [x] Target validation and generated-bundle evidence consumers require the
-      vector-carry loop shape and reject stale per-chunk scalar carry metadata
-      or statements for these product/reduction dequant routes.
-- [x] Common EmitC remains neutral and continues only to materialize
-      provider-supplied call/assignment steps and route payloads.
-- [x] Focused generated artifact or FileCheck evidence shows the main loop no
-      longer emits per-chunk scalar extraction/resplat for the product/reduction
-      dequant/dequant-clamp routes, while the final post-loop scalar extract and
-      dequant/f32 splat remain.
-- [x] Runtime correctness on `ssh rvv` is collected for the changed executable
-      product/reduction dequant and dequant-clamp artifacts, or an exact blocker
-      is recorded.
-- [x] Same-target measurement against the named scalar baseline is collected if
-      this slice claims performance relevance. If the timing still regresses,
-      report the raw result honestly without claiming a win.
+- [x] PRD names the grouped `u2` product/reduction candidate and tail-safe
+      statement-plan payload gap as the current unfinished milestone, while
+      keeping this macro task active because final Gate 3/Gate 4 remain open.
+- [x] The RVV low-precision resource candidate set for product-reduction
+      dequant/dequant-clamp includes the grouped `u2` candidate as an explicit
+      RVV-owned candidate, but the executable selected candidate remains the
+      legal `u1` vector-carry route.
+- [x] RVV provider validation rejects a stale or forced grouped `u2` selected
+      candidate with a targeted diagnostic naming missing tail-safe grouped
+      statement-plan support before Common EmitC or target export can accept it.
+- [x] Target validation, generated-bundle ABI parsing, and focused FileCheck
+      expectations consume the updated candidate-set mirror and keep requiring
+      the current `u1` selected-candidate/vector-carry loop shape.
+- [x] Common EmitC remains neutral and receives no new RVV semantic scheduling,
+      dtype, intrinsic, or tail-handling inference.
+- [x] If executable generated code is unchanged, no new runtime/performance
+      claim is made and `ssh rvv` measurement is not rerun; if executable code
+      changes, runtime correctness and same-target timing are collected.
 - [x] Required focused builds/checks are run or an exact blocker is recorded:
       `tcrv-opt`, `tcrv-translate`,
       `tianchenrv-rvv-extension-plugin-test`,
       `tianchenrv-target-artifact-export-test`, relevant low-precision/
-      Gearbox/generated-bundle lit tests, `git diff --check`, Trellis task
-      validation, and `git diff --cached --check`.
+      Gearbox/generated-bundle lit tests, script self-tests where touched,
+      `git diff --check`, Trellis task validation, and
+      `git diff --cached --check`.
 - [x] Bounded old-authority scan over touched files and added diff lines shows
       no new positive `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`,
       `!tcrv_rvv.i32m*`, descriptor, source-front-door, route-id,
       artifact-name, or q8/q4 authority.
-- [x] Commit one coherent main-loop resource-aware statement-planning slice and
-      leave `.trellis/.current-task` active unless final Gate 3/Gate 4 can
-      honestly close.
+- [x] Commit one coherent resource-planning fail-closed slice and leave
+      `.trellis/.current-task` active unless final Gate 3/Gate 4 can honestly
+      close.
 
 ## Out Of Scope
 
@@ -317,12 +319,46 @@ below `1.0` for the measured sizes, roughly `0.56-0.65` for
 means the slice is a production loop-shape improvement and validation step, not
 the final performance closeout.
 
+## Current Grouped-Candidate Fail-Closed Round Result
+
+This slice makes the next resource-aware main-loop optimization boundary
+explicit without pretending the grouped loop is executable yet.
+
+- RVV low-precision resource facts now publish candidate-set
+  `rvv-low-precision-direct-contraction-resource-candidate-set.v2[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe-pending]`.
+- `widening_product_reduce_dequantize_f32` and
+  `widening_product_reduce_dequant_clamp_f32` each get a grouped `u2`
+  resource candidate with `unroll_factor = 2`, `accumulator_count = 2`, an
+  explicit larger live-vector budget, and rejection reason
+  `unsupported-tail-safe-grouped-product-reduction-statement-plan`.
+- The executable selected candidate remains the legal `u1` vector-carry route.
+  The grouped `u2` candidate is a named provider-owned candidate, not route
+  authority and not an artifact or metadata promise.
+- RVV provider validation now rejects stale or forced grouped `u2`
+  selected-candidate facts for both dequantize and dequant-clamp before Common
+  EmitC or target export can treat the body as executable. The diagnostic names
+  the missing tail-safe grouped product-reduction statement-plan payload.
+- Self-repair: the first implementation only consumed pass/realized resource
+  selected-candidate facts on non-clamp product-dequant bodies. The clamp path
+  could therefore ignore a forced grouped `u2` candidate. The derivation now
+  consumes pass facts for both product-reduction dequantize and
+  dequant-clamp bodies, and the focused negative clamp fixture covers this.
+- Common EmitC receives no new RVV scheduling, dtype, intrinsic, tail, or
+  resource inference. This slice only changes RVV-owned resource facts,
+  provider validation, script mirrors, and focused tests.
+
+Generated executable C is unchanged because grouped `u2` remains fail-closed.
+`ssh rvv` correctness and timing were therefore not rerun in this slice; the
+macro task remains open and still cannot claim a performance win.
+
 ## Continuation Point
 
 Continue the open macro task in the RVV production compiler path. The next
-slice should reduce the remaining main-loop overhead for the low-precision
-product/reduction kernels: larger or grouped active work per runtime loop,
-better accumulator/reduction structure, fewer repeated VL/control costs, and
-explicit live vector group tradeoffs. Do not create a neighboring
-generated-bundle evidence task; use same-target measurement only to validate
-production-source changes and report regressions honestly.
+slice should implement the RVV statement-plan payload needed to make the
+grouped `u2` candidate tail-safe and executable: either a correct grouped
+main/tail loop structure or another provider-owned loop payload that avoids
+VL=0/no-op assumptions and out-of-bounds tail loads while preserving typed-body
+authority and the explicit live-vector budget. After that production-source
+change, reselect the grouped candidate, regenerate artifacts, and collect
+same-target `ssh rvv` correctness/timing without making an unsupported win
+claim. Do not create a neighboring generated-bundle evidence task.

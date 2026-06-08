@@ -5128,6 +5128,23 @@ llvm::Error requireRVVLowPrecisionResourceIntegerField(
       selection.selectedCandidateID + "'");
 }
 
+llvm::Error rejectUnsupportedGroupedLowPrecisionResourceCandidate(
+    llvm::StringRef context,
+    const RVVLowPrecisionContractionResourceSelection &selection) {
+  if (!isRVVLowPrecisionResourceUnsupportedGroupedCandidateID(
+          selection.selectedCandidateID))
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) +
+      " low-precision direct-contraction resource selection rejects grouped "
+      "u2 candidate '" +
+      selection.selectedCandidateID +
+      "' because tail-safe grouped product-reduction statement-plan payload "
+      "support is not implemented; keep the legal u1 vector-carry candidate "
+      "until the RVV statement-plan owner can materialize grouped main/tail "
+      "loops without relying on metadata or VL=0 tail behavior");
+}
+
 bool isRVVLowPrecisionResourceSelectionEqual(
     const RVVLowPrecisionContractionResourceSelection &lhs,
     const RVVLowPrecisionContractionResourceSelection &rhs) {
@@ -5237,6 +5254,10 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "candidate set", selection.candidateSetID,
           getExpectedRVVLowPrecisionResourceCandidateSet(plan.operation)))
+    return error;
+  if (llvm::Error error =
+          rejectUnsupportedGroupedLowPrecisionResourceCandidate(context,
+                                                               selection))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "selected candidate", selection.selectedCandidateID,
@@ -5420,6 +5441,10 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
           context, selection, "candidate set", selection.candidateSetID,
           getExpectedRVVLowPrecisionResourceCandidateSet(
               description.operation)))
+    return error;
+  if (llvm::Error error =
+          rejectUnsupportedGroupedLowPrecisionResourceCandidate(context,
+                                                               selection))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "selected candidate",
@@ -6784,8 +6809,7 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
   populateRVVLowPrecisionPrimitiveFacts(plan);
 
   if (expectsRVVLowPrecisionContractionResourceSelection(plan)) {
-    if (plan.usesProductReductionDequantization &&
-        !plan.usesProductReductionDequantClamp) {
+    if (plan.usesProductReductionDequantization) {
       llvm::Expected<RVVLowPrecisionContractionResourceSelection> selection =
           deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
               plan, analysis.slice, analysis.selectedTargetCapabilityFacts,

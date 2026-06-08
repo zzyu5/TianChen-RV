@@ -649,8 +649,9 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_SCALAR_RESULT_BOUNDARY = (
     "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET = (
-    "rvv-low-precision-direct-contraction-resource-candidate-set.v1"
-    "[i8mf4-i16mf2-i32m1-f32m1]"
+    "rvv-low-precision-direct-contraction-resource-candidate-set.v2"
+    "[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,"
+    "u2-grouped-tail-safe-pending]"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE = (
     "rvv-low-precision-direct-contraction-resource-candidate.v1"

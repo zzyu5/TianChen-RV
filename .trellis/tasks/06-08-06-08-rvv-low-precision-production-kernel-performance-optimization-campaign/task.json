@@ -21,6 +21,6 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "Main-loop vector-carry slice complete: product-reduction dequant/dequant-clamp statement planning now carries dot_acc_vec across runtime VL chunks, target/script checks require the vector-carry loop shape, ssh rvv correctness passed, and same-target measurement still regresses versus scalar baseline. Macro task remains active for further Gate 3/Gate 4 production-loop optimization.",
+  "notes": "Grouped-candidate fail-closed slice complete: product-reduction dequant/dequant-clamp resource facts now publish a v2 candidate set with legal u1 vector-carry and pending grouped u2 candidates; RVV provider validation rejects forced grouped u2 selection with a tail-safe statement-plan diagnostic, including the clamp pass-facts path. Executable generated code is unchanged, so ssh rvv measurement was not rerun. Macro task remains active for the tail-safe grouped statement-plan implementation and final Gate 3/Gate 4 evidence.",
   "meta": {}
 }
