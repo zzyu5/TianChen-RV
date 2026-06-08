@@ -288,13 +288,80 @@ Closed provider/target-owned indexed write-side contract boundary for runtime-sc
 
 ### Main Changes
 
-(Add details)
+- Created, completed, and archived Trellis task
+  `06-08-stage2-rvv-computed-masked-strided-dot-executable-artifact-abi`.
+- Confirmed the previous provider/target acceptance boundary at `1bf69314`
+  already carries the computed-mask strided widening-dot semantic contract and
+  that the missing blocker was fresh executable generated-bundle evidence.
+- Proved the explicit selected-body generated object/header bundle on
+  `ssh rvv` with `dry_run=false`, `ssh_evidence=true`, remote clang
+  compile/link success, and remote harness PASS.
+- Proved the pre-realized selected-body generated object/header bundle on
+  `ssh rvv` with the same correctness scope after public selected
+  lowering-boundary materialization.
+- Both remote harnesses covered counts `0,1,16,17,257`, stride pairs `2:3`
+  and `3:2`, two mask/input patterns, signed products, inactive-lane skipped
+  products, accumulator seed/carry through `acc[0]`/`out[0]`, scalar-only
+  output, source preservation, accumulator preservation, and tail preservation.
+- No compiler source changes were required; this round only recorded Trellis
+  PRD/context/journal/archive evidence.
 
 ### Git Commits
 
 | Hash | Message |
 |------|---------|
 | `pending` | (see git log) |
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] explicit generated-bundle dry-run with configured LLVM 20
+  `llvm-readobj`
+- [OK] pre-realized generated-bundle dry-run with configured LLVM 20
+  `llvm-readobj`
+- [OK] explicit `ssh rvv` generated bundle:
+  `PASS op=computed_masked_strided_input_widening_dot_reduce_add counts=0,1,16,17,257 stride_pairs=2:3,3:2 mask_patterns=2 input_patterns=2 source_preserved accumulator_preserved tail_preserved`
+- [OK] pre-realized `ssh rvv` generated bundle:
+  `PASS op=computed_masked_strided_input_widening_dot_reduce_add counts=0,1,16,17,257 stride_pairs=2:3,3:2 mask_patterns=2 input_patterns=2 source_preserved accumulator_preserved tail_preserved`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] filtered lit from `build/test`:
+  `--filter computed-masked-strided-input-widening-dot-reduce-add`
+  passed 5/5 tests
+- [OK] production source diff list empty; no new positive legacy RVV authority
+  was introduced
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 554: Stage2 RVV computed-masked strided dot executable artifact ABI
+
+**Date**: 2026-06-08
+**Task**: Stage2 RVV computed-masked strided dot executable artifact ABI
+**Branch**: `main`
+
+### Summary
+
+Refreshed explicit and pre-realized generated object/header bundle ABI evidence for computed_masked_strided_input_widening_dot_reduce_add on ssh rvv; no compiler source changes were required.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-in-this-commit` | (see git log) |
 
 ### Testing
 

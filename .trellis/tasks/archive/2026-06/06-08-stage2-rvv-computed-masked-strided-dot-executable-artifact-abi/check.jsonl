@@ -1,0 +1,20 @@
+{"file": ".trellis/tasks/06-08-stage2-rvv-computed-masked-strided-dot-executable-artifact-abi/prd.md", "reason": "Verify implementation and evidence against the current acceptance criteria and non-goals."}
+{"file": ".trellis/spec/index.md", "reason": "Check no architecture authority drift, stack violation, descriptor route, or source-front-door authority was introduced."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV provider ownership, typed-body authority, target artifact evidence, and runtime correctness claim rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check generated artifact ABI boundary, provider-built route payloads, and common EmitC neutrality."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-computed-masked-strided-dot-acceptance-boundary/check.jsonl", "reason": "Compare this round's executable evidence against the previous no-ssh-rerun verification record."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "py_compile, self-test, dry-run evidence, and ssh rvv generated bundle execution if touched or used."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Regression for RVV provider route-family validation and stale-fact fail-closed behavior."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Regression for target artifact validation, header/prototype binding, and stale metadata rejection."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Focused explicit generated-bundle dry-run lit evidence."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Focused pre-realized generated-bundle dry-run lit evidence."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Explicit target artifact positive and stale-contract fail-closed lit evidence."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Pre-realized target artifact positive and stale-contract fail-closed lit evidence."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "C++ target artifact validation positive and negative coverage for the route boundary."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-explicit-computed-masked-strided-dot-ssh/computed_masked_strided_input_widening_dot_reduce_add/evidence.json", "reason": "Explicit selected-body generated object/header bundle compiled and ran on ssh rvv with dry_run=false and ssh_evidence=true."}
+{"file": "artifacts/tmp/rvv_generated_bundle_abi_e2e/codex-prerealized-computed-masked-strided-dot-ssh/computed_masked_strided_input_widening_dot_reduce_add/evidence.json", "reason": "Pre-realized selected-body generated object/header bundle compiled and ran on ssh rvv with dry_run=false and ssh_evidence=true."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "python3 -m py_compile passed; --self-test passed; explicit and pre-realized dry-run runs passed after using the configured LLVM 20 llvm-readobj path."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Passed."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Passed."}
+{"file": "build/test", "reason": "Focused lit filter 'computed-masked-strided-input-widening-dot-reduce-add' passed 5/5 tests from the generated site config."}
+{"file": ".trellis/tasks/06-08-stage2-rvv-computed-masked-strided-dot-executable-artifact-abi/check.jsonl", "reason": "git diff --check and git diff --cached --check passed; production source diff list was empty, so no new positive legacy authority was introduced."}

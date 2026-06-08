@@ -1,0 +1,20 @@
+{"file": ".trellis/tasks/06-08-stage2-rvv-computed-masked-strided-dot-executable-artifact-abi/prd.md", "reason": "Current task goal, boundaries, and acceptance criteria."}
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, stack constraints, and RVV stage ordering."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body authority, provider-owned route facts, target evidence, and ssh rvv correctness rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "TCRVEmitCLowerableRoute, common EmitC neutrality, generated target artifact, and runtime ABI boundary contracts."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-computed-masked-strided-dot-acceptance-boundary/prd.md", "reason": "Previous accepted provider/target semantic contract and explicit note that ssh rvv was not rerun."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-computed-masked-strided-dot-acceptance-boundary/implement.jsonl", "reason": "Files and route-family seams changed in the immediately previous production acceptance task."}
+{"file": ".trellis/tasks/archive/2026-06/06-08-stage2-rvv-computed-masked-strided-dot-acceptance-boundary/check.jsonl", "reason": "Prior verification record, including dry-run evidence and no fresh ssh rvv claim."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated bundle ABI evidence tooling and ssh rvv execution path for the target route family."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-explicit-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Existing explicit selected-body dry-run evidence and harness assertions."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test", "reason": "Existing pre-realized selected-body dry-run evidence and harness assertions."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Explicit selected-body artifact fixture and fail-closed target validation checks."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-computed-masked-strided-input-widening-dot-reduce-add.mlir", "reason": "Pre-realized selected-body artifact fixture and fail-closed target validation checks."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "C++ target artifact validation positive and stale-mirror negative checks for the route family."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Provider planning facts carrying typed body, stride, mask, accumulator, and runtime ABI facts."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Provider route description fields and selected-body route operation contracts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Contraction owner plan and validation for computed-mask strided widening dot facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCControlPolicyPlanOwners.cpp", "reason": "Route-control validation that consumes the contraction family contract before route construction."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Provider-built route metadata and stale mirror handling for target artifacts."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target consume-only validation and fail-closed checks for provider facts and metadata mirrors."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Generated target header/bundle metadata evidence for the route contract."}
