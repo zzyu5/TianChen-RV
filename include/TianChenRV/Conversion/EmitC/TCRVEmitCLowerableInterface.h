@@ -60,6 +60,7 @@ struct TCRVEmitCLocalVariable {
   TCRVEmitCSourceOpProvenance sourceOp;
   std::string name;
   std::string cType;
+  std::string declarationInitializer;
   TCRVEmitCCallOpaqueOperand initialValue;
 };
 
@@ -113,6 +114,9 @@ public:
   llvm::ArrayRef<TCRVEmitCCallOpaqueStep> getCallOpaqueSteps() const {
     return callOpaqueSteps;
   }
+  llvm::ArrayRef<TCRVEmitCAssignStep> getPreLoopAssignments() const {
+    return preLoopAssignments;
+  }
   llvm::ArrayRef<TCRVEmitCForLoop> getForLoops() const { return forLoops; }
   llvm::ArrayRef<TCRVEmitCCallOpaqueStep> getPostLoopSteps() const {
     return postLoopSteps;
@@ -128,6 +132,7 @@ public:
   void addSourceOpProvenance(TCRVEmitCSourceOpProvenance sourceOp);
   void addLocalVariable(TCRVEmitCLocalVariable variable);
   void addCallOpaqueStep(TCRVEmitCCallOpaqueStep step);
+  void addPreLoopAssignment(TCRVEmitCAssignStep step);
   void addForLoop(TCRVEmitCForLoop loop);
   void addPostLoopStep(TCRVEmitCCallOpaqueStep step);
 
@@ -143,6 +148,7 @@ private:
   llvm::SmallVector<TCRVEmitCSourceOpProvenance, 8> sourceOpProvenance;
   llvm::SmallVector<TCRVEmitCLocalVariable, 2> localVariables;
   llvm::SmallVector<TCRVEmitCCallOpaqueStep, 8> callOpaqueSteps;
+  llvm::SmallVector<TCRVEmitCAssignStep, 2> preLoopAssignments;
   llvm::SmallVector<TCRVEmitCForLoop, 2> forLoops;
   llvm::SmallVector<TCRVEmitCCallOpaqueStep, 4> postLoopSteps;
 };

@@ -21,6 +21,6 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "Gate 5 cleanup complete: product-reduction dequant/dequant-clamp metadata no longer carries standalone vector dequant convert/scale authority, and stale mirrors fail closed. Macro task remains active because repaired Gate 3/Gate 4 production-loop gates are still partial.",
+  "notes": "Main-loop vector-carry slice complete: product-reduction dequant/dequant-clamp statement planning now carries dot_acc_vec across runtime VL chunks, target/script checks require the vector-carry loop shape, ssh rvv correctness passed, and same-target measurement still regresses versus scalar baseline. Macro task remains active for further Gate 3/Gate 4 production-loop optimization.",
   "meta": {}
 }

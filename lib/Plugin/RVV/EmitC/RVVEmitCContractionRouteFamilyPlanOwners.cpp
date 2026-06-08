@@ -66,8 +66,8 @@ constexpr llvm::StringLiteral kRVVWideningDotProductStoreVL("1");
 constexpr llvm::StringLiteral kRVVProductReductionOutCarryBoundary(
     "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1");
 constexpr llvm::StringLiteral
-    kRVVProductReductionDequantLocalCarryBoundary(
-        "scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-chunks-final-f32-store.v1");
+    kRVVProductReductionDequantVectorCarryBoundary(
+        "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1");
 constexpr llvm::StringLiteral kRVVContractionRouteFamilyPlanID(
     "rvv-contraction-route-family-plan.v1");
 constexpr llvm::StringLiteral kRVVContractionProviderSupportedMirror(
@@ -1692,7 +1692,7 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
         analysis.description.reductionStoreVL != plan.reductionStoreVL ||
         analysis.description.standaloneReductionScalarResultRuntimeBoundary !=
             (plan.usesProductReductionDequantization
-                 ? kRVVProductReductionDequantLocalCarryBoundary
+                 ? kRVVProductReductionDequantVectorCarryBoundary
                  : kRVVProductReductionOutCarryBoundary) ||
         (plan.usesProductReductionDequantization &&
          (analysis.description.dequantizationRelation !=
@@ -2955,14 +2955,14 @@ static void populateRVVWideningDotValidationContract(
            RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
        facts.operation ==
            RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32)
-          ? 1
+          ? 2
           : 3;
     contract.expectedLoopBodyStepCount =
         (facts.operation ==
              RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
          facts.operation ==
              RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32)
-            ? 7
+            ? 5
         : isComputedMask ? 12
                          : 7;
   contract.runtimeABIParameters.append(core.runtimeABIParameters.begin(),
@@ -3972,11 +3972,11 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
         "dequantization body currently supports only result_layout "
         "'store-standalone-reduction-lane0-to-output-scalar'");
   if (body.getAccumulatorCarryBoundary() !=
-      kRVVProductReductionDequantLocalCarryBoundary)
+      kRVVProductReductionDequantVectorCarryBoundary)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction "
-        "dequantization body requires the local i32 carry boundary that feeds "
-        "the final f32 store");
+        "dequantization body requires the vector i32m1 carry boundary that "
+        "feeds one final scalar extract and f32 store");
   if (body.getScaleRole() != kRVVContractionDequantScaleRole)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction "
@@ -4126,11 +4126,11 @@ llvm::Error validateRVVSelectedWideningProductReduceDequantClampF32BodyImpl(
         "body currently supports only result_layout "
         "'store-standalone-reduction-lane0-to-output-scalar'");
   if (body.getAccumulatorCarryBoundary() !=
-      kRVVProductReductionDequantLocalCarryBoundary)
+      kRVVProductReductionDequantVectorCarryBoundary)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction dequant-clamp "
-        "body requires the local i32 carry boundary that feeds the final f32 "
-        "store");
+        "body requires the vector i32m1 carry boundary that feeds one final "
+        "scalar extract and f32 store");
   if (body.getScaleRole() != kRVVContractionDequantScaleRole)
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction dequant-clamp "
@@ -4444,7 +4444,7 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceReductionLayout(
   if (isRVVStridedInputWideningDotLowPrecisionResourceOperation(
           plan.operation))
     return plan.resultLayout;
-  return kRVVProductReductionDequantLocalCarryBoundary;
+  return kRVVProductReductionDequantVectorCarryBoundary;
 }
 
 llvm::StringRef getExpectedRVVLowPrecisionResourceProductElementType(
@@ -4486,7 +4486,7 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceReductionLayout(
   if (isRVVStridedInputWideningDotLowPrecisionResourceOperation(
           description.operation))
     return description.wideningDotProductResultLayout;
-  return kRVVProductReductionDequantLocalCarryBoundary;
+  return kRVVProductReductionDequantVectorCarryBoundary;
 }
 
 void populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
@@ -6888,7 +6888,7 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
     description.reductionStoreVL = plan.reductionStoreVL;
     description.standaloneReductionScalarResultRuntimeBoundary =
         plan.usesProductReductionDequantization
-            ? kRVVProductReductionDequantLocalCarryBoundary
+            ? kRVVProductReductionDequantVectorCarryBoundary
             : kRVVProductReductionOutCarryBoundary;
     if (plan.usesProductReductionDequantization) {
       description.dequantizationRelation = plan.dequantizationRelation;
@@ -7326,7 +7326,7 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
             context, "scalar result runtime boundary",
             description.standaloneReductionScalarResultRuntimeBoundary,
             usesProductReductionDequantization
-                ? kRVVProductReductionDequantLocalCarryBoundary
+                ? kRVVProductReductionDequantVectorCarryBoundary
                 : kRVVProductReductionOutCarryBoundary))
       return error;
     if (usesProductReductionDequantization) {

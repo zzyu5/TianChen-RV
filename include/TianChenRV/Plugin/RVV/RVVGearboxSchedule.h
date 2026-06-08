@@ -248,8 +248,8 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourceLegalityScope(
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductEMUL("mf2");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceAccumulatorEMUL("m1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceReductionLayout(
-    "scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-chunks-final-f32-"
-    "store.v1");
+    "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-"
+    "extract-f32-store.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRuntimeABIOrder(
     "lhs,rhs,acc,scale,out,n");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantClampRuntimeABIOrder(

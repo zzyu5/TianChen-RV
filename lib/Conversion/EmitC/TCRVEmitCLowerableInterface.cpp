@@ -77,7 +77,7 @@ llvm::Error validateABIParameter(
 TCRVEmitCLowerableRoute::TCRVEmitCLowerableRoute()
     : routeID(), routeKind(), headers(), typeMappings(), abiMappings(),
       functionDeclarations(), sourceOpProvenance(), localVariables(),
-      callOpaqueSteps(), forLoops(), postLoopSteps() {}
+      callOpaqueSteps(), preLoopAssignments(), forLoops(), postLoopSteps() {}
 
 TCRVEmitCLowerableRoute::TCRVEmitCLowerableRoute(llvm::StringRef routeID,
                                                  llvm::StringRef routeKind)
@@ -113,6 +113,9 @@ TCRVEmitCLowerableRoute &TCRVEmitCLowerableRoute::operator=(
   callOpaqueSteps.clear();
   callOpaqueSteps.append(other.callOpaqueSteps.begin(),
                          other.callOpaqueSteps.end());
+  preLoopAssignments.clear();
+  preLoopAssignments.append(other.preLoopAssignments.begin(),
+                            other.preLoopAssignments.end());
   forLoops.clear();
   forLoops.append(other.forLoops.begin(), other.forLoops.end());
   postLoopSteps.clear();
@@ -143,6 +146,7 @@ void TCRVEmitCLowerableRoute::reset(llvm::StringRef routeID,
   sourceOpProvenance.clear();
   localVariables.clear();
   callOpaqueSteps.clear();
+  preLoopAssignments.clear();
   forLoops.clear();
   postLoopSteps.clear();
 }
@@ -185,6 +189,11 @@ void TCRVEmitCLowerableRoute::addLocalVariable(
 void TCRVEmitCLowerableRoute::addCallOpaqueStep(
     TCRVEmitCCallOpaqueStep step) {
   callOpaqueSteps.push_back(std::move(step));
+}
+
+void TCRVEmitCLowerableRoute::addPreLoopAssignment(
+    TCRVEmitCAssignStep step) {
+  preLoopAssignments.push_back(std::move(step));
 }
 
 void TCRVEmitCLowerableRoute::addForLoop(TCRVEmitCForLoop loop) {
@@ -261,14 +270,21 @@ static llvm::Error validateLocalVariable(llvm::StringRef routeID,
   if (llvm::Error error =
           validateText(routeID, "local variable C type", var.cType))
     return error;
-  if (llvm::Error error =
-          validateText(routeID, "local variable initial expression",
-                       var.initialValue.expression))
-    return error;
-  if (llvm::Error error =
-          validateText(routeID, "local variable initial C type",
-                       var.initialValue.cType))
-    return error;
+  if (!var.declarationInitializer.empty())
+    if (llvm::Error error =
+            validateText(routeID, "local variable declaration initializer",
+                         var.declarationInitializer))
+      return error;
+  if (!var.initialValue.expression.empty()) {
+    if (llvm::Error error =
+            validateText(routeID, "local variable initial expression",
+                         var.initialValue.expression))
+      return error;
+    if (llvm::Error error =
+            validateText(routeID, "local variable initial C type",
+                         var.initialValue.cType))
+      return error;
+  }
   return llvm::Error::success();
 }
 
@@ -364,6 +380,10 @@ llvm::Error TCRVEmitCLowerableRoute::verify() const {
 
   for (const TCRVEmitCCallOpaqueStep &step : callOpaqueSteps)
     if (llvm::Error error = validateCallOpaqueStep(routeID, step))
+      return error;
+
+  for (const TCRVEmitCAssignStep &step : preLoopAssignments)
+    if (llvm::Error error = validateAssignStep(routeID, step))
       return error;
 
   for (const TCRVEmitCForLoop &loop : forLoops) {

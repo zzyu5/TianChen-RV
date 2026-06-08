@@ -85,6 +85,10 @@
 # WPRDC-DAG: "key": "tcrv_rvv.rhs_broadcast_intrinsic"
 # WPRDC-DAG: "value": "__riscv_vfmv_v_f_f32m1"
 # WPRDC-DAG: "widening_product_reduction_boundary"
+# WPRDC-DAG: "loop_accumulator_source": "dot_acc_vec"
+# WPRDC-DAG: "loop_updates_vector_carry": true
+# WPRDC-DAG: "post_loop_scalar_extract": "v{{[0-9]+}}"
+# WPRDC-DAG: "reduction_operand_order": "products,current_dot_acc_vec,vl"
 # WPRDC-DAG: "scalar_dequant_expression": "dot_acc_scalar * scale"
 # WPRDC-DAG: "forbids_vector_convert_intrinsic": "__riscv_vfcvt_f_x_v_f32m1"
 # WPRDC-DAG: "forbids_vector_scale_intrinsic": "__riscv_vfmul_vf_f32m1"

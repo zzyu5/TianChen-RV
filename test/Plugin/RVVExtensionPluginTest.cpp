@@ -8266,7 +8266,7 @@ module {
       %scale = tcrv_rvv.runtime_abi_value {c_name = "scale", c_type = "float", ownership = "target-export-abi-owned", role = "dequant-scale-value"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "float *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body %lhs, %rhs, %acc, %scale, %out, %n {accumulator_carry_boundary = "scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-chunks-final-f32-store.v1", accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, dequant_relation = "signed-i32m1-to-f32m1-scale-f32", dequant_store_boundary = "store-dequantized-f32-vector-to-output-buffer", memory_form = "unit-stride-widening-product-reduce-dequantize-f32", op_kind = "widening_product_reduce_dequantize_f32", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, product_lmul = "mf2", product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", product_relation = "signed-i8mf4xi8mf4-to-i16mf2", product_sew = 16 : i64, result_layout = "store-standalone-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, scale_role = "dequant-scale-value", source_lmul = "mf4", source_sew = 8 : i64, tcrv_rvv.gearbox.consumer_scope = "gearbox-scope:dequant-store", tcrv_rvv.gearbox.producer_scope = "gearbox-scope:product-reduction", tcrv_rvv.low_precision_resource.accumulator_count = 1 : i64, tcrv_rvv.low_precision_resource.accumulator_dtype = "i32", tcrv_rvv.low_precision_resource.accumulator_emul = "m1", tcrv_rvv.low_precision_resource.accumulator_lmul = "m1", tcrv_rvv.low_precision_resource.accumulator_sew = 32 : i64, tcrv_rvv.low_precision_resource.candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v1[i8mf4-i16mf2-i32m1-f32m1]", tcrv_rvv.low_precision_resource.legality = "legal", tcrv_rvv.low_precision_resource.legality_scope = "typed-low-precision-product-reduction-dequant-resource-legality.v1", tcrv_rvv.low_precision_resource.mask_policy = "agnostic", tcrv_rvv.low_precision_resource.memory_form = "unit-stride-widening-product-reduce-dequantize-f32", tcrv_rvv.low_precision_resource.peak_live_vector_groups = 4 : i64, tcrv_rvv.low_precision_resource.product_dtype = "i16", tcrv_rvv.low_precision_resource.product_emul = "mf2", tcrv_rvv.low_precision_resource.product_lmul = "mf2", tcrv_rvv.low_precision_resource.product_sew = 16 : i64, tcrv_rvv.low_precision_resource.reduction_layout = "scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-chunks-final-f32-store.v1", tcrv_rvv.low_precision_resource.rejection_reason = "none", tcrv_rvv.low_precision_resource.result_dtype = "f32", tcrv_rvv.low_precision_resource.result_lmul = "m1", tcrv_rvv.low_precision_resource.result_sew = 32 : i64, tcrv_rvv.low_precision_resource.runtime_abi_order = "lhs,rhs,acc,scale,out,n", tcrv_rvv.low_precision_resource.runtime_avl_source = "runtime_abi:n", tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]", tcrv_rvv.low_precision_resource.selection_reason = "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-runtime-avl", tcrv_rvv.low_precision_resource.source_dtype = "i8", tcrv_rvv.low_precision_resource.source_lmul = "mf4", tcrv_rvv.low_precision_resource.source_sew = 8 : i64, tcrv_rvv.low_precision_resource.tail_policy = "agnostic", tcrv_rvv.low_precision_resource.unroll_factor = 1 : i64, tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64, tcrv_rvv.low_precision_resource.vsetvl_region_count = 2 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+      tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body %lhs, %rhs, %acc, %scale, %out, %n {accumulator_carry_boundary = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1", accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, dequant_relation = "signed-i32m1-to-f32m1-scale-f32", dequant_store_boundary = "store-dequantized-f32-vector-to-output-buffer", memory_form = "unit-stride-widening-product-reduce-dequantize-f32", op_kind = "widening_product_reduce_dequantize_f32", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, product_lmul = "mf2", product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", product_relation = "signed-i8mf4xi8mf4-to-i16mf2", product_sew = 16 : i64, result_layout = "store-standalone-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, scale_role = "dequant-scale-value", source_lmul = "mf4", source_sew = 8 : i64, tcrv_rvv.gearbox.consumer_scope = "gearbox-scope:dequant-store", tcrv_rvv.gearbox.producer_scope = "gearbox-scope:product-reduction", tcrv_rvv.low_precision_resource.accumulator_count = 1 : i64, tcrv_rvv.low_precision_resource.accumulator_dtype = "i32", tcrv_rvv.low_precision_resource.accumulator_emul = "m1", tcrv_rvv.low_precision_resource.accumulator_lmul = "m1", tcrv_rvv.low_precision_resource.accumulator_sew = 32 : i64, tcrv_rvv.low_precision_resource.candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v1[i8mf4-i16mf2-i32m1-f32m1]", tcrv_rvv.low_precision_resource.legality = "legal", tcrv_rvv.low_precision_resource.legality_scope = "typed-low-precision-product-reduction-dequant-resource-legality.v1", tcrv_rvv.low_precision_resource.mask_policy = "agnostic", tcrv_rvv.low_precision_resource.memory_form = "unit-stride-widening-product-reduce-dequantize-f32", tcrv_rvv.low_precision_resource.peak_live_vector_groups = 4 : i64, tcrv_rvv.low_precision_resource.product_dtype = "i16", tcrv_rvv.low_precision_resource.product_emul = "mf2", tcrv_rvv.low_precision_resource.product_lmul = "mf2", tcrv_rvv.low_precision_resource.product_sew = 16 : i64, tcrv_rvv.low_precision_resource.reduction_layout = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1", tcrv_rvv.low_precision_resource.rejection_reason = "none", tcrv_rvv.low_precision_resource.result_dtype = "f32", tcrv_rvv.low_precision_resource.result_lmul = "m1", tcrv_rvv.low_precision_resource.result_sew = 32 : i64, tcrv_rvv.low_precision_resource.runtime_abi_order = "lhs,rhs,acc,scale,out,n", tcrv_rvv.low_precision_resource.runtime_avl_source = "runtime_abi:n", tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]", tcrv_rvv.low_precision_resource.selection_reason = "static-bounded-product-reduction-dequant-i8mf4-i16mf2-i32m1-f32m1-runtime-avl", tcrv_rvv.low_precision_resource.source_dtype = "i8", tcrv_rvv.low_precision_resource.source_lmul = "mf4", tcrv_rvv.low_precision_resource.source_sew = 8 : i64, tcrv_rvv.low_precision_resource.tail_policy = "agnostic", tcrv_rvv.low_precision_resource.unroll_factor = 1 : i64, tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64, tcrv_rvv.low_precision_resource.vsetvl_region_count = 2 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
     tcrv.exec.variant @rvv_pre_route_strided_widening_dot attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
       %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int16_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
@@ -9102,15 +9102,56 @@ module {
   if (!productDequantDirectStatementPlan)
     return fail("product-reduction-dequant direct statement plan: " +
                 llvm::toString(productDequantDirectStatementPlan.takeError()));
+  const auto &productDequantLocalVariables =
+      productDequantDirectStatementPlan->localVariables;
+  const auto &productDequantPreLoopSteps =
+      productDequantDirectStatementPlan->preLoopSteps;
+  const auto &productDequantPreLoopAssignments =
+      productDequantDirectStatementPlan->preLoopAssignments;
+  const auto &productDequantLoop = productDequantDirectStatementPlan->loop;
+  const auto &productDequantPostLoopSteps =
+      productDequantDirectStatementPlan->postLoopSteps;
   if (int result = expect(
           productDequantDirectStatementPlan->plansDirectContractionRoute &&
               productDequantDirectStatementPlan
                   ->plansProductReductionDequantization &&
               productDequantDirectStatementPlan->contractionPlan ==
                   productDequantMaterializationFacts->contractionPlan &&
-              productDequantDirectStatementPlan->postLoopSteps.size() == 2,
-          "product-reduction-dequant direct statement plan preserves "
-          "scalar-dequant-splat/store post-loop structure"))
+              productDequantLocalVariables.size() == 1 &&
+              productDequantLocalVariables.front().name == "dot_acc_vec" &&
+              productDequantLocalVariables.front().cType == "vint32m1_t" &&
+              productDequantLocalVariables.front().declarationInitializer ==
+                  "__riscv_vmv_v_x_i32m1(0, 1)" &&
+              productDequantLocalVariables.front().initialValue.expression
+                  .empty() &&
+              productDequantPreLoopSteps.size() == 2 &&
+              productDequantPreLoopSteps[1].callee ==
+                  "__riscv_vmv_v_x_i32m1" &&
+              productDequantPreLoopSteps[1].result &&
+              productDequantPreLoopSteps[1].result->name ==
+                  "dot_acc_vec_seed" &&
+              productDequantPreLoopAssignments.size() == 1 &&
+              productDequantPreLoopAssignments.front().targetName ==
+                  "dot_acc_vec" &&
+              productDequantPreLoopAssignments.front().value.expression ==
+                  "dot_acc_vec_seed" &&
+              productDequantLoop.bodySteps.size() == 5 &&
+              productDequantLoop.bodySteps[4].callee ==
+                  "__riscv_vwredsum_vs_i16mf2_i32m1" &&
+              productDequantLoop.bodyAssignments.size() == 1 &&
+              productDequantLoop.bodyAssignments.front().targetName ==
+                  "dot_acc_vec" &&
+              productDequantLoop.bodyAssignments.front().value.expression ==
+                  "reduced_i32_vec" &&
+              productDequantPostLoopSteps.size() == 3 &&
+              productDequantPostLoopSteps[0].callee ==
+                  "__riscv_vmv_x_s_i32m1_i32" &&
+              productDequantPostLoopSteps[1].callee ==
+                  "__riscv_vfmv_v_f_f32m1" &&
+              productDequantPostLoopSteps[2].callee ==
+                  "__riscv_vse32_v_f32m1",
+          "product-reduction-dequant direct statement plan carries vector "
+          "accumulator across the runtime VL loop and extracts once post-loop"))
     return result;
   RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
       emptyProductDequantElementwiseFacts;
@@ -9131,7 +9172,11 @@ module {
   if (int result = expect(
           productDequantSelectedStatementPlan->ownerName ==
               "direct-provider contraction" &&
-              productDequantSelectedStatementPlan->postLoopSteps.size() == 2,
+              productDequantSelectedStatementPlan->preLoopAssignments.size() ==
+                  1 &&
+              productDequantSelectedStatementPlan->loop.bodyAssignments
+                      .size() == 1 &&
+              productDequantSelectedStatementPlan->postLoopSteps.size() == 3,
           "product-reduction-dequant owner selection consumes verified "
           "direct-contraction provider facts before returning statements"))
     return result;

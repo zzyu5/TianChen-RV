@@ -24,8 +24,8 @@ namespace {
 constexpr llvm::StringLiteral kRVVProductReductionOutCarryBoundary(
     "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1");
 constexpr llvm::StringLiteral
-    kRVVProductReductionDequantLocalCarryBoundary(
-        "scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-chunks-final-f32-store.v1");
+    kRVVProductReductionDequantVectorCarryBoundary(
+        "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1");
 
 llvm::Error makeRVVTargetRouteError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -3822,7 +3822,7 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
             contract.consumerLabel, "scalar result runtime boundary",
             description.standaloneReductionScalarResultRuntimeBoundary,
             isProductReductionDequantization
-                ? kRVVProductReductionDequantLocalCarryBoundary
+                ? kRVVProductReductionDequantVectorCarryBoundary
                 : kRVVProductReductionOutCarryBoundary))
       return error;
     if (llvm::Error error =
@@ -4310,19 +4310,50 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
     if (route.getLocalVariables().size() != 1)
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) +
-          " requires exactly one provider-built local i32 carry variable "
+          " requires exactly one provider-built local vector carry variable "
           "before artifact export");
     const conversion::emitc::TCRVEmitCLocalVariable &carry =
         route.getLocalVariables().front();
     if (!routeLocalVariableSourceIsSelectedRVVBody(carry) ||
-        carry.name != "dot_acc_scalar" || carry.cType != scalarI32CType ||
-        carry.initialValue.expression != expectedInitialAccumulatorLane ||
-        carry.initialValue.cType != scalarI32CType)
+        carry.name != "dot_acc_vec" ||
+        carry.cType != accumulatorVectorCType ||
+        carry.declarationInitializer != "__riscv_vmv_v_x_i32m1(0, 1)" ||
+        !carry.initialValue.expression.empty() ||
+        !carry.initialValue.cType.empty())
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) +
-          " requires provider-built local i32 carry to initialize from "
-          "acc[0] with selected typed RVV provenance before artifact export");
+          " requires provider-built local i32m1 vector carry to initialize "
+          "from a safe declaration value before pre-loop acc[0] seeding");
+    const conversion::emitc::TCRVEmitCCallOpaqueStep &preLoopSeed =
+        route.getCallOpaqueSteps()[1];
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            preLoopSeed, consumerLabel, "pre-loop vector carry seed splat",
+            description.scalarSeedSplatIntrinsic,
+            {{expectedInitialAccumulatorLane, scalarI32CType},
+             {description.reductionStoreVL, runtimeContract.vlCType}},
+            "dot_acc_vec_seed", accumulatorVectorCType))
+      return error;
+    if (route.getPreLoopAssignments().size() != 1)
+      return makeRVVTargetRouteError(
+          llvm::Twine(consumerLabel) +
+          " requires exactly one provider-built pre-loop assignment from "
+          "the acc[0] seed splat to the local vector carry before export");
+    const conversion::emitc::TCRVEmitCAssignStep &seedAssign =
+        route.getPreLoopAssignments().front();
+    if (!routeAssignSourceIsSelectedRVVBody(seedAssign) ||
+        seedAssign.targetName != "dot_acc_vec" ||
+        seedAssign.value.expression != "dot_acc_vec_seed" ||
+        seedAssign.value.cType != accumulatorVectorCType)
+      return makeRVVTargetRouteError(
+          llvm::Twine(consumerLabel) +
+          " requires pre-loop assignment to seed the local i32m1 vector carry "
+          "from acc[0] before the runtime VL loop");
   } else {
+    if (!route.getPreLoopAssignments().empty())
+      return makeRVVTargetRouteError(
+          llvm::Twine(consumerLabel) +
+          " rejects pre-loop local carry assignments for non-dequant "
+          "widening dot-reduction artifacts");
     if (!route.getLocalVariables().empty())
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) +
@@ -4535,8 +4566,9 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
   }
 
   const std::size_t seedIndex = isComputedMask ? 9 : 4;
-  const std::size_t reductionIndex = isComputedMask ? 10 : 5;
-  const std::size_t storeIndex = isComputedMask ? 11 : 6;
+  const std::size_t reductionIndex =
+      isProductReductionDequantization ? seedIndex : seedIndex + 1;
+  const std::size_t storeIndex = reductionIndex + 1;
   const llvm::StringRef reductionInputName =
       isProductReductionChain ? "product_vec" : "dot_product_vec";
   const llvm::StringRef reductionInputCType =
@@ -4545,17 +4577,17 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
   const llvm::StringRef reductionResultName =
       isProductReductionChain ? llvm::StringRef("reduced_i32_vec")
                               : description.resultName;
-  const std::string expectedLoopSeed =
-      isProductReductionDequantization
-          ? std::string("dot_acc_scalar")
-          : (llvm::StringRef(outABI->cName) + "[0]").str();
-  if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-          loop.bodySteps[seedIndex], consumerLabel, "loop scalar seed splat",
-          description.scalarSeedSplatIntrinsic,
-          {{expectedLoopSeed, scalarI32CType},
-           {description.reductionStoreVL, runtimeContract.vlCType}},
-          "dot_acc_vec", accumulatorVectorCType))
-    return error;
+  if (!isProductReductionDequantization) {
+    const std::string expectedLoopSeed =
+        (llvm::StringRef(outABI->cName) + "[0]").str();
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            loop.bodySteps[seedIndex], consumerLabel, "loop scalar seed splat",
+            description.scalarSeedSplatIntrinsic,
+            {{expectedLoopSeed, scalarI32CType},
+             {description.reductionStoreVL, runtimeContract.vlCType}},
+            "dot_acc_vec", accumulatorVectorCType))
+      return error;
+  }
   if (llvm::Error error = validateRVVProviderBuiltRouteStep(
           loop.bodySteps[reductionIndex], consumerLabel,
           "widening dot reduction", description.intrinsic,
@@ -4570,29 +4602,23 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           llvm::Twine(consumerLabel) +
           " requires dequant scale ABI before validating post-loop dequant "
           "statements");
-    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-            loop.bodySteps[6], consumerLabel, "extract i32 reduction scalar",
-            "__riscv_vmv_x_s_i32m1_i32",
-            {{reductionResultName, accumulatorVectorCType}},
-            "dot_acc_scalar_next", scalarI32CType))
-      return error;
     if (loop.bodyAssignments.size() != 1)
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) +
           " requires exactly one provider-built loop assignment from the "
-          "extracted scalar to the local i32 carry before artifact export");
+          "reduced vector to the local vector carry before artifact export");
     const conversion::emitc::TCRVEmitCAssignStep &carryAssign =
         loop.bodyAssignments.front();
     if (!routeAssignSourceIsSelectedRVVBody(carryAssign) ||
-        carryAssign.targetName != "dot_acc_scalar" ||
-        carryAssign.value.expression != "dot_acc_scalar_next" ||
-        carryAssign.value.cType != scalarI32CType)
+        carryAssign.targetName != "dot_acc_vec" ||
+        carryAssign.value.expression != reductionResultName ||
+        carryAssign.value.cType != accumulatorVectorCType)
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) +
-          " requires loop assignment to update the local i32 carry from "
-          "the extracted reduction scalar before artifact export");
+          " requires loop assignment to carry the reduced i32m1 vector across "
+          "runtime VL chunks before artifact export");
     const std::size_t expectedPostLoopStepCount =
-        isProductReductionDequantClamp ? 8 : 2;
+        isProductReductionDequantClamp ? 9 : 3;
     if (route.getPostLoopSteps().size() != expectedPostLoopStepCount)
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) +
@@ -4613,6 +4639,13 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
         (llvm::Twine("dot_acc_scalar * ") + dequantScaleABI->cName).str();
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             route.getPostLoopSteps()[0], consumerLabel,
+            "post-loop vector carry scalar extract",
+            "__riscv_vmv_x_s_i32m1_i32",
+            {{"dot_acc_vec", accumulatorVectorCType}},
+            "dot_acc_scalar", scalarI32CType))
+      return error;
+    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+            route.getPostLoopSteps()[1], consumerLabel,
             "post-loop scalar dequant splat", description.rhsBroadcastIntrinsic,
             {{expectedScalarDequantExpression, finalResultScalarCType},
              {description.reductionStoreVL, runtimeContract.vlCType}},
@@ -4620,14 +4653,14 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
       return error;
     if (isProductReductionDequantClamp) {
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              route.getPostLoopSteps()[1], consumerLabel,
+              route.getPostLoopSteps()[2], consumerLabel,
               "post-loop lower bound splat", description.rhsBroadcastIntrinsic,
               {{lowerBoundABI->cName, lowerBoundABI->cType},
                {description.reductionStoreVL, runtimeContract.vlCType}},
               "lower_bound_vec", finalResultVectorCType))
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              route.getPostLoopSteps()[2], consumerLabel,
+              route.getPostLoopSteps()[3], consumerLabel,
               "post-loop lower clamp compare", description.compareIntrinsic,
               {{scaledResultName, finalResultVectorCType},
                {"lower_bound_vec", finalResultVectorCType},
@@ -4635,7 +4668,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
               "lower_clamp_mask", description.maskCType))
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              route.getPostLoopSteps()[3], consumerLabel,
+              route.getPostLoopSteps()[4], consumerLabel,
               "post-loop lower clamp select", description.maskedMergeIntrinsic,
               {{scaledResultName, finalResultVectorCType},
                {"lower_bound_vec", finalResultVectorCType},
@@ -4644,14 +4677,14 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
               "lower_clamped_vec", finalResultVectorCType))
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              route.getPostLoopSteps()[4], consumerLabel,
+              route.getPostLoopSteps()[5], consumerLabel,
               "post-loop upper bound splat", description.rhsBroadcastIntrinsic,
               {{upperBoundABI->cName, upperBoundABI->cType},
                {description.reductionStoreVL, runtimeContract.vlCType}},
               "upper_bound_vec", finalResultVectorCType))
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              route.getPostLoopSteps()[5], consumerLabel,
+              route.getPostLoopSteps()[6], consumerLabel,
               "post-loop upper clamp compare",
               description.secondaryCompareIntrinsic,
               {{"upper_bound_vec", finalResultVectorCType},
@@ -4660,7 +4693,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
               "upper_clamp_mask", description.maskCType))
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              route.getPostLoopSteps()[6], consumerLabel,
+              route.getPostLoopSteps()[7], consumerLabel,
               "post-loop upper clamp select", description.maskedMergeIntrinsic,
               {{"lower_clamped_vec", finalResultVectorCType},
                {"upper_bound_vec", finalResultVectorCType},
@@ -4669,14 +4702,14 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
               description.resultName, finalResultVectorCType))
         return error;
       return validateRVVProviderBuiltRouteStep(
-          route.getPostLoopSteps()[7], consumerLabel,
+          route.getPostLoopSteps()[8], consumerLabel,
           "post-loop output f32 store", description.storeIntrinsic,
           {{outABI->cName, outABI->cType},
            {description.resultName, finalResultVectorCType},
            {description.reductionStoreVL, runtimeContract.vlCType}});
     }
     return validateRVVProviderBuiltRouteStep(
-        route.getPostLoopSteps()[1], consumerLabel,
+        route.getPostLoopSteps()[2], consumerLabel,
         "post-loop output f32 store", description.storeIntrinsic,
         {{outABI->cName, outABI->cType},
          {description.resultName, finalResultVectorCType},
@@ -5222,7 +5255,7 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
     if (llvm::Error error = requireCandidateMetadataMirror(
             candidate, "tcrv_rvv.scalar_result_runtime_boundary",
             isProductReductionDequantization
-                ? kRVVProductReductionDequantLocalCarryBoundary
+                ? kRVVProductReductionDequantVectorCarryBoundary
                 : kRVVProductReductionOutCarryBoundary,
             "selected typed RVV product-reduction scalar result boundary"))
       return error;

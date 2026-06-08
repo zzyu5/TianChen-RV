@@ -1899,8 +1899,8 @@ bool isSupportedTypedWideningProductReductionChainRelation(
 bool isSupportedTypedWideningProductReduceDequantizeAccumulatorCarryBoundary(
     llvm::StringRef boundary) {
   return boundary ==
-         "scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-chunks-"
-         "final-f32-store.v1";
+         "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-"
+         "final-scalar-extract-f32-store.v1";
 }
 
 bool isSupportedTypedWideningProductReduceDequantizeScaleRole(
@@ -7455,8 +7455,8 @@ TypedWideningProductReduceDequantizePreRealizedBodyOp::verify() {
           getAccumulatorCarryBoundary()))
     return emitOpError()
            << "currently supports only accumulator_carry_boundary "
-              "\"scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-"
-              "chunks-final-f32-store.v1\" for the bounded selected-body "
+              "\"vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-"
+              "final-scalar-extract-f32-store.v1\" for the bounded selected-body "
               "product-reduction-dequantization hook";
   if (!isSupportedGenericWideningProductRelation(getProductRelation()))
     return emitOpError()
@@ -7646,8 +7646,8 @@ verifyTypedWideningProductReduceDequantClampF32Body(BodyOp body,
           body.getAccumulatorCarryBoundary()))
     return body.emitOpError()
            << "currently supports only accumulator_carry_boundary "
-              "\"scalar-i32-local-carry-dot_acc_scalar-across-runtime-vl-"
-              "chunks-final-f32-store.v1\" for the bounded selected-body "
+              "\"vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-"
+              "final-scalar-extract-f32-store.v1\" for the bounded selected-body "
               "product-reduction-dequant-clamp hook";
   if (!isSupportedGenericWideningProductRelation(body.getProductRelation()))
     return body.emitOpError()

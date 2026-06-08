@@ -91,23 +91,28 @@ generated-bundle, measurement-dashboard, metadata, or report-only task.
 
 ## Current Round Milestone
 
-Complete Gate 5 cleanup for the active macro campaign.
+Consume the low-precision Gearbox resource decision in the production
+product/reduction main loop.
 
 The current slice is:
 
-- Inventory the directly touched production and measurement-consumer files from
-  the last low-precision scalar-dequant epilogue slice.
-- Remove or fail-close stale product-reduction dequant metadata mirrors that
-  made the old standalone vector convert/scale epilogue look like production
-  route authority after the route had moved to scalar dequant plus f32 splat.
-- Preserve the real production contract: RVV provider-owned low-precision
-  product/reduction facts, `dot_acc_scalar * scale` scalar dequantization,
-  provider-derived `rhs_broadcast_intrinsic` f32 splat, and target validation as
-  a consumer of provider mirrors.
-- Keep standalone `dequantize_i32_to_f32` and standalone dequant-clamp epilogue
-  vector convert/scale route contracts unchanged.
+- Reuse the existing bounded candidate family for
+  `widening_product_reduce_dequantize_f32` and
+  `widening_product_reduce_dequant_clamp_f32`, but make the selected reduction
+  layout explicit as a vector accumulator carry across runtime VL chunks rather
+  than a scalar extract/resplat on every chunk.
+- Move statement planning for the product/reduction main loop from
+  `dot_acc_scalar -> splat -> vwredsum -> scalar extract` inside every chunk to
+  a provider-owned `dot_acc_vec` vector carry: seed once before the loop, reduce
+  into the vector carry each chunk, extract once after the loop, then perform
+  scalar dequantization and f32 splat.
+- Keep the selected-body realization and provider validation fail-closed when
+  the pass-produced resource facts, realized resource facts, region markers,
+  handoff, runtime ABI order, or reduction layout disagree.
+- Preserve standalone `dequantize_i32_to_f32` and standalone dequant-clamp
+  epilogue route contracts. They are not part of this main-loop optimization.
 - Keep scripts and evidence artifacts as consumers/verifiers only. They may
-  assert the production metadata contract and stale-key rejection, but they must
+  assert the changed generated loop shape and metadata contract, but they must
   not supply dtype/config, selected-body semantics, intrinsic spelling,
   artifact authority, or performance readiness state.
 
@@ -132,39 +137,44 @@ The current slice is:
 
 ## Acceptance Criteria For This Round
 
-- [x] PRD names Gate 5 as the current unfinished milestone and keeps this macro
-      task active because Gate 3/Gate 4 remain open for later production-loop
-      optimization evidence.
-- [x] Product-reduction dequant/dequant-clamp route facts and emitted metadata
-      no longer mirror `tcrv_rvv.dequantize_convert_intrinsic` or
-      `tcrv_rvv.dequantize_scale_intrinsic`; those remain valid only for
-      standalone dequant route families.
-- [x] RVV provider/target validation require the provider-derived post-loop
-      scalar dequant splat mirror through `tcrv_rvv.rhs_broadcast_intrinsic`
-      and reject inserted stale standalone vector-dequant metadata keys.
-- [x] Generated-bundle evidence scripts consume the provider metadata contract
-      and assert stale-key absence/rejection; they do not supply route facts,
-      dtype/config authority, selected-body semantics, intrinsic spelling, or
-      performance readiness state.
+- [x] PRD names main-loop resource-aware selected-body realization and
+      statement planning as the current unfinished milestone, and keeps this
+      macro task active because final Gate 3/Gate 4 remain open for later
+      production-loop optimization and final measurement.
+- [x] The RVV low-precision resource candidate/reduction-layout contract for
+      product-reduction dequant/dequant-clamp names the vector accumulator carry
+      loop shape and rejects stale scalar-carry resource facts.
+- [x] The RVV direct-contraction statement plan consumes that selected resource
+      layout by seeding one `dot_acc_vec` before the loop, carrying the reduced
+      vector across chunks, and extracting the scalar only after the loop.
+- [x] Target validation and generated-bundle evidence consumers require the
+      vector-carry loop shape and reject stale per-chunk scalar carry metadata
+      or statements for these product/reduction dequant routes.
 - [x] Common EmitC remains neutral and continues only to materialize
-      provider-supplied scalar expressions and route payloads.
+      provider-supplied call/assignment steps and route payloads.
+- [x] Focused generated artifact or FileCheck evidence shows the main loop no
+      longer emits per-chunk scalar extraction/resplat for the product/reduction
+      dequant/dequant-clamp routes, while the final post-loop scalar extract and
+      dequant/f32 splat remain.
+- [x] Runtime correctness on `ssh rvv` is collected for the changed executable
+      product/reduction dequant and dequant-clamp artifacts, or an exact blocker
+      is recorded.
+- [x] Same-target measurement against the named scalar baseline is collected if
+      this slice claims performance relevance. If the timing still regresses,
+      report the raw result honestly without claiming a win.
 - [x] Required focused builds/checks are run or an exact blocker is recorded:
       `tcrv-opt`, `tcrv-translate`,
       `tianchenrv-rvv-extension-plugin-test`,
       `tianchenrv-target-artifact-export-test`, relevant low-precision/
-      Gearbox/generated-bundle lit tests, `git diff --check`, and
-      `git diff --cached --check`.
-- [x] No same-target measurement rerun is required for this slice because the
-      executable low-precision post-loop body is unchanged from the previous
-      scalar-dequant epilogue optimization; the changed behavior is metadata
-      ownership and target validation cleanup.
+      Gearbox/generated-bundle lit tests, `git diff --check`, Trellis task
+      validation, and `git diff --cached --check`.
 - [x] Bounded old-authority scan over touched files and added diff lines shows
       no new positive `RVVI32M1`, `rvv-i32m1`, finite `tcrv_rvv.i32_*`,
       `!tcrv_rvv.i32m*`, descriptor, source-front-door, route-id,
       artifact-name, or q8/q4 authority.
-- [x] Commit one coherent Gate 5 cleanup slice and leave `.trellis/.current-task`
-      active because Gate 3/Gate 4 remain partial for future production-loop
-      optimization.
+- [x] Commit one coherent main-loop resource-aware statement-planning slice and
+      leave `.trellis/.current-task` active unless final Gate 3/Gate 4 can
+      honestly close.
 
 ## Out Of Scope
 
@@ -246,7 +256,7 @@ that failed remote linking on `ssh rvv` with an undefined `fmaf` reference in
 the current measurement compile path. The slice was repaired to ordinary scalar
 multiply before the f32 splat, avoiding a new libm dependency.
 
-## Current Gate 5 Round Result
+## Previous Gate 5 Round Result
 
 Gate 5 cleanup is complete for this slice. Product-reduction
 `widening_product_reduce_dequantize_f32` and
@@ -274,11 +284,45 @@ dequant epilogue optimization. Same-target `ssh rvv` measurement therefore
 remains the previous slice's evidence and was not rerun for this metadata/
 validation cleanup.
 
+## Current Main-Loop Vector-Carry Round Result
+
+This slice consumes the bounded low-precision resource/reduction layout in the
+production statement plan for
+`widening_product_reduce_dequantize_f32` and
+`widening_product_reduce_dequant_clamp_f32`.
+
+- RVV resource/route facts now name the reduction layout as
+  `vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1`.
+- The direct-contraction statement plan declares one `dot_acc_vec`
+  `vint32m1_t` local, seeds it from `acc[0]` before the loop, passes it as the
+  current accumulator to each `__riscv_vwredsum_vs_i16mf2_i32m1`, updates it
+  across chunks, and extracts one scalar only after the loop.
+- Target artifact validation requires the vector-carry local, pre-loop seed
+  assignment, vector-carry loop assignment, and post-loop scalar extraction; it
+  rejects stale product/reduction scalar-carry loop shapes.
+- Generated-bundle ABI evidence parsing and focused FileCheck tests require the
+  same vector-carry shape and assert that the loop no longer contains per-chunk
+  scalar extraction/resplat.
+- Common EmitC remains neutral: it only materializes provider-supplied local
+  declaration initializers, call-opaque steps, assignments, loops, and post-loop
+  steps.
+
+`ssh rvv` runtime correctness and same-target measurement were collected under
+`artifacts/tmp/gate3-gate4-main-loop-vector-carry/vector-carry-main-loop-after/`.
+Both bounded kernels passed correctness guards. Same-target timing still does
+not support a performance-win claim: generated RVV best-speedup ratios remained
+below `1.0` for the measured sizes, roughly `0.56-0.65` for
+`widening_product_reduce_dequantize_f32` and `0.51-0.63` for
+`widening_product_reduce_dequant_clamp_f32` in the recorded summaries. This
+means the slice is a production loop-shape improvement and validation step, not
+the final performance closeout.
+
 ## Continuation Point
 
 Continue the open macro task in the RVV production compiler path. The next
-slice should target the main low-precision product/reduction loop: resource-aware
-selected-body realization and statement planning for repeated VL/control,
-accumulator/reduction structure, and live vector group tradeoffs. Do not create
-a neighboring generated-bundle evidence task; use same-target measurement only
-to validate production-source changes and report regressions honestly.
+slice should reduce the remaining main-loop overhead for the low-precision
+product/reduction kernels: larger or grouped active work per runtime loop,
+better accumulator/reduction structure, fewer repeated VL/control costs, and
+explicit live vector group tradeoffs. Do not create a neighboring
+generated-bundle evidence task; use same-target measurement only to validate
+production-source changes and report regressions honestly.

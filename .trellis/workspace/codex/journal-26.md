@@ -1610,7 +1610,12 @@ Created the RVV low-precision production-kernel performance optimization macro t
 
 ### Main Changes
 
-(Add details)
+- Repaired the active macro PRD around production RVV compiler ownership rather
+  than creating a neighboring evidence-only task.
+- Moved product-reduction dequant/dequant-clamp post-loop handling to scalar
+  dequant expression plus provider-owned f32 splat.
+- Preserved Common EmitC neutrality and kept final performance work open because
+  same-target generated RVV timing still lagged the scalar baseline.
 
 ### Git Commits
 
@@ -1620,12 +1625,61 @@ Created the RVV low-precision production-kernel performance optimization macro t
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] Focused build targets, low-precision/Gearbox/generated-bundle lit tests,
+  and `ssh rvv` correctness/measurement evidence completed for that slice.
 
 ### Status
 
-[OK] **Completed**
+[OK] **Slice committed; macro task remains active**
 
 ### Next Steps
 
-- None - task complete
+- Continue with main-loop/reduction resource shape optimization rather than
+  another generated-bundle evidence closeout.
+
+
+## Session 567: RVV main-loop vector-carry resource slice
+
+**Date**: 2026-06-08
+**Task**: RVV low-precision production-kernel performance optimization campaign
+**Branch**: `main`
+
+### Summary
+
+Completed the current macro-task slice for main-loop resource-aware selected-body
+realization and statement planning. The product-reduction dequant and
+dequant-clamp routes now carry a provider-owned `dot_acc_vec` vector accumulator
+across runtime VL chunks, then extract one scalar after the loop.
+
+### Main Changes
+
+- Updated RVV low-precision resource/reduction layout facts to name the
+  vector-carry boundary instead of stale per-chunk scalar carry.
+- Extended the direct-contraction statement plan and neutral EmitC route payload
+  so provider-supplied local declaration initializers and pre-loop assignments
+  can seed `dot_acc_vec` before the loop.
+- Tightened target artifact validation and generated-bundle ABI parsing to
+  require the vector-carry loop shape and reject stale scalar carry loops.
+- Updated focused plugin, target, transform, and script tests for the new loop
+  structure.
+
+### Runtime Evidence
+
+- [OK] Non-dry-run `ssh rvv` run:
+  `python3 scripts/rvv_generated_bundle_same_target_measure.py --artifact-root artifacts/tmp/gate3-gate4-main-loop-vector-carry --run-id vector-carry-main-loop-after --overwrite --op-kind widening_product_reduce_dequantize_f32 --op-kind widening_product_reduce_dequant_clamp_f32 --measure-count 257 --measure-count 4096 --measure-count 65536 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj --ssh-target rvv --timeout 240`
+- Evidence root:
+  `artifacts/tmp/gate3-gate4-main-loop-vector-carry/vector-carry-main-loop-after`
+- `widening_product_reduce_dequantize_f32`: 12 summaries, 60 measurements,
+  correctness passed; generated RVV remained slower than scalar baseline.
+- `widening_product_reduce_dequant_clamp_f32`: 24 summaries, 120 measurements,
+  correctness passed; generated RVV remained slower than scalar baseline.
+
+### Status
+
+[OK] **Slice ready to commit; macro task remains active**
+
+### Next Steps
+
+- Continue reducing main-loop overhead through larger/grouped active work per
+  loop, improved accumulator/reduction structure, fewer repeated VL/control
+  costs, and explicit live vector group budgeting.

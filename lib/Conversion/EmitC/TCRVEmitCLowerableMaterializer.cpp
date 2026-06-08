@@ -62,14 +62,15 @@ bool isSafeProvenanceText(llvm::StringRef value) {
   return true;
 }
 
-bool isSafeExpressionText(llvm::StringRef value) {
+bool isSafeExpressionText(llvm::StringRef value, bool allowComma = false) {
   if (value.empty() || value.size() > 256)
     return false;
   for (char c : value) {
     unsigned char byte = static_cast<unsigned char>(c);
     if (std::isalnum(byte) || c == '_' || c == ' ' || c == '&' || c == '[' ||
         c == ']' || c == '(' || c == ')' || c == '+' || c == '-' ||
-        c == '*' || c == '/' || c == '%' || c == '.')
+        c == '*' || c == '/' || c == '%' || c == '.' ||
+        (allowComma && c == ','))
       continue;
     return false;
   }
@@ -447,6 +448,9 @@ public:
         return std::move(error);
     for (const TCRVEmitCCallOpaqueStep &step : route.getCallOpaqueSteps())
       if (llvm::Error error = materializeStep(step))
+        return std::move(error);
+    for (const TCRVEmitCAssignStep &step : route.getPreLoopAssignments())
+      if (llvm::Error error = materializeAssignment(step))
         return std::move(error);
     for (const TCRVEmitCForLoop &loop : route.getForLoops())
       if (llvm::Error error = materializeForLoop(loop))
@@ -928,17 +932,29 @@ private:
     builder.create<mlir::emitc::VerbatimOp>(
         loc, makeLocalVariableProvenanceComment(variable));
     mlir::Type valueType = getEmitCTypeForCType(context, variable.cType);
+    llvm::StringRef declarationInitializer =
+        variable.declarationInitializer.empty()
+            ? llvm::StringRef("0")
+            : llvm::StringRef(variable.declarationInitializer);
+    if (!isSafeExpressionText(declarationInitializer, /*allowComma=*/true))
+      return makeMaterializerError(
+          route.getRouteID(),
+          llvm::Twine("local variable '") + variable.name +
+              "' declaration initializer contains unsafe text before EmitC "
+              "materialization");
     mlir::emitc::VariableOp variableOp =
         builder.create<mlir::emitc::VariableOp>(
             loc, mlir::emitc::LValueType::get(valueType),
-            mlir::emitc::OpaqueAttr::get(&context, "0"));
+            mlir::emitc::OpaqueAttr::get(&context, declarationInitializer));
     lvalueMap[variable.name] = variableOp.getResult();
 
-    TCRVEmitCAssignStep initializer;
-    initializer.sourceOp = variable.sourceOp;
-    initializer.targetName = variable.name;
-    initializer.value = variable.initialValue;
-    return materializeAssignment(initializer);
+    if (variable.initialValue.expression.empty())
+      return llvm::Error::success();
+    TCRVEmitCAssignStep initialAssignment;
+    initialAssignment.sourceOp = variable.sourceOp;
+    initialAssignment.targetName = variable.name;
+    initialAssignment.value = variable.initialValue;
+    return materializeAssignment(initialAssignment);
   }
 
   llvm::Error materializeAssignment(const TCRVEmitCAssignStep &step) {
