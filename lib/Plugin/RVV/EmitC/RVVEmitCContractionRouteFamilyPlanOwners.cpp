@@ -4668,6 +4668,12 @@ void populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
       candidate.remediationStatementStrategy.str();
   selection.remediationVectorBudget =
       candidate.remediationVectorBudget.str();
+  selection.remediationScheduleContract =
+      candidate.remediationScheduleContract.str();
+  selection.remediationUnpackPlan = candidate.remediationUnpackPlan.str();
+  selection.remediationProductPlan = candidate.remediationProductPlan.str();
+  selection.remediationReductionPlan = candidate.remediationReductionPlan.str();
+  selection.remediationVLPlan = candidate.remediationVLPlan.str();
   selection.targetCapabilityProviderMirror = targetFacts.providerMirror;
   selection.targetCapabilityLegalityMirror = targetFacts.legalityMirror;
   selection.isLegal = candidate.isLegal;
@@ -5108,6 +5114,38 @@ llvm::Error requireRVVLowPrecisionResourceRealizationFacts(
     if (llvm::Error error =
             requireRVVLowPrecisionResourceRealizationStringFact(
                 op, context, selection,
+                kRVVLowPrecisionResourceRemediationScheduleContractAttrName,
+                "remediation schedule contract",
+                selection.remediationScheduleContract))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourceRemediationUnpackPlanAttrName,
+                "remediation unpack plan", selection.remediationUnpackPlan))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourceRemediationProductPlanAttrName,
+                "remediation product plan", selection.remediationProductPlan))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourceRemediationReductionPlanAttrName,
+                "remediation reduction plan",
+                selection.remediationReductionPlan))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourceRemediationVLPlanAttrName,
+                "remediation VL plan", selection.remediationVLPlan))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
                 kRVVLowPrecisionResourcePerformanceMaturityAttrName,
                 "performance maturity", selection.performanceMaturity))
       return error;
@@ -5455,6 +5493,26 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
   if (llvm::Error error = requireOptionalRemediationFact(
           "remediation_vector_budget", "remediation vector budget",
           selection.remediationVectorBudget))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_schedule_contract", "remediation schedule contract",
+          selection.remediationScheduleContract))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_unpack_plan", "remediation unpack plan",
+          selection.remediationUnpackPlan))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_product_plan", "remediation product plan",
+          selection.remediationProductPlan))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_reduction_plan", "remediation reduction plan",
+          selection.remediationReductionPlan))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_vl_plan", "remediation VL plan",
+          selection.remediationVLPlan))
     return error;
 
   return llvm::Error::success();
@@ -5851,6 +5909,31 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     else
       return value.takeError();
     if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourceRemediationScheduleContractAttrName))
+      selection.remediationScheduleContract = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourceRemediationUnpackPlanAttrName))
+      selection.remediationUnpackPlan = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourceRemediationProductPlanAttrName))
+      selection.remediationProductPlan = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourceRemediationReductionPlanAttrName))
+      selection.remediationReductionPlan = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourceRemediationVLPlanAttrName))
+      selection.remediationVLPlan = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
             kRVVLowPrecisionResourcePerformanceMaturityAttrName))
       selection.performanceMaturity = *value;
     else
@@ -6214,10 +6297,34 @@ llvm::Error verifyRVVLowPrecisionContractionResourceRemediationHandoff(
           selection.remediationStatementStrategy,
           kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy))
     return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "remediation vector budget",
+          selection.remediationVectorBudget,
+          kRVVLowPrecisionResourcePackedI4RemediationVectorBudget))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "remediation schedule contract",
+          selection.remediationScheduleContract,
+          kRVVLowPrecisionResourcePackedI4RemediationScheduleContract))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "remediation unpack plan",
+          selection.remediationUnpackPlan,
+          kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "remediation product plan",
+          selection.remediationProductPlan,
+          kRVVLowPrecisionResourcePackedI4RemediationProductPlan))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "remediation reduction plan",
+          selection.remediationReductionPlan,
+          kRVVLowPrecisionResourcePackedI4RemediationReductionPlan))
+    return error;
   return requireRVVLowPrecisionResourceStringField(
-      context, selection, "remediation vector budget",
-      selection.remediationVectorBudget,
-      kRVVLowPrecisionResourcePackedI4RemediationVectorBudget);
+      context, selection, "remediation VL plan", selection.remediationVLPlan,
+      kRVVLowPrecisionResourcePackedI4RemediationVLPlan);
 }
 
 bool isRVVLowPrecisionResourceSelectionEqual(
@@ -6289,6 +6396,12 @@ bool isRVVLowPrecisionResourceSelectionEqual(
          lhs.remediationStatementStrategy ==
              rhs.remediationStatementStrategy &&
          lhs.remediationVectorBudget == rhs.remediationVectorBudget &&
+         lhs.remediationScheduleContract ==
+             rhs.remediationScheduleContract &&
+         lhs.remediationUnpackPlan == rhs.remediationUnpackPlan &&
+         lhs.remediationProductPlan == rhs.remediationProductPlan &&
+         lhs.remediationReductionPlan == rhs.remediationReductionPlan &&
+         lhs.remediationVLPlan == rhs.remediationVLPlan &&
          lhs.performanceMaturity == rhs.performanceMaturity &&
          lhs.performanceMaturityEvidence == rhs.performanceMaturityEvidence &&
          lhs.performanceMaturityOutcome == rhs.performanceMaturityOutcome &&
@@ -6634,6 +6747,31 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
             context, selection, "performance action",
             selection.performanceAction,
             kRVVLowPrecisionResourcePackedI4PerformanceAction))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "remediation schedule contract",
+            selection.remediationScheduleContract,
+            kRVVLowPrecisionResourcePackedI4RemediationScheduleContract))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "remediation unpack plan",
+            selection.remediationUnpackPlan,
+            kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "remediation product plan",
+            selection.remediationProductPlan,
+            kRVVLowPrecisionResourcePackedI4RemediationProductPlan))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "remediation reduction plan",
+            selection.remediationReductionPlan,
+            kRVVLowPrecisionResourcePackedI4RemediationReductionPlan))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "remediation VL plan",
+            selection.remediationVLPlan,
+            kRVVLowPrecisionResourcePackedI4RemediationVLPlan))
       return error;
     if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
             context, selection, "performance maturity",

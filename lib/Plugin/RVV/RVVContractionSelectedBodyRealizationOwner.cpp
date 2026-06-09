@@ -860,6 +860,20 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
     state.addAttribute(
         "remediation_vector_budget",
         builder.getStringAttr(selectedCandidate.remediationVectorBudget));
+    state.addAttribute(
+        "remediation_schedule_contract",
+        builder.getStringAttr(selectedCandidate.remediationScheduleContract));
+    state.addAttribute(
+        "remediation_unpack_plan",
+        builder.getStringAttr(selectedCandidate.remediationUnpackPlan));
+    state.addAttribute(
+        "remediation_product_plan",
+        builder.getStringAttr(selectedCandidate.remediationProductPlan));
+    state.addAttribute(
+        "remediation_reduction_plan",
+        builder.getStringAttr(selectedCandidate.remediationReductionPlan));
+    state.addAttribute("remediation_vl_plan",
+                       builder.getStringAttr(selectedCandidate.remediationVLPlan));
   }
   state.addAttribute("producer_scope",
                      builder.getStringAttr(selectedCandidate.producerScope));

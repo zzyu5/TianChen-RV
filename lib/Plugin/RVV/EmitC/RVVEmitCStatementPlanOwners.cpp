@@ -1136,6 +1136,31 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
                         familySelection.remediationVectorBudget))
     return error;
   if (llvm::Error error =
+          requireString("remediation schedule contract",
+                        providerSelection.remediationScheduleContract,
+                        familySelection.remediationScheduleContract))
+    return error;
+  if (llvm::Error error =
+          requireString("remediation unpack plan",
+                        providerSelection.remediationUnpackPlan,
+                        familySelection.remediationUnpackPlan))
+    return error;
+  if (llvm::Error error =
+          requireString("remediation product plan",
+                        providerSelection.remediationProductPlan,
+                        familySelection.remediationProductPlan))
+    return error;
+  if (llvm::Error error =
+          requireString("remediation reduction plan",
+                        providerSelection.remediationReductionPlan,
+                        familySelection.remediationReductionPlan))
+    return error;
+  if (llvm::Error error =
+          requireString("remediation VL plan",
+                        providerSelection.remediationVLPlan,
+                        familySelection.remediationVLPlan))
+    return error;
+  if (llvm::Error error =
           requireString("performance maturity",
                         providerSelection.performanceMaturity,
                         familySelection.performanceMaturity))
@@ -1381,6 +1406,28 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
             "remediation vector budget",
             familySelection.remediationVectorBudget,
             kRVVLowPrecisionResourcePackedI4RemediationVectorBudget))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation schedule contract",
+            familySelection.remediationScheduleContract,
+            kRVVLowPrecisionResourcePackedI4RemediationScheduleContract))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation unpack plan", familySelection.remediationUnpackPlan,
+            kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation product plan", familySelection.remediationProductPlan,
+            kRVVLowPrecisionResourcePackedI4RemediationProductPlan))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation reduction plan",
+            familySelection.remediationReductionPlan,
+            kRVVLowPrecisionResourcePackedI4RemediationReductionPlan))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation VL plan", familySelection.remediationVLPlan,
+            kRVVLowPrecisionResourcePackedI4RemediationVLPlan))
       return error;
     if (llvm::Error error = requireExpectedString(
             "performance maturity", familySelection.performanceMaturity,

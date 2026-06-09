@@ -190,6 +190,21 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceRemediationVectorBudgetAttrName(
         "tcrv_rvv.low_precision_resource.remediation_vector_budget");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationScheduleContractAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_schedule_contract");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationUnpackPlanAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_unpack_plan");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationProductPlanAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_product_plan");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationReductionPlanAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_reduction_plan");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationVLPlanAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_vl_plan");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePerformanceMaturityAttrName(
         "tcrv_rvv.low_precision_resource.performance_maturity");
 constexpr llvm::StringLiteral
@@ -471,6 +486,21 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationVectorBudget(
         "packed-i4-remediation-budget-7of32-vector-groups");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4RemediationScheduleContract(
+        "rvv-low-precision-packed-i4-resource-remediation-schedule.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan(
+        "sign-extend-low-high-signed-i4-nibbles-before-widening-product.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4RemediationProductPlan(
+        "two-signed-i4-widening-products-plus-i16-pair-sum.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4RemediationReductionPlan(
+        "single-vwredsum-i16-pair-sum-with-i32-seed.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4RemediationVLPlan(
+        "two-region-runtime-avl-product-reduce-then-dequant-store.v1");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturity(
         "executable-not-performance-mature");
 constexpr llvm::StringLiteral
@@ -617,6 +647,11 @@ struct RVVLowPrecisionContractionResourceCandidate {
   llvm::StringRef remediationPlan;
   llvm::StringRef remediationStatementStrategy;
   llvm::StringRef remediationVectorBudget;
+  llvm::StringRef remediationScheduleContract;
+  llvm::StringRef remediationUnpackPlan;
+  llvm::StringRef remediationProductPlan;
+  llvm::StringRef remediationReductionPlan;
+  llvm::StringRef remediationVLPlan;
 
   bool isLegal = false;
   llvm::StringRef rejectionReason;
@@ -982,6 +1017,16 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
       kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy;
   packedI4Candidate.remediationVectorBudget =
       kRVVLowPrecisionResourcePackedI4RemediationVectorBudget;
+  packedI4Candidate.remediationScheduleContract =
+      kRVVLowPrecisionResourcePackedI4RemediationScheduleContract;
+  packedI4Candidate.remediationUnpackPlan =
+      kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan;
+  packedI4Candidate.remediationProductPlan =
+      kRVVLowPrecisionResourcePackedI4RemediationProductPlan;
+  packedI4Candidate.remediationReductionPlan =
+      kRVVLowPrecisionResourcePackedI4RemediationReductionPlan;
+  packedI4Candidate.remediationVLPlan =
+      kRVVLowPrecisionResourcePackedI4RemediationVLPlan;
   const bool packedI4WithinRegisterBudget =
       packedI4Candidate.peakLiveVectorGroups <=
       packedI4Candidate.vectorRegisterBudget;
@@ -1204,6 +1249,12 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name ==
              kRVVLowPrecisionResourceRemediationStatementStrategyAttrName ||
          name == kRVVLowPrecisionResourceRemediationVectorBudgetAttrName ||
+         name ==
+             kRVVLowPrecisionResourceRemediationScheduleContractAttrName ||
+         name == kRVVLowPrecisionResourceRemediationUnpackPlanAttrName ||
+         name == kRVVLowPrecisionResourceRemediationProductPlanAttrName ||
+         name == kRVVLowPrecisionResourceRemediationReductionPlanAttrName ||
+         name == kRVVLowPrecisionResourceRemediationVLPlanAttrName ||
          name == kRVVLowPrecisionResourcePerformanceMaturityAttrName ||
          name == kRVVLowPrecisionResourcePerformanceMaturityEvidenceAttrName ||
          name == kRVVLowPrecisionResourcePerformanceMaturityOutcomeAttrName ||

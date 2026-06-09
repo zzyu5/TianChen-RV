@@ -483,6 +483,30 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
             kRVVLowPrecisionResourcePackedI4RemediationVectorBudget)))
       return mlir::failure();
     if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceRemediationScheduleContractAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationScheduleContract)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceRemediationUnpackPlanAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceRemediationProductPlanAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationProductPlan)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceRemediationReductionPlanAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationReductionPlan)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourceRemediationVLPlanAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationVLPlan)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
             op, builder, kRVVLowPrecisionResourcePerformanceMaturityAttrName,
             kRVVLowPrecisionResourcePackedI4PerformanceMaturity)))
       return mlir::failure();
@@ -1264,6 +1288,31 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
           "remediation_vector_budget",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationVectorBudget)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          "remediation_schedule_contract",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationScheduleContract)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          "remediation_unpack_plan",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          "remediation_product_plan",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationProductPlan)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          "remediation_reduction_plan",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationReductionPlan)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          "remediation_vl_plan",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationVLPlan)))
     return mlir::failure();
 
   LoadOp lhsLoad = product.getLhs().getDefiningOp<LoadOp>();

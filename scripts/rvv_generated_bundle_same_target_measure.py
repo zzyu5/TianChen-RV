@@ -1501,6 +1501,25 @@ def packed_i4_maturity_contract_evidence_input(
             "remediation_dispatch_preference"
         ],
         "provider_remediation_blocker": fields["remediation_blocker"],
+        "provider_remediation_plan_contract": fields[
+            "remediation_plan_contract"
+        ],
+        "provider_remediation_plan": fields["remediation_plan"],
+        "provider_remediation_statement_strategy": fields[
+            "remediation_statement_strategy"
+        ],
+        "provider_remediation_vector_budget": fields[
+            "remediation_vector_budget"
+        ],
+        "provider_remediation_schedule_contract": fields[
+            "remediation_schedule_contract"
+        ],
+        "provider_remediation_unpack_plan": fields["remediation_unpack_plan"],
+        "provider_remediation_product_plan": fields["remediation_product_plan"],
+        "provider_remediation_reduction_plan": fields[
+            "remediation_reduction_plan"
+        ],
+        "provider_remediation_vl_plan": fields["remediation_vl_plan"],
         "target_capability_provider_mirror": fields[
             "target_capability_provider_mirror"
         ],
@@ -1617,6 +1636,25 @@ def validate_packed_i4_maturity_contract_evidence_input(
             "remediation_dispatch_preference"
         ],
         "provider_remediation_blocker": fields["remediation_blocker"],
+        "provider_remediation_plan_contract": fields[
+            "remediation_plan_contract"
+        ],
+        "provider_remediation_plan": fields["remediation_plan"],
+        "provider_remediation_statement_strategy": fields[
+            "remediation_statement_strategy"
+        ],
+        "provider_remediation_vector_budget": fields[
+            "remediation_vector_budget"
+        ],
+        "provider_remediation_schedule_contract": fields[
+            "remediation_schedule_contract"
+        ],
+        "provider_remediation_unpack_plan": fields["remediation_unpack_plan"],
+        "provider_remediation_product_plan": fields["remediation_product_plan"],
+        "provider_remediation_reduction_plan": fields[
+            "remediation_reduction_plan"
+        ],
+        "provider_remediation_vl_plan": fields["remediation_vl_plan"],
         "target_capability_provider_mirror": fields[
             "target_capability_provider_mirror"
         ],
@@ -1774,6 +1812,15 @@ def packed_i4_provider_feedback_tie_back(
         "remediation_action",
         "remediation_dispatch_preference",
         "remediation_blocker",
+        "remediation_plan_contract",
+        "remediation_plan",
+        "remediation_statement_strategy",
+        "remediation_vector_budget",
+        "remediation_schedule_contract",
+        "remediation_unpack_plan",
+        "remediation_product_plan",
+        "remediation_reduction_plan",
+        "remediation_vl_plan",
         "operand_form",
         "packing_layout",
         "unpack_intent",
@@ -2748,6 +2795,16 @@ def run_self_test() -> int:
             "remediation_dispatch_preference",
         ),
         (
+            "provider_remediation_product_plan",
+            "metadata-only-packed-i4-product-plan",
+            "remediation_product_plan",
+        ),
+        (
+            "provider_remediation_vl_plan",
+            "metadata-only-packed-i4-vl-plan",
+            "remediation_vl_plan",
+        ),
+        (
             "target_capability_legality_mirror",
             "stale-target-capability-legality",
             "target_capability_legality_mirror",
@@ -2853,6 +2910,16 @@ def run_self_test() -> int:
             "remediation_decision",
         ),
         (
+            "tcrv_rvv.low_precision_resource.remediation_product_plan",
+            "metadata-only-packed-i4-product-plan",
+            "remediation_product_plan",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.remediation_vl_plan",
+            "metadata-only-packed-i4-vl-plan",
+            "remediation_vl_plan",
+        ),
+        (
             "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
             RESULT_CLASSIFICATION_WIN,
             "performance_maturity_outcome",
@@ -2908,6 +2975,10 @@ def run_self_test() -> int:
         (
             "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
             "remediation_handoff_contract",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.remediation_product_plan",
+            "remediation_product_plan",
         ),
     ]:
         expect_missing_provider_metadata_failure(metadata_key, expected_token)

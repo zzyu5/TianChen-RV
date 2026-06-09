@@ -139,6 +139,16 @@ constexpr llvm::StringLiteral kRemediationStatementStrategyAttrName(
     "remediation_statement_strategy");
 constexpr llvm::StringLiteral kRemediationVectorBudgetAttrName(
     "remediation_vector_budget");
+constexpr llvm::StringLiteral kRemediationScheduleContractAttrName(
+    "remediation_schedule_contract");
+constexpr llvm::StringLiteral kRemediationUnpackPlanAttrName(
+    "remediation_unpack_plan");
+constexpr llvm::StringLiteral kRemediationProductPlanAttrName(
+    "remediation_product_plan");
+constexpr llvm::StringLiteral kRemediationReductionPlanAttrName(
+    "remediation_reduction_plan");
+constexpr llvm::StringLiteral kRemediationVLPlanAttrName(
+    "remediation_vl_plan");
 constexpr llvm::StringLiteral kProducerScopeAttrName("producer_scope");
 constexpr llvm::StringLiteral kConsumerScopeAttrName("consumer_scope");
 constexpr llvm::StringLiteral kPrimitiveChainContractAttrName(
@@ -294,6 +304,11 @@ bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
          name == kRemediationPlanAttrName ||
          name == kRemediationStatementStrategyAttrName ||
          name == kRemediationVectorBudgetAttrName ||
+         name == kRemediationScheduleContractAttrName ||
+         name == kRemediationUnpackPlanAttrName ||
+         name == kRemediationProductPlanAttrName ||
+         name == kRemediationReductionPlanAttrName ||
+         name == kRemediationVLPlanAttrName ||
          name == kProducerScopeAttrName || name == kConsumerScopeAttrName ||
          name == kPrimitiveChainContractAttrName ||
          name == kPrimitiveChainKindAttrName ||
@@ -4245,6 +4260,31 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
           kRemediationVectorBudgetAttrName,
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationVectorBudget)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          kRemediationScheduleContractAttrName,
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationScheduleContract)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          kRemediationUnpackPlanAttrName,
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          kRemediationProductPlanAttrName,
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationProductPlan)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          kRemediationReductionPlanAttrName,
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationReductionPlan)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          kRemediationVLPlanAttrName,
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationVLPlan)))
     return mlir::failure();
 
   tcrv::rvv::VSetVLRegionMarkerOp firstMarker;

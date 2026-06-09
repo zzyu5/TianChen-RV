@@ -764,6 +764,21 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_STATEMENT_STRATEGY 
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_VECTOR_BUDGET = (
     "packed-i4-remediation-budget-7of32-vector-groups"
 )
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_SCHEDULE_CONTRACT = (
+    "rvv-low-precision-packed-i4-resource-remediation-schedule.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_UNPACK_PLAN = (
+    "sign-extend-low-high-signed-i4-nibbles-before-widening-product.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PRODUCT_PLAN = (
+    "two-signed-i4-widening-products-plus-i16-pair-sum.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_REDUCTION_PLAN = (
+    "single-vwredsum-i16-pair-sum-with-i32-seed.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_VL_PLAN = (
+    "two-region-runtime-avl-product-reduce-then-dequant-store.v1"
+)
 LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER = (
     "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
 )
@@ -8415,6 +8430,11 @@ LOW_PRECISION_RESOURCE_METADATA_KEYS = (
     "tcrv_rvv.low_precision_resource.remediation_plan",
     "tcrv_rvv.low_precision_resource.remediation_statement_strategy",
     "tcrv_rvv.low_precision_resource.remediation_vector_budget",
+    "tcrv_rvv.low_precision_resource.remediation_schedule_contract",
+    "tcrv_rvv.low_precision_resource.remediation_unpack_plan",
+    "tcrv_rvv.low_precision_resource.remediation_product_plan",
+    "tcrv_rvv.low_precision_resource.remediation_reduction_plan",
+    "tcrv_rvv.low_precision_resource.remediation_vl_plan",
     "tcrv_rvv.low_precision_resource.performance_maturity",
     "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
     "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
@@ -9419,6 +9439,21 @@ def product_dequant_low_precision_resource_profile(
             "remediation_vector_budget": (
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_VECTOR_BUDGET
             ),
+            "remediation_schedule_contract": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_SCHEDULE_CONTRACT
+            ),
+            "remediation_unpack_plan": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_UNPACK_PLAN
+            ),
+            "remediation_product_plan": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PRODUCT_PLAN
+            ),
+            "remediation_reduction_plan": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_REDUCTION_PLAN
+            ),
+            "remediation_vl_plan": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_VL_PLAN
+            ),
         }
     is_product_dequant_clamp = (
         expectation.is_widening_product_reduce_dequant_clamp_f32
@@ -9609,6 +9644,15 @@ def expected_low_precision_resource_metadata(
                 "remediation_vector_budget": profile[
                     "remediation_vector_budget"
                 ],
+                "remediation_schedule_contract": profile[
+                    "remediation_schedule_contract"
+                ],
+                "remediation_unpack_plan": profile["remediation_unpack_plan"],
+                "remediation_product_plan": profile["remediation_product_plan"],
+                "remediation_reduction_plan": profile[
+                    "remediation_reduction_plan"
+                ],
+                "remediation_vl_plan": profile["remediation_vl_plan"],
             }
         )
     return {
@@ -39119,6 +39163,28 @@ def run_self_test() -> int:
             "stale packed-i4 remediation statement metadata",
             lambda: verify_bundle(
                 stale_remediation_statement_metadata,
+                None,
+                product_dequant_expectation,
+            ),
+        )
+
+        stale_remediation_product_metadata = make_fake_bundle(
+            tmp / "stale-packed-i4-remediation-product-metadata",
+            product_dequant_expectation,
+            uses_packed_i4_resource=True,
+        )
+        index_path = stale_remediation_product_metadata / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace(
+            WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PRODUCT_PLAN,
+            "metadata-only-packed-i4-product-plan",
+            1,
+        )
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "stale packed-i4 remediation product metadata",
+            lambda: verify_bundle(
+                stale_remediation_product_metadata,
                 None,
                 product_dequant_expectation,
             ),

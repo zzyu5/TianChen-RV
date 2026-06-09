@@ -17819,6 +17819,26 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
           "remediation_vector_budget",
           kRVVLowPrecisionResourcePackedI4RemediationVectorBudget))
     return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_schedule_contract",
+          kRVVLowPrecisionResourcePackedI4RemediationScheduleContract))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_unpack_plan",
+          kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_product_plan",
+          kRVVLowPrecisionResourcePackedI4RemediationProductPlan))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_reduction_plan",
+          kRVVLowPrecisionResourcePackedI4RemediationReductionPlan))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_vl_plan",
+          kRVVLowPrecisionResourcePackedI4RemediationVLPlan))
+    return error;
 
   slice.gearboxCrossRegionHandoffOp = handoff;
   slice.conversionSource = handoff.getOutput();
@@ -43393,6 +43413,20 @@ getRVVSelectedBodyConfigArtifactMetadata(
       metadata.push_back(
           {"tcrv_rvv.low_precision_resource.remediation_vector_budget",
            selection.remediationVectorBudget});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.remediation_schedule_contract",
+           selection.remediationScheduleContract});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.remediation_unpack_plan",
+           selection.remediationUnpackPlan});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.remediation_product_plan",
+           selection.remediationProductPlan});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.remediation_reduction_plan",
+           selection.remediationReductionPlan});
+      metadata.push_back({"tcrv_rvv.low_precision_resource.remediation_vl_plan",
+                          selection.remediationVLPlan});
       metadata.push_back({"tcrv_rvv.low_precision_resource.performance_maturity",
                           selection.performanceMaturity});
       metadata.push_back(
