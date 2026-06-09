@@ -752,6 +752,18 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DISPATCH_PREFERENCE
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_BLOCKER = (
     "same-target-measurement-no-win-or-regression"
 )
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PLAN_CONTRACT = (
+    "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PLAN = (
+    "repair-packed-i4-product-pair-sum-single-reduce-before-performance-claim.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_STATEMENT_STRATEGY = (
+    "unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_VECTOR_BUDGET = (
+    "packed-i4-remediation-budget-7of32-vector-groups"
+)
 LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER = (
     "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
 )
@@ -8392,6 +8404,17 @@ LOW_PRECISION_RESOURCE_METADATA_KEYS = (
     "tcrv_rvv.low_precision_resource.performance_baseline",
     "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
     "tcrv_rvv.low_precision_resource.performance_action",
+    "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
+    "tcrv_rvv.low_precision_resource.remediation_diagnosis",
+    "tcrv_rvv.low_precision_resource.remediation_measurement_evidence",
+    "tcrv_rvv.low_precision_resource.remediation_decision",
+    "tcrv_rvv.low_precision_resource.remediation_action",
+    "tcrv_rvv.low_precision_resource.remediation_dispatch_preference",
+    "tcrv_rvv.low_precision_resource.remediation_blocker",
+    "tcrv_rvv.low_precision_resource.remediation_plan_contract",
+    "tcrv_rvv.low_precision_resource.remediation_plan",
+    "tcrv_rvv.low_precision_resource.remediation_statement_strategy",
+    "tcrv_rvv.low_precision_resource.remediation_vector_budget",
     "tcrv_rvv.low_precision_resource.performance_maturity",
     "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
     "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
@@ -9384,6 +9407,18 @@ def product_dequant_low_precision_resource_profile(
             "remediation_blocker": (
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_BLOCKER
             ),
+            "remediation_plan_contract": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PLAN_CONTRACT
+            ),
+            "remediation_plan": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PLAN
+            ),
+            "remediation_statement_strategy": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_STATEMENT_STRATEGY
+            ),
+            "remediation_vector_budget": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_VECTOR_BUDGET
+            ),
         }
     is_product_dequant_clamp = (
         expectation.is_widening_product_reduce_dequant_clamp_f32
@@ -9564,6 +9599,16 @@ def expected_low_precision_resource_metadata(
                     "remediation_dispatch_preference"
                 ],
                 "remediation_blocker": profile["remediation_blocker"],
+                "remediation_plan_contract": profile[
+                    "remediation_plan_contract"
+                ],
+                "remediation_plan": profile["remediation_plan"],
+                "remediation_statement_strategy": profile[
+                    "remediation_statement_strategy"
+                ],
+                "remediation_vector_budget": profile[
+                    "remediation_vector_budget"
+                ],
             }
         )
     return {
@@ -12456,6 +12501,10 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
             "tcrv_rvv.low_precision_resource.remediation_action",
             "tcrv_rvv.low_precision_resource.remediation_dispatch_preference",
             "tcrv_rvv.low_precision_resource.remediation_blocker",
+            "tcrv_rvv.low_precision_resource.remediation_plan_contract",
+            "tcrv_rvv.low_precision_resource.remediation_plan",
+            "tcrv_rvv.low_precision_resource.remediation_statement_strategy",
+            "tcrv_rvv.low_precision_resource.remediation_vector_budget",
         ):
             comment_key = "tianchenrv.rvv." + key.removeprefix("tcrv_rvv.")
             require_contains(
@@ -33938,6 +33987,72 @@ def widening_product_reduction_boundary_summary(
                     "expected_dispatch_preference": resource_profile[
                         "dispatch_preference"
                     ],
+                    "remediation_handoff_contract": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_handoff_contract"
+                    ),
+                    "expected_remediation_handoff_contract": resource_profile[
+                        "remediation_handoff_contract"
+                    ],
+                    "remediation_diagnosis": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_diagnosis"
+                    ),
+                    "expected_remediation_diagnosis": resource_profile[
+                        "remediation_diagnosis"
+                    ],
+                    "remediation_measurement_evidence": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_measurement_evidence"
+                    ),
+                    "expected_remediation_measurement_evidence": (
+                        resource_profile["remediation_measurement_evidence"]
+                    ),
+                    "remediation_decision": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_decision"
+                    ),
+                    "expected_remediation_decision": resource_profile[
+                        "remediation_decision"
+                    ],
+                    "remediation_action": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_action"
+                    ),
+                    "expected_remediation_action": resource_profile[
+                        "remediation_action"
+                    ],
+                    "remediation_dispatch_preference": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_dispatch_preference"
+                    ),
+                    "expected_remediation_dispatch_preference": resource_profile[
+                        "remediation_dispatch_preference"
+                    ],
+                    "remediation_blocker": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_blocker"
+                    ),
+                    "expected_remediation_blocker": resource_profile[
+                        "remediation_blocker"
+                    ],
+                    "remediation_plan_contract": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_plan_contract"
+                    ),
+                    "expected_remediation_plan_contract": resource_profile[
+                        "remediation_plan_contract"
+                    ],
+                    "remediation_plan": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_plan"
+                    ),
+                    "expected_remediation_plan": resource_profile[
+                        "remediation_plan"
+                    ],
+                    "remediation_statement_strategy": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_statement_strategy"
+                    ),
+                    "expected_remediation_statement_strategy": resource_profile[
+                        "remediation_statement_strategy"
+                    ],
+                    "remediation_vector_budget": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_vector_budget"
+                    ),
+                    "expected_remediation_vector_budget": resource_profile[
+                        "remediation_vector_budget"
+                    ],
                 }
             )
     if is_dequant_clamp:
@@ -34196,6 +34311,48 @@ def widening_product_reduction_boundary_summary(
             "artifact_metadata_role": "mirror-only-after-provider-route",
             "object_header_agreement_checked": True,
             "fields": {
+                "candidate_set": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.candidate_set"
+                ),
+                "selected_candidate": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.selected_candidate"
+                ),
+                "selection_reason": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.selection_reason"
+                ),
+                "resource_decision_mirror": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.realization_decision"
+                ),
+                "operand_form": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.operand_form"
+                ),
+                "source_signedness": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.source_signedness"
+                ),
+                "storage_element_width": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.storage_element_width"
+                ),
+                "effective_element_width": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.effective_element_width"
+                ),
+                "packing_layout": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.packing_layout"
+                ),
+                "unpack_intent": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.unpack_intent"
+                ),
+                "vsetvl_region_count": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.vsetvl_region_count"
+                ),
+                "peak_live_vector_groups": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.peak_live_vector_groups"
+                ),
+                "vector_register_budget": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.vector_register_budget"
+                ),
+                "runtime_avl_source": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.runtime_avl_source"
+                ),
                 "realization_producer": route_metadata.get(
                     "tcrv_rvv.low_precision_resource.realization_producer"
                 ),
@@ -34268,6 +34425,28 @@ def widening_product_reduction_boundary_summary(
                 ),
             },
             "expected_fields": {
+                "candidate_set": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET
+                ),
+                "selected_candidate": resource_profile["selected_candidate"],
+                "selection_reason": resource_profile["selection_reason"],
+                "resource_decision_mirror": resource_profile["resource_decision"],
+                "operand_form": resource_profile["operand_form"],
+                "source_signedness": resource_profile["source_signedness"],
+                "storage_element_width": resource_profile[
+                    "storage_element_width"
+                ],
+                "effective_element_width": resource_profile[
+                    "effective_element_width"
+                ],
+                "packing_layout": resource_profile["packing_layout"],
+                "unpack_intent": resource_profile["unpack_intent"],
+                "vsetvl_region_count": resource_profile["vsetvl_region_count"],
+                "peak_live_vector_groups": resource_profile[
+                    "peak_live_vector_groups"
+                ],
+                "vector_register_budget": "32",
+                "runtime_avl_source": "runtime_abi:n",
                 "realization_producer": resource_profile["realization_producer"],
                 "realization_decision": resource_profile["realization_decision"],
                 "realized_unroll_factor": resource_profile[
@@ -34320,6 +34499,99 @@ def widening_product_reduction_boundary_summary(
                 ],
             },
         }
+        if uses_packed_i4_resource:
+            generated_artifact_resource_schedule_evidence[
+                "packed_i4_resource_remediation_evidence"
+            ] = {
+                "source": (
+                    "validated object/header low-precision resource mirrors "
+                    "for the provider-selected packed-i4 resource"
+                ),
+                "reference_oracle_source": (
+                    "provider-owned packed-i4 operand form and remediation "
+                    "metadata, not artifact path/name metadata"
+                ),
+                "fields": {
+                    "performance_feedback": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.performance_feedback"
+                    ),
+                    "performance_action": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.performance_action"
+                    ),
+                    "remediation_handoff_contract": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_handoff_contract"
+                    ),
+                    "remediation_diagnosis": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_diagnosis"
+                    ),
+                    "remediation_measurement_evidence": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_measurement_evidence"
+                    ),
+                    "remediation_decision": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_decision"
+                    ),
+                    "remediation_action": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_action"
+                    ),
+                    "remediation_dispatch_preference": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_dispatch_preference"
+                    ),
+                    "remediation_blocker": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_blocker"
+                    ),
+                    "remediation_plan_contract": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_plan_contract"
+                    ),
+                    "remediation_plan": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_plan"
+                    ),
+                    "remediation_statement_strategy": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_statement_strategy"
+                    ),
+                    "remediation_vector_budget": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_vector_budget"
+                    ),
+                },
+                "expected_fields": {
+                    "performance_feedback": resource_profile[
+                        "performance_feedback"
+                    ],
+                    "performance_action": resource_profile[
+                        "performance_action"
+                    ],
+                    "remediation_handoff_contract": resource_profile[
+                        "remediation_handoff_contract"
+                    ],
+                    "remediation_diagnosis": resource_profile[
+                        "remediation_diagnosis"
+                    ],
+                    "remediation_measurement_evidence": resource_profile[
+                        "remediation_measurement_evidence"
+                    ],
+                    "remediation_decision": resource_profile[
+                        "remediation_decision"
+                    ],
+                    "remediation_action": resource_profile[
+                        "remediation_action"
+                    ],
+                    "remediation_dispatch_preference": resource_profile[
+                        "remediation_dispatch_preference"
+                    ],
+                    "remediation_blocker": resource_profile[
+                        "remediation_blocker"
+                    ],
+                    "remediation_plan_contract": resource_profile[
+                        "remediation_plan_contract"
+                    ],
+                    "remediation_plan": resource_profile["remediation_plan"],
+                    "remediation_statement_strategy": resource_profile[
+                        "remediation_statement_strategy"
+                    ],
+                    "remediation_vector_budget": resource_profile[
+                        "remediation_vector_budget"
+                    ],
+                },
+            }
     return {
         "source": (
             "typed tcrv_rvv.widening_product + standalone_reduce + Gearbox "
@@ -35108,6 +35380,9 @@ def run_one_op_e2e(
             "boundary": "external C ABI consumer of generated header and object only",
         }
         if uses_packed_i4_harness:
+            packed_i4_profile = product_dequant_low_precision_resource_profile(
+                expectation, packed_i4=True
+            )
             evidence["harness"]["packed_i4_reference_oracle"] = {
                 "source": (
                     "provider-owned low-precision resource metadata selected "
@@ -35128,6 +35403,43 @@ def run_one_op_e2e(
                 "generated": "generated RVV artifact callable through exported header",
                 "target": args.ssh_target if not args.dry_run else "ssh rvv required",
                 "timing": "not_measured",
+                "metadata_gate": {
+                    "metadata_source": (
+                        "validated object/header low_precision_resource mirrors"
+                    ),
+                    "selected_candidate": (
+                        widening_product_metadata_for_harness.get(
+                            "tcrv_rvv.low_precision_resource.selected_candidate"
+                        )
+                    ),
+                    "expected_selected_candidate": packed_i4_profile[
+                        "selected_candidate"
+                    ],
+                    "operand_form": widening_product_metadata_for_harness.get(
+                        "tcrv_rvv.low_precision_resource.operand_form"
+                    ),
+                    "expected_operand_form": packed_i4_profile["operand_form"],
+                    "packing_layout": widening_product_metadata_for_harness.get(
+                        "tcrv_rvv.low_precision_resource.packing_layout"
+                    ),
+                    "expected_packing_layout": packed_i4_profile[
+                        "packing_layout"
+                    ],
+                    "unpack_intent": widening_product_metadata_for_harness.get(
+                        "tcrv_rvv.low_precision_resource.unpack_intent"
+                    ),
+                    "expected_unpack_intent": packed_i4_profile["unpack_intent"],
+                    "remediation_statement_strategy": (
+                        widening_product_metadata_for_harness.get(
+                            "tcrv_rvv.low_precision_resource."
+                            "remediation_statement_strategy"
+                        )
+                    ),
+                    "expected_remediation_statement_strategy": packed_i4_profile[
+                        "remediation_statement_strategy"
+                    ],
+                    "reference_oracle_selected_from_provider_metadata": True,
+                },
             }
         if (
             expectation.is_scalar_broadcast_elementwise
@@ -38762,6 +39074,53 @@ def run_self_test() -> int:
             "stale packed-i4 performance feedback metadata",
             lambda: verify_bundle(
                 stale_feedback_metadata, None, product_dequant_expectation
+            ),
+        )
+
+        missing_remediation_plan_metadata = make_fake_bundle(
+            tmp / "missing-packed-i4-remediation-plan-metadata",
+            product_dequant_expectation,
+            uses_packed_i4_resource=True,
+        )
+        index_path = missing_remediation_plan_metadata / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace(
+            'key: "tcrv_rvv.low_precision_resource.remediation_plan_contract"',
+            (
+                'key: "tcrv_rvv.low_precision_resource.'
+                'remediation_plan_contract_missing"'
+            ),
+            1,
+        )
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "missing packed-i4 remediation plan metadata",
+            lambda: verify_bundle(
+                missing_remediation_plan_metadata,
+                None,
+                product_dequant_expectation,
+            ),
+        )
+
+        stale_remediation_statement_metadata = make_fake_bundle(
+            tmp / "stale-packed-i4-remediation-statement-metadata",
+            product_dequant_expectation,
+            uses_packed_i4_resource=True,
+        )
+        index_path = stale_remediation_statement_metadata / INDEX_FILE_NAME
+        text = index_path.read_text(encoding="utf-8")
+        text = text.replace(
+            WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_STATEMENT_STRATEGY,
+            "metadata-only-packed-i4-unpack-plan",
+            1,
+        )
+        index_path.write_text(text, encoding="utf-8")
+        expect_self_test_failure(
+            "stale packed-i4 remediation statement metadata",
+            lambda: verify_bundle(
+                stale_remediation_statement_metadata,
+                None,
+                product_dequant_expectation,
             ),
         )
 

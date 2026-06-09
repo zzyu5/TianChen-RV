@@ -7,9 +7,10 @@ primitive surface. The campaign must make typed low-precision contraction facts
 structurally explicit in the RVV plugin/compiler path, fail closed before route
 or target acceptance when those facts are missing or stale, and leave later
 gates to consume the surface for Gearbox realization, executable artifact
-evidence, and measured dispatch/performance policy. Gate 1 is complete. The
-current round owns Gate 2: resource-aware Gearbox selected-body realization
-consumes the Gate 1 primitive facts before provider/target mirrors are accepted.
+evidence, and measured dispatch/performance policy. Gates 1 and 2 are complete.
+The current round completed Gate 3: bounded generated artifact plus `ssh rvv`
+correctness evidence for the packed-i4 widening-product-reduce-dequantize path
+that consumes the Gate 2 resource/remediation handoff facts.
 
 ## What I Already Know
 
@@ -36,7 +37,8 @@ consumes the Gate 1 primitive facts before provider/target mirrors are accepted.
 
 - Keep this as one macro Trellis task until all campaign gates are complete or
   human steering redirects it.
-- Implement Gate 2 as one coherent production compiler-surface milestone.
+- Keep each round as one coherent production compiler-surface or evidence
+  milestone inside this macro task.
 - Make low-precision contraction primitive facts structurally consumable by RVV
   route/provider planning.
 - Gate 1 primitive facts must include, for the bounded current slice, explicit
@@ -51,9 +53,9 @@ consumes the Gate 1 primitive facts before provider/target mirrors are accepted.
   q8/q4 labels, route ids, artifact names, helper names, ABI strings, test
   names, metadata-only mirrors, descriptors, or Common EmitC semantic branches
   as authority.
-- If the full Gate 2 surface cannot be finished in one round, complete a
-  coherent production submodule and keep the macro task active with the exact
-  remaining Gate 2 continuation point.
+- If a later gate cannot be finished in one round, complete a coherent
+  production submodule or evidence submodule and keep the macro task active
+  with the exact remaining continuation point.
 
 ## Macro Campaign Gates
 
@@ -61,11 +63,10 @@ consumes the Gate 1 primitive facts before provider/target mirrors are accepted.
   fail-closed provider validation for i8/u8 input element roles, signedness,
   widened product type, accumulation/result type, SEW/LMUL/policy, memory form,
   and runtime AVL/VL facts.
-- [ ] Gate 2: resource-aware Gearbox selected-body realization consumes that
+- [x] Gate 2: resource-aware Gearbox selected-body realization consumes that
   surface for packed/low-precision bodies without changing semantics or using
-  q8/q4 names as authority. The signedness handoff sub-slice is complete;
-  broader resource/remediation consumption remains.
-- [ ] Gate 3: generated artifact and `ssh rvv` evidence for at least one
+  q8/q4 names as authority.
+- [x] Gate 3: generated artifact and `ssh rvv` evidence for at least one
   production primitive path changed by Gates 1-2.
 - [ ] Gate 4: same-target measurement and dispatch/performance policy
   consumption using provider-owned evidence, including conservative fallback
@@ -114,6 +115,25 @@ consumes the Gate 1 primitive facts before provider/target mirrors are accepted.
   resource/remediation facts.
 - [x] Keep Common EmitC and target artifact export as mirror/mechanics
   consumers after provider-owned handoff validation succeeds.
+
+## Current Slice: Gate 3 Production-Path Artifact Evidence
+
+- [x] Select one campaign-changed production path for bounded evidence:
+  pre-realized `widening_product_reduce_dequantize_f32` with signed packed-i4
+  nibbles and f32 dequantization.
+- [x] Prove the generated artifact path carries the Gate 2 selected resource
+  candidate, resource decision mirror, peak-live/vector-register budget,
+  operand form, packing layout, unpack intent, product/dequant region indexes,
+  primitive chain facts, and packed-i4 remediation plan facts through
+  provider-owned route planning and target artifact validation.
+- [x] Keep target artifact/header/object metadata as mirror-only evidence after
+  provider validation; no artifact name, route id, fixture name, or Common
+  EmitC inference becomes authority.
+- [x] Run bounded generated bundle dry-run evidence for the selected path.
+- [x] Run real `ssh rvv` correctness evidence for the same selected path.
+- [x] Add or harden focused fail-closed checks so stale or missing packed-i4
+  resource/remediation facts cannot silently bypass production route/export.
+- [x] Keep the macro task active after Gate 3 because Gate 4 remains.
 
 ## Gate 1 Acceptance Criteria (completed)
 
@@ -194,10 +214,35 @@ consumes the Gate 1 primitive facts before provider/target mirrors are accepted.
   budget/peak-live facts, operand/unpack policy, packed-i4 remediation plan,
   and realized region indexes fail closed.
 
+## Gate 3 Acceptance Criteria (production-path artifact evidence slice)
+
+- [x] The selected evidence path is a production path changed by this campaign:
+  pre-realized `widening_product_reduce_dequantize_f32` with signed packed-i4
+  nibbles, product-pair-sum reduction, and f32 dequantization.
+- [x] Generated artifact evidence exposes object/header agreement for
+  provider-owned low-precision resource mirrors, including selected candidate,
+  operand form, packing layout, unpack intent, peak-live vector groups, vector
+  register budget, product/dequant region indexes, primitive chain facts, and
+  packed-i4 remediation plan fields.
+- [x] The external C harness chooses the packed-i4 scalar reference oracle from
+  validated provider-owned low-precision resource metadata, not from the file
+  path, artifact name, route id, or fixture name.
+- [x] `ssh rvv` correctness evidence passes for the same generated artifact and
+  selected metadata path.
+- [x] Missing or stale packed-i4 handoff/artifact remediation facts fail closed
+  with targeted diagnostics before a stale route/export mirror is accepted.
+- [x] Common EmitC remains neutral: it materializes provider payload only and
+  does not invent RVV semantics or packed-i4 policy.
+- [x] `git diff --check`, `git diff --cached --check`, Trellis validation, and
+  bounded old-authority scans pass.
+- [x] One coherent commit records the Gate 3 slice.
+- [x] The macro task remains active with Gate 4 unchecked and a precise
+  continuation point.
+
 ## Out Of Scope
 
-- No standalone generated-bundle or `ssh rvv` evidence closeout as the main
-  task.
+- No standalone generated-bundle or `ssh rvv` evidence closeout outside the
+  campaign-changed production path.
 - No one-off q8/q4/llama wrapper or route authority.
 - No broad dtype/LMUL clone batch.
 - No high-level Linalg/Vector/StableHLO frontend.
@@ -217,7 +262,8 @@ consumes the Gate 1 primitive facts before provider/target mirrors are accepted.
 - Related archived task:
   `.trellis/tasks/archive/2026-06/06-09-rvv-packed-i4-production-kernel-resource-aware-realization-campaign/prd.md`.
 - Direction source: Hermes brief for
-  `Stage2 RVV low-precision contraction primitive-surface campaign Gate 2`.
+  `Stage2 RVV low-precision contraction primitive-surface campaign Gate 3
+  production-path artifact evidence`.
 - Memory-derived steering: q8/q4/llama.cpp examples are pressure tests for
   broader Stage 2 low-precision contraction maturity, not narrow route
   authority.
@@ -268,12 +314,36 @@ Completed in this round:
   no q8/q4 label, artifact name, route id, ABI string, helper name, descriptor,
   or metadata-only field became authority.
 
+## Gate 3 Slice Result
+
+Completed in this round:
+
+- Selected the campaign-changed packed-i4
+  `pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32`
+  path for generated artifact and `ssh rvv` correctness evidence.
+- Hardened `scripts/rvv_generated_bundle_abi_e2e.py` so packed-i4 remediation
+  plan contract, remediation plan, statement strategy, and vector budget are
+  part of the explicit low-precision resource metadata contract used by fake
+  bundles, generated header checks, bundle validation, evidence summaries, and
+  self-test stale/missing negative cases.
+- Extended evidence JSON for the selected path with a
+  `generated_artifact_resource_schedule_evidence` block that records actual
+  and expected selected candidate, resource decision mirror, operand form,
+  packing/unpack facts, peak-live/vector-register budget, product/dequant
+  region facts, primitive chain facts, target capability mirrors, and
+  packed-i4 remediation fields after object/header agreement.
+- Extended the `ssh rvv` harness evidence with a metadata gate proving that
+  the packed-i4 scalar reference oracle is selected from validated
+  provider-owned low-precision resource metadata.
+- Produced dry-run and real `ssh rvv` artifact evidence under
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/gate3-packed-i4-resource-handoff-*`.
+- Verified stale handoff remediation, missing handoff remediation, and stale
+  artifact remediation mirrors fail closed before a stale production route or
+  export can be accepted.
+
 ## Continuation Point
 
-Gate 1 is complete and the Gate 2 Gearbox resource/remediation handoff slice is
-complete for the product/dequant and packed-i4 representatives. The macro task
-remains active. Continue with Gate 3 only after confirming the changed
-production path is the one used for generated artifact evidence: produce the
-bounded artifact and `ssh rvv` evidence for at least one path changed by this
-campaign. Gate 4 remains later: same-target measurement and dispatch/performance
-policy consumption.
+Gates 1-3 are complete. The macro task remains active. Continue with Gate 4:
+same-target measurement and dispatch/performance policy consumption using
+provider-owned evidence for the same production capability family, including
+conservative fallback when no win is measured.

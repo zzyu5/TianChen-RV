@@ -153,3 +153,82 @@ production path is the one used for generated artifact evidence: produce the
 bounded artifact and `ssh rvv` evidence for at least one path changed by this
 campaign. Gate 4 remains same-target measurement and dispatch/performance
 policy consumption.
+
+## Session 576: RVV low-precision Gate 3 packed-i4 artifact evidence
+
+**Date**: 2026-06-10
+**Task**: RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the same active macro task at Gate 3. This slice selected the
+campaign-changed pre-realized
+`widening_product_reduce_dequantize_f32` signed packed-i4 path and produced
+bounded generated artifact plus real `ssh rvv` correctness evidence for that
+path. The evidence is tied to provider-owned Gate 2 resource/remediation
+handoff facts rather than fixture names, route ids, artifact names, or Common
+EmitC inference.
+
+The macro task remains open. Gates 1-3 are complete; Gate 4 remains same-target
+measurement and dispatch/performance policy consumption.
+
+### Main Changes
+
+- Hardened `scripts/rvv_generated_bundle_abi_e2e.py` so packed-i4 remediation
+  plan contract, remediation plan, statement strategy, and vector budget are
+  explicit low-precision resource metadata facts in fake bundles, generated
+  header checks, bundle validation, evidence summaries, and self-test negative
+  cases.
+- Extended generated artifact evidence with actual/expected selected candidate,
+  resource decision mirror, operand form, packing layout, unpack intent,
+  peak-live vector groups, vector-register budget, product/dequant region
+  indexes, primitive chain facts, target capability mirrors, and packed-i4
+  remediation facts after object/header agreement.
+- Extended the external harness evidence with a metadata gate showing the
+  packed-i4 scalar reference oracle is selected from validated provider-owned
+  low-precision resource metadata.
+- Updated the macro PRD to mark Gates 2 and 3 complete and leave Gate 4 as the
+  precise continuation.
+
+### Evidence
+
+- `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test` passed,
+  including missing packed-i4 remediation plan metadata and stale packed-i4
+  remediation statement metadata negative cases.
+- `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind widening_product_reduce_dequantize_f32 --input test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir ... --dry-run --run-id gate3-packed-i4-resource-handoff-dry-run --overwrite` passed and wrote evidence under
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/gate3-packed-i4-resource-handoff-dry-run/`.
+- `rtk ninja -C build tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- Direct stale/missing remediation checks passed:
+  stale handoff `remediation_statement_strategy`, missing handoff
+  `remediation_vector_budget`, and stale artifact
+  `low_precision_resource.remediation_statement_strategy` all fail closed with
+  targeted diagnostics before stale route/export acceptance.
+- `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind widening_product_reduce_dequantize_f32 --input test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir ... --run-id gate3-packed-i4-resource-handoff-ssh --overwrite` passed and wrote evidence under
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/gate3-packed-i4-resource-handoff-ssh/`.
+- The `ssh rvv` evidence reports remote `riscv64`, `clang` 18.1.3, remote
+  compile success, remote run success, `ssh_evidence: true`, `status:
+  success`, and packed-i4 correctness for runtime counts `0,1,17,257`, two data
+  patterns, and scales `-0.125,0.375`.
+
+### Self-Repair
+
+- The project image still does not provide `FileCheck` or `llvm-lit`, so the
+  focused fixture negative cases were executed directly with built
+  `tcrv-opt`/`tcrv-translate` pipelines plus fixed diagnostic matches.
+
+### Spec Update Decision
+
+[NO CHANGE] The existing RVV plugin and EmitC-route specs already require
+provider-owned route facts before Common EmitC or target artifact mirrors can
+accept a route. This round tightens the Gate 3 evidence tool and task record; it
+does not introduce a new durable architecture rule.
+
+### Status
+
+[OPEN] Macro task remains active. Gates 1-3 are complete. Continue with Gate 4:
+same-target measurement and dispatch/performance policy consumption using
+provider-owned evidence for the same production capability family, including
+conservative fallback when no win is measured.
