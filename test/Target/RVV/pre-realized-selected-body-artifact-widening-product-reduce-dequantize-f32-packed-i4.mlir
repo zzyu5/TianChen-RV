@@ -11,6 +11,8 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_selection_eligible", value = "false"/s//tcrv_rvv.low_precision_resource.performance_selection_eligible", value = "true"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-PERFORMANCE-SELECTION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_maturity_outcome", value = "regression"/s//tcrv_rvv.low_precision_resource.performance_maturity_outcome", value = "win"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-PERFORMANCE-OUTCOME
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.dispatch_preference", value = "not-performance-preferred"/s//tcrv_rvv.low_precision_resource.dispatch_preference", value = "performance-preferred"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-DISPATCH-PREFERENCE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequantize/s//selected_dispatch_case_mirror:@metadata_only_dispatch_case/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-DISPATCH-CASE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback/s//selected_dispatch_fallback_mirror:@metadata_only_scalar_fallback/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-DISPATCH-FALLBACK
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.dispatch_preference", value = "not-performance-preferred"}/s//tcrv_rvv.low_precision_resource.dispatch_preference", value = "not-performance-preferred"}, {key = "tcrv_rvv.low_precision_resource.performance_win_claim_allowed", value = "true"}/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=METADATA-ONLY-WIN-CLAIM
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-rvv-emitc-to-cpp | FileCheck %s --check-prefix=CPP
@@ -192,6 +194,14 @@ module {
 
 // STALE-ARTIFACT-DISPATCH-PREFERENCE: low_precision_resource.dispatch_preference provenance must mirror provider-selected low-precision direct-contraction resource dispatch preference 'not-performance-preferred'
 // STALE-ARTIFACT-DISPATCH-PREFERENCE-SAME: performance-preferred
+
+// STALE-ARTIFACT-DISPATCH-CASE: selected_dispatch_case_mirror
+// STALE-ARTIFACT-DISPATCH-CASE-SAME: provider-owned selected-dispatch low-precision policy boundary case mirror
+// STALE-ARTIFACT-DISPATCH-CASE-SAME: metadata_only_dispatch_case
+
+// STALE-ARTIFACT-DISPATCH-FALLBACK: selected_dispatch_fallback_mirror
+// STALE-ARTIFACT-DISPATCH-FALLBACK-SAME: provider-owned selected-dispatch low-precision policy boundary fallback mirror
+// STALE-ARTIFACT-DISPATCH-FALLBACK-SAME: metadata_only_scalar_fallback
 
 // METADATA-ONLY-WIN-CLAIM: rejects metadata-only packed-i4 performance win-claim allowance 'true'
 // METADATA-ONLY-WIN-CLAIM-SAME: performance_win_claim_allowed

@@ -3038,6 +3038,8 @@ struct RVVWideningDotReduceRouteValidationContract {
 
   RVVLowPrecisionContractionResourceSelection
       lowPrecisionResourceSelection;
+  RVVLowPrecisionSelectedDispatchPolicyBoundary
+      lowPrecisionSelectedDispatchPolicyBoundary;
   RVVLowPrecisionWideningReductionPrimitiveFacts
       lowPrecisionWideningReductionPrimitiveFacts;
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 9>

@@ -3000,6 +3000,8 @@ static void populateRVVWideningDotValidationContract(
                                        core.runtimeABIParameters.end());
   contract.lowPrecisionResourceSelection =
       description.lowPrecisionResourceSelection;
+  contract.lowPrecisionSelectedDispatchPolicyBoundary =
+      description.lowPrecisionSelectedDispatchPolicyBoundary;
   contract.lowPrecisionWideningReductionPrimitiveFacts =
       facts.lowPrecisionWideningReductionPrimitiveFacts;
   populateRVVWideningDotDynamicDescriptionPayload(contract, description);

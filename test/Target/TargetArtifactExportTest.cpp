@@ -13165,6 +13165,175 @@ bool expectRVVTargetArtifactExporterShape(
                     "performance preference\n";
     return false;
   }
+
+  tianchenrv::plugin::rvv::RVVLowPrecisionSelectedDispatchPolicyBoundary
+      packedI4TargetDispatchBoundary;
+  packedI4TargetDispatchBoundary.hasSelectedDispatchCase = true;
+  packedI4TargetDispatchBoundary.hasSelectedDispatchFallback = true;
+  packedI4TargetDispatchBoundary.selectedCaseVariant =
+      "rvv_pre_route_product_reduce_dequantize_packed_i4";
+  packedI4TargetDispatchBoundary.selectedCaseRole = "dispatch case";
+  packedI4TargetDispatchBoundary.selectedCaseOrigin = "rvv-plugin";
+  packedI4TargetDispatchBoundary.selectedCasePolicy =
+      "target-artifact-packed-i4-product-reduction-dequant-case";
+  packedI4TargetDispatchBoundary.runtimeGuardRequired = false;
+  packedI4TargetDispatchBoundary.runtimeGuard = "none";
+  packedI4TargetDispatchBoundary.fallbackVariant =
+      "target_artifact_scalar_fallback";
+  packedI4TargetDispatchBoundary.fallbackPathRole = "dispatch fallback";
+  packedI4TargetDispatchBoundary.fallbackRole = "conservative";
+  packedI4TargetDispatchBoundary.fallbackOrigin = "scalar-plugin";
+  packedI4TargetDispatchBoundary.fallbackPolicy =
+      "target-artifact-packed-i4-product-reduction-dequant-fallback";
+  packedI4TargetDispatchBoundary.selectedDispatchCaseMirror =
+      "selected_dispatch_case_mirror:@rvv_pre_route_product_reduce_dequantize_"
+      "packed_i4;role=dispatch case;runtime_guard_required=false;"
+      "runtime_guard=none;origin=rvv-plugin;policy=target-artifact-packed-i4-"
+      "product-reduction-dequant-case";
+  packedI4TargetDispatchBoundary.selectedDispatchFallbackMirror =
+      "selected_dispatch_fallback_mirror:@target_artifact_scalar_fallback;"
+      "role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;"
+      "policy=target-artifact-packed-i4-product-reduction-dequant-fallback";
+
+  TargetArtifactCandidate selectedDispatchPackedI4Candidate =
+      packedI4ProductDequantFixture.candidate;
+  selectedDispatchPackedI4Candidate.artifactMetadata.push_back(
+      {"tcrv_rvv.selected_dispatch_case_mirror",
+       packedI4TargetDispatchBoundary.selectedDispatchCaseMirror});
+  selectedDispatchPackedI4Candidate.artifactMetadata.push_back(
+      {"tcrv_rvv.selected_dispatch_fallback_mirror",
+       packedI4TargetDispatchBoundary.selectedDispatchFallbackMirror});
+  RVVRouteDescription selectedDispatchPackedI4Description =
+      packedI4ProductDequantDescription;
+  selectedDispatchPackedI4Description.lowPrecisionSelectedDispatchPolicyBoundary =
+      packedI4TargetDispatchBoundary;
+  selectedDispatchPackedI4Description.selectedDispatchCaseMirror =
+      packedI4TargetDispatchBoundary.selectedDispatchCaseMirror;
+  selectedDispatchPackedI4Description.selectedDispatchFallbackMirror =
+      packedI4TargetDispatchBoundary.selectedDispatchFallbackMirror;
+  std::optional<tianchenrv::plugin::rvv::
+                    RVVWideningDotReduceRouteValidationContract>
+      selectedDispatchPackedI4Contract =
+          tianchenrv::plugin::rvv::
+              getRVVWideningDotReduceRouteValidationContract(
+                  selectedDispatchPackedI4Description);
+  if (!selectedDispatchPackedI4Contract ||
+      !selectedDispatchPackedI4Contract
+           ->lowPrecisionSelectedDispatchPolicyBoundary.hasSelectedDispatchCase ||
+      !selectedDispatchPackedI4Contract
+           ->lowPrecisionSelectedDispatchPolicyBoundary
+           .hasSelectedDispatchFallback ||
+      selectedDispatchPackedI4Contract
+              ->lowPrecisionSelectedDispatchPolicyBoundary
+              .selectedDispatchCaseMirror !=
+          packedI4TargetDispatchBoundary.selectedDispatchCaseMirror ||
+      selectedDispatchPackedI4Contract
+              ->lowPrecisionSelectedDispatchPolicyBoundary
+              .selectedDispatchFallbackMirror !=
+          packedI4TargetDispatchBoundary.selectedDispatchFallbackMirror) {
+    llvm::errs() << "packed-i4 target artifact route contract did not carry "
+                    "selected-dispatch case/fallback boundary facts\n";
+    return false;
+  }
+  RVVRouteValidationContext selectedDispatchPackedI4Context{
+      selectedDispatchPackedI4Candidate, packedI4ProductDequantRoute,
+      selectedDispatchPackedI4Description};
+  if (!expectSuccess(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  selectedDispatchPackedI4Context),
+          "packed-i4 target artifact accepts selected-dispatch case/fallback "
+          "mirrors with low-precision resource and policy facts"))
+    return false;
+  auto selectedDispatchPackedI4Policy =
+      tianchenrv::plugin::rvv::
+          evaluateRVVLowPrecisionPerformancePolicy(
+              selectedDispatchPackedI4Description.lowPrecisionResourceSelection,
+              acceptedPackedI4Gate4Outcome, packedI4TargetDispatchBoundary,
+              "packed-i4 target artifact Gate 2 selected-dispatch policy");
+  if (!selectedDispatchPackedI4Policy ||
+      !selectedDispatchPackedI4Policy->routeSupportAllowed ||
+      !selectedDispatchPackedI4Policy->correctnessExecutionAllowed ||
+      selectedDispatchPackedI4Policy->performanceSelectionAllowed ||
+      !selectedDispatchPackedI4Policy->correctnessFallbackPathSelected ||
+      selectedDispatchPackedI4Policy->dispatchPolicyPath !=
+          "correctness-fallback") {
+    if (!selectedDispatchPackedI4Policy)
+      llvm::errs() << "packed-i4 selected-dispatch target policy failed: "
+                   << llvm::toString(
+                          selectedDispatchPackedI4Policy.takeError())
+                   << "\n";
+    else
+      llvm::errs() << "packed-i4 selected-dispatch target policy did not "
+                      "preserve conservative fallback\n";
+    return false;
+  }
+
+  TargetArtifactCandidate staleSelectedDispatchCaseMirror =
+      selectedDispatchPackedI4Candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleSelectedDispatchCaseMirror,
+          "tcrv_rvv.selected_dispatch_case_mirror",
+          "selected_dispatch_case_mirror:@metadata_only_case;role=dispatch "
+          "case;runtime_guard_required=false;runtime_guard=none")) {
+    llvm::errs() << "selected-dispatch packed-i4 target test did not contain "
+                    "case mirror metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  RVVRouteValidationContext{staleSelectedDispatchCaseMirror,
+                                            packedI4ProductDequantRoute,
+                                            selectedDispatchPackedI4Description}),
+          "packed-i4 target artifact rejects stale selected-dispatch case "
+          "mirror",
+          {"selected_dispatch_case_mirror",
+           "provider-owned selected-dispatch low-precision policy boundary "
+           "case mirror",
+           "metadata_only_case"}))
+    return false;
+
+  TargetArtifactCandidate missingSelectedDispatchFallbackMirror =
+      selectedDispatchPackedI4Candidate;
+  if (!eraseArtifactMetadataKey(missingSelectedDispatchFallbackMirror,
+                               "tcrv_rvv.selected_dispatch_fallback_mirror")) {
+    llvm::errs() << "selected-dispatch packed-i4 target test did not contain "
+                    "fallback mirror metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  RVVRouteValidationContext{
+                      missingSelectedDispatchFallbackMirror,
+                      packedI4ProductDequantRoute,
+                      selectedDispatchPackedI4Description}),
+          "packed-i4 target artifact rejects missing selected-dispatch "
+          "fallback mirror",
+          {"selected_dispatch_fallback_mirror",
+           "provider-owned selected-dispatch low-precision policy boundary "
+           "fallback mirror"}))
+    return false;
+
+  RVVRouteDescription missingSelectedDispatchFallbackBoundary =
+      selectedDispatchPackedI4Description;
+  missingSelectedDispatchFallbackBoundary
+      .lowPrecisionSelectedDispatchPolicyBoundary.hasSelectedDispatchFallback =
+      false;
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  RVVRouteValidationContext{
+                      selectedDispatchPackedI4Candidate,
+                      packedI4ProductDequantRoute,
+                      missingSelectedDispatchFallbackBoundary}),
+          "packed-i4 target artifact rejects provider boundary without "
+          "selected-dispatch fallback facts",
+          {"selected-dispatch low-precision policy boundary",
+           "fallback facts"}))
+    return false;
+
   auto measuredWinTargetSelection =
       packedI4ProductDequantDescription.lowPrecisionResourceSelection;
   measuredWinTargetSelection.performanceFeedback =

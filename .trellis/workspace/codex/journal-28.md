@@ -371,3 +371,81 @@ this policy-boundary slice alone.
 carry the selected/pre-realized low-precision production-kernel body through
 route/export/artifact validation while preserving conservative fallback
 semantics and structural primitive/resource/measurement policy input.
+
+## Session 579: RVV low-precision selected-dispatch Gate 2
+
+**Date**: 2026-06-10
+**Task**: RVV low-precision production-kernel selected-dispatch campaign
+**Branch**: `main`
+
+### Summary
+
+Completed Gate 2 only for the active macro task. The selected/pre-realized
+packed-i4 widening product-reduction/dequantization route now carries the
+provider-owned selected-dispatch case/fallback policy boundary through RVV
+route validation into target artifact validation. Target artifact acceptance
+checks the selected dispatch case and conservative fallback mirrors against
+that provider boundary while preserving the existing primitive signedness/type,
+Gearbox resource/remediation, artifact-evidence, same-target measurement,
+runtime AVL/VL, ABI/header, and provider mirror checks.
+
+The accepted same-target measurement remains a no-win/regression input, so
+Gate 2 preserves correctness support and conservative fallback behavior without
+claiming a new performance-preferred route.
+
+### Main Changes
+
+- Added `RVVLowPrecisionSelectedDispatchPolicyBoundary` to the widening
+  dot-reduce route validation contract and populated it from the RVV route
+  description.
+- Added target artifact validation for
+  `tcrv_rvv.selected_dispatch_case_mirror` and
+  `tcrv_rvv.selected_dispatch_fallback_mirror` against provider-owned
+  selected-dispatch boundary facts.
+- Routed packed-i4 product-reduction/dequantization target artifact
+  performance-policy verification through the selected-dispatch policy
+  overload when boundary facts are present.
+- Added focused target artifact positive/negative coverage for selected case
+  and fallback mirrors, missing fallback mirror metadata, and provider
+  boundary missing fallback facts.
+- Added selected pre-realized fixture checks for stale case/fallback mirror
+  rejection during target header artifact export.
+
+### Evidence
+
+- `ninja -C build tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- `build/bin/tianchenrv-rvv-extension-plugin-test`
+- `build/bin/tianchenrv-target-artifact-export-test`
+- `tcrv-opt` plan check for selected dispatch case/fallback mirrors on the
+  packed-i4 pre-realized selected-body artifact fixture.
+- `tcrv-opt | tcrv-translate --tcrv-export-target-header-artifact` positive
+  header artifact check for selected dispatch mirrors, runtime AVL, header,
+  provider support, and `not-performance-preferred` facts.
+- `tcrv-opt | tcrv-translate --tcrv-rvv-emitc-to-cpp` check for the low
+  precision RVV load, widening product, widening reduction, seed, and store
+  intrinsics.
+- Stale selected-dispatch case and fallback mirror target header artifact
+  checks fail closed with provider-boundary diagnostics.
+
+### Self-Repair
+
+- `clang-format` is not available in this environment, so formatting was
+  checked by source inspection and `git diff --check`.
+- `FileCheck`, `not`, and `llvm-lit` are not available in this environment, so
+  the new MLIR `RUN` lines were manually exercised with the local `tcrv-opt`
+  and `tcrv-translate` binaries.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] Gate 2 implements the active PRD and existing RVV
+plugin/EmitC route/target-artifact contracts. No new durable cross-task rule was
+introduced; the full campaign rule should only be promoted to spec after Gates
+3-4 close the production selected-dispatch workflow.
+
+### Status
+
+[OPEN] Gate 2 is complete. Gates 3-4 remain unchecked. Continue with Gate 3:
+update only the bounded same-target measurement policy input and demonstrate
+preferred-route or conservative-fallback behavior from provider-owned facts,
+without making measurement evidence or artifact metadata route authority.

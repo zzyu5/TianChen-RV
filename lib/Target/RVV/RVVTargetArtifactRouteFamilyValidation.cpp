@@ -5987,6 +5987,57 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
       selection.rejectionReason, "rejection reason");
 }
 
+llvm::Error validateRVVLowPrecisionSelectedDispatchCandidateMirrors(
+    const TargetArtifactCandidate &candidate,
+    const plugin::rvv::RVVLowPrecisionSelectedDispatchPolicyBoundary
+        &boundary) {
+  llvm::StringRef selectedCaseMirror = lookupCandidateMetadataValue(
+      candidate, "tcrv_rvv.selected_dispatch_case_mirror");
+  llvm::StringRef selectedFallbackMirror = lookupCandidateMetadataValue(
+      candidate, "tcrv_rvv.selected_dispatch_fallback_mirror");
+  if (!boundary.hasFacts()) {
+    if (!selectedCaseMirror.empty())
+      return makeRVVTargetRouteError(
+          "widening dot-reduction target artifact consumer rejects "
+          "metadata-only selected dispatch case mirror for a low-precision "
+          "product-reduction route without provider-owned selected-dispatch "
+          "policy boundary facts");
+    if (!selectedFallbackMirror.empty())
+      return makeRVVTargetRouteError(
+          "widening dot-reduction target artifact consumer rejects "
+          "metadata-only selected dispatch fallback mirror for a "
+          "low-precision product-reduction route without provider-owned "
+          "selected-dispatch policy boundary facts");
+    return llvm::Error::success();
+  }
+
+  if (!boundary.hasSelectedDispatchCase ||
+      boundary.selectedDispatchCaseMirror.empty())
+    return makeRVVTargetRouteError(
+        "widening dot-reduction target artifact consumer requires "
+        "provider-owned selected-dispatch low-precision policy boundary case "
+        "facts before validating selected dispatch artifact mirrors");
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.selected_dispatch_case_mirror",
+          boundary.selectedDispatchCaseMirror,
+          "provider-owned selected-dispatch low-precision policy boundary "
+          "case mirror"))
+    return error;
+
+  if (!boundary.hasSelectedDispatchFallback ||
+      boundary.selectedDispatchFallbackMirror.empty())
+    return makeRVVTargetRouteError(
+        "widening dot-reduction target artifact consumer requires "
+        "provider-owned selected-dispatch low-precision policy boundary "
+        "fallback facts before validating conservative fallback artifact "
+        "mirrors");
+  return requireCandidateMetadataMirror(
+      candidate, "tcrv_rvv.selected_dispatch_fallback_mirror",
+      boundary.selectedDispatchFallbackMirror,
+      "provider-owned selected-dispatch low-precision policy boundary "
+      "fallback mirror");
+}
+
 llvm::Error rejectRVVPackedI4MetadataOnlyClaimMirror(
     const TargetArtifactCandidate &candidate, llvm::StringRef key,
     llvm::StringRef label) {
@@ -6282,19 +6333,34 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
     if (llvm::Error error = validateRVVLowPrecisionResourceCandidateMirrors(
             candidate, contract->lowPrecisionResourceSelection))
       return error;
+  if (isProductReductionDequantization &&
+      contract->lowPrecisionResourceSelection.hasSelection)
+    if (llvm::Error error =
+            validateRVVLowPrecisionSelectedDispatchCandidateMirrors(
+                candidate,
+                contract->lowPrecisionSelectedDispatchPolicyBoundary))
+      return error;
   if (llvm::Error error = validateRVVPackedI4MetadataOnlyClaimMirrors(
           candidate, contract->lowPrecisionResourceSelection))
     return error;
   if (isProductReductionDequantization &&
       plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
           contract->lowPrecisionResourceSelection.selectedCandidateID))
-    if (llvm::Error error =
-            plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+    if (llvm::Error error = [&]() -> llvm::Error {
+          std::string context =
+              (llvm::Twine(contract->consumerLabel) +
+               " target artifact dispatch/performance policy")
+                  .str();
+          if (contract->lowPrecisionSelectedDispatchPolicyBoundary.hasFacts())
+            return plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
                 contract->lowPrecisionResourceSelection,
                 plugin::rvv::getAcceptedRVVPackedI4Gate4MeasurementOutcome(),
-                (llvm::Twine(contract->consumerLabel) +
-                 " target artifact dispatch/performance policy")
-                    .str()))
+                contract->lowPrecisionSelectedDispatchPolicyBoundary, context);
+          return plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              contract->lowPrecisionResourceSelection,
+              plugin::rvv::getAcceptedRVVPackedI4Gate4MeasurementOutcome(),
+              context);
+        }())
       return error;
   if (isProductReductionChain) {
     if (llvm::Error error =
