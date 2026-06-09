@@ -9,12 +9,12 @@ same-target evidence must prevent the route from being mirrored or selected as
 performance-ready until later same-target measurement proves maturity.
 
 This is a macro campaign. Gate 1 and Gate 2 are already complete in commit
-`723d7eb7`; Gate 3 is complete in commit `d2af0b8f`. The current round
-continues with Gate 4 by adding focused fail-closed stale/no-win/regression
-evidence coverage around the same-target measurement policy and provider-owned
-packed-i4 maturity mirrors. Measurement output may explain or deny performance
-preference, but it must not become route support, RVV compute semantics, Common
-EmitC authority, or artifact-name authority.
+`723d7eb7`; Gate 3 is complete in commit `d2af0b8f`; Gate 4 is complete in
+commit `377d8584`. The current round continues with Gate 5 by rerunning the
+focused packed-i4 artifact/correctness and same-target measurement policy path
+and recording the observed win/no-win/regression outcome. Measurement output may
+explain or deny performance preference, but it must not become route support,
+RVV compute semantics, Common EmitC authority, or artifact-name authority.
 
 ## What I Already Know
 
@@ -59,29 +59,31 @@ EmitC authority, or artifact-name authority.
 - [x] Gate 4: add focused fail-closed tests proving regression/no-win cannot
   become performance-selected/claimed while route-supported executable
   correctness remains allowed.
-- [ ] Gate 5: rerun focused artifact/correctness and same-target measurement
+- [x] Gate 5: rerun focused artifact/correctness and same-target measurement
   checks and record whether the policy reports win, no-win, or regression
   truthfully.
 
 ## Current Round Slice
 
-Complete Gate 4 as one coherent fail-closed coverage slice:
+Complete Gate 5 as one coherent evidence rerun slice:
 
-- Add focused coverage proving stale packed-i4 maturity mirrors cannot turn
-  regression/no-win/not-measured same-target evidence into performance
-  selection eligibility, dispatch preference, or a performance-win claim.
-- Cover stale or contradictory measurement evidence id/classification/outcome
-  family/speedup range, provider maturity outcome, selection eligibility,
-  dispatch preference, claim allowance, and mirror/evidence disagreement.
-- Preserve the boundary that measurement facts can deny performance preference
-  or claims without denying route support, artifact generation, or correctness
-  execution when provider route/artifact correctness remains valid.
-- Repair the production provider/target validation seam if the new coverage
-  exposes a way for artifact metadata or mirrors to overclaim performance
-  maturity. If production validation is already fail-closed, keep source changes
-  focused on tests and evidence policy self-tests.
-- Leave Gate 5 as the continuation point unless focused artifact/correctness
-  plus same-target policy rerun can be completed truthfully in this same slice.
+- Rerun the focused packed-i4 generated artifact/correctness workflow for the
+  accepted selected-body fixture and record whether executable correctness
+  remains allowed.
+- Rerun the focused same-target scalar-vs-RVV measurement workflow on `ssh rvv`
+  for the same packed-i4 selected-body fixture and record the measured
+  classification, outcome family, speedup range, and evidence paths.
+- Record the provider-owned policy fields observed by the measurement bridge:
+  route support, correctness execution allowance, performance maturity outcome,
+  performance selection eligibility, dispatch preference, performance win-claim
+  allowance, and provider contract update requirement.
+- Repair only the minimal workflow/test/production boundary if the rerun exposes
+  stale mirror promotion or a contradiction between executable correctness and
+  performance maturity. If the existing boundary is already fail-closed, keep
+  this slice to evidence and task state updates.
+- Close the macro campaign only if all Gate 5 evidence is truthful and the
+  checks prove no Common EmitC, route id, artifact name, script, q4/q8 label, or
+  llama label became performance maturity authority.
 
 ## Completed Gate 1/2 Acceptance Criteria
 
@@ -138,6 +140,24 @@ Complete Gate 4 as one coherent fail-closed coverage slice:
 - [x] Route-supported artifact generation and executable correctness allowance
   remain true for the valid packed-i4 route.
 
+## Gate 5 Acceptance Criteria
+
+- [x] Focused packed-i4 artifact/correctness evidence is rerun from the accepted
+  selected-body fixture through the generated object/header workflow.
+- [x] Focused packed-i4 same-target measurement evidence is rerun on the named
+  `ssh rvv` target with scalar baseline identity
+  `scalar-c-reference/product-reduction-dequant-packed-i4-v1`.
+- [x] The recorded measurement outcome contains classification, outcome family,
+  best speedup range, summary count, raw timing count, and evidence path.
+- [x] The recorded maturity policy fields keep route-supported executable
+  correctness separate from performance maturity, selection eligibility,
+  dispatch preference, and performance-win claim allowance.
+- [x] No stale mirror promotion, Common EmitC semantic authority, q4/q8/llama
+  authority, descriptor/source-front-door authority, or artifact-name authority
+  is introduced.
+- [x] Focused provider/target/script checks, artifact/correctness evidence,
+  same-target policy evidence, diff checks, and final git status are clean.
+
 ## Gate 4 Result
 
 Completed:
@@ -166,11 +186,58 @@ Production seam decision:
   on stale packed-i4 maturity mirrors; this round added the missing Gate 4
   coverage and script evidence-input integrity checks around that seam.
 
-Remaining:
+Continuation before this round:
 
-- Gate 5 remains open: rerun focused artifact/correctness plus same-target
+- Gate 5 remained open: rerun focused artifact/correctness plus same-target
   policy checks, and record whether the policy reports win, no-win, or
   regression truthfully.
+
+## Gate 5 Result
+
+Completed:
+
+- Focused packed-i4 generated artifact/correctness evidence was rerun from
+  `test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir`
+  through the generated object/header workflow on `ssh rvv`.
+- The artifact/correctness evidence passed under
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/gate5_packed_i4_focused_artifact_correctness_ssh`.
+  The remote harness covered runtime counts `257,4096,65536`, patterns `0,1`,
+  scales `0.125,0.25`, source/accumulator/tail preservation, and emitted
+  `PASS op=widening_product_reduce_dequantize_f32`.
+- Focused packed-i4 same-target measurement evidence was rerun under
+  `artifacts/tmp/gate5-same-target-measurement/gate5_packed_i4_focused_same_target_measure_ssh`
+  using baseline
+  `scalar-c-reference/product-reduction-dequant-packed-i4-v1` on the same
+  `ssh rvv` target.
+- The same-target result remained a truthful regression:
+  `measurement_classification = regression`,
+  `measurement_outcome_family = no-win`,
+  `measurement_best_speedup_range = 0.691358..0.705406`,
+  `measurement_summary_record_count = 12`, and
+  `measurement_record_count = 60`.
+- The policy bridge preserved the executable/performance split:
+  `provider_maturity = executable-not-performance-mature`,
+  `provider_maturity_outcome = regression`,
+  `provider_performance_selection_eligible = false`,
+  `provider_dispatch_preference = not-performance-preferred`,
+  `performance_win_claim_allowed = false`,
+  `performance_preference_denied = true`,
+  `correctness_execution_allowed = true`, and
+  `provider_contract_update_required = false`.
+
+Production seam decision:
+
+- No production source change was required for Gate 5. The rerun exercised the
+  existing provider-owned maturity contract, target artifact mirrors, generated
+  artifact correctness path, and same-target measurement bridge end to end
+  without exposing stale mirror promotion or Common EmitC semantic authority.
+
+Campaign status:
+
+- Gates 1 through 5 are complete. The macro campaign acceptance gates are met
+  after focused provider/target/script checks, real `ssh rvv` artifact
+  correctness evidence, real same-target measurement evidence, and clean diff
+  checks.
 
 ## Out of Scope
 
@@ -182,9 +249,8 @@ Remaining:
 - No Common EmitC invention of RVV dtype, schedule, performance, or dispatch
   semantics.
 - No high-level Linalg/Vector/StableHLO frontend work.
-- No real same-target measurement rerun unless Gate 3 implementation changes
-  executable code or the tests require it. A dry-run or self-test evidence path
-  is enough for the bridge unless a performance/runtime claim is added.
+- No additional broad same-target measurement matrix beyond the focused Gate 5
+  packed-i4 rerun on the accepted selected-body fixture.
 
 ## Technical Approach
 

@@ -933,3 +933,64 @@ correctness/performance-maturity split.
 [NO UPDATE] No durable spec change was needed. This round exercised the existing
 RVV plugin, EmitC route, variant tuning, and MLIR testing contracts without
 adding a new architecture rule.
+
+## 2026-06-09 - RVV packed low-precision performance-maturity feedback Gate 5
+
+### Summary
+
+- Continued active macro task
+  `06-09-rvv-packed-low-precision-performance-maturity-feedback-campaign`.
+- Completed Gate 5 slice: reran focused packed-i4 artifact/correctness and
+  same-target measurement evidence on `ssh rvv`, then recorded the truthful
+  policy outcome in the active PRD.
+- The packed-i4 route remains executable for correctness, but same-target
+  measurement still classifies it as `regression`; performance selection,
+  dispatch preference, and performance win claims remain denied by the
+  provider-owned maturity contract.
+- No production source change was required. Existing provider/resource,
+  target artifact, and measurement bridge validation already preserved the
+  executable/performance-maturity split.
+
+### Evidence
+
+- `rtk python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+  passed.
+- `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test` passed.
+- `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind widening_product_reduce_dequantize_f32 --input test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir --runtime-count 257 --runtime-count 4096 --runtime-count 65536 --dequant-scale 0.125 --dequant-scale 0.25 --artifact-root artifacts/tmp/rvv_generated_bundle_abi_e2e --run-id gate5_packed_i4_focused_artifact_correctness_ssh --overwrite --ssh-target rvv`
+  passed after the first attempt was self-repaired by adding the required second
+  nonzero dequant scale. Evidence:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e/gate5_packed_i4_focused_artifact_correctness_ssh`.
+- `rtk python3 scripts/rvv_generated_bundle_same_target_measure.py --op-kind widening_product_reduce_dequantize_f32 --input test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir --measure-count 257 --measure-count 4096 --measure-count 65536 --artifact-root artifacts/tmp/gate5-same-target-measurement --run-id gate5_packed_i4_focused_same_target_measure_ssh --overwrite --ssh-target rvv`
+  passed. Evidence:
+  `artifacts/tmp/gate5-same-target-measurement/gate5_packed_i4_focused_same_target_measure_ssh`.
+- Same-target policy fields:
+  `classification = regression`,
+  `outcome_family = no-win`,
+  `best_speedup_range = 0.691358..0.705406`,
+  `summary_count = 12`,
+  `measurement_record_count = 60`,
+  `provider_performance_selection_eligible = false`,
+  `provider_dispatch_preference = not-performance-preferred`,
+  `performance_win_claim_allowed = false`,
+  `correctness_execution_allowed = true`, and
+  `provider_contract_update_required = false`.
+- `rtk cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+  passed.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- `rtk git diff --check` passed.
+- Bounded added-diff old-authority scan found no new positive
+  `RVVI32M1`, `rvv-i32m1`, `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m`,
+  source-front-door, source-export, direct-C, descriptor, q4/q8, or llama
+  authority.
+
+### Status
+
+[DONE] Gates 1 through 5 are complete for the macro campaign. The task is ready
+to archive after final diff/status checks and commit.
+
+### Spec Update Decision
+
+[NO UPDATE] No durable spec change was needed. Gate 5 produced refreshed
+evidence against the already-documented RVV plugin maturity, same-target
+measurement, EmitC route, variant tuning, and MLIR testing contracts.
