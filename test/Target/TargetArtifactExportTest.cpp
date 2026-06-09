@@ -12,6 +12,7 @@
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
+#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 #include "TianChenRV/Plugin/Scalar/ScalarExtensionPlugin.h"
 #include "TianChenRV/Plugin/Template/TemplateConstructionProtocol.h"
@@ -13023,6 +13024,47 @@ bool expectRVVTargetArtifactExporterShape(
            "provider-owned artifact validation facts\n";
     return false;
   }
+  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
+      acceptedPackedI4Gate4Outcome =
+          tianchenrv::plugin::rvv::
+              getAcceptedRVVPackedI4Gate4MeasurementOutcome();
+  auto packedI4Policy =
+      tianchenrv::plugin::rvv::
+          evaluateRVVLowPrecisionPerformancePolicy(
+              packedI4ProductDequantDescription.lowPrecisionResourceSelection,
+              acceptedPackedI4Gate4Outcome,
+              "packed-i4 target artifact Gate 5 dispatch/performance policy");
+  if (!packedI4Policy) {
+    llvm::errs() << "packed-i4 target artifact policy did not accept the "
+                    "Gate 4 regression/no-win outcome: "
+                 << llvm::toString(packedI4Policy.takeError()) << "\n";
+    return false;
+  }
+  if (!packedI4Policy->routeSupportAllowed ||
+      !packedI4Policy->correctnessExecutionAllowed ||
+      packedI4Policy->performanceSelectionAllowed ||
+      packedI4Policy->performanceWinClaimAllowed ||
+      packedI4Policy->dispatchPreference != "not-performance-preferred") {
+    llvm::errs() << "packed-i4 target artifact policy did not preserve "
+                    "correctness while denying performance preference\n";
+    return false;
+  }
+  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
+      stalePackedI4TargetProfileOutcome = acceptedPackedI4Gate4Outcome;
+  stalePackedI4TargetProfileOutcome.targetProfile = "local-x86";
+  if (!expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionPerformancePolicy(
+                  packedI4ProductDequantDescription
+                      .lowPrecisionResourceSelection,
+                  stalePackedI4TargetProfileOutcome,
+                  "packed-i4 target artifact Gate 5 dispatch/performance "
+                  "policy rejects stale target profile"),
+          "packed-i4 target artifact Gate 5 policy rejects stale target "
+          "profile",
+          {"dispatch/performance policy", "target profile", "ssh rvv",
+           "local-x86"}))
+    return false;
 
   RVVTargetArtifactCandidateFixture stridedWideningDotFixture(
       OperationKind::StridedInputWideningDotReduceAdd);
@@ -13609,6 +13651,24 @@ bool expectRVVTargetArtifactExporterShape(
           "preference metadata",
           {"dispatch preference", "not-performance-preferred",
            "performance-preferred"}))
+    return false;
+
+  RVVRouteDescription stalePackedI4MeasurementCandidate =
+      packedI4ProductDequantDescription;
+  stalePackedI4MeasurementCandidate.lowPrecisionResourceSelection
+      .selectedCandidateID =
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourceDequantClampPackedI4Candidate.str();
+  if (!expectWideningDotProviderFailure(
+          packedI4ProductDequantFixture.candidate,
+          packedI4ProductDequantRoute, stalePackedI4MeasurementCandidate,
+          "packed-i4 product-reduction registry rejects unmeasured "
+          "performance-policy candidate",
+          {"accepted Gate 4 packed-i4 selected candidate",
+           tianchenrv::plugin::rvv::
+               kRVVLowPrecisionResourceDequantPackedI4Candidate,
+           tianchenrv::plugin::rvv::
+               kRVVLowPrecisionResourceDequantClampPackedI4Candidate}))
     return false;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute

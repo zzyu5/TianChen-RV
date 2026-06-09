@@ -1344,3 +1344,65 @@ Next owner: Gate 5 dispatch/performance policy should consume the accepted
 Gate 4 regression/no-win facts truthfully: preserve executable correctness,
 deny performance preference and win claims, reject stale policy/maturity
 mirrors, and keep route support separate from performance-ready dispatch.
+
+## 2026-06-09 - RVV production-kernel capability campaign Gate 5 dispatch/performance policy consumption
+
+### Summary
+
+- Continued the active macro task
+  `06-09-rvv-production-kernel-capability-campaign`.
+- Completed Gate 5 as a production source slice by adding
+  `RVVLowPrecisionPerformancePolicy`, an RVV-owned policy consumer for the
+  accepted packed-i4 Gate 4 same-target measurement outcome.
+- The policy consumes the accepted Gate 4 measurement identity, `ssh rvv`
+  target profile, regression/no-win classification, best-speedup range, record
+  counts, provider maturity tie-back, selected candidate, primitive-chain facts,
+  realization/resource facts, and target capability mirrors.
+- The accepted outcome preserves executable route support and correctness
+  execution while denying performance-preferred dispatch and performance-win
+  claims.
+- Provider route-family validation and RVV target artifact validation now call
+  the policy before accepting packed-i4 low-precision product-reduction/
+  dequantization performance-policy facts.
+
+### Evidence
+
+- `rtk ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+  passed.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- `rtk git diff --check` passed.
+- Bounded touched-file old-authority scan found pre-existing legacy/i32m1
+  guardrail coverage in large tests; the current added diff lines introduced no
+  new RVVI32M1, `rvv-i32m1`, legacy `tcrv_rvv.i32_*`, source-front-door,
+  source-artifact, descriptor-driven, or exact-intrinsic route authority.
+- `clang-format` was not available in this environment; formatting was checked
+  with compiler coverage and `git diff --check`.
+
+### Self-Repair
+
+- Added an explicit target provider negative proving the accepted Gate 4
+  dequantization measurement cannot be reused for the unmeasured
+  dequant-clamp packed-i4 sibling candidate.
+- Replaced a hard-coded primitive reduction intrinsic expectation in the plugin
+  test with the provider-owned RVV low-precision resource constant.
+
+### Spec Update Decision
+
+[NO CHANGE] Existing RVV plugin, EmitC route, and campaign PRD contracts already
+require provider-owned primitive/resource/realization facts, Common EmitC
+neutrality, same-target measured evidence as non-authoritative input, and
+fail-closed policy behavior for stale performance facts. This slice implemented
+that existing Gate 5 contract in production code and tests.
+
+### Status
+
+[DONE] Gates 1 through 5 are complete for the current accepted packed-i4
+representative. The macro task is ready to finish/archive after staged diff
+checks and the final coherent commit.
+
+### Continuation
+
+No Gate 5 continuation remains for this macro campaign. Future work should start
+from a new task only if it changes a different production-kernel capability
+owner beyond this accepted packed-i4 representative.

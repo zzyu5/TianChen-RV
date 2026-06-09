@@ -1,6 +1,7 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
+#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
 #include "mlir/IR/Attributes.h"
 #include "llvm/ADT/SmallVector.h"
@@ -6210,6 +6211,12 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
             context, selection, "dispatch preference",
             selection.dispatchPreference,
             kRVVLowPrecisionResourcePackedI4DispatchPreference))
+      return error;
+    if (llvm::Error error = verifyRVVLowPrecisionPerformancePolicy(
+            selection, getAcceptedRVVPackedI4Gate4MeasurementOutcome(),
+            (llvm::Twine(context) +
+             " packed-i4 dispatch/performance policy")
+                .str()))
       return error;
   }
   if (selection.targetCapabilityProviderMirror.empty() ||

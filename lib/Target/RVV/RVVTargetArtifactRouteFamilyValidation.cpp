@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
+#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Support/CapabilityModel.h"
@@ -4021,6 +4022,15 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
     if (llvm::Error error =
             validateRVVPackedI4LowPrecisionResourceProviderFacts(contract))
       return error;
+  if (usesPackedI4LowPrecisionProductReduction)
+    if (llvm::Error error =
+            plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+                contract.lowPrecisionResourceSelection,
+                plugin::rvv::getAcceptedRVVPackedI4Gate4MeasurementOutcome(),
+                (llvm::Twine(contract.consumerLabel) +
+                 " dispatch/performance policy")
+                    .str()))
+      return error;
   if (description.memoryForm != contract.memoryForm)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
@@ -6064,6 +6074,17 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
   if (contract->lowPrecisionResourceSelection.hasSelection)
     if (llvm::Error error = validateRVVLowPrecisionResourceCandidateMirrors(
             candidate, contract->lowPrecisionResourceSelection))
+      return error;
+  if (isProductReductionDequantization &&
+      plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
+          contract->lowPrecisionResourceSelection.selectedCandidateID))
+    if (llvm::Error error =
+            plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+                contract->lowPrecisionResourceSelection,
+                plugin::rvv::getAcceptedRVVPackedI4Gate4MeasurementOutcome(),
+                (llvm::Twine(contract->consumerLabel) +
+                 " target artifact dispatch/performance policy")
+                    .str()))
       return error;
   if (isProductReductionChain) {
     if (llvm::Error error =

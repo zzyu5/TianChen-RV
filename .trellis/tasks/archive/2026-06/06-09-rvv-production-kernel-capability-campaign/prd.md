@@ -102,7 +102,7 @@ all campaign gates below are complete.
   claims.
 - [x] Gate 4: generated artifact correctness and same-target measurement run
   only for the changed production path.
-- [ ] Gate 5: dispatch/performance policy consumes measurement outcome
+- [x] Gate 5: dispatch/performance policy consumes measurement outcome
   truthfully without promoting stale/no-win/regression evidence into route
   authority or win claims.
 
@@ -268,6 +268,38 @@ Completed the Gate 3 route/provider mirror completion slice:
 - [x] Focused generated-bundle same-target measurement dry-run passes.
 - [x] `git diff --check` and `git diff --cached --check` pass.
 
+## Gate 5 Acceptance Criteria
+
+- [x] A production dispatch/performance policy consumer reads accepted Gate 4
+  same-target packed-i4 measurement facts through a typed policy contract,
+  not through artifact names, route ids, status fields, q4/q8/llama labels, or
+  Common EmitC inference.
+- [x] The policy consumer ties the accepted measurement outcome back to the
+  Gate 1-3 low-precision resource selection, primitive-chain facts,
+  realization facts, provider maturity mirrors, target capability mirrors, and
+  `ssh rvv` same-target evidence identity.
+- [x] Accepted `regression` / `no-win` evidence preserves executable route
+  support and correctness execution but denies performance-preferred dispatch
+  and performance-win claims.
+- [x] Missing, stale, mismatched, or untrusted measurement identity, target
+  profile, `ssh rvv` evidence, provider maturity tie-back, selected candidate,
+  primitive-chain fact, realization/resource fact, target mirror, or win-claim
+  field fails closed before provider/target artifact acceptance.
+- [x] Focused provider and target artifact tests prove the policy accepts the
+  accepted Gate 4 outcome and rejects stale measurement identity, missing
+  `ssh rvv` evidence, stale target profile, stale provider tie-back, stale
+  primitive-chain facts, unmeasured packed-i4 candidate reuse, and measurement
+  win-promotion attempts.
+- [x] No new q4/q8/llama-named route authority, source-front-door authority,
+  descriptor-driven computation, Common EmitC semantic branch, broad dashboard,
+  performance database, adjacent op family, or generated-bundle-only closeout is
+  introduced.
+- [x] `build/bin/tianchenrv-rvv-extension-plugin-test` passes.
+- [x] `build/bin/tianchenrv-target-artifact-export-test` passes.
+- [x] Bounded old-authority scan over touched files and current diff lines is
+  reviewed.
+- [x] `git diff --check` and `git diff --cached --check` pass.
+
 ## Completed Gate 4 Evidence-Plumbing Slice
 
 The first Gate 4 round covered the generated artifact / same-target measurement
@@ -337,6 +369,31 @@ representative. The accepted measured fact is a same-target regression/no-win
 classification, so Gate 5 must consume it truthfully without promoting the
 route to performance-preferred or allowing a win claim.
 
+## Completed Gate 5 Dispatch/Performance Policy Consumption Slice
+
+Completed Gate 5 as a production source slice:
+
+- [x] Added an RVV-owned low-precision performance policy surface for the
+  accepted packed-i4 Gate 4 measurement outcome, including measurement identity,
+  target profile, record counts, provider maturity tie-back, denial reason, and
+  route-support effect.
+- [x] Wired the policy into provider route-family validation so selected
+  packed-i4 product-reduction/dequantization resource facts must match the
+  accepted Gate 4 measurement contract before statement planning can continue.
+- [x] Wired the policy into RVV target artifact route-family validation so
+  provider descriptions and candidate mirrors cannot accept stale,
+  mismatched, or unmeasured packed-i4 performance policy facts.
+- [x] Kept the accepted regression/no-win outcome separate from route authority:
+  executable route support and correctness execution are preserved, while
+  performance-preferred dispatch and win claims remain denied.
+- [x] Added focused provider and target artifact coverage for the accepted
+  outcome and fail-closed stale/missing/mismatched measurement, provider,
+  primitive, target, and candidate facts.
+
+Slice result: Gate 5 is complete for the current accepted packed-i4
+representative. The macro campaign gates are complete and the task can be
+finished/archived after the focused checks and commit are recorded.
+
 ## Out of Scope
 
 - No new q4/q8/llama route ids, artifact names, helper semantics, or wrapper
@@ -345,8 +402,8 @@ route to performance-preferred or allowing a win claim.
 - No one-op intrinsic wrapper or dtype/LMUL clone batch.
 - No Common EmitC invention of RVV dtype, schedule, primitive, resource,
   performance, or dispatch semantics.
-- No dispatch/performance preference change or performance-win claim.
-- No archive/finish after Gate 4 unless all macro gates are
+- No performance-win claim, performance database, or broad benchmark dashboard.
+- No archive/finish before Gate 5 production consumption and focused checks are
   complete.
 
 ## Technical Notes
@@ -370,13 +427,8 @@ route to performance-preferred or allowing a win claim.
 
 ## Continuation Point
 
-Gates 1, 2, 3, and 4 are complete for the current accepted packed-i4
-representative. Gate 4 now has real same-target `ssh rvv` correctness/timing
-evidence and accepted measured regression/no-win facts; dry-run evidence remains
-classified as `not-measured` and is not used for runtime/performance claims.
-Gate 5 remains open, so this macro task stays active.
-
-Next owner: Gate 5 dispatch/performance policy must consume the accepted Gate 4
-regression/no-win measurement facts truthfully: preserve executable correctness,
-deny performance preference and win claims, reject stale policy/maturity mirrors,
-and keep route support separate from performance-ready dispatch.
+Gates 1, 2, 3, 4, and 5 are complete for the current accepted packed-i4
+representative. Gate 5 production policy consumption now preserves executable
+correctness while denying performance-preferred dispatch and performance-win
+claims for the accepted `ssh rvv` regression/no-win outcome. The macro task is
+ready to finish/archive after the focused checks and final commit are recorded.

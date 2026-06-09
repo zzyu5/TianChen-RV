@@ -1,0 +1,69 @@
+#ifndef TIANCHENRV_PLUGIN_RVV_RVVLOWPRECISIONPERFORMANCEPOLICY_H
+#define TIANCHENRV_PLUGIN_RVV_RVVLOWPRECISIONPERFORMANCEPOLICY_H
+
+#include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
+
+#include <cstdint>
+#include <string>
+
+namespace tianchenrv::plugin::rvv {
+
+struct RVVLowPrecisionPerformanceMeasurementOutcome {
+  std::string contract;
+  std::string measurementEvidenceID;
+  std::string measurementClassification;
+  std::string measurementOutcomeFamily;
+  std::string measurementBestSpeedupRange;
+  std::int64_t measurementSummaryRecordCount = 0;
+  std::int64_t measurementRecordCount = 0;
+  std::int64_t correctnessRecordCount = 0;
+
+  bool sameTargetMeasurement = false;
+  bool sshEvidence = false;
+  std::string targetProfile;
+
+  std::string providerMaturity;
+  std::string providerMaturityEvidence;
+  std::string providerMaturityOutcome;
+  std::string providerPerformanceSelectionEligible;
+  std::string providerDispatchPreference;
+  std::string providerPerformanceAction;
+
+  bool performancePreferenceDenied = false;
+  std::string performancePreferenceDenialReason;
+  bool performanceWinClaimAllowed = false;
+  bool correctnessExecutionAllowed = false;
+  bool providerContractUpdateRequired = false;
+  std::string routeSupportEffect;
+};
+
+struct RVVLowPrecisionPerformancePolicyDecision {
+  std::string policyContract;
+  bool routeSupportAllowed = false;
+  bool correctnessExecutionAllowed = false;
+  bool performanceSelectionAllowed = false;
+  bool performanceWinClaimAllowed = false;
+  std::string dispatchPreference;
+  std::string performancePreferenceDenialReason;
+};
+
+RVVLowPrecisionPerformanceMeasurementOutcome
+getAcceptedRVVPackedI4Gate4MeasurementOutcome();
+
+llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
+evaluateRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
+    llvm::StringRef context);
+
+llvm::Error verifyRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
+    llvm::StringRef context);
+
+} // namespace tianchenrv::plugin::rvv
+
+#endif // TIANCHENRV_PLUGIN_RVV_RVVLOWPRECISIONPERFORMANCEPOLICY_H

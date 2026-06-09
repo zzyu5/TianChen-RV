@@ -19,6 +19,7 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
+#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 #include "TianChenRV/Plugin/RVV/RVVMAccSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVReductionSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVRuntimeScalarMemorySelectedBodyRealizationOwner.h"
@@ -9694,6 +9695,114 @@ module {
           {"low-precision direct-contraction resource selection",
            "dispatch preference", "not-performance-preferred",
            "performance-preferred"}))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
+      acceptedPackedI4Gate4Outcome =
+          tianchenrv::plugin::rvv::
+              getAcceptedRVVPackedI4Gate4MeasurementOutcome();
+  auto packedI4PerformancePolicy =
+      tianchenrv::plugin::rvv::
+          evaluateRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection, acceptedPackedI4Gate4Outcome,
+              "selected-boundary packed-i4 product-reduction-dequant Gate 5 "
+              "dispatch/performance policy test");
+  if (!packedI4PerformancePolicy)
+    return fail("packed-i4 Gate 5 performance policy: " +
+                llvm::toString(packedI4PerformancePolicy.takeError()));
+  if (int result = expect(
+          packedI4PerformancePolicy->policyContract ==
+              "rvv-low-precision-packed-i4-dispatch-performance-policy.v1" &&
+              packedI4PerformancePolicy->routeSupportAllowed &&
+              packedI4PerformancePolicy->correctnessExecutionAllowed &&
+              !packedI4PerformancePolicy->performanceSelectionAllowed &&
+              !packedI4PerformancePolicy->performanceWinClaimAllowed &&
+              packedI4PerformancePolicy->dispatchPreference ==
+                  "not-performance-preferred" &&
+              packedI4PerformancePolicy
+                      ->performancePreferenceDenialReason ==
+                  "same-target-measurement-no-win-or-regression",
+          "packed-i4 Gate 5 policy consumes accepted regression/no-win "
+          "measurement without promoting performance dispatch"))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
+      stalePackedI4MeasurementIDOutcome = acceptedPackedI4Gate4Outcome;
+  stalePackedI4MeasurementIDOutcome.measurementEvidenceID =
+      "stale-packed-i4-measurement.json";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionPerformancePolicy(
+                  packedI4ResourceSelection,
+                  stalePackedI4MeasurementIDOutcome,
+                  "selected-boundary packed-i4 Gate 5 dispatch/performance "
+                  "policy rejects stale measurement identity"),
+          {"dispatch/performance policy", "measurement evidence id",
+           "gate4-packed-i4-real-measure-ssh",
+           "stale-packed-i4-measurement.json"}))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
+      missingPackedI4SSHEvidenceOutcome = acceptedPackedI4Gate4Outcome;
+  missingPackedI4SSHEvidenceOutcome.sshEvidence = false;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionPerformancePolicy(
+                  packedI4ResourceSelection,
+                  missingPackedI4SSHEvidenceOutcome,
+                  "selected-boundary packed-i4 Gate 5 dispatch/performance "
+                  "policy rejects missing ssh evidence"),
+          {"dispatch/performance policy", "ssh rvv evidence", "true",
+           "false"}))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
+      stalePackedI4ProviderTieBackOutcome = acceptedPackedI4Gate4Outcome;
+  stalePackedI4ProviderTieBackOutcome.providerDispatchPreference =
+      "performance-preferred";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionPerformancePolicy(
+                  packedI4ResourceSelection,
+                  stalePackedI4ProviderTieBackOutcome,
+                  "selected-boundary packed-i4 Gate 5 dispatch/performance "
+                  "policy rejects stale provider tie-back"),
+          {"dispatch/performance policy",
+           "provider dispatch preference tie-back",
+           "not-performance-preferred", "performance-preferred"}))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVLowPrecisionContractionResourceSelection
+      stalePackedI4PrimitiveSelection = packedI4ResourceSelection;
+  stalePackedI4PrimitiveSelection.primitiveReductionIntrinsic =
+      "artifact-derived-reduction";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionPerformancePolicy(
+                  stalePackedI4PrimitiveSelection,
+                  acceptedPackedI4Gate4Outcome,
+                  "selected-boundary packed-i4 Gate 5 dispatch/performance "
+                  "policy rejects stale primitive chain"),
+          {"dispatch/performance policy", "primitive reduction intrinsic",
+           tianchenrv::plugin::rvv::
+               kRVVLowPrecisionResourcePrimitiveReductionIntrinsic,
+           "artifact-derived-reduction"}))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
+      stalePackedI4WinClaimOutcome = acceptedPackedI4Gate4Outcome;
+  stalePackedI4WinClaimOutcome.measurementClassification = "win";
+  stalePackedI4WinClaimOutcome.measurementOutcomeFamily = "win";
+  stalePackedI4WinClaimOutcome.performancePreferenceDenied = false;
+  stalePackedI4WinClaimOutcome.performanceWinClaimAllowed = true;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionPerformancePolicy(
+                  packedI4ResourceSelection, stalePackedI4WinClaimOutcome,
+                  "selected-boundary packed-i4 Gate 5 dispatch/performance "
+                  "policy rejects measurement-only win promotion"),
+          {"dispatch/performance policy", "measurement classification",
+           "regression", "win"}))
     return result;
 
   auto packedI4ProductDequantSelectedStatementPlan =
