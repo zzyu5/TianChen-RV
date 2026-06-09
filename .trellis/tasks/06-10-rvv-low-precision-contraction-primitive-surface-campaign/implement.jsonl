@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV stage order, and source-of-truth constraints for this macro task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority placement, Stage 2 typed RVV coverage, unsigned u8 widening-product, widening-reduction primitive facts, and selected-body realization contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built TCRVEmitCLowerableRoute contract for plugin-owned route payloads."}
+{"file": ".trellis/tasks/archive/2026-06/06-09-rvv-packed-i4-production-kernel-resource-aware-realization-campaign/prd.md", "reason": "Prior macro campaign gate/checklist structure and evidence-only drift boundary."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Added explicit low-precision primitive source signedness fields to route descriptions, widening-product facts/contracts, and widening-reduction primitive facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Derived signed/unsigned source signedness from typed widening-product and product-reduction route facts, propagated it into provider descriptions, and fail-closed stale or missing provider facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Exported provider-owned low-precision primitive source signedness as emission-plan metadata mirror."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Required target artifact candidates and provider contracts to mirror source signedness before accepting low-precision widening-product and widening-reduction routes."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added positive and stale-source-signedness negative coverage for provider and target validation."}

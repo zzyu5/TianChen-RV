@@ -502,6 +502,8 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourceOperandFormPackedI4Nibbles
     "packed-i4-nibbles");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceSourceSignednessSigned(
     "signed");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceSourceSignednessUnsigned(
+    "unsigned");
 constexpr std::int64_t kRVVLowPrecisionResourceByteStorageElementWidth = 8;
 constexpr std::int64_t kRVVLowPrecisionResourceByteEffectiveElementWidth = 8;
 constexpr std::int64_t kRVVLowPrecisionResourcePackedI4StorageElementWidth = 8;

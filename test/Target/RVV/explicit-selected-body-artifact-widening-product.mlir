@@ -1,6 +1,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.source_dtype\", value = \"i8\"/s//tcrv_rvv.low_precision_primitive.source_dtype\", value = \"u8\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIM
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.source_signedness\", value = \"signed\"/s//tcrv_rvv.low_precision_primitive.source_signedness\", value = \"unsigned\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SIGN
 
 // Explicit selected-body input for the bounded Stage 2 signed low-precision
 // widening-product primitive. The typed tcrv_rvv body carries i8 source loads,
@@ -51,6 +52,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.contract", value = "rvv-low-precision-widening-primitive-facts.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.kind", value = "signed-i8mf4xi8mf4-to-i16mf2-widening-product.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.source_dtype", value = "i8"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.source_signedness", value = "signed"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.product_dtype", value = "i16"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.result_dtype", value = "i16"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
@@ -70,6 +72,7 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_primitive.contract: rvv-low-precision-widening-primitive-facts.v1
 // HEADER: tianchenrv.rvv.low_precision_primitive.kind: signed-i8mf4xi8mf4-to-i16mf2-widening-product.v1
 // HEADER: tianchenrv.rvv.low_precision_primitive.source_dtype: i8
+// HEADER: tianchenrv.rvv.low_precision_primitive.source_signedness: signed
 // HEADER: tianchenrv.rvv.low_precision_primitive.product_dtype: i16
 // HEADER: tianchenrv.rvv.low_precision_primitive.result_dtype: i16
 // HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-i8mf4-i16mf2-contraction-leaf-profile.v1
@@ -78,3 +81,4 @@ module {
 // HEADER: void tcrv_emitc_explicit_selected_body_widening_product_kernel_explicit_selected_body_rvv_widening_product(const int8_t *lhs, const int8_t *rhs, int16_t *out, size_t n);
 
 // STALE-PRIM: candidate tcrv_rvv.low_precision_primitive.source_dtype provenance must mirror selected typed RVV widening product low-precision primitive source dtype 'i8' but was 'u8'
+// STALE-SIGN: candidate tcrv_rvv.low_precision_primitive.source_signedness provenance must mirror selected typed RVV widening product low-precision primitive source signedness 'signed' but was 'unsigned'

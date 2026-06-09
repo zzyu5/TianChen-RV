@@ -10937,7 +10937,13 @@ bool expectRVVTargetArtifactExporterShape(
       wideningProductFacts =
           tianchenrv::plugin::rvv::getRVVWideningProductRouteFacts(
               OperationKind::WideningProduct);
-  if (!wideningProductFacts) {
+  std::optional<tianchenrv::plugin::rvv::
+                    RVVWideningProductRouteValidationContract>
+      wideningProductContract =
+          tianchenrv::plugin::rvv::
+              getRVVWideningProductRouteValidationContract(
+                  wideningProductDescription);
+  if (!wideningProductFacts || !wideningProductContract) {
     llvm::errs() << "low-precision widening-product positive fixture requires "
                     "canonical provider-owned route facts\n";
     return false;
@@ -10965,10 +10971,27 @@ bool expectRVVTargetArtifactExporterShape(
           wideningProductFacts->wideningProductRelation ||
       wideningProductDescription.wideningProductIntrinsic !=
           wideningProductFacts->wideningProductIntrinsic ||
+      wideningProductDescription.lowPrecisionPrimitiveContractID !=
+          wideningProductFacts->lowPrecisionPrimitiveContractID ||
+      wideningProductDescription.lowPrecisionPrimitiveKind !=
+          wideningProductFacts->lowPrecisionPrimitiveKind ||
+      wideningProductDescription.lowPrecisionPrimitiveSourceElementTypeName !=
+          wideningProductFacts->lowPrecisionPrimitiveSourceElementTypeName ||
+      wideningProductDescription.lowPrecisionPrimitiveSourceSignedness !=
+          wideningProductFacts->lowPrecisionPrimitiveSourceSignedness ||
+      wideningProductDescription.lowPrecisionPrimitiveProductElementTypeName !=
+          wideningProductFacts->lowPrecisionPrimitiveProductElementTypeName ||
+      wideningProductDescription.lowPrecisionPrimitiveAccumulatorElementTypeName !=
+          wideningProductFacts
+              ->lowPrecisionPrimitiveAccumulatorElementTypeName ||
+      wideningProductDescription.lowPrecisionPrimitiveResultElementTypeName !=
+          wideningProductFacts->lowPrecisionPrimitiveResultElementTypeName ||
       wideningProductDescription.sourceVectorLoadIntrinsic !=
           wideningProductFacts->sourceVectorLoadIntrinsic ||
       wideningProductDescription.storeIntrinsic !=
           wideningProductFacts->storeIntrinsic ||
+      wideningProductContract->lowPrecisionPrimitiveSourceSignedness !=
+          wideningProductFacts->lowPrecisionPrimitiveSourceSignedness ||
       !tianchenrv::support::runtimeABIParametersEqual(
           wideningProductDescription.runtimeABIParameters,
           wideningProductFacts->runtimeABIParameters)) {
@@ -11107,6 +11130,18 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-derived-widening-product-relation"}))
     return false;
 
+  RVVRouteDescription staleWideningProductPrimitiveSignedness =
+      wideningProductDescription;
+  staleWideningProductPrimitiveSignedness
+      .lowPrecisionPrimitiveSourceSignedness = "unsigned";
+  if (!expectWideningProductProviderFailure(
+          staleWideningProductPrimitiveSignedness,
+          "low-precision widening-product registry rejects stale primitive "
+          "source signedness",
+          {"low-precision primitive source signedness", "signed",
+           "unsigned"}))
+    return false;
+
   RVVRouteDescription staleWideningProductIntrinsic =
       wideningProductDescription;
   staleWideningProductIntrinsic.wideningProductIntrinsic =
@@ -11141,6 +11176,23 @@ bool expectRVVTargetArtifactExporterShape(
           "low-precision widening-product registry rejects stale source SEW "
           "mirror",
           {"tcrv_rvv.source_sew", "8", "16"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningProductPrimitiveSignednessMirror =
+      wideningProductFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleWideningProductPrimitiveSignednessMirror,
+          "tcrv_rvv.low_precision_primitive.source_signedness", "unsigned")) {
+    llvm::errs() << "test fixture did not contain widening-product primitive "
+                    "source signedness metadata\n";
+    return false;
+  }
+  if (!expectWideningProductCandidateFailure(
+          staleWideningProductPrimitiveSignednessMirror,
+          "low-precision widening-product registry rejects stale primitive "
+          "source signedness mirror",
+          {"tcrv_rvv.low_precision_primitive.source_signedness", "signed",
+           "unsigned"}))
     return false;
 
   TargetArtifactCandidate staleWideningProductRelationMirror =
@@ -13533,6 +13585,8 @@ bool expectRVVTargetArtifactExporterShape(
       productReductionFacts->lowPrecisionWideningReductionPrimitiveFacts
               .sourceElementTypeName != "i8" ||
       productReductionFacts->lowPrecisionWideningReductionPrimitiveFacts
+              .sourceSignedness != "signed" ||
+      productReductionFacts->lowPrecisionWideningReductionPrimitiveFacts
               .productElementTypeName != "i16" ||
       productReductionFacts->lowPrecisionWideningReductionPrimitiveFacts
               .accumulatorElementTypeName != "i32" ||
@@ -13635,6 +13689,19 @@ bool expectRVVTargetArtifactExporterShape(
            "i32", "i16"}))
     return false;
 
+  RVVRouteDescription staleProductReductionPrimitiveSignedness =
+      productReductionDescription;
+  staleProductReductionPrimitiveSignedness
+      .lowPrecisionPrimitiveSourceSignedness = "unsigned";
+  if (!expectWideningDotProviderFailure(
+          productReductionFixture.candidate, productReductionRoute,
+          staleProductReductionPrimitiveSignedness,
+          "product-reduction registry rejects stale primitive source "
+          "signedness",
+          {"low-precision widening-reduction primitive source signedness",
+           "signed", "unsigned"}))
+    return false;
+
   TargetArtifactCandidate staleProductReductionProductLMULMirror =
       productReductionFixture.candidate;
   if (!rewriteArtifactMetadataValue(staleProductReductionProductLMULMirror,
@@ -13659,6 +13726,21 @@ bool expectRVVTargetArtifactExporterShape(
           "product-reduction registry rejects stale primitive accumulator "
           "dtype metadata",
           {"low_precision_primitive.accumulator_dtype", "i32", "i16"}))
+    return false;
+
+  TargetArtifactCandidate staleProductReductionPrimitiveSignednessMirror =
+      productReductionFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleProductReductionPrimitiveSignednessMirror,
+          "tcrv_rvv.low_precision_primitive.source_signedness", "unsigned"))
+    return false;
+  if (!expectWideningDotCandidateFailure(
+          staleProductReductionPrimitiveSignednessMirror, productReductionRoute,
+          productReductionDescription,
+          "product-reduction registry rejects stale primitive source "
+          "signedness metadata",
+          {"low_precision_primitive.source_signedness", "signed",
+           "unsigned"}))
     return false;
 
   RVVRouteDescription stalePackedI4OperandForm =

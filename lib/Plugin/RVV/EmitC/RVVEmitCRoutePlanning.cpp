@@ -43035,6 +43035,9 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back({"tcrv_rvv.low_precision_primitive.source_dtype",
                         description.lowPrecisionPrimitiveSourceElementTypeName});
     metadata.push_back(
+        {"tcrv_rvv.low_precision_primitive.source_signedness",
+         description.lowPrecisionPrimitiveSourceSignedness});
+    metadata.push_back(
         {"tcrv_rvv.low_precision_primitive.product_dtype",
          description.lowPrecisionPrimitiveProductElementTypeName});
     if (!description.lowPrecisionPrimitiveAccumulatorElementTypeName.empty())

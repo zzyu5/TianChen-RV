@@ -2956,6 +2956,11 @@ llvm::Error validateRVVWideningProductDescriptionAgainstContract(
           contract.lowPrecisionPrimitiveSourceElementTypeName))
     return error;
   if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "low-precision primitive source signedness",
+          description.lowPrecisionPrimitiveSourceSignedness,
+          contract.lowPrecisionPrimitiveSourceSignedness))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
           contract.consumerLabel, "low-precision primitive product dtype",
           description.lowPrecisionPrimitiveProductElementTypeName,
           contract.lowPrecisionPrimitiveProductElementTypeName))
@@ -3398,6 +3403,12 @@ llvm::Error validateRVVWideningProductTargetArtifactCandidateMirrors(
           "dtype"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.low_precision_primitive.source_signedness",
+          contract->lowPrecisionPrimitiveSourceSignedness,
+          "selected typed RVV widening product low-precision primitive source "
+          "signedness"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.low_precision_primitive.product_dtype",
           contract->lowPrecisionPrimitiveProductElementTypeName,
           "selected typed RVV widening product low-precision primitive product "
@@ -3522,6 +3533,12 @@ llvm::Error validateRVVLowPrecisionWideningReductionPrimitiveProviderFacts(
           "low-precision widening-reduction primitive source dtype",
           description.lowPrecisionPrimitiveSourceElementTypeName,
           primitive.sourceElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive source signedness",
+          description.lowPrecisionPrimitiveSourceSignedness,
+          primitive.sourceSignedness))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
@@ -6055,6 +6072,10 @@ llvm::Error validateRVVLowPrecisionWideningReductionPrimitiveCandidateMirrors(
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.source_dtype",
           primitive.sourceElementTypeName, "source dtype"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.low_precision_primitive.source_signedness",
+          primitive.sourceSignedness, "source signedness"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.product_dtype",

@@ -786,6 +786,42 @@ Repaired packed-i4 statement planning to use product-pair sum plus single reduct
 
 - None - task complete
 
+
+## Session 574: RVV low-precision contraction primitive surface Gate 1
+
+**Date**: 2026-06-10
+**Task**: RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Created the macro Trellis task for the Stage 2 RVV low-precision contraction
+primitive-surface campaign and completed the Gate 1 production compiler-surface
+slice. The slice made `low_precision_primitive.source_signedness` an explicit
+provider-owned fact for signed i8 and unsigned u8 widening-product paths,
+propagated it through route planning, emission-plan mirrors, support-bundle
+metadata, and target artifact validation, and added stale signedness rejection.
+
+### Testing
+
+- [OK] `rtk ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Manual `tcrv-opt`/`tcrv-translate` checks for source signedness positive
+  mirrors and stale mirror rejection because `FileCheck`/`llvm-lit` are absent.
+- [OK] `rtk git diff --check`
+- [OK] Added source/test diff old-authority scan.
+
+### Status
+
+[OK] Gate 1 slice complete. Macro task remains active; Gates 2-4 remain.
+
+### Next Steps
+
+- Gate 2: make Gearbox selected-body realization consume the accepted
+  low-precision primitive surface, including source signedness, before route
+  construction.
+
 ## 2026-06-09 - RVV packed low-precision performance-maturity feedback Gate 1/2
 
 ### Summary

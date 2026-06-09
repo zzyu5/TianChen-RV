@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Check changed code against global TianChen-RV architecture, RVV stage order, and authority constraints."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin Gate 1 behavior against typed low-precision primitive fact and fail-closed provider validation contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check that Common EmitC remains neutral and route facts are provider-owned."}
+{"file": ".trellis/tasks/archive/2026-06/06-09-rvv-packed-i4-production-kernel-resource-aware-realization-campaign/prd.md", "reason": "Check macro-task continuation and avoid repeating generated-bundle/evidence-only closeout."}
+{"command": "rtk ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate", "result": "passed", "reason": "Rebuilt affected RVV plugin, target artifact export, optimizer, and translator binaries."}
+{"command": "rtk build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed", "reason": "RVV extension plugin smoke test passed."}
+{"command": "rtk build/bin/tianchenrv-target-artifact-export-test", "result": "passed", "reason": "Target artifact export/provider validation test returned 0."}
+{"command": "manual lit-equivalent tcrv-opt/tcrv-translate/rg checks for signed and unsigned widening-product source_signedness plus stale mirror rejection", "result": "passed", "reason": "Project image has no FileCheck or llvm-lit; equivalent positive and negative assertions were run with the built tools."}
+{"command": "rtk git diff --check", "result": "passed", "reason": "No whitespace errors in unstaged diff."}
+{"command": "rtk git diff --cached --check", "result": "passed", "reason": "No whitespace errors in staged diff before commit."}
+{"command": "bounded added source/test diff old-authority scan", "result": "passed", "reason": "No RVVI32M1, rvv-i32m1, tcrv_rvv.i32_ route, descriptor, q8/q4, llama, source-front-door/source-artifact, or old i32m1 intrinsic authority added in source/test diff lines."}

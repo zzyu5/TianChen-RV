@@ -29,6 +29,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.widening_product_intrinsic", value = "__riscv_vwmulu_vv_u16mf2"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.kind", value = "unsigned-u8mf4xu8mf4-to-u16mf2-widening-product.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.source_dtype", value = "u8"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.source_signedness", value = "unsigned"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.product_dtype", value = "u16"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.result_dtype", value = "u16"}
 // PLAN-SAME: runtime_abi_parameters = [{c_name = "lhs", c_type = "const uint8_t *"
