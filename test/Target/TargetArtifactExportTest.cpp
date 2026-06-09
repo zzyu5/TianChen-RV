@@ -13519,6 +13519,43 @@ bool expectRVVTargetArtifactExporterShape(
           {"performance selection eligibility", "false", "true"}))
     return false;
 
+  TargetArtifactCandidate stalePackedI4PerformanceMaturityOutcomeMirror =
+      packedI4ProductDequantFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          stalePackedI4PerformanceMaturityOutcomeMirror,
+          "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
+          "win")) {
+    llvm::errs() << "packed-i4 test fixture did not contain performance "
+                    "maturity outcome metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          stalePackedI4PerformanceMaturityOutcomeMirror,
+          packedI4ProductDequantRoute, packedI4ProductDequantDescription,
+          "packed-i4 product-reduction registry rejects stale performance "
+          "maturity outcome metadata",
+          {"performance maturity outcome", "regression", "win"}))
+    return false;
+
+  TargetArtifactCandidate stalePackedI4DispatchPreferenceMirror =
+      packedI4ProductDequantFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          stalePackedI4DispatchPreferenceMirror,
+          "tcrv_rvv.low_precision_resource.dispatch_preference",
+          "performance-preferred")) {
+    llvm::errs() << "packed-i4 test fixture did not contain dispatch "
+                    "preference metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          stalePackedI4DispatchPreferenceMirror,
+          packedI4ProductDequantRoute, packedI4ProductDequantDescription,
+          "packed-i4 product-reduction registry rejects stale dispatch "
+          "preference metadata",
+          {"dispatch preference", "not-performance-preferred",
+           "performance-preferred"}))
+    return false;
+
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
       stalePackedI4LowShiftOperand =
           cloneRVVEmitCLowerableRouteWithLoopOperand(

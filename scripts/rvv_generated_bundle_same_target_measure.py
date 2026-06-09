@@ -1482,6 +1482,107 @@ def packed_i4_maturity_contract_evidence_input(
     }
 
 
+def require_maturity_input_value(
+    maturity_input: dict[str, Any],
+    field: str,
+    expected: Any,
+    context: str,
+) -> None:
+    actual = maturity_input.get(field)
+    if actual != expected:
+        raise abi.EvidenceError(
+            f"{context} stale maturity-contract evidence field {field}: "
+            f"expected {expected!r}, got {actual!r}"
+        )
+
+
+def validate_packed_i4_maturity_contract_evidence_input(
+    *,
+    fields: dict[str, str],
+    result_classification: dict[str, Any],
+    measurement_evidence_id: str,
+    maturity_input: dict[str, Any],
+    context: str,
+) -> None:
+    classification = str(result_classification.get("classification", ""))
+    outcome_family = str(result_classification.get("outcome_family", ""))
+    performance_win_claim_allowed = provider_contract_allows_performance_claim(
+        fields, classification
+    )
+    expected_alignment = maturity_contract_alignment(
+        fields=fields,
+        classification=classification,
+        outcome_family=outcome_family,
+        performance_win_claim_allowed=performance_win_claim_allowed,
+    )
+    expected_denial_reason = performance_preference_denial_reason(
+        fields, classification
+    )
+
+    expected_values: dict[str, Any] = {
+        "contract": PACKED_I4_MATURITY_CONTRACT_EVIDENCE_INPUT,
+        "measurement_evidence_id": measurement_evidence_id,
+        "measurement_classification": classification,
+        "measurement_outcome_family": outcome_family,
+        "measurement_best_speedup_range": result_classification.get(
+            "best_speedup_range", ""
+        ),
+        "measurement_summary_record_count": result_classification.get(
+            "summary_record_count", 0
+        ),
+        "measurement_record_count": result_classification.get(
+            "measurement_record_count", 0
+        ),
+        "provider_maturity": fields["performance_maturity"],
+        "provider_maturity_evidence": fields["performance_maturity_evidence"],
+        "provider_maturity_outcome": fields["performance_maturity_outcome"],
+        "provider_performance_selection_eligible": fields[
+            "performance_selection_eligible"
+        ],
+        "provider_dispatch_preference": fields["dispatch_preference"],
+        "provider_performance_action": fields["performance_action"],
+        "contract_alignment": expected_alignment,
+        "performance_win_claim_allowed": performance_win_claim_allowed,
+        "performance_preference_denied": not performance_win_claim_allowed,
+        "performance_preference_denial_reason": expected_denial_reason,
+        "correctness_execution_allowed": True,
+        "provider_contract_update_required": expected_alignment
+        not in ("not-measured", "matches-provider-maturity-outcome"),
+    }
+    for field, expected in expected_values.items():
+        require_maturity_input_value(maturity_input, field, expected, context)
+
+    if classification in (
+        RESULT_CLASSIFICATION_NOT_MEASURED,
+        RESULT_CLASSIFICATION_NO_WIN,
+        RESULT_CLASSIFICATION_REGRESSION,
+    ):
+        if maturity_input.get("performance_win_claim_allowed") is not False:
+            raise abi.EvidenceError(
+                f"{context} must fail closed: {classification} evidence "
+                "cannot allow a performance-win claim"
+            )
+        if maturity_input.get("performance_preference_denied") is not True:
+            raise abi.EvidenceError(
+                f"{context} must deny performance preference for "
+                f"{classification} evidence"
+            )
+        if fields["performance_selection_eligible"] == "true":
+            raise abi.EvidenceError(
+                f"{context} must fail closed: {classification} evidence "
+                "cannot be paired with provider performance selection "
+                "eligibility"
+            )
+        if (
+            fields["dispatch_preference"]
+            == PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH
+        ):
+            raise abi.EvidenceError(
+                f"{context} must fail closed: {classification} evidence "
+                "cannot be paired with provider performance-preferred dispatch"
+            )
+
+
 def packed_i4_provider_feedback_tie_back(
     *,
     generation_result: dict[str, Any],
@@ -1564,6 +1665,13 @@ def packed_i4_provider_feedback_tie_back(
         fields=fields,
         result_classification=result_classification,
         measurement_evidence_id=measurement_evidence_id,
+    )
+    validate_packed_i4_maturity_contract_evidence_input(
+        fields=fields,
+        result_classification=result_classification,
+        measurement_evidence_id=measurement_evidence_id,
+        maturity_input=maturity_input,
+        context="packed-i4 provider feedback tie-back",
     )
 
     return {
@@ -2368,7 +2476,7 @@ def run_self_test() -> int:
         expected_alignment: str,
         expected_denial_reason: str,
         expected_update_required: bool,
-    ) -> None:
+    ) -> dict[str, Any]:
         measurement_evidence_id = (
             "self-test/"
             f"{result_classification['classification']}/same_target_measurement_evidence.json"
@@ -2411,8 +2519,16 @@ def run_self_test() -> int:
             raise AssertionError(
                 "self-test packed-i4 contract lost correctness/performance split"
             )
+        return tie_back
 
+    not_measured = not_measured_result_classification("self-test-not-measured")
     check_packed_i4_contract_input(
+        not_measured,
+        expected_alignment="not-measured",
+        expected_denial_reason="same-target-measurement-not-run",
+        expected_update_required=False,
+    )
+    regression_tie_back = check_packed_i4_contract_input(
         regression,
         expected_alignment="matches-provider-maturity-outcome",
         expected_denial_reason="same-target-measurement-no-win-or-regression",
@@ -2432,6 +2548,118 @@ def run_self_test() -> int:
         expected_denial_reason="provider-contract-performance-selection-ineligible",
         expected_update_required=True,
     )
+
+    def expect_maturity_input_failure(
+        field: str, stale_value: Any, expected_token: str
+    ) -> None:
+        fields = regression_tie_back["fields"]
+        result_classification = regression
+        measurement_evidence_id = (
+            "self-test/"
+            f"{result_classification['classification']}/same_target_measurement_evidence.json"
+        )
+        stale_input = dict(
+            regression_tie_back["maturity_contract_evidence_input"]
+        )
+        stale_input[field] = stale_value
+        try:
+            validate_packed_i4_maturity_contract_evidence_input(
+                fields=fields,
+                result_classification=result_classification,
+                measurement_evidence_id=measurement_evidence_id,
+                maturity_input=stale_input,
+                context="self-test stale packed-i4 maturity input",
+            )
+        except abi.EvidenceError as exc:
+            if expected_token not in str(exc):
+                raise AssertionError(
+                    "self-test stale packed-i4 maturity input failure "
+                    f"for {field} missed token {expected_token}: {exc}"
+                ) from exc
+            return
+        raise AssertionError(
+            f"self-test stale packed-i4 maturity input accepted {field}"
+        )
+
+    for field, stale_value, expected_token in [
+        (
+            "measurement_evidence_id",
+            "stale/same_target_measurement_evidence.json",
+            "measurement_evidence_id",
+        ),
+        ("measurement_classification", RESULT_CLASSIFICATION_WIN, "classification"),
+        ("measurement_outcome_family", RESULT_CLASSIFICATION_WIN, "outcome_family"),
+        ("measurement_best_speedup_range", "2.000000..2.500000", "speedup"),
+        ("provider_maturity_outcome", RESULT_CLASSIFICATION_WIN, "maturity"),
+        (
+            "provider_performance_selection_eligible",
+            "true",
+            "selection",
+        ),
+        (
+            "provider_dispatch_preference",
+            PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH,
+            "dispatch",
+        ),
+        ("performance_win_claim_allowed", True, "performance_win_claim_allowed"),
+    ]:
+        expect_maturity_input_failure(field, stale_value, expected_token)
+
+    def expect_stale_provider_metadata_failure(
+        metadata_key: str, stale_value: str, expected_token: str
+    ) -> None:
+        stale_metadata = dict(feedback_metadata)
+        stale_metadata[metadata_key] = stale_value
+        try:
+            packed_i4_provider_feedback_tie_back(
+                generation_result={
+                    "widening_product_reduction_boundary": {
+                        "route_metadata": stale_metadata
+                    }
+                },
+                expectation=packed_expectation,
+                uses_packed_i4_resource=True,
+                result_classification=regression,
+                measurement_evidence_id=(
+                    "self-test/stale-provider/same_target_measurement_evidence.json"
+                ),
+            )
+        except abi.EvidenceError as exc:
+            if expected_token not in str(exc):
+                raise AssertionError(
+                    "self-test stale packed-i4 provider metadata failure for "
+                    f"{metadata_key} missed token {expected_token}: {exc}"
+                ) from exc
+            return
+        raise AssertionError(
+            f"self-test stale packed-i4 provider metadata accepted {metadata_key}"
+        )
+
+    for metadata_key, stale_value, expected_token in [
+        (
+            "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
+            RESULT_CLASSIFICATION_WIN,
+            "performance_maturity_outcome",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.performance_selection_eligible",
+            "true",
+            "performance_selection_eligible",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.dispatch_preference",
+            PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH,
+            "dispatch_preference",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
+            "2.000000..2.500000",
+            "performance_best_speedup_range",
+        ),
+    ]:
+        expect_stale_provider_metadata_failure(
+            metadata_key, stale_value, expected_token
+        )
     print(f"{SCRIPT_NAME} self-test passed")
     return 0
 

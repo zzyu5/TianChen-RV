@@ -9454,6 +9454,31 @@ module {
            "performance selection eligibility", "false", "true"}))
     return result;
 
+  RVVSelectedBodyContractionRouteFamilyPlan
+      stalePackedI4PerformanceMaturityOutcomePlan =
+          *packedI4ProductDequantAnalysis->contractionRouteFamilyPlan;
+  stalePackedI4PerformanceMaturityOutcomePlan.lowPrecisionResourceSelection
+      .performanceMaturityOutcome = "win";
+  if (int result = expectErrorContains(
+          validateRVVSelectedBodyContractionRouteFamilyPlan(
+              stalePackedI4PerformanceMaturityOutcomePlan),
+          {"low-precision direct-contraction resource selection",
+           "performance maturity outcome", "regression", "win"}))
+    return result;
+
+  RVVSelectedBodyContractionRouteFamilyPlan
+      stalePackedI4DispatchPreferencePlan =
+          *packedI4ProductDequantAnalysis->contractionRouteFamilyPlan;
+  stalePackedI4DispatchPreferencePlan.lowPrecisionResourceSelection
+      .dispatchPreference = "performance-preferred";
+  if (int result = expectErrorContains(
+          validateRVVSelectedBodyContractionRouteFamilyPlan(
+              stalePackedI4DispatchPreferencePlan),
+          {"low-precision direct-contraction resource selection",
+           "dispatch preference", "not-performance-preferred",
+           "performance-preferred"}))
+    return result;
+
   auto packedI4ProductDequantSelectedStatementPlan =
       getRVVSelectedBodyRouteStatementPlanOwnerSelection(
           *packedI4ProductDequantAnalysis,

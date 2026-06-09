@@ -875,3 +875,61 @@ fail-closed stale evidence tests proving no-win/regression cannot become
 performance-selected or claimed while route-supported executable correctness
 remains allowed, then Gate 5 for focused artifact/correctness and same-target
 policy checks.
+
+## 2026-06-09 - RVV packed low-precision performance-maturity feedback Gate 4
+
+### Summary
+
+- Continued active macro task
+  `06-09-rvv-packed-low-precision-performance-maturity-feedback-campaign`.
+- Completed Gate 4 slice: stale/no-win/regression packed-i4 maturity evidence
+  now fails closed in focused script policy self-tests, provider negative
+  coverage, target artifact negative coverage, and the packed-i4 lit fixture.
+- Added measurement evidence-input integrity checks so stale measurement id,
+  classification, outcome family, speedup range, provider maturity outcome,
+  selection eligibility, dispatch preference, or win-claim allowance cannot
+  silently disagree with the parsed same-target classification and provider
+  mirrors.
+- No production provider/target semantic repair was required: the existing
+  provider/resource and target artifact validators already reject stale packed-i4
+  maturity mirrors. This slice added the missing Gate 4 proof around that seam.
+
+### Evidence
+
+- `rtk cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test` passed.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- `rtk python3 -m py_compile scripts/rvv_generated_bundle_same_target_measure.py scripts/rvv_generated_bundle_abi_e2e.py` passed.
+- `rtk python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test` passed.
+- `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test` passed.
+- Packed-i4 Gate 4 dry-run passed at
+  `artifacts/tmp/packed-i4-gate4-fail-closed-dry-run/gate4-packed-i4-fail-closed`.
+- Focused `jq` assertions proved root/per-op evidence keeps
+  `performance_win_claim_allowed = false`,
+  `performance_preference_denied = true`,
+  `correctness_execution_allowed = true`,
+  `provider_performance_selection_eligible = "false"`, and
+  `provider_dispatch_preference = "not-performance-preferred"`.
+- `rtk git diff --check` passed.
+- Bounded added-diff old-authority scan found no new positive
+  `RVVI32M1`, `rvv-i32m1`, `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m`,
+  source-front-door, source-export, direct-C, descriptor, q4/q8, or llama
+  authority.
+
+`llvm-lit` and `FileCheck` are unavailable in this local environment, so the
+updated lit fixture was validated through dry-run artifacts, focused `jq`
+assertions, script self-tests, and the C++ provider/target tests.
+
+### Status
+
+[OPEN] Gate 1, Gate 2, Gate 3, and Gate 4 are complete for this macro campaign.
+The task remains active by design. Next continuation point: Gate 5, rerun
+focused artifact/correctness plus same-target policy checks and record whether
+the policy reports win, no-win, or regression truthfully while preserving the
+correctness/performance-maturity split.
+
+### Spec Update Decision
+
+[NO UPDATE] No durable spec change was needed. This round exercised the existing
+RVV plugin, EmitC route, variant tuning, and MLIR testing contracts without
+adding a new architecture rule.
