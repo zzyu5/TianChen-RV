@@ -63,7 +63,7 @@ dispatch claim.
   Gearbox selected-body realization by choosing or rejecting a resource-aware
   packed-i4 schedule from the provider-owned remediation facts before route
   planning.
-- [ ] Gate 3: prove generated artifact correctness and same-target measurement
+- [x] Gate 3: prove generated artifact correctness and same-target measurement
   for the changed packed-i4 path when runtime/correctness/performance behavior
   is claimed.
 - [ ] Gate 4: consume measurement in selected-dispatch policy, choosing
@@ -119,6 +119,31 @@ dispatch claim.
 - [x] Run the focused RVV plugin and target artifact tests plus relevant build
   and diff checks, then commit this Gate 2b slice while keeping the macro task
   active.
+
+## Current Slice: Gate 3 Generated Artifact Correctness And Same-Target Measurement
+
+- [x] Keep the active macro task as the owner and continue from the Gate 2b
+  schedule-decision path instead of creating a neighboring generated-bundle
+  evidence task.
+- [x] Harden generated-bundle evidence so the packed-i4 remediation evidence
+  block explicitly carries the remediation schedule facts and the Gate 2b
+  `schedule_decision_contract`, `schedule_decision`, and
+  `schedule_decision_reason`.
+- [x] Harden same-target measurement evidence so the measurement record carries
+  both `schedule_decision` and `provider_schedule_decision` fields sourced from
+  validated provider/target artifact metadata.
+- [x] Prove generated artifact correctness for the packed-i4
+  `widening_product_reduce_dequantize_f32` path with the Gate 2b schedule
+  decision visible in generated evidence, bundle index, and header mirrors.
+- [x] Run real same-target `ssh rvv` measurement for the updated packed-i4 path
+  and record parsed timing, correctness, target profile, and schedule-decision
+  tie-back evidence.
+- [x] Preserve conservative policy state after measurement: the new result is a
+  regression, so `performance_win_claim_allowed = false`,
+  `provider_performance_selection_eligible = false`, and
+  `dispatch_preference = not-performance-preferred`.
+- [x] Leave Gate 4 open for selected-dispatch policy consumption of the new
+  measurement evidence.
 
 ## Acceptance Criteria For This Round
 
@@ -186,6 +211,31 @@ dispatch claim.
   the next owner for generated artifact correctness and real same-target
   measurement.
 
+## Completed Slice: 2026-06-10 Gate 3
+
+- Generated-bundle ABI evidence now exposes the packed-i4 remediation schedule
+  fields and Gate 2b schedule-decision fields inside
+  `packed_i4_resource_remediation_evidence`, separating the concise evidence
+  summary from the lower-level target artifact mirror keys.
+- Same-target measurement evidence now records
+  `measurement_schedule_decision_evidence` and
+  `same_target_schedule_decision_evidence` with the provider-owned schedule
+  decision:
+  `select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1`.
+- Real same-target `ssh rvv` measurement completed at:
+  `artifacts/tmp/rvv_generated_bundle_same_target_measure/gate3-packed-i4-schedule-decision-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`.
+- Measurement result: `summaries=12`, `measurements=60`, `correctness=12`,
+  `classification=regression`, `best_speedup_range=0.689815..0.705331`,
+  `provider_performance_selection_eligible=false`, and
+  `performance_win_claim_allowed=false`.
+- The generated artifact and same-target records both carry
+  `schedule_decision` / `provider_schedule_decision`; stale or missing schedule
+  facts remain fail-closed through the provider and target validation paths from
+  Gate 2b.
+- No selected-dispatch policy promotion was made in Gate 3. Gate 4 must consume
+  this measurement explicitly and preserve correctness fallback unless future
+  same-target evidence and provider facts prove a real win.
+
 ## Out Of Scope
 
 - New q8/q4/llama-named route ids, artifact authority, or benchmark authority.
@@ -223,7 +273,10 @@ dispatch claim.
 ## Continuation Point
 
 Continue from Gate 3 for the changed packed-i4 schedule-decision path: generate
-artifact correctness evidence and run real same-target `ssh rvv` measurement for
-the updated production path before any Gate 4 selected-dispatch policy update is
-considered. Gate 4 remains blocked on measured same-target evidence; keep
-`performance-preferred` unavailable unless that evidence proves a real win.
+Continue from Gate 4 for the changed packed-i4 schedule-decision path: consume
+the Gate 3 evidence at
+`artifacts/tmp/rvv_generated_bundle_same_target_measure/gate3-packed-i4-schedule-decision-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`
+in the selected-dispatch policy boundary. The new same-target result is still a
+regression (`0.689815..0.705331`), so Gate 4 should preserve
+`correctness-fallback` / `not-performance-preferred` unless a later provider
+contract update is backed by a real same-target win.

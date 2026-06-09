@@ -34622,6 +34622,30 @@ def widening_product_reduction_boundary_summary(
                     "remediation_vector_budget": route_metadata.get(
                         "tcrv_rvv.low_precision_resource.remediation_vector_budget"
                     ),
+                    "remediation_schedule_contract": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_schedule_contract"
+                    ),
+                    "remediation_unpack_plan": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_unpack_plan"
+                    ),
+                    "remediation_product_plan": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_product_plan"
+                    ),
+                    "remediation_reduction_plan": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_reduction_plan"
+                    ),
+                    "remediation_vl_plan": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.remediation_vl_plan"
+                    ),
+                    "schedule_decision_contract": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.schedule_decision_contract"
+                    ),
+                    "schedule_decision": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.schedule_decision"
+                    ),
+                    "schedule_decision_reason": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.schedule_decision_reason"
+                    ),
                 },
                 "expected_fields": {
                     "performance_feedback": resource_profile[
@@ -34660,6 +34684,28 @@ def widening_product_reduction_boundary_summary(
                     ],
                     "remediation_vector_budget": resource_profile[
                         "remediation_vector_budget"
+                    ],
+                    "remediation_schedule_contract": resource_profile[
+                        "remediation_schedule_contract"
+                    ],
+                    "remediation_unpack_plan": resource_profile[
+                        "remediation_unpack_plan"
+                    ],
+                    "remediation_product_plan": resource_profile[
+                        "remediation_product_plan"
+                    ],
+                    "remediation_reduction_plan": resource_profile[
+                        "remediation_reduction_plan"
+                    ],
+                    "remediation_vl_plan": resource_profile[
+                        "remediation_vl_plan"
+                    ],
+                    "schedule_decision_contract": resource_profile[
+                        "schedule_decision_contract"
+                    ],
+                    "schedule_decision": resource_profile["schedule_decision"],
+                    "schedule_decision_reason": resource_profile[
+                        "schedule_decision_reason"
                     ],
                 },
             }

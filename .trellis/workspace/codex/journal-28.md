@@ -643,3 +643,74 @@ a durable new policy rule.
 [OPEN] Gate 2b is complete. Gate 3 generated artifact correctness plus real
 same-target `ssh rvv` measurement and Gate 4 measured selected-dispatch policy
 consumption remain open. `.trellis/.current-task` stays active.
+
+## Session 583: Packed-i4 performance remediation Gate 3 evidence and measurement
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV packed-i4 performance-remediation campaign
+**Branch**: `main`
+
+### Summary
+
+Completed Gate 3 for the active macro task. The Gate 2b packed-i4 schedule
+decision now appears explicitly in generated-bundle evidence and same-target
+measurement evidence, and the updated packed-i4
+`widening_product_reduce_dequantize_f32` path has real same-target `ssh rvv`
+correctness and timing evidence.
+
+The real measurement still classifies as a regression. The path remains
+correctness-supported but not performance-preferred:
+`provider_performance_selection_eligible=false` and
+`performance_win_claim_allowed=false`.
+
+### Main Changes
+
+- Added the remediation schedule facts and Gate 2b schedule-decision facts to
+  `packed_i4_resource_remediation_evidence` in the generated-bundle ABI
+  evidence summary.
+- Added `measurement_schedule_decision_evidence` and
+  `same_target_schedule_decision_evidence` to the same-target measurement
+  evidence so the measurement record carries both `schedule_decision` and
+  `provider_schedule_decision`.
+- Updated focused script dry-run tests to assert the new generated-artifact and
+  same-target schedule-decision evidence fields.
+- Updated the active PRD to mark Gate 3 complete, record the measurement path,
+  and leave Gate 4 open.
+
+### Evidence
+
+- Rebuilt focused binaries:
+  `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py
+  scripts/rvv_generated_bundle_same_target_measure.py`.
+- `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`.
+- Generated-bundle ABI dry-run:
+  `python3 scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root artifacts/tmp/rvv_generated_bundle_abi_e2e --run-id gate3-packed-i4-schedule-decision-dry-run --overwrite --op-kind widening_product_reduce_dequantize_f32 --input test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj /usr/bin/llvm-readobj-20`.
+- Same-target dry-run:
+  `python3 scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root artifacts/tmp/rvv_generated_bundle_same_target_measure --run-id gate3-packed-i4-schedule-decision-dry-run --overwrite --op-kind widening_product_reduce_dequantize_f32 --input test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj /usr/bin/llvm-readobj-20`.
+- Real same-target `ssh rvv` measurement:
+  `python3 scripts/rvv_generated_bundle_same_target_measure.py --artifact-root artifacts/tmp/rvv_generated_bundle_same_target_measure --run-id gate3-packed-i4-schedule-decision-ssh --overwrite --op-kind widening_product_reduce_dequantize_f32 --input test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj /usr/bin/llvm-readobj-20 --ssh-target rvv`.
+- Result: `summaries=12`, `measurements=60`, `correctness=12`,
+  `classification=regression`, `best_speedup_range=0.689815..0.705331`,
+  `provider_performance_selection_eligible=false`, and
+  `performance_win_claim_allowed=false`.
+- Evidence path:
+  `artifacts/tmp/rvv_generated_bundle_same_target_measure/gate3-packed-i4-schedule-decision-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`.
+- `git diff --check` passed before journal/PRD updates.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] Gate 3 completed the active macro PRD using existing RVV
+plugin/testing contracts. The durable policy rule should be promoted only after
+Gate 4 consumes this measurement in selected-dispatch policy.
+
+### Status
+
+[OPEN] Gate 3 is complete. Gate 4 remains open: consume the Gate 3 measurement
+evidence in selected-dispatch policy and preserve correctness fallback unless a
+future provider-backed same-target win justifies `performance-preferred`.

@@ -2159,6 +2159,22 @@ def op_measurement_summary(
             {"lower_bound": lower, "upper_bound": upper}
             for lower, upper in abi.DEFAULT_F32_CLAMP_BOUND_PAIRS
         ]
+    if uses_packed_i4_resource:
+        fields = provider_feedback_tie_back.get("fields", {})
+        schedule_decision_evidence = {
+            "schedule_decision": fields.get("schedule_decision", ""),
+            "provider_schedule_decision_contract": fields.get(
+                "schedule_decision_contract", ""
+            ),
+            "provider_schedule_decision": fields.get("schedule_decision", ""),
+            "provider_schedule_decision_reason": fields.get(
+                "schedule_decision_reason", ""
+            ),
+        }
+        summary["measurement_harness"].update(schedule_decision_evidence)
+        summary["same_target_schedule_decision_evidence"] = (
+            schedule_decision_evidence
+        )
     maturity_input = provider_feedback_tie_back.get(
         "maturity_contract_evidence_input"
     )
@@ -2332,6 +2348,39 @@ def run_one_measurement(
                 f"{run_id}/{expectation.kind}/same_target_measurement_evidence.json"
             ),
         )
+        if uses_packed_i4_resource:
+            fields = provider_feedback_tie_back["fields"]
+            schedule_decision_evidence = {
+                "schedule_decision": fields["schedule_decision"],
+                "provider_schedule_decision_contract": fields[
+                    "schedule_decision_contract"
+                ],
+                "provider_schedule_decision": fields["schedule_decision"],
+                "provider_schedule_decision_reason": fields[
+                    "schedule_decision_reason"
+                ],
+                "source": (
+                    "provider-owned packed-i4 schedule decision mirrored by "
+                    "validated generated object/header metadata"
+                ),
+            }
+            evidence["measurement_schedule_decision_evidence"] = (
+                schedule_decision_evidence
+            )
+            evidence["measurement_harness"].update(
+                {
+                    key: value
+                    for key, value in schedule_decision_evidence.items()
+                    if key != "source"
+                }
+            )
+            evidence.setdefault("packed_i4_reference_oracle", {}).update(
+                {
+                    key: value
+                    for key, value in schedule_decision_evidence.items()
+                    if key != "source"
+                }
+            )
         evidence["result_classification"] = result_classification
         evidence["provider_feedback_tie_back"] = provider_feedback_tie_back
         maturity_input = provider_feedback_tie_back.get(

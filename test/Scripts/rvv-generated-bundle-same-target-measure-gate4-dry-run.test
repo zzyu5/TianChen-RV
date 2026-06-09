@@ -94,6 +94,8 @@
 # PACKED-WPRD-DAG: "schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
 # PACKED-WPRD-DAG: "schedule_decision": "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"
 # PACKED-WPRD-DAG: "schedule_decision_reason": "accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32"
+# PACKED-WPRD-DAG: "measurement_schedule_decision_evidence"
+# PACKED-WPRD-DAG: "same_target_schedule_decision_evidence"
 # PACKED-WPRD-DAG: "target_capability_legality_mirror": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
 # PACKED-WPRD-DAG: "performance_maturity_contract_evidence_input"
 # PACKED-WPRD-DAG: "contract": "packed-i4-same-target-performance-maturity-evidence-input.v1"
