@@ -117,6 +117,28 @@ constexpr llvm::StringLiteral kRegionCountAttrName("region_count");
 constexpr llvm::StringLiteral kRuntimeAVLSourceAttrName(
     "runtime_avl_source");
 constexpr llvm::StringLiteral kResourceDecisionAttrName("resource_decision");
+constexpr llvm::StringLiteral kResourceCandidateSetAttrName(
+    "resource_candidate_set");
+constexpr llvm::StringLiteral kResourceSelectedCandidateAttrName(
+    "resource_selected_candidate");
+constexpr llvm::StringLiteral kOperandFormAttrName("operand_form");
+constexpr llvm::StringLiteral kPackingLayoutAttrName("packing_layout");
+constexpr llvm::StringLiteral kUnpackIntentAttrName("unpack_intent");
+constexpr llvm::StringLiteral kPeakLiveVectorGroupsAttrName(
+    "peak_live_vector_groups");
+constexpr llvm::StringLiteral kVectorRegisterBudgetAttrName(
+    "vector_register_budget");
+constexpr llvm::StringLiteral kProductRegionIndexAttrName(
+    "product_region_index");
+constexpr llvm::StringLiteral kDequantRegionIndexAttrName(
+    "dequant_region_index");
+constexpr llvm::StringLiteral kRemediationPlanContractAttrName(
+    "remediation_plan_contract");
+constexpr llvm::StringLiteral kRemediationPlanAttrName("remediation_plan");
+constexpr llvm::StringLiteral kRemediationStatementStrategyAttrName(
+    "remediation_statement_strategy");
+constexpr llvm::StringLiteral kRemediationVectorBudgetAttrName(
+    "remediation_vector_budget");
 constexpr llvm::StringLiteral kProducerScopeAttrName("producer_scope");
 constexpr llvm::StringLiteral kConsumerScopeAttrName("consumer_scope");
 constexpr llvm::StringLiteral kPrimitiveChainContractAttrName(
@@ -260,6 +282,18 @@ bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
          name == kToPhaseAttrName || name == kRegionCountAttrName ||
          name == kRuntimeAVLSourceAttrName ||
          name == kResourceDecisionAttrName ||
+         name == kResourceCandidateSetAttrName ||
+         name == kResourceSelectedCandidateAttrName ||
+         name == kOperandFormAttrName || name == kPackingLayoutAttrName ||
+         name == kUnpackIntentAttrName ||
+         name == kPeakLiveVectorGroupsAttrName ||
+         name == kVectorRegisterBudgetAttrName ||
+         name == kProductRegionIndexAttrName ||
+         name == kDequantRegionIndexAttrName ||
+         name == kRemediationPlanContractAttrName ||
+         name == kRemediationPlanAttrName ||
+         name == kRemediationStatementStrategyAttrName ||
+         name == kRemediationVectorBudgetAttrName ||
          name == kProducerScopeAttrName || name == kConsumerScopeAttrName ||
          name == kPrimitiveChainContractAttrName ||
          name == kPrimitiveChainKindAttrName ||
@@ -4088,6 +4122,130 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
       tianchenrv::plugin::rvv::
           getRVVLowPrecisionResourceExpectedVSetVLRegionCountForRealizationDecision(
               getResourceDecision());
+  if (!tianchenrv::plugin::rvv::isRVVLowPrecisionResourceCandidateSetMember(
+          getResourceCandidateSet(), getResourceSelectedCandidate()))
+    return emitOpError()
+           << "requires resource_selected_candidate to belong to the "
+              "provider-owned resource_candidate_set";
+
+  const llvm::StringRef expectedDecisionFromCandidate =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionContractionResourceRealizationDecision(
+              getResourceSelectedCandidate());
+  if (expectedDecisionFromCandidate.empty() ||
+      expectedDecisionFromCandidate != getResourceDecision())
+    return emitOpError()
+           << "requires resource_decision to match the selected "
+              "low-precision resource candidate";
+
+  const bool isPackedI4Resource =
+      tianchenrv::plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
+          getResourceSelectedCandidate());
+  const llvm::StringRef expectedOperandForm =
+      isPackedI4Resource
+          ? llvm::StringRef(tianchenrv::plugin::rvv::
+                                kRVVLowPrecisionResourceOperandFormPackedI4Nibbles)
+          : llvm::StringRef(tianchenrv::plugin::rvv::
+                                kRVVLowPrecisionResourceOperandFormUnpackedByte);
+  const llvm::StringRef expectedPackingLayout =
+      isPackedI4Resource
+          ? llvm::StringRef(tianchenrv::plugin::rvv::
+                                kRVVLowPrecisionResourcePackingLayoutPackedI4Nibbles)
+          : llvm::StringRef(tianchenrv::plugin::rvv::
+                                kRVVLowPrecisionResourcePackingLayoutByte);
+  const llvm::StringRef expectedUnpackIntent =
+      isPackedI4Resource
+          ? llvm::StringRef(tianchenrv::plugin::rvv::
+                                kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles)
+          : llvm::StringRef(tianchenrv::plugin::rvv::
+                                kRVVLowPrecisionResourceUnpackIntentNone);
+  const std::int64_t expectedPeakLiveVectorGroups =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionResourceExpectedPeakLiveVectorGroups(
+              getResourceSelectedCandidate());
+  const std::int64_t expectedProductRegionIndex =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
+              getResourceDecision());
+  const std::int64_t expectedDequantRegionIndex =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+              getResourceDecision());
+
+  if (getOperandForm() != expectedOperandForm ||
+      getPackingLayout() != expectedPackingLayout ||
+      getUnpackIntent() != expectedUnpackIntent)
+    return emitOpError()
+           << "requires operand_form, packing_layout, and unpack_intent to "
+              "match the selected low-precision resource candidate";
+  if (static_cast<std::int64_t>(getPeakLiveVectorGroups()) !=
+      expectedPeakLiveVectorGroups)
+    return emitOpError()
+           << "requires peak_live_vector_groups to match the selected "
+              "low-precision resource candidate";
+  if (static_cast<std::int64_t>(getVectorRegisterBudget()) !=
+      tianchenrv::plugin::rvv::kRVVLowPrecisionResourceVectorRegisterBudget)
+    return emitOpError()
+           << "requires vector_register_budget to match the provider-owned "
+              "low-precision resource budget";
+  if (getPeakLiveVectorGroups() > getVectorRegisterBudget())
+    return emitOpError()
+           << "requires peak_live_vector_groups to fit inside "
+              "vector_register_budget";
+  if (static_cast<std::int64_t>(getProductRegionIndex()) !=
+          expectedProductRegionIndex ||
+      static_cast<std::int64_t>(getDequantRegionIndex()) !=
+          expectedDequantRegionIndex ||
+      getProductRegionIndex() <= 0 ||
+      getProductRegionIndex() >= getDequantRegionIndex() ||
+      getDequantRegionIndex() > getRegionCount())
+    return emitOpError()
+           << "requires product_region_index and dequant_region_index to "
+              "match the selected resource decision and fit inside "
+              "region_count";
+
+  auto requireOptionalRemediationFact =
+      [&](llvm::StringRef attrName, llvm::StringRef expected)
+      -> mlir::LogicalResult {
+    auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return emitOpError()
+               << "requires packed-i4 remediation attribute '" << attrName
+               << "' to be absent for unpacked-byte resource candidates";
+      return mlir::success();
+    }
+    if (!attr)
+      return emitOpError()
+             << "requires packed-i4 remediation attribute '" << attrName
+             << "' on the selected resource handoff";
+    if (attr.getValue() != expected)
+      return emitOpError()
+             << "requires packed-i4 remediation attribute '" << attrName
+             << "' to match provider-owned resource fact '" << expected
+             << "' but found '" << attr.getValue() << "'";
+    return verifyBoundedMetadata(op, attrName, attr.getValue());
+  };
+  if (mlir::failed(requireOptionalRemediationFact(
+          kRemediationPlanContractAttrName,
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationPlanContract)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          kRemediationPlanAttrName,
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationPlan)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          kRemediationStatementStrategyAttrName,
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          kRemediationVectorBudgetAttrName,
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationVectorBudget)))
+    return mlir::failure();
 
   tcrv::rvv::VSetVLRegionMarkerOp firstMarker;
   tcrv::rvv::VSetVLRegionMarkerOp secondMarker;
@@ -4327,6 +4485,21 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   if (mlir::failed(verifyBoundedMetadata(op, kResourceDecisionAttrName,
                                          getResourceDecision())))
     return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kResourceCandidateSetAttrName,
+                                         getResourceCandidateSet())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kResourceSelectedCandidateAttrName,
+                                         getResourceSelectedCandidate())))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyBoundedMetadata(op, kOperandFormAttrName, getOperandForm())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kPackingLayoutAttrName,
+                                         getPackingLayout())))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyBoundedMetadata(op, kUnpackIntentAttrName, getUnpackIntent())))
+    return mlir::failure();
   if (mlir::failed(verifyBoundedMetadata(op, kProducerScopeAttrName,
                                          getProducerScope())))
     return mlir::failure();
@@ -4338,6 +4511,9 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyBoundedMetadata(op, kPrimitiveChainKindAttrName,
                                          getPrimitiveChainKind())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kPrimitiveSourceSignednessAttrName,
+                                         getPrimitiveSourceSignedness())))
     return mlir::failure();
   if (mlir::failed(verifyBoundedMetadata(
           op, kPrimitiveWideningProductRelationAttrName,

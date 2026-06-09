@@ -9,6 +9,11 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/consumer_scope = "gearbox-scope:dequant-store"/consumer_scope = "gearbox-scope:product-reduction"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-GEARBOX-SCOPE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"/primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i32m1_i32m1"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-PRIMITIVE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/primitive_source_signedness = "signed"/primitive_source_signedness = "unsigned"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-SIGN
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1\[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped\]"/resource_selected_candidate = "artifact-name-derived-resource-candidate"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-RESOURCE-CANDIDATE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1\[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped\]", //' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-HANDOFF-RESOURCE-CANDIDATE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/peak_live_vector_groups = 7 : i64/peak_live_vector_groups = 99 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-RESOURCE-BUDGET
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/unpack_intent = "none-direct-widening-product"/unpack_intent = "metadata-only-unpack-plan"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-UNPACK-POLICY
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/dequant_region_index = 3 : i64/dequant_region_index = 1 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-REGION-INDEX
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.operand_form\", value = \"unpacked-byte-elements\"/s//tcrv_rvv.low_precision_resource.operand_form\", value = \"packed-i4-nibbles\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-MIRROR
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic\", value = \"__riscv_vwredsum_vs_i16mf2_i32m1\"/s//tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic\", value = \"__riscv_vwredsum_vs_i32m1_i32m1\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIMITIVE-RESOURCE-MIRROR
@@ -84,17 +89,26 @@ module {
 // REALIZED: %[[HANDOFF:.*]] = tcrv_rvv.gearbox_cross_region_handoff %[[REDUCED]], %[[VL]], %{{[^ ]+}}
 // REALIZED-SAME: consumer_scope = "gearbox-scope:dequant-store"
 // REALIZED-SAME: contract = "gearbox-product-reduce-to-dequant-cross-region-handoff.v1"
+// REALIZED-SAME: dequant_region_index = 3 : i64
 // REALIZED-SAME: from_phase = "tail-product-reduce"
+// REALIZED-SAME: operand_form = "unpacked-byte-elements"
+// REALIZED-SAME: packing_layout = "one-element-per-byte"
+// REALIZED-SAME: peak_live_vector_groups = 7 : i64
 // REALIZED-SAME: primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1"
 // REALIZED-SAME: primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
 // REALIZED-SAME: primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
 // REALIZED-SAME: primitive_reduction_store_vl = "1"
 // REALIZED-SAME: primitive_source_signedness = "signed"
 // REALIZED-SAME: producer_scope = "gearbox-scope:product-reduction"
+// REALIZED-SAME: product_region_index = 2 : i64
 // REALIZED-SAME: region_count = 3 : i64
+// REALIZED-SAME: resource_candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]"
 // REALIZED-SAME: resource_decision = "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
+// REALIZED-SAME: resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
 // REALIZED-SAME: runtime_avl_source = "runtime_abi:n"
 // REALIZED-SAME: to_phase = "dequant-store"
+// REALIZED-SAME: unpack_intent = "none-direct-widening-product"
+// REALIZED-SAME: vector_register_budget = 32 : i64
 // REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m1">
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: selected_variant = @pre_realized_body_rvv_product_reduce_dequantize
@@ -201,6 +215,16 @@ module {
 // STALE-HANDOFF-SIGN: requires primitive-chain resource fact 'primitive_source_signedness'
 // STALE-HANDOFF-SIGN-SAME: signed
 // STALE-HANDOFF-SIGN-SAME: unsigned
+
+// STALE-HANDOFF-RESOURCE-CANDIDATE: requires resource_selected_candidate to belong to the provider-owned resource_candidate_set
+
+// MISSING-HANDOFF-RESOURCE-CANDIDATE: requires attribute 'resource_selected_candidate'
+
+// STALE-HANDOFF-RESOURCE-BUDGET: requires peak_live_vector_groups to match the selected low-precision resource candidate
+
+// STALE-HANDOFF-UNPACK-POLICY: requires operand_form, packing_layout, and unpack_intent to match the selected low-precision resource candidate
+
+// STALE-HANDOFF-REGION-INDEX: requires product_region_index and dequant_region_index to match the selected resource decision and fit inside region_count
 
 // STALE-PACKED-MIRROR: candidate tcrv_rvv.low_precision_resource.operand_form provenance must mirror provider-selected low-precision direct-contraction resource operand form 'unpacked-byte-elements'
 // STALE-PACKED-MIRROR-SAME: packed-i4-nibbles

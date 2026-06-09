@@ -8975,9 +8975,32 @@ module {
               productDequantHandoff.getPrimitiveResultLayout() ==
                   kRVVLowPrecisionResourcePrimitiveResultLayout &&
               productDequantHandoff.getPrimitiveReductionStoreVl() ==
-                  kRVVLowPrecisionResourcePrimitiveReductionStoreVL,
+                  kRVVLowPrecisionResourcePrimitiveReductionStoreVL &&
+              productDequantHandoff.getResourceCandidateSet() ==
+                  "rvv-low-precision-direct-contraction-resource-candidate-"
+                  "set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,"
+                  "u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-"
+                  "f32m1:u1-unpack-required]" &&
+              productDequantHandoff.getResourceSelectedCandidate() ==
+                  "rvv-low-precision-direct-contraction-resource-candidate."
+                  "v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-"
+                  "f32m1,u2-grouped]" &&
+              productDequantHandoff.getOperandForm() ==
+                  "unpacked-byte-elements" &&
+              productDequantHandoff.getPackingLayout() ==
+                  "one-element-per-byte" &&
+              productDequantHandoff.getUnpackIntent() ==
+                  "none-direct-widening-product" &&
+              productDequantHandoff.getPeakLiveVectorGroups() == 7 &&
+              productDequantHandoff.getVectorRegisterBudget() == 32 &&
+              productDequantHandoff.getProductRegionIndex() == 2 &&
+              productDequantHandoff.getDequantRegionIndex() == 3 &&
+              !productDequantHandoff.getRemediationPlanContract() &&
+              !productDequantHandoff.getRemediationPlan() &&
+              !productDequantHandoff.getRemediationStatementStrategy() &&
+              !productDequantHandoff.getRemediationVectorBudget(),
           "selected-boundary product-reduction-dequant realizes Gearbox "
-          "handoff from provider-owned primitive-chain resource facts"))
+          "handoff from provider-owned primitive-chain and resource facts"))
     return result;
 
   auto productDequantAnalysis = analyzeRVVSelectedBodyRoute(
@@ -9504,6 +9527,49 @@ module {
           "selected-boundary packed-i4 product-reduction-dequant consumes "
           "explicit packed resource facts into the producer/consumer "
           "realization boundary"))
+    return result;
+  auto packedI4ProductDequantHandoff = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::GearboxCrossRegionHandoffOp>(
+      findFirstNestedOp(packedI4ProductDequantVariant,
+                        "tcrv_rvv.gearbox_cross_region_handoff"));
+  if (int result = expect(
+          packedI4ProductDequantHandoff &&
+              packedI4ProductDequantHandoff.getResourceCandidateSet() ==
+                  "rvv-low-precision-direct-contraction-resource-candidate-"
+                  "set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,"
+                  "u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-"
+                  "f32m1:u1-unpack-required]" &&
+              packedI4ProductDequantHandoff.getResourceSelectedCandidate() ==
+                  "rvv-low-precision-direct-contraction-resource-candidate."
+                  "v1[product-reduction-dequantize-f32,signed-i4n2-in-"
+                  "i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]" &&
+              packedI4ProductDequantHandoff.getOperandForm() ==
+                  "packed-i4-nibbles" &&
+              packedI4ProductDequantHandoff.getPackingLayout() ==
+                  "two-signed-i4-elements-per-byte-low-high-nibbles" &&
+              packedI4ProductDequantHandoff.getUnpackIntent() ==
+                  "sign-extend-i4-nibbles-before-widening-product" &&
+              packedI4ProductDequantHandoff.getPeakLiveVectorGroups() == 7 &&
+              packedI4ProductDequantHandoff.getVectorRegisterBudget() == 32 &&
+              packedI4ProductDequantHandoff.getProductRegionIndex() == 1 &&
+              packedI4ProductDequantHandoff.getDequantRegionIndex() == 2 &&
+              packedI4ProductDequantHandoff.getRemediationPlanContract()
+                      .value_or(llvm::StringRef()) ==
+                  "rvv-low-precision-packed-i4-resource-remediation-plan.v1" &&
+              packedI4ProductDequantHandoff.getRemediationPlan().value_or(
+                  llvm::StringRef()) ==
+                  "repair-packed-i4-product-pair-sum-single-reduce-before-"
+                  "performance-claim.v1" &&
+              packedI4ProductDequantHandoff
+                      .getRemediationStatementStrategy()
+                      .value_or(llvm::StringRef()) ==
+                  "unpack-low-high-signed-i4-nibbles-product-pair-sum-single-"
+                  "vwredsum" &&
+              packedI4ProductDequantHandoff.getRemediationVectorBudget()
+                      .value_or(llvm::StringRef()) ==
+                  "packed-i4-remediation-budget-7of32-vector-groups",
+          "packed-i4 product-reduction-dequant realizes Gearbox handoff "
+          "from provider-owned packed resource/remediation facts"))
     return result;
 
   auto packedI4ProductDequantAnalysis = analyzeRVVSelectedBodyRoute(

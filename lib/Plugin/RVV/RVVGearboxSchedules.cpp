@@ -1072,6 +1072,83 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
               "region count, runtime AVL source, resource decision, and "
               "distinct producer/consumer scopes";
 
+  if (!tianchenrv::plugin::rvv::isRVVLowPrecisionResourceCandidateSetMember(
+          handoff.getResourceCandidateSet(),
+          handoff.getResourceSelectedCandidate()))
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires handoff resource_selected_candidate to belong to the "
+              "provider-owned resource_candidate_set";
+  const llvm::StringRef expectedDecisionFromCandidate =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionContractionResourceRealizationDecision(
+              handoff.getResourceSelectedCandidate());
+  if (expectedDecisionFromCandidate.empty() ||
+      expectedDecisionFromCandidate != handoff.getResourceDecision())
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires handoff resource_decision to match the selected "
+              "resource candidate";
+  const bool isPackedI4Resource =
+      tianchenrv::plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
+          handoff.getResourceSelectedCandidate());
+  const llvm::StringRef expectedOperandForm =
+      isPackedI4Resource
+          ? llvm::StringRef(tianchenrv::plugin::rvv::
+                                kRVVLowPrecisionResourceOperandFormPackedI4Nibbles)
+          : llvm::StringRef(tianchenrv::plugin::rvv::
+                                kRVVLowPrecisionResourceOperandFormUnpackedByte);
+  const llvm::StringRef expectedPackingLayout =
+      isPackedI4Resource
+          ? llvm::StringRef(tianchenrv::plugin::rvv::
+                                kRVVLowPrecisionResourcePackingLayoutPackedI4Nibbles)
+          : llvm::StringRef(tianchenrv::plugin::rvv::
+                                kRVVLowPrecisionResourcePackingLayoutByte);
+  const llvm::StringRef expectedUnpackIntent =
+      isPackedI4Resource
+          ? llvm::StringRef(tianchenrv::plugin::rvv::
+                                kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles)
+          : llvm::StringRef(tianchenrv::plugin::rvv::
+                                kRVVLowPrecisionResourceUnpackIntentNone);
+  if (handoff.getOperandForm() != expectedOperandForm ||
+      handoff.getPackingLayout() != expectedPackingLayout ||
+      handoff.getUnpackIntent() != expectedUnpackIntent)
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires handoff operand form, packing layout, and unpack "
+              "intent to match the selected resource candidate";
+  if (static_cast<std::int64_t>(handoff.getPeakLiveVectorGroups()) !=
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionResourceExpectedPeakLiveVectorGroups(
+              handoff.getResourceSelectedCandidate()))
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires handoff peak_live_vector_groups to match the "
+              "selected resource candidate";
+  if (static_cast<std::int64_t>(handoff.getVectorRegisterBudget()) !=
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceVectorRegisterBudget ||
+      handoff.getPeakLiveVectorGroups() > handoff.getVectorRegisterBudget())
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires handoff vector_register_budget to contain the "
+              "selected peak live vector-group estimate";
+  if (static_cast<std::int64_t>(handoff.getProductRegionIndex()) !=
+          tianchenrv::plugin::rvv::
+              getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
+                  handoff.getResourceDecision()) ||
+      static_cast<std::int64_t>(handoff.getDequantRegionIndex()) !=
+          tianchenrv::plugin::rvv::
+              getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+                  handoff.getResourceDecision()) ||
+      handoff.getProductRegionIndex() <= 0 ||
+      handoff.getProductRegionIndex() >= handoff.getDequantRegionIndex() ||
+      handoff.getDequantRegionIndex() > handoff.getRegionCount())
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires handoff product/dequant region indexes to match the "
+              "selected resource decision and realized region count";
+
   auto requireHandoffPrimitiveFact =
       [&](llvm::StringRef field, llvm::StringRef actual,
           llvm::StringRef expected) -> mlir::LogicalResult {
@@ -1140,6 +1217,53 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
           handoff.getPrimitiveReductionStoreVl(),
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveReductionStoreVL)))
+    return mlir::failure();
+
+  auto requireOptionalRemediationFact =
+      [&](llvm::StringRef attrName,
+          llvm::StringRef expected) -> mlir::LogicalResult {
+    auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return handoff->emitError()
+               << "RVV low-precision Gearbox resource candidate derivation "
+                  "requires packed-i4 remediation fact '"
+               << attrName
+               << "' to be absent for unpacked-byte resource candidates";
+      return mlir::success();
+    }
+    if (!attr)
+      return handoff->emitError()
+             << "RVV low-precision Gearbox resource candidate derivation "
+                "requires packed-i4 remediation fact '"
+             << attrName << "' before route support";
+    if (attr.getValue() == expected)
+      return mlir::success();
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires packed-i4 remediation fact '"
+           << attrName << "' to match provider-owned resource fact '"
+           << expected << "' but found '" << attr.getValue() << "'";
+  };
+  if (mlir::failed(requireOptionalRemediationFact(
+          "remediation_plan_contract",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationPlanContract)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          "remediation_plan",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationPlan)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          "remediation_statement_strategy",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          "remediation_vector_budget",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationVectorBudget)))
     return mlir::failure();
 
   LoadOp lhsLoad = product.getLhs().getDefiningOp<LoadOp>();

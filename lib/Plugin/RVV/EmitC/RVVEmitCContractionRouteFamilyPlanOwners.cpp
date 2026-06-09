@@ -5253,6 +5253,79 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
         "structure has stale or inconsistent Gearbox cross-region handoff "
         "contract/runtime/resource/scope facts");
 
+  auto requireHandoffResourceFact =
+      [&](llvm::StringRef field, llvm::StringRef actual,
+          llvm::StringRef expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires Gearbox cross-region handoff resource fact '" +
+        field + "' to match selected resource facts '" + expected +
+        "' but found '" + actual + "'");
+  };
+  auto requireHandoffResourceIntegerFact =
+      [&](llvm::StringRef field, std::int64_t actual,
+          std::int64_t expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires Gearbox cross-region handoff resource fact '" +
+        field + "' to match selected resource fact " + llvm::Twine(expected) +
+        " but found " + llvm::Twine(actual));
+  };
+  if (llvm::Error error = requireHandoffResourceFact(
+          "resource_candidate_set", handoff.getResourceCandidateSet(),
+          selection.candidateSetID))
+    return error;
+  if (llvm::Error error = requireHandoffResourceFact(
+          "resource_selected_candidate",
+          handoff.getResourceSelectedCandidate(), selection.selectedCandidateID))
+    return error;
+  if (llvm::Error error = requireHandoffResourceFact(
+          "operand_form", handoff.getOperandForm(), selection.operandForm))
+    return error;
+  if (llvm::Error error = requireHandoffResourceFact(
+          "packing_layout", handoff.getPackingLayout(),
+          selection.packingLayout))
+    return error;
+  if (llvm::Error error = requireHandoffResourceFact(
+          "unpack_intent", handoff.getUnpackIntent(), selection.unpackIntent))
+    return error;
+  if (llvm::Error error = requireHandoffResourceIntegerFact(
+          "peak_live_vector_groups", handoff.getPeakLiveVectorGroups(),
+          selection.peakLiveVectorGroups))
+    return error;
+  if (llvm::Error error = requireHandoffResourceIntegerFact(
+          "vector_register_budget", handoff.getVectorRegisterBudget(),
+          selection.vectorRegisterBudget))
+    return error;
+  if (handoff.getPeakLiveVectorGroups() > handoff.getVectorRegisterBudget())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires Gearbox cross-region handoff peak live "
+        "vector-group estimate to fit inside vector register budget");
+  if (llvm::Error error = requireHandoffResourceIntegerFact(
+          "product_region_index", handoff.getProductRegionIndex(),
+          selection.productRegionIndex))
+    return error;
+  if (llvm::Error error = requireHandoffResourceIntegerFact(
+          "dequant_region_index", handoff.getDequantRegionIndex(),
+          selection.dequantRegionIndex))
+    return error;
+  if (handoff.getProductRegionIndex() <= 0 ||
+      handoff.getProductRegionIndex() >= handoff.getDequantRegionIndex() ||
+      handoff.getDequantRegionIndex() > handoff.getRegionCount())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires Gearbox handoff product/dequant region indexes "
+        "to fit inside region_count");
+
   auto requireHandoffPrimitiveFact =
       [&](llvm::StringRef field, llvm::StringRef actual,
           llvm::StringRef expected) -> llvm::Error {
@@ -5316,6 +5389,54 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
           "primitive_reduction_store_vl",
           handoff.getPrimitiveReductionStoreVl(),
           selection.primitiveReductionStoreVL))
+    return error;
+
+  auto requireOptionalRemediationFact =
+      [&](llvm::StringRef attrName, llvm::StringRef field,
+          llvm::StringRef expected) -> llvm::Error {
+    auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
+    const bool isPackedI4Resource =
+        isRVVLowPrecisionResourcePackedI4CandidateID(
+            selection.selectedCandidateID);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " selected-body realization low-precision direct-contraction "
+            "structure requires packed-i4 Gearbox handoff remediation fact '" +
+            attrName +
+            "' to be absent for unpacked-byte resource candidates");
+      return llvm::Error::success();
+    }
+    if (!attr)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " selected-body realization low-precision direct-contraction "
+          "structure requires packed-i4 Gearbox handoff remediation fact '" +
+          attrName + "' before route acceptance");
+    if (attr.getValue() == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires packed-i4 Gearbox handoff remediation fact '" +
+        field + "' to match selected resource facts '" + expected +
+        "' but found '" + attr.getValue() + "'");
+  };
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_plan_contract", "remediation plan contract",
+          selection.remediationPlanContract))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_plan", "remediation plan", selection.remediationPlan))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_statement_strategy", "remediation statement strategy",
+          selection.remediationStatementStrategy))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_vector_budget", "remediation vector budget",
+          selection.remediationVectorBudget))
     return error;
 
   return llvm::Error::success();

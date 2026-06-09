@@ -2,6 +2,8 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/resource_decision = "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"/resource_decision = "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-DECISION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/region_count = 2 : i64/region_count = 3 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-REGION-COUNT
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/from_phase = "load-product-reduce"/from_phase = "tail-product-reduce"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-FROM-PHASE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/remediation_statement_strategy = "unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum"/remediation_statement_strategy = "metadata-only-packed-i4-unpack-plan"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-HANDOFF-REMEDIATION
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/remediation_vector_budget = "packed-i4-remediation-budget-7of32-vector-groups", //' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-PACKED-HANDOFF-REMEDIATION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.realization_decision", value = "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"/s//tcrv_rvv.low_precision_resource.realization_decision", value = "artifact-name-derived-resource-decision"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-REALIZATION-DECISION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_feedback", value = "same-target-packed-i4-no-win.v1"/s//tcrv_rvv.low_precision_resource.performance_feedback", value = "same-target-packed-i4-performance-win.v1"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-PERFORMANCE-FEEDBACK
@@ -69,13 +71,26 @@ module {
 // REALIZED-SAME: region_index = 1 : i64
 // REALIZED-SAME: resource_decision = "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"
 // REALIZED: tcrv_rvv.gearbox_cross_region_handoff
+// REALIZED-SAME: dequant_region_index = 2 : i64
 // REALIZED-SAME: from_phase = "load-product-reduce"
+// REALIZED-SAME: operand_form = "packed-i4-nibbles"
+// REALIZED-SAME: packing_layout = "two-signed-i4-elements-per-byte-low-high-nibbles"
+// REALIZED-SAME: peak_live_vector_groups = 7 : i64
 // REALIZED-SAME: primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1"
 // REALIZED-SAME: primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
 // REALIZED-SAME: primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
 // REALIZED-SAME: primitive_source_signedness = "signed"
+// REALIZED-SAME: product_region_index = 1 : i64
 // REALIZED-SAME: region_count = 2 : i64
+// REALIZED-SAME: remediation_plan = "repair-packed-i4-product-pair-sum-single-reduce-before-performance-claim.v1"
+// REALIZED-SAME: remediation_plan_contract = "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
+// REALIZED-SAME: remediation_statement_strategy = "unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum"
+// REALIZED-SAME: remediation_vector_budget = "packed-i4-remediation-budget-7of32-vector-groups"
+// REALIZED-SAME: resource_candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]"
 // REALIZED-SAME: resource_decision = "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"
+// REALIZED-SAME: resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
+// REALIZED-SAME: unpack_intent = "sign-extend-i4-nibbles-before-widening-product"
+// REALIZED-SAME: vector_register_budget = 32 : i64
 // REALIZED: tcrv_rvv.vsetvl_region_marker
 // REALIZED-SAME: phase = "dequant-store"
 // REALIZED-SAME: region_count = 2 : i64
@@ -150,6 +165,11 @@ module {
 // STALE-PACKED-REGION-COUNT: requires region_count to match the bounded Gearbox resource decision
 
 // STALE-PACKED-FROM-PHASE: requires from_phase 'load-product-reduce'
+
+// STALE-PACKED-HANDOFF-REMEDIATION: requires packed-i4 remediation attribute 'remediation_statement_strategy' to match provider-owned resource fact 'unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum'
+// STALE-PACKED-HANDOFF-REMEDIATION-SAME: metadata-only-packed-i4-unpack-plan
+
+// MISSING-PACKED-HANDOFF-REMEDIATION: requires packed-i4 remediation attribute 'remediation_vector_budget' on the selected resource handoff
 
 // STALE-ARTIFACT-REALIZATION-DECISION: low_precision_resource.realization_decision provenance must mirror provider-selected low-precision direct-contraction resource realization decision 'consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1'
 // STALE-ARTIFACT-REALIZATION-DECISION-SAME: artifact-name-derived-resource-decision

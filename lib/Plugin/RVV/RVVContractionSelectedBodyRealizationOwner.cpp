@@ -821,6 +821,46 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
                      builder.getStringAttr(selectedCandidate.runtimeAVLSource));
   state.addAttribute("resource_decision",
                      builder.getStringAttr(resourceDecision));
+  state.addAttribute("resource_candidate_set",
+                     builder.getStringAttr(selectedCandidate.candidateSetID));
+  state.addAttribute("resource_selected_candidate",
+                     builder.getStringAttr(selectedCandidate.candidateID));
+  state.addAttribute("operand_form",
+                     builder.getStringAttr(selectedCandidate.operandForm));
+  state.addAttribute("packing_layout",
+                     builder.getStringAttr(selectedCandidate.packingLayout));
+  state.addAttribute("unpack_intent",
+                     builder.getStringAttr(selectedCandidate.unpackIntent));
+  state.addAttribute(
+      "peak_live_vector_groups",
+      builder.getI64IntegerAttr(selectedCandidate.peakLiveVectorGroups));
+  state.addAttribute(
+      "vector_register_budget",
+      builder.getI64IntegerAttr(selectedCandidate.vectorRegisterBudget));
+  state.addAttribute(
+      "product_region_index",
+      builder.getI64IntegerAttr(
+          getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
+              resourceDecision)));
+  state.addAttribute(
+      "dequant_region_index",
+      builder.getI64IntegerAttr(
+          getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+              resourceDecision)));
+  if (isRVVLowPrecisionResourcePackedI4CandidateID(
+          selectedCandidate.candidateID)) {
+    state.addAttribute(
+        "remediation_plan_contract",
+        builder.getStringAttr(selectedCandidate.remediationPlanContract));
+    state.addAttribute("remediation_plan",
+                       builder.getStringAttr(selectedCandidate.remediationPlan));
+    state.addAttribute(
+        "remediation_statement_strategy",
+        builder.getStringAttr(selectedCandidate.remediationStatementStrategy));
+    state.addAttribute(
+        "remediation_vector_budget",
+        builder.getStringAttr(selectedCandidate.remediationVectorBudget));
+  }
   state.addAttribute("producer_scope",
                      builder.getStringAttr(selectedCandidate.producerScope));
   state.addAttribute("consumer_scope",

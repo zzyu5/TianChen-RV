@@ -17610,6 +17610,71 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
         "consumer_scope to match the "
         "RVV-owned Gearbox cross-region handoff contract");
 
+  if (!isRVVLowPrecisionResourceCandidateSetMember(
+          handoff.getResourceCandidateSet(),
+          handoff.getResourceSelectedCandidate()))
+    return makeRVVEmitCRouteProviderError(
+        "low-precision product-reduction dequantization RVV route requires "
+        "tcrv_rvv.gearbox_cross_region_handoff resource_selected_candidate "
+        "to belong to the provider-owned resource_candidate_set");
+  const llvm::StringRef expectedDecisionFromCandidate =
+      getRVVLowPrecisionContractionResourceRealizationDecision(
+          handoff.getResourceSelectedCandidate());
+  if (expectedDecisionFromCandidate.empty() ||
+      expectedDecisionFromCandidate != handoff.getResourceDecision())
+    return makeRVVEmitCRouteProviderError(
+        "low-precision product-reduction dequantization RVV route requires "
+        "tcrv_rvv.gearbox_cross_region_handoff resource_decision to match "
+        "the selected resource candidate");
+  const bool isPackedI4Resource =
+      isRVVLowPrecisionResourcePackedI4CandidateID(
+          handoff.getResourceSelectedCandidate());
+  const llvm::StringRef expectedOperandForm =
+      isPackedI4Resource ? kRVVLowPrecisionResourceOperandFormPackedI4Nibbles
+                         : kRVVLowPrecisionResourceOperandFormUnpackedByte;
+  const llvm::StringRef expectedPackingLayout =
+      isPackedI4Resource
+          ? kRVVLowPrecisionResourcePackingLayoutPackedI4Nibbles
+          : kRVVLowPrecisionResourcePackingLayoutByte;
+  const llvm::StringRef expectedUnpackIntent =
+      isPackedI4Resource
+          ? kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles
+          : kRVVLowPrecisionResourceUnpackIntentNone;
+  if (handoff.getOperandForm() != expectedOperandForm ||
+      handoff.getPackingLayout() != expectedPackingLayout ||
+      handoff.getUnpackIntent() != expectedUnpackIntent)
+    return makeRVVEmitCRouteProviderError(
+        "low-precision product-reduction dequantization RVV route requires "
+        "tcrv_rvv.gearbox_cross_region_handoff operand form, packing layout, "
+        "and unpack intent to match the selected resource candidate");
+  if (static_cast<std::int64_t>(handoff.getPeakLiveVectorGroups()) !=
+      getRVVLowPrecisionResourceExpectedPeakLiveVectorGroups(
+          handoff.getResourceSelectedCandidate()))
+    return makeRVVEmitCRouteProviderError(
+        "low-precision product-reduction dequantization RVV route requires "
+        "tcrv_rvv.gearbox_cross_region_handoff peak_live_vector_groups to "
+        "match the selected resource candidate");
+  if (static_cast<std::int64_t>(handoff.getVectorRegisterBudget()) !=
+          kRVVLowPrecisionResourceVectorRegisterBudget ||
+      handoff.getPeakLiveVectorGroups() > handoff.getVectorRegisterBudget())
+    return makeRVVEmitCRouteProviderError(
+        "low-precision product-reduction dequantization RVV route requires "
+        "tcrv_rvv.gearbox_cross_region_handoff vector_register_budget to "
+        "contain the selected peak live vector-group estimate");
+  if (static_cast<std::int64_t>(handoff.getProductRegionIndex()) !=
+          getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
+              handoff.getResourceDecision()) ||
+      static_cast<std::int64_t>(handoff.getDequantRegionIndex()) !=
+          getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+              handoff.getResourceDecision()) ||
+      handoff.getProductRegionIndex() <= 0 ||
+      handoff.getProductRegionIndex() >= handoff.getDequantRegionIndex() ||
+      handoff.getDequantRegionIndex() > handoff.getRegionCount())
+    return makeRVVEmitCRouteProviderError(
+        "low-precision product-reduction dequantization RVV route requires "
+        "tcrv_rvv.gearbox_cross_region_handoff product/dequant region indexes "
+        "to match the selected resource decision and realized region count");
+
   auto requireHandoffPrimitiveFact =
       [&](llvm::StringRef field, llvm::StringRef actual,
           llvm::StringRef expected) -> llvm::Error {
@@ -17672,6 +17737,48 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
           "primitive_reduction_store_vl",
           handoff.getPrimitiveReductionStoreVl(),
           kRVVLowPrecisionResourcePrimitiveReductionStoreVL))
+    return error;
+
+  auto requireOptionalRemediationFact =
+      [&](llvm::StringRef attrName, llvm::StringRef expected) -> llvm::Error {
+    auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine("low-precision product-reduction dequantization RVV "
+                        "route requires packed-i4 remediation fact '") +
+            attrName + "' to be absent for unpacked-byte resource candidates");
+      return llvm::Error::success();
+    }
+    if (!attr)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine("low-precision product-reduction dequantization RVV "
+                      "route requires tcrv_rvv.gearbox_cross_region_handoff "
+                      "packed-i4 remediation fact '") +
+          attrName + "' before route support");
+    if (attr.getValue() == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("low-precision product-reduction dequantization RVV "
+                    "route requires tcrv_rvv.gearbox_cross_region_handoff "
+                    "packed-i4 remediation fact '") +
+        attrName + "' to match provider-owned resource fact '" + expected +
+        "' but found '" + attr.getValue() + "'");
+  };
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_plan_contract",
+          kRVVLowPrecisionResourcePackedI4RemediationPlanContract))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_plan", kRVVLowPrecisionResourcePackedI4RemediationPlan))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_statement_strategy",
+          kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "remediation_vector_budget",
+          kRVVLowPrecisionResourcePackedI4RemediationVectorBudget))
     return error;
 
   slice.gearboxCrossRegionHandoffOp = handoff;

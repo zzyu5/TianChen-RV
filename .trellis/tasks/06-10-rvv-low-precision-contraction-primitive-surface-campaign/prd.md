@@ -88,7 +88,7 @@ consumes the Gate 1 primitive facts before provider/target mirrors are accepted.
 - [x] Keep the macro task active after the Gate 1 slice because Gates 2-4
   remain.
 
-## Current Slice: Gate 2
+## Current Slice: Gate 2 Resource/Remediation Handoff
 
 - [x] Inspect Gearbox schedule derivation, selected-body realization, handoff,
   provider route planning, target artifact validation, and focused tests to
@@ -105,6 +105,15 @@ consumes the Gate 1 primitive facts before provider/target mirrors are accepted.
 - [x] Run affected RVV plugin, target export, and textual IR checks.
 - [x] Keep the macro task active after this Gate 2 slice unless Gates 2-4 are
   all complete.
+- [x] Make selected resource candidate, vector-register budget, peak-live
+  resource estimate, operand form/unpack policy, packed-i4 remediation plan,
+  and realized product/dequant region shape structural on the realized
+  Gearbox handoff.
+- [x] Fail closed in RVV-owned verifier/schedule/provider validation when the
+  handoff carries stale, missing, contradictory, or metadata-only
+  resource/remediation facts.
+- [x] Keep Common EmitC and target artifact export as mirror/mechanics
+  consumers after provider-owned handoff validation succeeds.
 
 ## Gate 1 Acceptance Criteria (completed)
 
@@ -137,7 +146,7 @@ consumes the Gate 1 primitive facts before provider/target mirrors are accepted.
 - [x] The macro task remains active with Gates 2-4 unchecked and a precise
   continuation point.
 
-## Gate 2 Acceptance Criteria (current signedness handoff slice)
+## Gate 2 Acceptance Criteria (resource/remediation handoff slice)
 
 - [x] Production RVV plugin/compiler code consumes at least one Gate 1
   low-precision primitive/resource fact inside Gearbox selected-body
@@ -167,6 +176,23 @@ consumes the Gate 1 primitive facts before provider/target mirrors are accepted.
 - [x] The macro task remains active with unfinished Gate 2 follow-up plus Gates
   3-4 and a precise continuation point unless all macro gates are genuinely
   complete.
+- [x] `tcrv_rvv.gearbox_cross_region_handoff` carries selected resource
+  candidate, vector register budget, peak-live estimate, operand form,
+  packing layout, unpack intent, product/dequant region indexes, and
+  packed-i4 remediation plan facts when applicable.
+- [x] Selected-body realization derives those handoff facts from the same
+  provider-owned low-precision candidate selected after Gate 1 primitive
+  signedness/type validation.
+- [x] Dialect verification, Gearbox schedule validation, route planning, and
+  contraction route-family owners reject stale or missing handoff
+  resource/remediation facts before Common EmitC or target artifact mirrors can
+  accept the route.
+- [x] Focused positive tests prove the new handoff facts survive selected-body
+  realization into route/export validation for unpacked-byte and packed-i4
+  representatives.
+- [x] Focused negative tests prove stale or missing selected candidate,
+  budget/peak-live facts, operand/unpack policy, packed-i4 remediation plan,
+  and realized region indexes fail closed.
 
 ## Out Of Scope
 
@@ -223,26 +249,31 @@ Completed in this round:
 - Added required `primitive_source_signedness` to
   `tcrv_rvv.gearbox_cross_region_handoff`, making the Gate 1 primitive
   signedness fact part of the realized Gearbox cross-region structure.
+- Added required handoff facts for selected resource candidate, candidate set,
+  operand form, packing layout, unpack intent, peak-live vector groups, vector
+  register budget, product/dequant region indexes, and packed-i4 remediation
+  plan facts when applicable.
 - Made selected-body realization validate primitive source signedness against
-  the selected low-precision resource candidate before materializing the
-  handoff.
+  the selected low-precision resource candidate and materialize the same
+  provider-owned resource/remediation decision facts into the handoff.
 - Made dialect verification, Gearbox schedule validation, route planning, and
-  contraction route-family owners reject missing or stale handoff signedness
-  before Common EmitC or target artifact mirrors can accept the route.
-- Added positive coverage for realized handoff signedness across product
-  dequant, dequant-clamp, and packed-i4 selected-body paths, plus negative
-  stale/missing handoff signedness checks.
+  contraction route-family owners reject missing or stale handoff signedness,
+  resource candidate, budget/peak-live, operand policy, region shape, and
+  packed-i4 remediation facts before Common EmitC or target artifact mirrors
+  can accept the route.
+- Added positive coverage for realized handoff signedness/resource facts across
+  product/dequant, dequant-clamp, and packed-i4 selected-body paths, plus
+  focused negative stale/missing handoff fact checks.
 - Kept target validation and Common EmitC as mirror/mechanics consumers only;
   no q8/q4 label, artifact name, route id, ABI string, helper name, descriptor,
   or metadata-only field became authority.
 
 ## Continuation Point
 
-Gate 1 is complete and the Gate 2 signedness handoff sub-slice is complete.
-The macro task remains active. Continue Gate 2 by making additional
-resource/remediation facts from the low-precision candidate surface drive
-selected-body realization decisions, especially resource budget, selected
-candidate/remediation intent, unpack/packed operand policy, and realized region
-shape checks. Gates 3-4 remain later: generated artifact plus `ssh rvv`
-evidence, then same-target measurement and dispatch/performance policy
-consumption.
+Gate 1 is complete and the Gate 2 Gearbox resource/remediation handoff slice is
+complete for the product/dequant and packed-i4 representatives. The macro task
+remains active. Continue with Gate 3 only after confirming the changed
+production path is the one used for generated artifact evidence: produce the
+bounded artifact and `ssh rvv` evidence for at least one path changed by this
+campaign. Gate 4 remains later: same-target measurement and dispatch/performance
+policy consumption.

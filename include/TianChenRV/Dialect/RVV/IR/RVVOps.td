@@ -372,11 +372,12 @@ def GearboxCrossRegionHandoffOp
 
     This operation is a bridge toward true multi-region selected-body
     realization. It makes product/reduction/dequant value handoff, runtime AVL
-    source, VL token, phase ordering, region count, resource decision,
-    primitive-chain resource facts including source signedness, and the
-    producer/consumer region scopes structural before provider route support.
-    It is not a math op, intrinsic wrapper, descriptor, route id, artifact
-    metadata, or executable proof.
+    source, VL token, phase ordering, region count, selected resource
+    candidate, resource budget, operand packing/unpack policy, remediation plan
+    facts when applicable, primitive-chain resource facts including source
+    signedness, and the producer/consumer region scopes structural before
+    provider route support. It is not a math op, intrinsic wrapper, descriptor,
+    route id, artifact metadata, or executable proof.
   }];
 
   let arguments = (ins
@@ -389,6 +390,19 @@ def GearboxCrossRegionHandoffOp
     I64Attr:$region_count,
     StrAttr:$runtime_avl_source,
     StrAttr:$resource_decision,
+    StrAttr:$resource_candidate_set,
+    StrAttr:$resource_selected_candidate,
+    StrAttr:$operand_form,
+    StrAttr:$packing_layout,
+    StrAttr:$unpack_intent,
+    I64Attr:$peak_live_vector_groups,
+    I64Attr:$vector_register_budget,
+    I64Attr:$product_region_index,
+    I64Attr:$dequant_region_index,
+    OptionalAttr<StrAttr>:$remediation_plan_contract,
+    OptionalAttr<StrAttr>:$remediation_plan,
+    OptionalAttr<StrAttr>:$remediation_statement_strategy,
+    OptionalAttr<StrAttr>:$remediation_vector_budget,
     StrAttr:$producer_scope,
     StrAttr:$consumer_scope,
     StrAttr:$primitive_chain_contract,
