@@ -13039,6 +13039,12 @@ bool expectRVVTargetArtifactExporterShape(
               .dispatchPreference !=
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4DispatchPreference ||
+      packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .routeFamilyPlanID !=
+          packedI4ProductDequantContract->contractionRouteFamilyPlanID ||
+      packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .providerSupportedMirror !=
+          packedI4ProductDequantContract->providerSupportedMirror ||
       packedI4ProductDequantContract->expectedPreLoopStepCount != 2 ||
       packedI4ProductDequantContract->expectedLoopBodyStepCount != 13 ||
       packedI4ProductDequantRoute.getForLoops().size() != 1 ||
@@ -13589,6 +13595,20 @@ bool expectRVVTargetArtifactExporterShape(
            "correctness-supported-no-win-regression", "stale-measurement"}))
     return false;
 
+  RVVRouteDescription stalePackedI4ProviderMirror =
+      packedI4ProductDequantDescription;
+  stalePackedI4ProviderMirror.lowPrecisionResourceSelection
+      .providerSupportedMirror = "metadata-supported";
+  if (!expectWideningDotProviderFailure(
+          packedI4ProductDequantFixture.candidate,
+          packedI4ProductDequantRoute, stalePackedI4ProviderMirror,
+          "packed-i4 product-reduction registry rejects stale "
+          "low-precision provider-supported mirror",
+          {"low-precision provider-supported mirror",
+           "provider_supported_mirror:rvv-contraction-family-plan-validated",
+           "metadata-supported"}))
+    return false;
+
   TargetArtifactCandidate stalePackedI4RealizationDecisionMirror =
       packedI4ProductDequantFixture.candidate;
   if (!rewriteArtifactMetadataValue(
@@ -13666,6 +13686,44 @@ bool expectRVVTargetArtifactExporterShape(
           {"remediation decision",
            "accepted-no-win-regression-resource-schedule-repair-required.v1",
            "artifact-derived-remediation"}))
+    return false;
+
+  TargetArtifactCandidate stalePackedI4ProviderSupportedMirror =
+      packedI4ProductDequantFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          stalePackedI4ProviderSupportedMirror,
+          "tcrv_rvv.low_precision_resource.provider_supported_mirror",
+          "metadata-supported")) {
+    llvm::errs() << "packed-i4 test fixture did not contain provider-supported "
+                    "mirror metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          stalePackedI4ProviderSupportedMirror,
+          packedI4ProductDequantRoute, packedI4ProductDequantDescription,
+          "packed-i4 product-reduction registry rejects stale "
+          "low-precision provider-supported metadata",
+          {"provider-supported mirror",
+           "provider_supported_mirror:rvv-contraction-family-plan-validated",
+           "metadata-supported"}))
+    return false;
+
+  TargetArtifactCandidate missingPackedI4RouteFamilyPlanMirror =
+      packedI4ProductDequantFixture.candidate;
+  if (!eraseArtifactMetadataKey(
+          missingPackedI4RouteFamilyPlanMirror,
+          "tcrv_rvv.low_precision_resource.route_family_plan")) {
+    llvm::errs() << "packed-i4 test fixture did not contain route-family plan "
+                    "metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          missingPackedI4RouteFamilyPlanMirror,
+          packedI4ProductDequantRoute, packedI4ProductDequantDescription,
+          "packed-i4 product-reduction registry rejects missing "
+          "low-precision route-family plan metadata",
+          {"low_precision_resource.route_family_plan",
+           "route-family plan"}))
     return false;
 
   TargetArtifactCandidate stalePackedI4PerformanceSelectionMirror =

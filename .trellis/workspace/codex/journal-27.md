@@ -1451,3 +1451,52 @@ Continue with Gate 3: lift the Gate 2 remediation decision into the full
 provider route fact and target artifact validation surface without metadata
 authority. Gates 4 and 5 remain for new same-target measurement evidence and
 dispatch/performance policy enablement only when production facts justify it.
+
+## 2026-06-09 - RVV Low-Precision Remediation Gate 3
+
+### Summary
+
+- Continued the active macro task
+  `06-09-rvv-low-precision-performance-remediation-campaign`.
+- Completed Gate 3 as a production provider/target validation mirror slice:
+  low-precision resource selections now carry the validated route-family plan
+  id and provider-supported mirror from the RVV contraction route-family plan.
+- Route-family validation requires the provider route facts, selected
+  description, and resource selection to agree before route construction can be
+  accepted.
+- Target artifact export mirrors those Gate 3 facts and rejects stale or
+  missing candidate metadata before artifact acceptance.
+- The mirror surface remains non-authoritative: artifact metadata can confirm
+  provider-owned facts but cannot invent low-precision semantics, performance
+  preference, or win claims.
+
+### Evidence
+
+- `rtk ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+  passed.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- Bounded added-diff old-authority scan found no new RVVI32M1,
+  `rvv-i32m1`, legacy `tcrv_rvv.i32_*`, source-front-door, source-artifact,
+  descriptor-driven, q4/q8/llama, or exact-intrinsic route authority.
+- Bounded touched-file scan showed pre-existing legacy/i32/source-front-door
+  guardrail fixtures in large RVV tests; no matching authority was introduced
+  by this slice.
+- `rtk git diff --check` passed.
+
+### Self-Repair
+
+- None needed after the focused build and tests.
+
+### Status
+
+[OPEN] Gate 3 is complete for the remediation campaign. Gates 4-5 remain open,
+and `.trellis/.current-task` stays active on the same macro task.
+
+### Continuation
+
+Continue with Gate 4: generate and measure the remediated low-precision
+artifact on the same `ssh rvv` target, accepting or rejecting evidence only
+through structured provider-owned resource, route-family, primitive-chain, and
+remediation facts. Gate 5 remains for dispatch/performance policy consumption
+after accepted measurement evidence.

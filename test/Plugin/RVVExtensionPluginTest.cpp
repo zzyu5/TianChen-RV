@@ -9612,6 +9612,12 @@ module {
               packedI4ResourceSelection.runtimeAVLSource == "runtime_abi:n" &&
               packedI4ResourceSelection.runtimeABIOrder ==
                   "lhs,rhs,acc,scale,out,n" &&
+              packedI4ResourceSelection.routeFamilyPlanID ==
+                  packedI4ProductDequantAnalysis->description
+                      .contractionRouteFamilyPlanID &&
+              packedI4ResourceSelection.providerSupportedMirror ==
+                  packedI4ProductDequantAnalysis->description
+                      .providerSupportedMirror &&
               packedI4ResourceSelection.realizationProducer ==
                   tianchenrv::plugin::rvv::
                       kRVVLowPrecisionResourceRealizationProducer &&
@@ -9651,6 +9657,23 @@ module {
               "mirror test"),
           "packed-i4 product-reduction-dequant provider/resource mirrors "
           "agree before statement planning"))
+    return result;
+
+  auto stalePackedI4ProviderMirrorAnalysis =
+      *packedI4ProductDequantAnalysis;
+  stalePackedI4ProviderMirrorAnalysis.description.lowPrecisionResourceSelection
+      .providerSupportedMirror = "metadata-supported";
+  stalePackedI4ProviderMirrorAnalysis.contractionRouteFamilyPlan
+      ->lowPrecisionResourceSelection.providerSupportedMirror =
+      "metadata-supported";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              stalePackedI4ProviderMirrorAnalysis,
+              "selected-boundary stale packed-i4 provider mirror test"),
+          {"low-precision direct-contraction resource selection",
+           "provider-supported mirror",
+           "provider_supported_mirror:rvv-contraction-family-plan-validated",
+           "metadata-supported"}))
     return result;
 
   RVVSelectedBodyContractionRouteFamilyPlan stalePackedI4ResourcePlan =

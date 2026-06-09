@@ -37,8 +37,8 @@ fail-closing performance preference and win claims with a precise reason.
 
 - Keep this as one macro Trellis task until all remediation campaign gates are
   complete or human steering redirects the campaign.
-- Implement the current round as a coherent Gate 2 production slice because
-  live code and commit `7829700f` prove Gate 1 is complete.
+- Implement the current round as a coherent Gate 3 production slice because
+  live code and commit `7260ccff` prove Gates 1-2 are complete.
 - Add or repair structured measurement-diagnosis and policy-handoff facts for
   the existing packed-i4 low-precision route.
 - The diagnosis must distinguish at least: correctness-supported,
@@ -48,6 +48,10 @@ fail-closing performance preference and win claims with a precise reason.
 - Provider route validation and target artifact validation must consume the
   structured handoff and reject stale sibling measurements before dispatch or
   performance preference can be authorized.
+- Provider route facts and target artifact validation must carry the
+  low-precision resource route-family plan and provider-supported mirror as
+  RVV-owned facts tied to the remediation/resource/primitive chain, not as
+  artifact-name, route-id, sidecar, report-text, or Common EmitC authority.
 - Correctness support must remain allowed for the accepted packed-i4
   regression/no-win outcome.
 - Performance-preferred dispatch and performance-win claims must remain denied
@@ -66,7 +70,7 @@ fail-closing performance preference and win claims with a precise reason.
 - [x] Gate 2: Gearbox/resource-aware selected-body realization or
   primitive-chain planning consumes those facts or exposes the precise missing
   resource/schedule blocker.
-- [ ] Gate 3: provider route facts and target artifact validation mirror the
+- [x] Gate 3: provider route facts and target artifact validation mirror the
   remediated resource/measurement/policy facts without metadata authority.
 - [ ] Gate 4: generated artifacts are measured on the same target and accepted
   only with real `ssh rvv` evidence.
@@ -114,6 +118,20 @@ fail-closing performance preference and win claims with a precise reason.
 - [x] Leave the macro task active after this slice because Gates 3-5 remain
   open.
 
+## Completed Gate 3 Slice
+
+- [x] Add low-precision resource route-family plan and provider-supported
+  mirror facts to the provider-owned route/resource surface for the accepted
+  packed-i4 representative.
+- [x] Require those Gate 3 facts to match the validated contraction
+  route-family plan before provider route construction.
+- [x] Export the Gate 3 facts as target artifact mirrors and reject missing or
+  stale candidate metadata before artifact acceptance.
+- [x] Keep accepted no-win/regression correctness support unchanged and keep
+  performance preference/win claims denied.
+- [x] Leave the macro task active after this slice because Gates 4-5 remain
+  open.
+
 ## Acceptance Criteria
 
 - [x] Production source changes land in policy/handoff and the provider or
@@ -129,6 +147,12 @@ fail-closing performance preference and win claims with a precise reason.
   exact missing handoff/resource/schedule fact.
 - [x] Focused tests prove stale or missing Gate 2 remediation handoff facts are
   rejected before route/provider or target artifact acceptance.
+- [x] Gate 3 source changes make low-precision resource/provider route facts
+  carry route-family plan and provider-supported mirrors derived from the
+  validated RVV provider plan.
+- [x] Focused provider and target tests prove missing or stale Gate 3
+  low-precision route-family/provider-supported mirrors fail closed before
+  route construction or target artifact acceptance.
 - [x] Bounded old-authority scan over touched files and added diff lines shows
   no new q4/q8/llama route authority, source-front-door authority,
   descriptor-driven computation, Common EmitC semantic branch, or legacy i32
@@ -178,6 +202,26 @@ checks for the new Gate 2 remediation facts. Gates 3-5 remain open for the
 campaign-level provider/target fact surface, new same-target measurement, and
 dispatch policy enablement.
 
+## Completed Gate 3 Slice Result
+
+The Gate 3 owner now has a production provider/target mirror surface for the
+low-precision resource route-family facts. The packed-i4 low-precision resource
+selection carries the validated contraction route-family plan id and
+provider-supported mirror from the RVV provider plan. Route-family validation
+requires those facts to match the selected provider plan and route description
+before route construction can be accepted.
+
+Target artifact export now mirrors those Gate 3 facts through selected-body
+metadata and target support bundles, then rejects stale or missing candidate
+metadata before artifact acceptance. The checks remain mirror checks only:
+artifact metadata can confirm provider-owned facts, but it cannot invent
+low-precision semantics, performance preference, or win claims.
+
+This slice does not add new runtime evidence or dispatch enablement. Gate 3 is
+complete for the current accepted packed-i4 representative. Gates 4-5 remain
+open for same-target generated artifact measurement acceptance and
+dispatch/performance policy consumption.
+
 ## Out of Scope
 
 - No adjacent generated-bundle ABI closeout.
@@ -211,9 +255,9 @@ dispatch policy enablement.
 
 ## Continuation Point
 
-Continue with Gate 3: lift the Gate 2 remediation decision into the full
-provider route fact and target artifact validation surface without giving
-metadata authority. Keep the same fail-closed policy for stale resource,
-measurement, schedule, primitive-chain, or candidate facts. Gates 4 and 5 remain
-after that: new same-target measurement evidence and dispatch/performance
-policy enablement only when production facts and measurements justify it.
+Continue with Gate 4: generate and measure the remediated low-precision artifact
+on the same `ssh rvv` target, then accept or reject the measurement only through
+structured evidence tied to the provider-owned resource, route-family,
+primitive-chain, and remediation facts. Gate 5 remains after that for
+dispatch/performance policy consumption only when production facts and
+measurements justify it.

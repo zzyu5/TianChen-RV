@@ -43125,6 +43125,11 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         selection.consumerScope});
     metadata.push_back({"tcrv_rvv.low_precision_resource.runtime_abi_order",
                         selection.runtimeABIOrder});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.route_family_plan",
+                        selection.routeFamilyPlanID});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.provider_supported_mirror",
+         selection.providerSupportedMirror});
     if (!selection.primitiveContractID.empty()) {
       metadata.push_back(
           {"tcrv_rvv.low_precision_resource.primitive_contract",

@@ -181,6 +181,8 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::string producerScope;
   std::string consumerScope;
   std::string runtimeABIOrder;
+  std::string routeFamilyPlanID;
+  std::string providerSupportedMirror;
 
   std::string realizationProducer;
   std::string realizationDecision;

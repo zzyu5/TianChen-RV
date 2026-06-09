@@ -3745,6 +3745,14 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
           selection.dequantPhase, "dequant-store"))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 route-family plan",
+          selection.routeFamilyPlanID, contract.contractionRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 provider-supported mirror",
+          selection.providerSupportedMirror, contract.providerSupportedMirror))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 performance feedback",
           selection.performanceFeedback,
           plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceFeedback))
@@ -4021,9 +4029,17 @@ llvm::Error validateRVVLowPrecisionProductReductionRealizationProviderFacts(
               getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
                   expectedRealizationDecision)))
     return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "low-precision dequant phase",
+          selection.dequantPhase, "dequant-store"))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "low-precision route-family plan",
+          selection.routeFamilyPlanID, contract.contractionRouteFamilyPlanID))
+    return error;
   return requireRVVWideningDotContractStringField(
-      contract.consumerLabel, "low-precision dequant phase",
-      selection.dequantPhase, "dequant-store");
+      contract.consumerLabel, "low-precision provider-supported mirror",
+      selection.providerSupportedMirror, contract.providerSupportedMirror);
 }
 
 llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
@@ -5708,6 +5724,14 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
   if (llvm::Error error = requireResourceMirror(
           "tcrv_rvv.low_precision_resource.runtime_abi_order",
           selection.runtimeABIOrder, "runtime ABI order"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.route_family_plan",
+          selection.routeFamilyPlanID, "route-family plan"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.provider_supported_mirror",
+          selection.providerSupportedMirror, "provider-supported mirror"))
     return error;
   if (!selection.primitiveContractID.empty()) {
     if (llvm::Error error = requireResourceMirror(

@@ -120,6 +120,11 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourceRuntimeAVLSourceAttrName(
     "tcrv_rvv.low_precision_resource.runtime_avl_source");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRuntimeABIOrderAttrName(
     "tcrv_rvv.low_precision_resource.runtime_abi_order");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceRouteFamilyPlanAttrName(
+    "tcrv_rvv.low_precision_resource.route_family_plan");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceProviderSupportedMirrorAttrName(
+        "tcrv_rvv.low_precision_resource.provider_supported_mirror");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceLegalityAttrName(
     "tcrv_rvv.low_precision_resource.legality");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRejectionReasonAttrName(

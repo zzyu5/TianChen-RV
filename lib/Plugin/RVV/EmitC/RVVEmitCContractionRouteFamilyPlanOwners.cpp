@@ -4635,6 +4635,13 @@ void populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
   selection.rejectionReason = candidate.rejectionReason.str();
 }
 
+void populateRVVLowPrecisionContractionResourceRouteFacts(
+    RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  selection.routeFamilyPlanID = plan.familyPlanID.str();
+  selection.providerSupportedMirror = plan.providerSupportedMirror.str();
+}
+
 void populateRVVLowPrecisionContractionResourceRemediationHandoff(
     RVVLowPrecisionContractionResourceSelection &selection) {
   if (!isRVVLowPrecisionResourcePackedI4CandidateID(
@@ -4733,6 +4740,7 @@ deriveRVVLowPrecisionContractionResourceSelection(
     else if (!candidates.empty())
       populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
           selection, candidates.front(), targetFacts);
+    populateRVVLowPrecisionContractionResourceRouteFacts(selection, plan);
     populateRVVLowPrecisionContractionResourceRealizationSchedule(selection);
     return selection;
   }
@@ -4794,6 +4802,7 @@ deriveRVVLowPrecisionContractionResourceSelection(
   selection.producerScope = kRVVGearboxProducerScope.str();
   selection.consumerScope = kRVVGearboxConsumerScope.str();
   selection.runtimeABIOrder = plan.runtimeABIOrder.str();
+  populateRVVLowPrecisionContractionResourceRouteFacts(selection, plan);
   selection.targetCapabilityProviderMirror = targetFacts.providerMirror;
   selection.targetCapabilityLegalityMirror = targetFacts.legalityMirror;
   selection.isLegal = true;
@@ -5657,6 +5666,7 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
       return value.takeError();
   }
 
+  populateRVVLowPrecisionContractionResourceRouteFacts(selection, plan);
   selection.targetCapabilityProviderMirror = targetFacts.providerMirror;
   selection.targetCapabilityLegalityMirror = targetFacts.legalityMirror;
 
@@ -6007,6 +6017,8 @@ bool isRVVLowPrecisionResourceSelectionEqual(
          lhs.producerScope == rhs.producerScope &&
          lhs.consumerScope == rhs.consumerScope &&
          lhs.runtimeABIOrder == rhs.runtimeABIOrder &&
+         lhs.routeFamilyPlanID == rhs.routeFamilyPlanID &&
+         lhs.providerSupportedMirror == rhs.providerSupportedMirror &&
          lhs.realizationProducer == rhs.realizationProducer &&
          lhs.realizationDecision == rhs.realizationDecision &&
          lhs.realizedUnrollFactor == rhs.realizedUnrollFactor &&
@@ -6322,6 +6334,14 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "runtime ABI order", selection.runtimeABIOrder,
           plan.runtimeABIOrder))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "route-family plan",
+          selection.routeFamilyPlanID, plan.familyPlanID))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "provider-supported mirror",
+          selection.providerSupportedMirror, plan.providerSupportedMirror))
     return error;
   if (llvm::Error error =
           verifyRVVLowPrecisionResourcePrimitiveChainSelection(context,
@@ -6647,6 +6667,16 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "runtime ABI order", selection.runtimeABIOrder,
           description.runtimeABIOrder))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "route-family plan",
+          selection.routeFamilyPlanID,
+          description.contractionRouteFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "provider-supported mirror",
+          selection.providerSupportedMirror,
+          description.providerSupportedMirror))
     return error;
   if (llvm::Error error =
           verifyRVVLowPrecisionResourcePrimitiveChainDescriptionSelection(
