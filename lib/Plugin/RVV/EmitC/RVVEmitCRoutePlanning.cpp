@@ -17631,6 +17631,10 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
           kRVVLowPrecisionResourcePrimitiveChainKind))
     return error;
   if (llvm::Error error = requireHandoffPrimitiveFact(
+          "primitive_source_signedness", handoff.getPrimitiveSourceSignedness(),
+          kRVVLowPrecisionResourceSourceSignednessSigned))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
           "primitive_widening_product_relation",
           handoff.getPrimitiveWideningProductRelation(),
           kRVVLowPrecisionResourcePrimitiveWideningProductRelation))

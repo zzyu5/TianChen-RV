@@ -270,6 +270,11 @@ materializeLowPrecisionResourceRealizationAttrs(
     return std::move(error);
   if (llvm::Error error =
           requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "source signedness", selected->sourceSignedness,
+              primitiveFacts.sourceSignedness))
+    return std::move(error);
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
               "product dtype", selected->productElementTypeName,
               primitiveFacts.productElementTypeName))
     return std::move(error);
@@ -825,6 +830,8 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
                          selectedCandidate.primitiveChainContractID));
   state.addAttribute("primitive_chain_kind",
                      builder.getStringAttr(selectedCandidate.primitiveChainKind));
+  state.addAttribute("primitive_source_signedness",
+                     builder.getStringAttr(selectedCandidate.sourceSignedness));
   state.addAttribute("primitive_widening_product_relation",
                      builder.getStringAttr(
                          selectedCandidate.primitiveWideningProductRelation));
@@ -992,6 +999,9 @@ llvm::Error validateLowPrecisionPrimitiveFactsForRealization(
           primitiveFacts.lowPrecisionPrimitiveKind))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
+          "source signedness", primitiveFacts.sourceSignedness))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
           "widening product intrinsic",
           primitiveFacts.wideningProductIntrinsic))
     return std::move(error);
@@ -1008,6 +1018,11 @@ llvm::Error validateLowPrecisionPrimitiveFactsForRealization(
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "source LMUL", plan.sourceLMUL, primitiveFacts.sourceLMUL))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
+          "source signedness",
+          kRVVLowPrecisionResourceSourceSignednessSigned,
+          primitiveFacts.sourceSignedness))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveIntegerField(
           "source SEW", plan.sourceSEW, primitiveFacts.sourceSEW))

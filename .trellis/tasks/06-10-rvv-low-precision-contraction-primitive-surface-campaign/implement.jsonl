@@ -7,3 +7,17 @@
 {"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Exported provider-owned low-precision primitive source signedness as emission-plan metadata mirror."}
 {"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Required target artifact candidates and provider contracts to mirror source signedness before accepting low-precision widening-product and widening-reduction routes."}
 {"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added positive and stale-source-signedness negative coverage for provider and target validation."}
+{"file": ".trellis/tasks/06-10-rvv-low-precision-contraction-primitive-surface-campaign/prd.md", "reason": "Continued the active macro task as Gate 2, marked the signedness handoff sub-slice complete, and recorded the remaining continuation point."}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Made primitive_source_signedness a required structural fact on tcrv_rvv.gearbox_cross_region_handoff."}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Fail-closed missing or stale Gearbox handoff primitive_source_signedness in dialect verification."}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Validated Gate 1 primitive source signedness against the selected resource candidate and materialized it into the realized Gearbox handoff."}
+{"file": "lib/Plugin/RVV/RVVGearboxSchedules.cpp", "reason": "Required realized Gearbox handoff source signedness during low-precision product/dequant body validation."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Required handoff primitive_source_signedness before recording selected-body Gearbox route facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Matched route-family selected resource signedness against primitive facts and required handoff signedness before provider route support."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Added C++ smoke coverage that the product/dequant Gearbox handoff carries signed primitive source signedness."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir", "reason": "Added realized handoff signedness positive coverage and stale signedness negative coverage."}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir", "reason": "Updated explicit selected-body handoff fixture with the required primitive_source_signedness fact."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32.mlir", "reason": "Added realized handoff signedness positive coverage for the dequant-clamp path."}
+{"file": "test/Target/RVV/explicit-selected-body-realization-widening-product-reduce-dequant-clamp-f32.mlir", "reason": "Added realized handoff signedness positive coverage for the explicit realization dequant-clamp path."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir", "reason": "Added realized handoff signedness positive coverage for the packed-i4 selected-body path."}
+{"file": ".trellis/workspace/codex/journal-28.md", "reason": "Recorded the Gate 2 signedness handoff sub-slice session summary, evidence, self-repair, spec decision, and continuation point."}

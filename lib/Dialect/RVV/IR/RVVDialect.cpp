@@ -123,6 +123,8 @@ constexpr llvm::StringLiteral kPrimitiveChainContractAttrName(
     "primitive_chain_contract");
 constexpr llvm::StringLiteral kPrimitiveChainKindAttrName(
     "primitive_chain_kind");
+constexpr llvm::StringLiteral kPrimitiveSourceSignednessAttrName(
+    "primitive_source_signedness");
 constexpr llvm::StringLiteral kPrimitiveWideningProductRelationAttrName(
     "primitive_widening_product_relation");
 constexpr llvm::StringLiteral
@@ -261,6 +263,7 @@ bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
          name == kProducerScopeAttrName || name == kConsumerScopeAttrName ||
          name == kPrimitiveChainContractAttrName ||
          name == kPrimitiveChainKindAttrName ||
+         name == kPrimitiveSourceSignednessAttrName ||
          name == kPrimitiveWideningProductRelationAttrName ||
          name == kPrimitiveProductReductionChainRelationAttrName ||
          name == kPrimitiveWideningProductIntrinsicAttrName ||
@@ -4246,6 +4249,11 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
           kPrimitiveChainKindAttrName, getPrimitiveChainKind(),
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePrimitiveChainKind)))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveSourceSignednessAttrName, getPrimitiveSourceSignedness(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceSourceSignednessSigned)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
           kPrimitiveWideningProductRelationAttrName,

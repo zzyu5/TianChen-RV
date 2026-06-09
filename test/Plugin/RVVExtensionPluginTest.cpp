@@ -8955,6 +8955,9 @@ module {
                   kRVVLowPrecisionResourcePrimitiveChainContract &&
               productDequantHandoff.getPrimitiveChainKind() ==
                   kRVVLowPrecisionResourcePrimitiveChainKind &&
+              productDequantHandoff.getPrimitiveSourceSignedness() ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourceSourceSignednessSigned &&
               productDequantHandoff.getPrimitiveWideningProductRelation() ==
                   kRVVLowPrecisionResourcePrimitiveWideningProductRelation &&
               productDequantHandoff

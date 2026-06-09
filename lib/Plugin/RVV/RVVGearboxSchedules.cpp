@@ -1095,6 +1095,11 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
               kRVVLowPrecisionResourcePrimitiveChainKind)))
     return mlir::failure();
   if (mlir::failed(requireHandoffPrimitiveFact(
+          "primitive_source_signedness", handoff.getPrimitiveSourceSignedness(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceSourceSignednessSigned)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
           "primitive_widening_product_relation",
           handoff.getPrimitiveWideningProductRelation(),
           kLowPrecisionProductRelation)))

@@ -5275,6 +5275,10 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
           selection.primitiveChainKind))
     return error;
   if (llvm::Error error = requireHandoffPrimitiveFact(
+          "primitive_source_signedness", handoff.getPrimitiveSourceSignedness(),
+          selection.sourceSignedness))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
           "primitive_widening_product_relation",
           handoff.getPrimitiveWideningProductRelation(),
           selection.primitiveWideningProductRelation))
@@ -5817,6 +5821,10 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainSelection(
           selection.primitiveChainKind, primitiveFacts->kind))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive source signedness",
+          selection.sourceSignedness, primitiveFacts->sourceSignedness))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "primitive widening product relation",
           selection.primitiveWideningProductRelation,
           plan.wideningProductRelation))
@@ -5895,6 +5903,10 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainDescriptionSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "primitive chain kind",
           selection.primitiveChainKind, primitiveFacts->kind))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive source signedness",
+          selection.sourceSignedness, primitiveFacts->sourceSignedness))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "primitive widening product relation",

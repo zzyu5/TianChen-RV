@@ -7,8 +7,9 @@ primitive surface. The campaign must make typed low-precision contraction facts
 structurally explicit in the RVV plugin/compiler path, fail closed before route
 or target acceptance when those facts are missing or stale, and leave later
 gates to consume the surface for Gearbox realization, executable artifact
-evidence, and measured dispatch/performance policy. The current round owns
-Gate 1.
+evidence, and measured dispatch/performance policy. Gate 1 is complete. The
+current round owns Gate 2: resource-aware Gearbox selected-body realization
+consumes the Gate 1 primitive facts before provider/target mirrors are accepted.
 
 ## What I Already Know
 
@@ -35,7 +36,7 @@ Gate 1.
 
 - Keep this as one macro Trellis task until all campaign gates are complete or
   human steering redirects it.
-- Implement Gate 1 as one coherent production compiler-surface milestone.
+- Implement Gate 2 as one coherent production compiler-surface milestone.
 - Make low-precision contraction primitive facts structurally consumable by RVV
   route/provider planning.
 - Gate 1 primitive facts must include, for the bounded current slice, explicit
@@ -50,9 +51,9 @@ Gate 1.
   q8/q4 labels, route ids, artifact names, helper names, ABI strings, test
   names, metadata-only mirrors, descriptors, or Common EmitC semantic branches
   as authority.
-- If every low-precision primitive cannot be finished in one round, complete a
+- If the full Gate 2 surface cannot be finished in one round, complete a
   coherent production submodule and keep the macro task active with the exact
-  continuation point.
+  remaining Gate 2 continuation point.
 
 ## Macro Campaign Gates
 
@@ -62,14 +63,15 @@ Gate 1.
   and runtime AVL/VL facts.
 - [ ] Gate 2: resource-aware Gearbox selected-body realization consumes that
   surface for packed/low-precision bodies without changing semantics or using
-  q8/q4 names as authority.
+  q8/q4 names as authority. The signedness handoff sub-slice is complete;
+  broader resource/remediation consumption remains.
 - [ ] Gate 3: generated artifact and `ssh rvv` evidence for at least one
   production primitive path changed by Gates 1-2.
 - [ ] Gate 4: same-target measurement and dispatch/performance policy
   consumption using provider-owned evidence, including conservative fallback
   when no win is measured.
 
-## Current Slice: Gate 1
+## Completed Slice: Gate 1
 
 - [x] Inspect existing widening-product, unsigned-u8, widening-reduction,
   Gearbox, selected-body realization, route planning, and target artifact
@@ -86,7 +88,25 @@ Gate 1.
 - [x] Keep the macro task active after the Gate 1 slice because Gates 2-4
   remain.
 
-## Acceptance Criteria
+## Current Slice: Gate 2
+
+- [x] Inspect Gearbox schedule derivation, selected-body realization, handoff,
+  provider route planning, target artifact validation, and focused tests to
+  locate the smallest production owner-local consumption seam.
+- [x] Make one Gate 1 low-precision primitive fact, signedness, remediation, or
+  resource decision drive Gearbox selected-body realization or its immediate
+  provider-owned structural handoff.
+- [x] Fail closed when the selected body or realized Gearbox handoff carries
+  missing or stale primitive/resource facts.
+- [x] Keep target validation as a mirror consumer only: it may accept metadata
+  only after provider-owned realization/route validation has consumed the facts.
+- [x] Add focused positive tests for the realized Gearbox fact consumption.
+- [x] Add focused negative tests for stale or missing realized Gearbox facts.
+- [x] Run affected RVV plugin, target export, and textual IR checks.
+- [x] Keep the macro task active after this Gate 2 slice unless Gates 2-4 are
+  all complete.
+
+## Gate 1 Acceptance Criteria (completed)
 
 - [x] Production RVV plugin/compiler code exposes low-precision contraction
   primitive facts through an owner-local surface that route/provider planning or
@@ -117,6 +137,37 @@ Gate 1.
 - [x] The macro task remains active with Gates 2-4 unchecked and a precise
   continuation point.
 
+## Gate 2 Acceptance Criteria (current signedness handoff slice)
+
+- [x] Production RVV plugin/compiler code consumes at least one Gate 1
+  low-precision primitive/resource fact inside Gearbox selected-body
+  realization or an immediate provider-owned realized-structure handoff.
+- [x] The current slice covers signed low-precision primitive source
+  signedness or a comparably central primitive/resource fact, and proves that
+  the fact reaches realized `tcrv_rvv` structure before provider route support.
+- [x] Missing or stale Gearbox handoff primitive/resource facts fail closed in
+  dialect verification, Gearbox schedule validation, or provider route
+  planning before Common EmitC or target artifact export can accept mirrors.
+- [x] Common EmitC remains neutral: it carries provider-built payloads and does
+  not infer source signedness, resource decision, intrinsic spelling, or
+  Gearbox region structure.
+- [x] No q8/q4/llama label, route id, artifact name, helper name, ABI string,
+  test name, descriptor residue, or metadata-only mirror becomes route,
+  dtype/config, resource, or evidence authority.
+- [x] Focused C++/lit checks exercise accepted realized Gearbox facts and stale
+  fact rejection for the changed production seam.
+- [x] `build/bin/tianchenrv-rvv-extension-plugin-test` passes if RVV plugin
+  code/tests are touched.
+- [x] `build/bin/tianchenrv-target-artifact-export-test` passes if target
+  artifact validation/export code/tests are touched.
+- [x] Relevant `tcrv-opt` or `tcrv-translate` checks pass if IR/export paths
+  change.
+- [x] `git diff --check` and `git diff --cached --check` pass.
+- [x] One coherent commit records the Gate 2 slice.
+- [x] The macro task remains active with unfinished Gate 2 follow-up plus Gates
+  3-4 and a precise continuation point unless all macro gates are genuinely
+  complete.
+
 ## Out Of Scope
 
 - No standalone generated-bundle or `ssh rvv` evidence closeout as the main
@@ -140,7 +191,7 @@ Gate 1.
 - Related archived task:
   `.trellis/tasks/archive/2026-06/06-09-rvv-packed-i4-production-kernel-resource-aware-realization-campaign/prd.md`.
 - Direction source: Hermes brief for
-  `Stage2 RVV low-precision contraction primitive-surface campaign Gate 1`.
+  `Stage2 RVV low-precision contraction primitive-surface campaign Gate 2`.
 - Memory-derived steering: q8/q4/llama.cpp examples are pressure tests for
   broader Stage 2 low-precision contraction maturity, not narrow route
   authority.
@@ -165,10 +216,33 @@ Completed in this round:
   Gearbox work consumes the same explicit primitive fact instead of re-deriving
   signedness from q8/q4 names, artifact metadata, helper names, or Common EmitC.
 
+## Gate 2 Slice Result
+
+Completed in this round:
+
+- Added required `primitive_source_signedness` to
+  `tcrv_rvv.gearbox_cross_region_handoff`, making the Gate 1 primitive
+  signedness fact part of the realized Gearbox cross-region structure.
+- Made selected-body realization validate primitive source signedness against
+  the selected low-precision resource candidate before materializing the
+  handoff.
+- Made dialect verification, Gearbox schedule validation, route planning, and
+  contraction route-family owners reject missing or stale handoff signedness
+  before Common EmitC or target artifact mirrors can accept the route.
+- Added positive coverage for realized handoff signedness across product
+  dequant, dequant-clamp, and packed-i4 selected-body paths, plus negative
+  stale/missing handoff signedness checks.
+- Kept target validation and Common EmitC as mirror/mechanics consumers only;
+  no q8/q4 label, artifact name, route id, ABI string, helper name, descriptor,
+  or metadata-only field became authority.
+
 ## Continuation Point
 
-Gate 1 is complete for the bounded production compiler-surface milestone. The
-macro task remains active. Continue with Gate 2: make the resource-aware
-Gearbox selected-body realization consume the accepted low-precision primitive
-surface, including `source_signedness`, for packed/low-precision bodies without
-changing semantics or relying on q8/q4 names as authority.
+Gate 1 is complete and the Gate 2 signedness handoff sub-slice is complete.
+The macro task remains active. Continue Gate 2 by making additional
+resource/remediation facts from the low-precision candidate surface drive
+selected-body realization decisions, especially resource budget, selected
+candidate/remediation intent, unpack/packed operand policy, and realized region
+shape checks. Gates 3-4 remain later: generated artifact plus `ssh rvv`
+evidence, then same-target measurement and dispatch/performance policy
+consumption.
