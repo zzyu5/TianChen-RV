@@ -18,6 +18,7 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
+#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 #include "TianChenRV/Plugin/RVV/RVVMAccSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVReductionSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVRuntimeScalarMemorySelectedBodyRealizationOwner.h"
@@ -8225,6 +8226,25 @@ int runPreRealizedContractionRouteEntryOwnerTest(
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyRouteStatementPlanOwnerSelection;
   using tianchenrv::plugin::rvv::
+      kRVVLowPrecisionResourcePrimitiveAccumulatorLayout;
+  using tianchenrv::plugin::rvv::
+      kRVVLowPrecisionResourcePrimitiveChainContract;
+  using tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePrimitiveChainKind;
+  using tianchenrv::plugin::rvv::
+      kRVVLowPrecisionResourcePrimitiveProductReductionChainRelation;
+  using tianchenrv::plugin::rvv::
+      kRVVLowPrecisionResourcePrimitiveReductionIntrinsic;
+  using tianchenrv::plugin::rvv::
+      kRVVLowPrecisionResourcePrimitiveReductionStoreVL;
+  using tianchenrv::plugin::rvv::
+      kRVVLowPrecisionResourcePrimitiveResultLayout;
+  using tianchenrv::plugin::rvv::
+      kRVVLowPrecisionResourcePrimitiveScalarSeedSplatIntrinsic;
+  using tianchenrv::plugin::rvv::
+      kRVVLowPrecisionResourcePrimitiveWideningProductIntrinsic;
+  using tianchenrv::plugin::rvv::
+      kRVVLowPrecisionResourcePrimitiveWideningProductRelation;
+  using tianchenrv::plugin::rvv::
       RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::RVVSelectedBodyMemoryRouteOperandBindingFacts;
   using tianchenrv::plugin::rvv::
@@ -8923,6 +8943,37 @@ module {
           "selected-boundary product-reduction-dequant consumes shorthand "
           "into setvl/producer-with_vl/load/load/widening_product/"
           "standalone_reduce/handoff/consumer-with_vl/dequantize/store IR"))
+    return result;
+  auto productDequantHandoff = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::GearboxCrossRegionHandoffOp>(
+      findFirstNestedOp(productDequantVariant,
+                        "tcrv_rvv.gearbox_cross_region_handoff"));
+  if (int result = expect(
+          productDequantHandoff &&
+              productDequantHandoff.getPrimitiveChainContract() ==
+                  kRVVLowPrecisionResourcePrimitiveChainContract &&
+              productDequantHandoff.getPrimitiveChainKind() ==
+                  kRVVLowPrecisionResourcePrimitiveChainKind &&
+              productDequantHandoff.getPrimitiveWideningProductRelation() ==
+                  kRVVLowPrecisionResourcePrimitiveWideningProductRelation &&
+              productDequantHandoff
+                      .getPrimitiveProductReductionChainRelation() ==
+                  kRVVLowPrecisionResourcePrimitiveProductReductionChainRelation &&
+              productDequantHandoff.getPrimitiveWideningProductIntrinsic() ==
+                  kRVVLowPrecisionResourcePrimitiveWideningProductIntrinsic &&
+              productDequantHandoff.getPrimitiveReductionIntrinsic() ==
+                  kRVVLowPrecisionResourcePrimitiveReductionIntrinsic &&
+              productDequantHandoff
+                      .getPrimitiveScalarSeedSplatIntrinsic() ==
+                  kRVVLowPrecisionResourcePrimitiveScalarSeedSplatIntrinsic &&
+              productDequantHandoff.getPrimitiveAccumulatorLayout() ==
+                  kRVVLowPrecisionResourcePrimitiveAccumulatorLayout &&
+              productDequantHandoff.getPrimitiveResultLayout() ==
+                  kRVVLowPrecisionResourcePrimitiveResultLayout &&
+              productDequantHandoff.getPrimitiveReductionStoreVl() ==
+                  kRVVLowPrecisionResourcePrimitiveReductionStoreVL,
+          "selected-boundary product-reduction-dequant realizes Gearbox "
+          "handoff from provider-owned primitive-chain resource facts"))
     return result;
 
   auto productDequantAnalysis = analyzeRVVSelectedBodyRoute(

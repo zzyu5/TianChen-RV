@@ -1043,3 +1043,64 @@ Next owner: Gate 2 Gearbox/resource-aware selected-body realization should
 consume the explicit primitive-chain resource facts to materialize legal
 low-precision contraction structure without treating route ids, artifact names,
 Common EmitC, or measurement scripts as authority.
+
+## 2026-06-09 - RVV production-kernel capability campaign Gate 2
+
+### Summary
+
+- Continued the active macro task
+  `06-09-rvv-production-kernel-capability-campaign`.
+- Completed Gate 2 production source slice: Gearbox/resource-aware
+  selected-body realization now consumes the selected low-precision
+  primitive-chain resource facts and carries them through the realized
+  `tcrv_rvv.gearbox_cross_region_handoff` structure.
+- The realized handoff now structurally carries primitive chain contract/kind,
+  widening-product relation, product-reduction chain relation, widening product
+  intrinsic, widening reduction intrinsic, scalar seed splat intrinsic,
+  accumulator/result layouts, and reduction store VL.
+- RVV-owned validation rejects stale or missing handoff primitive-chain facts
+  before route/provider planning, Common EmitC, or target artifact export can
+  accept the realized body.
+- This is a production compiler/source change only. No generated-bundle,
+  same-target timing, dispatch policy, or performance claim changed.
+
+### Evidence
+
+- `rtk ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+  passed.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- `FileCheck` and `llvm-lit` were not available in PATH, so focused manual
+  checks used `tcrv-opt`, `tcrv-translate`, `sed`, and `rg`.
+- Manual positive checks proved pre-realized dequant, dequant-clamp, and
+  packed-i4 selected-body realization emit Gearbox handoffs with the expected
+  primitive-chain fields.
+- Manual explicit artifact checks proved the fixture's positive RUN path with
+  `--tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-emission-plans`
+  carries the new resource primitive mirrors into plan/header output.
+- Manual stale handoff negative check replaced
+  `primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"` with
+  `__riscv_vwredsum_vs_i32m1_i32m1` and failed closed at
+  `tcrv_rvv.gearbox_cross_region_handoff` verifier diagnostics.
+- `rtk git diff --check` passed before staging.
+- Bounded touched-diff old-authority scan found only PRD/ODS guardrail text for
+  q4/q8/llama/descriptor/source-front-door, not new positive route authority.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` now records the
+product-reduction Gearbox handoff primitive-chain field contract and the
+required stale-fact negative coverage.
+
+### Status
+
+[OPEN] Gates 1 and 2 are complete. Gates 3 through 5 remain open, and
+`.trellis/.current-task` intentionally remains active for the macro campaign.
+
+### Continuation
+
+Next owner: Gate 3 route/statement planning and target artifact mirror
+validation must consume the selected Gearbox realization primitive/resource
+facts and reject stale or unsupported performance/resource claims without
+treating route ids, artifact names, Common EmitC, or measurement scripts as
+authority.

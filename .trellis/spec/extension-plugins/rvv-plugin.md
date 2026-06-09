@@ -5805,6 +5805,20 @@ the route provider claims resource-aware tuning.
   selected candidate. The provider must derive the expected resource decision
   from the selected candidate and reject stale marker/handoff/resource facts
   before constructing `TCRVEmitCLowerableRoute`.
+- For product-reduction Gearbox selected-body realization, the cross-region
+  handoff must also carry the selected primitive-chain resource facts:
+  `primitive_chain_contract`, `primitive_chain_kind`,
+  `primitive_widening_product_relation`,
+  `primitive_product_reduction_chain_relation`,
+  `primitive_widening_product_intrinsic`, `primitive_reduction_intrinsic`,
+  `primitive_scalar_seed_splat_intrinsic`, `primitive_accumulator_layout`,
+  `primitive_result_layout`, and `primitive_reduction_store_vl`. These fields
+  are derived from the selected RVV resource candidate and the typed
+  product/reduction body. The handoff verifier, selected-body owner validation,
+  and route planning must reject missing or stale values before Common EmitC or
+  target artifact export can accept the route. Good: realized handoff copies the
+  selected `vwredsum` primitive fact. Bad: a handoff keeps marker/resource
+  decision facts but carries a stale reduction intrinsic string.
 - For product-reduction dequant/dequant-clamp direct-contraction routes, the
   statement-plan owner must re-consume the provider-owned low-precision resource
   selection before constructing statement steps. It must compare the provider
@@ -5996,6 +6010,10 @@ the route provider claims resource-aware tuning.
   mismatch, including stale `vsetvl` region placement structure when `vsetvl`
   placement or region count is part of the selected low-precision Gearbox
   candidate.
+- Focused selected-body/provider tests proving realized Gearbox handoff carries
+  the selected primitive-chain contract/kind/relation/intrinsic/layout/store-VL
+  fields, plus a stale handoff primitive fact negative case before route or
+  artifact acceptance.
 - A focused generated-bundle or benchmark harness for the first comparable
   low-precision direct-contraction kernel.
 - Packed-i4 executable harness coverage must assert the validated metadata

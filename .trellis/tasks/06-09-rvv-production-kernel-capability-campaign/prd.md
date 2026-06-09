@@ -16,9 +16,12 @@ selected/pre-realized low-precision tcrv_rvv body
   -> dispatch/performance policy
 ```
 
-The current round completes Gate 1 only: make the first concrete production
-low-precision primitive/resource bottleneck explicit and repair it in production
-owners. The task remains active until all campaign gates below are complete.
+Gate 1 is complete. Gate 2 is complete for the current production source slice:
+Gearbox/resource-aware selected-body realization now consumes the explicit
+primitive-chain resource facts added in Gate 1 and uses them to materialize or
+validate legal low-precision contraction structure before route planning,
+Common EmitC, or target export can accept the body. The task remains active
+until all campaign gates below are complete.
 
 ## What I already know
 
@@ -42,11 +45,16 @@ owners. The task remains active until all campaign gates below are complete.
   primitive fields, including primitive contract/kind, source/product,
   accumulator/result, product relation, reduction intrinsic, seed splat,
   accumulator layout, result layout, and store VL.
-- The current production bottleneck is that the low-precision resource
-  selection does not carry the primitive-chain contract as resource-owned facts.
-  Primitive facts and resource facts can therefore be validated separately
-  without proving the same selected resource candidate owns the widening-product
-  and widening-reduction chain that route/target mirrors later claim.
+- Gate 1 repaired the first production bottleneck: low-precision resource
+  selection now carries the primitive-chain contract as RVV-owned resource
+  facts, and those facts flow through resource selection, Gearbox pass facts,
+  selected-body realization validation, route planning, provider metadata,
+  target support metadata, and target artifact validation.
+- Gate 2 repaired the next production bottleneck: selected-body realization now
+  consumes those primitive-chain resource facts when it materializes and
+  validates low-precision contraction structure. A realized body is rejected if
+  realization ignores, drops, or mismatches the resource-owned primitive chain
+  that route/target mirrors later claim.
 
 ## Requirements
 
@@ -67,6 +75,15 @@ owners. The task remains active until all campaign gates below are complete.
   provider-owned facts before accepting target artifacts.
 - Existing executable correctness support and current packed-i4 maturity policy
   must remain intact.
+- Gearbox selected-body realization must consume the Gate 1 primitive-chain
+  resource facts from the same selected resource candidate that governs the
+  low-precision contraction realization.
+- Realization must fail closed on missing or stale resource-owned primitive
+  chain facts before route/provider/Common EmitC/export acceptance.
+- The realized low-precision contraction structure must remain derived from
+  typed body/config/resource facts. It must not infer legality from q4/q8/llama
+  names, route ids, artifact names, exact intrinsic spellings, status fields, or
+  Common EmitC behavior.
 
 ## Macro Campaign Gates
 
@@ -74,7 +91,7 @@ owners. The task remains active until all campaign gates below are complete.
   and RVV-owned for the packed/low-precision contraction family, with
   fail-closed validation for stale dtype, pack/unpack, widening product,
   reduction, dequant, resource, schedule, or ABI facts.
-- [ ] Gate 2: Gearbox/resource-aware selected-body realization consumes those
+- [x] Gate 2: Gearbox/resource-aware selected-body realization consumes those
   facts to materialize legal low-precision contraction structure without
   changing compute semantics or using route/artifact names as authority.
 - [ ] Gate 3: route/statement planning and target artifact validation mirror
@@ -88,19 +105,22 @@ owners. The task remains active until all campaign gates below are complete.
 
 ## Current Round Slice
 
-Complete Gate 1 as a production source slice:
+Completed Gate 2 as a production source slice:
 
-- Extend `RVVLowPrecisionContractionResourceSelection` and its candidate/pass
-  fact surface with a provider-owned primitive chain contract for low-precision
+- [x] Connect the selected resource primitive-chain contract into the
+  Gearbox/resource-aware selected-body realization owner for low-precision
   product-reduction contraction families.
-- Populate those facts from the same typed plan/resource candidate facts that
-  already select the low-precision direct-contraction resource candidate.
-- Require pass-produced and selected-body-realization-produced facts to match
-  the derived provider contract before route acceptance.
-- Thread the facts through provider route descriptions and target artifact
-  mirror validation where the low-precision resource selection is consumed.
-- Add focused fail-closed coverage for a stale primitive/resource chain fact.
-- Leave the Trellis macro task active after the slice unless all gates are
+- [x] Make the owner materialize or validate realized low-precision contraction
+  structure from typed body/config/resource facts and the selected resource
+  candidate's primitive-chain facts.
+- [x] Reject missing or stale realization/resource facts before route/provider
+  planning, Common EmitC, or target artifact export can accept the realized
+  body.
+- [x] Add focused positive coverage that realization consumes the primitive-chain
+  resource facts.
+- [x] Add focused fail-closed coverage for a stale or missing primitive-chain
+  realization/resource fact.
+- [x] Leave the Trellis macro task active after the slice unless all gates are
   completed by later work.
 
 ## Gate 1 Acceptance Criteria
@@ -122,6 +142,32 @@ Complete Gate 1 as a production source slice:
   artifact validation changes.
 - [x] `git diff --check` and `git diff --cached --check` pass.
 
+## Gate 2 Acceptance Criteria
+
+- [x] Gearbox/resource-aware selected-body realization consumes the
+  provider-owned low-precision primitive-chain resource facts from the selected
+  resource candidate.
+- [x] Realization-produced low-precision contraction facts are matched against
+  the selected resource primitive-chain contract before route/provider/Common
+  EmitC/export acceptance.
+- [x] Missing, stale, or mismatched primitive-chain realization/resource facts
+  fail closed with focused diagnostics at the RVV owner boundary.
+- [x] Focused positive coverage proves the changed owner consumes the
+  primitive-chain facts, not route ids, artifact names, status fields, or Common
+  EmitC behavior.
+- [x] Focused negative coverage proves stale or missing realization/resource
+  facts are rejected.
+- [x] No q4/q8/llama-named route authority, source-front-door authority,
+  descriptor-driven computation, Common EmitC semantic branch, or one-fixture
+  evidence-only work is introduced.
+- [x] `build/bin/tianchenrv-rvv-extension-plugin-test` passes if provider or
+  realization logic changes.
+- [x] `build/bin/tianchenrv-target-artifact-export-test` passes if target mirror
+  validation changes.
+- [x] Relevant FileCheck/lit or focused manual FileCheck checks cover changed
+  diagnostics or realized IR when text-visible behavior changes.
+- [x] `git diff --check` and `git diff --cached --check` pass.
+
 ## Out of Scope
 
 - No generated-bundle or same-target rerun unless this slice changes the
@@ -133,7 +179,7 @@ Complete Gate 1 as a production source slice:
 - No Common EmitC invention of RVV dtype, schedule, primitive, resource,
   performance, or dispatch semantics.
 - No dispatch/performance preference change or performance-win claim.
-- No archive/finish after Gate 1 unless all macro gates are also complete.
+- No archive/finish after Gate 2 unless all macro gates are also complete.
 
 ## Technical Notes
 
@@ -156,12 +202,10 @@ Complete Gate 1 as a production source slice:
 
 ## Continuation Point
 
-Gate 1 is complete. This round made the primitive-chain contract part of the
-RVV-owned low-precision resource surface and threaded it through Gearbox pass
-facts, selected-body realization validation, route-family planning, provider
-metadata, target support metadata, and target artifact validation.
+Gate 1 and Gate 2 are complete. Gates 3-5 remain open, so this macro task stays
+active.
 
-Continue with Gate 2: make Gearbox/resource-aware selected-body realization
-consume the explicit primitive-chain resource facts to materialize legal
-low-precision contraction structure, still without making route ids, artifact
-names, Common EmitC, or measurement scripts the authority.
+Next owner: Gate 3 route/statement planning and target artifact mirror
+validation must consume the selected Gearbox realization primitive/resource
+facts and reject stale or unsupported performance/resource claims without making
+route ids, artifact names, Common EmitC, or measurement scripts the authority.

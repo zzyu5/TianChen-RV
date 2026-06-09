@@ -119,6 +119,27 @@ constexpr llvm::StringLiteral kRuntimeAVLSourceAttrName(
 constexpr llvm::StringLiteral kResourceDecisionAttrName("resource_decision");
 constexpr llvm::StringLiteral kProducerScopeAttrName("producer_scope");
 constexpr llvm::StringLiteral kConsumerScopeAttrName("consumer_scope");
+constexpr llvm::StringLiteral kPrimitiveChainContractAttrName(
+    "primitive_chain_contract");
+constexpr llvm::StringLiteral kPrimitiveChainKindAttrName(
+    "primitive_chain_kind");
+constexpr llvm::StringLiteral kPrimitiveWideningProductRelationAttrName(
+    "primitive_widening_product_relation");
+constexpr llvm::StringLiteral
+    kPrimitiveProductReductionChainRelationAttrName(
+        "primitive_product_reduction_chain_relation");
+constexpr llvm::StringLiteral kPrimitiveWideningProductIntrinsicAttrName(
+    "primitive_widening_product_intrinsic");
+constexpr llvm::StringLiteral kPrimitiveReductionIntrinsicAttrName(
+    "primitive_reduction_intrinsic");
+constexpr llvm::StringLiteral kPrimitiveScalarSeedSplatIntrinsicAttrName(
+    "primitive_scalar_seed_splat_intrinsic");
+constexpr llvm::StringLiteral kPrimitiveAccumulatorLayoutAttrName(
+    "primitive_accumulator_layout");
+constexpr llvm::StringLiteral kPrimitiveResultLayoutAttrName(
+    "primitive_result_layout");
+constexpr llvm::StringLiteral kPrimitiveReductionStoreVLAttrName(
+    "primitive_reduction_store_vl");
 constexpr llvm::StringLiteral kStrideUnitAttrName("stride_unit");
 constexpr llvm::StringLiteral kIndexEEWAttrName("index_eew");
 constexpr llvm::StringLiteral kOffsetUnitAttrName("offset_unit");
@@ -237,7 +258,17 @@ bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
          name == kToPhaseAttrName || name == kRegionCountAttrName ||
          name == kRuntimeAVLSourceAttrName ||
          name == kResourceDecisionAttrName ||
-         name == kProducerScopeAttrName || name == kConsumerScopeAttrName;
+         name == kProducerScopeAttrName || name == kConsumerScopeAttrName ||
+         name == kPrimitiveChainContractAttrName ||
+         name == kPrimitiveChainKindAttrName ||
+         name == kPrimitiveWideningProductRelationAttrName ||
+         name == kPrimitiveProductReductionChainRelationAttrName ||
+         name == kPrimitiveWideningProductIntrinsicAttrName ||
+         name == kPrimitiveReductionIntrinsicAttrName ||
+         name == kPrimitiveScalarSeedSplatIntrinsicAttrName ||
+         name == kPrimitiveAccumulatorLayoutAttrName ||
+         name == kPrimitiveResultLayoutAttrName ||
+         name == kPrimitiveReductionStoreVLAttrName;
 }
 
 bool isAllowedI32LoadAttr(llvm::StringRef) {
@@ -3966,8 +3997,8 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
              << "only accepts Gearbox handoff attributes 'contract', "
                 "'from_phase', 'to_phase', 'region_count', "
                 "'runtime_avl_source', 'resource_decision', "
-                "'producer_scope', and 'consumer_scope'; unexpected "
-                "attribute '"
+                "'producer_scope', 'consumer_scope', and provider-owned "
+                "primitive-chain resource facts; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -4194,6 +4225,87 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return emitOpError()
            << "requires producer_scope and consumer_scope to be distinct "
               "Gearbox region scopes";
+
+  auto requirePrimitiveFact =
+      [&](llvm::StringRef field, llvm::StringRef actual,
+          llvm::StringRef expected) -> mlir::LogicalResult {
+    if (actual == expected)
+      return mlir::success();
+    return emitOpError()
+           << "requires primitive-chain resource fact '" << field
+           << "' to match provider-owned low-precision widening-reduction "
+              "facts: expected '"
+           << expected << "' but found '" << actual << "'";
+  };
+  if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveChainContractAttrName, getPrimitiveChainContract(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveChainContract)))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveChainKindAttrName, getPrimitiveChainKind(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveChainKind)))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveWideningProductRelationAttrName,
+          getPrimitiveWideningProductRelation(),
+          product.getProductRelation())))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveWideningProductRelationAttrName,
+          getPrimitiveWideningProductRelation(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveWideningProductRelation)))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveProductReductionChainRelationAttrName,
+          getPrimitiveProductReductionChainRelation(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveProductReductionChainRelation)))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveWideningProductIntrinsicAttrName,
+          getPrimitiveWideningProductIntrinsic(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveWideningProductIntrinsic)))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveReductionIntrinsicAttrName, getPrimitiveReductionIntrinsic(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveReductionIntrinsic)))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveScalarSeedSplatIntrinsicAttrName,
+          getPrimitiveScalarSeedSplatIntrinsic(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveScalarSeedSplatIntrinsic)))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveAccumulatorLayoutAttrName,
+          getPrimitiveAccumulatorLayout(), reduction.getAccumulatorLayout())))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveAccumulatorLayoutAttrName,
+          getPrimitiveAccumulatorLayout(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveAccumulatorLayout)))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveResultLayoutAttrName, getPrimitiveResultLayout(),
+          reduction.getResultLayout())))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveResultLayoutAttrName, getPrimitiveResultLayout(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveResultLayout)))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveReductionStoreVLAttrName, getPrimitiveReductionStoreVl(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveReductionStoreVL)))
+    return mlir::failure();
+
   if (mlir::failed(verifyBoundedMetadata(op, kContractAttrName, getContract())))
     return mlir::failure();
   if (mlir::failed(
@@ -4212,6 +4324,40 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyBoundedMetadata(op, kConsumerScopeAttrName,
                                          getConsumerScope())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kPrimitiveChainContractAttrName,
+                                         getPrimitiveChainContract())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kPrimitiveChainKindAttrName,
+                                         getPrimitiveChainKind())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(
+          op, kPrimitiveWideningProductRelationAttrName,
+          getPrimitiveWideningProductRelation())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(
+          op, kPrimitiveProductReductionChainRelationAttrName,
+          getPrimitiveProductReductionChainRelation())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(
+          op, kPrimitiveWideningProductIntrinsicAttrName,
+          getPrimitiveWideningProductIntrinsic())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kPrimitiveReductionIntrinsicAttrName,
+                                         getPrimitiveReductionIntrinsic())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(
+          op, kPrimitiveScalarSeedSplatIntrinsicAttrName,
+          getPrimitiveScalarSeedSplatIntrinsic())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kPrimitiveAccumulatorLayoutAttrName,
+                                         getPrimitiveAccumulatorLayout())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kPrimitiveResultLayoutAttrName,
+                                         getPrimitiveResultLayout())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kPrimitiveReductionStoreVLAttrName,
+                                         getPrimitiveReductionStoreVl())))
     return mlir::failure();
 
   return mlir::success();

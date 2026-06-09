@@ -820,6 +820,35 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
                      builder.getStringAttr(selectedCandidate.producerScope));
   state.addAttribute("consumer_scope",
                      builder.getStringAttr(selectedCandidate.consumerScope));
+  state.addAttribute("primitive_chain_contract",
+                     builder.getStringAttr(
+                         selectedCandidate.primitiveChainContractID));
+  state.addAttribute("primitive_chain_kind",
+                     builder.getStringAttr(selectedCandidate.primitiveChainKind));
+  state.addAttribute("primitive_widening_product_relation",
+                     builder.getStringAttr(
+                         selectedCandidate.primitiveWideningProductRelation));
+  state.addAttribute(
+      "primitive_product_reduction_chain_relation",
+      builder.getStringAttr(
+          selectedCandidate.primitiveProductReductionChainRelation));
+  state.addAttribute("primitive_widening_product_intrinsic",
+                     builder.getStringAttr(
+                         selectedCandidate.primitiveWideningProductIntrinsic));
+  state.addAttribute("primitive_reduction_intrinsic",
+                     builder.getStringAttr(
+                         selectedCandidate.primitiveReductionIntrinsic));
+  state.addAttribute("primitive_scalar_seed_splat_intrinsic",
+                     builder.getStringAttr(
+                         selectedCandidate.primitiveScalarSeedSplatIntrinsic));
+  state.addAttribute("primitive_accumulator_layout",
+                     builder.getStringAttr(
+                         selectedCandidate.primitiveAccumulatorLayout));
+  state.addAttribute("primitive_result_layout",
+                     builder.getStringAttr(selectedCandidate.primitiveResultLayout));
+  state.addAttribute("primitive_reduction_store_vl",
+                     builder.getStringAttr(
+                         selectedCandidate.primitiveReductionStoreVL));
   state.addTypes(input.getType());
   return builder.create(state);
 }
@@ -1399,11 +1428,14 @@ realizePreRealizedRVVSelectedContractionFamily(
   if (plan.usesProductReductionDequantization) {
     auto product = llvm::cast<tcrv::rvv::WideningProductOp>(
         createRealizedGenericWideningProductCompute(
-            builder, loc, plan.productKind, plan.productRelation, lhsValue,
-            rhsValue, setvl.getVl(), plan.productSEW, plan.productLMUL));
+            builder, loc, plan.productKind,
+            selectedResourceCandidate->primitiveWideningProductRelation,
+            lhsValue, rhsValue, setvl.getVl(), plan.productSEW,
+            plan.productLMUL));
     auto reduced = llvm::cast<tcrv::rvv::StandaloneReduceOp>(
         createRealizedGenericStandaloneWideningReduceCompute(
-            builder, loc, plan.accumulatorLayout, plan.resultLayout,
+            builder, loc, selectedResourceCandidate->primitiveAccumulatorLayout,
+            selectedResourceCandidate->primitiveResultLayout,
             product.getResult(), plan.acc, setvl.getVl(), plan.resultSEW,
             plan.resultLMUL));
     mlir::Value dequantSource = reduced.getResult();

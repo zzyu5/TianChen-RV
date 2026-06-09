@@ -17610,6 +17610,66 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
         "consumer_scope to match the "
         "RVV-owned Gearbox cross-region handoff contract");
 
+  auto requireHandoffPrimitiveFact =
+      [&](llvm::StringRef field, llvm::StringRef actual,
+          llvm::StringRef expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("low-precision product-reduction dequantization RVV "
+                    "route requires tcrv_rvv.gearbox_cross_region_handoff "
+                    "primitive-chain fact '") +
+        field + "' to match provider-owned resource fact '" + expected +
+        "' but found '" + actual + "'");
+  };
+  if (llvm::Error error = requireHandoffPrimitiveFact(
+          "primitive_chain_contract", handoff.getPrimitiveChainContract(),
+          kRVVLowPrecisionResourcePrimitiveChainContract))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
+          "primitive_chain_kind", handoff.getPrimitiveChainKind(),
+          kRVVLowPrecisionResourcePrimitiveChainKind))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
+          "primitive_widening_product_relation",
+          handoff.getPrimitiveWideningProductRelation(),
+          kRVVLowPrecisionResourcePrimitiveWideningProductRelation))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
+          "primitive_product_reduction_chain_relation",
+          handoff.getPrimitiveProductReductionChainRelation(),
+          kRVVLowPrecisionResourcePrimitiveProductReductionChainRelation))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
+          "primitive_widening_product_intrinsic",
+          handoff.getPrimitiveWideningProductIntrinsic(),
+          kRVVLowPrecisionResourcePrimitiveWideningProductIntrinsic))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
+          "primitive_reduction_intrinsic",
+          handoff.getPrimitiveReductionIntrinsic(),
+          kRVVLowPrecisionResourcePrimitiveReductionIntrinsic))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
+          "primitive_scalar_seed_splat_intrinsic",
+          handoff.getPrimitiveScalarSeedSplatIntrinsic(),
+          kRVVLowPrecisionResourcePrimitiveScalarSeedSplatIntrinsic))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
+          "primitive_accumulator_layout",
+          handoff.getPrimitiveAccumulatorLayout(),
+          kRVVLowPrecisionResourcePrimitiveAccumulatorLayout))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
+          "primitive_result_layout", handoff.getPrimitiveResultLayout(),
+          kRVVLowPrecisionResourcePrimitiveResultLayout))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
+          "primitive_reduction_store_vl",
+          handoff.getPrimitiveReductionStoreVl(),
+          kRVVLowPrecisionResourcePrimitiveReductionStoreVL))
+    return error;
+
   slice.gearboxCrossRegionHandoffOp = handoff;
   slice.conversionSource = handoff.getOutput();
   return llvm::Error::success();

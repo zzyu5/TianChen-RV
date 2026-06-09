@@ -1022,6 +1022,71 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
               "region count, runtime AVL source, resource decision, and "
               "distinct producer/consumer scopes";
 
+  auto requireHandoffPrimitiveFact =
+      [&](llvm::StringRef field, llvm::StringRef actual,
+          llvm::StringRef expected) -> mlir::LogicalResult {
+    if (actual == expected)
+      return mlir::success();
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires tcrv_rvv.gearbox_cross_region_handoff primitive-chain "
+              "fact '"
+           << field << "' to match provider-owned low-precision resource "
+           << "fact '" << expected << "' but found '" << actual << "'";
+  };
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "primitive_chain_contract", handoff.getPrimitiveChainContract(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveChainContract)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "primitive_chain_kind", handoff.getPrimitiveChainKind(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveChainKind)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "primitive_widening_product_relation",
+          handoff.getPrimitiveWideningProductRelation(),
+          kLowPrecisionProductRelation)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "primitive_product_reduction_chain_relation",
+          handoff.getPrimitiveProductReductionChainRelation(),
+          kLowPrecisionProductReductionRelation)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "primitive_widening_product_intrinsic",
+          handoff.getPrimitiveWideningProductIntrinsic(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveWideningProductIntrinsic)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "primitive_reduction_intrinsic",
+          handoff.getPrimitiveReductionIntrinsic(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveReductionIntrinsic)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "primitive_scalar_seed_splat_intrinsic",
+          handoff.getPrimitiveScalarSeedSplatIntrinsic(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveScalarSeedSplatIntrinsic)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "primitive_accumulator_layout", handoff.getPrimitiveAccumulatorLayout(),
+          kLowPrecisionAccumulatorLayout)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "primitive_result_layout", handoff.getPrimitiveResultLayout(),
+          kLowPrecisionResultLayout)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "primitive_reduction_store_vl",
+          handoff.getPrimitiveReductionStoreVl(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveReductionStoreVL)))
+    return mlir::failure();
+
   LoadOp lhsLoad = product.getLhs().getDefiningOp<LoadOp>();
   LoadOp rhsLoad = product.getRhs().getDefiningOp<LoadOp>();
   if (!lhsLoad || lhsLoad->getParentOp() != producerWithVL.getOperation() ||

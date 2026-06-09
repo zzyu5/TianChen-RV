@@ -7,6 +7,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/phase = "dequant-store"/phase = "artifact-metadata-region"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZED-REGION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.dequantize %[^,]*/tcrv_rvv.dequantize %10/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-CONSUMER
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/consumer_scope = "gearbox-scope:dequant-store"/consumer_scope = "gearbox-scope:product-reduction"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-GEARBOX-SCOPE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"/primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i32m1_i32m1"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-PRIMITIVE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.operand_form\", value = \"unpacked-byte-elements\"/s//tcrv_rvv.low_precision_resource.operand_form\", value = \"packed-i4-nibbles\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-MIRROR
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic\", value = \"__riscv_vwredsum_vs_i16mf2_i32m1\"/s//tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic\", value = \"__riscv_vwredsum_vs_i32m1_i32m1\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIMITIVE-RESOURCE-MIRROR
@@ -83,6 +84,10 @@ module {
 // REALIZED-SAME: consumer_scope = "gearbox-scope:dequant-store"
 // REALIZED-SAME: contract = "gearbox-product-reduce-to-dequant-cross-region-handoff.v1"
 // REALIZED-SAME: from_phase = "tail-product-reduce"
+// REALIZED-SAME: primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1"
+// REALIZED-SAME: primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
+// REALIZED-SAME: primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
+// REALIZED-SAME: primitive_reduction_store_vl = "1"
 // REALIZED-SAME: producer_scope = "gearbox-scope:product-reduction"
 // REALIZED-SAME: region_count = 3 : i64
 // REALIZED-SAME: resource_decision = "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
@@ -186,6 +191,10 @@ module {
 // STALE-HANDOFF-CONSUMER-SAME: handoff-consuming dequant/store chain in the consumer tcrv_rvv.with_vl scope
 
 // STALE-GEARBOX-SCOPE: requires consumer_scope 'gearbox-scope:dequant-store'
+
+// STALE-HANDOFF-PRIMITIVE: requires primitive-chain resource fact 'primitive_reduction_intrinsic'
+// STALE-HANDOFF-PRIMITIVE-SAME: __riscv_vwredsum_vs_i16mf2_i32m1
+// STALE-HANDOFF-PRIMITIVE-SAME: __riscv_vwredsum_vs_i32m1_i32m1
 
 // STALE-PACKED-MIRROR: candidate tcrv_rvv.low_precision_resource.operand_form provenance must mirror provider-selected low-precision direct-contraction resource operand form 'unpacked-byte-elements'
 // STALE-PACKED-MIRROR-SAME: packed-i4-nibbles

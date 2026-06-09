@@ -71,6 +71,9 @@ module {
 // REALIZED-SAME: consumer_scope = "gearbox-scope:dequant-store"
 // REALIZED-SAME: contract = "gearbox-product-reduce-to-dequant-cross-region-handoff.v1"
 // REALIZED-SAME: from_phase = "tail-product-reduce"
+// REALIZED-SAME: primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1"
+// REALIZED-SAME: primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
+// REALIZED-SAME: primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
 // REALIZED-SAME: region_count = 3 : i64
 // REALIZED-SAME: runtime_avl_source = "runtime_abi:n"
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
