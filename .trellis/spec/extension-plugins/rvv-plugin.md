@@ -6421,6 +6421,129 @@ packed-i4 executable artifact exists
   -> dispatch/performance-ready claims fail closed until new timing repairs it
 ```
 
+## Packed-I4 Same-Target Maturity Evidence Input
+
+### 1. Scope / Trigger
+
+Use this contract when `rvv_generated_bundle_same_target_measure.py` reports
+packed-i4 same-target measurement output after validating generated
+object/header metadata against provider-owned low-precision resource facts. The
+payload is measurement evidence input to the provider-owned maturity contract.
+It is not route support, RVV compute semantics, dispatch authority, or Common
+EmitC logic.
+
+### 2. Signatures
+
+Packed-i4 per-op evidence and root summaries may carry:
+
+```json
+{
+  "performance_maturity_contract_evidence_input": {
+    "contract": "packed-i4-same-target-performance-maturity-evidence-input.v1",
+    "measurement_evidence_id": "run/op/same_target_measurement_evidence.json",
+    "measurement_classification": "win | no-win | regression | not-measured",
+    "measurement_outcome_family": "win | no-win | not-measured",
+    "measurement_best_speedup_range": "0.688427..0.705724",
+    "measurement_summary_record_count": 12,
+    "measurement_record_count": 60,
+    "provider_maturity": "executable-not-performance-mature",
+    "provider_maturity_evidence": "same-target-packed-i4-product-pair-sum-regression-gate6.v1",
+    "provider_maturity_outcome": "regression",
+    "provider_performance_selection_eligible": "false",
+    "provider_dispatch_preference": "not-performance-preferred",
+    "provider_performance_action": "no-win-repair-required-before-performance-claim",
+    "contract_alignment": "matches-provider-maturity-outcome",
+    "performance_win_claim_allowed": false,
+    "performance_preference_denied": true,
+    "performance_preference_denial_reason": "same-target-measurement-no-win-or-regression",
+    "correctness_execution_allowed": true,
+    "route_support_effect": "preserve-executable-route-support; measurement evidence only gates performance preference and claims",
+    "provider_contract_update_required": false
+  }
+}
+```
+
+Root evidence may also aggregate per-op objects under
+`performance_maturity_contract_inputs`.
+
+### 3. Contracts
+
+- `measurement_*` fields come from the parsed same-target result
+  classification and the current evidence path.
+- `provider_*` fields must be copied from provider-owned route/resource facts or
+  generated object/header metadata mirrors after target artifact validation.
+- The script may report alignment or conflicts, but must not rewrite
+  `RVVLowPrecisionContractionResourceSelection` maturity fields.
+- `performance_win_claim_allowed` is true only when measurement classification
+  is `win`, provider selection eligibility is `"true"`, dispatch preference is
+  `"performance-preferred"`, and the provider performance action no longer
+  records the no-win repair guard.
+- `regression`, `no-win`, and `not-measured` deny performance preference and win
+  claims while preserving executable correctness support.
+- A measurement `win` that conflicts with the provider no-win/regression
+  contract sets `provider_contract_update_required = true`; it is not itself a
+  maturity-field update.
+
+### 4. Validation & Error Matrix
+
+- Packed-i4 measurement evidence lacks the evidence-input object -> reporting
+  bridge is incomplete.
+- Provider maturity, eligibility, dispatch, or action fields are missing from
+  validated metadata -> fail the provider feedback tie-back before accepting
+  the measurement summary.
+- Measurement classification is `regression`, `no-win`, or `not-measured` while
+  `performance_win_claim_allowed = true` -> invalid evidence boundary.
+- Provider selection eligibility is `"false"` but reporting claims dispatch or
+  performance preference -> fail closed in reporting/tests.
+- Reporting disables route support or correctness execution because performance
+  preference is denied -> boundary violation.
+- Script computes provider maturity fields from fixture names, route ids,
+  artifact paths, q4/q8 labels, or raw stdout alone -> invalid authority path.
+
+### 5. Good/Base/Bad Cases
+
+- Good: validated packed-i4 generated bundle -> parsed same-target
+  `regression` -> evidence-input records provider outcome `regression`,
+  selection `false`, dispatch `not-performance-preferred`,
+  claim allowed `false`, and correctness execution allowed `true`.
+- Base: dry-run measurement records `not-measured`, denies performance claims,
+  and keeps provider maturity mirrors visible as non-authoritative reporting
+  input.
+- Bad: a same-target dry-run object or raw stdout table edits provider maturity
+  fields or marks performance selection eligible.
+- Bad: a measurement win directly enables dispatch preference without a
+  provider/resource contract update and new target artifact validation.
+
+### 6. Tests Required
+
+- Script self-test must cover `regression`, mixed `no-win`, and hypothetical
+  `win` classifications against the current provider contract.
+- Dry-run FileCheck coverage must assert the evidence-input object, provider
+  maturity mirrors, claim allowance, denial reason, route-support effect, and
+  correctness execution allowance.
+- Same-target real-run evidence is required only when claiming runtime,
+  correctness, or performance results beyond the dry-run/reporting bridge.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+same-target stdout says win
+  -> script flips performance_selection_eligible to true
+  -> dispatch reports packed-i4 performance preferred
+```
+
+Correct:
+
+```text
+same-target parsed classification
+  -> evidence-input records provider maturity mirror and measured outcome
+  -> no-win/regression/not-measured deny performance preference
+  -> win still requires provider contract update plus new validation before
+     performance dispatch can be claimed
+```
+
 ## Gearbox Product-Reduce-Dequant/Clamp Cross-Region Handoff
 
 ### 1. Scope / Trigger

@@ -8,10 +8,12 @@ route-supported and executable for correctness, but no-win/regression
 same-target evidence must prevent the route from being mirrored or selected as
 performance-ready until later same-target measurement proves maturity.
 
-This is a macro campaign. The current round completes Gate 1 and Gate 2 by
-introducing the provider/target validation contract for performance maturity
-and wiring the current packed-i4 regression into production route/artifact
-validation mirrors.
+This is a macro campaign. Gate 1 and Gate 2 are already complete in commit
+`723d7eb7`. The current round completes Gate 3 by connecting same-target
+measurement outcome fields to the provider-owned maturity contract as evidence
+input. Measurement output may explain or deny performance preference, but it
+must not become route support, RVV compute semantics, Common EmitC authority, or
+artifact-name authority.
 
 ## What I Already Know
 
@@ -51,7 +53,7 @@ validation mirrors.
   routes.
 - [x] Gate 2: wire the contract through RVV provider/resource facts and target
   artifact validation without moving semantics into common EmitC or scripts.
-- [ ] Gate 3: connect same-target measurement outcome fields to the contract as
+- [x] Gate 3: connect same-target measurement outcome fields to the contract as
   evidence input, not route authority.
 - [ ] Gate 4: add focused fail-closed tests proving regression/no-win cannot
   become performance-selected/claimed while route-supported executable
@@ -62,21 +64,23 @@ validation mirrors.
 
 ## Current Round Slice
 
-Complete Gate 1 and Gate 2 as one coherent production slice:
+Complete Gate 3 as one coherent production/script/test slice:
 
-- Introduce the provider-owned maturity fields and constants for packed-i4
-  no-win/regression evidence.
-- Populate and verify those fields through Gearbox resource materialization,
-  selected-body realization/resource planning, statement-plan owner checks,
-  route metadata emission, target support bundle mapping, and target artifact
-  validation.
-- Update focused C++/MLIR tests so the executable route remains accepted with
-  performance maturity blocked, and stale performance-ready mirrors fail
-  closed.
-- Leave Gate 3+ as the continuation point unless they become unavoidable for
-  the production contract.
+- Surface same-target measurement outcome fields as a structured
+  maturity-contract evidence input.
+- Tie the measurement evidence id, classification, outcome family, speedup
+  range, provider maturity evidence/outcome, performance-selection eligibility,
+  dispatch preference, and claim allowance together in reporting mirrors.
+- Preserve the boundary that measurement facts can deny performance preference
+  or claims without denying route support, artifact generation, or correctness
+  execution.
+- Keep provider-owned route/resource and target artifact mirrors as the only
+  production maturity contract; scripts may validate and report those mirrors
+  but must not rewrite them.
+- Leave Gate 4/5 as the continuation point unless they become unavoidable for
+  the Gate 3 bridge.
 
-## Acceptance Criteria
+## Completed Gate 1/2 Acceptance Criteria
 
 - [x] Provider resource selection carries explicit performance maturity,
   maturity evidence, maturity outcome, performance selection eligibility, and
@@ -96,6 +100,22 @@ Complete Gate 1 and Gate 2 as one coherent production slice:
 - [x] Bounded old-authority scan over touched diff lines shows no new positive
   legacy i32/source-front-door/descriptor authority.
 
+## Gate 3 Acceptance Criteria
+
+- [x] Same-target measurement evidence records a structured maturity-contract
+  evidence-input object for packed-i4 runs.
+- [x] The object carries measured classification, outcome family, speedup range,
+  measurement evidence id, provider maturity evidence/outcome,
+  performance-selection eligibility, dispatch preference, and performance claim
+  allowance.
+- [x] Regression/no-win/not-measured evidence denies performance preference or
+  performance win claims without denying executable correctness support.
+- [x] Reporting mirrors distinguish provider-owned contract fields from
+  measurement interpretation fields.
+- [x] Focused script self-tests and dry-run FileCheck coverage prove the bridge.
+- [x] No Common EmitC, route id, artifact name, q4/q8/llama label, or fixture
+  path becomes performance maturity authority.
+
 ## Out of Scope
 
 - No new q4/q8/llama.cpp route ids, artifact names, helper semantics, or
@@ -106,8 +126,9 @@ Complete Gate 1 and Gate 2 as one coherent production slice:
 - No Common EmitC invention of RVV dtype, schedule, performance, or dispatch
   semantics.
 - No high-level Linalg/Vector/StableHLO frontend work.
-- No new same-target measurement run unless Gate 1/2 implementation changes
-  executable code or the tests require it.
+- No real same-target measurement rerun unless Gate 3 implementation changes
+  executable code or the tests require it. A dry-run or self-test evidence path
+  is enough for the bridge unless a performance/runtime claim is added.
 
 ## Technical Approach
 
@@ -121,6 +142,8 @@ Gearbox/resource attrs
   -> provider-built route metadata
   -> target support bundle mirrors
   -> target route-family artifact validation
+  -> same-target measurement script validates generated object/header mirrors
+  -> maturity-contract evidence-input reporting object
 ```
 
 The maturity contract should use explicit mirror names under
@@ -135,6 +158,12 @@ The maturity contract should use explicit mirror names under
 For the current packed-i4 evidence, the expected values are no-win/regression
 and not eligible for performance selection or dispatch preference. The route
 continues to be `legal` and provider-supported for executable correctness.
+
+Gate 3 does not make measurement scripts the source of truth. The script reports
+whether measured classification aligns with or conflicts with the provider-owned
+contract, and whether the provider-owned contract allows a performance claim.
+Changing maturity fields still requires a provider/resource contract update and
+new same-target evidence.
 
 ## Decision (ADR-lite)
 
@@ -164,8 +193,9 @@ changes the provider-owned maturity contract.
 
 ## Continuation Point
 
-Gate 1/2 are complete for this slice. The macro task remains active. Continue
-with Gate 3: connect same-target measurement outcome fields to the maturity
-contract as evidence input, not route authority, then finish Gate 4/5 with
-focused stale-evidence and same-target policy checks. Keep this macro task
-active unless all gates are complete or human steering redirects the campaign.
+Gate 1/2/3 are complete. Continue with Gate 4: add focused fail-closed stale
+evidence tests proving no-win/regression cannot become performance-selected or
+claimed while route-supported executable correctness remains allowed, then Gate
+5 for focused artifact/correctness and same-target policy checks. Keep this
+macro task active unless all gates are complete or human steering redirects the
+campaign.

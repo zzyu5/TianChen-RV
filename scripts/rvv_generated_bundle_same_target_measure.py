@@ -55,6 +55,10 @@ RESULT_CLASSIFICATION_NOT_MEASURED = "not-measured"
 RESULT_CLASSIFICATION_WIN = "win"
 RESULT_CLASSIFICATION_NO_WIN = "no-win"
 RESULT_CLASSIFICATION_REGRESSION = "regression"
+PACKED_I4_MATURITY_CONTRACT_EVIDENCE_INPUT = (
+    "packed-i4-same-target-performance-maturity-evidence-input.v1"
+)
+PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH = "performance-preferred"
 
 
 @dataclass(frozen=True)
@@ -1357,12 +1361,134 @@ def classify_parsed_timing(parsed_timing: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def provider_contract_allows_performance_claim(
+    fields: dict[str, str], classification: str
+) -> bool:
+    return (
+        classification == RESULT_CLASSIFICATION_WIN
+        and fields["performance_action"]
+        != abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
+        and fields["performance_selection_eligible"] == "true"
+        and fields["dispatch_preference"] == PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH
+    )
+
+
+def performance_preference_denial_reason(
+    fields: dict[str, str], classification: str
+) -> str:
+    if classification == RESULT_CLASSIFICATION_NOT_MEASURED:
+        return "same-target-measurement-not-run"
+    if classification in (
+        RESULT_CLASSIFICATION_NO_WIN,
+        RESULT_CLASSIFICATION_REGRESSION,
+    ):
+        return "same-target-measurement-no-win-or-regression"
+    if fields["performance_selection_eligible"] != "true":
+        return "provider-contract-performance-selection-ineligible"
+    if fields["dispatch_preference"] != PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH:
+        return "provider-contract-not-performance-preferred"
+    if (
+        fields["performance_action"]
+        == abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
+    ):
+        return "provider-contract-requires-no-win-repair"
+    return ""
+
+
+def maturity_contract_alignment(
+    *,
+    fields: dict[str, str],
+    classification: str,
+    outcome_family: str,
+    performance_win_claim_allowed: bool,
+) -> str:
+    provider_outcome = fields["performance_maturity_outcome"]
+    if classification == RESULT_CLASSIFICATION_NOT_MEASURED:
+        return "not-measured"
+    if classification == provider_outcome:
+        return "matches-provider-maturity-outcome"
+    if (
+        outcome_family == RESULT_CLASSIFICATION_NO_WIN
+        and provider_outcome
+        in (RESULT_CLASSIFICATION_NO_WIN, RESULT_CLASSIFICATION_REGRESSION)
+    ):
+        return "same-no-win-family-denies-performance-preference"
+    if classification == RESULT_CLASSIFICATION_WIN:
+        if performance_win_claim_allowed:
+            return "win-claim-allowed-by-provider-maturity-contract"
+        return (
+            "measurement-win-conflicts-with-provider-maturity-contract-requires-"
+            "provider-update"
+        )
+    return "measurement-outcome-requires-provider-maturity-review"
+
+
+def packed_i4_maturity_contract_evidence_input(
+    *,
+    fields: dict[str, str],
+    result_classification: dict[str, Any],
+    measurement_evidence_id: str,
+) -> dict[str, Any]:
+    classification = str(result_classification.get("classification", ""))
+    outcome_family = str(result_classification.get("outcome_family", ""))
+    performance_win_claim_allowed = provider_contract_allows_performance_claim(
+        fields, classification
+    )
+    alignment = maturity_contract_alignment(
+        fields=fields,
+        classification=classification,
+        outcome_family=outcome_family,
+        performance_win_claim_allowed=performance_win_claim_allowed,
+    )
+    denial_reason = performance_preference_denial_reason(fields, classification)
+    return {
+        "contract": PACKED_I4_MATURITY_CONTRACT_EVIDENCE_INPUT,
+        "authority": (
+            "measurement-evidence-input-only; provider-owned "
+            "low-precision resource facts and target artifact mirrors remain "
+            "the maturity contract"
+        ),
+        "measurement_evidence_id": measurement_evidence_id,
+        "measurement_classification": classification,
+        "measurement_outcome_family": outcome_family,
+        "measurement_best_speedup_range": result_classification.get(
+            "best_speedup_range", ""
+        ),
+        "measurement_summary_record_count": result_classification.get(
+            "summary_record_count", 0
+        ),
+        "measurement_record_count": result_classification.get(
+            "measurement_record_count", 0
+        ),
+        "provider_maturity": fields["performance_maturity"],
+        "provider_maturity_evidence": fields["performance_maturity_evidence"],
+        "provider_maturity_outcome": fields["performance_maturity_outcome"],
+        "provider_performance_selection_eligible": fields[
+            "performance_selection_eligible"
+        ],
+        "provider_dispatch_preference": fields["dispatch_preference"],
+        "provider_performance_action": fields["performance_action"],
+        "contract_alignment": alignment,
+        "performance_win_claim_allowed": performance_win_claim_allowed,
+        "performance_preference_denied": not performance_win_claim_allowed,
+        "performance_preference_denial_reason": denial_reason,
+        "correctness_execution_allowed": True,
+        "route_support_effect": (
+            "preserve-executable-route-support; measurement evidence only "
+            "gates performance preference and claims"
+        ),
+        "provider_contract_update_required": alignment
+        not in ("not-measured", "matches-provider-maturity-outcome"),
+    }
+
+
 def packed_i4_provider_feedback_tie_back(
     *,
     generation_result: dict[str, Any],
     expectation: abi.OpExpectation,
     uses_packed_i4_resource: bool,
     result_classification: dict[str, Any],
+    measurement_evidence_id: str,
 ) -> dict[str, Any]:
     if not uses_packed_i4_resource:
         return {
@@ -1434,13 +1560,11 @@ def packed_i4_provider_feedback_tie_back(
             f"packed-i4 provider feedback tie-back {name}",
         )
 
-    classification = result_classification.get("classification", "")
-    if classification == RESULT_CLASSIFICATION_NOT_MEASURED:
-        alignment = "not-measured"
-    elif classification == RESULT_CLASSIFICATION_WIN:
-        alignment = "conflicts-with-current-no-win-feedback-requires-provider-update"
-    else:
-        alignment = "consistent-with-current-no-win-feedback"
+    maturity_input = packed_i4_maturity_contract_evidence_input(
+        fields=fields,
+        result_classification=result_classification,
+        measurement_evidence_id=measurement_evidence_id,
+    )
 
     return {
         "packed_i4_resource_metadata_selected": True,
@@ -1453,13 +1577,11 @@ def packed_i4_provider_feedback_tie_back(
         "baseline_identity": baseline_identity_for(
             expectation, uses_packed_i4_resource=True
         ),
-        "result_alignment": alignment,
-        "performance_win_claim_allowed": (
-            classification == RESULT_CLASSIFICATION_WIN
-            and fields["performance_action"]
-            != abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
-            and fields["performance_selection_eligible"] == "true"
-        ),
+        "result_alignment": maturity_input["contract_alignment"],
+        "maturity_contract_evidence_input": maturity_input,
+        "performance_win_claim_allowed": maturity_input[
+            "performance_win_claim_allowed"
+        ],
         "next_repair_owner_if_no_win": (
             "RVV plugin-local Gearbox/resource/statement planning for the "
             "selected packed-i4 product-reduction candidate"
@@ -1738,6 +1860,11 @@ def op_measurement_summary(
             {"lower_bound": lower, "upper_bound": upper}
             for lower, upper in abi.DEFAULT_F32_CLAMP_BOUND_PAIRS
         ]
+    maturity_input = provider_feedback_tie_back.get(
+        "maturity_contract_evidence_input"
+    )
+    if maturity_input:
+        summary["performance_maturity_contract_evidence_input"] = maturity_input
     if remote:
         commands = remote.get("commands", {})
         summary["ssh_measurement_summary"] = {
@@ -1902,9 +2029,19 @@ def run_one_measurement(
             expectation=expectation,
             uses_packed_i4_resource=uses_packed_i4_resource,
             result_classification=result_classification,
+            measurement_evidence_id=(
+                f"{run_id}/{expectation.kind}/same_target_measurement_evidence.json"
+            ),
         )
         evidence["result_classification"] = result_classification
         evidence["provider_feedback_tie_back"] = provider_feedback_tie_back
+        maturity_input = provider_feedback_tie_back.get(
+            "maturity_contract_evidence_input"
+        )
+        if maturity_input:
+            evidence["performance_maturity_contract_evidence_input"] = (
+                maturity_input
+            )
         evidence["op_summary"] = op_measurement_summary(
             expectation=expectation,
             generation_result=generation_result,
@@ -1916,14 +2053,18 @@ def run_one_measurement(
             provider_feedback_tie_back=provider_feedback_tie_back,
         )
         evidence["completed_at"] = abi.utc_timestamp()
-        abi.write_json(op_artifact_dir / "same_target_measurement_evidence.json", evidence)
+        abi.write_json(
+            op_artifact_dir / "same_target_measurement_evidence.json", evidence
+        )
         return evidence
     except Exception as exc:  # noqa: BLE001 - evidence should record blockers.
         evidence["status"] = "blocked" if not args.dry_run else "failed"
         evidence["completed_at"] = abi.utc_timestamp()
         evidence["diagnostic"] = abi.sanitize_text(exc)
         op_artifact_dir.mkdir(parents=True, exist_ok=True)
-        abi.write_json(op_artifact_dir / "same_target_measurement_evidence.json", evidence)
+        abi.write_json(
+            op_artifact_dir / "same_target_measurement_evidence.json", evidence
+        )
         raise abi.EvidenceError(
             f"{expectation.kind} same-target measurement failed: {exc}"
         ) from exc
@@ -1948,10 +2089,13 @@ def validate_measurement_config(config: MeasurementConfig) -> None:
 
 def run_measurement(args: argparse.Namespace) -> int:
     run_id = abi.safe_run_id(args.run_id or abi.utc_run_id())
-    artifact_dir = abi.prepare_artifact_dir(args.artifact_root, run_id, args.overwrite)
+    artifact_dir = abi.prepare_artifact_dir(
+        args.artifact_root, run_id, args.overwrite
+    )
     config = MeasurementConfig(
         counts=args.measure_count or list(DEFAULT_MEASURE_COUNTS),
-        dequant_scale_values=args.dequant_scale or list(abi.DEFAULT_DEQUANT_SCALE_VALUES),
+        dequant_scale_values=args.dequant_scale
+        or list(abi.DEFAULT_DEQUANT_SCALE_VALUES),
         warmup_count=args.warmup_count,
         repeat_count=args.repeat_count,
         measure_iterations=args.measure_iterations,
@@ -1980,14 +2124,19 @@ def run_measurement(args: argparse.Namespace) -> int:
             "packed_i4_baseline_identities": PACKED_I4_BASELINE_IDENTITIES,
         },
         "op_results": {},
+        "performance_maturity_contract_inputs": {},
     }
     try:
         validate_measurement_config(config)
         op_kinds = args.op_kind or list(DEFAULT_OP_KINDS)
         if len(set(op_kinds)) != len(op_kinds):
-            raise abi.EvidenceError(f"duplicate --op-kind values are not allowed: {op_kinds}")
+            raise abi.EvidenceError(
+                f"duplicate --op-kind values are not allowed: {op_kinds}"
+            )
         if args.input is not None and len(op_kinds) != 1:
-            raise abi.EvidenceError("--input may only be used with exactly one --op-kind")
+            raise abi.EvidenceError(
+                "--input may only be used with exactly one --op-kind"
+            )
         expectations = [
             selected_pre_realized_expectation(op_kind, args.input)
             for op_kind in op_kinds
@@ -2010,6 +2159,13 @@ def run_measurement(args: argparse.Namespace) -> int:
                 readobj=readobj,
             )
             evidence["op_results"][expectation.kind] = result["op_summary"]
+            maturity_input = result.get(
+                "performance_maturity_contract_evidence_input"
+            )
+            if maturity_input:
+                evidence["performance_maturity_contract_inputs"][
+                    expectation.kind
+                ] = maturity_input
 
         evidence["ssh_evidence"] = not args.dry_run
         evidence["status"] = "success" if not args.dry_run else "dry_run_success"
@@ -2024,11 +2180,17 @@ def run_measurement(args: argparse.Namespace) -> int:
                     .get("parsed_timing", {})
                 )
                 classification = result.get("result_classification", {})
+                maturity_input = result.get(
+                    "performance_maturity_contract_evidence_input", {}
+                )
                 print(
                     f"[{op_kind}] summaries={parsed.get('summary_record_count', 0)} "
                     f"measurements={parsed.get('measurement_record_count', 0)} "
                     f"classification={classification.get('classification', '')} "
-                    f"best_speedup_range={classification.get('best_speedup_range', '')}"
+                    f"best_speedup_range={classification.get('best_speedup_range', '')} "
+                    "selection_eligible="
+                    f"{maturity_input.get('provider_performance_selection_eligible', '')} "
+                    f"claim_allowed={maturity_input.get('performance_win_claim_allowed', '')}"
                 )
         return 0
     except Exception as exc:  # noqa: BLE001 - evidence should record blockers.
@@ -2200,21 +2362,76 @@ def run_self_test() -> int:
             abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_UNPACK_INTENT
         ),
     }
-    tie_back = packed_i4_provider_feedback_tie_back(
-        generation_result={
-            "widening_product_reduction_boundary": {
-                "route_metadata": feedback_metadata
-            }
-        },
-        expectation=packed_expectation,
-        uses_packed_i4_resource=True,
-        result_classification=regression,
+    def check_packed_i4_contract_input(
+        result_classification: dict[str, Any],
+        *,
+        expected_alignment: str,
+        expected_denial_reason: str,
+        expected_update_required: bool,
+    ) -> None:
+        measurement_evidence_id = (
+            "self-test/"
+            f"{result_classification['classification']}/same_target_measurement_evidence.json"
+        )
+        tie_back = packed_i4_provider_feedback_tie_back(
+            generation_result={
+                "widening_product_reduction_boundary": {
+                    "route_metadata": feedback_metadata
+                }
+            },
+            expectation=packed_expectation,
+            uses_packed_i4_resource=True,
+            result_classification=result_classification,
+            measurement_evidence_id=measurement_evidence_id,
+        )
+        maturity_input = tie_back["maturity_contract_evidence_input"]
+        if tie_back["result_alignment"] != expected_alignment:
+            raise AssertionError("self-test packed-i4 contract alignment changed")
+        if (
+            tie_back["performance_win_claim_allowed"]
+            or maturity_input["performance_win_claim_allowed"]
+        ):
+            raise AssertionError("self-test packed-i4 contract allowed stale win")
+        if maturity_input["measurement_evidence_id"] != measurement_evidence_id:
+            raise AssertionError("self-test packed-i4 measurement evidence id lost")
+        if (
+            maturity_input["performance_preference_denial_reason"]
+            != expected_denial_reason
+        ):
+            raise AssertionError("self-test packed-i4 denial reason changed")
+        if (
+            maturity_input["provider_contract_update_required"]
+            != expected_update_required
+        ):
+            raise AssertionError("self-test packed-i4 update-required flag changed")
+        if (
+            not maturity_input["correctness_execution_allowed"]
+            or not maturity_input["performance_preference_denied"]
+        ):
+            raise AssertionError(
+                "self-test packed-i4 contract lost correctness/performance split"
+            )
+
+    check_packed_i4_contract_input(
+        regression,
+        expected_alignment="matches-provider-maturity-outcome",
+        expected_denial_reason="same-target-measurement-no-win-or-regression",
+        expected_update_required=False,
     )
-    if (
-        tie_back["result_alignment"] != "consistent-with-current-no-win-feedback"
-        or tie_back["performance_win_claim_allowed"]
-    ):
-        raise AssertionError("self-test packed-i4 feedback tie-back lost no-win guard")
+    check_packed_i4_contract_input(
+        mixed,
+        expected_alignment="same-no-win-family-denies-performance-preference",
+        expected_denial_reason="same-target-measurement-no-win-or-regression",
+        expected_update_required=True,
+    )
+    check_packed_i4_contract_input(
+        win,
+        expected_alignment=(
+            "measurement-win-conflicts-with-provider-maturity-contract-requires-provider-update"
+        ),
+        expected_denial_reason="provider-contract-performance-selection-ineligible",
+        expected_update_required=True,
+    )
     print(f"{SCRIPT_NAME} self-test passed")
     return 0
 

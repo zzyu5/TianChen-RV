@@ -831,3 +831,47 @@ Repaired packed-i4 statement planning to use product-pair sum plus single reduct
 active by design. Next continuation point: Gate 3, connect same-target
 measurement outcome fields to the provider-owned maturity contract as evidence
 input, then finish Gate 4/5 with stale-evidence and same-target policy checks.
+
+## 2026-06-09 - RVV packed low-precision performance-maturity feedback Gate 3
+
+### Summary
+
+- Continued active macro task
+  `06-09-rvv-packed-low-precision-performance-maturity-feedback-campaign`.
+- Completed Gate 3 slice: same-target measurement evidence now emits a
+  structured `performance_maturity_contract_evidence_input` object for
+  packed-i4 runs.
+- The object ties measured classification/outcome family/speedup range and
+  measurement evidence id to provider-owned maturity evidence/outcome,
+  performance-selection eligibility, dispatch preference, claim allowance,
+  denial reason, route-support effect, and correctness-execution allowance.
+- Updated the RVV plugin spec with the 7-section executable contract for this
+  evidence-input payload. Measurement scripts remain reporting/validation
+  clients; provider/resource facts and target artifact mirrors remain the
+  maturity contract authority.
+
+### Evidence
+
+- `rtk python3 -m py_compile scripts/rvv_generated_bundle_same_target_measure.py scripts/rvv_generated_bundle_abi_e2e.py` passed.
+- `rtk python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+  passed.
+- `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test` passed.
+- Packed-i4 same-target dry-run passed at
+  `artifacts/tmp/packed-i4-gate3-filecheck-dry-run/gate4-packed-i4-same-target-measure`.
+- Manual FileCheck passed for `PACKED-ROOT`, `PACKED-WPRD`, and
+  `PACKED-HARNESS` against the updated dry-run evidence and harness.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- `rtk git diff --check` passed.
+- Bounded added-diff old-authority scan found only negative/spec guardrail
+  mentions of q4/q8/llama, with no positive legacy i32/source-front-door/
+  descriptor/direct-C authority.
+
+### Status
+
+[OPEN] Gate 1, Gate 2, and Gate 3 are complete for this macro campaign. The
+task remains active by design. Next continuation point: Gate 4, add focused
+fail-closed stale evidence tests proving no-win/regression cannot become
+performance-selected or claimed while route-supported executable correctness
+remains allowed, then Gate 5 for focused artifact/correctness and same-target
+policy checks.
