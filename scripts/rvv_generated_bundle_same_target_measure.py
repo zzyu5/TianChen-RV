@@ -1463,6 +1463,37 @@ def packed_i4_maturity_contract_evidence_input(
         "provider_maturity": fields["performance_maturity"],
         "provider_maturity_evidence": fields["performance_maturity_evidence"],
         "provider_maturity_outcome": fields["performance_maturity_outcome"],
+        "provider_resource_selected_candidate": fields["selected_candidate"],
+        "provider_resource_route_family_plan": fields["route_family_plan"],
+        "provider_supported_mirror": fields["provider_supported_mirror"],
+        "provider_runtime_abi_order": fields["runtime_abi_order"],
+        "provider_primitive_chain_contract": fields["primitive_chain_contract"],
+        "provider_primitive_chain_kind": fields["primitive_chain_kind"],
+        "provider_primitive_widening_product_relation": fields[
+            "primitive_widening_product_relation"
+        ],
+        "provider_primitive_product_reduction_chain_relation": fields[
+            "primitive_product_reduction_chain_relation"
+        ],
+        "provider_remediation_handoff_contract": fields[
+            "remediation_handoff_contract"
+        ],
+        "provider_remediation_diagnosis": fields["remediation_diagnosis"],
+        "provider_remediation_measurement_evidence": fields[
+            "remediation_measurement_evidence"
+        ],
+        "provider_remediation_decision": fields["remediation_decision"],
+        "provider_remediation_action": fields["remediation_action"],
+        "provider_remediation_dispatch_preference": fields[
+            "remediation_dispatch_preference"
+        ],
+        "provider_remediation_blocker": fields["remediation_blocker"],
+        "target_capability_provider_mirror": fields[
+            "target_capability_provider_mirror"
+        ],
+        "target_capability_legality_mirror": fields[
+            "target_capability_legality_mirror"
+        ],
         "provider_performance_selection_eligible": fields[
             "performance_selection_eligible"
         ],
@@ -1536,6 +1567,37 @@ def validate_packed_i4_maturity_contract_evidence_input(
         "provider_maturity": fields["performance_maturity"],
         "provider_maturity_evidence": fields["performance_maturity_evidence"],
         "provider_maturity_outcome": fields["performance_maturity_outcome"],
+        "provider_resource_selected_candidate": fields["selected_candidate"],
+        "provider_resource_route_family_plan": fields["route_family_plan"],
+        "provider_supported_mirror": fields["provider_supported_mirror"],
+        "provider_runtime_abi_order": fields["runtime_abi_order"],
+        "provider_primitive_chain_contract": fields["primitive_chain_contract"],
+        "provider_primitive_chain_kind": fields["primitive_chain_kind"],
+        "provider_primitive_widening_product_relation": fields[
+            "primitive_widening_product_relation"
+        ],
+        "provider_primitive_product_reduction_chain_relation": fields[
+            "primitive_product_reduction_chain_relation"
+        ],
+        "provider_remediation_handoff_contract": fields[
+            "remediation_handoff_contract"
+        ],
+        "provider_remediation_diagnosis": fields["remediation_diagnosis"],
+        "provider_remediation_measurement_evidence": fields[
+            "remediation_measurement_evidence"
+        ],
+        "provider_remediation_decision": fields["remediation_decision"],
+        "provider_remediation_action": fields["remediation_action"],
+        "provider_remediation_dispatch_preference": fields[
+            "remediation_dispatch_preference"
+        ],
+        "provider_remediation_blocker": fields["remediation_blocker"],
+        "target_capability_provider_mirror": fields[
+            "target_capability_provider_mirror"
+        ],
+        "target_capability_legality_mirror": fields[
+            "target_capability_legality_mirror"
+        ],
         "provider_performance_selection_eligible": fields[
             "performance_selection_eligible"
         ],
@@ -1605,10 +1667,32 @@ def packed_i4_provider_feedback_tie_back(
     provider_low_precision = (
         boundary.get("provider_route_facts", {}).get("low_precision_resource", {})
     )
+    target_artifact_metadata: dict[str, str] = {}
+    for record in (
+        generation_result.get("bundle_checks", {})
+        .get("index", {})
+        .get("parsed", {})
+        .get("records", [])
+    ):
+        for entry in record.get("artifact_metadata", []):
+            key = str(entry.get("key", ""))
+            if not key.startswith("tcrv_rvv.low_precision_resource."):
+                continue
+            value = str(entry.get("value", ""))
+            previous = target_artifact_metadata.get(key)
+            if previous is not None and previous != value:
+                raise abi.EvidenceError(
+                    "packed-i4 provider feedback tie-back rejects target "
+                    f"artifact metadata disagreement for {key}: "
+                    f"{previous!r} vs {value!r}"
+                )
+            target_artifact_metadata[key] = value
 
     def resource_field(name: str) -> str:
         route_key = f"tcrv_rvv.low_precision_resource.{name}"
-        value = route_metadata.get(route_key)
+        value = target_artifact_metadata.get(route_key)
+        if value is None:
+            value = route_metadata.get(route_key)
         if value is None:
             value = provider_low_precision.get(name)
         if value is None:
@@ -1623,6 +1707,8 @@ def packed_i4_provider_feedback_tie_back(
     expected_field_names = (
         "selected_candidate",
         "selection_reason",
+        "route_family_plan",
+        "provider_supported_mirror",
         "runtime_abi_order",
         "primitive_contract",
         "primitive_kind",
@@ -1656,6 +1742,13 @@ def packed_i4_provider_feedback_tie_back(
         "performance_maturity_outcome",
         "performance_selection_eligible",
         "dispatch_preference",
+        "remediation_handoff_contract",
+        "remediation_diagnosis",
+        "remediation_measurement_evidence",
+        "remediation_decision",
+        "remediation_action",
+        "remediation_dispatch_preference",
+        "remediation_blocker",
         "operand_form",
         "packing_layout",
         "unpack_intent",
@@ -2570,6 +2663,51 @@ def run_self_test() -> int:
         ("measurement_best_speedup_range", "2.000000..2.500000", "speedup"),
         ("provider_maturity_outcome", RESULT_CLASSIFICATION_WIN, "maturity"),
         (
+            "provider_resource_route_family_plan",
+            "stale-route-family-plan.v1",
+            "route_family_plan",
+        ),
+        (
+            "provider_supported_mirror",
+            "provider_supported_mirror:stale",
+            "provider_supported_mirror",
+        ),
+        (
+            "provider_runtime_abi_order",
+            "lhs,rhs,out,n",
+            "runtime_abi_order",
+        ),
+        (
+            "provider_primitive_chain_kind",
+            "stale-primitive-chain-kind",
+            "primitive_chain_kind",
+        ),
+        (
+            "provider_remediation_handoff_contract",
+            "stale-remediation-handoff.v1",
+            "remediation_handoff_contract",
+        ),
+        (
+            "provider_remediation_measurement_evidence",
+            "stale/remediation/same_target_measurement_evidence.json",
+            "remediation_measurement_evidence",
+        ),
+        (
+            "provider_remediation_decision",
+            "stale-remediation-decision",
+            "remediation_decision",
+        ),
+        (
+            "provider_remediation_dispatch_preference",
+            PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH,
+            "remediation_dispatch_preference",
+        ),
+        (
+            "target_capability_legality_mirror",
+            "stale-target-capability-legality",
+            "target_capability_legality_mirror",
+        ),
+        (
             "provider_performance_selection_eligible",
             "true",
             "selection",
@@ -2613,7 +2751,62 @@ def run_self_test() -> int:
             f"self-test stale packed-i4 provider metadata accepted {metadata_key}"
         )
 
+    def expect_missing_provider_metadata_failure(
+        metadata_key: str, expected_token: str
+    ) -> None:
+        missing_metadata = dict(feedback_metadata)
+        del missing_metadata[metadata_key]
+        try:
+            packed_i4_provider_feedback_tie_back(
+                generation_result={
+                    "widening_product_reduction_boundary": {
+                        "route_metadata": missing_metadata
+                    }
+                },
+                expectation=packed_expectation,
+                uses_packed_i4_resource=True,
+                result_classification=regression,
+                measurement_evidence_id=(
+                    "self-test/missing-provider/same_target_measurement_evidence.json"
+                ),
+            )
+        except abi.EvidenceError as exc:
+            if expected_token not in str(exc):
+                raise AssertionError(
+                    "self-test missing packed-i4 provider metadata failure for "
+                    f"{metadata_key} missed token {expected_token}: {exc}"
+                ) from exc
+            return
+        raise AssertionError(
+            f"self-test missing packed-i4 provider metadata accepted {metadata_key}"
+        )
+
     for metadata_key, stale_value, expected_token in [
+        (
+            "tcrv_rvv.low_precision_resource.route_family_plan",
+            "stale-route-family-plan.v1",
+            "route_family_plan",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.provider_supported_mirror",
+            "provider_supported_mirror:stale",
+            "provider_supported_mirror",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
+            "stale-remediation-handoff.v1",
+            "remediation_handoff_contract",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.remediation_measurement_evidence",
+            "stale/remediation/same_target_measurement_evidence.json",
+            "remediation_measurement_evidence",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.remediation_decision",
+            "stale-remediation-decision",
+            "remediation_decision",
+        ),
         (
             "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
             RESULT_CLASSIFICATION_WIN,
@@ -2658,6 +2851,21 @@ def run_self_test() -> int:
         expect_stale_provider_metadata_failure(
             metadata_key, stale_value, expected_token
         )
+    for metadata_key, expected_token in [
+        (
+            "tcrv_rvv.low_precision_resource.route_family_plan",
+            "route_family_plan",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.provider_supported_mirror",
+            "provider_supported_mirror",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
+            "remediation_handoff_contract",
+        ),
+    ]:
+        expect_missing_provider_metadata_failure(metadata_key, expected_token)
     print(f"{SCRIPT_NAME} self-test passed")
     return 0
 

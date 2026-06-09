@@ -1500,3 +1500,70 @@ artifact on the same `ssh rvv` target, accepting or rejecting evidence only
 through structured provider-owned resource, route-family, primitive-chain, and
 remediation facts. Gate 5 remains for dispatch/performance policy consumption
 after accepted measurement evidence.
+
+## 2026-06-09 - RVV Low-Precision Remediation Gate 4
+
+### Summary
+
+- Continued the active macro task
+  `06-09-rvv-low-precision-performance-remediation-campaign`.
+- Completed Gate 4 as a same-target generated-artifact measurement acceptance
+  slice for the packed-i4 low-precision representative.
+- The generated-bundle evidence path now binds accepted/rejected measurement
+  evidence to provider-owned route-family plan, provider-supported mirror,
+  primitive-chain, remediation, target artifact, ABI/runtime, and same-target
+  facts.
+- Target support bundle headers now mirror the Gate 2 remediation facts, and
+  the measurement script rejects stale or missing provider/resource/remediation
+  facts before accepting evidence.
+
+### Evidence
+
+- `rtk python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+  passed.
+- `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test` passed.
+- `rtk ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+  passed.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- Focused lit from `build/test` passed for:
+  `rvv-generated-bundle-same-target-measure-gate4` and
+  `rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequantize-f32-packed-i4`.
+- Real same-target run generated and measured
+  `artifacts/tmp/codex-gate4-remediation-real/gate4-remediation-packed-i4-ssh`
+  on `ssh rvv`: 12 summaries, 60 measurements, classification `regression`,
+  best speedup range `0.691667..0.705064`, `selection_eligible=false`, and
+  `claim_allowed=false`.
+
+### Self-Repair
+
+- Rebuilt `tcrv-opt` and `tcrv-translate` after strict Gate 4 checks exposed
+  stale local tools.
+- Added generated-header remediation metadata mapping after header verification
+  showed those mirrors were present in artifact metadata but absent from the
+  header evidence surface.
+- Adjusted packed-i4 measurement tie-back to read verified target artifact
+  metadata before route summary metadata and to reject object/header metadata
+  disagreements.
+- Corrected FileCheck expectations after the first lit pass used flat WPRD
+  metadata checks while the artifact index encodes key/value metadata records.
+
+### Spec Update Decision
+
+[NO CHANGE] Existing RVV plugin and EmitC-route specs already require
+provider-owned RVV facts, Common EmitC neutrality, target artifact mirrors as
+non-authoritative checks, and real same-target evidence for runtime/performance
+claims. This slice implemented that existing contract without adding a new
+cross-layer command or API shape that needs a spec update.
+
+### Status
+
+[OPEN] Gate 4 is complete for the remediation campaign. Gate 5 remains open,
+and `.trellis/.current-task` stays active on the same macro task.
+
+### Continuation
+
+Continue with Gate 5: make dispatch/performance policy consume the accepted
+Gate 4 no-win/regression classification, preserving correctness/executable
+support while fail-closing performance preference and win claims unless future
+same-target structured measurement evidence proves a true win.

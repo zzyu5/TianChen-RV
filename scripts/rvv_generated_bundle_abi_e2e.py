@@ -380,6 +380,7 @@ COMPUTED_MASK_STANDALONE_REDUCE_INACTIVE_NEUTRAL = (
     "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"
 )
 CONTRACTION_TARGET_LEAF_PROFILE = "rvv-v1-i16mf2-i32m1-contraction-leaf-profile.v1"
+CONTRACTION_ROUTE_FAMILY_PLAN = "rvv-contraction-route-family-plan.v1"
 CONTRACTION_PROVIDER_SUPPORTED_MIRROR = (
     "provider_supported_mirror:rvv-contraction-family-plan-validated"
 )
@@ -728,6 +729,28 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_SELECTION_ELIGIBLE 
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_DISPATCH_PREFERENCE = (
     "not-performance-preferred"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_HANDOFF_CONTRACT = (
+    "rvv-low-precision-packed-i4-measurement-policy-handoff.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DIAGNOSIS = (
+    "correctness-supported-no-win-regression"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVIDENCE = (
+    "gate4-packed-i4-real-measure-ssh/"
+    "widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DECISION = (
+    "accepted-no-win-regression-resource-schedule-repair-required.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_ACTION = (
+    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DISPATCH_PREFERENCE = (
+    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_DISPATCH_PREFERENCE
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_BLOCKER = (
+    "same-target-measurement-no-win-or-regression"
 )
 LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER = (
     "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
@@ -9340,6 +9363,27 @@ def product_dequant_low_precision_resource_profile(
             "dispatch_preference": (
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_DISPATCH_PREFERENCE
             ),
+            "remediation_handoff_contract": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_HANDOFF_CONTRACT
+            ),
+            "remediation_diagnosis": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DIAGNOSIS
+            ),
+            "remediation_measurement_evidence": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVIDENCE
+            ),
+            "remediation_decision": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DECISION
+            ),
+            "remediation_action": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_ACTION
+            ),
+            "remediation_dispatch_preference": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DISPATCH_PREFERENCE
+            ),
+            "remediation_blocker": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_BLOCKER
+            ),
         }
     is_product_dequant_clamp = (
         expectation.is_widening_product_reduce_dequant_clamp_f32
@@ -9447,6 +9491,8 @@ def expected_low_precision_resource_metadata(
         "vector_register_budget": "32",
         "runtime_avl_source": "runtime_abi:n",
         "runtime_abi_order": expectation.runtime_abi_order,
+        "route_family_plan": CONTRACTION_ROUTE_FAMILY_PLAN,
+        "provider_supported_mirror": CONTRACTION_PROVIDER_SUPPORTED_MIRROR,
         "primitive_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT,
         "primitive_kind": (
             LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_CLAMP_KIND
@@ -9505,6 +9551,19 @@ def expected_low_precision_resource_metadata(
                     "performance_selection_eligible"
                 ],
                 "dispatch_preference": profile["dispatch_preference"],
+                "remediation_handoff_contract": profile[
+                    "remediation_handoff_contract"
+                ],
+                "remediation_diagnosis": profile["remediation_diagnosis"],
+                "remediation_measurement_evidence": profile[
+                    "remediation_measurement_evidence"
+                ],
+                "remediation_decision": profile["remediation_decision"],
+                "remediation_action": profile["remediation_action"],
+                "remediation_dispatch_preference": profile[
+                    "remediation_dispatch_preference"
+                ],
+                "remediation_blocker": profile["remediation_blocker"],
             }
         )
     return {
@@ -12388,6 +12447,15 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
             "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
             "tcrv_rvv.low_precision_resource.performance_selection_eligible",
             "tcrv_rvv.low_precision_resource.dispatch_preference",
+            "tcrv_rvv.low_precision_resource.route_family_plan",
+            "tcrv_rvv.low_precision_resource.provider_supported_mirror",
+            "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
+            "tcrv_rvv.low_precision_resource.remediation_diagnosis",
+            "tcrv_rvv.low_precision_resource.remediation_measurement_evidence",
+            "tcrv_rvv.low_precision_resource.remediation_decision",
+            "tcrv_rvv.low_precision_resource.remediation_action",
+            "tcrv_rvv.low_precision_resource.remediation_dispatch_preference",
+            "tcrv_rvv.low_precision_resource.remediation_blocker",
         ):
             comment_key = "tianchenrv.rvv." + key.removeprefix("tcrv_rvv.")
             require_contains(

@@ -37,8 +37,9 @@ fail-closing performance preference and win claims with a precise reason.
 
 - Keep this as one macro Trellis task until all remediation campaign gates are
   complete or human steering redirects the campaign.
-- Implement the current round as a coherent Gate 3 production slice because
-  live code and commit `7260ccff` prove Gates 1-2 are complete.
+- Implement the current round as a coherent Gate 4 production measurement
+  acceptance slice because live code and commit `a8898670` prove Gates 1-3 are
+  complete.
 - Add or repair structured measurement-diagnosis and policy-handoff facts for
   the existing packed-i4 low-precision route.
 - The diagnosis must distinguish at least: correctness-supported,
@@ -58,9 +59,10 @@ fail-closing performance preference and win claims with a precise reason.
   for the accepted regression/no-win outcome.
 - Do not use artifact names, route ids, q4/q8/llama labels, metadata status,
   or Common EmitC inference as authority.
-- Do not run broad smoke matrices. Use focused provider/target tests and the
-  already accepted Gate 4 measurement unless this round claims new runtime or
-  performance evidence.
+- Do not run broad smoke matrices. Use focused provider/target/export and
+  same-target generated-artifact measurement checks for Gate 4; do not claim a
+  performance win unless real `ssh rvv` evidence classifies one through the
+  structured evidence path.
 
 ## Macro Campaign Gates
 
@@ -72,7 +74,7 @@ fail-closing performance preference and win claims with a precise reason.
   resource/schedule blocker.
 - [x] Gate 3: provider route facts and target artifact validation mirror the
   remediated resource/measurement/policy facts without metadata authority.
-- [ ] Gate 4: generated artifacts are measured on the same target and accepted
+- [x] Gate 4: generated artifacts are measured on the same target and accepted
   only with real `ssh rvv` evidence.
 - [ ] Gate 5: dispatch/performance policy enables a performance-preferred path
   for a measured win, or fail-closes performance claims while retaining
@@ -153,6 +155,16 @@ fail-closing performance preference and win claims with a precise reason.
 - [x] Focused provider and target tests prove missing or stale Gate 3
   low-precision route-family/provider-supported mirrors fail closed before
   route construction or target artifact acceptance.
+- [x] Gate 4 generated-artifact measurement binds accepted/rejected
+  same-target evidence to provider-owned resource, route-family,
+  primitive-chain, remediation, target artifact, ABI/runtime, and same-target
+  facts.
+- [x] Focused script/export tests prove missing or stale Gate 4
+  route-family/provider/remediation/target/runtime facts fail closed before
+  measurement evidence acceptance.
+- [x] Real `ssh rvv` measurement was collected for the generated packed-i4
+  remediated artifact and classified as accepted no-win/regression, with
+  performance preference and win claims denied.
 - [x] Bounded old-authority scan over touched files and added diff lines shows
   no new q4/q8/llama route authority, source-front-door authority,
   descriptor-driven computation, Common EmitC semantic branch, or legacy i32
@@ -222,6 +234,33 @@ complete for the current accepted packed-i4 representative. Gates 4-5 remain
 open for same-target generated artifact measurement acceptance and
 dispatch/performance policy consumption.
 
+## Completed Gate 4 Slice Result
+
+The Gate 4 owner now has same-target generated-artifact measurement acceptance
+bound to the Gate 1-3 structured facts. The packed-i4 generated-bundle path
+exports route-family plan, provider-supported mirror, primitive-chain,
+remediation, target artifact, and runtime ABI facts through the generated
+artifact metadata/header surface. The same-target measurement script ties its
+accepted or rejected measurement evidence back to those provider-owned facts
+and fail-closes stale or missing resource, route-family, primitive-chain,
+remediation, target, or runtime facts before evidence can be accepted.
+
+The real `ssh rvv` Gate 4 run generated and measured the remediated
+low-precision artifact at:
+
+`artifacts/tmp/codex-gate4-remediation-real/gate4-remediation-packed-i4-ssh`
+
+Result: 12 summaries and 60 measurements were collected for
+`widening_product_reduce_dequantize_f32` with classification `regression`,
+best speedup range `0.691667..0.705064`, `selection_eligible=false`, and
+`claim_allowed=false`. This is an accepted no-win/regression classification:
+correctness/executable support remains preserved, but performance preference
+and win claims remain denied.
+
+Gate 4 is complete for the current accepted packed-i4 representative. Gate 5
+remains open for dispatch/performance policy consumption of this structured
+measurement classification.
+
 ## Out of Scope
 
 - No adjacent generated-bundle ABI closeout.
@@ -255,9 +294,8 @@ dispatch/performance policy consumption.
 
 ## Continuation Point
 
-Continue with Gate 4: generate and measure the remediated low-precision artifact
-on the same `ssh rvv` target, then accept or reject the measurement only through
-structured evidence tied to the provider-owned resource, route-family,
-primitive-chain, and remediation facts. Gate 5 remains after that for
-dispatch/performance policy consumption only when production facts and
-measurements justify it.
+Continue with Gate 5: make dispatch/performance policy consume the accepted
+Gate 4 structured no-win/regression classification, preserving
+correctness/executable support while fail-closing performance preference and
+win claims unless a future same-target structured measurement proves a true
+win through the provider-owned evidence path.
