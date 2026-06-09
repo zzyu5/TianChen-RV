@@ -1911,3 +1911,36 @@ requirements.
 
 [DONE] Gates 1 through 4 are complete for this macro campaign. No further
 continuation remains; the task is ready to archive and commit.
+
+
+## Session 573: RVV packed-i4 Gate 4 policy evidence consumption
+
+**Date**: 2026-06-10
+**Task**: RVV packed-i4 Gate 4 policy evidence consumption
+**Branch**: `main`
+
+### Summary
+
+Consumed Gate 3 packed-i4 same-target regression/no-win evidence in RVV low-precision dispatch/performance policy, synchronized provider/script/test/spec mirrors, archived the macro Trellis task, and committed the completed Gate 4 slice.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `af53faa3` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
