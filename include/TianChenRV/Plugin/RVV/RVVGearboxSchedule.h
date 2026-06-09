@@ -440,7 +440,7 @@ constexpr llvm::StringLiteral
         "scalar-c-reference/product-reduction-dequant-packed-i4-v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange(
-        "0.683805..0.705257");
+        "0.689938..0.705891");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4PerformanceAction(
     "no-win-repair-required-before-performance-claim");
 constexpr llvm::StringLiteral
@@ -451,7 +451,7 @@ constexpr llvm::StringLiteral
         "correctness-supported-no-win-regression");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID(
-        "gate3-packed-i4-same-target-measure-ssh/"
+        "gate4-low-precision-packed-i4-same-target-measure-ssh/"
         "widening_product_reduce_dequantize_f32/"
         "same_target_measurement_evidence.json");
 constexpr llvm::StringLiteral

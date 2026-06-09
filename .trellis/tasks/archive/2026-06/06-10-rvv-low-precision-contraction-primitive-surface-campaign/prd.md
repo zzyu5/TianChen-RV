@@ -5,12 +5,13 @@
 Create a macro Trellis owner for the RVV Stage 2 low-precision contraction
 primitive surface. The campaign must make typed low-precision contraction facts
 structurally explicit in the RVV plugin/compiler path, fail closed before route
-or target acceptance when those facts are missing or stale, and leave later
-gates to consume the surface for Gearbox realization, executable artifact
-evidence, and measured dispatch/performance policy. Gates 1 and 2 are complete.
-The current round completed Gate 3: bounded generated artifact plus `ssh rvv`
-correctness evidence for the packed-i4 widening-product-reduce-dequantize path
-that consumes the Gate 2 resource/remediation handoff facts.
+or target acceptance when those facts are missing or stale, and consume the
+surface for Gearbox realization, executable artifact evidence, and measured
+dispatch/performance policy. Gates 1-4 are complete. The current round
+completed Gate 4: same-target packed-i4 measurement from the Gate 3 executable
+path is now consumed by the low-precision dispatch/performance policy boundary,
+which denies performance preference for the measured regression and keeps the
+conservative correctness route available.
 
 ## What I Already Know
 
@@ -68,7 +69,7 @@ that consumes the Gate 2 resource/remediation handoff facts.
   q8/q4 names as authority.
 - [x] Gate 3: generated artifact and `ssh rvv` evidence for at least one
   production primitive path changed by Gates 1-2.
-- [ ] Gate 4: same-target measurement and dispatch/performance policy
+- [x] Gate 4: same-target measurement and dispatch/performance policy
   consumption using provider-owned evidence, including conservative fallback
   when no win is measured.
 
@@ -134,6 +135,26 @@ that consumes the Gate 2 resource/remediation handoff facts.
 - [x] Add or harden focused fail-closed checks so stale or missing packed-i4
   resource/remediation facts cannot silently bypass production route/export.
 - [x] Keep the macro task active after Gate 3 because Gate 4 remains.
+
+## Current Slice: Gate 4 Measurement-To-Policy Consumption
+
+- [x] Produce same-target measurement for the Gate 3 packed-i4
+  `widening_product_reduce_dequantize_f32` generated artifact path.
+- [x] Consume the measured evidence through the production
+  low-precision dispatch/performance policy boundary rather than through
+  artifact names, route ids, benchmark labels, or metadata-only mirrors.
+- [x] Update the accepted provider-owned measurement identity and speedup range
+  to the current `ssh rvv` evidence:
+  `gate4-low-precision-packed-i4-same-target-measure-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`
+  with `0.689938..0.705891`.
+- [x] Keep the policy conservative for the measured regression: route support
+  and correctness remain available, but performance preference and performance
+  win claims remain denied.
+- [x] Preserve fail-closed rejection for missing, stale, cross-target,
+  untrusted, measurement-only, provider-disconnected, and primitive/resource
+  stale measurement evidence.
+- [x] Run focused production tests, evidence script checks, Trellis validation,
+  whitespace checks, and bounded old-authority scans for the changed seam.
 
 ## Gate 1 Acceptance Criteria (completed)
 
@@ -239,6 +260,31 @@ that consumes the Gate 2 resource/remediation handoff facts.
 - [x] The macro task remains active with Gate 4 unchecked and a precise
   continuation point.
 
+## Gate 4 Acceptance Criteria (measurement-to-policy consumption slice)
+
+- [x] The same selected packed-i4 production path from Gate 3 produces
+  same-target measurement evidence with real `ssh rvv` execution.
+- [x] Production policy consumes provider-owned measurement facts and resource
+  handoff tie-backs before choosing a dispatch/performance preference.
+- [x] The measured regression is represented truthfully as no-win/conservative
+  fallback: no performance-preferred route and no performance-win claim.
+- [x] Missing, stale, cross-target, untrusted, metadata-only, provider-
+  disconnected, stale primitive, stale remediation, stale sibling, and
+  measurement-only win-promotion cases fail closed with targeted diagnostics.
+- [x] The accepted policy evidence is keyed by provider-owned low-precision
+  resource/Gearbox facts, measurement identity, target signature, primitive
+  chain, and correctness records; artifact name, route id, benchmark label, and
+  task metadata are not semantic authority.
+- [x] Common EmitC remains neutral and target artifact metadata remains a mirror
+  after provider/policy validation.
+- [x] Focused RVV plugin, target artifact, script, and generated-bundle checks
+  cover positive consumption and stale/rejected measurement cases.
+- [x] `git diff --check`, `git diff --cached --check`, Trellis validation, and
+  bounded old-authority scans pass.
+- [x] One coherent commit records the Gate 4 slice.
+- [x] All macro gates are complete, so the task can be finished/archived after
+  clean validation.
+
 ## Out Of Scope
 
 - No standalone generated-bundle or `ssh rvv` evidence closeout outside the
@@ -262,8 +308,8 @@ that consumes the Gate 2 resource/remediation handoff facts.
 - Related archived task:
   `.trellis/tasks/archive/2026-06/06-09-rvv-packed-i4-production-kernel-resource-aware-realization-campaign/prd.md`.
 - Direction source: Hermes brief for
-  `Stage2 RVV low-precision contraction primitive-surface campaign Gate 3
-  production-path artifact evidence`.
+  `Stage2 RVV low-precision contraction campaign Gate 4
+  measurement-to-policy consumption`.
 - Memory-derived steering: q8/q4/llama.cpp examples are pressure tests for
   broader Stage 2 low-precision contraction maturity, not narrow route
   authority.
@@ -341,9 +387,34 @@ Completed in this round:
   artifact remediation mirrors fail closed before a stale production route or
   export can be accepted.
 
+## Gate 4 Slice Result
+
+Completed in this round:
+
+- Produced real same-target `ssh rvv` measurement evidence for the Gate 3
+  packed-i4 `widening_product_reduce_dequantize_f32` generated artifact path
+  under
+  `artifacts/tmp/rvv_generated_bundle_same_target_measure/gate4-low-precision-packed-i4-same-target-measure-ssh/`.
+- Recorded the current measurement as a regression/no-win:
+  `summaries=12`, `measurements=60`, `correctness=12`,
+  `best_speedup_range=0.689938..0.705891`,
+  `selection_eligible=false`, and `performance_win_claim_allowed=false`.
+- Updated the RVV provider/resource policy constants and focused tests so the
+  production policy accepts only the current Gate 4 measurement identity and
+  range, while treating the previous `0.683805..0.705257` range as stale.
+- Preserved conservative dispatch behavior: route/correctness support remains
+  valid, but the performance-preferred route is not selected because the
+  same-target evidence is a measured regression.
+- Kept fail-closed rejection coverage for stale speedup range, stale evidence
+  id, missing evidence, cross-target evidence, untrusted/non-`ssh rvv`
+  evidence, stale provider tie-back, measurement-only win promotion, stale
+  primitive facts, stale remediation facts, and stale sibling links.
+- Synchronized `.trellis/spec/extension-plugins/rvv-plugin.md` with the current
+  accepted Gate 4 evidence id and measured speedup range so the durable policy
+  contract matches production constants.
+
 ## Continuation Point
 
-Gates 1-3 are complete. The macro task remains active. Continue with Gate 4:
-same-target measurement and dispatch/performance policy consumption using
-provider-owned evidence for the same production capability family, including
-conservative fallback when no win is measured.
+Gates 1-4 are complete. After clean checks and one coherent Gate 4 commit, this
+macro task is ready to finish/archive. No further Gate 4 continuation remains
+unless a later direction asks for a new production-kernel capability campaign.

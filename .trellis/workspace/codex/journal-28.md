@@ -232,3 +232,74 @@ does not introduce a new durable architecture rule.
 same-target measurement and dispatch/performance policy consumption using
 provider-owned evidence for the same production capability family, including
 conservative fallback when no win is measured.
+
+## Session 577: RVV low-precision Gate 4 measurement-to-policy consumption
+
+**Date**: 2026-06-10
+**Task**: RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the same active macro task at Gate 4. This slice used the Gate 3
+packed-i4 `widening_product_reduce_dequantize_f32` generated artifact path to
+produce real same-target `ssh rvv` measurement evidence, then updated the
+production low-precision dispatch/performance policy boundary to consume that
+provider-owned evidence. The measured result is a regression/no-win, so the
+policy remains conservative: correctness route support is preserved, but
+performance preference and performance-win claims are denied.
+
+All campaign gates are now complete.
+
+### Main Changes
+
+- Updated the accepted packed-i4 Gate 4 measurement identity to
+  `gate4-low-precision-packed-i4-same-target-measure-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`.
+- Updated the accepted same-target best-speedup range to
+  `0.689938..0.705891` and kept the previous `0.683805..0.705257` range as a
+  stale-evidence negative case.
+- Kept dispatch/performance policy consumption tied to provider-owned
+  low-precision resource/Gearbox facts, measurement target signature,
+  primitive chain, correctness records, and remediation evidence.
+- Preserved fail-closed policy rejection for missing, stale, cross-target,
+  untrusted, measurement-only, provider-disconnected, stale primitive, stale
+  remediation, and stale sibling evidence.
+- Synchronized focused script, RVV plugin, target artifact, generated-bundle,
+  and RVV plugin spec expectations with the current Gate 4 evidence.
+
+### Evidence
+
+- Real same-target measurement passed with:
+  `summaries=12`, `measurements=60`, `correctness=12`,
+  `classification=regression`, `best_speedup_range=0.689938..0.705891`,
+  `selection_eligible=false`, and `performance_win_claim_allowed=false`.
+- The evidence is under
+  `artifacts/tmp/rvv_generated_bundle_same_target_measure/gate4-low-precision-packed-i4-same-target-measure-ssh/`
+  and reports `ssh_evidence: true`, `status: success`,
+  `provider_maturity_outcome: regression`,
+  `provider_dispatch_preference: not-performance-preferred`, and
+  `contract_alignment: matches-provider-maturity-outcome`.
+- Focused positive and negative checks cover current evidence acceptance,
+  stale speedup range, stale evidence id, missing measurement evidence,
+  cross-target evidence, untrusted/non-`ssh rvv` evidence, stale provider
+  tie-back, measurement-only win promotion, stale primitive facts, stale
+  remediation facts, and stale sibling evidence.
+
+### Self-Repair
+
+- The first same-target measurement attempt passed `--llvm-readobj llvm-readobj`
+  and failed because the host image does not provide `llvm-readobj`. Re-running
+  without that optional object-introspection argument produced the real
+  same-target `ssh rvv` measurement evidence used by this slice.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` now records the
+current accepted Gate 4 measurement evidence id and best-speedup range so the
+durable RVV policy contract matches the production constants and focused tests.
+
+### Status
+
+[READY TO ARCHIVE] Gates 1-4 are complete. The task is ready to finish/archive
+after focused checks, Trellis validation, old-authority scans, whitespace
+checks, and one coherent Gate 4 commit.

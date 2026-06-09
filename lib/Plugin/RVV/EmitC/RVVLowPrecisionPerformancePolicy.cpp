@@ -19,7 +19,7 @@ constexpr llvm::StringLiteral kPackedI4Gate4MeasurementClassification(
     "regression");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementOutcomeFamily("no-win");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementBestSpeedupRange(
-    "0.683805..0.705257");
+    "0.689938..0.705891");
 constexpr llvm::StringLiteral kPackedI4Gate4TargetProfile("ssh rvv");
 constexpr llvm::StringLiteral kPackedI4PerformancePreferenceDenialReason(
     "same-target-measurement-no-win-or-regression");

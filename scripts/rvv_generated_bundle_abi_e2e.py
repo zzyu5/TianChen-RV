@@ -710,7 +710,7 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BASELINE = (
     "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BEST_SPEEDUP_RANGE = (
-    "0.683805..0.705257"
+    "0.689938..0.705891"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION = (
     "no-win-repair-required-before-performance-claim"
@@ -737,7 +737,7 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DIAGNOSIS = (
     "correctness-supported-no-win-regression"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVIDENCE = (
-    "gate3-packed-i4-same-target-measure-ssh/"
+    "gate4-low-precision-packed-i4-same-target-measure-ssh/"
     "widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DECISION = (

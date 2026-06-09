@@ -6111,7 +6111,7 @@ object equivalent to:
     "fields": {
       "performance_feedback": "same-target-packed-i4-no-win.v1",
       "performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1",
-      "performance_best_speedup_range": "0.683805..0.705257",
+      "performance_best_speedup_range": "0.689938..0.705891",
       "performance_action": "no-win-repair-required-before-performance-claim",
       "operand_form": "packed-i4-nibbles",
       "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
@@ -6243,7 +6243,7 @@ tcrv_rvv.low_precision_resource.performance_feedback =
 tcrv_rvv.low_precision_resource.performance_baseline =
   "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
 tcrv_rvv.low_precision_resource.performance_best_speedup_range =
-  "0.683805..0.705257"
+  "0.689938..0.705891"
 tcrv_rvv.low_precision_resource.performance_action =
   "no-win-repair-required-before-performance-claim"
 tcrv_rvv.low_precision_resource.remediation_plan_contract =
@@ -6497,7 +6497,7 @@ Packed-i4 per-op evidence and root summaries may carry:
     "measurement_evidence_id": "run/op/same_target_measurement_evidence.json",
     "measurement_classification": "win | no-win | regression | not-measured",
     "measurement_outcome_family": "win | no-win | not-measured",
-    "measurement_best_speedup_range": "0.683805..0.705257",
+    "measurement_best_speedup_range": "0.689938..0.705891",
     "measurement_summary_record_count": 12,
     "measurement_record_count": 60,
     "provider_maturity": "executable-not-performance-mature",
@@ -6667,10 +6667,10 @@ performance-preferred
 
   ```text
   measurementEvidenceID =
-    gate3-packed-i4-same-target-measure-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
+    gate4-low-precision-packed-i4-same-target-measure-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
   measurementClassification = regression
   measurementOutcomeFamily = no-win
-  measurementBestSpeedupRange = 0.683805..0.705257
+  measurementBestSpeedupRange = 0.689938..0.705891
   measurementSummaryRecordCount = 12
   measurementRecordCount = 60
   correctnessRecordCount = 12
