@@ -43065,6 +43065,45 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         selection.consumerScope});
     metadata.push_back({"tcrv_rvv.low_precision_resource.runtime_abi_order",
                         selection.runtimeABIOrder});
+    if (!selection.primitiveContractID.empty()) {
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.primitive_contract",
+           selection.primitiveContractID});
+      metadata.push_back({"tcrv_rvv.low_precision_resource.primitive_kind",
+                          selection.primitiveKind});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.primitive_chain_contract",
+           selection.primitiveChainContractID});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.primitive_chain_kind",
+           selection.primitiveChainKind});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.primitive_widening_product_relation",
+           selection.primitiveWideningProductRelation});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource."
+           "primitive_product_reduction_chain_relation",
+           selection.primitiveProductReductionChainRelation});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic",
+           selection.primitiveWideningProductIntrinsic});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic",
+           selection.primitiveReductionIntrinsic});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource."
+           "primitive_scalar_seed_splat_intrinsic",
+           selection.primitiveScalarSeedSplatIntrinsic});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.primitive_accumulator_layout",
+           selection.primitiveAccumulatorLayout});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.primitive_result_layout",
+           selection.primitiveResultLayout});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.primitive_reduction_store_vl",
+           selection.primitiveReductionStoreVL});
+    }
     if (!selection.realizationDecision.empty()) {
       metadata.push_back({"tcrv_rvv.low_precision_resource.realization_producer",
                           selection.realizationProducer});

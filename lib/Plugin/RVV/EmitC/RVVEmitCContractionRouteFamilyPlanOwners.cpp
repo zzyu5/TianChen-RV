@@ -4609,6 +4609,25 @@ void populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
   selection.producerScope = candidate.producerScope.str();
   selection.consumerScope = candidate.consumerScope.str();
   selection.runtimeABIOrder = candidate.runtimeABIOrder.str();
+  selection.primitiveContractID = candidate.primitiveContractID.str();
+  selection.primitiveKind = candidate.primitiveKind.str();
+  selection.primitiveChainContractID = candidate.primitiveChainContractID.str();
+  selection.primitiveChainKind = candidate.primitiveChainKind.str();
+  selection.primitiveWideningProductRelation =
+      candidate.primitiveWideningProductRelation.str();
+  selection.primitiveProductReductionChainRelation =
+      candidate.primitiveProductReductionChainRelation.str();
+  selection.primitiveWideningProductIntrinsic =
+      candidate.primitiveWideningProductIntrinsic.str();
+  selection.primitiveReductionIntrinsic =
+      candidate.primitiveReductionIntrinsic.str();
+  selection.primitiveScalarSeedSplatIntrinsic =
+      candidate.primitiveScalarSeedSplatIntrinsic.str();
+  selection.primitiveAccumulatorLayout =
+      candidate.primitiveAccumulatorLayout.str();
+  selection.primitiveResultLayout = candidate.primitiveResultLayout.str();
+  selection.primitiveReductionStoreVL =
+      candidate.primitiveReductionStoreVL.str();
   selection.targetCapabilityProviderMirror = targetFacts.providerMirror;
   selection.targetCapabilityLegalityMirror = targetFacts.legalityMirror;
   selection.isLegal = candidate.isLegal;
@@ -5312,6 +5331,69 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     selection.runtimeABIOrder = *value;
   else
     return value.takeError();
+  if (plan.usesProductReductionChain ||
+      plan.usesProductReductionDequantization) {
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourcePrimitiveContractAttrName))
+      selection.primitiveContractID = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourcePrimitiveKindAttrName))
+      selection.primitiveKind = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourcePrimitiveChainContractAttrName))
+      selection.primitiveChainContractID = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourcePrimitiveChainKindAttrName))
+      selection.primitiveChainKind = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourcePrimitiveWideningProductRelationAttrName))
+      selection.primitiveWideningProductRelation = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourcePrimitiveProductReductionChainRelationAttrName))
+      selection.primitiveProductReductionChainRelation = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourcePrimitiveWideningProductIntrinsicAttrName))
+      selection.primitiveWideningProductIntrinsic = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourcePrimitiveReductionIntrinsicAttrName))
+      selection.primitiveReductionIntrinsic = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourcePrimitiveScalarSeedSplatIntrinsicAttrName))
+      selection.primitiveScalarSeedSplatIntrinsic = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourcePrimitiveAccumulatorLayoutAttrName))
+      selection.primitiveAccumulatorLayout = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourcePrimitiveResultLayoutAttrName))
+      selection.primitiveResultLayout = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourcePrimitiveReductionStoreVLAttrName))
+      selection.primitiveReductionStoreVL = *value;
+    else
+      return value.takeError();
+  }
   if (llvm::Expected<std::string> value = readString(
           kRVVLowPrecisionResourceRealizationProducerAttrName))
     selection.realizationProducer = *value;
@@ -5457,6 +5539,156 @@ llvm::Error requireRVVLowPrecisionResourceIntegerField(
        selection.selectedCandidateID + "'");
 }
 
+llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainSelection(
+    llvm::StringRef context,
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  if (!plan.usesProductReductionChain &&
+      !plan.usesProductReductionDequantization)
+    return llvm::Error::success();
+  std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
+      primitiveFacts =
+          getRVVLowPrecisionWideningReductionPrimitiveFacts(plan.operation);
+  if (!primitiveFacts || !primitiveFacts->hasFacts)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision direct-contraction resource selection requires "
+        "provider-owned widening-reduction primitive facts before route "
+        "acceptance");
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive contract",
+          selection.primitiveContractID, plan.lowPrecisionPrimitiveContractID))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive kind", selection.primitiveKind,
+          plan.lowPrecisionPrimitiveKind))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive chain contract",
+          selection.primitiveChainContractID, primitiveFacts->contractID))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive chain kind",
+          selection.primitiveChainKind, primitiveFacts->kind))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive widening product relation",
+          selection.primitiveWideningProductRelation,
+          plan.wideningProductRelation))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive product-reduction chain relation",
+          selection.primitiveProductReductionChainRelation,
+          plan.productReductionChainRelation))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive widening product intrinsic",
+          selection.primitiveWideningProductIntrinsic,
+          plan.wideningProductIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive reduction intrinsic",
+          selection.primitiveReductionIntrinsic,
+          plan.contractionComputeIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive scalar seed splat intrinsic",
+          selection.primitiveScalarSeedSplatIntrinsic,
+          plan.scalarSeedSplatIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive accumulator layout",
+          selection.primitiveAccumulatorLayout, plan.accumulatorLayout))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive result layout",
+          selection.primitiveResultLayout, plan.resultLayout))
+    return error;
+  return requireRVVLowPrecisionResourceStringField(
+      context, selection, "primitive reduction store VL",
+      selection.primitiveReductionStoreVL, plan.reductionStoreVL);
+}
+
+llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainDescriptionSelection(
+    llvm::StringRef context,
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  const bool isProductReductionDequantization =
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  const bool isProductReductionChain =
+      description.operation ==
+          RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
+      isProductReductionDequantization;
+  if (!isProductReductionChain)
+    return llvm::Error::success();
+  std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
+      primitiveFacts =
+          getRVVLowPrecisionWideningReductionPrimitiveFacts(
+              description.operation);
+  if (!primitiveFacts || !primitiveFacts->hasFacts)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision direct-contraction resource description requires "
+        "provider-owned widening-reduction primitive facts before route "
+        "acceptance");
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive contract",
+          selection.primitiveContractID,
+          description.lowPrecisionPrimitiveContractID))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive kind", selection.primitiveKind,
+          description.lowPrecisionPrimitiveKind))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive chain contract",
+          selection.primitiveChainContractID, primitiveFacts->contractID))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive chain kind",
+          selection.primitiveChainKind, primitiveFacts->kind))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive widening product relation",
+          selection.primitiveWideningProductRelation,
+          description.wideningProductRelation))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive product-reduction chain relation",
+          selection.primitiveProductReductionChainRelation,
+          description.productReductionChainRelation))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive widening product intrinsic",
+          selection.primitiveWideningProductIntrinsic,
+          description.wideningProductIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive reduction intrinsic",
+          selection.primitiveReductionIntrinsic, description.intrinsic))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive scalar seed splat intrinsic",
+          selection.primitiveScalarSeedSplatIntrinsic,
+          description.scalarSeedSplatIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive accumulator layout",
+          selection.primitiveAccumulatorLayout,
+          description.reductionAccumulatorLayout))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive result layout",
+          selection.primitiveResultLayout, description.reductionResultLayout))
+    return error;
+  return requireRVVLowPrecisionResourceStringField(
+      context, selection, "primitive reduction store VL",
+      selection.primitiveReductionStoreVL, description.reductionStoreVL);
+}
+
 llvm::Error verifyRVVLowPrecisionContractionRealizationScheduleSelection(
     llvm::StringRef context,
     const RVVLowPrecisionContractionResourceSelection &selection) {
@@ -5577,6 +5809,22 @@ bool isRVVLowPrecisionResourceSelectionEqual(
          lhs.performanceSelectionEligible ==
              rhs.performanceSelectionEligible &&
          lhs.dispatchPreference == rhs.dispatchPreference &&
+         lhs.primitiveContractID == rhs.primitiveContractID &&
+         lhs.primitiveKind == rhs.primitiveKind &&
+         lhs.primitiveChainContractID == rhs.primitiveChainContractID &&
+         lhs.primitiveChainKind == rhs.primitiveChainKind &&
+         lhs.primitiveWideningProductRelation ==
+             rhs.primitiveWideningProductRelation &&
+         lhs.primitiveProductReductionChainRelation ==
+             rhs.primitiveProductReductionChainRelation &&
+         lhs.primitiveWideningProductIntrinsic ==
+             rhs.primitiveWideningProductIntrinsic &&
+         lhs.primitiveReductionIntrinsic == rhs.primitiveReductionIntrinsic &&
+         lhs.primitiveScalarSeedSplatIntrinsic ==
+             rhs.primitiveScalarSeedSplatIntrinsic &&
+         lhs.primitiveAccumulatorLayout == rhs.primitiveAccumulatorLayout &&
+         lhs.primitiveResultLayout == rhs.primitiveResultLayout &&
+         lhs.primitiveReductionStoreVL == rhs.primitiveReductionStoreVL &&
          lhs.targetCapabilityProviderMirror ==
              rhs.targetCapabilityProviderMirror &&
          lhs.targetCapabilityLegalityMirror ==
@@ -5846,6 +6094,10 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "runtime ABI order", selection.runtimeABIOrder,
           plan.runtimeABIOrder))
+    return error;
+  if (llvm::Error error =
+          verifyRVVLowPrecisionResourcePrimitiveChainSelection(context,
+                                                               selection, plan))
     return error;
   if (llvm::Error error =
           verifyRVVLowPrecisionContractionRealizationScheduleSelection(
@@ -6157,6 +6409,10 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "runtime ABI order", selection.runtimeABIOrder,
           description.runtimeABIOrder))
+    return error;
+  if (llvm::Error error =
+          verifyRVVLowPrecisionResourcePrimitiveChainDescriptionSelection(
+              context, selection, description))
     return error;
   if (llvm::Error error =
           verifyRVVLowPrecisionContractionRealizationScheduleSelection(

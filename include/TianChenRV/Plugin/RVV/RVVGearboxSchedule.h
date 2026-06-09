@@ -166,6 +166,42 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceDispatchPreferenceAttrName(
         "tcrv_rvv.low_precision_resource.dispatch_preference");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveContractAttrName(
+        "tcrv_rvv.low_precision_resource.primitive_contract");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePrimitiveKindAttrName(
+    "tcrv_rvv.low_precision_resource.primitive_kind");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveChainContractAttrName(
+        "tcrv_rvv.low_precision_resource.primitive_chain_contract");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveChainKindAttrName(
+        "tcrv_rvv.low_precision_resource.primitive_chain_kind");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveWideningProductRelationAttrName(
+        "tcrv_rvv.low_precision_resource.primitive_widening_product_relation");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveProductReductionChainRelationAttrName(
+        "tcrv_rvv.low_precision_resource."
+        "primitive_product_reduction_chain_relation");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveWideningProductIntrinsicAttrName(
+        "tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveReductionIntrinsicAttrName(
+        "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveScalarSeedSplatIntrinsicAttrName(
+        "tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveAccumulatorLayoutAttrName(
+        "tcrv_rvv.low_precision_resource.primitive_accumulator_layout");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveResultLayoutAttrName(
+        "tcrv_rvv.low_precision_resource.primitive_result_layout");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveReductionStoreVLAttrName(
+        "tcrv_rvv.low_precision_resource.primitive_reduction_store_vl");
 
 constexpr llvm::StringLiteral kRVVCompositeResourceCandidateSetAttrName(
     "tcrv_rvv.composite_resource.candidate_set");
@@ -413,6 +449,42 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourceUnpackIntentNone(
     "none-direct-widening-product");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles(
     "sign-extend-i4-nibbles-before-widening-product");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePrimitiveContract(
+    "rvv-low-precision-widening-primitive-facts.v1");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePrimitiveChainContract(
+    "rvv-low-precision-widening-reduction-primitive-facts.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveProductReductionDequantKind(
+        "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-"
+        "dequant.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveProductReductionDequantClampKind(
+        "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-"
+        "dequant-clamp.v1");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePrimitiveChainKind(
+    "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveWideningProductRelation(
+        "signed-i8mf4xi8mf4-to-i16mf2");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveProductReductionChainRelation(
+        "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveWideningProductIntrinsic(
+        "__riscv_vwmul_vv_i16mf2");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveReductionIntrinsic(
+        "__riscv_vwredsum_vs_i16mf2_i32m1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveScalarSeedSplatIntrinsic(
+        "__riscv_vmv_v_x_i32m1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveAccumulatorLayout(
+        "scalar-i32-seed-lane0-from-accumulator-input");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePrimitiveResultLayout(
+    "store-standalone-reduction-lane0-to-output-scalar");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePrimitiveReductionStoreVL(
+    "1");
 
 enum class RVVLowPrecisionContractionResourceOperation {
   ProductReductionDequantizeF32,
@@ -460,6 +532,19 @@ struct RVVLowPrecisionContractionResourceCandidate {
   llvm::StringRef producerScope;
   llvm::StringRef consumerScope;
   llvm::StringRef runtimeABIOrder;
+
+  llvm::StringRef primitiveContractID;
+  llvm::StringRef primitiveKind;
+  llvm::StringRef primitiveChainContractID;
+  llvm::StringRef primitiveChainKind;
+  llvm::StringRef primitiveWideningProductRelation;
+  llvm::StringRef primitiveProductReductionChainRelation;
+  llvm::StringRef primitiveWideningProductIntrinsic;
+  llvm::StringRef primitiveReductionIntrinsic;
+  llvm::StringRef primitiveScalarSeedSplatIntrinsic;
+  llvm::StringRef primitiveAccumulatorLayout;
+  llvm::StringRef primitiveResultLayout;
+  llvm::StringRef primitiveReductionStoreVL;
 
   bool isLegal = false;
   llvm::StringRef rejectionReason;
@@ -535,6 +620,15 @@ inline llvm::StringRef getRVVLowPrecisionResourceRuntimeABIOrder(
                      ProductReductionDequantClampF32
              ? kRVVLowPrecisionResourceDequantClampRuntimeABIOrder
              : kRVVLowPrecisionResourceRuntimeABIOrder;
+}
+
+inline llvm::StringRef getRVVLowPrecisionResourcePrimitiveKind(
+    RVVLowPrecisionContractionResourceOperation operation) {
+  return operation ==
+                 RVVLowPrecisionContractionResourceOperation::
+                     ProductReductionDequantClampF32
+             ? kRVVLowPrecisionResourcePrimitiveProductReductionDequantClampKind
+             : kRVVLowPrecisionResourcePrimitiveProductReductionDequantKind;
 }
 
 inline std::optional<RVVLowPrecisionContractionResourceOperation>
@@ -711,6 +805,26 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
   candidate.consumerScope = kRVVGearboxConsumerScope;
   candidate.runtimeABIOrder =
       getRVVLowPrecisionResourceRuntimeABIOrder(operation);
+  candidate.primitiveContractID = kRVVLowPrecisionResourcePrimitiveContract;
+  candidate.primitiveKind = getRVVLowPrecisionResourcePrimitiveKind(operation);
+  candidate.primitiveChainContractID =
+      kRVVLowPrecisionResourcePrimitiveChainContract;
+  candidate.primitiveChainKind = kRVVLowPrecisionResourcePrimitiveChainKind;
+  candidate.primitiveWideningProductRelation =
+      kRVVLowPrecisionResourcePrimitiveWideningProductRelation;
+  candidate.primitiveProductReductionChainRelation =
+      kRVVLowPrecisionResourcePrimitiveProductReductionChainRelation;
+  candidate.primitiveWideningProductIntrinsic =
+      kRVVLowPrecisionResourcePrimitiveWideningProductIntrinsic;
+  candidate.primitiveReductionIntrinsic =
+      kRVVLowPrecisionResourcePrimitiveReductionIntrinsic;
+  candidate.primitiveScalarSeedSplatIntrinsic =
+      kRVVLowPrecisionResourcePrimitiveScalarSeedSplatIntrinsic;
+  candidate.primitiveAccumulatorLayout =
+      kRVVLowPrecisionResourcePrimitiveAccumulatorLayout;
+  candidate.primitiveResultLayout = kRVVLowPrecisionResourcePrimitiveResultLayout;
+  candidate.primitiveReductionStoreVL =
+      kRVVLowPrecisionResourcePrimitiveReductionStoreVL;
 
   const bool hasSupportedShape =
       sourceSEW == 8 && sourceLMUL == "mf4" && productSEW == 16 &&
@@ -1001,7 +1115,23 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name == kRVVLowPrecisionResourcePerformanceMaturityOutcomeAttrName ||
          name ==
              kRVVLowPrecisionResourcePerformanceSelectionEligibleAttrName ||
-         name == kRVVLowPrecisionResourceDispatchPreferenceAttrName;
+         name == kRVVLowPrecisionResourceDispatchPreferenceAttrName ||
+         name == kRVVLowPrecisionResourcePrimitiveContractAttrName ||
+         name == kRVVLowPrecisionResourcePrimitiveKindAttrName ||
+         name == kRVVLowPrecisionResourcePrimitiveChainContractAttrName ||
+         name == kRVVLowPrecisionResourcePrimitiveChainKindAttrName ||
+         name ==
+             kRVVLowPrecisionResourcePrimitiveWideningProductRelationAttrName ||
+         name ==
+             kRVVLowPrecisionResourcePrimitiveProductReductionChainRelationAttrName ||
+         name ==
+             kRVVLowPrecisionResourcePrimitiveWideningProductIntrinsicAttrName ||
+         name == kRVVLowPrecisionResourcePrimitiveReductionIntrinsicAttrName ||
+         name ==
+             kRVVLowPrecisionResourcePrimitiveScalarSeedSplatIntrinsicAttrName ||
+         name == kRVVLowPrecisionResourcePrimitiveAccumulatorLayoutAttrName ||
+         name == kRVVLowPrecisionResourcePrimitiveResultLayoutAttrName ||
+         name == kRVVLowPrecisionResourcePrimitiveReductionStoreVLAttrName;
 }
 
 inline bool isRVVCompositeResourceAttrName(llvm::StringRef name) {

@@ -3793,6 +3793,75 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
       plugin::rvv::kRVVLowPrecisionResourcePackedI4DispatchPreference);
 }
 
+llvm::Error validateRVVLowPrecisionPrimitiveChainResourceProviderFacts(
+    const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
+  const plugin::rvv::RVVLowPrecisionContractionResourceSelection &selection =
+      contract.lowPrecisionResourceSelection;
+  const plugin::rvv::RVVLowPrecisionWideningReductionPrimitiveFacts
+      &primitive = contract.lowPrecisionWideningReductionPrimitiveFacts;
+  if (!selection.hasSelection || !primitive.hasFacts)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned low-precision resource and "
+        "widening-reduction primitive facts before artifact export");
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "resource primitive contract",
+          selection.primitiveContractID,
+          primitive.lowPrecisionPrimitiveContractID))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "resource primitive kind",
+          selection.primitiveKind, primitive.lowPrecisionPrimitiveKind))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "resource primitive chain contract",
+          selection.primitiveChainContractID, primitive.contractID))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "resource primitive chain kind",
+          selection.primitiveChainKind, primitive.kind))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "resource primitive widening product relation",
+          selection.primitiveWideningProductRelation,
+          primitive.wideningProductRelation))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "resource primitive product-reduction chain relation",
+          selection.primitiveProductReductionChainRelation,
+          primitive.productReductionChainRelation))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "resource primitive widening product intrinsic",
+          selection.primitiveWideningProductIntrinsic,
+          primitive.wideningProductIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "resource primitive reduction intrinsic",
+          selection.primitiveReductionIntrinsic, primitive.reductionIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "resource primitive scalar seed splat intrinsic",
+          selection.primitiveScalarSeedSplatIntrinsic,
+          primitive.scalarSeedSplatIntrinsic))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "resource primitive accumulator layout",
+          selection.primitiveAccumulatorLayout, primitive.accumulatorLayout))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "resource primitive result layout",
+          selection.primitiveResultLayout, primitive.resultLayout))
+    return error;
+  return requireRVVWideningDotContractStringField(
+      contract.consumerLabel, "resource primitive reduction store VL",
+      selection.primitiveReductionStoreVL, primitive.reductionStoreVL);
+}
+
 llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
@@ -3811,6 +3880,12 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
       isProductReductionDequantization &&
       plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
           contract.lowPrecisionResourceSelection.selectedCandidateID);
+  if (isProductReductionChain &&
+      contract.lowPrecisionResourceSelection.hasSelection)
+    if (llvm::Error error =
+            validateRVVLowPrecisionPrimitiveChainResourceProviderFacts(
+                contract))
+      return error;
   if (usesPackedI4LowPrecisionProductReduction)
     if (llvm::Error error =
             validateRVVPackedI4LowPrecisionResourceProviderFacts(contract))
@@ -5456,6 +5531,67 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
           "tcrv_rvv.low_precision_resource.runtime_abi_order",
           selection.runtimeABIOrder, "runtime ABI order"))
     return error;
+  if (!selection.primitiveContractID.empty()) {
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.primitive_contract",
+            selection.primitiveContractID, "primitive contract"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.primitive_kind",
+            selection.primitiveKind, "primitive kind"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.primitive_chain_contract",
+            selection.primitiveChainContractID, "primitive chain contract"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.primitive_chain_kind",
+            selection.primitiveChainKind, "primitive chain kind"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource."
+            "primitive_widening_product_relation",
+            selection.primitiveWideningProductRelation,
+            "primitive widening product relation"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource."
+            "primitive_product_reduction_chain_relation",
+            selection.primitiveProductReductionChainRelation,
+            "primitive product-reduction chain relation"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource."
+            "primitive_widening_product_intrinsic",
+            selection.primitiveWideningProductIntrinsic,
+            "primitive widening product intrinsic"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic",
+            selection.primitiveReductionIntrinsic,
+            "primitive reduction intrinsic"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource."
+            "primitive_scalar_seed_splat_intrinsic",
+            selection.primitiveScalarSeedSplatIntrinsic,
+            "primitive scalar seed splat intrinsic"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.primitive_accumulator_layout",
+            selection.primitiveAccumulatorLayout,
+            "primitive accumulator layout"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.primitive_result_layout",
+            selection.primitiveResultLayout, "primitive result layout"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.primitive_reduction_store_vl",
+            selection.primitiveReductionStoreVL,
+            "primitive reduction store VL"))
+      return error;
+  }
   if (!selection.realizationDecision.empty()) {
     if (llvm::Error error = requireResourceMirror(
             "tcrv_rvv.low_precision_resource.realization_producer",

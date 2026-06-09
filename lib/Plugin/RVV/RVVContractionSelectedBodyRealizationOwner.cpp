@@ -475,6 +475,58 @@ materializeLowPrecisionResourceRealizationAttrs(
           selected->runtimeABIOrder))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourcePrimitiveContractAttrName,
+          selected->primitiveContractID))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourcePrimitiveKindAttrName,
+          selected->primitiveKind))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourcePrimitiveChainContractAttrName,
+          selected->primitiveChainContractID))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourcePrimitiveChainKindAttrName,
+          selected->primitiveChainKind))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source,
+          kRVVLowPrecisionResourcePrimitiveWideningProductRelationAttrName,
+          selected->primitiveWideningProductRelation))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source,
+          kRVVLowPrecisionResourcePrimitiveProductReductionChainRelationAttrName,
+          selected->primitiveProductReductionChainRelation))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source,
+          kRVVLowPrecisionResourcePrimitiveWideningProductIntrinsicAttrName,
+          selected->primitiveWideningProductIntrinsic))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourcePrimitiveReductionIntrinsicAttrName,
+          selected->primitiveReductionIntrinsic))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source,
+          kRVVLowPrecisionResourcePrimitiveScalarSeedSplatIntrinsicAttrName,
+          selected->primitiveScalarSeedSplatIntrinsic))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourcePrimitiveAccumulatorLayoutAttrName,
+          selected->primitiveAccumulatorLayout))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourcePrimitiveResultLayoutAttrName,
+          selected->primitiveResultLayout))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourcePrimitiveReductionStoreVLAttrName,
+          selected->primitiveReductionStoreVL))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceLegalityAttrName,
           selected->isLegal ? llvm::StringRef(kRVVLowPrecisionResourceLegal)
                             : llvm::StringRef("rejected")))

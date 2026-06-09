@@ -994,3 +994,52 @@ to archive after final diff/status checks and commit.
 [NO UPDATE] No durable spec change was needed. Gate 5 produced refreshed
 evidence against the already-documented RVV plugin maturity, same-target
 measurement, EmitC route, variant tuning, and MLIR testing contracts.
+
+## 2026-06-09 - RVV production-kernel capability campaign Gate 1
+
+### Summary
+
+- Created active macro task
+  `06-09-rvv-production-kernel-capability-campaign`.
+- Completed Gate 1 production slice: the low-precision resource selection now
+  carries explicit RVV-owned primitive-chain facts for the widening product ->
+  widening reduction -> dequant family.
+- The new facts are populated from RVV resource candidates/pass facts, consumed
+  by selected-body realization validation, checked by route-family
+  selection/equality/validation, mirrored through provider route metadata, and
+  validated by target artifact provider/mirror checks.
+- This is production compiler plumbing, not a generated-bundle or measurement
+  rerun. No performance preference or win claim changed.
+
+### Evidence
+
+- `rtk ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+  passed.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed after self-repair
+  of the pre-realized low-precision fixture facts.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed after
+  self-repair of the packed-i4 artifact fixture facts.
+- Manual FileCheck passed for Gearbox positive output and stale primitive
+  rejection.
+- Manual FileCheck passed for pre-realized target REALIZED, PLAN, HEADER,
+  stale provider primitive, and stale primitive mirror checks.
+- Manual FileCheck passed for packed-i4 REALIZED, PLAN, and HEADER checks.
+- `rtk git diff --check` passed.
+- `rtk git diff --cached --check` passed.
+- Bounded touched-diff old-authority scan found no new `RVVI32M1`,
+  `rvv-i32m1`, `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m`,
+  source-front-door, source-artifact, or descriptor authority. Added `i32m1`
+  strings are low-precision primitive/reduction resource facts and negative
+  stale checks, not route authority.
+
+### Status
+
+[OPEN] Gate 1 is complete. Gates 2 through 5 remain open, and
+`.trellis/.current-task` intentionally remains active for the macro campaign.
+
+### Continuation
+
+Next owner: Gate 2 Gearbox/resource-aware selected-body realization should
+consume the explicit primitive-chain resource facts to materialize legal
+low-precision contraction structure without treating route ids, artifact names,
+Common EmitC, or measurement scripts as authority.

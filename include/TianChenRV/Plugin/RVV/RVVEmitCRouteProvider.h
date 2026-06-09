@@ -201,6 +201,19 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::string performanceSelectionEligible;
   std::string dispatchPreference;
 
+  std::string primitiveContractID;
+  std::string primitiveKind;
+  std::string primitiveChainContractID;
+  std::string primitiveChainKind;
+  std::string primitiveWideningProductRelation;
+  std::string primitiveProductReductionChainRelation;
+  std::string primitiveWideningProductIntrinsic;
+  std::string primitiveReductionIntrinsic;
+  std::string primitiveScalarSeedSplatIntrinsic;
+  std::string primitiveAccumulatorLayout;
+  std::string primitiveResultLayout;
+  std::string primitiveReductionStoreVL;
+
   std::string targetCapabilityProviderMirror;
   std::string targetCapabilityLegalityMirror;
 

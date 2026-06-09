@@ -553,6 +553,62 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
           selected->runtimeABIOrder)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourcePrimitiveContractAttrName,
+          selected->primitiveContractID)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourcePrimitiveKindAttrName,
+          selected->primitiveKind)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourcePrimitiveChainContractAttrName,
+          selected->primitiveChainContractID)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourcePrimitiveChainKindAttrName,
+          selected->primitiveChainKind)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder,
+          kRVVLowPrecisionResourcePrimitiveWideningProductRelationAttrName,
+          selected->primitiveWideningProductRelation)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder,
+          kRVVLowPrecisionResourcePrimitiveProductReductionChainRelationAttrName,
+          selected->primitiveProductReductionChainRelation)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder,
+          kRVVLowPrecisionResourcePrimitiveWideningProductIntrinsicAttrName,
+          selected->primitiveWideningProductIntrinsic)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder,
+          kRVVLowPrecisionResourcePrimitiveReductionIntrinsicAttrName,
+          selected->primitiveReductionIntrinsic)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder,
+          kRVVLowPrecisionResourcePrimitiveScalarSeedSplatIntrinsicAttrName,
+          selected->primitiveScalarSeedSplatIntrinsic)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder,
+          kRVVLowPrecisionResourcePrimitiveAccumulatorLayoutAttrName,
+          selected->primitiveAccumulatorLayout)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder,
+          kRVVLowPrecisionResourcePrimitiveResultLayoutAttrName,
+          selected->primitiveResultLayout)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder,
+          kRVVLowPrecisionResourcePrimitiveReductionStoreVLAttrName,
+          selected->primitiveReductionStoreVL)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceLegalityAttrName,
           selected->isLegal ? llvm::StringRef(kRVVLowPrecisionResourceLegal)
                             : llvm::StringRef("rejected"))))
