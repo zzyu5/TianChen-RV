@@ -37,8 +37,8 @@ fail-closing performance preference and win claims with a precise reason.
 
 - Keep this as one macro Trellis task until all remediation campaign gates are
   complete or human steering redirects the campaign.
-- Implement the current round as a coherent Gate 1 production slice unless live
-  code inspection proves Gate 1 already complete.
+- Implement the current round as a coherent Gate 2 production slice because
+  live code and commit `7829700f` prove Gate 1 is complete.
 - Add or repair structured measurement-diagnosis and policy-handoff facts for
   the existing packed-i4 low-precision route.
 - The diagnosis must distinguish at least: correctness-supported,
@@ -63,7 +63,7 @@ fail-closing performance preference and win claims with a precise reason.
 - [x] Gate 1: measurement-result diagnosis and policy handoff distinguishes
   correctness-supported, no-win, regression, stale measurement, stale sibling
   route, and performance-preferred outcomes using structured facts.
-- [ ] Gate 2: Gearbox/resource-aware selected-body realization or
+- [x] Gate 2: Gearbox/resource-aware selected-body realization or
   primitive-chain planning consumes those facts or exposes the precise missing
   resource/schedule blocker.
 - [ ] Gate 3: provider route facts and target artifact validation mirror the
@@ -74,7 +74,7 @@ fail-closing performance preference and win claims with a precise reason.
   for a measured win, or fail-closes performance claims while retaining
   correctness support for measured no-win/regression.
 
-## Current Round Slice
+## Completed Gate 1 Slice
 
 - [x] Add a structured RVV low-precision measurement diagnosis / policy handoff
   surface to `RVVLowPrecisionPerformancePolicy`.
@@ -93,6 +93,27 @@ fail-closing performance preference and win claims with a precise reason.
 - [x] Leave the macro task active after this slice because Gates 2-5 remain
   open.
 
+## Completed Gate 2 Slice
+
+- [x] Add a provider-owned Gate 2 remediation decision to the selected
+  low-precision resource planning facts for the accepted packed-i4
+  representative.
+- [x] Derive that remediation decision from the structured
+  `RVVLowPrecisionPerformancePolicyHandoff` instead of re-reading raw
+  measurement strings in resource planning.
+- [x] Require selected-body realization/pass facts, route-family plans, route
+  descriptions, and target artifact mirrors to agree on the handoff contract,
+  diagnosis, selected measurement identity, resource action, and dispatch
+  consequence.
+- [x] Keep the accepted same-target regression/no-win result as a
+  correctness-supported resource decision that preserves route support but
+  blocks performance-preferred selection and win claims.
+- [x] Add focused negative coverage for stale/missing remediation handoff,
+  stale diagnosis/action, and stale target mirror facts before route or target
+  acceptance.
+- [x] Leave the macro task active after this slice because Gates 3-5 remain
+  open.
+
 ## Acceptance Criteria
 
 - [x] Production source changes land in policy/handoff and the provider or
@@ -103,12 +124,17 @@ fail-closing performance preference and win claims with a precise reason.
   measurement fail closed before performance-preferred dispatch.
 - [x] `build/bin/tianchenrv-rvv-extension-plugin-test` passes.
 - [x] `build/bin/tianchenrv-target-artifact-export-test` passes.
+- [x] Gate 2 source changes make RVV resource-aware planning consume the
+  structured measurement diagnosis/policy handoff or fail closed with the
+  exact missing handoff/resource/schedule fact.
+- [x] Focused tests prove stale or missing Gate 2 remediation handoff facts are
+  rejected before route/provider or target artifact acceptance.
 - [x] Bounded old-authority scan over touched files and added diff lines shows
   no new q4/q8/llama route authority, source-front-door authority,
   descriptor-driven computation, Common EmitC semantic branch, or legacy i32
   positive route.
 - [x] `git diff --check` and `git diff --cached --check` pass.
-- [ ] One coherent commit records the slice, while `.trellis/.current-task`
+- [x] One coherent commit records the slice, while `.trellis/.current-task`
   remains active with a precise continuation point.
 
 ## Completed Gate 1 Slice
@@ -130,6 +156,27 @@ Completed this round as the first production source slice:
 
 Slice result: Gate 1 is complete for the current packed-i4 representative.
 The macro task remains active. Gates 2-5 are still open.
+
+## Completed Gate 2 Slice Result
+
+The Gate 2 owner now has a bounded production resource-planning consumer:
+the selected packed-i4 low-precision resource selection carries the Gate 1
+measurement policy handoff as a provider-owned remediation decision. The RVV
+route-family planner derives the decision from
+`RVVLowPrecisionPerformancePolicyHandoff`, writes it into selected resource
+facts, requires selected-body realization/pass facts to preserve it, exposes it
+through route descriptions, and requires target artifact mirrors to match. The
+accepted decision is tied to the structured
+`correctness-supported-no-win-regression` diagnosis and accepted same-target
+packed-i4 measurement identity. It preserves executable route/correctness
+support, requires resource/schedule repair before any performance claim, and
+blocks performance-preferred dispatch.
+
+This is intentionally not a new runtime measurement or dispatch enablement.
+The target/provider mirror checks added in this slice are bounded consistency
+checks for the new Gate 2 remediation facts. Gates 3-5 remain open for the
+campaign-level provider/target fact surface, new same-target measurement, and
+dispatch policy enablement.
 
 ## Out of Scope
 
@@ -164,7 +211,9 @@ The macro task remains active. Gates 2-5 are still open.
 
 ## Continuation Point
 
-Continue with Gate 2: make Gearbox/resource-aware selected-body realization or
-primitive-chain planning consume the structured measurement diagnosis as
-remediation input, or fail closed with a precise missing resource/schedule
-blocker.
+Continue with Gate 3: lift the Gate 2 remediation decision into the full
+provider route fact and target artifact validation surface without giving
+metadata authority. Keep the same fail-closed policy for stale resource,
+measurement, schedule, primitive-chain, or candidate facts. Gates 4 and 5 remain
+after that: new same-target measurement evidence and dispatch/performance
+policy enablement only when production facts and measurements justify it.

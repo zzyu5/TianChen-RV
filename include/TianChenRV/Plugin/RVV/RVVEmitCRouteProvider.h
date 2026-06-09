@@ -195,6 +195,13 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::string performanceBaseline;
   std::string performanceBestSpeedupRange;
   std::string performanceAction;
+  std::string remediationHandoffContract;
+  std::string remediationDiagnosis;
+  std::string remediationMeasurementEvidenceID;
+  std::string remediationDecision;
+  std::string remediationAction;
+  std::string remediationDispatchPreference;
+  std::string remediationBlocker;
   std::string performanceMaturity;
   std::string performanceMaturityEvidence;
   std::string performanceMaturityOutcome;

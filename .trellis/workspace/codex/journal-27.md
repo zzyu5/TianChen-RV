@@ -1406,3 +1406,48 @@ checks and the final coherent commit.
 No Gate 5 continuation remains for this macro campaign. Future work should start
 from a new task only if it changes a different production-kernel capability
 owner beyond this accepted packed-i4 representative.
+
+## 2026-06-09 - RVV Low-Precision Remediation Gate 2
+
+### Summary
+
+- Continued the active macro task
+  `06-09-rvv-low-precision-performance-remediation-campaign`.
+- Completed Gate 2 as a production source slice: the packed-i4 low-precision
+  resource selection now consumes the structured Gate 1 measurement policy
+  handoff as a provider-owned remediation decision.
+- The remediation decision carries the handoff contract, structured
+  `correctness-supported-no-win-regression` diagnosis, accepted same-target
+  measurement identity, resource action, dispatch consequence, and precise
+  no-win/regression blocker.
+- Selected-body realization attrs, pass-fact derivation, route descriptions,
+  and target artifact mirrors now must agree on those remediation facts or fail
+  closed.
+
+### Evidence
+
+- `rtk ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+  passed.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- Bounded added-diff old-authority scan found no new RVVI32M1,
+  `rvv-i32m1`, legacy `tcrv_rvv.i32_*`, source-front-door, source-artifact,
+  descriptor-driven, q4/q8/llama, or exact-intrinsic route authority.
+
+### Self-Repair
+
+- Updated the target packed-i4 positive MLIR fixture to carry the same Gate 2
+  remediation resource facts as the plugin fixture after the provider correctly
+  fail-closed the missing `remediation_handoff_contract`.
+
+### Status
+
+[OPEN] Gate 2 is complete for the remediation campaign. Gates 3-5 remain open,
+and `.trellis/.current-task` stays active on the same macro task.
+
+### Continuation
+
+Continue with Gate 3: lift the Gate 2 remediation decision into the full
+provider route fact and target artifact validation surface without metadata
+authority. Gates 4 and 5 remain for new same-target measurement evidence and
+dispatch/performance policy enablement only when production facts justify it.

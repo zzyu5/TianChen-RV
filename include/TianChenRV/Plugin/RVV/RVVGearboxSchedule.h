@@ -152,6 +152,27 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePerformanceActionAttrName(
         "tcrv_rvv.low_precision_resource.performance_action");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationHandoffContractAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_handoff_contract");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationDiagnosisAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_diagnosis");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationMeasurementEvidenceAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_measurement_evidence");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationDecisionAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_decision");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationActionAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_action");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationDispatchPreferenceAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_dispatch_preference");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationBlockerAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_blocker");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePerformanceMaturityAttrName(
         "tcrv_rvv.low_precision_resource.performance_maturity");
 constexpr llvm::StringLiteral
@@ -405,6 +426,22 @@ constexpr llvm::StringLiteral
         "0.688427..0.705724");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4PerformanceAction(
     "no-win-repair-required-before-performance-claim");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4RemediationHandoffContract(
+        "rvv-low-precision-packed-i4-measurement-policy-handoff.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4RemediationDiagnosis(
+        "correctness-supported-no-win-regression");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID(
+        "gate4-packed-i4-real-measure-ssh/"
+        "widening_product_reduce_dequantize_f32/"
+        "same_target_measurement_evidence.json");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4RemediationDecision(
+        "accepted-no-win-regression-resource-schedule-repair-required.v1");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4RemediationBlocker(
+    "same-target-measurement-no-win-or-regression");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturity(
         "executable-not-performance-mature");
@@ -1110,6 +1147,14 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name ==
              kRVVLowPrecisionResourcePerformanceBestSpeedupRangeAttrName ||
          name == kRVVLowPrecisionResourcePerformanceActionAttrName ||
+         name == kRVVLowPrecisionResourceRemediationHandoffContractAttrName ||
+         name == kRVVLowPrecisionResourceRemediationDiagnosisAttrName ||
+         name ==
+             kRVVLowPrecisionResourceRemediationMeasurementEvidenceAttrName ||
+         name == kRVVLowPrecisionResourceRemediationDecisionAttrName ||
+         name == kRVVLowPrecisionResourceRemediationActionAttrName ||
+         name == kRVVLowPrecisionResourceRemediationDispatchPreferenceAttrName ||
+         name == kRVVLowPrecisionResourceRemediationBlockerAttrName ||
          name == kRVVLowPrecisionResourcePerformanceMaturityAttrName ||
          name == kRVVLowPrecisionResourcePerformanceMaturityEvidenceAttrName ||
          name == kRVVLowPrecisionResourcePerformanceMaturityOutcomeAttrName ||

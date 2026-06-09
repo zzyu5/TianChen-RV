@@ -433,6 +433,37 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
             kRVVLowPrecisionResourcePackedI4PerformanceAction)))
       return mlir::failure();
     if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceRemediationHandoffContractAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationHandoffContract)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourceRemediationDiagnosisAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationDiagnosis)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceRemediationMeasurementEvidenceAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourceRemediationDecisionAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationDecision)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourceRemediationActionAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceAction)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceRemediationDispatchPreferenceAttrName,
+            kRVVLowPrecisionResourcePackedI4DispatchPreference)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourceRemediationBlockerAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationBlocker)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
             op, builder, kRVVLowPrecisionResourcePerformanceMaturityAttrName,
             kRVVLowPrecisionResourcePackedI4PerformanceMaturity)))
       return mlir::failure();

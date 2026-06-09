@@ -13,14 +13,8 @@ namespace {
 
 constexpr llvm::StringLiteral kPackedI4PerformancePolicyContract(
     "rvv-low-precision-packed-i4-dispatch-performance-policy.v1");
-constexpr llvm::StringLiteral kPackedI4PerformancePolicyHandoffContract(
-    "rvv-low-precision-packed-i4-measurement-policy-handoff.v1");
 constexpr llvm::StringLiteral kPackedI4MeasurementInputContract(
     "packed-i4-same-target-performance-maturity-evidence-input.v1");
-constexpr llvm::StringLiteral kPackedI4Gate4MeasurementEvidenceID(
-    "gate4-packed-i4-real-measure-ssh/"
-    "widening_product_reduce_dequantize_f32/"
-    "same_target_measurement_evidence.json");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementClassification(
     "regression");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementOutcomeFamily("no-win");
@@ -228,7 +222,7 @@ llvm::Error verifyPackedI4MeasurementOutcome(
     return error;
   if (llvm::Error error = requirePolicyString(
           context, "measurement evidence id", outcome.measurementEvidenceID,
-          kPackedI4Gate4MeasurementEvidenceID))
+          kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID))
     return error;
   if (llvm::Error error = requirePolicyBool(
           context, "same-target measurement evidence",
@@ -369,7 +363,8 @@ RVVLowPrecisionPerformanceMeasurementOutcome
 getAcceptedRVVPackedI4Gate4MeasurementOutcome() {
   RVVLowPrecisionPerformanceMeasurementOutcome outcome;
   outcome.contract = kPackedI4MeasurementInputContract.str();
-  outcome.measurementEvidenceID = kPackedI4Gate4MeasurementEvidenceID.str();
+  outcome.measurementEvidenceID =
+      kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID.str();
   outcome.measurementClassification =
       kPackedI4Gate4MeasurementClassification.str();
   outcome.measurementOutcomeFamily =
@@ -429,7 +424,8 @@ diagnoseRVVLowPrecisionPerformancePolicyHandoff(
     const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
     llvm::StringRef context) {
   RVVLowPrecisionPerformancePolicyHandoff handoff;
-  handoff.handoffContract = kPackedI4PerformancePolicyHandoffContract.str();
+  handoff.handoffContract =
+      kRVVLowPrecisionResourcePackedI4RemediationHandoffContract.str();
   handoff.selectedCandidateID = selection.selectedCandidateID;
   handoff.expectedSelectedCandidateID =
       kRVVLowPrecisionResourceDequantPackedI4Candidate.str();
