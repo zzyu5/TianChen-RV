@@ -9784,10 +9784,16 @@ module {
               packedI4PerformancePolicy->correctnessExecutionAllowed &&
               !packedI4PerformancePolicy->performanceSelectionAllowed &&
               !packedI4PerformancePolicy->performanceWinClaimAllowed &&
+              !packedI4PerformancePolicy->performancePreferredPathSelected &&
+              packedI4PerformancePolicy->correctnessFallbackPathSelected &&
+              packedI4PerformancePolicy->dispatchPolicyPath ==
+                  "correctness-fallback" &&
               packedI4PerformancePolicy->dispatchPreference ==
                   "not-performance-preferred" &&
               packedI4PerformancePolicy
                       ->performancePreferenceDenialReason ==
+                  "same-target-measurement-no-win-or-regression" &&
+              packedI4PerformancePolicy->fallbackReason ==
                   "same-target-measurement-no-win-or-regression" &&
               packedI4PerformancePolicy->handoff.handoffContract ==
                   "rvv-low-precision-packed-i4-measurement-policy-handoff.v1" &&
@@ -9803,10 +9809,122 @@ module {
           "performance dispatch"))
     return result;
 
+  tianchenrv::plugin::rvv::RVVLowPrecisionContractionResourceSelection
+      measuredWinPackedI4Selection = packedI4ResourceSelection;
+  measuredWinPackedI4Selection.performanceFeedback =
+      "same-target-packed-i4-measured-win.v1";
+  measuredWinPackedI4Selection.performanceBestSpeedupRange =
+      "1.125000..1.250000";
+  measuredWinPackedI4Selection.performanceAction =
+      "performance-preferred-after-same-target-win.v1";
+  measuredWinPackedI4Selection.remediationDiagnosis =
+      "performance-preferred-measured-win";
+  measuredWinPackedI4Selection.remediationMeasurementEvidenceID =
+      "gate5-packed-i4-measured-win-ssh/"
+      "widening_product_reduce_dequantize_f32/"
+      "same_target_measurement_evidence.json";
+  measuredWinPackedI4Selection.remediationDecision =
+      "accepted-measured-win-performance-preferred.v1";
+  measuredWinPackedI4Selection.remediationAction =
+      measuredWinPackedI4Selection.performanceAction;
+  measuredWinPackedI4Selection.remediationDispatchPreference =
+      "performance-preferred";
+  measuredWinPackedI4Selection.remediationBlocker = "none";
+  measuredWinPackedI4Selection.performanceMaturity = "performance-mature";
+  measuredWinPackedI4Selection.performanceMaturityEvidence =
+      measuredWinPackedI4Selection.remediationMeasurementEvidenceID;
+  measuredWinPackedI4Selection.performanceMaturityOutcome = "win";
+  measuredWinPackedI4Selection.performanceSelectionEligible = "true";
+  measuredWinPackedI4Selection.dispatchPreference = "performance-preferred";
+
+  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
+      measuredWinPackedI4Outcome = acceptedPackedI4Gate4Outcome;
+  measuredWinPackedI4Outcome.measurementEvidenceID =
+      measuredWinPackedI4Selection.remediationMeasurementEvidenceID;
+  measuredWinPackedI4Outcome.measurementClassification = "win";
+  measuredWinPackedI4Outcome.measurementOutcomeFamily = "win";
+  measuredWinPackedI4Outcome.measurementBestSpeedupRange =
+      measuredWinPackedI4Selection.performanceBestSpeedupRange;
+  measuredWinPackedI4Outcome.providerMaturity =
+      measuredWinPackedI4Selection.performanceMaturity;
+  measuredWinPackedI4Outcome.providerMaturityEvidence =
+      measuredWinPackedI4Selection.performanceMaturityEvidence;
+  measuredWinPackedI4Outcome.providerMaturityOutcome =
+      measuredWinPackedI4Selection.performanceMaturityOutcome;
+  measuredWinPackedI4Outcome.providerPerformanceSelectionEligible =
+      measuredWinPackedI4Selection.performanceSelectionEligible;
+  measuredWinPackedI4Outcome.providerDispatchPreference =
+      measuredWinPackedI4Selection.dispatchPreference;
+  measuredWinPackedI4Outcome.providerPerformanceAction =
+      measuredWinPackedI4Selection.performanceAction;
+  measuredWinPackedI4Outcome.performancePreferenceDenied = false;
+  measuredWinPackedI4Outcome.performancePreferenceDenialReason = "";
+  measuredWinPackedI4Outcome.performanceWinClaimAllowed = true;
+  measuredWinPackedI4Outcome.providerContractUpdateRequired = false;
+
+  auto measuredWinPolicy =
+      tianchenrv::plugin::rvv::
+          evaluateRVVLowPrecisionPerformancePolicy(
+              measuredWinPackedI4Selection, measuredWinPackedI4Outcome,
+              "selected-boundary packed-i4 Gate 5 measured-win dispatch "
+              "policy test");
+  if (!measuredWinPolicy)
+    return fail("packed-i4 measured-win dispatch policy: " +
+                llvm::toString(measuredWinPolicy.takeError()));
+  if (int result = expect(
+          measuredWinPolicy->routeSupportAllowed &&
+              measuredWinPolicy->correctnessExecutionAllowed &&
+              measuredWinPolicy->performanceSelectionAllowed &&
+              measuredWinPolicy->performanceWinClaimAllowed &&
+              measuredWinPolicy->performancePreferredPathSelected &&
+              !measuredWinPolicy->correctnessFallbackPathSelected &&
+              measuredWinPolicy->dispatchPolicyPath ==
+                  "performance-preferred" &&
+              measuredWinPolicy->dispatchPreference ==
+                  "performance-preferred" &&
+              measuredWinPolicy->performancePreferenceDenialReason.empty() &&
+              measuredWinPolicy->fallbackReason.empty() &&
+              measuredWinPolicy->handoff.diagnosisKind ==
+                  "performance-preferred-measured-win" &&
+              measuredWinPolicy->handoff.performancePreferredOutcome &&
+              measuredWinPolicy->handoff.acceptedForDispatchPolicy,
+          "packed-i4 Gate 5 policy enables performance-preferred dispatch only "
+          "when same-target measured-win evidence and provider maturity facts "
+          "agree"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              measuredWinPackedI4Selection, measuredWinPackedI4Outcome,
+              "selected-boundary packed-i4 Gate 5 measured-win verification"),
+          "packed-i4 measured-win performance policy verification"))
+    return result;
+
   tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
       stalePackedI4MeasurementIDOutcome = acceptedPackedI4Gate4Outcome;
   stalePackedI4MeasurementIDOutcome.measurementEvidenceID =
       "stale-packed-i4-measurement.json";
+  tianchenrv::plugin::rvv::RVVLowPrecisionPerformancePolicyDecision
+      staleMeasurementResolvedPolicy =
+          tianchenrv::plugin::rvv::
+              resolveRVVLowPrecisionDispatchPerformancePolicy(
+                  packedI4ResourceSelection,
+                  stalePackedI4MeasurementIDOutcome,
+                  "selected-boundary packed-i4 Gate 5 dispatch resolver "
+                  "falls back on stale evidence");
+  if (int result = expect(
+          staleMeasurementResolvedPolicy.routeSupportAllowed &&
+              staleMeasurementResolvedPolicy.correctnessExecutionAllowed &&
+              !staleMeasurementResolvedPolicy.performanceSelectionAllowed &&
+              !staleMeasurementResolvedPolicy.performanceWinClaimAllowed &&
+              !staleMeasurementResolvedPolicy.performancePreferredPathSelected &&
+              staleMeasurementResolvedPolicy.correctnessFallbackPathSelected &&
+              staleMeasurementResolvedPolicy.dispatchPolicyPath ==
+                  "correctness-fallback" &&
+              llvm::StringRef(staleMeasurementResolvedPolicy.fallbackReason)
+                  .contains("stale-packed-i4-measurement.json"),
+          "packed-i4 Gate 5 resolver preserves correctness fallback while "
+          "denying performance preference for stale measurement evidence"))
+    return result;
   if (int result = expectErrorContains(
           tianchenrv::plugin::rvv::
               verifyRVVLowPrecisionPerformancePolicy(
@@ -9898,7 +10016,9 @@ module {
                   "selected-boundary packed-i4 Gate 5 dispatch/performance "
                   "policy rejects measurement-only win promotion"),
           {"policy handoff diagnosis", "performance-preferred-measured-win",
-           "measurement classification", "regression", "win"}))
+           "packed-i4 performance feedback",
+           "same-target-packed-i4-measured-win.v1",
+           "same-target-packed-i4-no-win.v1"}))
     return result;
 
   auto packedI4ProductDequantSelectedStatementPlan =

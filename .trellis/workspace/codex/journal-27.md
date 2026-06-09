@@ -1567,3 +1567,69 @@ Continue with Gate 5: make dispatch/performance policy consume the accepted
 Gate 4 no-win/regression classification, preserving correctness/executable
 support while fail-closing performance preference and win claims unless future
 same-target structured measurement evidence proves a true win.
+
+## 2026-06-09 - RVV Low-Precision Remediation Gate 5
+
+### Summary
+
+- Continued the active macro task
+  `06-09-rvv-low-precision-performance-remediation-campaign`.
+- Completed Gate 5 as a production dispatch/performance policy consumption
+  slice.
+- `RVVLowPrecisionPerformancePolicyDecision` now exposes explicit dispatch
+  policy path fields, distinguishing `correctness-fallback` from
+  `performance-preferred`.
+- The accepted Gate 4 same-target packed-i4 regression/no-win measurement keeps
+  route support and correctness execution allowed, but selects
+  `correctness-fallback` and denies performance preference and win claims.
+- A strict measured-win path exists for future provider updates: it selects
+  `performance-preferred` only when same-target evidence, `ssh rvv` target
+  facts, provider maturity tie-back, selection eligibility, dispatch
+  preference, remediation facts, and win-claim fields all agree.
+- A non-throwing resolver preserves correctness fallback for stale evidence
+  while strict provider/target verification still fail-closes stale or
+  measurement-only win promotion before performance-preferred dispatch.
+
+### Evidence
+
+- `rtk ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+  passed.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- `rtk python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+  passed.
+- `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test` passed.
+- Focused lit from `build/test` passed for
+  `rvv-generated-bundle-same-target-measure-gate4` and
+  `rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequantize-f32-packed-i4`.
+- Bounded added-diff old-authority scan found no new `RVVI32M1`,
+  `rvv-i32m1`, legacy `tcrv_rvv.i32_*`, source-front-door,
+  source-artifact, descriptor-driven, q4/q8/llama, direct-C, or exact i32m1
+  intrinsic route authority.
+- Touched-file scan still shows pre-existing guardrail and legacy/fail-closed
+  hits in large RVV tests; no matching authority was introduced by this slice.
+
+### Self-Repair
+
+- None needed after focused build, C++ tests, script self-tests, lit dry-run,
+  and diff whitespace checks.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` now records the
+Gate 5 packed-i4 dispatch/performance policy consumption contract, including
+the production API signatures, dispatch policy paths, strict accepted-policy
+entry, safe fallback resolver, validation matrix, and tests required.
+
+### Status
+
+[DONE] Gates 1 through 5 are complete for the remediation campaign. The macro
+task is ready to finish/archive after final staged diff checks and the coherent
+Gate 5 commit.
+
+### Continuation
+
+No continuation remains for this macro campaign. Future work should open a new
+task only for a different production-kernel capability owner, a real packed-i4
+provider/resource repair, or new same-target evidence collected after a changed
+production path.

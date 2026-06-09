@@ -80,8 +80,12 @@ struct RVVLowPrecisionPerformancePolicyDecision {
   bool correctnessExecutionAllowed = false;
   bool performanceSelectionAllowed = false;
   bool performanceWinClaimAllowed = false;
+  bool performancePreferredPathSelected = false;
+  bool correctnessFallbackPathSelected = false;
+  std::string dispatchPolicyPath;
   std::string dispatchPreference;
   std::string performancePreferenceDenialReason;
+  std::string fallbackReason;
 };
 
 RVVLowPrecisionPerformanceMeasurementOutcome
@@ -98,6 +102,12 @@ diagnoseRVVLowPrecisionPerformancePolicyHandoff(
 
 llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
 evaluateRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
+    llvm::StringRef context);
+
+RVVLowPrecisionPerformancePolicyDecision
+resolveRVVLowPrecisionDispatchPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
     llvm::StringRef context);

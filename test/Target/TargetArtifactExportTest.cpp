@@ -13078,7 +13078,12 @@ bool expectRVVTargetArtifactExporterShape(
       !packedI4Policy->correctnessExecutionAllowed ||
       packedI4Policy->performanceSelectionAllowed ||
       packedI4Policy->performanceWinClaimAllowed ||
+      packedI4Policy->performancePreferredPathSelected ||
+      !packedI4Policy->correctnessFallbackPathSelected ||
+      packedI4Policy->dispatchPolicyPath != "correctness-fallback" ||
       packedI4Policy->dispatchPreference != "not-performance-preferred" ||
+      packedI4Policy->fallbackReason !=
+          "same-target-measurement-no-win-or-regression" ||
       packedI4Policy->handoff.handoffContract !=
           "rvv-low-precision-packed-i4-measurement-policy-handoff.v1" ||
       packedI4Policy->handoff.diagnosisKind !=
@@ -13090,6 +13095,84 @@ bool expectRVVTargetArtifactExporterShape(
     llvm::errs() << "packed-i4 target artifact policy did not preserve "
                     "correctness through structured handoff while denying "
                     "performance preference\n";
+    return false;
+  }
+  auto measuredWinTargetSelection =
+      packedI4ProductDequantDescription.lowPrecisionResourceSelection;
+  measuredWinTargetSelection.performanceFeedback =
+      "same-target-packed-i4-measured-win.v1";
+  measuredWinTargetSelection.performanceBestSpeedupRange =
+      "1.125000..1.250000";
+  measuredWinTargetSelection.performanceAction =
+      "performance-preferred-after-same-target-win.v1";
+  measuredWinTargetSelection.remediationDiagnosis =
+      "performance-preferred-measured-win";
+  measuredWinTargetSelection.remediationMeasurementEvidenceID =
+      "gate5-packed-i4-measured-win-ssh/"
+      "widening_product_reduce_dequantize_f32/"
+      "same_target_measurement_evidence.json";
+  measuredWinTargetSelection.remediationDecision =
+      "accepted-measured-win-performance-preferred.v1";
+  measuredWinTargetSelection.remediationAction =
+      measuredWinTargetSelection.performanceAction;
+  measuredWinTargetSelection.remediationDispatchPreference =
+      "performance-preferred";
+  measuredWinTargetSelection.remediationBlocker = "none";
+  measuredWinTargetSelection.performanceMaturity = "performance-mature";
+  measuredWinTargetSelection.performanceMaturityEvidence =
+      measuredWinTargetSelection.remediationMeasurementEvidenceID;
+  measuredWinTargetSelection.performanceMaturityOutcome = "win";
+  measuredWinTargetSelection.performanceSelectionEligible = "true";
+  measuredWinTargetSelection.dispatchPreference = "performance-preferred";
+  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
+      measuredWinTargetOutcome = acceptedPackedI4Gate4Outcome;
+  measuredWinTargetOutcome.measurementEvidenceID =
+      measuredWinTargetSelection.remediationMeasurementEvidenceID;
+  measuredWinTargetOutcome.measurementClassification = "win";
+  measuredWinTargetOutcome.measurementOutcomeFamily = "win";
+  measuredWinTargetOutcome.measurementBestSpeedupRange =
+      measuredWinTargetSelection.performanceBestSpeedupRange;
+  measuredWinTargetOutcome.providerMaturity =
+      measuredWinTargetSelection.performanceMaturity;
+  measuredWinTargetOutcome.providerMaturityEvidence =
+      measuredWinTargetSelection.performanceMaturityEvidence;
+  measuredWinTargetOutcome.providerMaturityOutcome =
+      measuredWinTargetSelection.performanceMaturityOutcome;
+  measuredWinTargetOutcome.providerPerformanceSelectionEligible =
+      measuredWinTargetSelection.performanceSelectionEligible;
+  measuredWinTargetOutcome.providerDispatchPreference =
+      measuredWinTargetSelection.dispatchPreference;
+  measuredWinTargetOutcome.providerPerformanceAction =
+      measuredWinTargetSelection.performanceAction;
+  measuredWinTargetOutcome.performancePreferenceDenied = false;
+  measuredWinTargetOutcome.performancePreferenceDenialReason = "";
+  measuredWinTargetOutcome.performanceWinClaimAllowed = true;
+  measuredWinTargetOutcome.providerContractUpdateRequired = false;
+  auto measuredWinTargetPolicy =
+      tianchenrv::plugin::rvv::
+          evaluateRVVLowPrecisionPerformancePolicy(
+              measuredWinTargetSelection, measuredWinTargetOutcome,
+              "packed-i4 target artifact Gate 5 measured-win "
+              "dispatch/performance policy");
+  if (!measuredWinTargetPolicy ||
+      !measuredWinTargetPolicy->routeSupportAllowed ||
+      !measuredWinTargetPolicy->correctnessExecutionAllowed ||
+      !measuredWinTargetPolicy->performanceSelectionAllowed ||
+      !measuredWinTargetPolicy->performanceWinClaimAllowed ||
+      !measuredWinTargetPolicy->performancePreferredPathSelected ||
+      measuredWinTargetPolicy->correctnessFallbackPathSelected ||
+      measuredWinTargetPolicy->dispatchPolicyPath != "performance-preferred" ||
+      measuredWinTargetPolicy->dispatchPreference != "performance-preferred" ||
+      measuredWinTargetPolicy->handoff.diagnosisKind !=
+          "performance-preferred-measured-win" ||
+      !measuredWinTargetPolicy->handoff.acceptedForDispatchPolicy) {
+    if (!measuredWinTargetPolicy)
+      llvm::errs() << "packed-i4 target artifact measured-win policy failed: "
+                   << llvm::toString(measuredWinTargetPolicy.takeError())
+                   << "\n";
+    else
+      llvm::errs() << "packed-i4 target artifact measured-win policy did not "
+                      "select the performance-preferred dispatch path\n";
     return false;
   }
   tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome

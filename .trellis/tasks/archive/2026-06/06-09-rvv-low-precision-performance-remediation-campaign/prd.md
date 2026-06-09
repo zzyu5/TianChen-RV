@@ -37,8 +37,8 @@ fail-closing performance preference and win claims with a precise reason.
 
 - Keep this as one macro Trellis task until all remediation campaign gates are
   complete or human steering redirects the campaign.
-- Implement the current round as a coherent Gate 4 production measurement
-  acceptance slice because live code and commit `a8898670` prove Gates 1-3 are
+- Implement the current round as a coherent Gate 5 dispatch/performance policy
+  consumption slice because live code and commit `c8f1dfac` prove Gates 1-4 are
   complete.
 - Add or repair structured measurement-diagnosis and policy-handoff facts for
   the existing packed-i4 low-precision route.
@@ -76,7 +76,7 @@ fail-closing performance preference and win claims with a precise reason.
   remediated resource/measurement/policy facts without metadata authority.
 - [x] Gate 4: generated artifacts are measured on the same target and accepted
   only with real `ssh rvv` evidence.
-- [ ] Gate 5: dispatch/performance policy enables a performance-preferred path
+- [x] Gate 5: dispatch/performance policy enables a performance-preferred path
   for a measured win, or fail-closes performance claims while retaining
   correctness support for measured no-win/regression.
 
@@ -172,6 +172,17 @@ fail-closing performance preference and win claims with a precise reason.
 - [x] `git diff --check` and `git diff --cached --check` pass.
 - [x] One coherent commit records the slice, while `.trellis/.current-task`
   remains active with a precise continuation point.
+- [x] Gate 5 production policy exposes an explicit dispatch policy path:
+  accepted same-target no-win/regression evidence selects correctness fallback,
+  while accepted measured-win evidence can select performance-preferred only
+  when provider maturity, selection eligibility, dispatch preference, target
+  profile, same-target evidence, and win-claim fields all agree.
+- [x] Focused provider/policy and target tests prove the current accepted
+  Gate 4 regression/no-win outcome preserves route/correctness support and
+  denies performance-preferred dispatch, synthetic measured-win facts enable
+  the performance-preferred path only through the structured provider contract,
+  and stale measurement evidence resolves to correctness fallback or fails
+  strict verification before performance preference.
 
 ## Completed Gate 1 Slice
 
@@ -261,6 +272,29 @@ Gate 4 is complete for the current accepted packed-i4 representative. Gate 5
 remains open for dispatch/performance policy consumption of this structured
 measurement classification.
 
+## Completed Gate 5 Slice Result
+
+The Gate 5 owner now has an explicit production dispatch/performance policy
+surface for low-precision packed-i4 evidence consumption.
+`RVVLowPrecisionPerformancePolicyDecision` carries the chosen dispatch policy
+path and distinguishes `performance-preferred` from `correctness-fallback`.
+The accepted Gate 4 same-target packed-i4 regression/no-win measurement still
+preserves executable route support and correctness execution, but resolves to
+`correctness-fallback` with performance preference and win claims denied.
+
+The policy also has a strict measured-win path for future provider updates:
+a measured win can select `performance-preferred` only when same-target
+measurement facts, `ssh rvv` evidence, provider maturity tie-back, performance
+selection eligibility, dispatch preference, remediation facts, target profile,
+and win-claim fields all agree. Measurement-only win promotion and stale
+measurement identity remain fail-closed before performance-preferred dispatch
+can be authorized. A non-throwing resolver preserves the safe correctness
+fallback path for stale evidence while strict policy verification still rejects
+stale/missing facts at provider or target validation seams.
+
+Gate 5 is complete for the current accepted packed-i4 representative. All
+macro campaign gates are now complete.
+
 ## Out of Scope
 
 - No adjacent generated-bundle ABI closeout.
@@ -294,8 +328,7 @@ measurement classification.
 
 ## Continuation Point
 
-Continue with Gate 5: make dispatch/performance policy consume the accepted
-Gate 4 structured no-win/regression classification, preserving
-correctness/executable support while fail-closing performance preference and
-win claims unless a future same-target structured measurement proves a true
-win through the provider-owned evidence path.
+No Gate 5 continuation remains for this macro campaign. Future work should
+start from a new Trellis task only if it changes a different production-kernel
+capability owner, repairs the packed-i4 provider/resource contract, or collects
+new same-target evidence for a genuinely changed production path.

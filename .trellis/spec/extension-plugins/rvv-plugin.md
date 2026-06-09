@@ -6562,6 +6562,169 @@ same-target parsed classification
      performance dispatch can be claimed
 ```
 
+## Packed-I4 Dispatch/Performance Policy Consumption
+
+### 1. Scope / Trigger
+
+Use this contract when RVV low-precision packed-i4 same-target measurement
+evidence is consumed by production dispatch/performance policy. This is the
+Gate 5 policy surface after provider/resource facts, target artifact mirrors,
+and Gate 4 evidence input have already been structured. It is not a route id,
+artifact-name policy, report status, script rewrite, q4/q8 benchmark label, or
+Common EmitC decision.
+
+### 2. Signatures
+
+The production API surface is:
+
+```c++
+struct RVVLowPrecisionPerformancePolicyDecision {
+  std::string policyContract;
+  RVVLowPrecisionPerformancePolicyHandoff handoff;
+  bool routeSupportAllowed;
+  bool correctnessExecutionAllowed;
+  bool performanceSelectionAllowed;
+  bool performanceWinClaimAllowed;
+  bool performancePreferredPathSelected;
+  bool correctnessFallbackPathSelected;
+  std::string dispatchPolicyPath; // correctness-fallback | performance-preferred
+  std::string dispatchPreference;
+  std::string performancePreferenceDenialReason;
+  std::string fallbackReason;
+};
+
+llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
+evaluateRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
+    llvm::StringRef context);
+
+RVVLowPrecisionPerformancePolicyDecision
+resolveRVVLowPrecisionDispatchPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
+    llvm::StringRef context);
+
+llvm::Error verifyRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
+    llvm::StringRef context);
+```
+
+Accepted dispatch policy paths are:
+
+```text
+correctness-fallback
+performance-preferred
+```
+
+### 3. Contracts
+
+- `evaluateRVVLowPrecisionPerformancePolicy` is the strict accepted-policy
+  entry. It succeeds only when the selected packed-i4 provider resource facts
+  and the measurement outcome form a complete accepted policy handoff.
+- `resolveRVVLowPrecisionDispatchPerformancePolicy` is the safe dispatch
+  resolver. For stale or missing performance evidence, it must deny
+  performance preference, preserve correctness fallback when the selected route
+  remains legal, and carry the fail-closed reason in `fallbackReason`.
+- The current accepted Gate 4 packed-i4 regression/no-win outcome must set:
+
+  ```text
+  routeSupportAllowed = true
+  correctnessExecutionAllowed = true
+  performanceSelectionAllowed = false
+  performanceWinClaimAllowed = false
+  performancePreferredPathSelected = false
+  correctnessFallbackPathSelected = true
+  dispatchPolicyPath = correctness-fallback
+  dispatchPreference = not-performance-preferred
+  performancePreferenceDenialReason =
+    same-target-measurement-no-win-or-regression
+  ```
+
+- A measured win may select `performance-preferred` only when all of these
+  structured facts agree: same-target `ssh rvv` measurement, `classification =
+  win`, provider maturity outcome `win`, provider performance selection
+  eligibility `true`, provider dispatch preference `performance-preferred`,
+  provider performance action no longer carrying the no-win repair guard,
+  remediation diagnosis `performance-preferred-measured-win`, target profile,
+  measurement counts, provider tie-back fields, and win-claim allowance.
+- Measurement scripts may report evidence inputs and alignment; they must not
+  edit provider maturity fields or directly authorize dispatch.
+- Common EmitC may carry provider-built route payloads only; it must not choose
+  `dispatchPolicyPath` or infer packed-i4 performance preference.
+
+### 4. Validation & Error Matrix
+
+- Missing selected packed-i4 resource facts -> strict policy evaluation fails
+  before performance dispatch.
+- Stale measurement identity, missing `ssh rvv` evidence, stale target profile,
+  stale provider tie-back, or stale primitive/remediation fact -> strict policy
+  evaluation fails; resolver returns correctness fallback if the route remains
+  legal.
+- Current regression/no-win evidence with provider
+  `performance_selection_eligible = true` or `dispatch_preference =
+  performance-preferred` -> fail closed before performance preference.
+- Measurement classification `win` without a provider maturity/selection update
+  -> fail closed as measurement-only win promotion.
+- Provider says `performance-preferred` but target artifact mirrors still carry
+  stale no-win or selection-ineligible facts -> target validation fails before
+  artifact acceptance.
+- Route selection is illegal or rejected -> correctness fallback cannot claim
+  route support; policy must keep performance preference denied.
+
+### 5. Good/Base/Bad Cases
+
+- Good: accepted Gate 4 regression/no-win measurement -> provider no-win
+  maturity mirrors match -> policy selects `correctness-fallback` while keeping
+  correctness execution allowed.
+- Good: future provider/resource repair plus new same-target measured win ->
+  provider maturity and remediation facts are updated and target mirrors match
+  -> policy selects `performance-preferred`.
+- Base: stale or not-yet-run measurement -> resolver preserves safe correctness
+  fallback for a legal route, while strict verification refuses to authorize
+  performance preference.
+- Bad: same-target stdout says win -> script flips selection eligibility ->
+  dispatch becomes performance-preferred without provider contract update.
+- Bad: artifact metadata or route id says packed-i4 performance-selected ->
+  policy accepts performance preference without provider-owned maturity facts.
+
+### 6. Tests Required
+
+- C++ provider/policy tests must assert current accepted regression/no-win
+  selects `correctness-fallback` and denies performance preference.
+- C++ provider/policy tests must assert a measured-win fixture selects
+  `performance-preferred` only after provider maturity, eligibility, dispatch,
+  remediation, and measurement tie-back facts all agree.
+- C++ provider/policy tests must assert stale measurement identity, missing
+  `ssh rvv` evidence, stale target profile, stale provider tie-back, stale
+  primitive facts, and measurement-only win promotion fail strict verification.
+- Target artifact tests must assert stale performance-selection and dispatch
+  mirrors fail closed before artifact acceptance.
+- Script self-tests and dry-run lit coverage must keep evidence-input reporting
+  mirror-only and must not allow no-win/regression/not-measured evidence to
+  authorize performance dispatch.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+same-target measurement says win
+  -> script or artifact metadata sets dispatch_preference=performance-preferred
+  -> dispatch policy reports performance-preferred
+```
+
+Correct:
+
+```text
+same-target measurement says win
+  -> provider-owned resource/maturity/remediation contract is updated
+  -> target artifact mirrors validate the updated provider facts
+  -> policy consumes matching measurement and provider facts
+  -> dispatch policy selects performance-preferred
+```
+
 ## Gearbox Product-Reduce-Dequant/Clamp Cross-Region Handoff
 
 ### 1. Scope / Trigger
