@@ -3,6 +3,7 @@
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 
 #include "mlir/IR/Attributes.h"
@@ -308,6 +309,180 @@ mlir::LogicalResult requireLowPrecisionProductDequantShape(
             "f32m1 result";
 }
 
+std::optional<tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind>
+getLowPrecisionGearboxSelectedBodyOperation(
+    tianchenrv::plugin::rvv::RVVLowPrecisionContractionResourceOperation
+        operation) {
+  using tianchenrv::plugin::rvv::RVVLowPrecisionContractionResourceOperation;
+  using tianchenrv::plugin::rvv::RVVSelectedBodyOperationKind;
+
+  switch (operation) {
+  case RVVLowPrecisionContractionResourceOperation::
+      ProductReductionDequantizeF32:
+    return RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32;
+  case RVVLowPrecisionContractionResourceOperation::
+      ProductReductionDequantClampF32:
+    return RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  }
+  return std::nullopt;
+}
+
+mlir::LogicalResult requireLowPrecisionPrimitiveStringField(
+    mlir::Operation *op, llvm::StringRef field, llvm::StringRef actual,
+    llvm::StringRef expected) {
+  if (!expected.empty() && actual == expected)
+    return mlir::success();
+  return op->emitError()
+         << "RVV low-precision Gearbox resource candidate derivation cannot "
+            "consume stale provider primitive-surface fact '"
+         << field << "': expected '" << expected << "' but selected candidate "
+         << "carried '" << actual << "'";
+}
+
+mlir::LogicalResult requireLowPrecisionPrimitiveIntegerField(
+    mlir::Operation *op, llvm::StringRef field, std::int64_t actual,
+    std::int64_t expected) {
+  if (actual == expected)
+    return mlir::success();
+  return op->emitError()
+         << "RVV low-precision Gearbox resource candidate derivation cannot "
+            "consume stale provider primitive-surface fact '"
+         << field << "': expected " << expected << " but selected candidate "
+         << "carried " << actual;
+}
+
+mlir::LogicalResult validateLowPrecisionResourceCandidatePrimitiveSurface(
+    mlir::Operation *op,
+    tianchenrv::plugin::rvv::RVVLowPrecisionContractionResourceOperation
+        operation,
+    const tianchenrv::plugin::rvv::RVVLowPrecisionContractionResourceCandidate
+        &candidate) {
+  using namespace tianchenrv::plugin::rvv;
+
+  std::optional<RVVSelectedBodyOperationKind> selectedBodyOperation =
+      getLowPrecisionGearboxSelectedBodyOperation(operation);
+  if (!selectedBodyOperation)
+    return op->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires a selected-body operation before consuming provider "
+              "primitive-surface facts";
+
+  std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts> primitiveFacts =
+      getRVVLowPrecisionWideningReductionPrimitiveFacts(*selectedBodyOperation);
+  if (!primitiveFacts || !primitiveFacts->hasFacts)
+    return op->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires provider-owned widening-reduction primitive facts "
+              "before selecting a resource candidate";
+
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "primitive contract", candidate.primitiveContractID,
+          primitiveFacts->lowPrecisionPrimitiveContractID)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "primitive kind", candidate.primitiveKind,
+          primitiveFacts->lowPrecisionPrimitiveKind)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "primitive chain contract", candidate.primitiveChainContractID,
+          primitiveFacts->contractID)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "primitive chain kind", candidate.primitiveChainKind,
+          primitiveFacts->kind)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "source dtype", candidate.sourceElementTypeName,
+          primitiveFacts->sourceElementTypeName)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "source signedness", candidate.sourceSignedness,
+          primitiveFacts->sourceSignedness)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveIntegerField(
+          op, "source SEW", candidate.sourceSEW, primitiveFacts->sourceSEW)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "source LMUL", candidate.sourceLMUL,
+          primitiveFacts->sourceLMUL)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "product dtype", candidate.productElementTypeName,
+          primitiveFacts->productElementTypeName)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveIntegerField(
+          op, "product SEW", candidate.productSEW,
+          primitiveFacts->productSEW)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "product LMUL", candidate.productLMUL,
+          primitiveFacts->productLMUL)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "accumulator dtype", candidate.accumulatorElementTypeName,
+          primitiveFacts->accumulatorElementTypeName)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveIntegerField(
+          op, "accumulator SEW", candidate.accumulatorSEW,
+          primitiveFacts->accumulatorSEW)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "accumulator LMUL", candidate.accumulatorLMUL,
+          primitiveFacts->accumulatorLMUL)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "final result dtype", candidate.resultElementTypeName,
+          primitiveFacts->finalResultElementTypeName)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveIntegerField(
+          op, "reduction result SEW", candidate.resultSEW,
+          primitiveFacts->reductionResultSEW)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "reduction result LMUL", candidate.resultLMUL,
+          primitiveFacts->reductionResultLMUL)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "widening product relation",
+          candidate.primitiveWideningProductRelation,
+          primitiveFacts->wideningProductRelation)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "product-reduction chain relation",
+          candidate.primitiveProductReductionChainRelation,
+          primitiveFacts->productReductionChainRelation)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "widening product intrinsic",
+          candidate.primitiveWideningProductIntrinsic,
+          primitiveFacts->wideningProductIntrinsic)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "widening reduction intrinsic",
+          candidate.primitiveReductionIntrinsic,
+          primitiveFacts->reductionIntrinsic)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "scalar seed splat intrinsic",
+          candidate.primitiveScalarSeedSplatIntrinsic,
+          primitiveFacts->scalarSeedSplatIntrinsic)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "accumulator layout", candidate.primitiveAccumulatorLayout,
+          primitiveFacts->accumulatorLayout)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "result layout", candidate.primitiveResultLayout,
+          primitiveFacts->resultLayout)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "reduction store VL", candidate.primitiveReductionStoreVL,
+          primitiveFacts->reductionStoreVL)))
+    return mlir::failure();
+
+  return mlir::success();
+}
+
 mlir::LogicalResult materializeLowPrecisionResourceAttrs(
     mlir::Operation *op, mlir::OpBuilder &builder,
     tianchenrv::tcrv::rvv::PolicyAttr policy, std::int64_t sourceSEW,
@@ -361,6 +536,9 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
            << " (requires tail agnostic, mask agnostic policy and peak live "
               "vector-group estimate within the vector register budget)";
   }
+  if (mlir::failed(validateLowPrecisionResourceCandidatePrimitiveSurface(
+          op, *operation, *selected)))
+    return mlir::failure();
 
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceCandidateSetAttrName,

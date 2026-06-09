@@ -68,45 +68,46 @@ authority.
 - [ ] Gate 4: selected-dispatch/performance policy consumes measurement and
   schedule facts without promoting measurement-only wins.
 
-## Current Slice: Gate 1 Primitive-Surface Contract Hardening
+## Current Slice: Gate 2 Gearbox Primitive-Surface Schedule Consumption
 
 - [x] Inspect repository state, recent commits, and current Trellis pointer.
-- [x] Create this macro Trellis task because no active task existed.
 - [x] Read relevant specs:
   `.trellis/spec/index.md`,
   `.trellis/spec/extension-plugins/rvv-plugin.md`,
   `.trellis/spec/lowering-runtime/emitc-route.md`,
   `.trellis/spec/variant-pipeline/generation-selection-tuning.md`, and
   `.trellis/spec/testing/index.md`.
-- [x] Read the archived packed-i4 performance-remediation campaign PRD.
-- [x] Inspect current RVV primitive, Gearbox/resource, provider, and target
-  validation surfaces.
-- [x] Harden the provider-owned low-precision primitive-surface consumer so
-  product-reduction resource selection directly validates source/product/
-  accumulator/reduction dtype, signedness, SEW/LMUL, widening product relation,
-  product-reduction chain relation, product intrinsic, reduction intrinsic,
-  scalar seed splat, layouts, and reduction store VL against
-  `RVVLowPrecisionWideningReductionPrimitiveFacts`.
-- [x] Add focused C++ coverage proving a stale primitive-surface resource fact
-  fails closed before route acceptance.
-- [x] Run focused RVV plugin and target artifact tests plus diff/authority
-  checks.
-- [x] Update this PRD and the workspace journal with completed Gate 1 behavior
-  and the precise Gate 2 continuation point.
-- [ ] Commit one coherent Gate 1 slice while leaving `.trellis/.current-task`
+- [x] Inspect current RVV primitive, Gearbox/resource, selected-body
+  realization, provider, and target validation surfaces.
+- [x] Make the RVV Gearbox schedule pass directly consume the provider-owned
+  low-precision widening-reduction primitive-surface contract before it writes
+  selected resource/schedule facts onto the pre-realized body.
+- [x] Keep selected-body realization as the consumer that materializes
+  producer/consumer `with_vl` structure, `vsetvl` markers, cross-region handoff,
+  primitive-chain fields, and resource-decision facts into realized `tcrv_rvv`
+  body structure.
+- [x] Add focused coverage showing the Gearbox/realization path carries
+  primitive-chain resource facts and fails closed when stale schedule primitive
+  facts are disconnected before route construction.
+- [x] Run focused RVV plugin/target checks plus diff/authority checks.
+- [x] Update this PRD and the workspace journal with completed Gate 2 behavior
+  and the precise remaining Gate 2 continuation point.
+- [x] Commit one coherent Gate 2 slice while leaving `.trellis/.current-task`
   active.
 
 ## Acceptance Criteria For This Round
 
-- [x] Production source changes in the RVV plugin/provider/validation path.
-- [x] The new/strengthened consumer is provider-owned and fail-closed; it is not
-  documentation, generated-bundle evidence, or report-only metadata.
+- [x] Production source changes in the RVV plugin-local Gearbox selected-body
+  schedule/realization path, not Common EmitC.
+- [x] Gearbox resource candidate selection consumes the Gate 1
+  `RVVLowPrecisionWideningReductionPrimitiveFacts` contract for the bounded
+  product-reduction-dequantization slice.
 - [x] The accepted signed i8 product-reduction chain still validates source
   `i8/mf4`, product `i16/mf2`, accumulator/reduction `i32/m1`, signed source
-  facts, `vwmul`, `vwredsum`, scalar seed splat, accumulator/result layout, and
-  store-VL.
-- [x] A stale primitive-surface fact fails before route acceptance with a
-  targeted diagnostic.
+  facts, `vwmul`, `vwredsum`, scalar seed splat, accumulator/result layout,
+  store-VL, runtime AVL source, and resource decision.
+- [x] A stale or disconnected primitive-surface schedule fact fails before route
+  construction with a targeted diagnostic.
 - [x] Existing unsigned u8 widening-product target validation remains intact.
 - [x] Existing packed-i4 policy and schedule-decision behavior remains
   conservative; this round does not claim a new performance result.
@@ -116,7 +117,8 @@ authority.
 - [x] `build/bin/tianchenrv-rvv-extension-plugin-test` passes.
 - [x] `build/bin/tianchenrv-target-artifact-export-test` passes.
 - [x] `git diff --check` and `git diff --cached --check` pass.
-- [x] The task remains active because Gates 2-4 are not complete.
+- [x] The task remains active because Gates 3-4 are not complete and any
+  remaining Gate 2 sub-slice must stay explicit.
 
 ## Completed Slice: 2026-06-10 Gate 1
 
@@ -141,6 +143,35 @@ authority.
   primitive signedness negative check. `llvm-lit` was not available locally.
 - No new runtime/correctness/performance claim was made, so no `ssh rvv`
   evidence was required in this Gate 1 slice.
+
+## Completed Slice: 2026-06-10 Gate 2a
+
+- Added a Gearbox-pass local primitive-surface consumption check for bounded
+  product-reduction-dequantization resource scheduling. After the pass builds
+  and selects a `RVVLowPrecisionContractionResourceCandidate`, it now obtains
+  the provider-owned `RVVLowPrecisionWideningReductionPrimitiveFacts` for the
+  selected product-reduction operation and compares source/product/
+  accumulator/result dtype, SEW/LMUL, signedness, primitive contracts, chain
+  kind, widening product relation, product-reduction relation, widening product
+  intrinsic, reduction intrinsic, scalar seed splat, layouts, and store-VL
+  before writing schedule/resource attrs.
+- Kept selected-body realization as the consumer that materializes the selected
+  schedule into producer/consumer `with_vl` regions, vsetvl markers, handoff,
+  and provider-verifiable primitive-chain attrs. Common EmitC remains unchanged.
+- Added FileCheck coverage proving `--tcrv-rvv-materialize-gearbox-schedules`
+  alone carries the primitive-chain resource facts on the pre-realized selected
+  body, plus a stale schedule primitive negative chain that fails in selected
+  body realization before route construction.
+- Rebuilt `tianchenrv-rvv-extension-plugin-test`,
+  `tianchenrv-target-artifact-export-test`, `tcrv-opt`, and `tcrv-translate`.
+  Ran both C++ tests, the new Gearbox primitive schedule FileCheck positive
+  chain, and the stale schedule primitive negative chain using
+  `/usr/bin/FileCheck-20`.
+- Local `FileCheck` and `not` are not on PATH; `/usr/bin/FileCheck-20` was used
+  for direct checks, and the negative chain used an explicit shell exit-code
+  check. `llvm-lit` was not available locally.
+- No runtime/correctness/performance claim was made, so no `ssh rvv` evidence
+  was required in this Gate 2a slice.
 
 ## Out Of Scope
 
@@ -173,7 +204,9 @@ authority.
 
 ## Continuation Point
 
-After Gate 1 lands, continue with Gate 2: make RVV plugin-local
-selected-body realization/Gearbox scheduling consume the reusable primitive
-surface for a coherent low-precision contraction slice beyond this validation
-handoff.
+Gate 2 remains open after this sub-slice. Continue by extending the same
+primitive-surface schedule/realization consumption evidence to the remaining
+low-precision product-reduction representatives that need explicit coverage
+before Gate 3, especially dequant-clamp and packed-i4 resource paths where the
+provider/statement-plan/target boundaries must prove they consume the selected
+resource facts rather than mirrors.

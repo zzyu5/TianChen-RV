@@ -1,7 +1,9 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | FileCheck %s --check-prefix=GEARBOX-SCHEDULE-PRIMITIVE
 // RUN: not tcrv-opt %s --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-RESOURCE-PASS
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.selected_candidate = "[^"]*"/tcrv_rvv.low_precision_resource.selected_candidate = "artifact-name-derived-resource-candidate"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER-RESOURCE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"/tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i32m1_i32m1"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER-PRIMITIVE-RESOURCE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | sed 's/tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"/tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i32m1_i32m1"/' | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-SCHEDULE-PRIMITIVE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 3 : i64/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 1 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZATION-RESOURCE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | sed '0,/tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64/s//tcrv_rvv.low_precision_resource.vector_register_budget = 3 : i64/' | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=PRUNED-RESOURCE-BUDGET
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/phase = "dequant-store"/phase = "artifact-metadata-region"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZED-REGION
@@ -132,6 +134,12 @@ module {
 // REALIZED: tcrv_rvv.store %{{.*}}, %[[DEQUANT]], %[[VL]]
 // REALIZED-NOT: tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body
 
+// GEARBOX-SCHEDULE-PRIMITIVE: tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body
+// GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1"
+// GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
+// GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
+// GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
+
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
 // PLAN-SAME: {key = "rvv_selected_body_operation", value = "widening_product_reduce_dequantize_f32"}
@@ -192,6 +200,12 @@ module {
 // STALE-PROVIDER-PRIMITIVE-RESOURCE: low-precision direct-contraction resource selection requires primitive reduction intrinsic
 // STALE-PROVIDER-PRIMITIVE-RESOURCE-SAME: __riscv_vwredsum_vs_i16mf2_i32m1
 // STALE-PROVIDER-PRIMITIVE-RESOURCE-SAME: __riscv_vwredsum_vs_i32m1_i32m1
+
+// STALE-SCHEDULE-PRIMITIVE: selected-body realization
+// STALE-SCHEDULE-PRIMITIVE-SAME: low-precision direct-contraction resource fact
+// STALE-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic
+// STALE-SCHEDULE-PRIMITIVE-SAME: __riscv_vwredsum_vs_i16mf2_i32m1
+// STALE-SCHEDULE-PRIMITIVE-SAME: __riscv_vwredsum_vs_i32m1_i32m1
 
 // STALE-REALIZATION-RESOURCE: selected-body realization low-precision direct-contraction resource fact
 // STALE-REALIZATION-RESOURCE-SAME: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count

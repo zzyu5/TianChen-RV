@@ -802,3 +802,70 @@ state; no new durable architecture rule was introduced.
 [OPEN] Gate 1 is complete. Gates 2-4 remain open. Next continuation point:
 make RVV plugin-local selected-body realization/Gearbox scheduling consume the
 reusable primitive surface for a coherent low-precision contraction slice.
+
+
+## Session 586: Stage2 RVV low-precision primitive-surface Gate 2a
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Completed one Gate 2 production sub-slice for the active macro task. The RVV
+Gearbox schedule pass now consumes the provider-owned low-precision
+widening-reduction primitive-surface contract before it writes selected
+resource/schedule facts onto a pre-realized product-reduction-dequantization
+body.
+
+### Main Changes
+
+- Added a Gearbox-pass primitive-surface validator in
+  `lib/Plugin/RVV/RVVGearboxSchedules.cpp` that maps bounded
+  product-reduction dequant/dequant-clamp resource operations to provider
+  `RVVSelectedBodyOperationKind`, obtains
+  `RVVLowPrecisionWideningReductionPrimitiveFacts`, and compares candidate
+  source/product/accumulator/result dtype, SEW/LMUL, signedness, primitive
+  contracts, chain kind, product/reduction relations, intrinsics, seed splat,
+  layouts, and store-VL before schedule attrs are materialized.
+- Kept selected-body realization/provider ownership intact. Common EmitC was
+  not changed, and no q8/q4/llama label, artifact name, route id, descriptor,
+  or status field became route authority.
+- Added focused FileCheck coverage showing Gearbox schedule materialization
+  carries primitive-chain resource facts on the pre-realized body, plus a stale
+  schedule primitive negative chain that fails in selected-body realization
+  before route construction.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- Gearbox primitive schedule positive chain:
+  `build/bin/tcrv-opt test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir --tcrv-rvv-materialize-gearbox-schedules | /usr/bin/FileCheck-20 test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir --check-prefix=GEARBOX-SCHEDULE-PRIMITIVE`.
+- Stale schedule primitive negative chain:
+  `build/bin/tcrv-opt ... --tcrv-rvv-materialize-gearbox-schedules | sed ... | build/bin/tcrv-opt --tcrv-materialize-selected-lowering-boundaries`,
+  checked with `/usr/bin/FileCheck-20 --check-prefix=STALE-SCHEDULE-PRIMITIVE`
+  and explicit nonzero exit status.
+- `git diff --check` and `git diff --cached --check` passed.
+- Bounded authority scan over touched files found only PRD non-goal wording and
+  the existing negative `rvv-i32m1` stale-authority test.
+- Local `FileCheck` and `not` were not on PATH; `/usr/bin/FileCheck-20` and
+  explicit shell exit-code checks were used. `llvm-lit` was not available
+  locally.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] This slice implements the existing RVV plugin and variant
+pipeline contracts requiring low-precision Gearbox scheduling and selected-body
+realization to consume provider-owned primitive/resource facts before route
+construction. No new durable architecture rule was introduced.
+
+### Status
+
+[OPEN] Gate 2a is complete. The macro task remains active: Gate 2 still needs
+remaining representative coverage before Gate 3, especially dequant-clamp and
+packed-i4 resource paths where provider/statement-plan/target boundaries must
+prove they consume selected resource facts rather than mirrors. Gates 3 and 4
+remain future work.
