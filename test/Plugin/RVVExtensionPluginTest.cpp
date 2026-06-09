@@ -9131,6 +9131,12 @@ module {
                   "tail-product-reduce" &&
               productDequantResourceSelection.dequantPhase ==
                   "dequant-store" &&
+              productDequantResourceSelection.targetCapabilityProviderMirror ==
+                  productDequantAnalysis->selectedTargetCapabilityFacts
+                      .providerMirror &&
+              productDequantResourceSelection.targetCapabilityLegalityMirror ==
+                  productDequantAnalysis->selectedTargetCapabilityFacts
+                      .legalityMirror &&
               productDequantResourceSelection.isLegal &&
               productDequantResourceSelection.rejectionReason == "none" &&
               productDequantAnalysis->description
@@ -9156,6 +9162,45 @@ module {
            "validated family plan"}))
     return result;
 
+  auto staleProductDequantRealizationMirrorAnalysis = *productDequantAnalysis;
+  staleProductDequantRealizationMirrorAnalysis.description
+      .lowPrecisionResourceSelection.realizationDecision =
+      "artifact-derived-realization-decision";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              staleProductDequantRealizationMirrorAnalysis,
+              "selected-boundary stale product-reduction-dequant realization "
+              "mirror test"),
+          {"low-precision direct-contraction resource selection",
+           "validated family plan"}))
+    return result;
+
+  auto staleProductDequantTargetMirrorAnalysis = *productDequantAnalysis;
+  staleProductDequantTargetMirrorAnalysis.description
+      .lowPrecisionResourceSelection.targetCapabilityProviderMirror =
+      "artifact-derived-target-capability";
+  staleProductDequantTargetMirrorAnalysis.contractionRouteFamilyPlan
+      ->lowPrecisionResourceSelection.targetCapabilityProviderMirror =
+      "artifact-derived-target-capability";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              staleProductDequantTargetMirrorAnalysis,
+              "selected-boundary stale product-reduction-dequant target "
+              "mirror test"),
+          {"target capability mirrors", "selected target facts"}))
+    return result;
+
+  RVVSelectedBodyContractionRouteFamilyPlan missingProductDequantResourcePlan =
+      *productDequantAnalysis->contractionRouteFamilyPlan;
+  missingProductDequantResourcePlan.lowPrecisionResourceSelection =
+      tianchenrv::plugin::rvv::RVVLowPrecisionContractionResourceSelection{};
+  if (int result = expectErrorContains(
+          validateRVVSelectedBodyContractionRouteFamilyPlan(
+              missingProductDequantResourcePlan),
+          {"selected low-precision direct-contraction resource candidate",
+           "route acceptance"}))
+    return result;
+
   RVVSelectedBodyContractionRouteFamilyPlan staleProductDequantResourcePlan =
       *productDequantAnalysis->contractionRouteFamilyPlan;
   staleProductDequantResourcePlan.lowPrecisionResourceSelection.productEMUL =
@@ -9165,6 +9210,29 @@ module {
               staleProductDequantResourcePlan),
           {"low-precision direct-contraction resource selection",
            "product EMUL", "mf2"}))
+    return result;
+
+  RVVSelectedBodyContractionRouteFamilyPlan
+      staleProductDequantPrimitiveChainPlan =
+          *productDequantAnalysis->contractionRouteFamilyPlan;
+  staleProductDequantPrimitiveChainPlan.lowPrecisionResourceSelection
+      .primitiveChainKind = "metadata-derived-primitive-chain";
+  if (int result = expectErrorContains(
+          validateRVVSelectedBodyContractionRouteFamilyPlan(
+              staleProductDequantPrimitiveChainPlan),
+          {"low-precision direct-contraction resource selection",
+           "primitive chain kind", "metadata-derived-primitive-chain"}))
+    return result;
+
+  RVVSelectedBodyContractionRouteFamilyPlan staleProductDequantRegionPlan =
+      *productDequantAnalysis->contractionRouteFamilyPlan;
+  staleProductDequantRegionPlan.lowPrecisionResourceSelection
+      .productRegionIndex = 1;
+  if (int result = expectErrorContains(
+          validateRVVSelectedBodyContractionRouteFamilyPlan(
+              staleProductDequantRegionPlan),
+          {"low-precision direct-contraction resource selection",
+           "product region index", "2", "1"}))
     return result;
 
   auto pressureProductDequantAnalysis = *productDequantAnalysis;
@@ -9526,6 +9594,26 @@ module {
               packedI4ResourceSelection.runtimeAVLSource == "runtime_abi:n" &&
               packedI4ResourceSelection.runtimeABIOrder ==
                   "lhs,rhs,acc,scale,out,n" &&
+              packedI4ResourceSelection.realizationProducer ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourceRealizationProducer &&
+              packedI4ResourceSelection.realizationDecision ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4RealizationDecision &&
+              packedI4ResourceSelection.realizedUnrollFactor == 1 &&
+              packedI4ResourceSelection.realizedVSetVLRegionCount == 2 &&
+              packedI4ResourceSelection.realizedPeakLiveVectorGroups == 7 &&
+              packedI4ResourceSelection.productRegionIndex == 1 &&
+              packedI4ResourceSelection.dequantRegionIndex == 2 &&
+              packedI4ResourceSelection.productPhase ==
+                  "load-product-reduce" &&
+              packedI4ResourceSelection.dequantPhase == "dequant-store" &&
+              packedI4ResourceSelection.targetCapabilityProviderMirror ==
+                  packedI4ProductDequantAnalysis->selectedTargetCapabilityFacts
+                      .providerMirror &&
+              packedI4ResourceSelection.targetCapabilityLegalityMirror ==
+                  packedI4ProductDequantAnalysis->selectedTargetCapabilityFacts
+                      .legalityMirror &&
               packedI4ResourceSelection.isLegal &&
               packedI4ResourceSelection.rejectionReason == "none" &&
               packedI4ProductDequantAnalysis->description

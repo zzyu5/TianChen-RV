@@ -1165,3 +1165,56 @@ Next owner: either continue Gate 3 if another route/provider/target mirror
 surface is identified, or advance to Gate 4 generated artifact correctness and
 same-target measurement for the changed production path. Gate 5 dispatch/
 performance policy must wait for Gate 4 measurement facts.
+
+## 2026-06-09 - RVV production-kernel capability campaign Gate 3 completion
+
+### Summary
+
+- Continued the active macro task
+  `06-09-rvv-production-kernel-capability-campaign`.
+- Completed Gate 3 by proving the remaining route-family/provider mirror
+  surface consumes the same selected low-precision resource, realization
+  schedule, primitive-chain, region, resource-budget, and selected target
+  capability facts before statement planning or artifact acceptance.
+- No production source change was required in this completion slice: live
+  inspection showed the route-family/provider and target validators already
+  enforced the Gate 3 contract after the first slice and prior Gate 1/2 work.
+- Added focused provider-level C++ coverage for stale realization mirrors,
+  selected target capability mirrors, missing selected candidates,
+  primitive-chain kind, product region facts, resource budget pressure, and
+  packed-i4 realization schedule mirrors.
+- No generated-bundle, `ssh rvv`, dispatch policy, or performance claim changed
+  in this slice.
+
+### Evidence
+
+- `rtk ninja -C build tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk ninja -C build tianchenrv-target-artifact-export-test` passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- Final whitespace, JSONL, old-authority, staged diff, and status checks are
+  run as the closeout gate for this slice.
+
+### Self-Repair
+
+- Qualified the new missing-resource default value with the
+  `tianchenrv::plugin::rvv` namespace after the first focused rebuild exposed
+  the missing qualification.
+
+### Spec Update Decision
+
+[NO CHANGE] Existing RVV plugin and EmitC route specs already require
+provider-owned primitive/resource/realization facts, route/provider mirror
+validation, target mirror validation, and Common EmitC neutrality. This slice
+only completed focused evidence for that contract.
+
+### Status
+
+[OPEN] Gates 1, 2, and 3 are complete. Gates 4 and 5 remain open, and
+`.trellis/.current-task` intentionally remains active for the macro campaign.
+
+### Continuation
+
+Next owner: Gate 4 generated artifact correctness and same-target measurement
+for the changed production path. Gate 5 dispatch/performance policy must wait
+for Gate 4 measurement facts.

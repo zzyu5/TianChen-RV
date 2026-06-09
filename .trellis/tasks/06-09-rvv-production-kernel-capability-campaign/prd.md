@@ -16,12 +16,15 @@ selected/pre-realized low-precision tcrv_rvv body
   -> dispatch/performance policy
 ```
 
-Gate 1 is complete. Gate 2 is complete for the current production source slice:
+Gates 1, 2, and 3 are complete for the current production compiler path:
 Gearbox/resource-aware selected-body realization now consumes the explicit
 primitive-chain resource facts added in Gate 1 and uses them to materialize or
 validate legal low-precision contraction structure before route planning,
-Common EmitC, or target export can accept the body. The task remains active
-until all campaign gates below are complete.
+Common EmitC, or target export can accept the body. Route-family planning,
+statement planning, provider mirrors, and target artifact validation now all
+consume the same provider-owned low-precision resource/realization facts and
+reject stale mirrors before artifact acceptance. The task remains active until
+all campaign gates below are complete.
 
 ## What I already know
 
@@ -94,7 +97,7 @@ until all campaign gates below are complete.
 - [x] Gate 2: Gearbox/resource-aware selected-body realization consumes those
   facts to materialize legal low-precision contraction structure without
   changing compute semantics or using route/artifact names as authority.
-- [ ] Gate 3: route/statement planning and target artifact validation mirror
+- [x] Gate 3: route/statement planning and target artifact validation mirror
   provider-owned facts and reject stale or unsupported performance/resource
   claims.
 - [ ] Gate 4: generated artifact correctness and same-target measurement run
@@ -145,6 +148,27 @@ Completed the first Gate 3 production source slice:
 - [x] Leave the Trellis macro task active after the slice unless Gates 3, 4,
   and 5 are all complete.
 
+## Completed Gate 3 Second Slice
+
+Completed the Gate 3 route/provider mirror completion slice:
+
+- [x] Confirmed production route-family planning/provider verification already
+  consumes the selected low-precision resource selection and rejects description
+  mirrors that diverge from the validated family plan.
+- [x] Confirmed production target artifact validation already compares
+  provider-owned resource/realization facts against candidate metadata mirrors.
+- [x] Added focused provider-level positive coverage that grouped and packed-i4
+  low-precision product-reduction provider plans carry realization schedule and
+  selected target capability mirrors before statement planning.
+- [x] Added focused provider-level stale-fact coverage for realization decision
+  mirrors, selected target capability mirrors, missing selected candidates,
+  primitive-chain kind, product region facts, and resource budget pressure.
+- [x] No production source change was required in this second slice because the
+  inspected production owners already implemented the Gate 3 route/provider/
+  target validation contract after the first slice and earlier Gate 1/2 work.
+- [x] Leave the Trellis macro task active after the slice because Gate 4 and
+  Gate 5 remain open.
+
 ## Gate 1 Acceptance Criteria
 
 - [x] Production code carries explicit low-precision primitive-chain resource
@@ -192,26 +216,26 @@ Completed the first Gate 3 production source slice:
 
 ## Gate 3 Acceptance Criteria
 
-- [ ] Route-family planning, statement planning, provider mirrors, and target
+- [x] Route-family planning, statement planning, provider mirrors, and target
   artifact validation consume the same selected primitive-chain/resource/
   realization facts for the low-precision product-reduction contraction path.
-- [ ] Missing or stale selected candidate, realization producer/decision,
+- [x] Missing or stale selected candidate, realization producer/decision,
   realized resource budget, product/dequant region facts, primitive-chain facts,
   provider mirror, or target-validation mirror fails closed before artifact
   acceptance.
-- [ ] Focused positive coverage proves route/statement planning and target
+- [x] Focused positive coverage proves route/statement planning and target
   artifact validation consume provider-owned facts, not route ids, artifact
   names, Common EmitC, status fields, or measurement scripts.
-- [ ] Focused negative coverage proves stale or missing realization/resource
+- [x] Focused negative coverage proves stale or missing realization/resource
   facts are rejected.
-- [ ] No q4/q8/llama-named route authority, source-front-door authority,
+- [x] No q4/q8/llama-named route authority, source-front-door authority,
   descriptor-driven computation, Common EmitC semantic branch, or one-fixture
   evidence-only work is introduced.
-- [ ] `build/bin/tianchenrv-rvv-extension-plugin-test` passes if provider or
+- [x] `build/bin/tianchenrv-rvv-extension-plugin-test` passes if provider or
   statement-planning logic changes.
-- [ ] `build/bin/tianchenrv-target-artifact-export-test` passes if target mirror
+- [x] `build/bin/tianchenrv-target-artifact-export-test` passes if target mirror
   validation changes.
-- [ ] `git diff --check` and `git diff --cached --check` pass.
+- [x] `git diff --check` and `git diff --cached --check` pass.
 
 ## Out of Scope
 
@@ -248,12 +272,9 @@ Completed the first Gate 3 production source slice:
 
 ## Continuation Point
 
-Gate 1 and Gate 2 are complete. The first Gate 3 source slice is complete, but
-Gate 3 remains open for any follow-up broadening that Hermes selects before
-artifact measurement. Gates 4 and 5 remain open, so this macro task stays
-active.
+Gates 1, 2, and 3 are complete. Gates 4 and 5 remain open, so this macro task
+stays active.
 
-Next owner: either continue Gate 3 only if another route/provider/target mirror
-surface is identified, or advance to Gate 4 generated artifact correctness and
-same-target measurement for the changed production path. Gate 5 dispatch/
-performance policy must wait for Gate 4 measurement facts.
+Next owner: advance to Gate 4 generated artifact correctness and same-target
+measurement for the changed production path. Gate 5 dispatch/performance policy
+must wait for Gate 4 measurement facts.
