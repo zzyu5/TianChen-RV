@@ -3811,6 +3811,29 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
           plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationBlocker))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 remediation plan contract",
+          selection.remediationPlanContract,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationPlanContract))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 remediation plan",
+          selection.remediationPlan,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationPlan))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 remediation statement strategy",
+          selection.remediationStatementStrategy,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 remediation vector budget",
+          selection.remediationVectorBudget,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationVectorBudget))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 performance maturity",
           selection.performanceMaturity,
           plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceMaturity))
@@ -5885,6 +5908,25 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
     if (llvm::Error error = requireResourceMirror(
             "tcrv_rvv.low_precision_resource.remediation_blocker",
             selection.remediationBlocker, "remediation blocker"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.remediation_plan_contract",
+            selection.remediationPlanContract,
+            "remediation plan contract"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.remediation_plan",
+            selection.remediationPlan, "remediation plan"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.remediation_statement_strategy",
+            selection.remediationStatementStrategy,
+            "remediation statement strategy"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.remediation_vector_budget",
+            selection.remediationVectorBudget,
+            "remediation vector budget"))
       return error;
     if (llvm::Error error = requireResourceMirror(
             "tcrv_rvv.low_precision_resource.performance_maturity",

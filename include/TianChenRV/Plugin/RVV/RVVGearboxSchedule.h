@@ -178,6 +178,18 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceRemediationBlockerAttrName(
         "tcrv_rvv.low_precision_resource.remediation_blocker");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationPlanContractAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_plan_contract");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationPlanAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_plan");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationStatementStrategyAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_statement_strategy");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRemediationVectorBudgetAttrName(
+        "tcrv_rvv.low_precision_resource.remediation_vector_budget");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePerformanceMaturityAttrName(
         "tcrv_rvv.low_precision_resource.performance_maturity");
 constexpr llvm::StringLiteral
@@ -448,6 +460,17 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4RemediationBlocker(
     "same-target-measurement-no-win-or-regression");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4RemediationPlanContract(
+        "rvv-low-precision-packed-i4-resource-remediation-plan.v1");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4RemediationPlan(
+    "repair-packed-i4-product-pair-sum-single-reduce-before-performance-claim.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy(
+        "unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4RemediationVectorBudget(
+        "packed-i4-remediation-budget-7of32-vector-groups");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturity(
         "executable-not-performance-mature");
 constexpr llvm::StringLiteral
@@ -587,6 +610,11 @@ struct RVVLowPrecisionContractionResourceCandidate {
   llvm::StringRef primitiveAccumulatorLayout;
   llvm::StringRef primitiveResultLayout;
   llvm::StringRef primitiveReductionStoreVL;
+
+  llvm::StringRef remediationPlanContract;
+  llvm::StringRef remediationPlan;
+  llvm::StringRef remediationStatementStrategy;
+  llvm::StringRef remediationVectorBudget;
 
   bool isLegal = false;
   llvm::StringRef rejectionReason;
@@ -944,6 +972,14 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
       kRVVLowPrecisionResourcePackedI4VSetVLRegions;
   packedI4Candidate.peakLiveVectorGroups =
       kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups;
+  packedI4Candidate.remediationPlanContract =
+      kRVVLowPrecisionResourcePackedI4RemediationPlanContract;
+  packedI4Candidate.remediationPlan =
+      kRVVLowPrecisionResourcePackedI4RemediationPlan;
+  packedI4Candidate.remediationStatementStrategy =
+      kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy;
+  packedI4Candidate.remediationVectorBudget =
+      kRVVLowPrecisionResourcePackedI4RemediationVectorBudget;
   const bool packedI4WithinRegisterBudget =
       packedI4Candidate.peakLiveVectorGroups <=
       packedI4Candidate.vectorRegisterBudget;
@@ -1160,6 +1196,12 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name == kRVVLowPrecisionResourceRemediationActionAttrName ||
          name == kRVVLowPrecisionResourceRemediationDispatchPreferenceAttrName ||
          name == kRVVLowPrecisionResourceRemediationBlockerAttrName ||
+         name ==
+             kRVVLowPrecisionResourceRemediationPlanContractAttrName ||
+         name == kRVVLowPrecisionResourceRemediationPlanAttrName ||
+         name ==
+             kRVVLowPrecisionResourceRemediationStatementStrategyAttrName ||
+         name == kRVVLowPrecisionResourceRemediationVectorBudgetAttrName ||
          name == kRVVLowPrecisionResourcePerformanceMaturityAttrName ||
          name == kRVVLowPrecisionResourcePerformanceMaturityEvidenceAttrName ||
          name == kRVVLowPrecisionResourcePerformanceMaturityOutcomeAttrName ||

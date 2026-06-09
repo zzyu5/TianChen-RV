@@ -43225,6 +43225,18 @@ getRVVSelectedBodyConfigArtifactMetadata(
       metadata.push_back(
           {"tcrv_rvv.low_precision_resource.remediation_blocker",
            selection.remediationBlocker});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.remediation_plan_contract",
+           selection.remediationPlanContract});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.remediation_plan",
+           selection.remediationPlan});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.remediation_statement_strategy",
+           selection.remediationStatementStrategy});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.remediation_vector_budget",
+           selection.remediationVectorBudget});
       metadata.push_back({"tcrv_rvv.low_precision_resource.performance_maturity",
                           selection.performanceMaturity});
       metadata.push_back(

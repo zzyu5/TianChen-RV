@@ -1081,6 +1081,61 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
                         familySelection.performanceAction))
     return error;
   if (llvm::Error error =
+          requireString("remediation handoff contract",
+                        providerSelection.remediationHandoffContract,
+                        familySelection.remediationHandoffContract))
+    return error;
+  if (llvm::Error error =
+          requireString("remediation diagnosis",
+                        providerSelection.remediationDiagnosis,
+                        familySelection.remediationDiagnosis))
+    return error;
+  if (llvm::Error error =
+          requireString("remediation measurement evidence",
+                        providerSelection.remediationMeasurementEvidenceID,
+                        familySelection.remediationMeasurementEvidenceID))
+    return error;
+  if (llvm::Error error =
+          requireString("remediation decision",
+                        providerSelection.remediationDecision,
+                        familySelection.remediationDecision))
+    return error;
+  if (llvm::Error error =
+          requireString("remediation action",
+                        providerSelection.remediationAction,
+                        familySelection.remediationAction))
+    return error;
+  if (llvm::Error error =
+          requireString("remediation dispatch preference",
+                        providerSelection.remediationDispatchPreference,
+                        familySelection.remediationDispatchPreference))
+    return error;
+  if (llvm::Error error =
+          requireString("remediation blocker",
+                        providerSelection.remediationBlocker,
+                        familySelection.remediationBlocker))
+    return error;
+  if (llvm::Error error =
+          requireString("remediation plan contract",
+                        providerSelection.remediationPlanContract,
+                        familySelection.remediationPlanContract))
+    return error;
+  if (llvm::Error error =
+          requireString("remediation plan",
+                        providerSelection.remediationPlan,
+                        familySelection.remediationPlan))
+    return error;
+  if (llvm::Error error =
+          requireString("remediation statement strategy",
+                        providerSelection.remediationStatementStrategy,
+                        familySelection.remediationStatementStrategy))
+    return error;
+  if (llvm::Error error =
+          requireString("remediation vector budget",
+                        providerSelection.remediationVectorBudget,
+                        familySelection.remediationVectorBudget))
+    return error;
+  if (llvm::Error error =
           requireString("performance maturity",
                         providerSelection.performanceMaturity,
                         familySelection.performanceMaturity))
@@ -1276,6 +1331,56 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
     if (llvm::Error error = requireExpectedString(
             "performance action", familySelection.performanceAction,
             kRVVLowPrecisionResourcePackedI4PerformanceAction))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation handoff contract",
+            familySelection.remediationHandoffContract,
+            kRVVLowPrecisionResourcePackedI4RemediationHandoffContract))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation diagnosis", familySelection.remediationDiagnosis,
+            kRVVLowPrecisionResourcePackedI4RemediationDiagnosis))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation measurement evidence",
+            familySelection.remediationMeasurementEvidenceID,
+            kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation decision", familySelection.remediationDecision,
+            kRVVLowPrecisionResourcePackedI4RemediationDecision))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation action", familySelection.remediationAction,
+            kRVVLowPrecisionResourcePackedI4PerformanceAction))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation dispatch preference",
+            familySelection.remediationDispatchPreference,
+            kRVVLowPrecisionResourcePackedI4DispatchPreference))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation blocker", familySelection.remediationBlocker,
+            kRVVLowPrecisionResourcePackedI4RemediationBlocker))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation plan contract",
+            familySelection.remediationPlanContract,
+            kRVVLowPrecisionResourcePackedI4RemediationPlanContract))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation plan", familySelection.remediationPlan,
+            kRVVLowPrecisionResourcePackedI4RemediationPlan))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation statement strategy",
+            familySelection.remediationStatementStrategy,
+            kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "remediation vector budget",
+            familySelection.remediationVectorBudget,
+            kRVVLowPrecisionResourcePackedI4RemediationVectorBudget))
       return error;
     if (llvm::Error error = requireExpectedString(
             "performance maturity", familySelection.performanceMaturity,

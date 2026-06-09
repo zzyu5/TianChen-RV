@@ -5,6 +5,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.realization_decision", value = "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"/s//tcrv_rvv.low_precision_resource.realization_decision", value = "artifact-name-derived-resource-decision"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-REALIZATION-DECISION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_feedback", value = "same-target-packed-i4-no-win.v1"/s//tcrv_rvv.low_precision_resource.performance_feedback", value = "same-target-packed-i4-performance-win.v1"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-PERFORMANCE-FEEDBACK
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.remediation_statement_strategy", value = "unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum"/s//tcrv_rvv.low_precision_resource.remediation_statement_strategy", value = "metadata-only-packed-i4-unpack-plan"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-REMEDIATION-STATEMENT-STRATEGY
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_selection_eligible", value = "false"/s//tcrv_rvv.low_precision_resource.performance_selection_eligible", value = "true"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-PERFORMANCE-SELECTION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_maturity_outcome", value = "regression"/s//tcrv_rvv.low_precision_resource.performance_maturity_outcome", value = "win"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-PERFORMANCE-OUTCOME
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.dispatch_preference", value = "not-performance-preferred"/s//tcrv_rvv.low_precision_resource.dispatch_preference", value = "performance-preferred"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-DISPATCH-PREFERENCE
@@ -57,6 +58,10 @@ module {
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_maturity_outcome = "regression"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_selection_eligible = "false"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.dispatch_preference = "not-performance-preferred"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.remediation_plan_contract = "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.remediation_plan = "repair-packed-i4-product-pair-sum-single-reduce-before-performance-claim.v1"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.remediation_statement_strategy = "unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.remediation_vector_budget = "packed-i4-remediation-budget-7of32-vector-groups"
 // REALIZED: tcrv_rvv.vsetvl_region_marker
 // REALIZED-SAME: phase = "load-product-reduce"
 // REALIZED-SAME: region_count = 2 : i64
@@ -84,6 +89,10 @@ module {
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_baseline", value = "scalar-c-reference/product-reduction-dequant-packed-i4-v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_best_speedup_range", value = "0.688427..0.705724"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_action", value = "no-win-repair-required-before-performance-claim"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.remediation_plan_contract", value = "rvv-low-precision-packed-i4-resource-remediation-plan.v1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.remediation_plan", value = "repair-packed-i4-product-pair-sum-single-reduce-before-performance-claim.v1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.remediation_statement_strategy", value = "unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.remediation_vector_budget", value = "packed-i4-remediation-budget-7of32-vector-groups"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_maturity", value = "executable-not-performance-mature"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_maturity_evidence", value = "same-target-packed-i4-product-pair-sum-regression-gate6.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_maturity_outcome", value = "regression"}
@@ -108,6 +117,10 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_baseline: scalar-c-reference/product-reduction-dequant-packed-i4-v1
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_best_speedup_range: 0.688427..0.705724
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_action: no-win-repair-required-before-performance-claim
+// HEADER: tianchenrv.rvv.low_precision_resource.remediation_plan_contract: rvv-low-precision-packed-i4-resource-remediation-plan.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.remediation_plan: repair-packed-i4-product-pair-sum-single-reduce-before-performance-claim.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.remediation_statement_strategy: unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum
+// HEADER: tianchenrv.rvv.low_precision_resource.remediation_vector_budget: packed-i4-remediation-budget-7of32-vector-groups
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_maturity: executable-not-performance-mature
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_maturity_evidence: same-target-packed-i4-product-pair-sum-regression-gate6.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_maturity_outcome: regression
@@ -141,6 +154,9 @@ module {
 
 // STALE-ARTIFACT-PERFORMANCE-FEEDBACK: low_precision_resource.performance_feedback provenance must mirror provider-selected low-precision direct-contraction resource performance feedback 'same-target-packed-i4-no-win.v1'
 // STALE-ARTIFACT-PERFORMANCE-FEEDBACK-SAME: same-target-packed-i4-performance-win.v1
+
+// STALE-ARTIFACT-REMEDIATION-STATEMENT-STRATEGY: low_precision_resource.remediation_statement_strategy provenance must mirror provider-selected low-precision direct-contraction resource remediation statement strategy 'unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum'
+// STALE-ARTIFACT-REMEDIATION-STATEMENT-STRATEGY-SAME: metadata-only-packed-i4-unpack-plan
 
 // STALE-ARTIFACT-PERFORMANCE-SELECTION: low_precision_resource.performance_selection_eligible provenance must mirror provider-selected low-precision direct-contraction resource performance selection eligibility 'false'
 // STALE-ARTIFACT-PERFORMANCE-SELECTION-SAME: true

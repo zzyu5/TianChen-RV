@@ -464,6 +464,25 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
             kRVVLowPrecisionResourcePackedI4RemediationBlocker)))
       return mlir::failure();
     if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceRemediationPlanContractAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationPlanContract)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourceRemediationPlanAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationPlan)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceRemediationStatementStrategyAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceRemediationVectorBudgetAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationVectorBudget)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
             op, builder, kRVVLowPrecisionResourcePerformanceMaturityAttrName,
             kRVVLowPrecisionResourcePackedI4PerformanceMaturity)))
       return mlir::failure();

@@ -1633,3 +1633,68 @@ No continuation remains for this macro campaign. Future work should open a new
 task only for a different production-kernel capability owner, a real packed-i4
 provider/resource repair, or new same-target evidence collected after a changed
 production path.
+
+## 2026-06-09 - RVV Packed-I4 Production-Kernel Campaign Gate 1
+
+### Summary
+
+- Created/continued the active macro task
+  `06-09-rvv-packed-i4-production-kernel-resource-aware-realization-campaign`.
+- Completed Gate 1 as a production resource/remediation planning slice for the
+  selected packed-i4 product-reduction-dequant representative.
+- Added provider-owned packed-i4 remediation plan facts:
+  `remediation_plan_contract`, `remediation_plan`,
+  `remediation_statement_strategy`, and `remediation_vector_budget`.
+- Gearbox now materializes these facts on the selected packed-i4 candidate;
+  selected-body realization copies them; provider planning parses/verifies
+  them; statement planning requires them before packed-i4 unpack/product/pair-
+  sum/single-reduce construction; route metadata and target validation mirror
+  them; target support bundle/header export exposes them as mirrors.
+- No runtime, correctness, or performance improvement was claimed; existing
+  correctness fallback / not-performance-preferred policy remains intact.
+
+### Evidence
+
+- `rtk ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+  passed during focused build.
+- `rtk ninja -C /home/kingdom/phdworks/TianchenRV/build tcrv-translate tianchenrv-target-artifact-export-test`
+  passed after updating target support bundle export.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- Focused lit from `build/test` passed for
+  `pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4`.
+- Bounded added-diff old-authority scan over `include/`, `lib/`, and `test/`
+  found no new `RVVI32M1`, `rvv-i32m1`, legacy `tcrv_rvv.i32_*`,
+  source-front-door, descriptor-driven, q4/q8/llama, Common EmitC semantic
+  branch, or exact i32m1 intrinsic route authority. Touched-file full scan only
+  found pre-existing guardrail/legacy negative-test strings.
+- `rtk git diff --check` passed.
+
+### Self-Repair
+
+- Initial C++ target/plugin run exposed old packed-i4 fixture attrs missing the
+  new required remediation plan fields; fixtures and positive/negative
+  assertions were updated.
+- Initial lit run exposed FileCheck ordering and target support-bundle header
+  export omissions; checks were reordered to actual metadata order and
+  `RVVTargetSupportBundle.cpp` was updated to expose the new mirror keys.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` now records the
+Gate 1 packed-i4 no-win remediation plan contract, including the new resource
+selection fields, accepted values, validation matrix, target support-bundle
+mirror requirement, and tests required.
+
+### Status
+
+[OPEN] Gate 1 is complete, but the packed-i4 production-kernel macro campaign
+remains active because Gates 2, 3, and 4 are not complete.
+
+### Continuation
+
+Continue with Gate 2: provider and target validation should consume the Gate 1
+remediation plan facts as provider-owned mirrors and reject metadata-only win
+claims. Gate 3 must collect same-target `ssh rvv` comparison only after a
+repaired generated artifact is available; Gate 4 then consumes that evidence in
+dispatch/performance policy.

@@ -6222,11 +6222,15 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::string performanceBaseline;
   std::string performanceBestSpeedupRange;
   std::string performanceAction;
+  std::string remediationPlanContract;
+  std::string remediationPlan;
+  std::string remediationStatementStrategy;
+  std::string remediationVectorBudget;
 };
 ```
 
 The accepted packed-i4 values calibrated from the latest same-target timing
-evidence are:
+evidence and the first production repair boundary are:
 
 ```text
 tcrv_rvv.low_precision_resource.performance_feedback =
@@ -6237,6 +6241,14 @@ tcrv_rvv.low_precision_resource.performance_best_speedup_range =
   "0.688427..0.705724"
 tcrv_rvv.low_precision_resource.performance_action =
   "no-win-repair-required-before-performance-claim"
+tcrv_rvv.low_precision_resource.remediation_plan_contract =
+  "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
+tcrv_rvv.low_precision_resource.remediation_plan =
+  "repair-packed-i4-product-pair-sum-single-reduce-before-performance-claim.v1"
+tcrv_rvv.low_precision_resource.remediation_statement_strategy =
+  "unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum"
+tcrv_rvv.low_precision_resource.remediation_vector_budget =
+  "packed-i4-remediation-budget-7of32-vector-groups"
 ```
 
 ### 3. Contracts
@@ -6244,10 +6256,17 @@ tcrv_rvv.low_precision_resource.performance_action =
 - The Gearbox resource pass must attach the four performance feedback attrs to
   the selected packed-i4 pre-realized body; selected-body realization must copy
   them into the realized `with_vl` structure before provider planning.
+- The selected packed-i4 candidate must also carry the remediation plan attrs
+  above as provider-owned resource-planning facts. These facts state the
+  concrete production repair boundary: packed signed i4-in-i8 low/high nibble
+  unpack, pair-sum product, single `vwredsum`, and a 7-of-32 vector-group
+  budget. They are not artifact metadata, benchmark labels, or route ids.
 - The route-family provider must parse, verify, and retain the fields as part
   of `RVVLowPrecisionContractionResourceSelection` before route construction.
 - The statement-plan owner must compare provider and family-plan copies before
-  constructing the packed-i4 statement payload.
+  constructing the packed-i4 statement payload and must require the exact
+  remediation statement strategy before emitting packed-i4 load/unpack/product/
+  pair-sum/reduce statements.
 - Route metadata, target support bundles, target artifact validation, and
   generated-bundle dry-run indexes may expose these values only as exact
   mirrors of provider-owned facts.
@@ -6257,14 +6276,18 @@ tcrv_rvv.low_precision_resource.performance_action =
 
 ### 4. Validation & Error Matrix
 
-- Packed-i4 selected candidate missing any of the four feedback fields -> fail
+- Packed-i4 selected candidate missing any of the feedback or remediation plan
+  fields -> fail
   closed in Gearbox/provider validation before route construction.
 - Realized body feedback differs from the selected resource facts -> fail
   closed in selected-body/provider validation.
 - Statement provider and route-family copies disagree -> fail closed at the
   statement-plan owner boundary.
-- Artifact/header metadata omits or changes any field -> fail closed in target
-  artifact validation before accepting generated-bundle evidence.
+- Artifact/header metadata omits or changes any mirrored feedback/remediation
+  plan field -> fail closed in target artifact validation before accepting
+  generated-bundle evidence.
+- Target support bundle export omits a remediation plan mirror -> the header is
+  incomplete and the target artifact surface must be treated as stale.
 - Same-target measurement or a report claims packed-i4 performance improvement
   while the action remains `no-win-repair-required-before-performance-claim` and
   no new same-target timing exists -> invalid evidence boundary.
@@ -6272,28 +6295,36 @@ tcrv_rvv.low_precision_resource.performance_action =
 ### 5. Good/Base/Bad Cases
 
 - Good: measured packed-i4 no-win evidence -> provider-owned feedback facts ->
-  realized body copies them -> statement planning and target export mirror them
-  exactly -> generated artifact remains correctness/evidence-capable but cannot
-  be reported as a performance win.
+  provider-owned remediation plan facts -> realized body copies them ->
+  statement planning requires the exact packed-i4 remediation strategy -> target
+  export mirrors them exactly -> generated artifact remains correctness/evidence-
+  capable but cannot be reported as a performance win.
 - Base: unpacked-byte product-dequant and sibling low-precision representatives
   keep their existing resource contracts and do not inherit the packed-i4
   feedback fields unless their selected candidate defines an explicit feedback
   contract.
 - Bad: a fixture name, benchmark name, or artifact path implies no-win or
   performance repair status while provider-owned packed-i4 selection lacks the
-  four feedback fields.
+  feedback or remediation plan fields.
 - Bad: artifact metadata is edited to
   `same-target-packed-i4-performance-win.v1` without a provider-owned schedule
   change and new same-target timing; target validation must reject it.
+- Bad: route metadata says `metadata-only-packed-i4-unpack-plan` while the
+  provider-owned selection requires
+  `unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum`; target
+  validation must reject it before header/artifact acceptance.
 
 ### 6. Tests Required
 
-- Selected-body realization lit/FileCheck coverage showing the four feedback
-  fields on the realized packed-i4 body and on emitted route/header metadata.
-- C++ provider tests for accepted packed-i4 feedback fields and stale feedback
-  rejection.
+- Selected-body realization lit/FileCheck coverage showing the feedback and
+  remediation plan fields on the realized packed-i4 body and on emitted
+  route/header metadata.
+- C++ provider tests for accepted packed-i4 feedback/remediation fields and
+  stale feedback/remediation rejection.
 - C++ target artifact validation tests proving stale candidate metadata mirrors
   fail before artifact acceptance.
+- Target support bundle/header coverage proving remediation plan mirrors are
+  exported and not silently dropped.
 - Generated-bundle dry-run coverage proving the index/evidence metadata carries
   the four fields only after provider/header validation.
 - Same-target timing is required only after a real production compiler change
@@ -6313,7 +6344,7 @@ Correct:
 
 ```text
 same-target no-win evidence
-  -> provider-owned packed-i4 performance feedback facts
+  -> provider-owned packed-i4 performance feedback and remediation plan facts
   -> selected-body realization/provider/statement/target validators compare them
   -> future performance claim requires a production repair plus new timing
 ```
