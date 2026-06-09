@@ -151,6 +151,21 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePerformanceActionAttrName(
         "tcrv_rvv.low_precision_resource.performance_action");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePerformanceMaturityAttrName(
+        "tcrv_rvv.low_precision_resource.performance_maturity");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePerformanceMaturityEvidenceAttrName(
+        "tcrv_rvv.low_precision_resource.performance_maturity_evidence");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePerformanceMaturityOutcomeAttrName(
+        "tcrv_rvv.low_precision_resource.performance_maturity_outcome");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePerformanceSelectionEligibleAttrName(
+        "tcrv_rvv.low_precision_resource.performance_selection_eligible");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceDispatchPreferenceAttrName(
+        "tcrv_rvv.low_precision_resource.dispatch_preference");
 
 constexpr llvm::StringLiteral kRVVCompositeResourceCandidateSetAttrName(
     "tcrv_rvv.composite_resource.candidate_set");
@@ -354,6 +369,19 @@ constexpr llvm::StringLiteral
         "0.688427..0.705724");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4PerformanceAction(
     "no-win-repair-required-before-performance-claim");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4PerformanceMaturity(
+        "executable-not-performance-mature");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence(
+        "same-target-packed-i4-product-pair-sum-regression-gate6.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome("regression");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible("false");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4DispatchPreference(
+        "not-performance-preferred");
 constexpr std::int64_t kRVVLowPrecisionResourceStaticUnroll = 1;
 constexpr std::int64_t kRVVLowPrecisionResourceAccumulatorCount = 1;
 constexpr std::int64_t kRVVLowPrecisionResourceVSetVLRegions = 2;
@@ -967,7 +995,13 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name == kRVVLowPrecisionResourcePerformanceBaselineAttrName ||
          name ==
              kRVVLowPrecisionResourcePerformanceBestSpeedupRangeAttrName ||
-         name == kRVVLowPrecisionResourcePerformanceActionAttrName;
+         name == kRVVLowPrecisionResourcePerformanceActionAttrName ||
+         name == kRVVLowPrecisionResourcePerformanceMaturityAttrName ||
+         name == kRVVLowPrecisionResourcePerformanceMaturityEvidenceAttrName ||
+         name == kRVVLowPrecisionResourcePerformanceMaturityOutcomeAttrName ||
+         name ==
+             kRVVLowPrecisionResourcePerformanceSelectionEligibleAttrName ||
+         name == kRVVLowPrecisionResourceDispatchPreferenceAttrName;
 }
 
 inline bool isRVVCompositeResourceAttrName(llvm::StringRef name) {

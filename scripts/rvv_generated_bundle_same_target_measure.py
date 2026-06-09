@@ -1403,6 +1403,21 @@ def packed_i4_provider_feedback_tie_back(
         "performance_action": (
             abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
         ),
+        "performance_maturity": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY
+        ),
+        "performance_maturity_evidence": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_EVIDENCE
+        ),
+        "performance_maturity_outcome": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_OUTCOME
+        ),
+        "performance_selection_eligible": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_SELECTION_ELIGIBLE
+        ),
+        "dispatch_preference": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_DISPATCH_PREFERENCE
+        ),
         "operand_form": abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_OPERAND_FORM,
         "packing_layout": (
             abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PACKING_LAYOUT
@@ -1443,6 +1458,7 @@ def packed_i4_provider_feedback_tie_back(
             classification == RESULT_CLASSIFICATION_WIN
             and fields["performance_action"]
             != abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
+            and fields["performance_selection_eligible"] == "true"
         ),
         "next_repair_owner_if_no_win": (
             "RVV plugin-local Gearbox/resource/statement planning for the "
@@ -2158,6 +2174,21 @@ def run_self_test() -> int:
         ),
         "tcrv_rvv.low_precision_resource.performance_action": (
             abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
+        ),
+        "tcrv_rvv.low_precision_resource.performance_maturity": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY
+        ),
+        "tcrv_rvv.low_precision_resource.performance_maturity_evidence": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_EVIDENCE
+        ),
+        "tcrv_rvv.low_precision_resource.performance_maturity_outcome": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_OUTCOME
+        ),
+        "tcrv_rvv.low_precision_resource.performance_selection_eligible": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_SELECTION_ELIGIBLE
+        ),
+        "tcrv_rvv.low_precision_resource.dispatch_preference": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_DISPATCH_PREFERENCE
         ),
         "tcrv_rvv.low_precision_resource.operand_form": (
             abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_OPERAND_FORM

@@ -356,6 +356,29 @@ materializeLowPrecisionResourceRealizationAttrs(
             source, kRVVLowPrecisionResourcePerformanceActionAttrName,
             kRVVLowPrecisionResourcePackedI4PerformanceAction))
       return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourcePerformanceMaturityAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceMaturity))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source,
+            kRVVLowPrecisionResourcePerformanceMaturityEvidenceAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source,
+            kRVVLowPrecisionResourcePerformanceMaturityOutcomeAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source,
+            kRVVLowPrecisionResourcePerformanceSelectionEligibleAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourceDispatchPreferenceAttrName,
+            kRVVLowPrecisionResourcePackedI4DispatchPreference))
+      return std::move(error);
   }
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceProductDTypeAttrName,

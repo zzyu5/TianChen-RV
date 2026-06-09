@@ -44,6 +44,11 @@
 # WPRD-DAG: "performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
 # WPRD-DAG: "performance_best_speedup_range": "0.688427..0.705724"
 # WPRD-DAG: "performance_action": "no-win-repair-required-before-performance-claim"
+# WPRD-DAG: "performance_maturity": "executable-not-performance-mature"
+# WPRD-DAG: "performance_maturity_evidence": "same-target-packed-i4-product-pair-sum-regression-gate6.v1"
+# WPRD-DAG: "performance_maturity_outcome": "regression"
+# WPRD-DAG: "performance_selection_eligible": "false"
+# WPRD-DAG: "dispatch_preference": "not-performance-preferred"
 # WPRD-DAG: "packed_i4_statement_payload"
 # WPRD-DAG: "low_nibble_sign_extension": "shift-left-4-then-arithmetic-shift-right-4"
 # WPRD-DAG: "high_nibble_sign_extension": "arithmetic-shift-right-4"
@@ -78,6 +83,16 @@
 # INDEX-DAG: value: "0.688427..0.705724"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.performance_action"
 # INDEX-DAG: value: "no-win-repair-required-before-performance-claim"
+# INDEX-DAG: key: "tcrv_rvv.low_precision_resource.performance_maturity"
+# INDEX-DAG: value: "executable-not-performance-mature"
+# INDEX-DAG: key: "tcrv_rvv.low_precision_resource.performance_maturity_evidence"
+# INDEX-DAG: value: "same-target-packed-i4-product-pair-sum-regression-gate6.v1"
+# INDEX-DAG: key: "tcrv_rvv.low_precision_resource.performance_maturity_outcome"
+# INDEX-DAG: value: "regression"
+# INDEX-DAG: key: "tcrv_rvv.low_precision_resource.performance_selection_eligible"
+# INDEX-DAG: value: "false"
+# INDEX-DAG: key: "tcrv_rvv.low_precision_resource.dispatch_preference"
+# INDEX-DAG: value: "not-performance-preferred"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.operand_form"
 # INDEX-DAG: value: "packed-i4-nibbles"
 
@@ -89,6 +104,11 @@
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_baseline: scalar-c-reference/product-reduction-dequant-packed-i4-v1
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_best_speedup_range: 0.688427..0.705724
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_action: no-win-repair-required-before-performance-claim
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_maturity: executable-not-performance-mature
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_maturity_evidence: same-target-packed-i4-product-pair-sum-regression-gate6.v1
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_maturity_outcome: regression
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_selection_eligible: false
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.dispatch_preference: not-performance-preferred
 # HEADER-DAG: extern "C" {
 # HEADER-DAG: void tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float *out, size_t n);
 

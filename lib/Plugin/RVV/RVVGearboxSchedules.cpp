@@ -432,6 +432,29 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
             op, builder, kRVVLowPrecisionResourcePerformanceActionAttrName,
             kRVVLowPrecisionResourcePackedI4PerformanceAction)))
       return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourcePerformanceMaturityAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceMaturity)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourcePerformanceMaturityEvidenceAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourcePerformanceMaturityOutcomeAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourcePerformanceSelectionEligibleAttrName,
+            kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourceDispatchPreferenceAttrName,
+            kRVVLowPrecisionResourcePackedI4DispatchPreference)))
+      return mlir::failure();
   }
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceProductDTypeAttrName,

@@ -4650,6 +4650,16 @@ void populateRVVLowPrecisionContractionResourceRealizationSchedule(
         kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange.str();
     selection.performanceAction =
         kRVVLowPrecisionResourcePackedI4PerformanceAction.str();
+    selection.performanceMaturity =
+        kRVVLowPrecisionResourcePackedI4PerformanceMaturity.str();
+    selection.performanceMaturityEvidence =
+        kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence.str();
+    selection.performanceMaturityOutcome =
+        kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome.str();
+    selection.performanceSelectionEligible =
+        kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible.str();
+    selection.dispatchPreference =
+        kRVVLowPrecisionResourcePackedI4DispatchPreference.str();
   }
 }
 
@@ -4929,6 +4939,39 @@ llvm::Error requireRVVLowPrecisionResourceRealizationFacts(
                 op, context, selection,
                 kRVVLowPrecisionResourcePerformanceActionAttrName,
                 "performance action", selection.performanceAction))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourcePerformanceMaturityAttrName,
+                "performance maturity", selection.performanceMaturity))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourcePerformanceMaturityEvidenceAttrName,
+                "performance maturity evidence",
+                selection.performanceMaturityEvidence))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourcePerformanceMaturityOutcomeAttrName,
+                "performance maturity outcome",
+                selection.performanceMaturityOutcome))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourcePerformanceSelectionEligibleAttrName,
+                "performance selection eligibility",
+                selection.performanceSelectionEligible))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourceDispatchPreferenceAttrName,
+                "dispatch preference", selection.dispatchPreference))
       return error;
   }
   return llvm::Error::success();
@@ -5338,6 +5381,31 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
       selection.performanceAction = *value;
     else
       return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourcePerformanceMaturityAttrName))
+      selection.performanceMaturity = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourcePerformanceMaturityEvidenceAttrName))
+      selection.performanceMaturityEvidence = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourcePerformanceMaturityOutcomeAttrName))
+      selection.performanceMaturityOutcome = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourcePerformanceSelectionEligibleAttrName))
+      selection.performanceSelectionEligible = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourceDispatchPreferenceAttrName))
+      selection.dispatchPreference = *value;
+    else
+      return value.takeError();
   }
 
   selection.targetCapabilityProviderMirror = targetFacts.providerMirror;
@@ -5503,6 +5571,12 @@ bool isRVVLowPrecisionResourceSelectionEqual(
          lhs.performanceBestSpeedupRange ==
              rhs.performanceBestSpeedupRange &&
          lhs.performanceAction == rhs.performanceAction &&
+         lhs.performanceMaturity == rhs.performanceMaturity &&
+         lhs.performanceMaturityEvidence == rhs.performanceMaturityEvidence &&
+         lhs.performanceMaturityOutcome == rhs.performanceMaturityOutcome &&
+         lhs.performanceSelectionEligible ==
+             rhs.performanceSelectionEligible &&
+         lhs.dispatchPreference == rhs.dispatchPreference &&
          lhs.targetCapabilityProviderMirror ==
              rhs.targetCapabilityProviderMirror &&
          lhs.targetCapabilityLegalityMirror ==
@@ -5798,6 +5872,31 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
             context, selection, "performance action",
             selection.performanceAction,
             kRVVLowPrecisionResourcePackedI4PerformanceAction))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "performance maturity",
+            selection.performanceMaturity,
+            kRVVLowPrecisionResourcePackedI4PerformanceMaturity))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "performance maturity evidence",
+            selection.performanceMaturityEvidence,
+            kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "performance maturity outcome",
+            selection.performanceMaturityOutcome,
+            kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "performance selection eligibility",
+            selection.performanceSelectionEligible,
+            kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "dispatch preference",
+            selection.dispatchPreference,
+            kRVVLowPrecisionResourcePackedI4DispatchPreference))
       return error;
   }
   if (selection.targetCapabilityProviderMirror.empty() ||

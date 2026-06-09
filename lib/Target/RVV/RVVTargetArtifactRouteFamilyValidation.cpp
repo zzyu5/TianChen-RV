@@ -3759,10 +3759,38 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
           plugin::rvv::
               kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange))
     return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 performance action",
+          selection.performanceAction,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceAction))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 performance maturity",
+          selection.performanceMaturity,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceMaturity))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 performance maturity evidence",
+          selection.performanceMaturityEvidence,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 performance maturity outcome",
+          selection.performanceMaturityOutcome,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 performance selection eligibility",
+          selection.performanceSelectionEligible,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible))
+    return error;
   return requireRVVWideningDotContractStringField(
-      contract.consumerLabel, "packed-i4 performance action",
-      selection.performanceAction,
-      plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceAction);
+      contract.consumerLabel, "packed-i4 dispatch preference",
+      selection.dispatchPreference,
+      plugin::rvv::kRVVLowPrecisionResourcePackedI4DispatchPreference);
 }
 
 llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
@@ -5488,6 +5516,28 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
     if (llvm::Error error = requireResourceMirror(
             "tcrv_rvv.low_precision_resource.performance_action",
             selection.performanceAction, "performance action"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.performance_maturity",
+            selection.performanceMaturity, "performance maturity"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
+            selection.performanceMaturityEvidence,
+            "performance maturity evidence"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
+            selection.performanceMaturityOutcome, "performance maturity outcome"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.performance_selection_eligible",
+            selection.performanceSelectionEligible,
+            "performance selection eligibility"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.dispatch_preference",
+            selection.dispatchPreference, "dispatch preference"))
       return error;
   }
   if (llvm::Error error = requireResourceMirror(

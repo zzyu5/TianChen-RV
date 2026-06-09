@@ -6300,6 +6300,127 @@ same-target no-win evidence
   -> future performance claim requires a production repair plus new timing
 ```
 
+## Packed-I4 Performance-Maturity Selection Mirrors
+
+### 1. Scope / Trigger
+
+Use this contract when a packed-i4 low-precision RVV route is executable for
+correctness but same-target timing evidence still classifies it as no-win or
+regression. This contract separates route-supported/executable correctness from
+performance-ready selection and dispatch preference. It is not a new route id,
+not a q4/q8 benchmark authority, and not a Common EmitC semantic decision.
+
+### 2. Signatures
+
+`RVVLowPrecisionContractionResourceSelection` must carry the feedback fields
+above plus these provider-owned maturity fields:
+
+```c++
+struct RVVLowPrecisionContractionResourceSelection {
+  std::string performanceMaturity;
+  std::string performanceMaturityEvidence;
+  std::string performanceMaturityOutcome;
+  std::string performanceSelectionEligible;
+  std::string dispatchPreference;
+};
+```
+
+The accepted packed-i4 regression values are:
+
+```text
+tcrv_rvv.low_precision_resource.performance_maturity =
+  "executable-not-performance-mature"
+tcrv_rvv.low_precision_resource.performance_maturity_evidence =
+  "same-target-packed-i4-product-pair-sum-regression-gate6.v1"
+tcrv_rvv.low_precision_resource.performance_maturity_outcome =
+  "regression"
+tcrv_rvv.low_precision_resource.performance_selection_eligible =
+  "false"
+tcrv_rvv.low_precision_resource.dispatch_preference =
+  "not-performance-preferred"
+```
+
+### 3. Contracts
+
+- Gearbox/resource selection owns the five fields and attaches them to the
+  selected packed-i4 body with the existing low-precision resource facts.
+- Selected-body realization, route-family planning, statement planning, route
+  metadata, target support bundles, artifact validation, and generated-bundle
+  scripts may carry these fields only as exact mirrors of provider-owned facts.
+- `performance_maturity = "executable-not-performance-mature"` preserves
+  executable correctness support; it does not disable legality, route support,
+  artifact generation, or correctness evidence.
+- `performance_selection_eligible = "false"` and
+  `dispatch_preference = "not-performance-preferred"` block any
+  performance-ready selected-route, manifest, target artifact, dispatch, or
+  report claim until a later provider-owned schedule/resource repair plus new
+  same-target timing changes the contract.
+- Same-target measurement output is evidence input for the provider-owned
+  contract. Measurement scripts must not become route authority or silently
+  rewrite provider maturity fields.
+
+### 4. Validation & Error Matrix
+
+- Packed-i4 selected resource missing any maturity field -> fail closed before
+  statement planning or target artifact acceptance.
+- Provider facts say `performance_selection_eligible = "false"` but route,
+  candidate metadata, manifest, or header mirror says `"true"` -> fail closed at
+  provider/target validation.
+- Provider facts say `dispatch_preference = "not-performance-preferred"` but an
+  artifact mirror claims dispatch-preferred/performance-selected status -> fail
+  closed before artifact acceptance.
+- Same-target classification is `regression` or no-win and no newer timing
+  exists, but a report or script allows a performance win claim -> invalid
+  evidence boundary.
+- Common EmitC derives or modifies any of the five fields -> boundary violation;
+  Common EmitC may only carry a provider-built `TCRVEmitCLowerableRoute`.
+
+### 5. Good/Base/Bad Cases
+
+- Good: packed-i4 route is legal and generated artifact passes correctness
+  checks, while provider/target mirrors state
+  `executable-not-performance-mature`, `regression`, `false`, and
+  `not-performance-preferred`.
+- Base: sibling unpacked-byte low-precision routes keep their own resource
+  contracts and do not inherit packed-i4 maturity fields unless the RVV provider
+  defines them.
+- Bad: target artifact metadata is edited to
+  `performance_selection_eligible = "true"` while provider-owned packed-i4
+  facts still record Gate 6 regression.
+- Bad: a script or fixture path claims dispatch preference because a filename
+  contains packed-i4, without matching provider/header metadata.
+
+### 6. Tests Required
+
+- C++ provider tests asserting the five maturity fields are populated, carried
+  through route-family planning, and stale performance-selection eligibility
+  fails closed.
+- C++ target artifact tests asserting stale candidate/header maturity mirrors
+  fail closed while executable route support remains accepted.
+- MLIR/FileCheck coverage showing selected-body, statement-plan, route/header,
+  and artifact mirrors contain the exact maturity values.
+- Generated-bundle and same-target measurement self-tests asserting a
+  performance win claim is not allowed unless provider maturity and selection
+  eligibility explicitly permit it.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+packed-i4 executable artifact exists
+  -> dispatch treats it as performance preferred
+  -> report claims packed low-precision performance maturity
+```
+
+Correct:
+
+```text
+packed-i4 executable artifact exists
+  -> provider-owned maturity mirrors record regression and selection=false
+  -> dispatch/performance-ready claims fail closed until new timing repairs it
+```
+
 ## Gearbox Product-Reduce-Dequant/Clamp Cross-Region Handoff
 
 ### 1. Scope / Trigger

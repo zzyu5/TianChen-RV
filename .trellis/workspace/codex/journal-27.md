@@ -785,3 +785,49 @@ Repaired packed-i4 statement planning to use product-pair sum plus single reduct
 ### Next Steps
 
 - None - task complete
+
+## 2026-06-09 - RVV packed low-precision performance-maturity feedback Gate 1/2
+
+### Summary
+
+- Created active macro task
+  `06-09-rvv-packed-low-precision-performance-maturity-feedback-campaign`.
+- Completed Gate 1/2 slice: added provider-owned packed-i4 performance
+  maturity mirrors and wired them through Gearbox/resource facts,
+  selected-body realization, route-family planning, statement planning, route
+  metadata, target support bundle metadata, and target artifact validation.
+- The packed-i4 route remains legal/executable for correctness, but current
+  Gate 6 regression evidence is mirrored as
+  `performance_maturity = executable-not-performance-mature`,
+  `performance_maturity_outcome = regression`,
+  `performance_selection_eligible = false`, and
+  `dispatch_preference = not-performance-preferred`.
+- Updated focused C++ tests, MLIR/FileCheck fixture coverage, generated-bundle
+  scripts, and RVV plugin spec for the new maturity-selection contract.
+
+### Evidence
+
+- `rtk cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate` passed.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed after repairing
+  the low-precision resource attr verifier whitelist.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed after the same
+  verifier repair.
+- `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test` passed.
+- `rtk python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+  passed.
+- Packed-i4 ABI dry-run passed at
+  `artifacts/tmp/packed-i4-performance-maturity-dry-run/pre-realized-widening-product-reduce-dequantize-f32-packed-i4`.
+- Packed-i4 same-target dry-run passed at
+  `artifacts/tmp/packed-i4-performance-maturity-same-target-dry-run/gate4-packed-i4-same-target-measure`;
+  generated evidence contains `performance_win_claim_allowed = false`.
+- `rtk git diff --check` and Python bytecode checks passed.
+- Bounded added-diff old-authority scan found no new positive
+  `RVVI32M1`, `rvv-i32m1`, `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m`,
+  source-front-door, source-export, direct-C, q4/q8, or llama authority.
+
+### Status
+
+[OPEN] Gate 1 and Gate 2 are complete for this macro campaign. The task remains
+active by design. Next continuation point: Gate 3, connect same-target
+measurement outcome fields to the provider-owned maturity contract as evidence
+input, then finish Gate 4/5 with stale-evidence and same-target policy checks.

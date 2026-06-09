@@ -1081,6 +1081,31 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
                         familySelection.performanceAction))
     return error;
   if (llvm::Error error =
+          requireString("performance maturity",
+                        providerSelection.performanceMaturity,
+                        familySelection.performanceMaturity))
+    return error;
+  if (llvm::Error error =
+          requireString("performance maturity evidence",
+                        providerSelection.performanceMaturityEvidence,
+                        familySelection.performanceMaturityEvidence))
+    return error;
+  if (llvm::Error error =
+          requireString("performance maturity outcome",
+                        providerSelection.performanceMaturityOutcome,
+                        familySelection.performanceMaturityOutcome))
+    return error;
+  if (llvm::Error error =
+          requireString("performance selection eligibility",
+                        providerSelection.performanceSelectionEligible,
+                        familySelection.performanceSelectionEligible))
+    return error;
+  if (llvm::Error error =
+          requireString("dispatch preference",
+                        providerSelection.dispatchPreference,
+                        familySelection.dispatchPreference))
+    return error;
+  if (llvm::Error error =
           requireString("target capability provider mirror",
                         providerSelection.targetCapabilityProviderMirror,
                         familySelection.targetCapabilityProviderMirror))
@@ -1181,6 +1206,29 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
     if (llvm::Error error = requireExpectedString(
             "performance action", familySelection.performanceAction,
             kRVVLowPrecisionResourcePackedI4PerformanceAction))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "performance maturity", familySelection.performanceMaturity,
+            kRVVLowPrecisionResourcePackedI4PerformanceMaturity))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "performance maturity evidence",
+            familySelection.performanceMaturityEvidence,
+            kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "performance maturity outcome",
+            familySelection.performanceMaturityOutcome,
+            kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "performance selection eligibility",
+            familySelection.performanceSelectionEligible,
+            kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "dispatch preference", familySelection.dispatchPreference,
+            kRVVLowPrecisionResourcePackedI4DispatchPreference))
       return error;
     return llvm::Error::success();
   }

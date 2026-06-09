@@ -195,6 +195,11 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::string performanceBaseline;
   std::string performanceBestSpeedupRange;
   std::string performanceAction;
+  std::string performanceMaturity;
+  std::string performanceMaturityEvidence;
+  std::string performanceMaturityOutcome;
+  std::string performanceSelectionEligible;
+  std::string dispatchPreference;
 
   std::string targetCapabilityProviderMirror;
   std::string targetCapabilityLegalityMirror;

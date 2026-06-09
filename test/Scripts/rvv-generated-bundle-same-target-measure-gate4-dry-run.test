@@ -69,6 +69,11 @@
 # PACKED-WPRD-DAG: "performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
 # PACKED-WPRD-DAG: "performance_best_speedup_range": "0.688427..0.705724"
 # PACKED-WPRD-DAG: "performance_action": "no-win-repair-required-before-performance-claim"
+# PACKED-WPRD-DAG: "performance_maturity": "executable-not-performance-mature"
+# PACKED-WPRD-DAG: "performance_maturity_evidence": "same-target-packed-i4-product-pair-sum-regression-gate6.v1"
+# PACKED-WPRD-DAG: "performance_maturity_outcome": "regression"
+# PACKED-WPRD-DAG: "performance_selection_eligible": "false"
+# PACKED-WPRD-DAG: "dispatch_preference": "not-performance-preferred"
 # PACKED-WPRD-DAG: "performance_win_claim_allowed": false
 # PACKED-WPRD-DAG: "next_repair_owner_if_no_win": "RVV plugin-local Gearbox/resource/statement planning for the selected packed-i4 product-reduction candidate"
 # PACKED-WPRD-DAG: "packed_i4_resource_metadata_selected": true

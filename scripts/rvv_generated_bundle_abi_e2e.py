@@ -699,6 +699,21 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BEST_SPEEDUP_RANGE 
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION = (
     "no-win-repair-required-before-performance-claim"
 )
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY = (
+    "executable-not-performance-mature"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_EVIDENCE = (
+    "same-target-packed-i4-product-pair-sum-regression-gate6.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_OUTCOME = (
+    "regression"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_SELECTION_ELIGIBLE = (
+    "false"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_DISPATCH_PREFERENCE = (
+    "not-performance-preferred"
+)
 LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER = (
     "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
 )
@@ -8327,6 +8342,11 @@ LOW_PRECISION_RESOURCE_METADATA_KEYS = (
     "tcrv_rvv.low_precision_resource.performance_baseline",
     "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
     "tcrv_rvv.low_precision_resource.performance_action",
+    "tcrv_rvv.low_precision_resource.performance_maturity",
+    "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
+    "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
+    "tcrv_rvv.low_precision_resource.performance_selection_eligible",
+    "tcrv_rvv.low_precision_resource.dispatch_preference",
     "tcrv_rvv.low_precision_resource.target_capability_provider_mirror",
     "tcrv_rvv.low_precision_resource.target_capability_legality_mirror",
     "tcrv_rvv.low_precision_resource.legality",
@@ -9262,6 +9282,21 @@ def product_dequant_low_precision_resource_profile(
             "performance_action": (
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
             ),
+            "performance_maturity": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY
+            ),
+            "performance_maturity_evidence": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_EVIDENCE
+            ),
+            "performance_maturity_outcome": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_OUTCOME
+            ),
+            "performance_selection_eligible": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_SELECTION_ELIGIBLE
+            ),
+            "dispatch_preference": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_DISPATCH_PREFERENCE
+            ),
         }
     is_product_dequant_clamp = (
         expectation.is_widening_product_reduce_dequant_clamp_f32
@@ -9376,6 +9411,17 @@ def expected_low_precision_resource_metadata(
                     "performance_best_speedup_range"
                 ],
                 "performance_action": profile["performance_action"],
+                "performance_maturity": profile["performance_maturity"],
+                "performance_maturity_evidence": profile[
+                    "performance_maturity_evidence"
+                ],
+                "performance_maturity_outcome": profile[
+                    "performance_maturity_outcome"
+                ],
+                "performance_selection_eligible": profile[
+                    "performance_selection_eligible"
+                ],
+                "dispatch_preference": profile["dispatch_preference"],
             }
         )
     return {
@@ -12216,6 +12262,11 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
             "tcrv_rvv.low_precision_resource.performance_baseline",
             "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
             "tcrv_rvv.low_precision_resource.performance_action",
+            "tcrv_rvv.low_precision_resource.performance_maturity",
+            "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
+            "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
+            "tcrv_rvv.low_precision_resource.performance_selection_eligible",
+            "tcrv_rvv.low_precision_resource.dispatch_preference",
         ):
             comment_key = "tianchenrv.rvv." + key.removeprefix("tcrv_rvv.")
             require_contains(
@@ -33598,6 +33649,36 @@ def widening_product_reduction_boundary_summary(
                     ),
                     "expected_performance_action": resource_profile[
                         "performance_action"
+                    ],
+                    "performance_maturity": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.performance_maturity"
+                    ),
+                    "expected_performance_maturity": resource_profile[
+                        "performance_maturity"
+                    ],
+                    "performance_maturity_evidence": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.performance_maturity_evidence"
+                    ),
+                    "expected_performance_maturity_evidence": resource_profile[
+                        "performance_maturity_evidence"
+                    ],
+                    "performance_maturity_outcome": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.performance_maturity_outcome"
+                    ),
+                    "expected_performance_maturity_outcome": resource_profile[
+                        "performance_maturity_outcome"
+                    ],
+                    "performance_selection_eligible": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.performance_selection_eligible"
+                    ),
+                    "expected_performance_selection_eligible": resource_profile[
+                        "performance_selection_eligible"
+                    ],
+                    "dispatch_preference": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.dispatch_preference"
+                    ),
+                    "expected_dispatch_preference": resource_profile[
+                        "dispatch_preference"
                     ],
                 }
             )

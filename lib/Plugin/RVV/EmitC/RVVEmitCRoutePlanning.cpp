@@ -43100,6 +43100,19 @@ getRVVSelectedBodyConfigArtifactMetadata(
            selection.performanceBestSpeedupRange});
       metadata.push_back({"tcrv_rvv.low_precision_resource.performance_action",
                           selection.performanceAction});
+      metadata.push_back({"tcrv_rvv.low_precision_resource.performance_maturity",
+                          selection.performanceMaturity});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.performance_maturity_evidence",
+           selection.performanceMaturityEvidence});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.performance_maturity_outcome",
+           selection.performanceMaturityOutcome});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.performance_selection_eligible",
+           selection.performanceSelectionEligible});
+      metadata.push_back({"tcrv_rvv.low_precision_resource.dispatch_preference",
+                          selection.dispatchPreference});
     }
     metadata.push_back(
         {"tcrv_rvv.low_precision_resource.target_capability_provider_mirror",

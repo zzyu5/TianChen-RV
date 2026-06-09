@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/index.md", "reason": "Global RVV-first authority chain, Stage 2 performance boundary, and metadata mirror rules."}
+{"file": ".trellis/spec/extension-plugins/index.md", "reason": "RVV plugin pre-development checklist for provider-owned capability, legality, tuning, and emission behavior."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV low-precision resource facts, selected-body realization, performance layer, and target artifact validator contracts."}
+{"file": ".trellis/spec/lowering-runtime/index.md", "reason": "Lowering/runtime checklist that keeps extension semantics out of Common EmitC."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and mirror-only target artifact contract."}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Selection/tuning checklist for performance-sensitive RVV work."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Resource-aware selected-body realization and measured same-target comparison policy."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Testing checklist for production-path compiler changes."}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused C++/lit/runtime evidence requirements for RVV performance and generated-bundle claims."}
+{"file": ".trellis/tasks/06-09-rvv-packed-low-precision-performance-maturity-feedback-campaign/prd.md", "reason": "Current macro PRD, Gate 1/2 slice, acceptance criteria, and continuation point."}
+{"file": ".trellis/tasks/archive/2026-06/06-09-rvv-production-kernel-packed-low-precision-performance-repair-campaign/prd.md", "reason": "Previous packed-i4 repair endpoint and Gate 6 regression evidence context."}
