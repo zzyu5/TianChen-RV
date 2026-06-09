@@ -6,12 +6,10 @@ Advance the RVV Stage 2 packed-i4 production-kernel path beyond the accepted
 same-target no-win/regression evidence. This macro campaign must turn that
 diagnosis into RVV plugin-owned selected-body/resource remediation, provider
 and target validation, same-target measurement, and dispatch/performance policy
-consumption. Gate 1 is complete. The current round owns Gate 2 only: strengthen
-the provider/target validation boundary so route metadata, target artifact
-metadata, generated headers, and support-bundle mirrors can expose packed-i4
-resource/remediation/performance facts only as exact mirrors of provider-owned
-selection facts, and must fail closed on metadata-only performance, dispatch, or
-win claims.
+consumption. Gates 1 and 2 are complete. The current round owns Gate 3 only:
+run the repaired generated packed-i4 artifact through the same-target
+measurement path on `ssh rvv`, record raw and structured evidence, and leave
+dispatch/performance policy consumption for Gate 4.
 
 ## What I already know
 
@@ -35,53 +33,76 @@ win claims.
 
 - Keep this as one macro Trellis task until all campaign gates are complete or
   human steering redirects it.
-- Implement the current round as a coherent Gate 2 production validation slice
-  in RVV provider/target route-family validation, target artifact candidate
-  mirror validation, support-bundle/header export, or directly related tests.
-- Consume the Gate 1 packed-i4 no-win remediation/resource facts as
-  provider-owned facts at the validation boundary; route metadata, target
-  metadata, generated headers, and bundle indexes are mirrors only.
-- Fail closed when stale, missing, contradictory, or metadata-only
-  remediation/resource/performance fields attempt to authorize packed-i4
-  remediation, performance-preferred dispatch, or win claims.
-- Reject extra artifact/header metadata fields that are not provider-owned
-  selection facts but try to claim packed-i4 performance readiness, dispatch
-  preference, or win permission.
+- Implement the current round as a coherent Gate 3 same-target measurement
+  slice for the accepted packed-i4 widening product-reduce-dequantize f32
+  representative.
+- Reuse the production generated-artifact path: selected/pre-realized typed
+  `tcrv_rvv` body, RVV plugin selected-body/resource realization,
+  provider-built route, common EmitC materialization, target artifact export,
+  generated object/header, external measurement harness, and `ssh rvv`.
+- Select the packed scalar C baseline only after generated object/header
+  metadata validates the provider-owned `packed-i4-nibbles` resource facts.
+- Record evidence that distinguishes correctness execution, real runtime
+  measurement, no-win/regression classification, performance-win eligibility,
+  and Gate 4 policy handoff input.
+- Treat measurement output as evidence input only. It must not rewrite
+  provider-owned resource facts, target artifact mirrors, dispatch preference,
+  or performance win permission.
 - Do not use q4/q8/llama labels, route ids, artifact names, test names,
   Common EmitC branches, descriptor residue, or source-front-door metadata as
   route authority.
-- Do not claim a runtime, correctness, or performance improvement in this
-  round unless real `ssh rvv` evidence is collected after the production change.
+- Do not claim a performance improvement unless real `ssh rvv` measurement
+  classifies as a win and provider-owned facts make such a claim eligible.
 
 ## Macro Campaign Gates
 
 - [x] Gate 1: production selected-body or primitive-surface remediation for one
   packed-i4 contraction/dequant path, with fail-closed validation of stale
   resource/remediation facts.
-- [ ] Gate 2: provider and target validation mirror only provider-owned
+- [x] Gate 2: provider and target validation mirror only provider-owned
   resource/remediation facts and reject metadata-only win claims.
-- [ ] Gate 3: same-target measurement compares repaired generated artifacts on
+- [x] Gate 3: same-target measurement compares repaired generated artifacts on
   `ssh rvv` against the prior fallback/no-win path with structured
   accepted/rejected evidence.
 - [ ] Gate 4: dispatch/performance policy consumes the new evidence and either
   selects performance-preferred with all required tie-backs or preserves
   correctness fallback with a structured reason.
 
-## Current Round Slice: Gate 2
+## Current Round Slice: Gate 3
 
-- [x] Keep Gate 1 provider-owned packed-i4 facts as the only authority for
-  remediation/resource/performance mirrors at provider and target validation.
-- [x] Add or strengthen production target/provider checks so metadata-only
-  performance/win/dispatch claim fields fail closed before target artifact or
-  header acceptance.
-- [x] Add focused positive coverage for valid provider-owned packed-i4
-  remediation/resource/performance mirrors.
-- [x] Add focused negative coverage for stale, missing, contradictory, or
-  metadata-only performance/win mirrors.
-- [x] Run focused C++ tests and directly relevant lit if target artifact/header
-  output changes.
-- [x] Keep the macro task active after the committed Gate 2 slice because Gates
-  3 and 4 remain.
+- [x] Confirm the existing measurement workflow still generates and validates
+  the repaired packed-i4 target artifact from the selected typed body without
+  new source-front-door, descriptor, q4/q8, or metadata authority.
+- [x] Run a focused dry-run/self-test proving the same-target harness structure,
+  packed-i4 baseline selection from validated metadata, and structured
+  not-measured handoff remain intact.
+- [x] Run a real non-dry-run `ssh rvv` same-target measurement for
+  `widening_product_reduce_dequantize_f32` using the packed-i4 pre-realized
+  selected-body fixture and the campaign input sizes.
+- [x] Record the artifact root, raw remote target profile, compile stdout, run
+  stdout, parsed measurement records, parsed summary records, classification,
+  and performance-win eligibility.
+- [x] If the result is no-win or regression, preserve correctness execution but
+  keep Gate 4 conservative; do not invent a performance win claim.
+- [x] Keep the macro task active after the Gate 3 slice because Gate 4 remains.
+
+Gate 3 slice completed in this round: no production source change was required.
+The existing `rvv_generated_bundle_same_target_measure.py` workflow already
+generates and validates the repaired packed-i4 artifact, selects the packed
+scalar baseline only from validated provider-owned `packed-i4-nibbles` metadata,
+runs correctness guards before timing, parses same-target timing, and emits a
+policy-consumable packed-i4 maturity evidence input without changing provider
+facts or dispatch policy. The real run at
+`artifacts/tmp/codex-gate3-packed-i4-real/gate3-packed-i4-same-target-measure-ssh`
+completed on `ssh rvv` with 12 correctness records, 60 raw `MEASURE` records,
+12 parsed `SUMMARY` records, classification `regression`, outcome family
+`no-win`, best speedup range `0.683805..0.705257`,
+`provider_performance_selection_eligible = false`,
+`provider_dispatch_preference = not-performance-preferred`,
+`performance_win_claim_allowed = false`, and
+`correctness_execution_allowed = true`.
+
+## Completed Slice: Gate 2
 
 Gate 2 slice completed in this round: the RVV target artifact route-family
 validator now rejects packed-i4 metadata-only performance/win/dispatch claim
@@ -119,23 +140,31 @@ evidence is claimed.
 
 ## Acceptance Criteria
 
-- [x] Production source diff changes provider/target validation,
-  support-bundle/header export, route planning, or directly related validation
-  owner code for the packed-i4 representative.
-- [x] Tests prove the accepted packed-i4 target artifact path carries only
-  exact provider-owned resource/remediation/performance mirrors while retaining
-  correctness fallback / not-performance-preferred status.
-- [x] Tests prove stale, missing, contradictory, or metadata-only
-  performance/win/dispatch claim fields fail closed before target artifact,
-  header, support-bundle, performance-preferred dispatch, or win acceptance.
+- [x] The current repaired packed-i4 generated artifact is measured on real
+  `ssh rvv`, or the blocking hardware/plumbing failure is recorded with the
+  exact continuation command and no runtime/performance claim is made.
+- [x] Per-op evidence contains generated object/header identity and hashes,
+  selected input/variant, packed scalar baseline identity, correctness guards
+  before timing, raw `MEASURE` records, parsed `SUMMARY` records, target
+  profile, compile flags, timing method, and result classification.
+- [x] Structured evidence contains provider-owned packed-i4 tie-back fields and
+  a policy-consumable handoff distinguishing correctness execution allowed,
+  performance preference denied/allowed, performance win claim eligibility, and
+  provider contract update requirement.
+- [x] Measurement evidence is treated as input only; no dispatch/performance
+  policy is changed in Gate 3, and Gate 4 remains responsible for consuming the
+  evidence.
+- [x] Focused script self-test/dry-run or lit coverage passes for the measured
+  workflow. If no source files changed, record the no-source-change justification
+  and still run the relevant script checks.
 - [x] Bounded old-authority scan over touched files and added diff lines finds
   no new legacy `RVVI32M1`, `rvv-i32m1`, dtype-prefixed helper route authority,
   source-front-door authority, descriptor-driven computation, q4/q8/llama
   route authority, Common EmitC semantic branching, or exact i32m1 intrinsic
   authority.
 - [x] `git diff --check` and `git diff --cached --check` pass.
-- [ ] One coherent commit records the Gate 2 slice.
-- [x] `.trellis/.current-task` remains active and the PRD/journal name Gate 3
+- [x] One coherent commit records the Gate 3 slice.
+- [x] `.trellis/.current-task` remains active and the PRD/journal name Gate 4
   as the next continuation point unless all campaign gates are genuinely
   complete.
 
@@ -163,7 +192,8 @@ evidence is claimed.
 
 ## Continuation Point
 
-Gate 3 is the next owner: collect same-target `ssh rvv` comparison only after a
-repaired generated artifact is available. Gate 4 then consumes that evidence in
-dispatch/performance policy. The macro task must remain active until Gates 3
-and 4 are complete or human steering redirects it.
+Gate 4 is the next owner: dispatch/performance policy must consume the Gate 3
+same-target regression/no-win evidence and either preserve conservative
+correctness fallback or explicitly permit a performance-preferred path only if
+all provider-owned measured facts support it. The macro task must remain active
+until Gate 4 is complete or human steering redirects it.

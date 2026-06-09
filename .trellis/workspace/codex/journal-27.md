@@ -1754,3 +1754,82 @@ remains active because Gates 3 and 4 are not complete.
 Continue with Gate 3: collect same-target `ssh rvv` comparison only after a
 repaired generated artifact is available, then let Gate 4 consume that evidence
 in dispatch/performance policy.
+
+## 2026-06-10 - RVV Packed-I4 Production-Kernel Campaign Gate 3
+
+### Summary
+
+- Continued the active macro task
+  `06-09-rvv-packed-i4-production-kernel-resource-aware-realization-campaign`.
+- Completed Gate 3 as a same-target generated-artifact measurement slice for
+  the repaired packed-i4 widening product-reduce-dequantize f32 path.
+- No production source change was required. The existing same-target
+  measurement workflow already generates and validates the repaired packed-i4
+  target artifact, selects the packed scalar baseline only after validated
+  provider-owned `packed-i4-nibbles` metadata, runs correctness guards before
+  timing, parses raw timing records, and emits a policy-consumable maturity
+  evidence input without changing provider facts or dispatch policy.
+- The real `ssh rvv` measurement classified the current generated artifact as
+  `regression`, outcome family `no-win`, not a performance win.
+- The structured handoff preserves `correctness_execution_allowed = true`,
+  `provider_performance_selection_eligible = false`,
+  `provider_dispatch_preference = not-performance-preferred`, and
+  `performance_win_claim_allowed = false`.
+
+### Evidence
+
+- `rtk python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+  passed.
+- Packed-i4 focused dry-run passed at
+  `artifacts/tmp/codex-gate3-packed-i4-dry-run/gate3-packed-i4-same-target-measure-dry`
+  and remained `classification = not-measured`.
+- Real same-target run passed:
+  `rtk python3 scripts/rvv_generated_bundle_same_target_measure.py --artifact-root artifacts/tmp/codex-gate3-packed-i4-real --run-id gate3-packed-i4-same-target-measure-ssh --overwrite --op-kind widening_product_reduce_dequantize_f32 --input test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir --measure-count 257 --measure-count 4096 --measure-count 65536 --warmup-count 2 --repeat-count 5 --measure-iterations 8 --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj --ssh-target rvv`.
+- Real evidence root:
+  `artifacts/tmp/codex-gate3-packed-i4-real/gate3-packed-i4-same-target-measure-ssh`.
+- Per-op evidence:
+  `artifacts/tmp/codex-gate3-packed-i4-real/gate3-packed-i4-same-target-measure-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`.
+- Remote target profile recorded `ssh_target=rvv`, `remote_arch=riscv64`, 64
+  CPUs, and Ubuntu clang 18.1.3.
+- Remote run stdout contains 12 correctness records, 12
+  `CORRECTNESS_GUARD_BEFORE_TIMING` records, 60 raw `MEASURE` records, 12 parsed
+  `SUMMARY` records, and a final `PASS`.
+- Structured result: `classification = regression`, `outcome_family = no-win`,
+  `best_speedup_range = 0.683805..0.705257`, `summary_record_count = 12`,
+  `measurement_record_count = 60`, `correctness_record_count = 12`,
+  `performance_win_claim_allowed = false`, and
+  `provider_contract_update_required = false`.
+- `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test` passed.
+- Focused lit from `build/test` passed for
+  `rvv-generated-bundle-same-target-measure-gate4`.
+- Focused lit from `build/test` passed for
+  `rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequantize-f32-packed-i4`.
+
+### Self-Repair
+
+- The first dry-run used an unavailable `/usr/bin/llvm-readobj` path and failed
+  before bundle evidence generation. The rerun used the script-resolved LLVM 20
+  tool path `/usr/lib/llvm-20/bin/llvm-readobj` and passed.
+
+### Spec Update Decision
+
+[NO CHANGE] Existing RVV plugin, EmitC-route, and MLIR testing specs already
+document the same-target measurement contract, packed-i4 baseline selection
+from validated provider metadata, structured win/no-win/regression
+classification, maturity evidence input, Common EmitC neutrality, and real
+`ssh rvv` evidence requirement. This slice exercised that existing contract on
+the current repaired Gate 1/2 path without adding a new cross-layer API or
+compiler behavior.
+
+### Status
+
+[OPEN] Gate 3 is complete, but the packed-i4 production-kernel macro campaign
+remains active because Gate 4 dispatch/performance policy consumption is not
+complete.
+
+### Continuation
+
+Continue with Gate 4: dispatch/performance policy must consume the Gate 3
+same-target regression/no-win evidence and preserve conservative correctness
+fallback unless provider-owned measured facts explicitly justify a
+performance-preferred path.
