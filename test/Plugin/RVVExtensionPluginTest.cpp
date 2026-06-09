@@ -9721,9 +9721,19 @@ module {
                   "not-performance-preferred" &&
               packedI4PerformancePolicy
                       ->performancePreferenceDenialReason ==
-                  "same-target-measurement-no-win-or-regression",
+                  "same-target-measurement-no-win-or-regression" &&
+              packedI4PerformancePolicy->handoff.handoffContract ==
+                  "rvv-low-precision-packed-i4-measurement-policy-handoff.v1" &&
+              packedI4PerformancePolicy->handoff.diagnosisKind ==
+                  "correctness-supported-no-win-regression" &&
+              packedI4PerformancePolicy->handoff.correctnessSupported &&
+              packedI4PerformancePolicy->handoff.noWin &&
+              packedI4PerformancePolicy->handoff.regression &&
+              packedI4PerformancePolicy->handoff.acceptedForDispatchPolicy &&
+              !packedI4PerformancePolicy->handoff.performancePreferredOutcome,
           "packed-i4 Gate 5 policy consumes accepted regression/no-win "
-          "measurement without promoting performance dispatch"))
+          "measurement through a structured handoff without promoting "
+          "performance dispatch"))
     return result;
 
   tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
@@ -9773,6 +9783,25 @@ module {
     return result;
 
   tianchenrv::plugin::rvv::RVVLowPrecisionContractionResourceSelection
+      stalePackedI4SiblingSelection = packedI4ResourceSelection;
+  stalePackedI4SiblingSelection.selectedCandidateID =
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourceDequantClampPackedI4Candidate.str();
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionPerformancePolicy(
+                  stalePackedI4SiblingSelection,
+                  acceptedPackedI4Gate4Outcome,
+                  "selected-boundary packed-i4 Gate 1 policy handoff rejects "
+                  "stale sibling-route measurement"),
+          {"policy handoff diagnosis", "stale-sibling-route-measurement",
+           tianchenrv::plugin::rvv::
+               kRVVLowPrecisionResourceDequantPackedI4Candidate,
+           tianchenrv::plugin::rvv::
+               kRVVLowPrecisionResourceDequantClampPackedI4Candidate}))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVLowPrecisionContractionResourceSelection
       stalePackedI4PrimitiveSelection = packedI4ResourceSelection;
   stalePackedI4PrimitiveSelection.primitiveReductionIntrinsic =
       "artifact-derived-reduction";
@@ -9801,8 +9830,8 @@ module {
                   packedI4ResourceSelection, stalePackedI4WinClaimOutcome,
                   "selected-boundary packed-i4 Gate 5 dispatch/performance "
                   "policy rejects measurement-only win promotion"),
-          {"dispatch/performance policy", "measurement classification",
-           "regression", "win"}))
+          {"policy handoff diagnosis", "performance-preferred-measured-win",
+           "measurement classification", "regression", "win"}))
     return result;
 
   auto packedI4ProductDequantSelectedStatementPlan =

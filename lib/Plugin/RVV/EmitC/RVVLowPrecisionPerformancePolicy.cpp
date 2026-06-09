@@ -13,6 +13,8 @@ namespace {
 
 constexpr llvm::StringLiteral kPackedI4PerformancePolicyContract(
     "rvv-low-precision-packed-i4-dispatch-performance-policy.v1");
+constexpr llvm::StringLiteral kPackedI4PerformancePolicyHandoffContract(
+    "rvv-low-precision-packed-i4-measurement-policy-handoff.v1");
 constexpr llvm::StringLiteral kPackedI4MeasurementInputContract(
     "packed-i4-same-target-performance-maturity-evidence-input.v1");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementEvidenceID(
@@ -320,6 +322,47 @@ llvm::Error verifyPackedI4MeasurementOutcome(
                              kPackedI4RouteSupportEffect);
 }
 
+bool attemptsPerformancePreferredPackedI4Outcome(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionPerformanceMeasurementOutcome &outcome) {
+  return outcome.measurementClassification == "win" ||
+         outcome.measurementOutcomeFamily == "win" ||
+         !outcome.performancePreferenceDenied ||
+         outcome.performanceWinClaimAllowed ||
+         selection.performanceSelectionEligible == "true" ||
+         selection.dispatchPreference == "performance-preferred";
+}
+
+llvm::Error verifyPackedI4PolicyOutcomeConsistency(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    llvm::StringRef context) {
+  if (llvm::StringRef(selection.performanceMaturity) !=
+      kRVVLowPrecisionResourcePackedI4PerformanceMaturity)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider maturity to remain executable-not-performance-"
+        "mature for the accepted Gate 4 regression/no-win outcome");
+  if (llvm::StringRef(selection.performanceMaturityOutcome) !=
+      kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider maturity outcome 'regression' for the accepted "
+        "Gate 4 no-win measurement");
+  if (llvm::StringRef(selection.performanceSelectionEligible) !=
+      kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider performance-selection eligibility 'false' until "
+        "a newer provider contract update validates a measured win");
+  if (llvm::StringRef(selection.dispatchPreference) !=
+      kRVVLowPrecisionResourcePackedI4DispatchPreference)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires dispatch preference 'not-performance-preferred' for the "
+        "accepted Gate 4 regression/no-win measurement");
+  return llvm::Error::success();
+}
+
 } // namespace
 
 RVVLowPrecisionPerformanceMeasurementOutcome
@@ -362,51 +405,140 @@ getAcceptedRVVPackedI4Gate4MeasurementOutcome() {
   return outcome;
 }
 
+llvm::StringRef stringifyRVVLowPrecisionPerformanceMeasurementDiagnosisKind(
+    RVVLowPrecisionPerformanceMeasurementDiagnosisKind kind) {
+  switch (kind) {
+  case RVVLowPrecisionPerformanceMeasurementDiagnosisKind::
+      CorrectnessSupportedNoWinRegression:
+    return "correctness-supported-no-win-regression";
+  case RVVLowPrecisionPerformanceMeasurementDiagnosisKind::StaleMeasurement:
+    return "stale-measurement";
+  case RVVLowPrecisionPerformanceMeasurementDiagnosisKind::
+      StaleSiblingRouteMeasurement:
+    return "stale-sibling-route-measurement";
+  case RVVLowPrecisionPerformanceMeasurementDiagnosisKind::
+      PerformancePreferredMeasuredWin:
+    return "performance-preferred-measured-win";
+  }
+  return "unknown";
+}
+
+RVVLowPrecisionPerformancePolicyHandoff
+diagnoseRVVLowPrecisionPerformancePolicyHandoff(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
+    llvm::StringRef context) {
+  RVVLowPrecisionPerformancePolicyHandoff handoff;
+  handoff.handoffContract = kPackedI4PerformancePolicyHandoffContract.str();
+  handoff.selectedCandidateID = selection.selectedCandidateID;
+  handoff.expectedSelectedCandidateID =
+      kRVVLowPrecisionResourceDequantPackedI4Candidate.str();
+  handoff.measurementEvidenceID = outcome.measurementEvidenceID;
+  handoff.measurementClassification = outcome.measurementClassification;
+  handoff.measurementOutcomeFamily = outcome.measurementOutcomeFamily;
+  handoff.dispatchPreference = selection.dispatchPreference;
+  handoff.performancePreferenceDenialReason =
+      outcome.performancePreferenceDenialReason;
+
+  auto classifyFailure =
+      [&](RVVLowPrecisionPerformanceMeasurementDiagnosisKind kind,
+          llvm::Twine reason) {
+        handoff.diagnosisKind =
+            stringifyRVVLowPrecisionPerformanceMeasurementDiagnosisKind(kind)
+                .str();
+        handoff.failureReason = reason.str();
+        handoff.staleMeasurement =
+            kind == RVVLowPrecisionPerformanceMeasurementDiagnosisKind::
+                        StaleMeasurement ||
+            kind == RVVLowPrecisionPerformanceMeasurementDiagnosisKind::
+                        StaleSiblingRouteMeasurement;
+        handoff.staleSiblingRouteMeasurement =
+            kind == RVVLowPrecisionPerformanceMeasurementDiagnosisKind::
+                        StaleSiblingRouteMeasurement;
+        handoff.performancePreferredOutcome =
+            kind == RVVLowPrecisionPerformanceMeasurementDiagnosisKind::
+                        PerformancePreferredMeasuredWin;
+      };
+
+  if (selection.hasSelection &&
+      isRVVLowPrecisionResourcePackedI4CandidateID(
+          selection.selectedCandidateID) &&
+      llvm::StringRef(selection.selectedCandidateID) !=
+          kRVVLowPrecisionResourceDequantPackedI4Candidate) {
+    classifyFailure(
+        RVVLowPrecisionPerformanceMeasurementDiagnosisKind::
+            StaleSiblingRouteMeasurement,
+        llvm::Twine(context) +
+            " diagnosed stale sibling-route measurement: accepted Gate 4 "
+            "packed-i4 selected candidate '" +
+            kRVVLowPrecisionResourceDequantPackedI4Candidate +
+            "' cannot authorize sibling candidate '" +
+            selection.selectedCandidateID + "'");
+    return handoff;
+  }
+
+  llvm::Error verificationError = verifyPackedI4SelectionFacts(
+      selection, (llvm::Twine(context) + " policy handoff").str());
+  if (!verificationError)
+    verificationError = verifyPackedI4MeasurementOutcome(
+        selection, outcome, (llvm::Twine(context) + " policy handoff").str());
+  if (!verificationError)
+    verificationError = verifyPackedI4PolicyOutcomeConsistency(
+        selection, (llvm::Twine(context) + " policy handoff").str());
+  if (verificationError) {
+    RVVLowPrecisionPerformanceMeasurementDiagnosisKind kind =
+        attemptsPerformancePreferredPackedI4Outcome(selection, outcome)
+            ? RVVLowPrecisionPerformanceMeasurementDiagnosisKind::
+                  PerformancePreferredMeasuredWin
+            : RVVLowPrecisionPerformanceMeasurementDiagnosisKind::
+                  StaleMeasurement;
+    classifyFailure(kind, llvm::toString(std::move(verificationError)));
+    return handoff;
+  }
+
+  handoff.diagnosisKind =
+      stringifyRVVLowPrecisionPerformanceMeasurementDiagnosisKind(
+          RVVLowPrecisionPerformanceMeasurementDiagnosisKind::
+              CorrectnessSupportedNoWinRegression)
+          .str();
+  handoff.correctnessSupported = true;
+  handoff.noWin = outcome.measurementOutcomeFamily == "no-win";
+  handoff.regression = outcome.measurementClassification == "regression";
+  handoff.acceptedForDispatchPolicy = true;
+  handoff.routeSupportAllowed = selection.isLegal;
+  handoff.correctnessExecutionAllowed = outcome.correctnessExecutionAllowed;
+  handoff.performanceSelectionAllowed = false;
+  handoff.performanceWinClaimAllowed = false;
+  return handoff;
+}
+
 llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
 evaluateRVVLowPrecisionPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
     llvm::StringRef context) {
-  if (llvm::Error error = verifyPackedI4SelectionFacts(selection, context))
-    return std::move(error);
-  if (llvm::Error error =
-          verifyPackedI4MeasurementOutcome(selection, outcome, context))
-    return std::move(error);
-
-  if (llvm::StringRef(selection.performanceMaturity) !=
-      kRVVLowPrecisionResourcePackedI4PerformanceMaturity)
+  RVVLowPrecisionPerformancePolicyHandoff handoff =
+      diagnoseRVVLowPrecisionPerformancePolicyHandoff(selection, outcome,
+                                                      context);
+  if (!handoff.acceptedForDispatchPolicy)
     return makeRVVLowPrecisionPerformancePolicyError(
-        llvm::Twine(context) +
-        " requires provider maturity to remain executable-not-performance-"
-        "mature for the accepted Gate 4 regression/no-win outcome");
-  if (llvm::StringRef(selection.performanceMaturityOutcome) !=
-      kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome)
-    return makeRVVLowPrecisionPerformancePolicyError(
-        llvm::Twine(context) +
-        " requires provider maturity outcome 'regression' for the accepted "
-        "Gate 4 no-win measurement");
-  if (llvm::StringRef(selection.performanceSelectionEligible) !=
-      kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible)
-    return makeRVVLowPrecisionPerformancePolicyError(
-        llvm::Twine(context) +
-        " requires provider performance-selection eligibility 'false' until "
-        "a newer provider contract update validates a measured win");
-  if (llvm::StringRef(selection.dispatchPreference) !=
-      kRVVLowPrecisionResourcePackedI4DispatchPreference)
-    return makeRVVLowPrecisionPerformancePolicyError(
-        llvm::Twine(context) +
-        " requires dispatch preference 'not-performance-preferred' for the "
-        "accepted Gate 4 regression/no-win measurement");
+        llvm::Twine(context) + " policy handoff diagnosis '" +
+        handoff.diagnosisKind + "' is not accepted: " +
+        handoff.failureReason);
 
   RVVLowPrecisionPerformancePolicyDecision decision;
   decision.policyContract = kPackedI4PerformancePolicyContract.str();
-  decision.routeSupportAllowed = selection.isLegal;
-  decision.correctnessExecutionAllowed = outcome.correctnessExecutionAllowed;
-  decision.performanceSelectionAllowed = false;
-  decision.performanceWinClaimAllowed = false;
-  decision.dispatchPreference = selection.dispatchPreference;
+  decision.handoff = std::move(handoff);
+  decision.routeSupportAllowed = decision.handoff.routeSupportAllowed;
+  decision.correctnessExecutionAllowed =
+      decision.handoff.correctnessExecutionAllowed;
+  decision.performanceSelectionAllowed =
+      decision.handoff.performanceSelectionAllowed;
+  decision.performanceWinClaimAllowed =
+      decision.handoff.performanceWinClaimAllowed;
+  decision.dispatchPreference = decision.handoff.dispatchPreference;
   decision.performancePreferenceDenialReason =
-      outcome.performancePreferenceDenialReason;
+      decision.handoff.performancePreferenceDenialReason;
   return decision;
 }
 

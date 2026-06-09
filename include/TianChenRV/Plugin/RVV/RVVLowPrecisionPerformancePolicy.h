@@ -40,8 +40,42 @@ struct RVVLowPrecisionPerformanceMeasurementOutcome {
   std::string routeSupportEffect;
 };
 
+enum class RVVLowPrecisionPerformanceMeasurementDiagnosisKind {
+  CorrectnessSupportedNoWinRegression,
+  StaleMeasurement,
+  StaleSiblingRouteMeasurement,
+  PerformancePreferredMeasuredWin,
+};
+
+struct RVVLowPrecisionPerformancePolicyHandoff {
+  std::string handoffContract;
+  std::string diagnosisKind;
+  std::string selectedCandidateID;
+  std::string expectedSelectedCandidateID;
+  std::string measurementEvidenceID;
+  std::string measurementClassification;
+  std::string measurementOutcomeFamily;
+
+  bool correctnessSupported = false;
+  bool noWin = false;
+  bool regression = false;
+  bool staleMeasurement = false;
+  bool staleSiblingRouteMeasurement = false;
+  bool performancePreferredOutcome = false;
+  bool acceptedForDispatchPolicy = false;
+
+  bool routeSupportAllowed = false;
+  bool correctnessExecutionAllowed = false;
+  bool performanceSelectionAllowed = false;
+  bool performanceWinClaimAllowed = false;
+  std::string dispatchPreference;
+  std::string performancePreferenceDenialReason;
+  std::string failureReason;
+};
+
 struct RVVLowPrecisionPerformancePolicyDecision {
   std::string policyContract;
+  RVVLowPrecisionPerformancePolicyHandoff handoff;
   bool routeSupportAllowed = false;
   bool correctnessExecutionAllowed = false;
   bool performanceSelectionAllowed = false;
@@ -52,6 +86,15 @@ struct RVVLowPrecisionPerformancePolicyDecision {
 
 RVVLowPrecisionPerformanceMeasurementOutcome
 getAcceptedRVVPackedI4Gate4MeasurementOutcome();
+
+llvm::StringRef stringifyRVVLowPrecisionPerformanceMeasurementDiagnosisKind(
+    RVVLowPrecisionPerformanceMeasurementDiagnosisKind kind);
+
+RVVLowPrecisionPerformancePolicyHandoff
+diagnoseRVVLowPrecisionPerformancePolicyHandoff(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
+    llvm::StringRef context);
 
 llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
 evaluateRVVLowPrecisionPerformancePolicy(

@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Check no descriptor, artifact-name, route-id, Common EmitC, source-front-door, or legacy i32 route authority is introduced."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check structured measurement diagnosis remains RVV/plugin-owned and later-realization-consumable."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check Common EmitC remains only a neutral carrier and is not changed to infer low-precision semantics."}
+{"command": "rtk ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test", "reason": "Rebuild focused provider and target artifact test binaries after policy/provider/target changes."}
+{"command": "rtk build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Run focused RVV provider/policy test coverage."}
+{"command": "rtk build/bin/tianchenrv-target-artifact-export-test", "reason": "Run focused target artifact validation coverage."}
+{"command": "rtk git diff --check", "reason": "Whitespace check for unstaged diff."}
+{"command": "rtk git diff --cached --check", "reason": "Whitespace check for staged diff before commit."}
+{"date": "2026-06-09", "phase": "check", "summary": "Focused Gate 1 checks passed for structured RVV low-precision measurement diagnosis and policy handoff.", "commands": ["rtk ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test", "rtk build/bin/tianchenrv-rvv-extension-plugin-test", "rtk build/bin/tianchenrv-target-artifact-export-test", "bounded code-only touched-diff old-authority scan", "rtk git diff --check", "rtk git diff --cached --check"], "self_repair": [], "status": "Gate 1 complete; macro task remains active for Gates 2-5."}

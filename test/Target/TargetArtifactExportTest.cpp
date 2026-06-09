@@ -13044,9 +13044,18 @@ bool expectRVVTargetArtifactExporterShape(
       !packedI4Policy->correctnessExecutionAllowed ||
       packedI4Policy->performanceSelectionAllowed ||
       packedI4Policy->performanceWinClaimAllowed ||
-      packedI4Policy->dispatchPreference != "not-performance-preferred") {
+      packedI4Policy->dispatchPreference != "not-performance-preferred" ||
+      packedI4Policy->handoff.handoffContract !=
+          "rvv-low-precision-packed-i4-measurement-policy-handoff.v1" ||
+      packedI4Policy->handoff.diagnosisKind !=
+          "correctness-supported-no-win-regression" ||
+      !packedI4Policy->handoff.correctnessSupported ||
+      !packedI4Policy->handoff.noWin ||
+      !packedI4Policy->handoff.regression ||
+      !packedI4Policy->handoff.acceptedForDispatchPolicy) {
     llvm::errs() << "packed-i4 target artifact policy did not preserve "
-                    "correctness while denying performance preference\n";
+                    "correctness through structured handoff while denying "
+                    "performance preference\n";
     return false;
   }
   tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
@@ -13664,7 +13673,8 @@ bool expectRVVTargetArtifactExporterShape(
           packedI4ProductDequantRoute, stalePackedI4MeasurementCandidate,
           "packed-i4 product-reduction registry rejects unmeasured "
           "performance-policy candidate",
-          {"accepted Gate 4 packed-i4 selected candidate",
+          {"policy handoff diagnosis", "stale-sibling-route-measurement",
+           "accepted Gate 4 packed-i4 selected candidate",
            tianchenrv::plugin::rvv::
                kRVVLowPrecisionResourceDequantPackedI4Candidate,
            tianchenrv::plugin::rvv::
