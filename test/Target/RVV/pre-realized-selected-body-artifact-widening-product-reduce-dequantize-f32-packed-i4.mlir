@@ -52,7 +52,7 @@ module {
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 2 : i64
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_feedback = "same-target-packed-i4-no-win.v1"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_baseline = "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
-// REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_best_speedup_range = "0.688427..0.705724"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_best_speedup_range = "0.683805..0.705257"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_action = "no-win-repair-required-before-performance-claim"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_maturity = "executable-not-performance-mature"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_maturity_evidence = "same-target-packed-i4-product-pair-sum-regression-gate6.v1"
@@ -88,7 +88,7 @@ module {
 // PLAN: {key = "tcrv_rvv.low_precision_resource.dequant_phase", value = "dequant-store"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_feedback", value = "same-target-packed-i4-no-win.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_baseline", value = "scalar-c-reference/product-reduction-dequant-packed-i4-v1"}
-// PLAN: {key = "tcrv_rvv.low_precision_resource.performance_best_speedup_range", value = "0.688427..0.705724"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.performance_best_speedup_range", value = "0.683805..0.705257"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_action", value = "no-win-repair-required-before-performance-claim"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.remediation_plan_contract", value = "rvv-low-precision-packed-i4-resource-remediation-plan.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.remediation_plan", value = "repair-packed-i4-product-pair-sum-single-reduce-before-performance-claim.v1"}
@@ -116,7 +116,7 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.dequant_phase: dequant-store
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_feedback: same-target-packed-i4-no-win.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_baseline: scalar-c-reference/product-reduction-dequant-packed-i4-v1
-// HEADER: tianchenrv.rvv.low_precision_resource.performance_best_speedup_range: 0.688427..0.705724
+// HEADER: tianchenrv.rvv.low_precision_resource.performance_best_speedup_range: 0.683805..0.705257
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_action: no-win-repair-required-before-performance-claim
 // HEADER: tianchenrv.rvv.low_precision_resource.remediation_plan_contract: rvv-low-precision-packed-i4-resource-remediation-plan.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.remediation_plan: repair-packed-i4-product-pair-sum-single-reduce-before-performance-claim.v1

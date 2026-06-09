@@ -6106,7 +6106,7 @@ object equivalent to:
     "fields": {
       "performance_feedback": "same-target-packed-i4-no-win.v1",
       "performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1",
-      "performance_best_speedup_range": "0.688427..0.705724",
+      "performance_best_speedup_range": "0.683805..0.705257",
       "performance_action": "no-win-repair-required-before-performance-claim",
       "operand_form": "packed-i4-nibbles",
       "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
@@ -6238,7 +6238,7 @@ tcrv_rvv.low_precision_resource.performance_feedback =
 tcrv_rvv.low_precision_resource.performance_baseline =
   "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
 tcrv_rvv.low_precision_resource.performance_best_speedup_range =
-  "0.688427..0.705724"
+  "0.683805..0.705257"
 tcrv_rvv.low_precision_resource.performance_action =
   "no-win-repair-required-before-performance-claim"
 tcrv_rvv.low_precision_resource.remediation_plan_contract =
@@ -6492,7 +6492,7 @@ Packed-i4 per-op evidence and root summaries may carry:
     "measurement_evidence_id": "run/op/same_target_measurement_evidence.json",
     "measurement_classification": "win | no-win | regression | not-measured",
     "measurement_outcome_family": "win | no-win | not-measured",
-    "measurement_best_speedup_range": "0.688427..0.705724",
+    "measurement_best_speedup_range": "0.683805..0.705257",
     "measurement_summary_record_count": 12,
     "measurement_record_count": 60,
     "provider_maturity": "executable-not-performance-mature",
@@ -6599,8 +6599,8 @@ same-target parsed classification
 
 Use this contract when RVV low-precision packed-i4 same-target measurement
 evidence is consumed by production dispatch/performance policy. This is the
-Gate 5 policy surface after provider/resource facts, target artifact mirrors,
-and Gate 4 evidence input have already been structured. It is not a route id,
+Gate 4 policy surface after provider/resource facts, target artifact mirrors,
+and Gate 3 evidence input have already been structured. It is not a route id,
 artifact-name policy, report status, script rewrite, q4/q8 benchmark label, or
 Common EmitC decision.
 
@@ -6661,6 +6661,14 @@ performance-preferred
 - The current accepted Gate 4 packed-i4 regression/no-win outcome must set:
 
   ```text
+  measurementEvidenceID =
+    gate3-packed-i4-same-target-measure-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
+  measurementClassification = regression
+  measurementOutcomeFamily = no-win
+  measurementBestSpeedupRange = 0.683805..0.705257
+  measurementSummaryRecordCount = 12
+  measurementRecordCount = 60
+  correctnessRecordCount = 12
   routeSupportAllowed = true
   correctnessExecutionAllowed = true
   performanceSelectionAllowed = false
@@ -6689,10 +6697,10 @@ performance-preferred
 
 - Missing selected packed-i4 resource facts -> strict policy evaluation fails
   before performance dispatch.
-- Stale measurement identity, missing `ssh rvv` evidence, stale target profile,
-  stale provider tie-back, or stale primitive/remediation fact -> strict policy
-  evaluation fails; resolver returns correctness fallback if the route remains
-  legal.
+- Stale measurement identity, stale measured best-speedup range, missing
+  `ssh rvv` evidence, stale target profile, stale provider tie-back, or stale
+  primitive/remediation fact -> strict policy evaluation fails; resolver returns
+  correctness fallback if the route remains legal.
 - Current regression/no-win evidence with provider
   `performance_selection_eligible = true` or `dispatch_preference =
   performance-preferred` -> fail closed before performance preference.
@@ -6727,9 +6735,10 @@ performance-preferred
 - C++ provider/policy tests must assert a measured-win fixture selects
   `performance-preferred` only after provider maturity, eligibility, dispatch,
   remediation, and measurement tie-back facts all agree.
-- C++ provider/policy tests must assert stale measurement identity, missing
-  `ssh rvv` evidence, stale target profile, stale provider tie-back, stale
-  primitive facts, and measurement-only win promotion fail strict verification.
+- C++ provider/policy tests must assert stale measurement identity, stale
+  measured best-speedup range, missing `ssh rvv` evidence, stale target profile,
+  stale provider tie-back, stale primitive facts, and measurement-only win
+  promotion fail strict verification.
 - Target artifact tests must assert stale performance-selection and dispatch
   mirrors fail closed before artifact acceptance.
 - Script self-tests and dry-run lit coverage must keep evidence-input reporting
