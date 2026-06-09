@@ -106,6 +106,13 @@ evaluateRVVLowPrecisionPerformancePolicy(
     const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
     llvm::StringRef context);
 
+llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
+evaluateRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context);
+
 RVVLowPrecisionPerformancePolicyDecision
 resolveRVVLowPrecisionDispatchPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
@@ -115,6 +122,12 @@ resolveRVVLowPrecisionDispatchPerformancePolicy(
 llvm::Error verifyRVVLowPrecisionPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
+    llvm::StringRef context);
+
+llvm::Error verifyRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
     llvm::StringRef context);
 
 } // namespace tianchenrv::plugin::rvv

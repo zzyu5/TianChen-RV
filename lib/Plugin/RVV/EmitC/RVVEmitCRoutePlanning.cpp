@@ -303,6 +303,8 @@ llvm::Error verifyRVVSelectedTargetCapabilityForTypedConfig(
 struct RVVSelectedDispatchEnvelopeFacts {
   std::string selectedDispatchCaseMirror;
   std::string selectedDispatchFallbackMirror;
+  RVVLowPrecisionSelectedDispatchPolicyBoundary
+      lowPrecisionSelectedDispatchPolicyBoundary;
 
   bool hasFacts() const { return !selectedDispatchCaseMirror.empty(); }
 };
@@ -557,6 +559,43 @@ collectRVVSelectedDispatchEnvelopeFacts(
                                           guardMirror);
   facts.selectedDispatchFallbackMirror =
       formatRVVSelectedDispatchFallbackMirror(fallbackOp, fallbackVariant);
+  RVVLowPrecisionSelectedDispatchPolicyBoundary &policyBoundary =
+      facts.lowPrecisionSelectedDispatchPolicyBoundary;
+  policyBoundary.hasSelectedDispatchCase = true;
+  policyBoundary.hasSelectedDispatchFallback = true;
+  policyBoundary.selectedCaseVariant = selectedVariant.getSymName().str();
+  policyBoundary.selectedCaseRole =
+      stringifyVariantEmissionRole(VariantEmissionRole::DispatchCase).str();
+  policyBoundary.selectedCaseOrigin =
+      getOptionalStringAttr(selectedCase.getOperation(), kOriginAttrName);
+  policyBoundary.selectedCasePolicy =
+      getOptionalStringAttr(selectedCase.getOperation(), kPolicyAttrName);
+  auto runtimeGuardRequired = selectedCase->getAttrOfType<mlir::BoolAttr>(
+      kRuntimeGuardRequiredAttrName);
+  policyBoundary.runtimeGuardRequired =
+      runtimeGuardRequired && runtimeGuardRequired.getValue();
+  if (policyBoundary.runtimeGuardRequired) {
+    auto runtimeGuard = selectedCase->getAttrOfType<mlir::FlatSymbolRefAttr>(
+        kRuntimeGuardAttrName);
+    policyBoundary.runtimeGuard =
+        runtimeGuard ? (llvm::Twine("@") + runtimeGuard.getValue()).str()
+                     : std::string();
+  } else {
+    policyBoundary.runtimeGuard = "none";
+  }
+  policyBoundary.fallbackVariant = fallbackVariant.getSymName().str();
+  policyBoundary.fallbackPathRole =
+      stringifyVariantEmissionRole(VariantEmissionRole::DispatchFallback)
+          .str();
+  policyBoundary.fallbackRole = kConservativeFallbackRoleValue.str();
+  policyBoundary.fallbackOrigin =
+      getOptionalStringAttr(fallbackOp.getOperation(), kOriginAttrName);
+  policyBoundary.fallbackPolicy =
+      getOptionalStringAttr(fallbackOp.getOperation(), kPolicyAttrName);
+  policyBoundary.selectedDispatchCaseMirror =
+      facts.selectedDispatchCaseMirror;
+  policyBoundary.selectedDispatchFallbackMirror =
+      facts.selectedDispatchFallbackMirror;
   return facts;
 }
 
@@ -38033,6 +38072,9 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
       std::move(dispatchEnvelopeFacts->selectedDispatchCaseMirror);
   analysis.description.selectedDispatchFallbackMirror =
       std::move(dispatchEnvelopeFacts->selectedDispatchFallbackMirror);
+  analysis.description.lowPrecisionSelectedDispatchPolicyBoundary =
+      std::move(
+          dispatchEnvelopeFacts->lowPrecisionSelectedDispatchPolicyBoundary);
 
   llvm::Expected<const RVVSelectedBodyConstructionRoute *> constructionRoute =
       lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(

@@ -115,6 +115,8 @@ module {
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_maturity_outcome", value = "regression"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_selection_eligible", value = "false"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.dispatch_preference", value = "not-performance-preferred"}
+// PLAN: {key = "tcrv_rvv.selected_dispatch_case_mirror", value = "selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequantize;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-case"}
+// PLAN: {key = "tcrv_rvv.selected_dispatch_fallback_mirror", value = "selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-fallback-envelope"}
 
 // HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]
 // HEADER: tianchenrv.rvv.low_precision_resource.operand_form: packed-i4-nibbles
@@ -143,6 +145,8 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_maturity_outcome: regression
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_selection_eligible: false
 // HEADER: tianchenrv.rvv.low_precision_resource.dispatch_preference: not-performance-preferred
+// HEADER: tianchenrv.rvv.selected_dispatch_case_mirror: selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequantize;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-case
+// HEADER: tianchenrv.rvv.selected_dispatch_fallback_mirror: selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-fallback-envelope
 // HEADER: void tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float *out, size_t n);
 
 // CPP: __riscv_vle8_v_i8mf4

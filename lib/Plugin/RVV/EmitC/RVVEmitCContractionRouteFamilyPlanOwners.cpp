@@ -1152,6 +1152,18 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
           "capability mirrors must come from the selected target facts before "
           "provider route construction");
   }
+  if (plan.lowPrecisionResourceSelection.hasSelection &&
+      analysis.description.lowPrecisionSelectedDispatchPolicyBoundary
+          .hasFacts()) {
+    if (llvm::Error error = verifyRVVLowPrecisionPerformancePolicy(
+            plan.lowPrecisionResourceSelection,
+            getAcceptedRVVPackedI4Gate4MeasurementOutcome(),
+            analysis.description.lowPrecisionSelectedDispatchPolicyBoundary,
+            (llvm::Twine(context) +
+             " selected-dispatch low-precision policy boundary")
+                .str()))
+      return error;
+  }
 
   std::optional<llvm::StringRef> expectedPlanID =
       getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID(operation);

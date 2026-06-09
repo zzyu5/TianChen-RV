@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify changed code against global TianChen-RV authority, RVV-first stage order, and no old route-authority drift."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify Gate 1 selected-dispatch policy consumption against RVV plugin-owned low-precision primitive/resource/measurement contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC/export remains neutral and route facts remain provider-owned."}
+{"file": ".trellis/tasks/archive/2026-06/06-10-rvv-low-precision-contraction-primitive-surface-campaign/prd.md", "reason": "Verify the new Gate 1 slice consumes the previous campaign facts instead of reopening the completed primitive-surface campaign."}

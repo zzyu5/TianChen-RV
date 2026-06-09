@@ -266,6 +266,30 @@ struct RVVCompositeGatherMAccScatterResourceSelection {
   std::string rejectionReason;
 };
 
+struct RVVLowPrecisionSelectedDispatchPolicyBoundary {
+  bool hasSelectedDispatchCase = false;
+  bool hasSelectedDispatchFallback = false;
+  std::string selectedCaseVariant;
+  std::string selectedCaseRole;
+  std::string selectedCaseOrigin;
+  std::string selectedCasePolicy;
+  bool runtimeGuardRequired = false;
+  std::string runtimeGuard;
+  std::string fallbackVariant;
+  std::string fallbackPathRole;
+  std::string fallbackRole;
+  std::string fallbackOrigin;
+  std::string fallbackPolicy;
+  std::string selectedDispatchCaseMirror;
+  std::string selectedDispatchFallbackMirror;
+
+  bool hasFacts() const {
+    return hasSelectedDispatchCase || hasSelectedDispatchFallback ||
+           !selectedDispatchCaseMirror.empty() ||
+           !selectedDispatchFallbackMirror.empty();
+  }
+};
+
 struct RVVSelectedBodyEmitCRouteDescription {
   RVVSelectedBodyOperationKind operation = RVVSelectedBodyOperationKind::Add;
   RVVSelectedBodyMemoryForm memoryForm = RVVSelectedBodyMemoryForm::VectorRHSLoad;
@@ -480,6 +504,8 @@ struct RVVSelectedBodyEmitCRouteDescription {
   std::string targetCapabilityLegalityMirror;
   std::string selectedDispatchCaseMirror;
   std::string selectedDispatchFallbackMirror;
+  RVVLowPrecisionSelectedDispatchPolicyBoundary
+      lowPrecisionSelectedDispatchPolicyBoundary;
   std::string routeOperandBindingPlanID;
   std::string routeOperandBindingSummary;
   std::string execABIBindingSummary;

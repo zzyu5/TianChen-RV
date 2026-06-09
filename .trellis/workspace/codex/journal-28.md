@@ -303,3 +303,71 @@ durable RVV policy contract matches the production constants and focused tests.
 [READY TO ARCHIVE] Gates 1-4 are complete. The task is ready to finish/archive
 after focused checks, Trellis validation, old-authority scans, whitespace
 checks, and one coherent Gate 4 commit.
+
+## Session 578: RVV low-precision production selected-dispatch Gate 1
+
+**Date**: 2026-06-10
+**Task**: RVV low-precision production-kernel selected-dispatch campaign
+**Branch**: `main`
+
+### Summary
+
+Created the new macro Trellis task for the Stage 2 RVV low-precision
+production-kernel selected-dispatch campaign and completed Gate 1 only. This
+slice connected selected `tcrv.exec.dispatch` case/fallback facts to the
+low-precision performance policy and RVV contraction route-family provider
+validation, so the bounded packed-i4 widening product-reduce-dequantize path
+must consume provider-owned selected-dispatch boundary facts before policy
+acceptance.
+
+The Gate 4 same-target measurement remains a no-win/regression input. Gate 1
+therefore preserves route/correctness support but keeps performance preference
+denied and requires the conservative fallback path.
+
+### Main Changes
+
+- Added `RVVLowPrecisionSelectedDispatchPolicyBoundary` to carry selected
+  dispatch case/fallback facts through RVV route analysis.
+- Collected the boundary from real `tcrv.exec.dispatch` case/fallback ops:
+  selected variant, role, origin, policy, runtime guard, fallback variant,
+  fallback role/origin/policy, and selected-dispatch mirrors.
+- Added strict low-precision policy overloads that verify selected-dispatch
+  boundary facts together with accepted primitive/resource/measurement handoff.
+- Made RVV contraction route-family provider validation consume the boundary
+  when low-precision resource selection is present.
+- Added focused positive and negative tests for accepted structural facts,
+  missing fallback facts, stale/metadata-only fallback origin, and plan/header
+  mirror propagation.
+
+### Evidence
+
+- `ninja -C build tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- `build/bin/tianchenrv-rvv-extension-plugin-test`
+- `build/bin/tianchenrv-target-artifact-export-test`
+- `tcrv-opt` plan checks for selected dispatch case/fallback mirrors on the
+  packed-i4 pre-realized selected-body artifact fixture.
+- `tcrv-opt | tcrv-translate --tcrv-export-target-header-artifact` header
+  checks for the same selected dispatch case/fallback mirrors.
+
+### Self-Repair
+
+- An initial attempt to analyze the dispatch-case fixture directly inside the
+  C++ unit test used a helper fixture that did not carry a materialized
+  `tcrv.exec.dispatch`. The repair kept C++ coverage focused on strict policy
+  and provider validation, then used the MLIR artifact fixture to prove real
+  dispatch case/fallback collection and export propagation.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] Gate 1 implements the active campaign PRD and existing RVV
+plugin/EmitC route contract. The campaign-level durable rule should be captured
+after Gates 2-4 prove the full production selected-dispatch workflow, not after
+this policy-boundary slice alone.
+
+### Status
+
+[OPEN] Gate 1 is complete. Gates 2-4 remain unchecked. Continue with Gate 2:
+carry the selected/pre-realized low-precision production-kernel body through
+route/export/artifact validation while preserving conservative fallback
+semantics and structural primitive/resource/measurement policy input.

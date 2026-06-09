@@ -30,6 +30,11 @@ constexpr llvm::StringLiteral kPackedI4CorrectnessFallbackPolicyPath(
     "correctness-fallback");
 constexpr llvm::StringLiteral kPackedI4PerformancePreferredPolicyPath(
     "performance-preferred");
+constexpr llvm::StringLiteral kDispatchCaseRoleValue("dispatch case");
+constexpr llvm::StringLiteral kDispatchFallbackRoleValue("dispatch fallback");
+constexpr llvm::StringLiteral kRVVPluginOriginValue("rvv-plugin");
+constexpr llvm::StringLiteral kScalarPluginOriginValue("scalar-plugin");
+constexpr llvm::StringLiteral kConservativeFallbackRoleValue("conservative");
 constexpr llvm::StringLiteral kPackedI4MeasuredWinPerformanceFeedback(
     "same-target-packed-i4-measured-win.v1");
 constexpr llvm::StringLiteral kPackedI4MeasuredWinPerformanceAction(
@@ -522,6 +527,78 @@ llvm::Error verifyPackedI4PolicyOutcomeConsistency(
   return llvm::Error::success();
 }
 
+llvm::Error verifyRVVLowPrecisionSelectedDispatchBoundary(
+    const RVVLowPrecisionPerformancePolicyDecision &decision,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  if (!dispatchBoundary.hasSelectedDispatchCase)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires selected tcrv.exec.dispatch case facts before "
+        "low-precision dispatch policy acceptance");
+  if (!dispatchBoundary.hasSelectedDispatchFallback)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires selected tcrv.exec.dispatch fallback facts before "
+        "low-precision dispatch policy acceptance");
+  if (llvm::Error error = requirePolicyString(
+          context, "selected dispatch case role",
+          dispatchBoundary.selectedCaseRole, kDispatchCaseRoleValue))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "selected dispatch case origin",
+          dispatchBoundary.selectedCaseOrigin, kRVVPluginOriginValue))
+    return error;
+  if (llvm::Error error = requireNonEmptyPolicyString(
+          context, "selected dispatch case policy",
+          dispatchBoundary.selectedCasePolicy))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "selected dispatch fallback path role",
+          dispatchBoundary.fallbackPathRole, kDispatchFallbackRoleValue))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "selected dispatch fallback role",
+          dispatchBoundary.fallbackRole, kConservativeFallbackRoleValue))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "selected dispatch fallback origin",
+          dispatchBoundary.fallbackOrigin, kScalarPluginOriginValue))
+    return error;
+  if (llvm::Error error = requireNonEmptyPolicyString(
+          context, "selected dispatch fallback policy",
+          dispatchBoundary.fallbackPolicy))
+    return error;
+  if (llvm::Error error = requireNonEmptyPolicyString(
+          context, "selected dispatch case mirror",
+          dispatchBoundary.selectedDispatchCaseMirror))
+    return error;
+  if (llvm::Error error = requireNonEmptyPolicyString(
+          context, "selected dispatch fallback mirror",
+          dispatchBoundary.selectedDispatchFallbackMirror))
+    return error;
+  if (!decision.handoff.acceptedForDispatchPolicy)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires accepted low-precision primitive/resource/measurement "
+        "handoff before selected-dispatch policy acceptance");
+  if (decision.performancePreferredPathSelected) {
+    if (decision.dispatchPolicyPath != kPackedI4PerformancePreferredPolicyPath)
+      return makeRVVLowPrecisionPerformancePolicyError(
+          llvm::Twine(context) +
+          " performance-preferred selected-dispatch policy requires the "
+          "performance-preferred dispatch path");
+    return llvm::Error::success();
+  }
+  if (!decision.correctnessFallbackPathSelected ||
+      decision.dispatchPolicyPath != kPackedI4CorrectnessFallbackPolicyPath)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " no-win/regression selected-dispatch policy requires the "
+        "correctness-fallback dispatch path");
+  return llvm::Error::success();
+}
+
 } // namespace
 
 RVVLowPrecisionPerformanceMeasurementOutcome
@@ -756,6 +833,24 @@ evaluateRVVLowPrecisionPerformancePolicy(
   return decision;
 }
 
+llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
+evaluateRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
+      evaluateRVVLowPrecisionPerformancePolicy(selection, outcome, context);
+  if (!decision)
+    return decision.takeError();
+  if (llvm::Error error =
+          verifyRVVLowPrecisionSelectedDispatchBoundary(*decision,
+                                                        dispatchBoundary,
+                                                        context))
+    return std::move(error);
+  return decision;
+}
+
 RVVLowPrecisionPerformancePolicyDecision
 resolveRVVLowPrecisionDispatchPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
@@ -832,6 +927,39 @@ llvm::Error verifyRVVLowPrecisionPerformancePolicy(
         llvm::Twine(context) +
         " must deny performance selection and win claims for the accepted "
         "Gate 4 regression/no-win outcome");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
+      evaluateRVVLowPrecisionPerformancePolicy(selection, outcome,
+                                               dispatchBoundary, context);
+  if (!decision)
+    return decision.takeError();
+  if (!decision->routeSupportAllowed)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " must preserve executable route support for the accepted selected-"
+        "dispatch low-precision policy outcome");
+  if (!decision->correctnessExecutionAllowed)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " must preserve correctness execution for the accepted selected-"
+        "dispatch low-precision policy outcome");
+  if (decision->performancePreferredPathSelected)
+    return llvm::Error::success();
+  if (decision->performanceSelectionAllowed ||
+      decision->performanceWinClaimAllowed ||
+      !decision->correctnessFallbackPathSelected ||
+      decision->dispatchPolicyPath != kPackedI4CorrectnessFallbackPolicyPath)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " selected-dispatch low-precision policy must deny performance "
+        "selection and preserve the conservative correctness fallback path");
   return llvm::Error::success();
 }
 

@@ -9902,6 +9902,133 @@ module {
           "performance dispatch"))
     return result;
 
+  tianchenrv::plugin::rvv::RVVLowPrecisionSelectedDispatchPolicyBoundary
+      packedI4SelectedDispatchBoundary;
+  packedI4SelectedDispatchBoundary.hasSelectedDispatchCase = true;
+  packedI4SelectedDispatchBoundary.hasSelectedDispatchFallback = true;
+  packedI4SelectedDispatchBoundary.selectedCaseVariant =
+      "pre_realized_body_rvv_product_reduce_dequantize";
+  packedI4SelectedDispatchBoundary.selectedCaseRole = "dispatch case";
+  packedI4SelectedDispatchBoundary.selectedCaseOrigin = "rvv-plugin";
+  packedI4SelectedDispatchBoundary.selectedCasePolicy =
+      "pre-realized-selected-body-widening-product-reduce-dequantize-f32-case";
+  packedI4SelectedDispatchBoundary.runtimeGuardRequired = false;
+  packedI4SelectedDispatchBoundary.runtimeGuard = "none";
+  packedI4SelectedDispatchBoundary.fallbackVariant =
+      "pre_realized_body_scalar_fallback";
+  packedI4SelectedDispatchBoundary.fallbackPathRole = "dispatch fallback";
+  packedI4SelectedDispatchBoundary.fallbackRole = "conservative";
+  packedI4SelectedDispatchBoundary.fallbackOrigin = "scalar-plugin";
+  packedI4SelectedDispatchBoundary.fallbackPolicy =
+      "pre-realized-selected-body-widening-product-reduce-dequantize-f32-"
+      "fallback-envelope";
+  packedI4SelectedDispatchBoundary.selectedDispatchCaseMirror =
+      "selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_"
+      "dequantize;role=dispatch case;runtime_guard_required=false;"
+      "runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-"
+      "widening-product-reduce-dequantize-f32-case";
+  packedI4SelectedDispatchBoundary.selectedDispatchFallbackMirror =
+      "selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;"
+      "role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;"
+      "policy=pre-realized-selected-body-widening-product-reduce-dequantize-"
+      "f32-fallback-envelope";
+  if (int result = expect(
+          packedI4SelectedDispatchBoundary.hasSelectedDispatchCase &&
+              packedI4SelectedDispatchBoundary.hasSelectedDispatchFallback &&
+              packedI4SelectedDispatchBoundary.selectedCaseVariant ==
+                  "pre_realized_body_rvv_product_reduce_dequantize" &&
+              packedI4SelectedDispatchBoundary.selectedCaseRole ==
+                  "dispatch case" &&
+              packedI4SelectedDispatchBoundary.selectedCaseOrigin ==
+                  "rvv-plugin" &&
+              packedI4SelectedDispatchBoundary.selectedCasePolicy ==
+                  "pre-realized-selected-body-widening-product-reduce-"
+                  "dequantize-f32-case" &&
+              !packedI4SelectedDispatchBoundary.runtimeGuardRequired &&
+              packedI4SelectedDispatchBoundary.runtimeGuard == "none" &&
+              packedI4SelectedDispatchBoundary.fallbackVariant ==
+                  "pre_realized_body_scalar_fallback" &&
+              packedI4SelectedDispatchBoundary.fallbackPathRole ==
+                  "dispatch fallback" &&
+              packedI4SelectedDispatchBoundary.fallbackRole ==
+                  "conservative" &&
+              packedI4SelectedDispatchBoundary.fallbackOrigin ==
+                  "scalar-plugin" &&
+              packedI4SelectedDispatchBoundary.fallbackPolicy ==
+                  "pre-realized-selected-body-widening-product-reduce-"
+                  "dequantize-f32-fallback-envelope",
+          "packed-i4 selected-dispatch analysis collects structured "
+          "case/fallback facts before low-precision policy consumption"))
+    return result;
+  auto packedI4SelectedDispatchPolicy =
+      tianchenrv::plugin::rvv::
+          evaluateRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection, acceptedPackedI4Gate4Outcome,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 product-reduction-dequant Gate 1 "
+              "policy boundary test");
+  if (!packedI4SelectedDispatchPolicy)
+    return fail("packed-i4 selected-dispatch policy boundary: " +
+                llvm::toString(
+                    packedI4SelectedDispatchPolicy.takeError()));
+  if (int result = expect(
+          packedI4SelectedDispatchPolicy->routeSupportAllowed &&
+              packedI4SelectedDispatchPolicy->correctnessExecutionAllowed &&
+              !packedI4SelectedDispatchPolicy->performanceSelectionAllowed &&
+              !packedI4SelectedDispatchPolicy->performanceWinClaimAllowed &&
+              packedI4SelectedDispatchPolicy->correctnessFallbackPathSelected &&
+              packedI4SelectedDispatchPolicy->dispatchPolicyPath ==
+                  "correctness-fallback",
+          "packed-i4 selected-dispatch policy consumes primitive/resource/"
+          "measurement facts plus explicit conservative fallback facts"))
+    return result;
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              [&] {
+                auto analysis = *packedI4ProductDequantAnalysis;
+                analysis.description.lowPrecisionSelectedDispatchPolicyBoundary =
+                    packedI4SelectedDispatchBoundary;
+                return analysis;
+              }(),
+              "selected-dispatch packed-i4 product-reduction-dequant policy "
+              "boundary test"),
+          "packed-i4 dispatch-case provider validation consumes the "
+          "selected-dispatch policy boundary before route construction"))
+    return result;
+
+  auto missingPackedI4DispatchFallbackBoundary =
+      *packedI4ProductDequantAnalysis;
+  missingPackedI4DispatchFallbackBoundary.description
+      .lowPrecisionSelectedDispatchPolicyBoundary =
+      packedI4SelectedDispatchBoundary;
+  missingPackedI4DispatchFallbackBoundary.description
+      .lowPrecisionSelectedDispatchPolicyBoundary.hasSelectedDispatchFallback =
+      false;
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              missingPackedI4DispatchFallbackBoundary,
+              "selected-dispatch packed-i4 missing fallback policy boundary"),
+          {"selected-dispatch low-precision policy boundary",
+           "requires selected tcrv.exec.dispatch fallback facts"}))
+    return result;
+
+  auto stalePackedI4DispatchFallbackBoundary =
+      *packedI4ProductDequantAnalysis;
+  stalePackedI4DispatchFallbackBoundary.description
+      .lowPrecisionSelectedDispatchPolicyBoundary =
+      packedI4SelectedDispatchBoundary;
+  stalePackedI4DispatchFallbackBoundary.description
+      .lowPrecisionSelectedDispatchPolicyBoundary.fallbackOrigin =
+      "metadata-only-fallback";
+  if (int result = expectErrorContains(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              stalePackedI4DispatchFallbackBoundary,
+              "selected-dispatch packed-i4 stale fallback policy boundary"),
+          {"selected-dispatch low-precision policy boundary",
+           "selected dispatch fallback origin", "scalar-plugin",
+           "metadata-only-fallback"}))
+    return result;
+
   tianchenrv::plugin::rvv::RVVLowPrecisionContractionResourceSelection
       measuredWinPackedI4Selection = packedI4ResourceSelection;
   measuredWinPackedI4Selection.performanceFeedback =

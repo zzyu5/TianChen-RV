@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV stage order, authority boundaries, and evidence policy."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin ownership, low-precision primitive/resource facts, selected-body realization, and fail-closed provider contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-owned TCRVEmitCLowerableRoute contract."}
+{"file": ".trellis/tasks/archive/2026-06/06-10-rvv-low-precision-contraction-primitive-surface-campaign/prd.md", "reason": "Previous completed primitive/resource/measurement campaign context that this selected-dispatch macro task must consume without repeating evidence-only work."}
