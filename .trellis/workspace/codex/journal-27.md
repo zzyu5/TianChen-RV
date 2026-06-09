@@ -1698,3 +1698,59 @@ remediation plan facts as provider-owned mirrors and reject metadata-only win
 claims. Gate 3 must collect same-target `ssh rvv` comparison only after a
 repaired generated artifact is available; Gate 4 then consumes that evidence in
 dispatch/performance policy.
+
+## 2026-06-10 - RVV Packed-I4 Production-Kernel Campaign Gate 2
+
+### Summary
+
+- Continued the active macro task
+  `06-09-rvv-packed-i4-production-kernel-resource-aware-realization-campaign`.
+- Completed Gate 2 as a provider/target validation-boundary slice.
+- The packed-i4 target artifact route-family validator now rejects
+  metadata-only performance/win/dispatch claim keys such as
+  `performance_win_claim_allowed`, `dispatch_policy_path`, and `win_claim`
+  before artifact/header export.
+- Existing target candidate checks still accept valid provider-owned
+  low-precision resource/remediation/performance mirrors and reject stale or
+  missing mirrors. The new denylist only blocks extra claim fields that are not
+  part of the provider-owned selection contract.
+- No runtime, correctness, or performance improvement was claimed.
+
+### Evidence
+
+- `rtk ninja -C build tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+  passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- Focused lit from `build/test` passed for
+  `pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4`.
+- `rtk ninja -C build tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- Bounded added-diff old-authority scan over touched production/test files found
+  no new `RVVI32M1`, `rvv-i32m1`, legacy `tcrv_rvv.i32_*`,
+  source-front-door, descriptor-driven, q4/q8/llama, Common EmitC semantic
+  branch, or exact i32m1 intrinsic route authority.
+- `rtk git diff --check` passed.
+
+### Self-Repair
+
+- Adjusted new C++ expect-error fragments to match the target validator's
+  field-label wording before running focused tests.
+
+### Spec Update Decision
+
+[NO CHANGE] Existing RVV plugin, EmitC route, and testing specs already require
+target artifact metadata and headers to be exact mirrors after provider route
+construction and explicitly reject metadata-only packed-i4 performance/win
+claims. This slice implements that existing contract with a focused target-side
+denylist and regression coverage.
+
+### Status
+
+[OPEN] Gate 2 is complete, but the packed-i4 production-kernel macro campaign
+remains active because Gates 3 and 4 are not complete.
+
+### Continuation
+
+Continue with Gate 3: collect same-target `ssh rvv` comparison only after a
+repaired generated artifact is available, then let Gate 4 consume that evidence
+in dispatch/performance policy.

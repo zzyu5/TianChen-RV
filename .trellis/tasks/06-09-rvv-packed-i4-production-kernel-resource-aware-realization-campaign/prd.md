@@ -6,9 +6,12 @@ Advance the RVV Stage 2 packed-i4 production-kernel path beyond the accepted
 same-target no-win/regression evidence. This macro campaign must turn that
 diagnosis into RVV plugin-owned selected-body/resource remediation, provider
 and target validation, same-target measurement, and dispatch/performance policy
-consumption. The current round owns Gate 1 only: change production selected-body
-or primitive/resource planning for one packed-i4 contraction/dequant path, with
-fail-closed validation of stale remediation/resource facts.
+consumption. Gate 1 is complete. The current round owns Gate 2 only: strengthen
+the provider/target validation boundary so route metadata, target artifact
+metadata, generated headers, and support-bundle mirrors can expose packed-i4
+resource/remediation/performance facts only as exact mirrors of provider-owned
+selection facts, and must fail closed on metadata-only performance, dispatch, or
+win claims.
 
 ## What I already know
 
@@ -32,16 +35,18 @@ fail-closed validation of stale remediation/resource facts.
 
 - Keep this as one macro Trellis task until all campaign gates are complete or
   human steering redirects it.
-- Implement the current round as a coherent Gate 1 production slice in RVV
-  plugin selected-body/resource planning, primitive planning, provider
-  validation, or target validation.
-- Consume the existing packed-i4 no-win/fallback diagnosis at the
-  selected-body/resource or primitive-planning boundary.
-- Make the packed-i4 contraction/dequant path more realistic or explicit by
-  carrying provider-owned remediation/resource facts that distinguish packed
-  i4 unpack/resource cost from sibling unpacked-byte paths.
-- Fail closed when stale remediation/resource facts claim a packed-i4 plan that
-  does not match the provider-owned selected resource plan.
+- Implement the current round as a coherent Gate 2 production validation slice
+  in RVV provider/target route-family validation, target artifact candidate
+  mirror validation, support-bundle/header export, or directly related tests.
+- Consume the Gate 1 packed-i4 no-win remediation/resource facts as
+  provider-owned facts at the validation boundary; route metadata, target
+  metadata, generated headers, and bundle indexes are mirrors only.
+- Fail closed when stale, missing, contradictory, or metadata-only
+  remediation/resource/performance fields attempt to authorize packed-i4
+  remediation, performance-preferred dispatch, or win claims.
+- Reject extra artifact/header metadata fields that are not provider-owned
+  selection facts but try to claim packed-i4 performance readiness, dispatch
+  preference, or win permission.
 - Do not use q4/q8/llama labels, route ids, artifact names, test names,
   Common EmitC branches, descriptor residue, or source-front-door metadata as
   route authority.
@@ -62,7 +67,32 @@ fail-closed validation of stale remediation/resource facts.
   selects performance-preferred with all required tie-backs or preserves
   correctness fallback with a structured reason.
 
-## Current Round Slice: Gate 1
+## Current Round Slice: Gate 2
+
+- [x] Keep Gate 1 provider-owned packed-i4 facts as the only authority for
+  remediation/resource/performance mirrors at provider and target validation.
+- [x] Add or strengthen production target/provider checks so metadata-only
+  performance/win/dispatch claim fields fail closed before target artifact or
+  header acceptance.
+- [x] Add focused positive coverage for valid provider-owned packed-i4
+  remediation/resource/performance mirrors.
+- [x] Add focused negative coverage for stale, missing, contradictory, or
+  metadata-only performance/win mirrors.
+- [x] Run focused C++ tests and directly relevant lit if target artifact/header
+  output changes.
+- [x] Keep the macro task active after the committed Gate 2 slice because Gates
+  3 and 4 remain.
+
+Gate 2 slice completed in this round: the RVV target artifact route-family
+validator now rejects packed-i4 metadata-only performance/win/dispatch claim
+keys that are not provider-owned selection facts. Existing exact mirror checks
+continue to accept valid provider-owned remediation/resource/performance mirrors
+and reject stale or missing mirrors. Focused C++ and lit coverage prove that a
+packed-i4 artifact cannot add `performance_win_claim_allowed`,
+`dispatch_policy_path`, or `win_claim` metadata to override the provider-owned
+no-win / not-performance-preferred contract.
+
+## Completed Slice: Gate 1
 
 - [x] Add or repair production RVV plugin code so the selected packed-i4
   low-precision resource plan explicitly carries the remediation/resource
@@ -89,22 +119,23 @@ evidence is claimed.
 
 ## Acceptance Criteria
 
-- [x] Production source diff changes the RVV selected-body/resource,
-  primitive-planning, provider-validation, target-validation, or policy-consumer
-  path for the packed-i4 production kernel representative.
-- [x] Tests prove the accepted packed-i4 path carries the new provider-owned
-  resource/remediation facts while retaining correctness fallback status.
-- [x] Tests prove stale resource/remediation facts fail closed before they can
-  authorize route/provider, target artifact, performance-preferred dispatch, or
-  win claims.
+- [x] Production source diff changes provider/target validation,
+  support-bundle/header export, route planning, or directly related validation
+  owner code for the packed-i4 representative.
+- [x] Tests prove the accepted packed-i4 target artifact path carries only
+  exact provider-owned resource/remediation/performance mirrors while retaining
+  correctness fallback / not-performance-preferred status.
+- [x] Tests prove stale, missing, contradictory, or metadata-only
+  performance/win/dispatch claim fields fail closed before target artifact,
+  header, support-bundle, performance-preferred dispatch, or win acceptance.
 - [x] Bounded old-authority scan over touched files and added diff lines finds
   no new legacy `RVVI32M1`, `rvv-i32m1`, dtype-prefixed helper route authority,
   source-front-door authority, descriptor-driven computation, q4/q8/llama
   route authority, Common EmitC semantic branching, or exact i32m1 intrinsic
   authority.
 - [x] `git diff --check` and `git diff --cached --check` pass.
-- [x] One coherent commit records the Gate 1 slice.
-- [x] `.trellis/.current-task` remains active and the PRD/journal name Gate 2
+- [ ] One coherent commit records the Gate 2 slice.
+- [x] `.trellis/.current-task` remains active and the PRD/journal name Gate 3
   as the next continuation point unless all campaign gates are genuinely
   complete.
 
@@ -132,8 +163,7 @@ evidence is claimed.
 
 ## Continuation Point
 
-Gate 2 remains the next owner: provider and target validation should consume
-the Gate 1 remediation plan facts as provider-owned mirrors and reject any
-metadata-only performance/win claim. The macro task must remain active until
-Gate 2, Gate 3 same-target `ssh rvv` measurement, and Gate 4
-dispatch/performance policy consumption are complete.
+Gate 3 is the next owner: collect same-target `ssh rvv` comparison only after a
+repaired generated artifact is available. Gate 4 then consumes that evidence in
+dispatch/performance policy. The macro task must remain active until Gates 3
+and 4 are complete or human steering redirects it.

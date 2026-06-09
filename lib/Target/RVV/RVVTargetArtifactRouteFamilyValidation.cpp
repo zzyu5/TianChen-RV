@@ -5970,6 +5970,58 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
       selection.rejectionReason, "rejection reason");
 }
 
+llvm::Error rejectRVVPackedI4MetadataOnlyClaimMirror(
+    const TargetArtifactCandidate &candidate, llvm::StringRef key,
+    llvm::StringRef label) {
+  llvm::StringRef actual = lookupCandidateMetadataValue(candidate, key);
+  if (actual.empty())
+    return llvm::Error::success();
+  return makeRVVTargetRouteError(
+      llvm::Twine("widening dot-reduction target artifact consumer rejects "
+                  "metadata-only packed-i4 ") +
+      label + " '" + actual + "' in " + key +
+      " before artifact export; provider-owned facts require performance "
+      "action '" +
+      plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceAction +
+      "', performance selection eligibility '" +
+      plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible +
+      "', and dispatch preference '" +
+      plugin::rvv::kRVVLowPrecisionResourcePackedI4DispatchPreference + "'");
+}
+
+llvm::Error validateRVVPackedI4MetadataOnlyClaimMirrors(
+    const TargetArtifactCandidate &candidate,
+    const plugin::rvv::RVVLowPrecisionContractionResourceSelection
+        &selection) {
+  if (!selection.hasSelection ||
+      !plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
+          selection.selectedCandidateID))
+    return llvm::Error::success();
+  constexpr llvm::StringLiteral metadataOnlyClaimMirrors[][2] = {
+      {"tcrv_rvv.low_precision_resource.performance_win_claim_allowed",
+       "performance win-claim allowance"},
+      {"tcrv_rvv.low_precision_resource.performance_selection_allowed",
+       "performance-selection allowance"},
+      {"tcrv_rvv.low_precision_resource.performance_preferred_path_selected",
+       "performance-preferred path selection"},
+      {"tcrv_rvv.low_precision_resource.performance_preference_denied",
+       "performance-preference decision"},
+      {"tcrv_rvv.low_precision_resource.performance_preference_denial_reason",
+       "performance-preference denial reason"},
+      {"tcrv_rvv.low_precision_resource.dispatch_policy_path",
+       "dispatch policy path"},
+      {"tcrv_rvv.low_precision_resource.performance_claim",
+       "performance claim"},
+      {"tcrv_rvv.low_precision_resource.win_claim", "win claim"},
+      {"tcrv_rvv.low_precision_resource.claim_allowed", "claim allowance"}};
+  for (const auto &entry : metadataOnlyClaimMirrors)
+    if (llvm::Error error =
+            rejectRVVPackedI4MetadataOnlyClaimMirror(candidate, entry[0],
+                                                     entry[1]))
+      return error;
+  return llvm::Error::success();
+}
+
 llvm::Error validateRVVLowPrecisionWideningReductionPrimitiveCandidateMirrors(
     const TargetArtifactCandidate &candidate,
     const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
@@ -6209,6 +6261,9 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
     if (llvm::Error error = validateRVVLowPrecisionResourceCandidateMirrors(
             candidate, contract->lowPrecisionResourceSelection))
       return error;
+  if (llvm::Error error = validateRVVPackedI4MetadataOnlyClaimMirrors(
+          candidate, contract->lowPrecisionResourceSelection))
+    return error;
   if (isProductReductionDequantization &&
       plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
           contract->lowPrecisionResourceSelection.selectedCandidateID))

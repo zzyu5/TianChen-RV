@@ -13915,6 +13915,46 @@ bool expectRVVTargetArtifactExporterShape(
            "performance-preferred"}))
     return false;
 
+  auto expectPackedI4MetadataOnlyClaimFailure =
+      [&](llvm::StringRef key, llvm::StringRef value, llvm::StringRef label,
+          std::initializer_list<llvm::StringRef> fragments) -> bool {
+    TargetArtifactCandidate metadataOnlyClaim =
+        packedI4ProductDequantFixture.candidate;
+    metadataOnlyClaim.artifactMetadata.push_back(
+        tianchenrv::support::ArtifactMetadataEntry(key, value));
+    return expectWideningDotCandidateFailure(
+        metadataOnlyClaim, packedI4ProductDequantRoute,
+        packedI4ProductDequantDescription, label, fragments);
+  };
+  if (!expectPackedI4MetadataOnlyClaimFailure(
+          "tcrv_rvv.low_precision_resource.performance_win_claim_allowed",
+          "true",
+          "packed-i4 product-reduction registry rejects metadata-only "
+          "performance win claim",
+          {"metadata-only packed-i4 performance win-claim allowance", "true",
+           "performance action",
+           "no-win-repair-required-before-performance-claim",
+           "performance selection eligibility", "false",
+           "dispatch preference", "not-performance-preferred"}))
+    return false;
+  if (!expectPackedI4MetadataOnlyClaimFailure(
+          "tcrv_rvv.low_precision_resource.dispatch_policy_path",
+          "performance-preferred",
+          "packed-i4 product-reduction registry rejects metadata-only "
+          "dispatch policy path",
+          {"metadata-only packed-i4 dispatch policy path",
+           "performance-preferred", "not-performance-preferred"}))
+    return false;
+  if (!expectPackedI4MetadataOnlyClaimFailure(
+          "tcrv_rvv.low_precision_resource.win_claim",
+          "same-target-packed-i4-performance-win.v1",
+          "packed-i4 product-reduction registry rejects metadata-only "
+          "win claim",
+          {"metadata-only packed-i4 win claim",
+           "same-target-packed-i4-performance-win.v1",
+           "no-win-repair-required-before-performance-claim"}))
+    return false;
+
   RVVRouteDescription stalePackedI4MeasurementCandidate =
       packedI4ProductDequantDescription;
   stalePackedI4MeasurementCandidate.lowPrecisionResourceSelection
