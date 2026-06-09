@@ -6,12 +6,11 @@ Create a macro Trellis owner for the RVV Stage 2 low-precision
 production-kernel selected-dispatch campaign. The campaign connects the already
 proven low-precision primitive surface, Gearbox/resource facts, target artifact
 evidence, and same-target measurement policy to a bounded selected
-`tcrv.exec` RVV production-kernel dispatch workflow. Gate 1 is complete. The
-current round implements Gate 2: selected/pre-realized low-precision
-production-kernel bodies must reach RVV route, export, and target-artifact
-validation with selected-dispatch case/fallback mirrors and conservative
-fallback policy facts still structurally connected to provider-owned
-primitive/resource/measurement facts.
+`tcrv.exec` RVV production-kernel dispatch workflow. Gates 1-3 are complete.
+Gate 3 represents same-target measurement evidence as bounded
+selected-dispatch policy input, cross-checks it against provider-owned
+primitive/resource/artifact facts, and consumes it only to choose a
+performance-preferred route or the conservative fallback path.
 
 ## What I Already Know
 
@@ -68,7 +67,7 @@ primitive/resource/measurement facts.
   or missing facts.
 - [x] Gate 2: selected/pre-realized low-precision production-kernel body reaches
   route/export/artifact validation with fallback semantics preserved.
-- [ ] Gate 3: same-target measurement evidence updates only the bounded policy
+- [x] Gate 3: same-target measurement evidence updates only the bounded policy
   input and demonstrates preferred-route or conservative-fallback behavior.
 - [ ] Gate 4: final `ssh rvv` correctness/performance evidence and spec/task
   archive after production gates are satisfied.
@@ -221,6 +220,84 @@ accepted same-target measurement remains a no-win/regression input, so the
 selected-dispatch policy keeps the conservative fallback path and denies a new
 performance-preferred result.
 
+## Current Slice: Gate 3 Same-Target Measurement Policy Input
+
+- [x] Inspect the low-precision performance policy, selected-dispatch
+  boundary, target artifact validation, and same-target measurement script
+  evidence-input path to locate the smallest production seam.
+- [x] Represent bounded same-target measurement evidence as explicit policy
+  input rather than ad hoc measurement/result strings.
+- [x] Cross-check that input against provider-owned selected candidate,
+  route-family plan, provider support mirror, runtime ABI order, primitive
+  chain facts, remediation handoff, target capability mirrors, and selected
+  dispatch case/fallback boundary facts before policy acceptance.
+- [x] Demonstrate conservative fallback for the accepted no-win/regression
+  input and performance-preferred selection only when a matched provider
+  measured-win contract also agrees.
+- [x] Reject stale, missing, cross-target, disconnected, metadata-only,
+  route-id-only, or measurement-only policy claims before they can update
+  selected-dispatch preference.
+- [x] Keep this macro task active after Gate 3 unless Gate 4 is also genuinely
+  complete.
+
+## Gate 3 Acceptance Criteria
+
+- [x] Production source diff, or exact no-source-change proof, demonstrates
+  that same-target measurement evidence is consumed through a bounded policy
+  input contract, not through artifact names, route ids, q8/q4 labels, test
+  names, descriptors, or Common EmitC inference.
+- [x] The bounded input matches provider-owned primitive/resource/artifact
+  facts before it can drive selected-dispatch preference.
+- [x] Missing or stale measurement identity, summary/count evidence,
+  same-target/ssh target provenance, provider candidate, route-family plan,
+  provider-supported mirror, runtime ABI, primitive chain, remediation handoff,
+  target capability mirrors, or selected dispatch case/fallback facts fail
+  closed with targeted diagnostics.
+- [x] Accepted no-win/regression input keeps route/correctness support but
+  selects the conservative fallback path and denies performance claims.
+- [x] Matched measured-win input can select a performance-preferred path only
+  when provider resource, maturity, remediation, target, and dispatch facts
+  already agree.
+- [x] Focused C++ and script tests cover the positive and negative cases for
+  the changed seam.
+- [x] Relevant RVV plugin, target artifact, and same-target measurement script
+  checks pass.
+- [x] Bounded old-authority scans over touched files and added diff lines show
+  no new q8/q4/llama route authority, dtype-prefixed helper route, descriptor
+  authority, source-front-door authority, or Common EmitC RVV semantic
+  inference.
+- [x] `git diff --check` and `git diff --cached --check` pass.
+- [x] One coherent commit records the Gate 3 slice.
+- [x] The macro task remains active with Gate 4 unchecked and a precise
+  continuation point.
+
+## Gate 3 Completion Notes
+
+Gate 3 is complete. The RVV low-precision performance policy now has an
+explicit `RVVLowPrecisionSameTargetMeasurementPolicyInput` contract. Provider
+verification builds this bounded input from the accepted same-target
+measurement outcome and the provider-owned low-precision resource selection
+before selected-dispatch policy acceptance. The input is checked against the
+selected candidate, route-family plan, provider-supported mirror, runtime ABI
+order, primitive chain facts, remediation handoff, target capability mirrors,
+and selected dispatch case/fallback boundary facts before it can update
+dispatch preference.
+
+Focused tests prove the accepted no-win/regression input preserves route and
+correctness support while selecting the conservative fallback path. Matched
+measured-win input can select the performance-preferred path only when provider
+resource, maturity, remediation, target, and dispatch facts agree. Missing
+measurement identity, cross-target input, metadata-only provider support,
+route-family-only claims, disconnected candidates, measurement-only primitive
+claims, stale runtime ABI, and stale script maturity input fields fail closed.
+
+The same-target measurement script now emits and self-validates the policy
+input fields used by the C++ contract, including authority, correctness count,
+same-target/ssh evidence, target profile, provider route/resource/primitive
+tie-backs, remediation handoff, target capability mirrors, and performance
+preference flags. No new runtime, correctness, or performance claim is made in
+this gate; Gate 4 remains the final `ssh rvv` evidence and closeout owner.
+
 ## Out Of Scope
 
 - New q8/q4 route ids or llama.cpp-named route authority.
@@ -254,8 +331,7 @@ performance-preferred result.
 
 ## Continuation Point
 
-Current continuation is Gate 3: update only the bounded same-target measurement
-policy input and demonstrate preferred-route or conservative-fallback behavior
-from provider-owned primitive/resource/artifact/measurement facts, without
-turning measurement evidence into route authority and without claiming Gate 4
-runtime/correctness/performance completion.
+Current continuation is Gate 4: run or refresh final `ssh rvv`
+correctness/performance evidence for the bounded production selected-dispatch
+path, then perform spec/task closeout only if the macro campaign acceptance
+gates are genuinely satisfied.

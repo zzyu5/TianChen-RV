@@ -1155,9 +1155,13 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
   if (plan.lowPrecisionResourceSelection.hasSelection &&
       analysis.description.lowPrecisionSelectedDispatchPolicyBoundary
           .hasFacts()) {
+    RVVLowPrecisionPerformanceMeasurementOutcome acceptedOutcome =
+        getAcceptedRVVPackedI4Gate4MeasurementOutcome();
+    RVVLowPrecisionSameTargetMeasurementPolicyInput policyInput =
+        buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
+            plan.lowPrecisionResourceSelection, acceptedOutcome);
     if (llvm::Error error = verifyRVVLowPrecisionPerformancePolicy(
-            plan.lowPrecisionResourceSelection,
-            getAcceptedRVVPackedI4Gate4MeasurementOutcome(),
+            plan.lowPrecisionResourceSelection, policyInput,
             analysis.description.lowPrecisionSelectedDispatchPolicyBoundary,
             (llvm::Twine(context) +
              " selected-dispatch low-precision policy boundary")
@@ -6151,9 +6155,12 @@ llvm::Error verifyRVVLowPrecisionContractionResourceRemediationHandoff(
 
   RVVLowPrecisionPerformanceMeasurementOutcome acceptedOutcome =
       getAcceptedRVVPackedI4Gate4MeasurementOutcome();
+  RVVLowPrecisionSameTargetMeasurementPolicyInput policyInput =
+      buildRVVLowPrecisionSameTargetMeasurementPolicyInput(selection,
+                                                           acceptedOutcome);
   llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
       evaluateRVVLowPrecisionPerformancePolicy(
-          selection, acceptedOutcome,
+          selection, policyInput,
           (llvm::Twine(context) + " resource-remediation handoff").str());
   if (!decision)
     return decision.takeError();
@@ -6653,8 +6660,13 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
             selection.dispatchPreference,
             kRVVLowPrecisionResourcePackedI4DispatchPreference))
       return error;
+    RVVLowPrecisionPerformanceMeasurementOutcome acceptedOutcome =
+        getAcceptedRVVPackedI4Gate4MeasurementOutcome();
+    RVVLowPrecisionSameTargetMeasurementPolicyInput policyInput =
+        buildRVVLowPrecisionSameTargetMeasurementPolicyInput(selection,
+                                                             acceptedOutcome);
     if (llvm::Error error = verifyRVVLowPrecisionPerformancePolicy(
-            selection, getAcceptedRVVPackedI4Gate4MeasurementOutcome(),
+            selection, policyInput,
             (llvm::Twine(context) +
              " packed-i4 dispatch/performance policy")
                 .str()))

@@ -58,6 +58,12 @@ RESULT_CLASSIFICATION_REGRESSION = "regression"
 PACKED_I4_MATURITY_CONTRACT_EVIDENCE_INPUT = (
     "packed-i4-same-target-performance-maturity-evidence-input.v1"
 )
+PACKED_I4_MATURITY_CONTRACT_AUTHORITY = (
+    "measurement-evidence-input-only; provider-owned "
+    "low-precision resource facts and target artifact mirrors remain "
+    "the maturity contract"
+)
+PACKED_I4_SSH_TARGET_PROFILE = "ssh rvv"
 PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH = "performance-preferred"
 
 
@@ -1443,11 +1449,7 @@ def packed_i4_maturity_contract_evidence_input(
     denial_reason = performance_preference_denial_reason(fields, classification)
     return {
         "contract": PACKED_I4_MATURITY_CONTRACT_EVIDENCE_INPUT,
-        "authority": (
-            "measurement-evidence-input-only; provider-owned "
-            "low-precision resource facts and target artifact mirrors remain "
-            "the maturity contract"
-        ),
+        "authority": PACKED_I4_MATURITY_CONTRACT_AUTHORITY,
         "measurement_evidence_id": measurement_evidence_id,
         "measurement_classification": classification,
         "measurement_outcome_family": outcome_family,
@@ -1459,6 +1461,17 @@ def packed_i4_maturity_contract_evidence_input(
         ),
         "measurement_record_count": result_classification.get(
             "measurement_record_count", 0
+        ),
+        "correctness_record_count": result_classification.get(
+            "correctness_record_count", 0
+        ),
+        "same_target_measurement": classification
+        != RESULT_CLASSIFICATION_NOT_MEASURED,
+        "ssh_evidence": classification != RESULT_CLASSIFICATION_NOT_MEASURED,
+        "target_profile": (
+            PACKED_I4_SSH_TARGET_PROFILE
+            if classification != RESULT_CLASSIFICATION_NOT_MEASURED
+            else ""
         ),
         "provider_maturity": fields["performance_maturity"],
         "provider_maturity_evidence": fields["performance_maturity_evidence"],
@@ -1552,6 +1565,7 @@ def validate_packed_i4_maturity_contract_evidence_input(
 
     expected_values: dict[str, Any] = {
         "contract": PACKED_I4_MATURITY_CONTRACT_EVIDENCE_INPUT,
+        "authority": PACKED_I4_MATURITY_CONTRACT_AUTHORITY,
         "measurement_evidence_id": measurement_evidence_id,
         "measurement_classification": classification,
         "measurement_outcome_family": outcome_family,
@@ -1563,6 +1577,17 @@ def validate_packed_i4_maturity_contract_evidence_input(
         ),
         "measurement_record_count": result_classification.get(
             "measurement_record_count", 0
+        ),
+        "correctness_record_count": result_classification.get(
+            "correctness_record_count", 0
+        ),
+        "same_target_measurement": classification
+        != RESULT_CLASSIFICATION_NOT_MEASURED,
+        "ssh_evidence": classification != RESULT_CLASSIFICATION_NOT_MEASURED,
+        "target_profile": (
+            PACKED_I4_SSH_TARGET_PROFILE
+            if classification != RESULT_CLASSIFICATION_NOT_MEASURED
+            else ""
         ),
         "provider_maturity": fields["performance_maturity"],
         "provider_maturity_evidence": fields["performance_maturity_evidence"],
@@ -2573,6 +2598,21 @@ def run_self_test() -> int:
             raise AssertionError("self-test packed-i4 contract allowed stale win")
         if maturity_input["measurement_evidence_id"] != measurement_evidence_id:
             raise AssertionError("self-test packed-i4 measurement evidence id lost")
+        if maturity_input["authority"] != PACKED_I4_MATURITY_CONTRACT_AUTHORITY:
+            raise AssertionError("self-test packed-i4 authority contract changed")
+        expected_measured = (
+            result_classification["classification"]
+            != RESULT_CLASSIFICATION_NOT_MEASURED
+        )
+        if maturity_input["same_target_measurement"] != expected_measured:
+            raise AssertionError("self-test packed-i4 same-target flag changed")
+        if maturity_input["ssh_evidence"] != expected_measured:
+            raise AssertionError("self-test packed-i4 ssh evidence flag changed")
+        expected_target_profile = (
+            PACKED_I4_SSH_TARGET_PROFILE if expected_measured else ""
+        )
+        if maturity_input["target_profile"] != expected_target_profile:
+            raise AssertionError("self-test packed-i4 target profile changed")
         if (
             maturity_input["performance_preference_denial_reason"]
             != expected_denial_reason
@@ -2658,9 +2698,14 @@ def run_self_test() -> int:
             "stale/same_target_measurement_evidence.json",
             "measurement_evidence_id",
         ),
+        ("authority", "metadata-derived-policy-authority", "authority"),
         ("measurement_classification", RESULT_CLASSIFICATION_WIN, "classification"),
         ("measurement_outcome_family", RESULT_CLASSIFICATION_WIN, "outcome_family"),
         ("measurement_best_speedup_range", "2.000000..2.500000", "speedup"),
+        ("correctness_record_count", 0, "correctness_record_count"),
+        ("same_target_measurement", False, "same_target_measurement"),
+        ("ssh_evidence", False, "ssh_evidence"),
+        ("target_profile", "local-x86", "target_profile"),
         ("provider_maturity_outcome", RESULT_CLASSIFICATION_WIN, "maturity"),
         (
             "provider_resource_route_family_plan",

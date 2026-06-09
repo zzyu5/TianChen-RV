@@ -15,6 +15,9 @@ constexpr llvm::StringLiteral kPackedI4PerformancePolicyContract(
     "rvv-low-precision-packed-i4-dispatch-performance-policy.v1");
 constexpr llvm::StringLiteral kPackedI4MeasurementInputContract(
     "packed-i4-same-target-performance-maturity-evidence-input.v1");
+constexpr llvm::StringLiteral kPackedI4MeasurementInputAuthority(
+    "measurement-evidence-input-only; provider-owned low-precision resource "
+    "facts and target artifact mirrors remain the maturity contract");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementClassification(
     "regression");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementOutcomeFamily("no-win");
@@ -103,6 +106,26 @@ llvm::Error requireNonEmptyPolicyString(llvm::StringRef context,
     return llvm::Error::success();
   return makeRVVLowPrecisionPerformancePolicyError(
       llvm::Twine(context) + " requires non-empty " + label);
+}
+
+llvm::Error requireSameTargetPolicyInputTieBack(llvm::StringRef context,
+                                                llvm::StringRef label,
+                                                llvm::StringRef actual,
+                                                llvm::StringRef expected) {
+  if (expected.empty())
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) + " requires provider-owned " + label +
+        " before consuming same-target measurement policy input");
+  if (actual.empty())
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) + " requires same-target measurement policy input " +
+        label + " tie-back '" + expected + "'");
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) +
+      " rejects disconnected same-target measurement policy input " + label +
+      " '" + actual + "'; provider facts require '" + expected + "'");
 }
 
 llvm::Error verifyPackedI4SelectionFacts(
@@ -239,6 +262,179 @@ llvm::Error verifyPackedI4SelectionFacts(
     return error;
   return requireNonEmptyPolicyString(context, "target capability legality mirror",
                                      selection.targetCapabilityLegalityMirror);
+}
+
+llvm::Error verifyPackedI4SameTargetMeasurementPolicyInput(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    llvm::StringRef context) {
+  if (llvm::Error error = verifyPackedI4SelectionFacts(
+          selection, (llvm::Twine(context) + " provider fact gate").str()))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "measurement policy input contract", input.contract,
+          kPackedI4MeasurementInputContract))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "measurement policy input authority",
+                              input.authority, kPackedI4MeasurementInputAuthority))
+    return error;
+  if (llvm::Error error = requireNonEmptyPolicyString(
+          context, "measurement evidence id", input.measurementEvidenceID))
+    return error;
+  if (llvm::Error error = requirePolicyBool(
+          context, "same-target measurement evidence",
+          input.sameTargetMeasurement, true))
+    return error;
+  if (llvm::Error error =
+          requirePolicyBool(context, "ssh rvv evidence", input.sshEvidence,
+                            true))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "target profile", input.targetProfile,
+          kPackedI4Gate4TargetProfile))
+    return error;
+
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider selected candidate",
+          input.providerResourceSelectedCandidate, selection.selectedCandidateID))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider route-family plan",
+          input.providerResourceRouteFamilyPlan, selection.routeFamilyPlanID))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider-supported mirror", input.providerSupportedMirror,
+          selection.providerSupportedMirror))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider runtime ABI order", input.providerRuntimeABIOrder,
+          selection.runtimeABIOrder))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive chain contract",
+          input.providerPrimitiveChainContract,
+          selection.primitiveChainContractID))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive chain kind",
+          input.providerPrimitiveChainKind, selection.primitiveChainKind))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive widening-product relation",
+          input.providerPrimitiveWideningProductRelation,
+          selection.primitiveWideningProductRelation))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive product-reduction chain relation",
+          input.providerPrimitiveProductReductionChainRelation,
+          selection.primitiveProductReductionChainRelation))
+    return error;
+
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider remediation handoff contract",
+          input.providerRemediationHandoffContract,
+          selection.remediationHandoffContract))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider remediation diagnosis",
+          input.providerRemediationDiagnosis, selection.remediationDiagnosis))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider remediation measurement evidence",
+          input.providerRemediationMeasurementEvidence,
+          selection.remediationMeasurementEvidenceID))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider remediation decision",
+          input.providerRemediationDecision, selection.remediationDecision))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider remediation action", input.providerRemediationAction,
+          selection.remediationAction))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider remediation dispatch preference",
+          input.providerRemediationDispatchPreference,
+          selection.remediationDispatchPreference))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider remediation blocker",
+          input.providerRemediationBlocker, selection.remediationBlocker))
+    return error;
+
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "target capability provider mirror",
+          input.targetCapabilityProviderMirror,
+          selection.targetCapabilityProviderMirror))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "target capability legality mirror",
+          input.targetCapabilityLegalityMirror,
+          selection.targetCapabilityLegalityMirror))
+    return error;
+
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider maturity", input.providerMaturity,
+          selection.performanceMaturity))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider maturity evidence", input.providerMaturityEvidence,
+          selection.performanceMaturityEvidence))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider maturity outcome", input.providerMaturityOutcome,
+          selection.performanceMaturityOutcome))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider performance-selection eligibility",
+          input.providerPerformanceSelectionEligible,
+          selection.performanceSelectionEligible))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider dispatch preference",
+          input.providerDispatchPreference, selection.dispatchPreference))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider performance action",
+          input.providerPerformanceAction, selection.performanceAction))
+    return error;
+  return requirePolicyString(context, "route support effect",
+                             input.routeSupportEffect,
+                             kPackedI4RouteSupportEffect);
+}
+
+RVVLowPrecisionPerformanceMeasurementOutcome
+materializeRVVLowPrecisionMeasurementOutcomeFromPolicyInput(
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input) {
+  RVVLowPrecisionPerformanceMeasurementOutcome outcome;
+  outcome.contract = input.contract;
+  outcome.measurementEvidenceID = input.measurementEvidenceID;
+  outcome.measurementClassification = input.measurementClassification;
+  outcome.measurementOutcomeFamily = input.measurementOutcomeFamily;
+  outcome.measurementBestSpeedupRange = input.measurementBestSpeedupRange;
+  outcome.measurementSummaryRecordCount = input.measurementSummaryRecordCount;
+  outcome.measurementRecordCount = input.measurementRecordCount;
+  outcome.correctnessRecordCount = input.correctnessRecordCount;
+  outcome.sameTargetMeasurement = input.sameTargetMeasurement;
+  outcome.sshEvidence = input.sshEvidence;
+  outcome.targetProfile = input.targetProfile;
+  outcome.providerMaturity = input.providerMaturity;
+  outcome.providerMaturityEvidence = input.providerMaturityEvidence;
+  outcome.providerMaturityOutcome = input.providerMaturityOutcome;
+  outcome.providerPerformanceSelectionEligible =
+      input.providerPerformanceSelectionEligible;
+  outcome.providerDispatchPreference = input.providerDispatchPreference;
+  outcome.providerPerformanceAction = input.providerPerformanceAction;
+  outcome.performancePreferenceDenied = input.performancePreferenceDenied;
+  outcome.performancePreferenceDenialReason =
+      input.performancePreferenceDenialReason;
+  outcome.performanceWinClaimAllowed = input.performanceWinClaimAllowed;
+  outcome.correctnessExecutionAllowed = input.correctnessExecutionAllowed;
+  outcome.providerContractUpdateRequired =
+      input.providerContractUpdateRequired;
+  outcome.routeSupportEffect = input.routeSupportEffect;
+  return outcome;
 }
 
 llvm::Error verifyPackedI4MeasurementOutcomeCommon(
@@ -642,6 +838,82 @@ getAcceptedRVVPackedI4Gate4MeasurementOutcome() {
   return outcome;
 }
 
+RVVLowPrecisionSameTargetMeasurementPolicyInput
+buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionPerformanceMeasurementOutcome &outcome) {
+  RVVLowPrecisionSameTargetMeasurementPolicyInput input;
+  input.contract = outcome.contract;
+  input.authority = kPackedI4MeasurementInputAuthority.str();
+  input.measurementEvidenceID = outcome.measurementEvidenceID;
+  input.measurementClassification = outcome.measurementClassification;
+  input.measurementOutcomeFamily = outcome.measurementOutcomeFamily;
+  input.measurementBestSpeedupRange = outcome.measurementBestSpeedupRange;
+  input.measurementSummaryRecordCount =
+      outcome.measurementSummaryRecordCount;
+  input.measurementRecordCount = outcome.measurementRecordCount;
+  input.correctnessRecordCount = outcome.correctnessRecordCount;
+  input.sameTargetMeasurement = outcome.sameTargetMeasurement;
+  input.sshEvidence = outcome.sshEvidence;
+  input.targetProfile = outcome.targetProfile;
+
+  input.providerResourceSelectedCandidate = selection.selectedCandidateID;
+  input.providerResourceRouteFamilyPlan = selection.routeFamilyPlanID;
+  input.providerSupportedMirror = selection.providerSupportedMirror;
+  input.providerRuntimeABIOrder = selection.runtimeABIOrder;
+  input.providerPrimitiveChainContract = selection.primitiveChainContractID;
+  input.providerPrimitiveChainKind = selection.primitiveChainKind;
+  input.providerPrimitiveWideningProductRelation =
+      selection.primitiveWideningProductRelation;
+  input.providerPrimitiveProductReductionChainRelation =
+      selection.primitiveProductReductionChainRelation;
+
+  input.providerRemediationHandoffContract =
+      selection.remediationHandoffContract;
+  input.providerRemediationDiagnosis = selection.remediationDiagnosis;
+  input.providerRemediationMeasurementEvidence =
+      selection.remediationMeasurementEvidenceID;
+  input.providerRemediationDecision = selection.remediationDecision;
+  input.providerRemediationAction = selection.remediationAction;
+  input.providerRemediationDispatchPreference =
+      selection.remediationDispatchPreference;
+  input.providerRemediationBlocker = selection.remediationBlocker;
+
+  input.targetCapabilityProviderMirror =
+      selection.targetCapabilityProviderMirror;
+  input.targetCapabilityLegalityMirror =
+      selection.targetCapabilityLegalityMirror;
+
+  input.providerMaturity = outcome.providerMaturity;
+  input.providerMaturityEvidence = outcome.providerMaturityEvidence;
+  input.providerMaturityOutcome = outcome.providerMaturityOutcome;
+  input.providerPerformanceSelectionEligible =
+      outcome.providerPerformanceSelectionEligible;
+  input.providerDispatchPreference = outcome.providerDispatchPreference;
+  input.providerPerformanceAction = outcome.providerPerformanceAction;
+  input.performancePreferenceDenied = outcome.performancePreferenceDenied;
+  input.performancePreferenceDenialReason =
+      outcome.performancePreferenceDenialReason;
+  input.performanceWinClaimAllowed = outcome.performanceWinClaimAllowed;
+  input.correctnessExecutionAllowed = outcome.correctnessExecutionAllowed;
+  input.providerContractUpdateRequired =
+      outcome.providerContractUpdateRequired;
+  input.routeSupportEffect = outcome.routeSupportEffect;
+  return input;
+}
+
+llvm::Expected<RVVLowPrecisionPerformanceMeasurementOutcome>
+consumeRVVLowPrecisionSameTargetMeasurementPolicyInput(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    llvm::StringRef context) {
+  if (llvm::Error error =
+          verifyPackedI4SameTargetMeasurementPolicyInput(selection, input,
+                                                         context))
+    return std::move(error);
+  return materializeRVVLowPrecisionMeasurementOutcomeFromPolicyInput(input);
+}
+
 llvm::StringRef stringifyRVVLowPrecisionPerformanceMeasurementDiagnosisKind(
     RVVLowPrecisionPerformanceMeasurementDiagnosisKind kind) {
   switch (kind) {
@@ -784,6 +1056,39 @@ diagnoseRVVLowPrecisionPerformancePolicyHandoff(
   return handoff;
 }
 
+RVVLowPrecisionPerformancePolicyHandoff
+diagnoseRVVLowPrecisionPerformancePolicyHandoff(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionPerformanceMeasurementOutcome> outcome =
+      consumeRVVLowPrecisionSameTargetMeasurementPolicyInput(selection, input,
+                                                             context);
+  if (outcome)
+    return diagnoseRVVLowPrecisionPerformancePolicyHandoff(selection, *outcome,
+                                                           context);
+
+  RVVLowPrecisionPerformancePolicyHandoff handoff;
+  handoff.handoffContract =
+      kRVVLowPrecisionResourcePackedI4RemediationHandoffContract.str();
+  handoff.selectedCandidateID = selection.selectedCandidateID;
+  handoff.expectedSelectedCandidateID =
+      kRVVLowPrecisionResourceDequantPackedI4Candidate.str();
+  handoff.measurementEvidenceID = input.measurementEvidenceID;
+  handoff.measurementClassification = input.measurementClassification;
+  handoff.measurementOutcomeFamily = input.measurementOutcomeFamily;
+  handoff.dispatchPreference = selection.dispatchPreference;
+  handoff.performancePreferenceDenialReason =
+      input.performancePreferenceDenialReason;
+  handoff.diagnosisKind =
+      stringifyRVVLowPrecisionPerformanceMeasurementDiagnosisKind(
+          RVVLowPrecisionPerformanceMeasurementDiagnosisKind::StaleMeasurement)
+          .str();
+  handoff.staleMeasurement = true;
+  handoff.failureReason = llvm::toString(outcome.takeError());
+  return handoff;
+}
+
 void populateRVVLowPrecisionPolicyDispatchPath(
     RVVLowPrecisionPerformancePolicyDecision &decision) {
   decision.performancePreferredPathSelected =
@@ -836,11 +1141,60 @@ evaluateRVVLowPrecisionPerformancePolicy(
 llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
 evaluateRVVLowPrecisionPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    llvm::StringRef context) {
+  RVVLowPrecisionPerformancePolicyHandoff handoff =
+      diagnoseRVVLowPrecisionPerformancePolicyHandoff(selection, input,
+                                                      context);
+  if (!handoff.acceptedForDispatchPolicy)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) + " policy handoff diagnosis '" +
+        handoff.diagnosisKind + "' is not accepted: " +
+        handoff.failureReason);
+
+  RVVLowPrecisionPerformancePolicyDecision decision;
+  decision.policyContract = kPackedI4PerformancePolicyContract.str();
+  decision.handoff = std::move(handoff);
+  decision.routeSupportAllowed = decision.handoff.routeSupportAllowed;
+  decision.correctnessExecutionAllowed =
+      decision.handoff.correctnessExecutionAllowed;
+  decision.performanceSelectionAllowed =
+      decision.handoff.performanceSelectionAllowed;
+  decision.performanceWinClaimAllowed =
+      decision.handoff.performanceWinClaimAllowed;
+  decision.dispatchPreference = decision.handoff.dispatchPreference;
+  decision.performancePreferenceDenialReason =
+      decision.handoff.performancePreferenceDenialReason;
+  populateRVVLowPrecisionPolicyDispatchPath(decision);
+  return decision;
+}
+
+llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
+evaluateRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
     const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
     llvm::StringRef context) {
   llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
       evaluateRVVLowPrecisionPerformancePolicy(selection, outcome, context);
+  if (!decision)
+    return decision.takeError();
+  if (llvm::Error error =
+          verifyRVVLowPrecisionSelectedDispatchBoundary(*decision,
+                                                        dispatchBoundary,
+                                                        context))
+    return std::move(error);
+  return decision;
+}
+
+llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
+evaluateRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
+      evaluateRVVLowPrecisionPerformancePolicy(selection, input, context);
   if (!decision)
     return decision.takeError();
   if (llvm::Error error =
@@ -858,6 +1212,48 @@ resolveRVVLowPrecisionDispatchPerformancePolicy(
     llvm::StringRef context) {
   RVVLowPrecisionPerformancePolicyHandoff handoff =
       diagnoseRVVLowPrecisionPerformancePolicyHandoff(selection, outcome,
+                                                      context);
+  RVVLowPrecisionPerformancePolicyDecision decision;
+  decision.policyContract = kPackedI4PerformancePolicyContract.str();
+  decision.handoff = std::move(handoff);
+  if (decision.handoff.acceptedForDispatchPolicy) {
+    decision.routeSupportAllowed = decision.handoff.routeSupportAllowed;
+    decision.correctnessExecutionAllowed =
+        decision.handoff.correctnessExecutionAllowed;
+    decision.performanceSelectionAllowed =
+        decision.handoff.performanceSelectionAllowed;
+    decision.performanceWinClaimAllowed =
+        decision.handoff.performanceWinClaimAllowed;
+    decision.dispatchPreference = decision.handoff.dispatchPreference;
+    decision.performancePreferenceDenialReason =
+        decision.handoff.performancePreferenceDenialReason;
+    populateRVVLowPrecisionPolicyDispatchPath(decision);
+    return decision;
+  }
+
+  decision.routeSupportAllowed =
+      selection.hasSelection && selection.isLegal &&
+      selection.rejectionReason == kRVVLowPrecisionResourceNoRejectionReason;
+  decision.correctnessExecutionAllowed = decision.routeSupportAllowed;
+  decision.performanceSelectionAllowed = false;
+  decision.performanceWinClaimAllowed = false;
+  decision.dispatchPreference =
+      kRVVLowPrecisionResourcePackedI4DispatchPreference.str();
+  decision.performancePreferenceDenialReason =
+      decision.handoff.failureReason.empty()
+          ? "missing-or-stale-low-precision-performance-evidence"
+          : decision.handoff.failureReason;
+  populateRVVLowPrecisionPolicyDispatchPath(decision);
+  return decision;
+}
+
+RVVLowPrecisionPerformancePolicyDecision
+resolveRVVLowPrecisionDispatchPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    llvm::StringRef context) {
+  RVVLowPrecisionPerformancePolicyHandoff handoff =
+      diagnoseRVVLowPrecisionPerformancePolicyHandoff(selection, input,
                                                       context);
   RVVLowPrecisionPerformancePolicyDecision decision;
   decision.policyContract = kPackedI4PerformancePolicyContract.str();
@@ -932,6 +1328,43 @@ llvm::Error verifyRVVLowPrecisionPerformancePolicy(
 
 llvm::Error verifyRVVLowPrecisionPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
+      evaluateRVVLowPrecisionPerformancePolicy(selection, input, context);
+  if (!decision)
+    return decision.takeError();
+  if (!decision->routeSupportAllowed)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " must preserve executable route support for the accepted same-target "
+        "measurement policy input");
+  if (!decision->correctnessExecutionAllowed)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " must preserve correctness execution for the accepted same-target "
+        "measurement policy input");
+  if (decision->performancePreferredPathSelected) {
+    if (decision->dispatchPolicyPath != kPackedI4PerformancePreferredPolicyPath)
+      return makeRVVLowPrecisionPerformancePolicyError(
+          llvm::Twine(context) +
+          " accepted same-target measured-win input must select the "
+          "performance-preferred dispatch path");
+    return llvm::Error::success();
+  }
+  if (decision->performanceSelectionAllowed ||
+      decision->performanceWinClaimAllowed ||
+      !decision->correctnessFallbackPathSelected ||
+      decision->dispatchPolicyPath != kPackedI4CorrectnessFallbackPolicyPath)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " accepted same-target no-win/regression input must deny performance "
+        "selection and preserve the conservative correctness fallback path");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
     const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
     llvm::StringRef context) {
@@ -960,6 +1393,40 @@ llvm::Error verifyRVVLowPrecisionPerformancePolicy(
         llvm::Twine(context) +
         " selected-dispatch low-precision policy must deny performance "
         "selection and preserve the conservative correctness fallback path");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
+      evaluateRVVLowPrecisionPerformancePolicy(selection, input,
+                                               dispatchBoundary, context);
+  if (!decision)
+    return decision.takeError();
+  if (!decision->routeSupportAllowed)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " must preserve executable route support for the accepted selected-"
+        "dispatch same-target measurement policy input");
+  if (!decision->correctnessExecutionAllowed)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " must preserve correctness execution for the accepted selected-"
+        "dispatch same-target measurement policy input");
+  if (decision->performancePreferredPathSelected)
+    return llvm::Error::success();
+  if (decision->performanceSelectionAllowed ||
+      decision->performanceWinClaimAllowed ||
+      !decision->correctnessFallbackPathSelected ||
+      decision->dispatchPolicyPath != kPackedI4CorrectnessFallbackPolicyPath)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " selected-dispatch same-target measurement policy input must deny "
+        "performance selection and preserve the conservative correctness "
+        "fallback path");
   return llvm::Error::success();
 }
 

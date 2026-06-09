@@ -449,3 +449,67 @@ introduced; the full campaign rule should only be promoted to spec after Gates
 update only the bounded same-target measurement policy input and demonstrate
 preferred-route or conservative-fallback behavior from provider-owned facts,
 without making measurement evidence or artifact metadata route authority.
+
+## Session 580: RVV low-precision selected-dispatch Gate 3
+
+**Date**: 2026-06-10
+**Task**: RVV low-precision production-kernel selected-dispatch campaign
+**Branch**: `main`
+
+### Summary
+
+Completed Gate 3 only for the active macro task. Same-target measurement
+evidence is now represented as bounded low-precision selected-dispatch policy
+input before it can affect dispatch preference. The RVV policy validates that
+the input is tied to provider-owned selected candidate, route-family plan,
+provider-supported mirror, runtime ABI order, primitive chain facts,
+remediation handoff, target capability mirrors, and selected dispatch
+case/fallback boundary facts.
+
+The accepted packed-i4 no-win/regression evidence still preserves route and
+correctness support while selecting the conservative fallback path. A matched
+measured-win input can select a performance-preferred path only after provider
+resource, maturity, remediation, target, and dispatch facts already agree.
+Gate 3 makes no new runtime, correctness, or performance claim.
+
+### Main Changes
+
+- Added `RVVLowPrecisionSameTargetMeasurementPolicyInput` plus builder,
+  consumer, diagnose/evaluate/resolve/verify overloads in the RVV
+  low-precision performance policy.
+- Routed packed-i4 resource remediation validation and selected-dispatch
+  provider validation through the bounded same-target policy input.
+- Extended the same-target measurement script maturity input with authority,
+  correctness count, same-target/ssh evidence, target profile, and provider
+  tie-back fields aligned with the C++ contract.
+- Added focused C++ tests for accepted fallback, matched measured-win
+  preference, missing measurement identity, cross-target input, metadata-only
+  provider support, route-family-only claims, disconnected candidates,
+  measurement-only primitive claims, and stale runtime ABI.
+
+### Evidence
+
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- `ninja -C build tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- `build/bin/tianchenrv-rvv-extension-plugin-test`
+- `build/bin/tianchenrv-target-artifact-export-test`
+- `tcrv-opt` plan check for the packed-i4 pre-realized selected-body artifact.
+- `tcrv-opt | tcrv-translate --tcrv-export-target-header-artifact` positive
+  header check for `not-performance-preferred` and selected dispatch mirrors.
+- `git diff --check`
+- `git diff --cached --check`
+- Added-lines old-authority scan over changed source/test/script files had no
+  hits; the only broader scan hits were PRD prohibition text.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] Gate 3 implements the active macro PRD and existing RVV
+plugin/EmitC route/target-artifact contracts. The campaign-level rule should be
+promoted only after Gate 4 closes final `ssh rvv` evidence and task closeout.
+
+### Status
+
+[OPEN] Gate 3 is complete. Gate 4 remains unchecked. Continue with final
+`ssh rvv` correctness/performance evidence and campaign closeout only when the
+macro acceptance gates are genuinely satisfied.

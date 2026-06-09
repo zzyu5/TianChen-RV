@@ -13245,12 +13245,19 @@ bool expectRVVTargetArtifactExporterShape(
           "packed-i4 target artifact accepts selected-dispatch case/fallback "
           "mirrors with low-precision resource and policy facts"))
     return false;
+  auto selectedDispatchPackedI4PolicyInput =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
+              selectedDispatchPackedI4Description.lowPrecisionResourceSelection,
+              acceptedPackedI4Gate4Outcome);
   auto selectedDispatchPackedI4Policy =
       tianchenrv::plugin::rvv::
           evaluateRVVLowPrecisionPerformancePolicy(
               selectedDispatchPackedI4Description.lowPrecisionResourceSelection,
-              acceptedPackedI4Gate4Outcome, packedI4TargetDispatchBoundary,
-              "packed-i4 target artifact Gate 2 selected-dispatch policy");
+              selectedDispatchPackedI4PolicyInput,
+              packedI4TargetDispatchBoundary,
+              "packed-i4 target artifact Gate 3 selected-dispatch policy "
+              "input");
   if (!selectedDispatchPackedI4Policy ||
       !selectedDispatchPackedI4Policy->routeSupportAllowed ||
       !selectedDispatchPackedI4Policy->correctnessExecutionAllowed ||
@@ -13334,6 +13341,23 @@ bool expectRVVTargetArtifactExporterShape(
            "fallback facts"}))
     return false;
 
+  auto staleRuntimeABIPackedI4PolicyInput =
+      selectedDispatchPackedI4PolicyInput;
+  staleRuntimeABIPackedI4PolicyInput.providerRuntimeABIOrder =
+      "lhs,rhs,out,n";
+  if (!expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              selectedDispatchPackedI4Description
+                  .lowPrecisionResourceSelection,
+              staleRuntimeABIPackedI4PolicyInput,
+              packedI4TargetDispatchBoundary,
+              "packed-i4 target artifact Gate 3 policy input rejects stale "
+              "runtime ABI tie-back"),
+          "packed-i4 target artifact rejects stale policy input runtime ABI",
+          {"policy handoff diagnosis", "stale-measurement",
+           "provider runtime ABI order", "lhs,rhs,out,n"}))
+    return false;
+
   auto measuredWinTargetSelection =
       packedI4ProductDequantDescription.lowPrecisionResourceSelection;
   measuredWinTargetSelection.performanceFeedback =
@@ -13385,12 +13409,16 @@ bool expectRVVTargetArtifactExporterShape(
   measuredWinTargetOutcome.performancePreferenceDenialReason = "";
   measuredWinTargetOutcome.performanceWinClaimAllowed = true;
   measuredWinTargetOutcome.providerContractUpdateRequired = false;
+  auto measuredWinTargetPolicyInput =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
+              measuredWinTargetSelection, measuredWinTargetOutcome);
   auto measuredWinTargetPolicy =
       tianchenrv::plugin::rvv::
           evaluateRVVLowPrecisionPerformancePolicy(
-              measuredWinTargetSelection, measuredWinTargetOutcome,
+              measuredWinTargetSelection, measuredWinTargetPolicyInput,
               "packed-i4 target artifact Gate 4 measured-win "
-              "dispatch/performance policy");
+              "dispatch/performance policy input");
   if (!measuredWinTargetPolicy ||
       !measuredWinTargetPolicy->routeSupportAllowed ||
       !measuredWinTargetPolicy->correctnessExecutionAllowed ||
