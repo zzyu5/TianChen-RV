@@ -1617,41 +1617,54 @@ def packed_i4_provider_feedback_tie_back(
             )
         return str(value)
 
+    expected_resource_metadata = abi.expected_low_precision_resource_metadata(
+        expectation, packed_i4=True
+    )
+    expected_field_names = (
+        "selected_candidate",
+        "selection_reason",
+        "runtime_abi_order",
+        "primitive_contract",
+        "primitive_kind",
+        "primitive_chain_contract",
+        "primitive_chain_kind",
+        "primitive_widening_product_relation",
+        "primitive_product_reduction_chain_relation",
+        "primitive_widening_product_intrinsic",
+        "primitive_reduction_intrinsic",
+        "primitive_scalar_seed_splat_intrinsic",
+        "primitive_accumulator_layout",
+        "primitive_result_layout",
+        "primitive_reduction_store_vl",
+        "realization_producer",
+        "realization_decision",
+        "realized_unroll_factor",
+        "realized_vsetvl_region_count",
+        "realized_peak_live_vector_groups",
+        "product_region_index",
+        "dequant_region_index",
+        "product_phase",
+        "dequant_phase",
+        "target_capability_provider_mirror",
+        "target_capability_legality_mirror",
+        "performance_feedback",
+        "performance_baseline",
+        "performance_best_speedup_range",
+        "performance_action",
+        "performance_maturity",
+        "performance_maturity_evidence",
+        "performance_maturity_outcome",
+        "performance_selection_eligible",
+        "dispatch_preference",
+        "operand_form",
+        "packing_layout",
+        "unpack_intent",
+    )
     expected_fields = {
-        "performance_feedback": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_FEEDBACK
-        ),
-        "performance_baseline": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BASELINE
-        ),
-        "performance_best_speedup_range": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BEST_SPEEDUP_RANGE
-        ),
-        "performance_action": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
-        ),
-        "performance_maturity": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY
-        ),
-        "performance_maturity_evidence": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_EVIDENCE
-        ),
-        "performance_maturity_outcome": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_OUTCOME
-        ),
-        "performance_selection_eligible": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_SELECTION_ELIGIBLE
-        ),
-        "dispatch_preference": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_DISPATCH_PREFERENCE
-        ),
-        "operand_form": abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_OPERAND_FORM,
-        "packing_layout": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PACKING_LAYOUT
-        ),
-        "unpack_intent": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_UNPACK_INTENT
-        ),
+        name: expected_resource_metadata[
+            f"tcrv_rvv.low_precision_resource.{name}"
+        ]
+        for name in expected_field_names
     }
     fields = {name: resource_field(name) for name in expected_fields}
     for name, expected in expected_fields.items():
@@ -2432,44 +2445,9 @@ def run_self_test() -> int:
     )
     if mixed["classification"] != RESULT_CLASSIFICATION_NO_WIN:
         raise AssertionError("self-test timing classifier lost no-win result")
-    feedback_metadata = {
-        "tcrv_rvv.low_precision_resource.performance_feedback": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_FEEDBACK
-        ),
-        "tcrv_rvv.low_precision_resource.performance_baseline": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BASELINE
-        ),
-        "tcrv_rvv.low_precision_resource.performance_best_speedup_range": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BEST_SPEEDUP_RANGE
-        ),
-        "tcrv_rvv.low_precision_resource.performance_action": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
-        ),
-        "tcrv_rvv.low_precision_resource.performance_maturity": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY
-        ),
-        "tcrv_rvv.low_precision_resource.performance_maturity_evidence": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_EVIDENCE
-        ),
-        "tcrv_rvv.low_precision_resource.performance_maturity_outcome": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_OUTCOME
-        ),
-        "tcrv_rvv.low_precision_resource.performance_selection_eligible": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_SELECTION_ELIGIBLE
-        ),
-        "tcrv_rvv.low_precision_resource.dispatch_preference": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_DISPATCH_PREFERENCE
-        ),
-        "tcrv_rvv.low_precision_resource.operand_form": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_OPERAND_FORM
-        ),
-        "tcrv_rvv.low_precision_resource.packing_layout": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PACKING_LAYOUT
-        ),
-        "tcrv_rvv.low_precision_resource.unpack_intent": (
-            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_UNPACK_INTENT
-        ),
-    }
+    feedback_metadata = abi.expected_low_precision_resource_metadata(
+        packed_expectation, packed_i4=True
+    )
     def check_packed_i4_contract_input(
         result_classification: dict[str, Any],
         *,
@@ -2655,6 +2633,26 @@ def run_self_test() -> int:
             "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
             "2.000000..2.500000",
             "performance_best_speedup_range",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic",
+            "__riscv_vwredsum_vs_i32m1_i32m1",
+            "primitive_reduction_intrinsic",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.primitive_chain_kind",
+            "stale-primitive-chain-kind",
+            "primitive_chain_kind",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.realization_decision",
+            "stale-realization-decision",
+            "realization_decision",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.target_capability_legality_mirror",
+            "stale-target-capability-legality",
+            "target_capability_legality_mirror",
         ),
     ]:
         expect_stale_provider_metadata_failure(

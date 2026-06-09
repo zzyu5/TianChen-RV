@@ -1218,3 +1218,70 @@ only completed focused evidence for that contract.
 Next owner: Gate 4 generated artifact correctness and same-target measurement
 for the changed production path. Gate 5 dispatch/performance policy must wait
 for Gate 4 measurement facts.
+
+## 2026-06-09 - RVV production-kernel capability campaign Gate 4 evidence plumbing
+
+### Summary
+
+- Continued the active macro task
+  `06-09-rvv-production-kernel-capability-campaign`.
+- Completed the first Gate 4 sub-slice by carrying the low-precision
+  primitive-chain/resource facts from Gates 1-3 into generated-bundle evidence
+  and same-target measurement dry-run records.
+- The generated-bundle and measurement paths now require primitive-chain,
+  resource, realization schedule, provider, target capability, artifact ABI,
+  correctness-before-timing, and measurement classification mirrors for the
+  grouped and packed-i4 product-reduction/dequantization paths.
+- Packed-i4 provider feedback now derives its required primitive/resource/
+  realization/target field set from provider-owned low-precision metadata and
+  fails closed on stale primitive-chain, reduction, realization, or target
+  capability mirrors before accepting a measurement record.
+- No dispatch/performance policy changed and no runtime correctness or
+  performance claim was made. The dry-run measurement evidence remains
+  classified as `not-measured`.
+
+### Evidence
+
+- `rtk python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+  passed.
+- Packed-i4 same-target dry-run passed and wrote a `not-measured` record under
+  `artifacts/tmp/codex-gate4-check/gate4-packed-i4-same-target-measure`.
+- Grouped dequant/dequant-clamp same-target dry-run passed under
+  `artifacts/tmp/codex-gate4-check-standard/gate4-same-target-measure`.
+- Packed-i4 generated-bundle ABI dry-run passed under
+  `artifacts/tmp/codex-gate4-abi-packed/pre-realized-widening-product-reduce-dequantize-f32-packed-i4`.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- `rtk git diff --check` passed before staging.
+- A bounded touched-diff old-authority scan found no new positive
+  `RVVI32M1`, `rvv-i32m1`, `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m`,
+  source-front-door, source-artifact, descriptor, q4, q8, or llama route
+  authority in the changed script/test diff.
+
+### Self-Repair
+
+- Expanded packed-i4 generated-bundle and same-target FileCheck expectations
+  after the evidence diff showed the primitive-chain facts were present but not
+  yet asserted by the script tests.
+
+### Spec Update Decision
+
+[NO CHANGE] Existing RVV plugin and EmitC route specs already require
+provider-owned primitive/resource/realization facts, Common EmitC neutrality,
+target mirror validation, and artifact/measurement records as non-authoritative
+mirrors. This slice implemented the existing Gate 4 evidence contract.
+
+### Status
+
+[OPEN] The Gate 4 evidence-plumbing sub-slice is complete. Gate 4 remains open
+because real `ssh rvv` correctness/timing evidence was not run in this slice
+and no accepted measured win/no-win/regression facts exist. Gate 5 remains
+unopened, and `.trellis/.current-task` intentionally remains active.
+
+### Continuation
+
+Next owner: continue Gate 4 by running or accepting real same-target `ssh rvv`
+correctness/timing evidence for the generated low-precision primitive/resource
+artifact path, then record truthful measured win/no-win/regression facts. Gate
+5 dispatch/performance policy must wait for those accepted Gate 4 measurement
+facts.

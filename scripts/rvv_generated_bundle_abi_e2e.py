@@ -687,6 +687,21 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION = (
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_DECISION = (
     "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"
 )
+LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT = (
+    "rvv-low-precision-widening-primitive-facts.v1"
+)
+LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_CONTRACT = (
+    "rvv-low-precision-widening-reduction-primitive-facts.v1"
+)
+LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_KIND = (
+    "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant.v1"
+)
+LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_CLAMP_KIND = (
+    "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant-clamp.v1"
+)
+LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_KIND = (
+    "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1"
+)
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_FEEDBACK = (
     "same-target-packed-i4-no-win.v1"
 )
@@ -8329,6 +8344,18 @@ LOW_PRECISION_RESOURCE_METADATA_KEYS = (
     "tcrv_rvv.low_precision_resource.vector_register_budget",
     "tcrv_rvv.low_precision_resource.runtime_avl_source",
     "tcrv_rvv.low_precision_resource.runtime_abi_order",
+    "tcrv_rvv.low_precision_resource.primitive_contract",
+    "tcrv_rvv.low_precision_resource.primitive_kind",
+    "tcrv_rvv.low_precision_resource.primitive_chain_contract",
+    "tcrv_rvv.low_precision_resource.primitive_chain_kind",
+    "tcrv_rvv.low_precision_resource.primitive_widening_product_relation",
+    "tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation",
+    "tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic",
+    "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic",
+    "tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic",
+    "tcrv_rvv.low_precision_resource.primitive_accumulator_layout",
+    "tcrv_rvv.low_precision_resource.primitive_result_layout",
+    "tcrv_rvv.low_precision_resource.primitive_reduction_store_vl",
     "tcrv_rvv.low_precision_resource.realization_producer",
     "tcrv_rvv.low_precision_resource.realization_decision",
     "tcrv_rvv.low_precision_resource.realized_unroll_factor",
@@ -9259,6 +9286,22 @@ def product_dequant_low_precision_resource_profile(
             "accumulator_count": "1",
             "vsetvl_region_count": "2",
             "peak_live_vector_groups": "7",
+            "primitive_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT,
+            "primitive_kind": LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_KIND,
+            "primitive_chain_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_CONTRACT,
+            "primitive_chain_kind": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_KIND,
+            "primitive_widening_product_relation": WIDENING_PRODUCT_RELATION_I8_I16,
+            "primitive_product_reduction_chain_relation": WIDENING_PRODUCT_REDUCE_RELATION,
+            "primitive_widening_product_intrinsic": WIDENING_PRODUCT_REDUCE_INTRINSIC,
+            "primitive_reduction_intrinsic": (
+                WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC
+            ),
+            "primitive_scalar_seed_splat_intrinsic": (
+                WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC
+            ),
+            "primitive_accumulator_layout": WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT,
+            "primitive_result_layout": WIDENING_PRODUCT_REDUCE_RESULT_LAYOUT,
+            "primitive_reduction_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
             "realization_producer": LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER,
             "realization_decision": (
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_DECISION
@@ -9328,6 +9371,26 @@ def product_dequant_low_precision_resource_profile(
         "accumulator_count": "2",
         "vsetvl_region_count": "3",
         "peak_live_vector_groups": "7",
+        "primitive_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT,
+        "primitive_kind": (
+            LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_CLAMP_KIND
+            if is_product_dequant_clamp
+            else LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_KIND
+        ),
+        "primitive_chain_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_CONTRACT,
+        "primitive_chain_kind": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_KIND,
+        "primitive_widening_product_relation": WIDENING_PRODUCT_RELATION_I8_I16,
+        "primitive_product_reduction_chain_relation": WIDENING_PRODUCT_REDUCE_RELATION,
+        "primitive_widening_product_intrinsic": WIDENING_PRODUCT_REDUCE_INTRINSIC,
+        "primitive_reduction_intrinsic": (
+            WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC
+        ),
+        "primitive_scalar_seed_splat_intrinsic": (
+            WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC
+        ),
+        "primitive_accumulator_layout": WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT,
+        "primitive_result_layout": WIDENING_PRODUCT_REDUCE_RESULT_LAYOUT,
+        "primitive_reduction_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
         "realization_producer": LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER,
         "realization_decision": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION,
         "realized_unroll_factor": "2",
@@ -9384,6 +9447,26 @@ def expected_low_precision_resource_metadata(
         "vector_register_budget": "32",
         "runtime_avl_source": "runtime_abi:n",
         "runtime_abi_order": expectation.runtime_abi_order,
+        "primitive_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT,
+        "primitive_kind": (
+            LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_CLAMP_KIND
+            if expectation.is_widening_product_reduce_dequant_clamp_f32
+            else LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_KIND
+        ),
+        "primitive_chain_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_CONTRACT,
+        "primitive_chain_kind": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_KIND,
+        "primitive_widening_product_relation": WIDENING_PRODUCT_RELATION_I8_I16,
+        "primitive_product_reduction_chain_relation": WIDENING_PRODUCT_REDUCE_RELATION,
+        "primitive_widening_product_intrinsic": WIDENING_PRODUCT_REDUCE_INTRINSIC,
+        "primitive_reduction_intrinsic": (
+            WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC
+        ),
+        "primitive_scalar_seed_splat_intrinsic": (
+            WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC
+        ),
+        "primitive_accumulator_layout": WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT,
+        "primitive_result_layout": WIDENING_PRODUCT_REDUCE_RESULT_LAYOUT,
+        "primitive_reduction_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
         "realization_producer": profile["realization_producer"],
         "realization_decision": profile["realization_decision"],
         "realized_unroll_factor": profile["realized_unroll_factor"],
@@ -11859,6 +11942,44 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                 ),
                 "tcrv_rvv.low_precision_resource.runtime_abi_order": (
                     expectation.runtime_abi_order
+                ),
+                "tcrv_rvv.low_precision_resource.primitive_contract": (
+                    LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT
+                ),
+                "tcrv_rvv.low_precision_resource.primitive_kind": (
+                    LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_CLAMP_KIND
+                    if expectation.is_widening_product_reduce_dequant_clamp_f32
+                    else LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_KIND
+                ),
+                "tcrv_rvv.low_precision_resource.primitive_chain_contract": (
+                    LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_CONTRACT
+                ),
+                "tcrv_rvv.low_precision_resource.primitive_chain_kind": (
+                    LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_KIND
+                ),
+                "tcrv_rvv.low_precision_resource.primitive_widening_product_relation": (
+                    WIDENING_PRODUCT_RELATION_I8_I16
+                ),
+                "tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation": (
+                    WIDENING_PRODUCT_REDUCE_RELATION
+                ),
+                "tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic": (
+                    WIDENING_PRODUCT_REDUCE_INTRINSIC
+                ),
+                "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic": (
+                    WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC
+                ),
+                "tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic": (
+                    WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC
+                ),
+                "tcrv_rvv.low_precision_resource.primitive_accumulator_layout": (
+                    WIDENING_PRODUCT_REDUCE_ACCUMULATOR_LAYOUT
+                ),
+                "tcrv_rvv.low_precision_resource.primitive_result_layout": (
+                    WIDENING_PRODUCT_REDUCE_RESULT_LAYOUT
+                ),
+                "tcrv_rvv.low_precision_resource.primitive_reduction_store_vl": (
+                    WIDENING_PRODUCT_REDUCE_STORE_VL
                 ),
                 "tcrv_rvv.low_precision_resource.realization_producer": (
                     resource_profile["realization_producer"]
@@ -33583,6 +33704,75 @@ def widening_product_reduction_boundary_summary(
             "runtime_abi_order": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.runtime_abi_order"
             ),
+            "primitive_contract": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.primitive_contract"
+            ),
+            "expected_primitive_contract": resource_profile["primitive_contract"],
+            "primitive_kind": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.primitive_kind"
+            ),
+            "expected_primitive_kind": resource_profile["primitive_kind"],
+            "primitive_chain_contract": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.primitive_chain_contract"
+            ),
+            "expected_primitive_chain_contract": resource_profile[
+                "primitive_chain_contract"
+            ],
+            "primitive_chain_kind": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.primitive_chain_kind"
+            ),
+            "expected_primitive_chain_kind": resource_profile[
+                "primitive_chain_kind"
+            ],
+            "primitive_widening_product_relation": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.primitive_widening_product_relation"
+            ),
+            "expected_primitive_widening_product_relation": resource_profile[
+                "primitive_widening_product_relation"
+            ],
+            "primitive_product_reduction_chain_relation": route_metadata.get(
+                "tcrv_rvv.low_precision_resource."
+                "primitive_product_reduction_chain_relation"
+            ),
+            "expected_primitive_product_reduction_chain_relation": resource_profile[
+                "primitive_product_reduction_chain_relation"
+            ],
+            "primitive_widening_product_intrinsic": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic"
+            ),
+            "expected_primitive_widening_product_intrinsic": resource_profile[
+                "primitive_widening_product_intrinsic"
+            ],
+            "primitive_reduction_intrinsic": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic"
+            ),
+            "expected_primitive_reduction_intrinsic": resource_profile[
+                "primitive_reduction_intrinsic"
+            ],
+            "primitive_scalar_seed_splat_intrinsic": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic"
+            ),
+            "expected_primitive_scalar_seed_splat_intrinsic": resource_profile[
+                "primitive_scalar_seed_splat_intrinsic"
+            ],
+            "primitive_accumulator_layout": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.primitive_accumulator_layout"
+            ),
+            "expected_primitive_accumulator_layout": resource_profile[
+                "primitive_accumulator_layout"
+            ],
+            "primitive_result_layout": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.primitive_result_layout"
+            ),
+            "expected_primitive_result_layout": resource_profile[
+                "primitive_result_layout"
+            ],
+            "primitive_reduction_store_vl": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.primitive_reduction_store_vl"
+            ),
+            "expected_primitive_reduction_store_vl": resource_profile[
+                "primitive_reduction_store_vl"
+            ],
             "realization_producer": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.realization_producer"
             ),
@@ -33974,6 +34164,40 @@ def widening_product_reduction_boundary_summary(
                 "target_capability_legality_mirror": route_metadata.get(
                     "tcrv_rvv.low_precision_resource.target_capability_legality_mirror"
                 ),
+                "primitive_chain_contract": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.primitive_chain_contract"
+                ),
+                "primitive_chain_kind": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.primitive_chain_kind"
+                ),
+                "primitive_widening_product_relation": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource."
+                    "primitive_widening_product_relation"
+                ),
+                "primitive_product_reduction_chain_relation": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource."
+                    "primitive_product_reduction_chain_relation"
+                ),
+                "primitive_widening_product_intrinsic": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource."
+                    "primitive_widening_product_intrinsic"
+                ),
+                "primitive_reduction_intrinsic": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic"
+                ),
+                "primitive_scalar_seed_splat_intrinsic": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource."
+                    "primitive_scalar_seed_splat_intrinsic"
+                ),
+                "primitive_accumulator_layout": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.primitive_accumulator_layout"
+                ),
+                "primitive_result_layout": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.primitive_result_layout"
+                ),
+                "primitive_reduction_store_vl": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.primitive_reduction_store_vl"
+                ),
             },
             "expected_fields": {
                 "realization_producer": resource_profile["realization_producer"],
@@ -33998,6 +34222,34 @@ def widening_product_reduction_boundary_summary(
                 "target_capability_legality_mirror": (
                     RVV_TARGET_CAPABILITY_LEGALITY_MIRROR
                 ),
+                "primitive_chain_contract": resource_profile[
+                    "primitive_chain_contract"
+                ],
+                "primitive_chain_kind": resource_profile["primitive_chain_kind"],
+                "primitive_widening_product_relation": resource_profile[
+                    "primitive_widening_product_relation"
+                ],
+                "primitive_product_reduction_chain_relation": resource_profile[
+                    "primitive_product_reduction_chain_relation"
+                ],
+                "primitive_widening_product_intrinsic": resource_profile[
+                    "primitive_widening_product_intrinsic"
+                ],
+                "primitive_reduction_intrinsic": resource_profile[
+                    "primitive_reduction_intrinsic"
+                ],
+                "primitive_scalar_seed_splat_intrinsic": resource_profile[
+                    "primitive_scalar_seed_splat_intrinsic"
+                ],
+                "primitive_accumulator_layout": resource_profile[
+                    "primitive_accumulator_layout"
+                ],
+                "primitive_result_layout": resource_profile[
+                    "primitive_result_layout"
+                ],
+                "primitive_reduction_store_vl": resource_profile[
+                    "primitive_reduction_store_vl"
+                ],
             },
         }
     return {

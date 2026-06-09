@@ -237,10 +237,62 @@ Completed the Gate 3 route/provider mirror completion slice:
   validation changes.
 - [x] `git diff --check` and `git diff --cached --check` pass.
 
+## Gate 4 Acceptance Criteria
+
+- [ ] Generated artifact bundle evidence for the selected low-precision
+  product-reduction/dequantization path carries the Gate 1-3 primitive-chain,
+  resource, realization schedule, provider route, target capability, artifact
+  ABI, and target validation facts as mirrors after provider route construction.
+- [ ] Same-target measurement evidence records the generated object/header
+  identity, correctness-before-timing harness, scalar C baseline identity,
+  timing method, target profile, measurement classification, and provider
+  feedback tie-back without making measurement JSON, artifact names, q4/q8/
+  llama labels, route ids, or status fields route authority.
+- [ ] Packed-i4 measurement support is selected only from provider-owned
+  low-precision resource mirrors and records packed input semantics, reference
+  oracle, runtime `n` unit, primitive-chain facts, realization schedule facts,
+  target capability mirrors, performance maturity mirrors, and policy-readiness
+  denial/allowance separately from executable correctness.
+- [ ] Missing or stale primitive-chain resource facts, realization schedule
+  facts, provider feedback facts, target capability facts, artifact/header ABI
+  facts, or measurement outcome facts fail closed before a same-target
+  measurement record can be accepted.
+- [ ] Focused dry-run/script coverage proves the changed evidence path carries
+  these facts and rejects stale facts. Real `ssh rvv` evidence is required
+  before claiming runtime correctness or performance; dry-run evidence must
+  remain classified as `not-measured`.
+- [ ] No q4/q8/llama-named route authority, source-front-door authority,
+  descriptor-driven computation, Common EmitC semantic branch, dispatch policy
+  change, or performance-win claim is introduced.
+- [ ] `scripts/rvv_generated_bundle_same_target_measure.py --self-test` passes.
+- [ ] Focused generated-bundle same-target measurement dry-run passes.
+- [ ] `git diff --check` and `git diff --cached --check` pass.
+
+## Current Gate 4 Slice
+
+This round covers the generated artifact / same-target measurement evidence
+plumbing sub-slice:
+
+- [x] Make the generated-bundle checker and same-target measurement record
+  require the low-precision primitive-chain resource mirrors emitted by the
+  production provider/target path.
+- [x] Carry primitive-chain, resource, realization, provider, target
+  capability, object/header ABI, correctness-before-timing, and measurement
+  classification facts into the Gate 4 evidence JSON.
+- [x] Add focused stale-fact coverage for primitive-chain and performance/
+  measurement tie-back fields.
+- [x] Leave Gate 4 open if real `ssh rvv` measurement is not run in this
+  slice, and leave Gate 5 unopened until accepted Gate 4 measurement facts
+  exist.
+
+Slice result: completed the generated artifact and same-target measurement
+evidence plumbing for dry-run/not-measured Gate 4 records. The Gate 4 macro
+acceptance criteria above remain open because this slice did not run real
+`ssh rvv` correctness/timing and therefore did not create accepted measured
+win/no-win/regression facts for Gate 5.
+
 ## Out of Scope
 
-- No generated-bundle or same-target rerun unless this slice changes the
-  executable/performance path and makes a runtime/correctness/performance claim.
 - No new q4/q8/llama route ids, artifact names, helper semantics, or wrapper
   owners.
 - No high-level Linalg/Vector/StableHLO frontend work.
@@ -248,7 +300,7 @@ Completed the Gate 3 route/provider mirror completion slice:
 - No Common EmitC invention of RVV dtype, schedule, primitive, resource,
   performance, or dispatch semantics.
 - No dispatch/performance preference change or performance-win claim.
-- No archive/finish after this Gate 3 slice unless all macro gates are also
+- No archive/finish after this Gate 4 partial slice unless all macro gates are
   complete.
 
 ## Technical Notes
@@ -272,9 +324,14 @@ Completed the Gate 3 route/provider mirror completion slice:
 
 ## Continuation Point
 
-Gates 1, 2, and 3 are complete. Gates 4 and 5 remain open, so this macro task
-stays active.
+Gates 1, 2, and 3 are complete. The first Gate 4 generated artifact /
+same-target measurement evidence-plumbing sub-slice is complete. Gate 4 remains
+open because real `ssh rvv` correctness/timing evidence was not run in this
+slice and the dry-run records remain classified as `not-measured`. Gate 5
+remains unopened, so this macro task stays active.
 
-Next owner: advance to Gate 4 generated artifact correctness and same-target
-measurement for the changed production path. Gate 5 dispatch/performance policy
-must wait for Gate 4 measurement facts.
+Next owner: continue Gate 4 by running or accepting real same-target `ssh rvv`
+correctness/timing evidence for the generated low-precision primitive/resource
+artifact path, then record truthful measured win/no-win/regression facts. Gate 5
+dispatch/performance policy must wait for those accepted Gate 4 measurement
+facts.
