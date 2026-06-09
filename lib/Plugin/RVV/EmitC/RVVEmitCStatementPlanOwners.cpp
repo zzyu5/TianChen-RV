@@ -548,6 +548,8 @@ constexpr llvm::StringLiteral kRVVPackedI4ShiftLeftIntrinsic(
     "__riscv_vsll_vx_i8mf4");
 constexpr llvm::StringLiteral kRVVPackedI4ArithmeticShiftRightIntrinsic(
     "__riscv_vsra_vx_i8mf4");
+constexpr llvm::StringLiteral kRVVPackedI4ProductPairAddIntrinsic(
+    "__riscv_vadd_vv_i16mf2");
 constexpr llvm::StringLiteral kRVVPackedI4ShiftAmount("4");
 constexpr llvm::StringLiteral kRVVPackedI4ShiftAmountCType("uint8_t");
 
@@ -1321,8 +1323,8 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
   constexpr llvm::StringLiteral kPackedI4RHSHighVecName("rhs_high_i4_vec");
   constexpr llvm::StringLiteral kPackedI4HighProductVecName(
       "product_vec_i4_high");
-  constexpr llvm::StringLiteral kPackedI4HighReducedVecName(
-      "reduced_i32_vec_i4_high");
+  constexpr llvm::StringLiteral kPackedI4ProductPairSumVecName(
+      "product_vec_i4_pair_sum");
 
   plan.contractionPlan = providerPlan.contractionPlan;
   plan.plansDirectContractionRoute = true;
@@ -1819,24 +1821,67 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
                                         accumulatorVectorCType}))
         return error;
     }
-    if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
-            plan, slice.standaloneReduceOp.getOperation(), "compute",
-            providerFacts.contractionComputeLeaf,
-            {TCRVEmitCCallOpaqueOperand{"product_vec",
-                                        productVectorCType.str()},
-             TCRVEmitCCallOpaqueOperand{"dot_acc_vec",
-                                        accumulatorVectorCType},
-             TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
-            description, context,
-            TCRVEmitCCallOpaqueResult{"reduced_i32_vec",
-                                      accumulatorVectorCType}))
-      return error;
+    if (!usesPackedI4LowPrecisionProductReduction) {
+      if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+              plan, slice.standaloneReduceOp.getOperation(), "compute",
+              providerFacts.contractionComputeLeaf,
+              {TCRVEmitCCallOpaqueOperand{"product_vec",
+                                          productVectorCType.str()},
+               TCRVEmitCCallOpaqueOperand{"dot_acc_vec",
+                                          accumulatorVectorCType},
+               TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+              description, context,
+              TCRVEmitCCallOpaqueResult{"reduced_i32_vec",
+                                        accumulatorVectorCType}))
+        return error;
+    }
     if (isProductReductionDequantization) {
       if (usesPackedI4LowPrecisionProductReduction) {
-        if (llvm::Error error = addProductReductionSlice(
-                plan.loop, kPackedI4LHSHighVecName, kPackedI4RHSHighVecName,
-                loopVLName, "reduced_i32_vec", kPackedI4HighProductVecName,
-                kPackedI4HighReducedVecName))
+        if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+                plan, slice.wideningProductOp.getOperation(), "compute",
+                providerFacts.wideningProductLeaf,
+                {TCRVEmitCCallOpaqueOperand{kPackedI4LHSHighVecName.str(),
+                                            sourceVectorCType.str()},
+                 TCRVEmitCCallOpaqueOperand{kPackedI4RHSHighVecName.str(),
+                                            sourceVectorCType.str()},
+                 TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+                description, context,
+                TCRVEmitCCallOpaqueResult{kPackedI4HighProductVecName.str(),
+                                          productVectorCType.str()}))
+          return error;
+        if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+                plan, slice.wideningProductOp.getOperation(), "compute",
+                kRVVPackedI4ProductPairAddIntrinsic,
+                {TCRVEmitCCallOpaqueOperand{"product_vec",
+                                            productVectorCType.str()},
+                 TCRVEmitCCallOpaqueOperand{kPackedI4HighProductVecName.str(),
+                                            productVectorCType.str()},
+                 TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+                description, context,
+                TCRVEmitCCallOpaqueResult{
+                    kPackedI4ProductPairSumVecName.str(),
+                    productVectorCType.str()}))
+          return error;
+        if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
+                plan, slice.standaloneReduceOp.getOperation(), "compute",
+                providerFacts.contractionComputeLeaf,
+                {TCRVEmitCCallOpaqueOperand{
+                     kPackedI4ProductPairSumVecName.str(),
+                     productVectorCType.str()},
+                 TCRVEmitCCallOpaqueOperand{"dot_acc_vec",
+                                            accumulatorVectorCType},
+                 TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
+                description, context,
+                TCRVEmitCCallOpaqueResult{"reduced_i32_vec",
+                                          accumulatorVectorCType}))
+          return error;
+        if (llvm::Error error =
+                addRVVDirectContractionStatementOwnerLoopAssignment(
+                    plan, slice.standaloneReduceOp.getOperation(), "compute",
+                    "dot_acc_vec",
+                    TCRVEmitCCallOpaqueOperand{"reduced_i32_vec",
+                                               accumulatorVectorCType},
+                    description, context))
           return error;
       } else {
         if (llvm::Error error =

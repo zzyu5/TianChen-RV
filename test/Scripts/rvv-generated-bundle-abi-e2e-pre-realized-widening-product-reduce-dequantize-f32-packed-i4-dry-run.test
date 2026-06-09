@@ -26,10 +26,10 @@
 # WPRD-DAG: "object_header_agreement_checked": true
 # WPRD-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
 # WPRD-DAG: "realization_producer": "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
-# WPRD-DAG: "realization_decision": "consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1"
+# WPRD-DAG: "realization_decision": "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"
 # WPRD-DAG: "realized_unroll_factor": "1"
 # WPRD-DAG: "realized_vsetvl_region_count": "2"
-# WPRD-DAG: "realized_peak_live_vector_groups": "6"
+# WPRD-DAG: "realized_peak_live_vector_groups": "7"
 # WPRD-DAG: "product_region_index": "1"
 # WPRD-DAG: "dequant_region_index": "2"
 # WPRD-DAG: "product_phase": "load-product-reduce"
@@ -42,7 +42,7 @@
 # WPRD-DAG: "unpack_intent": "sign-extend-i4-nibbles-before-widening-product"
 # WPRD-DAG: "performance_feedback": "same-target-packed-i4-no-win.v1"
 # WPRD-DAG: "performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
-# WPRD-DAG: "performance_best_speedup_range": "0.761006..0.807006"
+# WPRD-DAG: "performance_best_speedup_range": "0.688427..0.705724"
 # WPRD-DAG: "performance_action": "no-win-repair-required-before-performance-claim"
 # WPRD-DAG: "packed_i4_statement_payload"
 # WPRD-DAG: "low_nibble_sign_extension": "shift-left-4-then-arithmetic-shift-right-4"
@@ -55,13 +55,13 @@
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.realization_producer"
 # INDEX-DAG: value: "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.realization_decision"
-# INDEX-DAG: value: "consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1"
+# INDEX-DAG: value: "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.realized_unroll_factor"
 # INDEX-DAG: value: "1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count"
 # INDEX-DAG: value: "2"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups"
-# INDEX-DAG: value: "6"
+# INDEX-DAG: value: "7"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.product_region_index"
 # INDEX-DAG: value: "1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.dequant_region_index"
@@ -75,7 +75,7 @@
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.performance_baseline"
 # INDEX-DAG: value: "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.performance_best_speedup_range"
-# INDEX-DAG: value: "0.761006..0.807006"
+# INDEX-DAG: value: "0.688427..0.705724"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.performance_action"
 # INDEX-DAG: value: "no-win-repair-required-before-performance-claim"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.operand_form"
@@ -87,7 +87,7 @@
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.unpack_intent: sign-extend-i4-nibbles-before-widening-product
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_feedback: same-target-packed-i4-no-win.v1
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_baseline: scalar-c-reference/product-reduction-dequant-packed-i4-v1
-# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_best_speedup_range: 0.761006..0.807006
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_best_speedup_range: 0.688427..0.705724
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_action: no-win-repair-required-before-performance-claim
 # HEADER-DAG: extern "C" {
 # HEADER-DAG: void tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float *out, size_t n);
@@ -102,8 +102,8 @@
 # EMITTED-C: __riscv_vsra_vx_i8mf4
 # EMITTED-C: __riscv_vsra_vx_i8mf4
 # EMITTED-C: __riscv_vwmul_vv_i16mf2
-# EMITTED-C: __riscv_vwredsum_vs_i16mf2_i32m1
 # EMITTED-C: __riscv_vwmul_vv_i16mf2
+# EMITTED-C: __riscv_vadd_vv_i16mf2
 # EMITTED-C: __riscv_vwredsum_vs_i16mf2_i32m1
 # EMITTED-C: tcrv_emitc.assign target=dot_acc_vec
 # EMITTED-C: __riscv_vse32_v_f32m1

@@ -5829,24 +5829,28 @@ the route provider claims resource-aware tuning.
   signed packed-i4 product-reduction candidate, direct-contraction statement
   planning loads packed i8 vectors for both operands, sign-extends the low
   nibble by shift-left 4 followed by arithmetic shift-right 4, sign-extends the
-  high nibble by arithmetic shift-right 4, feeds the low-nibble vectors through
-  the first widening product/reduction, and feeds the high-nibble vectors
-  through the second widening product/reduction while carrying the intermediate
-  i32 accumulator. The current provider leaves are
-  `__riscv_vsll_vx_i8mf4` and `__riscv_vsra_vx_i8mf4`; their use is derived
-  from the selected packed-i4 resource facts, not from route ids or artifacts.
-  This boundary proves statement-plan and `TCRVEmitCLowerableRoute`
-  eligibility only.
-- The Gate 4 target artifact/export boundary for the accepted signed packed-i4
+  high nibble by arithmetic shift-right 4, computes separate low- and
+  high-nibble signed widening products, combines those i16 product vectors with
+  `__riscv_vadd_vv_i16mf2`, and performs exactly one
+  `__riscv_vwredsum_vs_i16mf2_i32m1` from the pair-sum vector into the i32
+  accumulator. The current provider leaves are `__riscv_vsll_vx_i8mf4`,
+  `__riscv_vsra_vx_i8mf4`, `__riscv_vwmul_vv_i16mf2`,
+  `__riscv_vadd_vv_i16mf2`, and `__riscv_vwredsum_vs_i16mf2_i32m1`; their use
+  is derived from the selected packed-i4 resource facts, not from route ids or
+  artifacts. This boundary proves statement-plan and
+  `TCRVEmitCLowerableRoute` eligibility only.
+- The target artifact/export boundary for the accepted signed packed-i4
   representative must consume the provider-owned resource facts and rebuilt
   route statement payload. It accepts artifact export only when the route
   carries packed source loads, low/high nibble sign-extension statements for
-  both operands, low/high widening product-reduction statements, and the final
-  carry assignment derived from the selected packed-i4 resource facts. Stale
-  resource mirrors, stale unpack-intent metadata, missing nibble payloads, or
-  mismatched low/high operands/results fail closed in the target bridge.
-  Artifact support is still not generated-bundle support, runtime correctness,
-  timing, or parity evidence.
+  both operands, low/high widening product statements, the product-pair sum
+  statement, one widening reduction from that pair-sum, and the final carry
+  assignment derived from the selected packed-i4 resource facts. Stale resource
+  mirrors, stale unpack-intent metadata, missing nibble payloads, mismatched
+  low/high product operands, stale product-pair sum operands, stale single
+  reduction input/result, or a stale carry assignment fail closed in the target
+  bridge. Artifact support is still not generated-bundle support, runtime
+  correctness, timing, or parity evidence.
 - Do not apply the product-reduction byte operand-form contract to every
   low-precision resource representative. For example, strided or computed-mask
   strided widening-dot resource representatives may use a different operand
@@ -5913,13 +5917,17 @@ the route provider claims resource-aware tuning.
   -> fail closed at the RVV statement consumer boundary.
 - A selected packed-i4 statement plan reuses the unpacked byte `lhs_vec` /
   `rhs_vec` product path, omits low/high nibble sign-extension statements, uses
-  a logical shift-right for signed high-nibble unpack, or reduces only one
-  nibble lane -> fail closed before `TCRVEmitCLowerableRoute` construction.
+  a logical shift-right for signed high-nibble unpack, reduces low/high products
+  separately, omits the product-pair add, or reduces anything other than the
+  product-pair sum -> fail closed before `TCRVEmitCLowerableRoute`
+  construction.
 - A provider-built packed-i4 statement route reaches target artifact export
   with stale resource mirrors, stale unpack-intent metadata, missing low/high
-  nibble sign-extension payload, mismatched high-nibble product/reduction
-  operands, or a final carry assignment not derived from the high-nibble
-  reduction -> fail closed in the target artifact bridge.
+  nibble sign-extension payload, mismatched high-nibble product operands,
+  mismatched product-pair sum operands, a single reduction input not derived
+  from the product-pair sum, a stale single reduction result, or a final carry
+  assignment not derived from that single reduction -> fail closed in the target
+  artifact bridge.
 - A packed-i4 artifact/header/source result is treated as generated-bundle,
   runtime correctness, performance, or llama.cpp parity evidence without the
   matching executable generated-bundle and `ssh rvv` checks -> fail closed as an
@@ -5954,7 +5962,9 @@ the route provider claims resource-aware tuning.
   nibble layout, and sign-extension unpack intent -> selected-body realization
   and provider mirrors consume the resource facts -> direct-contraction
   statement planning emits RVV-owned low/high nibble sign-extension statements
-  for both operands -> provider-built `TCRVEmitCLowerableRoute` is eligible ->
+  for both operands, two widening products, an i16 product-pair add, and one
+  widening reduction from the pair-sum -> provider-built
+  `TCRVEmitCLowerableRoute` is eligible ->
   target artifact export accepts only the exact rebuilt provider payload and
   mirrors -> generated-bundle/runtime evidence remains a separate gate.
 - Base: existing MAcc, widening dot-reduce, dequant, and Gearbox MVP routes keep
@@ -5976,9 +5986,9 @@ the route provider claims resource-aware tuning.
 - Provider/target artifact validation proving selected candidate facts are
   consumed before artifact acceptance and stale metadata-only candidates fail.
 - Focused C++ statement-plan coverage for the positive packed-i4 low/high nibble
-  sign-extension sequence, two widening product/reduction steps, and
-  provider-built lowerable route eligibility without target artifact/runtime
-  claims.
+  sign-extension sequence, low/high widening products, product-pair add, single
+  widening reduction, and provider-built lowerable route eligibility without
+  target artifact/runtime claims.
 - Focused target/export coverage proving selected packed-i4 statement routes
   remain fail-closed at the Gate 4 artifact boundary until provider-payload
   validation and runtime evidence exist.
@@ -6078,7 +6088,7 @@ object equivalent to:
     "fields": {
       "performance_feedback": "same-target-packed-i4-no-win.v1",
       "performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1",
-      "performance_best_speedup_range": "0.761006..0.807006",
+      "performance_best_speedup_range": "0.688427..0.705724",
       "performance_action": "no-win-repair-required-before-performance-claim",
       "operand_form": "packed-i4-nibbles",
       "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
@@ -6197,7 +6207,8 @@ struct RVVLowPrecisionContractionResourceSelection {
 };
 ```
 
-The accepted packed-i4 values calibrated from Gate 4 timing evidence are:
+The accepted packed-i4 values calibrated from the latest same-target timing
+evidence are:
 
 ```text
 tcrv_rvv.low_precision_resource.performance_feedback =
@@ -6205,7 +6216,7 @@ tcrv_rvv.low_precision_resource.performance_feedback =
 tcrv_rvv.low_precision_resource.performance_baseline =
   "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
 tcrv_rvv.low_precision_resource.performance_best_speedup_range =
-  "0.761006..0.807006"
+  "0.688427..0.705724"
 tcrv_rvv.low_precision_resource.performance_action =
   "no-win-repair-required-before-performance-claim"
 ```

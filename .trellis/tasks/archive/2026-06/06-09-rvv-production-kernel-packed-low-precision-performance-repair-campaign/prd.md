@@ -34,29 +34,46 @@ selected/pre-realized packed low-precision product-reduction-dequant body
   after the production change.
 - [x] Gate 4: same-target measurement against the scalar baseline with honest
   win, no-win, or regression reporting.
+- [x] Gate 5: production RVV plugin/target-source repair, or a targeted
+  fail-closed production diagnosis, for the measured packed-i4
+  statement/resource overhead. The changed facts must be provider-owned and must
+  not rely on q4/q8 names, artifact metadata, route ids, or Common EmitC
+  semantics.
+- [x] Gate 6: regenerated artifact/header/C/correctness evidence and
+  same-target measurement using the existing Gate 4 contract. Provider feedback
+  facts must be updated only when the measured result changes.
 
 ## Current Round Slice
 
-This round is the Gate 4 same-target measurement slice. Gates 1 through 3 are
-already complete: the measured same-target no-win/regression was mapped to the
-packed-i4 resource-selection seam, the production compiler path now carries
-provider-owned performance feedback facts through selected-body realization and
-provider/statement/target validation, and generated artifact/header/C/correctness
-evidence proves those facts survive as mirrors after target artifact validation.
+This round is the Gate 5 production repair slice, with Gate 6 remeasurement
+required if the generated executable statement path changes. Gates 1 through 4
+are already complete: the measured same-target no-win/regression was mapped to
+the packed-i4 resource-selection seam, provider-owned no-win feedback facts are
+carried through selected-body realization and provider/statement/target
+validation, generated artifact/header/C/correctness evidence proves those facts
+survive as mirrors after target artifact validation, and real `ssh rvv` timing
+classified the current artifact as a regression.
 
-The current slice reruns same-target timing for the packed-i4 fixture already
-used by the campaign. The generated RVV artifact under test is the
+The current slice must make one coherent production compiler/source change in
+the RVV plugin-local Gearbox/resource selected-body realization,
+direct-contraction statement planning, or target validation path for the
+selected packed-i4 product-reduction candidate. The preferred repair is to
+reduce the generated statement/resource overhead that caused the Gate 4
+regression. If no safe statement repair is possible, the compiler path must
+fail closed with a precise provider-owned production reason explaining why the
+current selected-body route must not claim executable performance maturity.
+
+The generated RVV artifact under repair remains the
 `widening_product_reduce_dequantize_f32` pre-realized selected-body fixture
 `test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir`.
-The scalar comparator/oracle is
+The scalar comparator/oracle remains
 `scalar-c-reference/product-reduction-dequant-packed-i4-v1`, selected only after
 the generated object/header bundle metadata validates provider-owned
-`packed-i4-nibbles` facts. Correctness must pass before each timed case. Timing
-must run generated TianChen-RV output and the scalar baseline on the same
-`ssh rvv` target with the same ABI/input semantics, record target profile,
+`packed-i4-nibbles` facts. If the executable statement path changes, Gate 6 must
+rerun the same-target timing contract on `ssh rvv`, record target profile,
 compile flags, raw timing records, parsed summaries, and classify the result as
-win, no-win, or regression. Acceptance is honest evidence, not a speedup claim by
-default.
+win, no-win, or regression. Acceptance is honest evidence, not a speedup claim
+by default.
 
 ## Repository Findings
 
@@ -73,7 +90,8 @@ default.
 - The current packed fixture explicitly selects the packed-i4 candidate through
   `tcrv_rvv.low_precision_resource.selected_candidate`; the candidate carries
   packed nibble form, sign-extension intent, unroll 1, two realized `vsetvl`
-  regions, peak live vector groups 6, product region 1, and dequant region 2.
+  regions, peak live vector groups 7 after the product-pair-sum repair, product
+  region 1, and dequant region 2.
 - `RVVLowPrecisionContractionResourceSelection` is already consumed by route
   family planning, direct contraction statement planning, and target artifact
   validation. That is the correct production owner seam for the first no-win
@@ -99,6 +117,15 @@ default.
 - Preserve existing correctness/artifact evidence routes; do not claim a
   performance win while the measured result is regression and the provider-owned
   feedback action remains `no-win-repair-required-before-performance-claim`.
+- Gate 5 must touch a production RVV plugin/target owner. A slice that only
+  edits scripts, reports, generated evidence, PRD text, or measurement
+  formatting is insufficient.
+- If a production statement repair changes generated executable code, Gate 6
+  must regenerate packed-i4 artifact/header/C evidence and rerun same-target
+  measurement before changing provider-owned performance feedback fields.
+- If this slice fail-closes instead of repairing statements, the fail-closed
+  reason must be provider-owned, target-validated, and precise about the
+  statement/resource overhead that blocks performance maturity.
 
 ## Acceptance Criteria
 
@@ -135,12 +162,28 @@ default.
   no-win or regression, keep the macro task active only if the PRD identifies a
   remaining production repair milestone; otherwise close the campaign gates
   truthfully without claiming a performance win.
+- [x] Gate 5 production compiler/source repair changes a provider-owned RVV
+  Gearbox/resource selected-body, direct-contraction statement-plan, or target
+  validation owner, or encodes a precise fail-closed production reason for the
+  measured statement/resource overhead.
+- [x] The packed-i4 generated statement evidence changes, or the compiler emits
+  a targeted fail-closed diagnostic that prevents the current regressed route
+  from being treated as performance mature.
+- [x] Target validation remains a consumer of provider-owned facts and rebuilt
+  route payloads. Common EmitC, artifact metadata, route ids, fixture names, and
+  q4/q8 labels must not become semantic authority.
+- [x] Regenerated packed-i4 artifact/header/C/correctness evidence shows the
+  repaired provider-owned statement/resource facts or the fail-closed
+  diagnostic.
+- [x] If executable code changed, same-target `ssh rvv` measurement reruns with
+  the Gate 4 contract and provider feedback facts are updated only if the
+  measured result changes.
 
 ## Definition of Done
 
 - Production compiler/source changes, if any, are implemented in the
-  C++/MLIR/LLVM stack. This Gate 4 slice intentionally changes no C++ production
-  owner because it only hardens and executes measurement evidence.
+  C++/MLIR/LLVM stack. This Gate 5 slice changes RVV plugin-local statement
+  planning, resource facts, and target validation owners.
 - Tests or focused checks exercise the changed evidence/tooling surface and the
   existing provider-owned feedback path.
 - Trellis task files and journal record the campaign state and continuation
@@ -171,73 +214,65 @@ scalar packed-i4 reference on the same `ssh rvv` target. The measurement harness
 uses `clock_gettime(CLOCK_MONOTONIC_RAW)`, records raw `MEASURE` lines and
 parsed `SUMMARY` lines, and runs correctness guards before timing.
 
-This round may minimally harden that script so evidence JSON contains a
-machine-checkable result classification and provider-feedback tie-back. It must
-not broaden into a benchmark framework, infer RVV semantics in Python, or let
-q4/q8 names, benchmark names, artifact names, route ids, or Common EmitC become
-route authority.
+This round repairs the provider-owned packed-i4 statement shape first, then
+uses the same script to regenerate evidence and rerun same-target measurement.
+The script must remain evidence tooling only: it must not infer RVV semantics,
+broaden into a benchmark framework, or let q4/q8 names, benchmark names,
+artifact names, route ids, or Common EmitC become route authority.
 
 ## Current Round Result
 
 Completed:
 
-- Gate 1: the measured same-target no-win/regression is tied to the packed-i4
-  resource-selection boundary, not to a benchmark name or artifact label. The
-  production seam is `RVVLowPrecisionContractionResourceSelection` flowing
-  through Gearbox attrs, selected-body realization, route-family planning,
-  statement planning, route metadata, target artifact validation, and generated
-  bundle metadata mirrors.
-- Gate 2: the production path now carries provider-owned packed-i4 performance
-  feedback facts:
-  `same-target-packed-i4-no-win.v1`,
-  `scalar-c-reference/product-reduction-dequant-packed-i4-v1`,
-  `0.761006..0.807006`, and
-  `no-win-repair-required-before-performance-claim`. Stale packed-i4 feedback
-  fails closed before target artifact acceptance.
-- Gate 3: generated-bundle dry-run evidence now proves those feedback facts are
-  preserved in generated bundle object/header metadata mirrors, generated header
-  comments, emitted RVV C/C++ packed low/high nibble statements, evidence JSON
-  `widening_product_reduction_boundary.low_precision_resource` summary fields,
-  and the packed external ABI correctness oracle selected from validated
-  `packed-i4-nibbles` metadata. The verifier self-test rejects missing or stale
-  packed-i4 performance feedback metadata before accepting evidence.
-- Gate 4: same-target `ssh rvv` timing now reruns the generated packed-i4 RVV
-  artifact against `scalar-c-reference/product-reduction-dequant-packed-i4-v1`
-  with shared input sizes `257,4096,65536`, scales `-0.125,0.375`, warmups `2`,
-  repeats `5`, iterations `8`, compile flags `-O2 -march=rv64gcv -mabi=lp64d
-  -I.`, `CLOCK_MONOTONIC_RAW`, and correctness guards before timing. Evidence
-  lives under
-  `artifacts/tmp/gate4-same-target-measurement/gate4_packed_i4_same_target_measure_ssh_current`.
-  The root evidence is `evidence.json`; per-op evidence is
-  `widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`;
-  raw target profile is `remote_target_profile_stdout.txt`; raw timing stdout is
-  `remote_measure_run_stdout.txt`.
-- Gate 4 classification: all 12 parsed `SUMMARY` records are below 1.0
-  best-speedup, so the structured classification is `regression` with
-  `best_speedup_range = 0.761468..0.804008`. The provider feedback tie-back is
-  `consistent-with-current-no-win-feedback`, the baseline identity is
-  `scalar-c-reference/product-reduction-dequant-packed-i4-v1`, and
+- Gate 5 production repair: the packed-i4 direct-contraction statement planner
+  no longer performs a low-nibble widening reduction before the high-nibble
+  path. The repaired provider-owned statement shape is packed lhs/rhs loads,
+  low/high signed nibble sign-extension for both operands, low and high
+  `__riscv_vwmul_vv_i16mf2` widening products, one
+  `__riscv_vadd_vv_i16mf2` product-pair sum, one
+  `__riscv_vwredsum_vs_i16mf2_i32m1` reduction from the pair-sum into
+  `dot_acc_vec`, and final dequant/store. This directly changes the RVV
+  plugin-local statement owner and not Common EmitC.
+- Gate 5 provider/resource facts: the packed-i4 realization decision is now
+  `consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1`
+  with `realized_peak_live_vector_groups = 7`. The increased peak-live mirror
+  is intentional because the low and high i16 product vectors are live until the
+  pair-sum statement.
+- Gate 5 target validation: target artifact validation now consumes the rebuilt
+  provider route payload for the packed-i4 high product, product-pair add,
+  single reduction input/result, and final carry assignment. Stale metadata,
+  stale pair-sum operands, stale reduction input/result, or stale carry source
+  fail closed before artifact acceptance.
+- Gate 6 generated evidence: regenerated dry-run evidence lives under
+  `artifacts/tmp/gate5-packed-i4-product-pair-sum-repair/packed-i4-gate5-product-pair-sum`.
+  The emitted C contains `__riscv_vadd_vv_i16mf2`; evidence JSON records
+  `product_pair_sum_vector` and `single_reduction_vector`; bundle/index/header
+  mirrors carry the provider-owned resource decision, peak-live value, packed
+  metadata, and no-win feedback facts.
+- Gate 6 same-target measurement: real same-target measurement reran under
+  `artifacts/tmp/gate6-same-target-measurement/gate6_packed_i4_product_pair_sum_same_target_measure_ssh`
+  with the existing Gate 4 contract. It produced 12 summaries and 60
+  measurements, classified the repaired artifact as `regression`, and measured
+  `best_speedup_range = 0.688427..0.705724`. The provider feedback range is
+  updated to that value; `performance_feedback` remains
+  `same-target-packed-i4-no-win.v1`, `performance_action` remains
+  `no-win-repair-required-before-performance-claim`, and
   `performance_win_claim_allowed = false`.
 
 Remaining:
 
-- The campaign gates are now completed as evidence gates, but the macro task
-  remains active per the continuation rule because Gate 4 still reports a
-  regression. The next unfinished production milestone is a real RVV
-  plugin-local repair of the selected packed-i4 product-reduction path, not
-  another evidence-only closeout.
+- Gate 5 and Gate 6 are truthful and complete for this macro campaign slice.
+  The measured result remains below 1.0, so no performance-win claim is allowed.
+  Any future work should be a new direction/owner for another production repair
+  or a targeted fail-closed performance-maturity policy, not a continuation of
+  an unchecked Gate 5/6 item in this task.
 
 Continuation point:
 
-Start the next slice from the measured regression evidence under
-`artifacts/tmp/gate4-same-target-measurement/gate4_packed_i4_same_target_measure_ssh_current`.
-The production repair owner is the RVV plugin-local
-Gearbox/resource/statement-planning path for the selected packed-i4
-product-reduction candidate. It should reduce the packed-i4 overhead in the
-generated statement plan or fail closed with a specific resource/statement
-reason before any future performance-win claim. After that production repair,
-rerun the same Gate 4 measurement contract and update the provider-owned
-performance feedback facts if the result changes.
+None for this Trellis task after commit/archive. The next campaign, if opened,
+should start from the Gate 6 regression evidence above and choose a fresh
+production owner, likely resource scheduling or a performance-maturity
+fail-closed policy for packed low-precision routes.
 
 ## Technical Notes
 

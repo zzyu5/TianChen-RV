@@ -342,7 +342,7 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceGroupedRealizationDecision(
         "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4RealizationDecision(
-    "consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1");
+    "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceFeedback(
         "same-target-packed-i4-no-win.v1");
@@ -351,7 +351,7 @@ constexpr llvm::StringLiteral
         "scalar-c-reference/product-reduction-dequant-packed-i4-v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange(
-        "0.761006..0.807006");
+        "0.688427..0.705724");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4PerformanceAction(
     "no-win-repair-required-before-performance-claim");
 constexpr std::int64_t kRVVLowPrecisionResourceStaticUnroll = 1;
@@ -365,7 +365,7 @@ constexpr std::int64_t kRVVLowPrecisionResourceGroupedPeakLiveVectorGroups = 7;
 constexpr std::int64_t kRVVLowPrecisionResourcePackedI4Unroll = 1;
 constexpr std::int64_t kRVVLowPrecisionResourcePackedI4AccumulatorCount = 1;
 constexpr std::int64_t kRVVLowPrecisionResourcePackedI4VSetVLRegions = 2;
-constexpr std::int64_t kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups = 6;
+constexpr std::int64_t kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups = 7;
 constexpr std::int64_t kRVVLowPrecisionResourceVectorRegisterBudget = 32;
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceOperandFormUnpackedByte(
     "unpacked-byte-elements");

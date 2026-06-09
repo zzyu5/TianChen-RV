@@ -727,3 +727,28 @@ machine-readable evidence contract: dry-run evidence is `not-measured`, real
 same-target runs classify parsed `SUMMARY best_speedup` records as win/no-win/
 regression, and packed-i4 timing evidence must carry provider feedback tie-back
 before any performance claim is allowed.
+
+## 2026-06-09 - Packed-i4 Gate 5/6 product-pair-sum repair
+
+### Summary
+
+- Continued active task `06-09-rvv-production-kernel-packed-low-precision-performance-repair-campaign`.
+- Repaired the packed-i4 selected statement path in `lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp`: removed the stale low-nibble reduction, added low/high `__riscv_vwmul_vv_i16mf2`, `__riscv_vadd_vv_i16mf2` product-pair sum, and one `__riscv_vwredsum_vs_i16mf2_i32m1` from the pair sum into `dot_acc_vec`.
+- Updated provider-owned resource facts to decision `consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1`, peak live vector groups `7`, and refreshed no-win speedup range `0.688427..0.705724`.
+- Updated target validation to reject stale high-product operands, stale product-pair sum operands, stale single-reduction input/result, and stale final carry source.
+- Updated generated-bundle tooling, dry-run tests, C++ tests, fixture expectations, and RVV plugin spec for the new product-pair-sum single-reduction contract.
+
+### Evidence
+
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- `rtk python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test` passed.
+- `rtk python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test` passed.
+- Gate 5 dry-run evidence: `artifacts/tmp/gate5-packed-i4-product-pair-sum-repair/packed-i4-gate5-product-pair-sum`, including emitted `__riscv_vadd_vv_i16mf2`, `product_pair_sum_vector`, and `single_reduction_vector`.
+- Gate 6 real same-target evidence: `artifacts/tmp/gate6-same-target-measurement/gate6_packed_i4_product_pair_sum_same_target_measure_ssh`, classification `regression`, 12 summaries, 60 measurements, best speedup range `0.688427..0.705724`, and `performance_win_claim_allowed = false`.
+
+### Status
+
+- Gate 5 and Gate 6 are complete truthfully.
+- No packed-i4 performance-win claim is allowed.
+- Task is ready for final quality checks, commit, and archive.

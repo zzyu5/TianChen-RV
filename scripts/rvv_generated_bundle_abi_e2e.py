@@ -685,7 +685,7 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION = (
     "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_DECISION = (
-    "consume-low-precision-packed-i4-nibble-unpack-required-budget-6of32.v1"
+    "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_FEEDBACK = (
     "same-target-packed-i4-no-win.v1"
@@ -694,7 +694,7 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BASELINE = (
     "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BEST_SPEEDUP_RANGE = (
-    "0.761006..0.807006"
+    "0.688427..0.705724"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION = (
     "no-win-repair-required-before-performance-claim"
@@ -725,6 +725,9 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC = (
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC = (
     "__riscv_vsra_vx_i8mf4"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PRODUCT_PAIR_ADD_INTRINSIC = (
+    "__riscv_vadd_vv_i16mf2"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_MEMORY_FORM = (
     "unit-stride-widening-product-reduce-dequantize-f32"
@@ -9235,14 +9238,14 @@ def product_dequant_low_precision_resource_profile(
             "unroll_factor": "1",
             "accumulator_count": "1",
             "vsetvl_region_count": "2",
-            "peak_live_vector_groups": "6",
+            "peak_live_vector_groups": "7",
             "realization_producer": LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER,
             "realization_decision": (
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_DECISION
             ),
             "realized_unroll_factor": "1",
             "realized_vsetvl_region_count": "2",
-            "realized_peak_live_vector_groups": "6",
+            "realized_peak_live_vector_groups": "7",
             "producer_phase": "load-product-reduce",
             "consumer_phase": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE,
             "producer_region_index": "1",
@@ -13737,8 +13740,8 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_INTRINSIC,
-                WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PRODUCT_PAIR_ADD_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC,
             ],
             "emitted RVV C/C++ packed-i4 low/high nibble statement order",
@@ -13773,25 +13776,24 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
             rf"{re.escape(WIDENING_PRODUCT_REDUCE_INTRINSIC)}"
             rf"\((?P=lhs_low), (?P=rhs_low), (?P=loop_vl)\);\s*"
             rf"(?://[^\n]*\n\s*)*"
-            rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
-            rf"(?P<current_carry>v[0-9]+) = {local_carry};\s*"
-            rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
-            rf"(?P<reduced_low>v[0-9]+) = "
-            rf"{re.escape(WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC)}"
-            rf"\((?P=product_low), (?P=current_carry), (?P=loop_vl)\);\s*"
-            rf"(?://[^\n]*\n\s*)*"
             rf"vint16mf2_t (?P<product_high>v[0-9]+) = "
             rf"{re.escape(WIDENING_PRODUCT_REDUCE_INTRINSIC)}"
             rf"\((?P=lhs_high), (?P=rhs_high), (?P=loop_vl)\);\s*"
             rf"(?://[^\n]*\n\s*)*"
+            rf"vint16mf2_t (?P<product_pair_sum>v[0-9]+) = "
+            rf"{re.escape(WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PRODUCT_PAIR_ADD_INTRINSIC)}"
+            rf"\((?P=product_low), (?P=product_high), (?P=loop_vl)\);\s*"
+            rf"(?://[^\n]*\n\s*)*"
             rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
-            rf"(?P<reduced_high>v[0-9]+) = "
+            rf"(?P<current_carry>v[0-9]+) = {local_carry};\s*"
+            rf"{DEQUANTIZE_I32_TO_F32_SOURCE_VECTOR_C_TYPE} "
+            rf"(?P<reduced>v[0-9]+) = "
             rf"{re.escape(WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC)}"
-            rf"\((?P=product_high), (?P=reduced_low), (?P=loop_vl)\);\s*"
+            rf"\((?P=product_pair_sum), (?P=current_carry), (?P=loop_vl)\);\s*"
             rf"(?://[^\n]*\n\s*)*"
             rf"(?://[^\n]*tcrv_emitc\.assign target=dot_acc_vec[^\n]*\n\s*)"
-            rf"{local_carry} = (?P=reduced_high);",
-            "emitted RVV C/C++ packed-i4 low/high nibble vector carry reduction",
+            rf"{local_carry} = (?P=reduced);",
+            "emitted RVV C/C++ packed-i4 product-pair sum single reduction",
         )
         packed_i4_statement_payload = {
             "operand_form": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_OPERAND_FORM,
@@ -13803,8 +13805,8 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
             "rhs_high_vector": reduction.group("rhs_high"),
             "low_product_vector": reduction.group("product_low"),
             "high_product_vector": reduction.group("product_high"),
-            "low_reduction_vector": reduction.group("reduced_low"),
-            "high_reduction_vector": reduction.group("reduced_high"),
+            "product_pair_sum_vector": reduction.group("product_pair_sum"),
+            "single_reduction_vector": reduction.group("reduced"),
             "low_nibble_sign_extension": "shift-left-4-then-arithmetic-shift-right-4",
             "high_nibble_sign_extension": "arithmetic-shift-right-4",
         }
@@ -33768,8 +33770,8 @@ def widening_product_reduction_boundary_summary(
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_INTRINSIC,
-                WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PRODUCT_PAIR_ADD_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC,
             ],
             "post_loop_callees": [
@@ -33790,12 +33792,12 @@ def widening_product_reduction_boundary_summary(
                 "high(lhs_high_i4_vec,rhs_high_i4_vec,vl)"
             ),
             "reduction_operand_order": (
-                "low(products,current_dot_acc_vec,vl);"
-                "high(products,reduced_i32_vec,vl)"
+                "pair_sum(product_vec,product_vec_i4_high,vl);"
+                "single_reduce(product_vec_i4_pair_sum,current_dot_acc_vec,vl)"
             ),
             "seed_source": "acc[0]",
             "loop_accumulator_source": "dot_acc_vec",
-            "loop_accumulator_final_source": "reduced_i32_vec_i4_high",
+            "loop_accumulator_final_source": "reduced_i32_vec",
             "scalar_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
             "loop_dequantization_forbidden": True,
         }

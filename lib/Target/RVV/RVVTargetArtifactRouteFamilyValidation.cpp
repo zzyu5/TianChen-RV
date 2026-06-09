@@ -4434,6 +4434,8 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
   const llvm::StringRef packedI4ShiftLeftIntrinsic = "__riscv_vsll_vx_i8mf4";
   const llvm::StringRef packedI4ArithmeticShiftRightIntrinsic =
       "__riscv_vsra_vx_i8mf4";
+  const llvm::StringRef packedI4ProductPairAddIntrinsic =
+      "__riscv_vadd_vv_i16mf2";
   const llvm::StringRef accumulatorVectorCType =
       isProductReductionDequantization ? llvm::StringRef("vint32m1_t")
                                        : description.vectorCType;
@@ -4835,6 +4837,24 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
                {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
               "product_vec", description.productVectorCType))
         return error;
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              loop.bodySteps[10], consumerLabel,
+              "packed-i4 high-nibble widening product",
+              description.wideningProductIntrinsic,
+              {{"lhs_high_i4_vec", description.sourceVectorCType},
+               {"rhs_high_i4_vec", description.sourceVectorCType},
+               {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+              "product_vec_i4_high", description.productVectorCType))
+        return error;
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              loop.bodySteps[11], consumerLabel,
+              "packed-i4 low/high product-pair sum",
+              packedI4ProductPairAddIntrinsic,
+              {{"product_vec", description.productVectorCType},
+               {"product_vec_i4_high", description.productVectorCType},
+               {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+              "product_vec_i4_pair_sum", description.productVectorCType))
+        return error;
     } else {
       if (llvm::Error error =
               validateDotSourceLoad(loop.bodySteps[1], *lhsABI, lhsStrideABI,
@@ -4861,12 +4881,15 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
   }
 
   const std::size_t seedIndex =
-      isComputedMask ? 9 : usesPackedI4LowPrecisionProductReduction ? 10 : 4;
+      isComputedMask ? 9 : usesPackedI4LowPrecisionProductReduction ? 12 : 4;
   const std::size_t reductionIndex =
       isProductReductionDequantization ? seedIndex : seedIndex + 1;
   const std::size_t storeIndex = reductionIndex + 1;
   const llvm::StringRef reductionInputName =
-      isProductReductionChain ? "product_vec" : "dot_product_vec";
+      usesPackedI4LowPrecisionProductReduction
+          ? llvm::StringRef("product_vec_i4_pair_sum")
+          : isProductReductionChain ? llvm::StringRef("product_vec")
+                                    : llvm::StringRef("dot_product_vec");
   const llvm::StringRef reductionInputCType =
       isProductReductionChain ? description.productVectorCType
                               : description.vectorCType;
@@ -4898,26 +4921,6 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
           llvm::Twine(consumerLabel) +
           " requires dequant scale ABI before validating post-loop dequant "
           "statements");
-    if (usesPackedI4LowPrecisionProductReduction) {
-      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              loop.bodySteps[11], consumerLabel,
-              "packed-i4 high-nibble widening product",
-              description.wideningProductIntrinsic,
-              {{"lhs_high_i4_vec", description.sourceVectorCType},
-               {"rhs_high_i4_vec", description.sourceVectorCType},
-               {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
-              "product_vec_i4_high", description.productVectorCType))
-        return error;
-      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              loop.bodySteps[12], consumerLabel,
-              "packed-i4 high-nibble widening dot reduction",
-              description.intrinsic,
-              {{"product_vec_i4_high", description.productVectorCType},
-               {"reduced_i32_vec", accumulatorVectorCType},
-               {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
-              "reduced_i32_vec_i4_high", accumulatorVectorCType))
-        return error;
-    }
     const std::size_t expectedLoopAssignmentCount =
         usesGroupedLowPrecisionProductReduction ? 2 : 1;
     if (loop.bodyAssignments.size() != expectedLoopAssignmentCount)
@@ -4942,7 +4945,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
     };
     const llvm::StringRef finalCarryResultName =
         usesPackedI4LowPrecisionProductReduction
-            ? llvm::StringRef("reduced_i32_vec_i4_high")
+            ? llvm::StringRef("reduced_i32_vec")
             : reductionResultName;
     if (llvm::Error error = validateCarryAssignment(
             loop.bodyAssignments[0], finalCarryResultName,
