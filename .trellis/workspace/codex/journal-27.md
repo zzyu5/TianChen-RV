@@ -1285,3 +1285,62 @@ correctness/timing evidence for the generated low-precision primitive/resource
 artifact path, then record truthful measured win/no-win/regression facts. Gate
 5 dispatch/performance policy must wait for those accepted Gate 4 measurement
 facts.
+
+## 2026-06-09 - RVV production-kernel capability campaign Gate 4 real measurement acceptance
+
+### Summary
+
+- Continued the active macro task
+  `06-09-rvv-production-kernel-capability-campaign`.
+- Completed the second Gate 4 slice by running the selected signed packed-i4 /
+  low-precision widening product-reduce-dequantize generated artifact path on
+  real `ssh rvv`.
+- The evidence preserves generated object/header/index identity, selected
+  input/variant, correctness-before-timing harness, packed scalar baseline,
+  target profile, primitive-chain/resource/realization/target mirrors, and
+  provider-owned maturity tie-back.
+- The accepted measured outcome is `classification = regression`,
+  `outcome_family = no-win`, `best_speedup_range = 0.688889..0.705200`,
+  `summary_record_count = 12`, `measurement_record_count = 60`, and
+  `correctness_record_count = 12`.
+- The provider maturity tie-back keeps `performance_win_claim_allowed = false`,
+  `provider_performance_selection_eligible = false`,
+  `provider_dispatch_preference = not-performance-preferred`, and
+  `correctness_execution_allowed = true`.
+- No production source change was required. The existing same-target measurement
+  bridge already implemented non-dry-run correctness/timing, stale provider
+  tie-back rejection, and win/no-win/regression classification.
+
+### Evidence
+
+- `rtk python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+  passed.
+- Packed-i4 focused dry-run passed at
+  `artifacts/tmp/codex-gate4-real-measure-dry/gate4-packed-i4-real-measure-dry`
+  and remained `not-measured`.
+- Packed-i4 real same-target measurement passed on `ssh rvv` at
+  `artifacts/tmp/codex-gate4-real-measure/gate4-packed-i4-real-measure-ssh`.
+- Per-op evidence:
+  `artifacts/tmp/codex-gate4-real-measure/gate4-packed-i4-real-measure-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`.
+- Remote stdout contains 12 correctness guards before timing, 60 raw `MEASURE`
+  records, 12 parsed `SUMMARY` records, and `PASS`.
+- Remote target profile recorded `riscv64`, 64 CPUs, and Ubuntu clang 18.1.3.
+
+### Spec Update Decision
+
+[NO CHANGE] Existing RVV plugin and EmitC route specs already document packed-i4
+same-target classification, maturity evidence input, provider-owned resource
+mirrors, Common EmitC neutrality, and the real `ssh rvv` evidence requirement.
+
+### Status
+
+[OPEN] Gates 1 through 4 are complete for the current accepted packed-i4
+representative. Gate 5 remains open, and `.trellis/.current-task` intentionally
+remains active for the macro campaign.
+
+### Continuation
+
+Next owner: Gate 5 dispatch/performance policy should consume the accepted
+Gate 4 regression/no-win facts truthfully: preserve executable correctness,
+deny performance preference and win claims, reject stale policy/maturity
+mirrors, and keep route support separate from performance-ready dispatch.

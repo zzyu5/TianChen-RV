@@ -100,7 +100,7 @@ all campaign gates below are complete.
 - [x] Gate 3: route/statement planning and target artifact validation mirror
   provider-owned facts and reject stale or unsupported performance/resource
   claims.
-- [ ] Gate 4: generated artifact correctness and same-target measurement run
+- [x] Gate 4: generated artifact correctness and same-target measurement run
   only for the changed production path.
 - [ ] Gate 5: dispatch/performance policy consumes measurement outcome
   truthfully without promoting stale/no-win/regression evidence into route
@@ -239,39 +239,39 @@ Completed the Gate 3 route/provider mirror completion slice:
 
 ## Gate 4 Acceptance Criteria
 
-- [ ] Generated artifact bundle evidence for the selected low-precision
+- [x] Generated artifact bundle evidence for the selected low-precision
   product-reduction/dequantization path carries the Gate 1-3 primitive-chain,
   resource, realization schedule, provider route, target capability, artifact
   ABI, and target validation facts as mirrors after provider route construction.
-- [ ] Same-target measurement evidence records the generated object/header
+- [x] Same-target measurement evidence records the generated object/header
   identity, correctness-before-timing harness, scalar C baseline identity,
   timing method, target profile, measurement classification, and provider
   feedback tie-back without making measurement JSON, artifact names, q4/q8/
   llama labels, route ids, or status fields route authority.
-- [ ] Packed-i4 measurement support is selected only from provider-owned
+- [x] Packed-i4 measurement support is selected only from provider-owned
   low-precision resource mirrors and records packed input semantics, reference
   oracle, runtime `n` unit, primitive-chain facts, realization schedule facts,
   target capability mirrors, performance maturity mirrors, and policy-readiness
   denial/allowance separately from executable correctness.
-- [ ] Missing or stale primitive-chain resource facts, realization schedule
+- [x] Missing or stale primitive-chain resource facts, realization schedule
   facts, provider feedback facts, target capability facts, artifact/header ABI
   facts, or measurement outcome facts fail closed before a same-target
   measurement record can be accepted.
-- [ ] Focused dry-run/script coverage proves the changed evidence path carries
+- [x] Focused dry-run/script coverage proves the changed evidence path carries
   these facts and rejects stale facts. Real `ssh rvv` evidence is required
   before claiming runtime correctness or performance; dry-run evidence must
   remain classified as `not-measured`.
-- [ ] No q4/q8/llama-named route authority, source-front-door authority,
+- [x] No q4/q8/llama-named route authority, source-front-door authority,
   descriptor-driven computation, Common EmitC semantic branch, dispatch policy
   change, or performance-win claim is introduced.
-- [ ] `scripts/rvv_generated_bundle_same_target_measure.py --self-test` passes.
-- [ ] Focused generated-bundle same-target measurement dry-run passes.
-- [ ] `git diff --check` and `git diff --cached --check` pass.
+- [x] `scripts/rvv_generated_bundle_same_target_measure.py --self-test` passes.
+- [x] Focused generated-bundle same-target measurement dry-run passes.
+- [x] `git diff --check` and `git diff --cached --check` pass.
 
-## Current Gate 4 Slice
+## Completed Gate 4 Evidence-Plumbing Slice
 
-This round covers the generated artifact / same-target measurement evidence
-plumbing sub-slice:
+The first Gate 4 round covered the generated artifact / same-target measurement
+evidence plumbing sub-slice:
 
 - [x] Make the generated-bundle checker and same-target measurement record
   require the low-precision primitive-chain resource mirrors emitted by the
@@ -286,10 +286,56 @@ plumbing sub-slice:
   exist.
 
 Slice result: completed the generated artifact and same-target measurement
-evidence plumbing for dry-run/not-measured Gate 4 records. The Gate 4 macro
-acceptance criteria above remain open because this slice did not run real
-`ssh rvv` correctness/timing and therefore did not create accepted measured
-win/no-win/regression facts for Gate 5.
+evidence plumbing for dry-run/not-measured Gate 4 records. That first Gate 4
+slice did not run real `ssh rvv` correctness/timing and therefore did not by
+itself create accepted measured win/no-win/regression facts for Gate 5.
+
+## Completed Gate 4 Real-Measurement Acceptance Slice
+
+Completed the second Gate 4 slice for the selected signed packed-i4 /
+low-precision widening product-reduce-dequantize artifact path:
+
+- [x] Ran the non-dry-run same-target measurement path on `ssh rvv` for
+  `widening_product_reduce_dequantize_f32` with the packed-i4 pre-realized
+  selected-body fixture.
+- [x] Preserved generated bundle identity in evidence:
+  `artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o`,
+  `artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h`,
+  and `tianchenrv-target-artifact-bundle.index`.
+- [x] Recorded object/header SHA-256 identity, selected input, selected variant,
+  correctness-before-timing harness, packed scalar baseline
+  `scalar-c-reference/product-reduction-dequant-packed-i4-v1`, timing method
+  `clock_gettime(CLOCK_MONOTONIC_RAW)`, and `ssh rvv` target profile.
+- [x] Carried provider-owned primitive-chain/resource/realization/target mirrors
+  into the measurement evidence, including
+  `rvv-low-precision-widening-reduction-primitive-facts.v1`,
+  `signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1`,
+  `__riscv_vwmul_vv_i16mf2`,
+  `__riscv_vwredsum_vs_i16mf2_i32m1`,
+  `consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1`,
+  and the selected RVV target capability legality mirror.
+- [x] Accepted the parsed measured outcome as `classification = regression`,
+  `outcome_family = no-win`, `best_speedup_range = 0.688889..0.705200`,
+  `summary_record_count = 12`, `measurement_record_count = 60`, and
+  `correctness_record_count = 12`.
+- [x] Preserved provider-owned maturity policy in the measurement tie-back:
+  `provider_maturity = executable-not-performance-mature`,
+  `provider_maturity_outcome = regression`,
+  `provider_performance_selection_eligible = false`,
+  `provider_dispatch_preference = not-performance-preferred`,
+  `performance_win_claim_allowed = false`,
+  `performance_preference_denial_reason =
+  same-target-measurement-no-win-or-regression`, and
+  `correctness_execution_allowed = true`.
+- [x] Kept the result as measurement evidence input only. It does not update
+  dispatch policy, does not make a performance-win claim, and does not make
+  artifact names, route ids, q4/q8/llama labels, status fields, or measurement
+  JSON route authority.
+
+Slice result: Gate 4 is complete for the current accepted packed-i4
+representative. The accepted measured fact is a same-target regression/no-win
+classification, so Gate 5 must consume it truthfully without promoting the
+route to performance-preferred or allowing a win claim.
 
 ## Out of Scope
 
@@ -300,7 +346,7 @@ win/no-win/regression facts for Gate 5.
 - No Common EmitC invention of RVV dtype, schedule, primitive, resource,
   performance, or dispatch semantics.
 - No dispatch/performance preference change or performance-win claim.
-- No archive/finish after this Gate 4 partial slice unless all macro gates are
+- No archive/finish after Gate 4 unless all macro gates are
   complete.
 
 ## Technical Notes
@@ -324,14 +370,13 @@ win/no-win/regression facts for Gate 5.
 
 ## Continuation Point
 
-Gates 1, 2, and 3 are complete. The first Gate 4 generated artifact /
-same-target measurement evidence-plumbing sub-slice is complete. Gate 4 remains
-open because real `ssh rvv` correctness/timing evidence was not run in this
-slice and the dry-run records remain classified as `not-measured`. Gate 5
-remains unopened, so this macro task stays active.
+Gates 1, 2, 3, and 4 are complete for the current accepted packed-i4
+representative. Gate 4 now has real same-target `ssh rvv` correctness/timing
+evidence and accepted measured regression/no-win facts; dry-run evidence remains
+classified as `not-measured` and is not used for runtime/performance claims.
+Gate 5 remains open, so this macro task stays active.
 
-Next owner: continue Gate 4 by running or accepting real same-target `ssh rvv`
-correctness/timing evidence for the generated low-precision primitive/resource
-artifact path, then record truthful measured win/no-win/regression facts. Gate 5
-dispatch/performance policy must wait for those accepted Gate 4 measurement
-facts.
+Next owner: Gate 5 dispatch/performance policy must consume the accepted Gate 4
+regression/no-win measurement facts truthfully: preserve executable correctness,
+deny performance preference and win claims, reject stale policy/maturity mirrors,
+and keep route support separate from performance-ready dispatch.
