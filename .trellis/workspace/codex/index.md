@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-27.md`
-- **Total Sessions**: 571
+- **Total Sessions**: 572
 - **Last Active**: 2026-06-09
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-27.md` | ~35 | Active |
+| `journal-27.md` | ~787 | Active |
 | `journal-26.md` | ~1976 | Archived |
 | `journal-25.md` | ~1968 | Archived |
 | `journal-24.md` | ~1991 | Archived |
@@ -55,6 +55,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 572 | 2026-06-09 | Packed-i4 Gate 5/6 product-pair-sum repair | `5ffa4741` | `main` |
 | 571 | 2026-06-09 | RVV packed-i4 Gate 4 artifact/export support | created-after-journal-entry | `main` |
 | 567 | 2026-06-09 | RVV grouped u2 statement plan | final-commit-see-git-log | `main` |
 | 566 | 2026-06-08 | RVV low-precision production-kernel performance optimization slice | `c3c4dc4e` | `main` |

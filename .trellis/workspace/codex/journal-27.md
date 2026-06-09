@@ -752,3 +752,36 @@ before any performance claim is allowed.
 - Gate 5 and Gate 6 are complete truthfully.
 - No packed-i4 performance-win claim is allowed.
 - Task is ready for final quality checks, commit, and archive.
+
+
+## Session 572: Packed-i4 Gate 5/6 product-pair-sum repair
+
+**Date**: 2026-06-09
+**Task**: Packed-i4 Gate 5/6 product-pair-sum repair
+**Branch**: `main`
+
+### Summary
+
+Repaired packed-i4 statement planning to use product-pair sum plus single reduction, refreshed provider feedback from same-target regression evidence, updated tests/specs, and archived the completed macro task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `5ffa4741` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
