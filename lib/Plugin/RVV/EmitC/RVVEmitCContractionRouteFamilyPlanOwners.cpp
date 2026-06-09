@@ -6065,6 +6065,72 @@ llvm::Error requireRVVLowPrecisionResourceIntegerField(
        selection.selectedCandidateID + "'");
 }
 
+llvm::Error verifyRVVLowPrecisionResourcePrimitiveSurfaceSelection(
+    llvm::StringRef context,
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionWideningReductionPrimitiveFacts &primitiveFacts) {
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive source dtype",
+          selection.sourceElementTypeName,
+          primitiveFacts.sourceElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive source signedness",
+          selection.sourceSignedness, primitiveFacts.sourceSignedness))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "primitive source SEW", selection.sourceSEW,
+          primitiveFacts.sourceSEW))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive source LMUL", selection.sourceLMUL,
+          primitiveFacts.sourceLMUL))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive product dtype",
+          selection.productElementTypeName,
+          primitiveFacts.productElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "primitive product SEW", selection.productSEW,
+          primitiveFacts.productSEW))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive product LMUL", selection.productLMUL,
+          primitiveFacts.productLMUL))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive accumulator dtype",
+          selection.accumulatorElementTypeName,
+          primitiveFacts.accumulatorElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "primitive accumulator SEW",
+          selection.accumulatorSEW, primitiveFacts.accumulatorSEW))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive accumulator LMUL",
+          selection.accumulatorLMUL, primitiveFacts.accumulatorLMUL))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive reduction result dtype",
+          selection.accumulatorElementTypeName,
+          primitiveFacts.reductionResultElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "primitive reduction result SEW",
+          selection.accumulatorSEW, primitiveFacts.reductionResultSEW))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive reduction result LMUL",
+          selection.accumulatorLMUL, primitiveFacts.reductionResultLMUL))
+    return error;
+  return requireRVVLowPrecisionResourceStringField(
+      context, selection, "primitive final result dtype",
+      selection.resultElementTypeName,
+      primitiveFacts.finalResultElementTypeName);
+}
+
 llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainSelection(
     llvm::StringRef context,
     const RVVLowPrecisionContractionResourceSelection &selection,
@@ -6081,6 +6147,10 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainSelection(
         " low-precision direct-contraction resource selection requires "
         "provider-owned widening-reduction primitive facts before route "
         "acceptance");
+  if (llvm::Error error =
+          verifyRVVLowPrecisionResourcePrimitiveSurfaceSelection(
+              context, selection, *primitiveFacts))
+    return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "primitive contract",
           selection.primitiveContractID, plan.lowPrecisionPrimitiveContractID))
@@ -6164,6 +6234,10 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainDescriptionSelection(
         " low-precision direct-contraction resource description requires "
         "provider-owned widening-reduction primitive facts before route "
         "acceptance");
+  if (llvm::Error error =
+          verifyRVVLowPrecisionResourcePrimitiveSurfaceSelection(
+              context, selection, *primitiveFacts))
+    return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "primitive contract",
           selection.primitiveContractID,
@@ -6621,6 +6695,10 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
           context, selection, "legality scope", selection.legalityScope,
           getExpectedRVVLowPrecisionResourceLegalityScope(plan.operation)))
     return error;
+  if (llvm::Error error =
+          verifyRVVLowPrecisionResourcePrimitiveChainSelection(context,
+                                                               selection, plan))
+    return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "source dtype", selection.sourceElementTypeName,
           plan.sourceElementTypeName))
@@ -6789,10 +6867,6 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "provider-supported mirror",
           selection.providerSupportedMirror, plan.providerSupportedMirror))
-    return error;
-  if (llvm::Error error =
-          verifyRVVLowPrecisionResourcePrimitiveChainSelection(context,
-                                                               selection, plan))
     return error;
   if (llvm::Error error =
           verifyRVVLowPrecisionContractionRealizationScheduleSelection(
@@ -6997,6 +7071,10 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
           getExpectedRVVLowPrecisionResourceLegalityScope(
               description.operation)))
     return error;
+  if (llvm::Error error =
+          verifyRVVLowPrecisionResourcePrimitiveChainDescriptionSelection(
+              context, selection, description))
+    return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "source dtype", selection.sourceElementTypeName,
           getContractionIntegerElementTypeName(description.sourceSEW)))
@@ -7168,10 +7246,6 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
           context, selection, "provider-supported mirror",
           selection.providerSupportedMirror,
           description.providerSupportedMirror))
-    return error;
-  if (llvm::Error error =
-          verifyRVVLowPrecisionResourcePrimitiveChainDescriptionSelection(
-              context, selection, description))
     return error;
   if (llvm::Error error =
           verifyRVVLowPrecisionContractionRealizationScheduleSelection(

@@ -747,3 +747,58 @@ Completed the active packed-i4 performance remediation macro task by threading G
 ### Next Steps
 
 - None - task complete
+
+
+## Session 585: Stage2 RVV low-precision primitive-surface Gate 1
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Created the macro Trellis task for the Stage2 RVV low-precision contraction
+primitive-surface campaign and completed the Gate 1 slice. The production
+change hardens provider-owned product-reduction primitive-surface validation
+instead of adding another generated-bundle or `ssh rvv` evidence closeout.
+
+### Main Changes
+
+- Added a provider-side primitive-surface validator that compares
+  `RVVLowPrecisionContractionResourceSelection` against
+  `RVVLowPrecisionWideningReductionPrimitiveFacts` for source/product/
+  accumulator/reduction dtype, signedness, SEW/LMUL, and final result dtype.
+- Moved primitive-chain resource validation earlier in route-family plan and
+  route-description validation so stale primitive facts fail before route
+  acceptance.
+- Added a focused RVV plugin C++ negative test for stale primitive product SEW:
+  expected `16`, stale `32`.
+- Seeded the macro PRD and JSONL context, leaving Gates 2-4 open.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- Signed widening-product export:
+  `build/bin/tcrv-opt test/Target/RVV/explicit-selected-body-artifact-widening-product.mlir --tcrv-materialize-emission-plans | build/bin/tcrv-translate --tcrv-export-target-header-artifact`.
+- Unsigned u8 widening-product export:
+  `build/bin/tcrv-opt test/Target/RVV/explicit-selected-body-artifact-widening-product-unsigned-u8.mlir --tcrv-materialize-emission-plans | build/bin/tcrv-translate --tcrv-export-target-header-artifact`.
+- Unsigned u8 stale primitive signedness negative chain rejected as expected.
+- `llvm-lit` was not available in the local build tree, so the key lit RUN
+  chains were executed directly.
+- `git diff --check` and `git diff --cached --check` passed.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] This slice implements an existing RVV plugin spec contract:
+low-precision widening-reduction primitive facts must be provider-owned and
+fail-closed before route/artifact acceptance. The PRD records the campaign
+state; no new durable architecture rule was introduced.
+
+### Status
+
+[OPEN] Gate 1 is complete. Gates 2-4 remain open. Next continuation point:
+make RVV plugin-local selected-body realization/Gearbox scheduling consume the
+reusable primitive surface for a coherent low-precision contraction slice.

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the slice preserves RVV-first authority and Stage 2 scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check primitive-surface ownership, fail-closed provider validation, and no q8/q4 authority drift."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check Common EmitC/export remains neutral and provider-built facts remain authority."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check this is Gate 1 primitive-surface progress, not evidence-only or premature Gate 2-4 work."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Check focused C++/target tests and evidence boundary."}

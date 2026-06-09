@@ -9251,6 +9251,18 @@ module {
            "primitive chain kind", "metadata-derived-primitive-chain"}))
     return result;
 
+  RVVSelectedBodyContractionRouteFamilyPlan
+      staleProductDequantPrimitiveSurfacePlan =
+          *productDequantAnalysis->contractionRouteFamilyPlan;
+  staleProductDequantPrimitiveSurfacePlan.lowPrecisionResourceSelection
+      .productSEW = 32;
+  if (int result = expectErrorContains(
+          validateRVVSelectedBodyContractionRouteFamilyPlan(
+              staleProductDequantPrimitiveSurfacePlan),
+          {"low-precision direct-contraction resource selection",
+           "primitive product SEW", "16", "32"}))
+    return result;
+
   RVVSelectedBodyContractionRouteFamilyPlan staleProductDequantRegionPlan =
       *productDequantAnalysis->contractionRouteFamilyPlan;
   staleProductDequantRegionPlan.lowPrecisionResourceSelection

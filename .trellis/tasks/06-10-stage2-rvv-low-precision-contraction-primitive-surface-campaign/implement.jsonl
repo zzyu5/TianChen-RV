@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV stage ordering for this macro task."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, low-precision primitive contracts, and Stage 2 boundaries."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and Common EmitC neutrality rules."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Stage 2 primitive-surface and Gearbox/resource-aware realization priority ladder."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit evidence expectations and RVV runtime evidence boundary."}
