@@ -205,6 +205,14 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceRemediationVLPlanAttrName(
         "tcrv_rvv.low_precision_resource.remediation_vl_plan");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceScheduleDecisionContractAttrName(
+        "tcrv_rvv.low_precision_resource.schedule_decision_contract");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceScheduleDecisionAttrName(
+    "tcrv_rvv.low_precision_resource.schedule_decision");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceScheduleDecisionReasonAttrName(
+        "tcrv_rvv.low_precision_resource.schedule_decision_reason");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePerformanceMaturityAttrName(
         "tcrv_rvv.low_precision_resource.performance_maturity");
 constexpr llvm::StringLiteral
@@ -438,6 +446,9 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceUnsupportedPackedOperandRejectionReason(
         "unsupported-packed-low-bit-operand-form");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceUnsupportedPackedI4ScheduleDecisionRejectionReason(
+        "unsupported-packed-i4-resource-aware-schedule-decision");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRealizationProducer(
     "rvv-plugin-local-selected-body-realization-resource-consumer.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRealizationDecision(
@@ -500,6 +511,15 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationVLPlan(
         "two-region-runtime-avl-product-reduce-then-dequant-store.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract(
+        "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4ScheduleDecision(
+    "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason(
+        "accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-"
+        "single-vwredsum-budget-7of32");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturity(
         "executable-not-performance-mature");
@@ -652,6 +672,9 @@ struct RVVLowPrecisionContractionResourceCandidate {
   llvm::StringRef remediationProductPlan;
   llvm::StringRef remediationReductionPlan;
   llvm::StringRef remediationVLPlan;
+  llvm::StringRef scheduleDecisionContract;
+  llvm::StringRef scheduleDecision;
+  llvm::StringRef scheduleDecisionReason;
 
   bool isLegal = false;
   llvm::StringRef rejectionReason;
@@ -789,6 +812,65 @@ inline bool
 isRVVLowPrecisionResourcePackedI4CandidateID(llvm::StringRef candidateID) {
   return candidateID == kRVVLowPrecisionResourceDequantPackedI4Candidate ||
          candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate;
+}
+
+inline bool isRVVLowPrecisionResourceAcceptedPackedI4ScheduleDecision(
+    const RVVLowPrecisionContractionResourceCandidate &candidate) {
+  return isRVVLowPrecisionResourcePackedI4CandidateID(candidate.candidateID) &&
+         candidate.isLegal &&
+         candidate.remediationPlanContract ==
+             kRVVLowPrecisionResourcePackedI4RemediationPlanContract &&
+         candidate.remediationPlan ==
+             kRVVLowPrecisionResourcePackedI4RemediationPlan &&
+         candidate.remediationStatementStrategy ==
+             kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy &&
+         candidate.remediationVectorBudget ==
+             kRVVLowPrecisionResourcePackedI4RemediationVectorBudget &&
+         candidate.remediationScheduleContract ==
+             kRVVLowPrecisionResourcePackedI4RemediationScheduleContract &&
+         candidate.remediationUnpackPlan ==
+             kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan &&
+         candidate.remediationProductPlan ==
+             kRVVLowPrecisionResourcePackedI4RemediationProductPlan &&
+         candidate.remediationReductionPlan ==
+             kRVVLowPrecisionResourcePackedI4RemediationReductionPlan &&
+         candidate.remediationVLPlan ==
+             kRVVLowPrecisionResourcePackedI4RemediationVLPlan &&
+         candidate.unrollFactor == kRVVLowPrecisionResourcePackedI4Unroll &&
+         candidate.accumulatorCount ==
+             kRVVLowPrecisionResourcePackedI4AccumulatorCount &&
+         candidate.vsetvlRegionCount ==
+             kRVVLowPrecisionResourcePackedI4VSetVLRegions &&
+         candidate.peakLiveVectorGroups ==
+             kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups &&
+         candidate.vectorRegisterBudget ==
+             kRVVLowPrecisionResourceVectorRegisterBudget &&
+         candidate.peakLiveVectorGroups <= candidate.vectorRegisterBudget;
+}
+
+inline void populateRVVLowPrecisionResourcePackedI4ScheduleDecision(
+    RVVLowPrecisionContractionResourceCandidate &candidate) {
+  if (!isRVVLowPrecisionResourcePackedI4CandidateID(candidate.candidateID))
+    return;
+
+  candidate.scheduleDecisionContract =
+      kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract;
+  if (isRVVLowPrecisionResourceAcceptedPackedI4ScheduleDecision(candidate)) {
+    candidate.scheduleDecision = kRVVLowPrecisionResourcePackedI4ScheduleDecision;
+    candidate.scheduleDecisionReason =
+        kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason;
+    return;
+  }
+
+  candidate.scheduleDecision =
+      kRVVLowPrecisionResourceUnsupportedPackedI4ScheduleDecisionRejectionReason;
+  candidate.scheduleDecisionReason =
+      kRVVLowPrecisionResourceUnsupportedPackedI4ScheduleDecisionRejectionReason;
+  candidate.isLegal = false;
+  if (candidate.rejectionReason.empty() ||
+      candidate.rejectionReason == kRVVLowPrecisionResourceNoRejectionReason)
+    candidate.rejectionReason =
+        kRVVLowPrecisionResourceUnsupportedPackedI4ScheduleDecisionRejectionReason;
 }
 
 inline bool isRVVLowPrecisionResourceCandidateForOperation(
@@ -1044,6 +1126,7 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
   else
     packedI4Candidate.rejectionReason =
         kRVVLowPrecisionResourceNoRejectionReason;
+  populateRVVLowPrecisionResourcePackedI4ScheduleDecision(packedI4Candidate);
   candidates.push_back(packedI4Candidate);
   return candidates;
 }
@@ -1255,6 +1338,9 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name == kRVVLowPrecisionResourceRemediationProductPlanAttrName ||
          name == kRVVLowPrecisionResourceRemediationReductionPlanAttrName ||
          name == kRVVLowPrecisionResourceRemediationVLPlanAttrName ||
+         name == kRVVLowPrecisionResourceScheduleDecisionContractAttrName ||
+         name == kRVVLowPrecisionResourceScheduleDecisionAttrName ||
+         name == kRVVLowPrecisionResourceScheduleDecisionReasonAttrName ||
          name == kRVVLowPrecisionResourcePerformanceMaturityAttrName ||
          name == kRVVLowPrecisionResourcePerformanceMaturityEvidenceAttrName ||
          name == kRVVLowPrecisionResourcePerformanceMaturityOutcomeAttrName ||

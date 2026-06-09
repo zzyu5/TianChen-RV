@@ -57,8 +57,12 @@ dispatch claim.
 
 - [x] Gate 1: establish production-owned packed-i4 resource/schedule facts and
   a baseline/remediation contract tied to the final Gate 4 regression evidence.
-- [x] Gate 2: implement one coherent resource-aware selected-body/Gearbox
-  schedule improvement or fail-closed capability guard in production code.
+- [x] Gate 2a: implement the first production fail-closed contract guard for
+  provider-owned packed-i4 resource/remediation schedule facts.
+- [x] Gate 2b: make the packed-i4 remediation schedule contract actionable in
+  Gearbox selected-body realization by choosing or rejecting a resource-aware
+  packed-i4 schedule from the provider-owned remediation facts before route
+  planning.
 - [ ] Gate 3: prove generated artifact correctness and same-target measurement
   for the changed packed-i4 path when runtime/correctness/performance behavior
   is claimed.
@@ -91,6 +95,30 @@ dispatch claim.
 - [x] Update this PRD and journal with completed slice and precise continuation
   point.
 - [x] Commit one coherent slice while keeping this macro task active.
+
+## Current Slice: Gate 2b Resource-Aware Gearbox Scheduling Decision
+
+- [x] Repair the resource candidate model so packed-i4 remediation schedule
+  facts are not only mirrored metadata but the accepted input to an
+  RVV-owned scheduling decision.
+- [x] Define the accepted resource-aware packed-i4 decision from the five
+  remediation schedule facts: low/high signed nibble unpack, two widening
+  products plus pair-sum, single `vwredsum`, two-region runtime-AVL VL
+  placement, and 7-of-32 vector group budget.
+- [x] Fail closed when a packed-i4 resource candidate is selected without the
+  accepted schedule decision, with stale remediation facts, or with missing
+  decision facts before route planning/provider acceptance.
+- [x] Thread the selected scheduling decision through Gearbox selected-body
+  realization, route-family provider planning, statement planning, and target
+  artifact validation as provider-owned facts.
+- [x] Preserve correctness support and conservative `correctness-fallback`;
+  do not claim a performance win or run Gate 3/4 unless this slice produces
+  corresponding real same-target evidence.
+- [x] Add focused C++ coverage for accepted packed-i4 schedule decision facts
+  and at least one missing/stale/unsupported decision rejection.
+- [x] Run the focused RVV plugin and target artifact tests plus relevant build
+  and diff checks, then commit this Gate 2b slice while keeping the macro task
+  active.
 
 ## Acceptance Criteria For This Round
 
@@ -137,6 +165,27 @@ dispatch claim.
   correctness/same-target measurement and Gate 4 measured-policy consumption are
   not complete for a changed runtime/performance path.
 
+## Completed Slice: 2026-06-10 Gate 2b
+
+- Added a provider-owned packed-i4 schedule decision contract:
+  `schedule_decision_contract`, `schedule_decision`, and
+  `schedule_decision_reason`.
+- The accepted decision is derived from the five remediation schedule facts:
+  low/high signed nibble unpack, two widening products plus pair-sum, single
+  `vwredsum`, two-region runtime-AVL VL placement, and the 7-of-32 vector group
+  budget.
+- Threaded the selected decision through the RVV resource candidate,
+  Gearbox selected-body realization, cross-region handoff, route-family plan
+  selection, statement/route planning consistency checks, target artifact
+  validation, target header bundle, and dry-run evidence scripts.
+- Added fail-closed checks for stale or missing schedule-decision facts at the
+  provider and target artifact boundaries. The accepted no-win/regression input
+  still keeps the path correctness-supported but not performance-preferred.
+- No real `ssh rvv` measurement was run in this slice because Gate 2b changes
+  schedule decision authority and validation visibility, while Gate 3 remains
+  the next owner for generated artifact correctness and real same-target
+  measurement.
+
 ## Out Of Scope
 
 - New q8/q4/llama-named route ids, artifact authority, or benchmark authority.
@@ -173,9 +222,8 @@ dispatch claim.
 
 ## Continuation Point
 
-Continue from Gate 3 only after the next Gate 2 production change modifies the
-real generated runtime path or scheduling behavior. The next likely milestone is
-to make Gearbox selected-body realization consume the schedule contract into a
-resource-aware scheduling decision beyond the current static packed-i4
-candidate, then run generated artifact correctness and real same-target `ssh rvv`
-measurement before any performance-preferred policy update is considered.
+Continue from Gate 3 for the changed packed-i4 schedule-decision path: generate
+artifact correctness evidence and run real same-target `ssh rvv` measurement for
+the updated production path before any Gate 4 selected-dispatch policy update is
+considered. Gate 4 remains blocked on measured same-target evidence; keep
+`performance-preferred` unavailable unless that evidence proves a real win.

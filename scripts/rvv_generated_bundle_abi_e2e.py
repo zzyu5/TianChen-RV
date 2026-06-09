@@ -779,6 +779,16 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_REDUCTION_PLAN = (
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_VL_PLAN = (
     "two-region-runtime-avl-product-reduce-then-dequant-store.v1"
 )
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_CONTRACT = (
+    "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION = (
+    "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_REASON = (
+    "accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-"
+    "single-vwredsum-budget-7of32"
+)
 LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER = (
     "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
 )
@@ -8435,6 +8445,9 @@ LOW_PRECISION_RESOURCE_METADATA_KEYS = (
     "tcrv_rvv.low_precision_resource.remediation_product_plan",
     "tcrv_rvv.low_precision_resource.remediation_reduction_plan",
     "tcrv_rvv.low_precision_resource.remediation_vl_plan",
+    "tcrv_rvv.low_precision_resource.schedule_decision_contract",
+    "tcrv_rvv.low_precision_resource.schedule_decision",
+    "tcrv_rvv.low_precision_resource.schedule_decision_reason",
     "tcrv_rvv.low_precision_resource.performance_maturity",
     "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
     "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
@@ -9454,6 +9467,15 @@ def product_dequant_low_precision_resource_profile(
             "remediation_vl_plan": (
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_VL_PLAN
             ),
+            "schedule_decision_contract": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_CONTRACT
+            ),
+            "schedule_decision": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION
+            ),
+            "schedule_decision_reason": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_REASON
+            ),
         }
     is_product_dequant_clamp = (
         expectation.is_widening_product_reduce_dequant_clamp_f32
@@ -9653,6 +9675,11 @@ def expected_low_precision_resource_metadata(
                     "remediation_reduction_plan"
                 ],
                 "remediation_vl_plan": profile["remediation_vl_plan"],
+                "schedule_decision_contract": profile[
+                    "schedule_decision_contract"
+                ],
+                "schedule_decision": profile["schedule_decision"],
+                "schedule_decision_reason": profile["schedule_decision_reason"],
             }
         )
     return {

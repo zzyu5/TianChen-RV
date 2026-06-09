@@ -4,12 +4,14 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/from_phase = "load-product-reduce"/from_phase = "tail-product-reduce"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-FROM-PHASE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/remediation_statement_strategy = "unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum"/remediation_statement_strategy = "metadata-only-packed-i4-unpack-plan"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-HANDOFF-REMEDIATION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/remediation_product_plan = "two-signed-i4-widening-products-plus-i16-pair-sum.v1"/remediation_product_plan = "metadata-only-packed-i4-product-plan"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-HANDOFF-REMEDIATION-PRODUCT-PLAN
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/schedule_decision = "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"/schedule_decision = "metadata-only-packed-i4-schedule-decision"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-HANDOFF-SCHEDULE-DECISION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/remediation_vector_budget = "packed-i4-remediation-budget-7of32-vector-groups", //' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-PACKED-HANDOFF-REMEDIATION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.realization_decision", value = "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"/s//tcrv_rvv.low_precision_resource.realization_decision", value = "artifact-name-derived-resource-decision"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-REALIZATION-DECISION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_feedback", value = "same-target-packed-i4-no-win.v1"/s//tcrv_rvv.low_precision_resource.performance_feedback", value = "same-target-packed-i4-performance-win.v1"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-PERFORMANCE-FEEDBACK
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.remediation_statement_strategy", value = "unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum"/s//tcrv_rvv.low_precision_resource.remediation_statement_strategy", value = "metadata-only-packed-i4-unpack-plan"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-REMEDIATION-STATEMENT-STRATEGY
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.remediation_product_plan", value = "two-signed-i4-widening-products-plus-i16-pair-sum.v1"/s//tcrv_rvv.low_precision_resource.remediation_product_plan", value = "metadata-only-packed-i4-product-plan"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-REMEDIATION-PRODUCT-PLAN
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.schedule_decision", value = "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"/s//tcrv_rvv.low_precision_resource.schedule_decision", value = "metadata-only-packed-i4-schedule-decision"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-SCHEDULE-DECISION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_selection_eligible", value = "false"/s//tcrv_rvv.low_precision_resource.performance_selection_eligible", value = "true"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-PERFORMANCE-SELECTION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_maturity_outcome", value = "regression"/s//tcrv_rvv.low_precision_resource.performance_maturity_outcome", value = "win"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-PERFORMANCE-OUTCOME
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.dispatch_preference", value = "not-performance-preferred"/s//tcrv_rvv.low_precision_resource.dispatch_preference", value = "performance-preferred"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-DISPATCH-PREFERENCE
@@ -74,6 +76,9 @@ module {
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.remediation_product_plan = "two-signed-i4-widening-products-plus-i16-pair-sum.v1"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.remediation_reduction_plan = "single-vwredsum-i16-pair-sum-with-i32-seed.v1"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.remediation_vl_plan = "two-region-runtime-avl-product-reduce-then-dequant-store.v1"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.schedule_decision_contract = "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.schedule_decision = "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.schedule_decision_reason = "accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32"
 // REALIZED: tcrv_rvv.vsetvl_region_marker
 // REALIZED-SAME: phase = "load-product-reduce"
 // REALIZED-SAME: region_count = 2 : i64
@@ -100,6 +105,9 @@ module {
 // REALIZED-SAME: remediation_unpack_plan = "sign-extend-low-high-signed-i4-nibbles-before-widening-product.v1"
 // REALIZED-SAME: remediation_vector_budget = "packed-i4-remediation-budget-7of32-vector-groups"
 // REALIZED-SAME: remediation_vl_plan = "two-region-runtime-avl-product-reduce-then-dequant-store.v1"
+// REALIZED-SAME: schedule_decision = "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"
+// REALIZED-SAME: schedule_decision_contract = "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
+// REALIZED-SAME: schedule_decision_reason = "accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32"
 // REALIZED-SAME: resource_candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]"
 // REALIZED-SAME: resource_decision = "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"
 // REALIZED-SAME: resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
@@ -129,6 +137,9 @@ module {
 // PLAN: {key = "tcrv_rvv.low_precision_resource.remediation_product_plan", value = "two-signed-i4-widening-products-plus-i16-pair-sum.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.remediation_reduction_plan", value = "single-vwredsum-i16-pair-sum-with-i32-seed.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.remediation_vl_plan", value = "two-region-runtime-avl-product-reduce-then-dequant-store.v1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.schedule_decision_contract", value = "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.schedule_decision", value = "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.schedule_decision_reason", value = "accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_maturity", value = "executable-not-performance-mature"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_maturity_evidence", value = "same-target-packed-i4-product-pair-sum-regression-gate6.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_maturity_outcome", value = "regression"}
@@ -164,6 +175,9 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.remediation_product_plan: two-signed-i4-widening-products-plus-i16-pair-sum.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.remediation_reduction_plan: single-vwredsum-i16-pair-sum-with-i32-seed.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.remediation_vl_plan: two-region-runtime-avl-product-reduce-then-dequant-store.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.schedule_decision_contract: rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.schedule_decision: select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.schedule_decision_reason: accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_maturity: executable-not-performance-mature
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_maturity_evidence: same-target-packed-i4-product-pair-sum-regression-gate6.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_maturity_outcome: regression
@@ -200,6 +214,9 @@ module {
 // STALE-PACKED-HANDOFF-REMEDIATION-PRODUCT-PLAN: requires packed-i4 remediation attribute 'remediation_product_plan' to match provider-owned resource fact 'two-signed-i4-widening-products-plus-i16-pair-sum.v1'
 // STALE-PACKED-HANDOFF-REMEDIATION-PRODUCT-PLAN-SAME: metadata-only-packed-i4-product-plan
 
+// STALE-PACKED-HANDOFF-SCHEDULE-DECISION: requires packed-i4 remediation attribute 'schedule_decision' to match provider-owned resource fact 'select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1'
+// STALE-PACKED-HANDOFF-SCHEDULE-DECISION-SAME: metadata-only-packed-i4-schedule-decision
+
 // MISSING-PACKED-HANDOFF-REMEDIATION: requires packed-i4 remediation attribute 'remediation_vector_budget' on the selected resource handoff
 
 // STALE-ARTIFACT-REALIZATION-DECISION: low_precision_resource.realization_decision provenance must mirror provider-selected low-precision direct-contraction resource realization decision 'consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1'
@@ -213,6 +230,9 @@ module {
 
 // STALE-ARTIFACT-REMEDIATION-PRODUCT-PLAN: low_precision_resource.remediation_product_plan provenance must mirror provider-selected low-precision direct-contraction resource remediation product plan 'two-signed-i4-widening-products-plus-i16-pair-sum.v1'
 // STALE-ARTIFACT-REMEDIATION-PRODUCT-PLAN-SAME: metadata-only-packed-i4-product-plan
+
+// STALE-ARTIFACT-SCHEDULE-DECISION: low_precision_resource.schedule_decision provenance must mirror provider-selected low-precision direct-contraction resource schedule decision 'select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1'
+// STALE-ARTIFACT-SCHEDULE-DECISION-SAME: metadata-only-packed-i4-schedule-decision
 
 // STALE-ARTIFACT-PERFORMANCE-SELECTION: low_precision_resource.performance_selection_eligible provenance must mirror provider-selected low-precision direct-contraction resource performance selection eligibility 'false'
 // STALE-ARTIFACT-PERFORMANCE-SELECTION-SAME: true

@@ -4674,6 +4674,10 @@ void populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
   selection.remediationProductPlan = candidate.remediationProductPlan.str();
   selection.remediationReductionPlan = candidate.remediationReductionPlan.str();
   selection.remediationVLPlan = candidate.remediationVLPlan.str();
+  selection.scheduleDecisionContract =
+      candidate.scheduleDecisionContract.str();
+  selection.scheduleDecision = candidate.scheduleDecision.str();
+  selection.scheduleDecisionReason = candidate.scheduleDecisionReason.str();
   selection.targetCapabilityProviderMirror = targetFacts.providerMirror;
   selection.targetCapabilityLegalityMirror = targetFacts.legalityMirror;
   selection.isLegal = candidate.isLegal;
@@ -4738,6 +4742,12 @@ void populateRVVLowPrecisionContractionResourceRealizationSchedule(
   selection.dequantPhase = kRVVLowPrecisionResourceDequantStorePhase.str();
   if (isRVVLowPrecisionResourcePackedI4CandidateID(
           selection.selectedCandidateID)) {
+    selection.scheduleDecisionContract =
+        kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract.str();
+    selection.scheduleDecision =
+        kRVVLowPrecisionResourcePackedI4ScheduleDecision.str();
+    selection.scheduleDecisionReason =
+        kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason.str();
     selection.performanceFeedback =
         kRVVLowPrecisionResourcePackedI4PerformanceFeedback.str();
     selection.performanceBaseline =
@@ -5146,6 +5156,25 @@ llvm::Error requireRVVLowPrecisionResourceRealizationFacts(
     if (llvm::Error error =
             requireRVVLowPrecisionResourceRealizationStringFact(
                 op, context, selection,
+                kRVVLowPrecisionResourceScheduleDecisionContractAttrName,
+                "schedule decision contract",
+                selection.scheduleDecisionContract))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourceScheduleDecisionAttrName,
+                "schedule decision", selection.scheduleDecision))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourceScheduleDecisionReasonAttrName,
+                "schedule decision reason", selection.scheduleDecisionReason))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
                 kRVVLowPrecisionResourcePerformanceMaturityAttrName,
                 "performance maturity", selection.performanceMaturity))
       return error;
@@ -5513,6 +5542,17 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
   if (llvm::Error error = requireOptionalRemediationFact(
           "remediation_vl_plan", "remediation VL plan",
           selection.remediationVLPlan))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "schedule_decision_contract", "schedule decision contract",
+          selection.scheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "schedule_decision", "schedule decision", selection.scheduleDecision))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "schedule_decision_reason", "schedule decision reason",
+          selection.scheduleDecisionReason))
     return error;
 
   return llvm::Error::success();
@@ -5934,6 +5974,21 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     else
       return value.takeError();
     if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourceScheduleDecisionContractAttrName))
+      selection.scheduleDecisionContract = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourceScheduleDecisionAttrName))
+      selection.scheduleDecision = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourceScheduleDecisionReasonAttrName))
+      selection.scheduleDecisionReason = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
             kRVVLowPrecisionResourcePerformanceMaturityAttrName))
       selection.performanceMaturity = *value;
     else
@@ -6322,9 +6377,23 @@ llvm::Error verifyRVVLowPrecisionContractionResourceRemediationHandoff(
           selection.remediationReductionPlan,
           kRVVLowPrecisionResourcePackedI4RemediationReductionPlan))
     return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "remediation VL plan", selection.remediationVLPlan,
+          kRVVLowPrecisionResourcePackedI4RemediationVLPlan))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "schedule decision contract",
+          selection.scheduleDecisionContract,
+          kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "schedule decision", selection.scheduleDecision,
+          kRVVLowPrecisionResourcePackedI4ScheduleDecision))
+    return error;
   return requireRVVLowPrecisionResourceStringField(
-      context, selection, "remediation VL plan", selection.remediationVLPlan,
-      kRVVLowPrecisionResourcePackedI4RemediationVLPlan);
+      context, selection, "schedule decision reason",
+      selection.scheduleDecisionReason,
+      kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason);
 }
 
 bool isRVVLowPrecisionResourceSelectionEqual(
@@ -6402,6 +6471,9 @@ bool isRVVLowPrecisionResourceSelectionEqual(
          lhs.remediationProductPlan == rhs.remediationProductPlan &&
          lhs.remediationReductionPlan == rhs.remediationReductionPlan &&
          lhs.remediationVLPlan == rhs.remediationVLPlan &&
+         lhs.scheduleDecisionContract == rhs.scheduleDecisionContract &&
+         lhs.scheduleDecision == rhs.scheduleDecision &&
+         lhs.scheduleDecisionReason == rhs.scheduleDecisionReason &&
          lhs.performanceMaturity == rhs.performanceMaturity &&
          lhs.performanceMaturityEvidence == rhs.performanceMaturityEvidence &&
          lhs.performanceMaturityOutcome == rhs.performanceMaturityOutcome &&
@@ -6772,6 +6844,20 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
             context, selection, "remediation VL plan",
             selection.remediationVLPlan,
             kRVVLowPrecisionResourcePackedI4RemediationVLPlan))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "schedule decision contract",
+            selection.scheduleDecisionContract,
+            kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "schedule decision", selection.scheduleDecision,
+            kRVVLowPrecisionResourcePackedI4ScheduleDecision))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "schedule decision reason",
+            selection.scheduleDecisionReason,
+            kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason))
       return error;
     if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
             context, selection, "performance maturity",

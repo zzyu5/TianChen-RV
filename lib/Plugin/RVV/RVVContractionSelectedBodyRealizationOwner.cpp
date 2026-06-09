@@ -384,6 +384,58 @@ materializeLowPrecisionResourceRealizationAttrs(
             source, kRVVLowPrecisionResourceDispatchPreferenceAttrName,
             kRVVLowPrecisionResourcePackedI4DispatchPreference))
       return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source,
+            kRVVLowPrecisionResourceRemediationPlanContractAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationPlanContract))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourceRemediationPlanAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationPlan))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source,
+            kRVVLowPrecisionResourceRemediationStatementStrategyAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourceRemediationVectorBudgetAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationVectorBudget))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source,
+            kRVVLowPrecisionResourceRemediationScheduleContractAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationScheduleContract))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourceRemediationUnpackPlanAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourceRemediationProductPlanAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationProductPlan))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourceRemediationReductionPlanAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationReductionPlan))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourceRemediationVLPlanAttrName,
+            kRVVLowPrecisionResourcePackedI4RemediationVLPlan))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source,
+            kRVVLowPrecisionResourceScheduleDecisionContractAttrName,
+            kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourceScheduleDecisionAttrName,
+            kRVVLowPrecisionResourcePackedI4ScheduleDecision))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourceScheduleDecisionReasonAttrName,
+            kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason))
+      return std::move(error);
   }
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceProductDTypeAttrName,
@@ -574,6 +626,17 @@ materializeLowPrecisionResourceRealizationAttrs(
     destination->setAttr(
         kRVVLowPrecisionResourcePerformanceActionAttrName,
         builder.getStringAttr(kRVVLowPrecisionResourcePackedI4PerformanceAction));
+    destination->setAttr(
+        kRVVLowPrecisionResourceScheduleDecisionContractAttrName,
+        builder.getStringAttr(
+            kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract));
+    destination->setAttr(
+        kRVVLowPrecisionResourceScheduleDecisionAttrName,
+        builder.getStringAttr(kRVVLowPrecisionResourcePackedI4ScheduleDecision));
+    destination->setAttr(
+        kRVVLowPrecisionResourceScheduleDecisionReasonAttrName,
+        builder.getStringAttr(
+            kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason));
   }
   return *selected;
 }
@@ -874,6 +937,14 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
         builder.getStringAttr(selectedCandidate.remediationReductionPlan));
     state.addAttribute("remediation_vl_plan",
                        builder.getStringAttr(selectedCandidate.remediationVLPlan));
+    state.addAttribute(
+        "schedule_decision_contract",
+        builder.getStringAttr(selectedCandidate.scheduleDecisionContract));
+    state.addAttribute("schedule_decision",
+                       builder.getStringAttr(selectedCandidate.scheduleDecision));
+    state.addAttribute(
+        "schedule_decision_reason",
+        builder.getStringAttr(selectedCandidate.scheduleDecisionReason));
   }
   state.addAttribute("producer_scope",
                      builder.getStringAttr(selectedCandidate.producerScope));

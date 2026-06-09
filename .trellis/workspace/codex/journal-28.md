@@ -580,3 +580,66 @@ campaign-level promotion deferred by Gate 3.
 [READY TO ARCHIVE] Gates 1-4 are complete. The remaining work is mechanical
 final verification, old-authority scan, whitespace checks, archive, and one
 coherent Gate 4 closeout commit.
+
+## Session 582: Packed-i4 performance remediation Gate 2b schedule decision
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV packed-i4 performance-remediation campaign
+**Branch**: `main`
+
+### Summary
+
+Completed the Gate 2b production slice for the active macro task. Packed-i4
+remediation schedule facts now drive an RVV-owned Gearbox/resource-aware
+schedule decision instead of remaining only mirrored metadata. The chosen
+decision is accepted only when the provider-owned low/high unpack plan, pair-sum
+product plan, single-`vwredsum` reduction plan, two-region runtime-AVL VL plan,
+and 7-of-32 vector-group budget all agree.
+
+### Main Changes
+
+- Added `schedule_decision_contract`, `schedule_decision`, and
+  `schedule_decision_reason` as provider-owned packed-i4 resource facts.
+- Threaded the selected decision through the RVV resource candidate,
+  selected-body realization, Gearbox cross-region handoff, route-family
+  selection, statement/route planning, target artifact validation, target header
+  bundle, and generated-bundle dry-run evidence scripts.
+- Added fail-closed coverage for stale or missing schedule-decision facts in
+  RVV plugin/provider planning and target artifact mirror validation.
+- Preserved the prior no-win/regression policy input:
+  `correctness-fallback`, `not-performance-preferred`, and no performance-win
+  claim.
+
+### Evidence
+
+- Rebuilt focused binaries:
+  `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py
+  scripts/rvv_generated_bundle_same_target_measure.py`.
+- Manual packed-i4 `tcrv-opt` pipeline verified realized body and handoff
+  schedule-decision facts, rejected a stale handoff decision, materialized route
+  metadata, exported target header mirrors, and rejected a stale artifact mirror.
+- Generated-bundle ABI dry-run verified the schedule decision in evidence,
+  bundle index, and target header.
+- Same-target measurement dry-run verified `schedule_decision` and
+  `provider_schedule_decision` fields without executing `ssh rvv`.
+- Added-line legacy-authority scan found no new `RVVI32M1`, `rvv-i32m1`,
+  `tcrv_rvv.i32_*`, source-front-door, or descriptor authority.
+- `git diff --check` passed.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] Gate 2b implements the active macro PRD using existing RVV
+plugin-local selected-body realization, provider-owned route planning, and
+target-artifact validation rules. Promote only if Gate 3/4 evidence establishes
+a durable new policy rule.
+
+### Status
+
+[OPEN] Gate 2b is complete. Gate 3 generated artifact correctness plus real
+same-target `ssh rvv` measurement and Gate 4 measured selected-dispatch policy
+consumption remain open. `.trellis/.current-task` stays active.

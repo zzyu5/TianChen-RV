@@ -1520,6 +1520,11 @@ def packed_i4_maturity_contract_evidence_input(
             "remediation_reduction_plan"
         ],
         "provider_remediation_vl_plan": fields["remediation_vl_plan"],
+        "provider_schedule_decision_contract": fields[
+            "schedule_decision_contract"
+        ],
+        "provider_schedule_decision": fields["schedule_decision"],
+        "provider_schedule_decision_reason": fields["schedule_decision_reason"],
         "target_capability_provider_mirror": fields[
             "target_capability_provider_mirror"
         ],
@@ -1655,6 +1660,11 @@ def validate_packed_i4_maturity_contract_evidence_input(
             "remediation_reduction_plan"
         ],
         "provider_remediation_vl_plan": fields["remediation_vl_plan"],
+        "provider_schedule_decision_contract": fields[
+            "schedule_decision_contract"
+        ],
+        "provider_schedule_decision": fields["schedule_decision"],
+        "provider_schedule_decision_reason": fields["schedule_decision_reason"],
         "target_capability_provider_mirror": fields[
             "target_capability_provider_mirror"
         ],
@@ -1821,6 +1831,9 @@ def packed_i4_provider_feedback_tie_back(
         "remediation_product_plan",
         "remediation_reduction_plan",
         "remediation_vl_plan",
+        "schedule_decision_contract",
+        "schedule_decision",
+        "schedule_decision_reason",
         "operand_form",
         "packing_layout",
         "unpack_intent",
@@ -2805,6 +2818,11 @@ def run_self_test() -> int:
             "remediation_vl_plan",
         ),
         (
+            "provider_schedule_decision",
+            "metadata-only-packed-i4-schedule-decision",
+            "schedule_decision",
+        ),
+        (
             "target_capability_legality_mirror",
             "stale-target-capability-legality",
             "target_capability_legality_mirror",
@@ -2918,6 +2936,11 @@ def run_self_test() -> int:
             "tcrv_rvv.low_precision_resource.remediation_vl_plan",
             "metadata-only-packed-i4-vl-plan",
             "remediation_vl_plan",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.schedule_decision",
+            "metadata-only-packed-i4-schedule-decision",
+            "schedule_decision",
         ),
         (
             "tcrv_rvv.low_precision_resource.performance_maturity_outcome",

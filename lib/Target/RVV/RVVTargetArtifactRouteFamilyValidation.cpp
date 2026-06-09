@@ -3878,6 +3878,21 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
           plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationVLPlan))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 schedule decision contract",
+          selection.scheduleDecisionContract,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 schedule decision",
+          selection.scheduleDecision,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4ScheduleDecision))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 schedule decision reason",
+          selection.scheduleDecisionReason,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 performance maturity",
           selection.performanceMaturity,
           plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceMaturity))
@@ -5992,6 +6007,18 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
     if (llvm::Error error = requireResourceMirror(
             "tcrv_rvv.low_precision_resource.remediation_vl_plan",
             selection.remediationVLPlan, "remediation VL plan"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.schedule_decision_contract",
+            selection.scheduleDecisionContract, "schedule decision contract"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.schedule_decision",
+            selection.scheduleDecision, "schedule decision"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.schedule_decision_reason",
+            selection.scheduleDecisionReason, "schedule decision reason"))
       return error;
     if (llvm::Error error = requireResourceMirror(
             "tcrv_rvv.low_precision_resource.performance_maturity",

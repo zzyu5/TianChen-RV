@@ -17839,6 +17839,17 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
           "remediation_vl_plan",
           kRVVLowPrecisionResourcePackedI4RemediationVLPlan))
     return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "schedule_decision_contract",
+          kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "schedule_decision", kRVVLowPrecisionResourcePackedI4ScheduleDecision))
+    return error;
+  if (llvm::Error error = requireOptionalRemediationFact(
+          "schedule_decision_reason",
+          kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason))
+    return error;
 
   slice.gearboxCrossRegionHandoffOp = handoff;
   slice.conversionSource = handoff.getOutput();
@@ -43427,6 +43438,14 @@ getRVVSelectedBodyConfigArtifactMetadata(
            selection.remediationReductionPlan});
       metadata.push_back({"tcrv_rvv.low_precision_resource.remediation_vl_plan",
                           selection.remediationVLPlan});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.schedule_decision_contract",
+           selection.scheduleDecisionContract});
+      metadata.push_back({"tcrv_rvv.low_precision_resource.schedule_decision",
+                          selection.scheduleDecision});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.schedule_decision_reason",
+           selection.scheduleDecisionReason});
       metadata.push_back({"tcrv_rvv.low_precision_resource.performance_maturity",
                           selection.performanceMaturity});
       metadata.push_back(

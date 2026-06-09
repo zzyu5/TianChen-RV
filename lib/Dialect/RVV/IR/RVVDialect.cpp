@@ -149,6 +149,11 @@ constexpr llvm::StringLiteral kRemediationReductionPlanAttrName(
     "remediation_reduction_plan");
 constexpr llvm::StringLiteral kRemediationVLPlanAttrName(
     "remediation_vl_plan");
+constexpr llvm::StringLiteral kScheduleDecisionContractAttrName(
+    "schedule_decision_contract");
+constexpr llvm::StringLiteral kScheduleDecisionAttrName("schedule_decision");
+constexpr llvm::StringLiteral kScheduleDecisionReasonAttrName(
+    "schedule_decision_reason");
 constexpr llvm::StringLiteral kProducerScopeAttrName("producer_scope");
 constexpr llvm::StringLiteral kConsumerScopeAttrName("consumer_scope");
 constexpr llvm::StringLiteral kPrimitiveChainContractAttrName(
@@ -309,6 +314,9 @@ bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
          name == kRemediationProductPlanAttrName ||
          name == kRemediationReductionPlanAttrName ||
          name == kRemediationVLPlanAttrName ||
+         name == kScheduleDecisionContractAttrName ||
+         name == kScheduleDecisionAttrName ||
+         name == kScheduleDecisionReasonAttrName ||
          name == kProducerScopeAttrName || name == kConsumerScopeAttrName ||
          name == kPrimitiveChainContractAttrName ||
          name == kPrimitiveChainKindAttrName ||
@@ -4285,6 +4293,21 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
           kRemediationVLPlanAttrName,
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationVLPlan)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          kScheduleDecisionContractAttrName,
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          kScheduleDecisionAttrName,
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4ScheduleDecision)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          kScheduleDecisionReasonAttrName,
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason)))
     return mlir::failure();
 
   tcrv::rvv::VSetVLRegionMarkerOp firstMarker;

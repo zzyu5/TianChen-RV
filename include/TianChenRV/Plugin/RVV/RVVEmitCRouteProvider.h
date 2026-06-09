@@ -213,6 +213,9 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::string remediationProductPlan;
   std::string remediationReductionPlan;
   std::string remediationVLPlan;
+  std::string scheduleDecisionContract;
+  std::string scheduleDecision;
+  std::string scheduleDecisionReason;
   std::string performanceMaturity;
   std::string performanceMaturityEvidence;
   std::string performanceMaturityOutcome;

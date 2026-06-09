@@ -507,6 +507,20 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
             kRVVLowPrecisionResourcePackedI4RemediationVLPlan)))
       return mlir::failure();
     if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceScheduleDecisionContractAttrName,
+            kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourceScheduleDecisionAttrName,
+            kRVVLowPrecisionResourcePackedI4ScheduleDecision)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceScheduleDecisionReasonAttrName,
+            kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
             op, builder, kRVVLowPrecisionResourcePerformanceMaturityAttrName,
             kRVVLowPrecisionResourcePackedI4PerformanceMaturity)))
       return mlir::failure();
@@ -1313,6 +1327,21 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
           "remediation_vl_plan",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationVLPlan)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          "schedule_decision_contract",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          "schedule_decision",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4ScheduleDecision)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalRemediationFact(
+          "schedule_decision_reason",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason)))
     return mlir::failure();
 
   LoadOp lhsLoad = product.getLhs().getDefiningOp<LoadOp>();
