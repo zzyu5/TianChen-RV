@@ -22,7 +22,7 @@ constexpr llvm::StringLiteral kPackedI4Gate4MeasurementClassification(
     "regression");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementOutcomeFamily("no-win");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementBestSpeedupRange(
-    "0.684318..0.708057");
+    "0.689815..0.705331");
 constexpr llvm::StringLiteral kPackedI4Gate4TargetProfile("ssh rvv");
 constexpr llvm::StringLiteral kPackedI4PerformancePreferenceDenialReason(
     "same-target-measurement-no-win-or-regression");
@@ -256,6 +256,20 @@ llvm::Error verifyPackedI4SelectionFacts(
           selection.primitiveReductionStoreVL,
           kRVVLowPrecisionResourcePrimitiveReductionStoreVL))
     return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 schedule decision contract",
+          selection.scheduleDecisionContract,
+          kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 schedule decision", selection.scheduleDecision,
+          kRVVLowPrecisionResourcePackedI4ScheduleDecision))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 schedule decision reason",
+          selection.scheduleDecisionReason,
+          kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason))
+    return error;
   if (llvm::Error error = requireNonEmptyPolicyString(
           context, "target capability provider mirror",
           selection.targetCapabilityProviderMirror))
@@ -310,6 +324,20 @@ llvm::Error verifyPackedI4SameTargetMeasurementPolicyInput(
   if (llvm::Error error = requireSameTargetPolicyInputTieBack(
           context, "provider runtime ABI order", input.providerRuntimeABIOrder,
           selection.runtimeABIOrder))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider schedule decision contract",
+          input.providerScheduleDecisionContract,
+          selection.scheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider schedule decision",
+          input.providerScheduleDecision, selection.scheduleDecision))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider schedule decision reason",
+          input.providerScheduleDecisionReason,
+          selection.scheduleDecisionReason))
     return error;
   if (llvm::Error error = requireSameTargetPolicyInputTieBack(
           context, "provider primitive chain contract",
@@ -426,6 +454,11 @@ materializeRVVLowPrecisionMeasurementOutcomeFromPolicyInput(
       input.providerPerformanceSelectionEligible;
   outcome.providerDispatchPreference = input.providerDispatchPreference;
   outcome.providerPerformanceAction = input.providerPerformanceAction;
+  outcome.providerScheduleDecisionContract =
+      input.providerScheduleDecisionContract;
+  outcome.providerScheduleDecision = input.providerScheduleDecision;
+  outcome.providerScheduleDecisionReason =
+      input.providerScheduleDecisionReason;
   outcome.performancePreferenceDenied = input.performancePreferenceDenied;
   outcome.performancePreferenceDenialReason =
       input.performancePreferenceDenialReason;
@@ -512,6 +545,20 @@ llvm::Error verifyPackedI4MeasurementOutcomeCommon(
   if (llvm::Error error = requirePolicyString(
           context, "provider performance action tie-back",
           outcome.providerPerformanceAction, selection.performanceAction))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider schedule decision contract tie-back",
+          outcome.providerScheduleDecisionContract,
+          selection.scheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider schedule decision tie-back",
+          outcome.providerScheduleDecision, selection.scheduleDecision))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider schedule decision reason tie-back",
+          outcome.providerScheduleDecisionReason,
+          selection.scheduleDecisionReason))
     return error;
   if (llvm::Error error = requirePolicyBool(
           context, "correctness execution allowance",
@@ -828,6 +875,12 @@ getAcceptedRVVPackedI4Gate4MeasurementOutcome() {
       kRVVLowPrecisionResourcePackedI4DispatchPreference.str();
   outcome.providerPerformanceAction =
       kRVVLowPrecisionResourcePackedI4PerformanceAction.str();
+  outcome.providerScheduleDecisionContract =
+      kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract.str();
+  outcome.providerScheduleDecision =
+      kRVVLowPrecisionResourcePackedI4ScheduleDecision.str();
+  outcome.providerScheduleDecisionReason =
+      kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason.str();
   outcome.performancePreferenceDenied = true;
   outcome.performancePreferenceDenialReason =
       kPackedI4PerformancePreferenceDenialReason.str();
@@ -861,6 +914,11 @@ buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
   input.providerResourceRouteFamilyPlan = selection.routeFamilyPlanID;
   input.providerSupportedMirror = selection.providerSupportedMirror;
   input.providerRuntimeABIOrder = selection.runtimeABIOrder;
+  input.providerScheduleDecisionContract =
+      outcome.providerScheduleDecisionContract;
+  input.providerScheduleDecision = outcome.providerScheduleDecision;
+  input.providerScheduleDecisionReason =
+      outcome.providerScheduleDecisionReason;
   input.providerPrimitiveChainContract = selection.primitiveChainContractID;
   input.providerPrimitiveChainKind = selection.primitiveChainKind;
   input.providerPrimitiveWideningProductRelation =

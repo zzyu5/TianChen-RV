@@ -66,7 +66,7 @@ dispatch claim.
 - [x] Gate 3: prove generated artifact correctness and same-target measurement
   for the changed packed-i4 path when runtime/correctness/performance behavior
   is claimed.
-- [ ] Gate 4: consume measurement in selected-dispatch policy, choosing
+- [x] Gate 4: consume measurement in selected-dispatch policy, choosing
   `performance-preferred` only for a real same-target win and
   `correctness-fallback` otherwise.
 
@@ -144,6 +144,58 @@ dispatch claim.
   `dispatch_preference = not-performance-preferred`.
 - [x] Leave Gate 4 open for selected-dispatch policy consumption of the new
   measurement evidence.
+
+## Current Slice: Gate 4 Measured Selected-Dispatch Policy Consumption
+
+- [x] Keep this macro task as the owner and consume the Gate 3
+  `gate3-packed-i4-schedule-decision-ssh` same-target measurement in the
+  selected-dispatch policy boundary.
+- [x] Treat the Gate 2b provider-owned schedule decision facts
+  `schedule_decision_contract`, `schedule_decision`, and
+  `schedule_decision_reason` as required policy-input tie-backs, not as
+  mirror-only report metadata.
+- [x] Update the accepted packed-i4 measurement identity and speedup range to
+  the current Gate 3 evidence:
+  `gate3-packed-i4-schedule-decision-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`
+  and `0.689815..0.705331`.
+- [x] Preserve the current conservative outcome:
+  `correctness-fallback`, `not-performance-preferred`,
+  `performance_selection_allowed = false`, and
+  `performance_win_claim_allowed = false`.
+- [x] Keep measured-win promotion bounded so `performance-preferred` is
+  accepted only when same-target win evidence and provider maturity,
+  eligibility, dispatch preference, remediation, target, measurement, and
+  schedule-decision facts all match.
+- [x] Add focused C++ rejection coverage for stale or missing measurement,
+  target, provider tie-back, primitive, and schedule-decision facts.
+- [x] Update generated-bundle / same-target script mirrors and dry-run
+  expectations only as mirrors of the provider-owned policy facts.
+- [x] Run the focused RVV plugin, target artifact, script, dry-run, diff, and
+  old-authority checks before closing Gate 4.
+
+## Gate 4 Acceptance Criteria
+
+- [x] Production selected-dispatch policy consumes provider-owned Gate 2b
+  schedule-decision facts and Gate 3 same-target measurement facts in one
+  strict handoff.
+- [x] Missing, stale, disconnected, metadata-only, or measurement-only
+  schedule-decision / measurement / provider facts fail strict verification;
+  the safe resolver preserves correctness fallback when the route remains
+  legal.
+- [x] The accepted Gate 3 regression maps to correctness fallback and
+  `not-performance-preferred`; no performance-preferred dispatch or win claim
+  is made from the regression evidence.
+- [x] A measured-win fixture can select `performance-preferred` only when the
+  provider contract, selected-dispatch boundary, schedule decision, target
+  profile, measurement counts, and win-claim allowance all agree.
+- [x] Common EmitC/export remains neutral and carries provider-built facts only.
+- [x] No q4/q8/llama label, route id, artifact name, ABI string, helper name,
+  descriptor residue, status field, source-front-door marker, or test name
+  becomes dispatch, route, dtype/config, or evidence authority.
+- [x] Focused C++ tests, script self-tests, Gate 4 same-target dry-run, diff
+  whitespace checks, and bounded old-authority scans pass.
+- [x] If all Gate 4 criteria are complete, update spec/journal, archive the
+  macro task, and commit one coherent Gate 4 closeout slice.
 
 ## Acceptance Criteria For This Round
 
@@ -236,6 +288,37 @@ dispatch claim.
   this measurement explicitly and preserve correctness fallback unless future
   same-target evidence and provider facts prove a real win.
 
+## Completed Slice: 2026-06-10 Gate 4
+
+- Updated the accepted packed-i4 policy evidence id and best-speedup range to
+  the Gate 3 schedule-decision measurement:
+  `gate3-packed-i4-schedule-decision-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`
+  and `0.689815..0.705331`.
+- Extended the production RVV low-precision dispatch/performance policy
+  handoff so both `RVVLowPrecisionPerformanceMeasurementOutcome` and
+  `RVVLowPrecisionSameTargetMeasurementPolicyInput` carry
+  `providerScheduleDecisionContract`, `providerScheduleDecision`, and
+  `providerScheduleDecisionReason` and verify those fields against the
+  provider-owned Gate 2b resource selection.
+- The accepted regression/no-win input selects `correctness-fallback`, keeps
+  `dispatchPreference = not-performance-preferred`, preserves route/correctness
+  support, and denies performance selection and performance-win claims.
+- Measured-win promotion remains bounded by provider maturity, eligibility,
+  remediation, dispatch preference, target, measurement, and schedule-decision
+  tie-backs; measurement-only win promotion still fails strict verification.
+- Updated generated-bundle and same-target dry-run mirrors plus RVV plugin spec
+  text to reflect the Gate 3 evidence id/range and the schedule-decision policy
+  input requirement.
+- No new real `ssh rvv` run was made in this slice because the policy consumes
+  the existing Gate 3 real measurement and does not claim a new runtime or
+  performance result.
+- Focused checks passed: rebuild of `tcrv-opt`, `tcrv-translate`,
+  `tianchenrv-rvv-extension-plugin-test`, and
+  `tianchenrv-target-artifact-export-test`; both C++ test binaries; script
+  `py_compile`; both script self-tests; same-target dry-run; generated-bundle
+  ABI dry-run; direct header export; bounded added-line old-authority scan;
+  `git diff --check`; and `git diff --cached --check`.
+
 ## Out Of Scope
 
 - New q8/q4/llama-named route ids, artifact authority, or benchmark authority.
@@ -272,11 +355,5 @@ dispatch claim.
 
 ## Continuation Point
 
-Continue from Gate 3 for the changed packed-i4 schedule-decision path: generate
-Continue from Gate 4 for the changed packed-i4 schedule-decision path: consume
-the Gate 3 evidence at
-`artifacts/tmp/rvv_generated_bundle_same_target_measure/gate3-packed-i4-schedule-decision-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`
-in the selected-dispatch policy boundary. The new same-target result is still a
-regression (`0.689815..0.705331`), so Gate 4 should preserve
-`correctness-fallback` / `not-performance-preferred` unless a later provider
-contract update is backed by a real same-target win.
+All macro gates are complete. The task can be archived after final status
+checks and the coherent Gate 4 closeout commit.

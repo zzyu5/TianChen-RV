@@ -6111,7 +6111,7 @@ object equivalent to:
     "fields": {
       "performance_feedback": "same-target-packed-i4-no-win.v1",
       "performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1",
-      "performance_best_speedup_range": "0.684318..0.708057",
+      "performance_best_speedup_range": "0.689815..0.705331",
       "performance_action": "no-win-repair-required-before-performance-claim",
       "operand_form": "packed-i4-nibbles",
       "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
@@ -6243,7 +6243,7 @@ tcrv_rvv.low_precision_resource.performance_feedback =
 tcrv_rvv.low_precision_resource.performance_baseline =
   "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
 tcrv_rvv.low_precision_resource.performance_best_speedup_range =
-  "0.684318..0.708057"
+  "0.689815..0.705331"
 tcrv_rvv.low_precision_resource.performance_action =
   "no-win-repair-required-before-performance-claim"
 tcrv_rvv.low_precision_resource.remediation_plan_contract =
@@ -6497,7 +6497,7 @@ Packed-i4 per-op evidence and root summaries may carry:
     "measurement_evidence_id": "run/op/same_target_measurement_evidence.json",
     "measurement_classification": "win | no-win | regression | not-measured",
     "measurement_outcome_family": "win | no-win | not-measured",
-    "measurement_best_speedup_range": "0.684318..0.708057",
+    "measurement_best_speedup_range": "0.689815..0.705331",
     "measurement_summary_record_count": 12,
     "measurement_record_count": 60,
     "provider_maturity": "executable-not-performance-mature",
@@ -6506,6 +6506,9 @@ Packed-i4 per-op evidence and root summaries may carry:
     "provider_performance_selection_eligible": "false",
     "provider_dispatch_preference": "not-performance-preferred",
     "provider_performance_action": "no-win-repair-required-before-performance-claim",
+    "provider_schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
+    "provider_schedule_decision": "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1",
+    "provider_schedule_decision_reason": "accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32",
     "contract_alignment": "matches-provider-maturity-outcome",
     "performance_win_claim_allowed": false,
     "performance_preference_denied": true,
@@ -6526,6 +6529,9 @@ Root evidence may also aggregate per-op objects under
   classification and the current evidence path.
 - `provider_*` fields must be copied from provider-owned route/resource facts or
   generated object/header metadata mirrors after target artifact validation.
+- Gate 4 policy input must carry the Gate 2b provider-owned schedule-decision
+  fields: `provider_schedule_decision_contract`,
+  `provider_schedule_decision`, and `provider_schedule_decision_reason`.
 - The script may report alignment or conflicts, but must not rewrite
   `RVVLowPrecisionContractionResourceSelection` maturity fields.
 - `performance_win_claim_allowed` is true only when measurement classification
@@ -6667,10 +6673,10 @@ performance-preferred
 
   ```text
   measurementEvidenceID =
-    gate4-selected-dispatch-final-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
+    gate3-packed-i4-schedule-decision-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
   measurementClassification = regression
   measurementOutcomeFamily = no-win
-  measurementBestSpeedupRange = 0.684318..0.708057
+  measurementBestSpeedupRange = 0.689815..0.705331
   measurementSummaryRecordCount = 12
   measurementRecordCount = 60
   correctnessRecordCount = 12
@@ -6684,6 +6690,12 @@ performance-preferred
   dispatchPreference = not-performance-preferred
   performancePreferenceDenialReason =
     same-target-measurement-no-win-or-regression
+  providerScheduleDecisionContract =
+    rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1
+  providerScheduleDecision =
+    select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1
+  providerScheduleDecisionReason =
+    accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32
   ```
 
 - A measured win may select `performance-preferred` only when all of these
@@ -6692,7 +6704,8 @@ performance-preferred
   eligibility `true`, provider dispatch preference `performance-preferred`,
   provider performance action no longer carrying the no-win repair guard,
   remediation diagnosis `performance-preferred-measured-win`, target profile,
-  measurement counts, provider tie-back fields, and win-claim allowance.
+  measurement counts, provider schedule-decision tie-back fields, provider
+  resource/primitive/remediation tie-back fields, and win-claim allowance.
 - Measurement scripts may report evidence inputs and alignment; they must not
   edit provider maturity fields or directly authorize dispatch.
 - Common EmitC may carry provider-built route payloads only; it must not choose
@@ -6704,8 +6717,8 @@ performance-preferred
   before performance dispatch.
 - Stale measurement identity, stale measured best-speedup range, missing
   `ssh rvv` evidence, stale target profile, stale provider tie-back, or stale
-  primitive/remediation fact -> strict policy evaluation fails; resolver returns
-  correctness fallback if the route remains legal.
+  primitive/remediation/schedule-decision fact -> strict policy evaluation
+  fails; resolver returns correctness fallback if the route remains legal.
 - Current regression/no-win evidence with provider
   `performance_selection_eligible = true` or `dispatch_preference =
   performance-preferred` -> fail closed before performance preference.
@@ -6742,8 +6755,8 @@ performance-preferred
   remediation, and measurement tie-back facts all agree.
 - C++ provider/policy tests must assert stale measurement identity, stale
   measured best-speedup range, missing `ssh rvv` evidence, stale target profile,
-  stale provider tie-back, stale primitive facts, and measurement-only win
-  promotion fail strict verification.
+  stale provider tie-back, stale primitive facts, stale schedule-decision facts,
+  and measurement-only win promotion fail strict verification.
 - Target artifact tests must assert stale performance-selection and dispatch
   mirrors fail closed before artifact acceptance.
 - Script self-tests and dry-run lit coverage must keep evidence-input reporting

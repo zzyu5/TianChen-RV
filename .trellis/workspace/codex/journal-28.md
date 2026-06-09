@@ -714,3 +714,36 @@ Gate 4 consumes this measurement in selected-dispatch policy.
 [OPEN] Gate 3 is complete. Gate 4 remains open: consume the Gate 3 measurement
 evidence in selected-dispatch policy and preserve correctness fallback unless a
 future provider-backed same-target win justifies `performance-preferred`.
+
+
+## Session 574: Session 584: Packed-i4 remediation Gate 4 policy consumption
+
+**Date**: 2026-06-10
+**Task**: Session 584: Packed-i4 remediation Gate 4 policy consumption
+**Branch**: `main`
+
+### Summary
+
+Completed the active packed-i4 performance remediation macro task by threading Gate 2b schedule-decision facts and Gate 3 same-target regression evidence into the RVV low-precision selected-dispatch performance policy; preserved correctness fallback and archived the task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-gate4-closeout` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -31,6 +31,9 @@ struct RVVLowPrecisionPerformanceMeasurementOutcome {
   std::string providerPerformanceSelectionEligible;
   std::string providerDispatchPreference;
   std::string providerPerformanceAction;
+  std::string providerScheduleDecisionContract;
+  std::string providerScheduleDecision;
+  std::string providerScheduleDecisionReason;
 
   bool performancePreferenceDenied = false;
   std::string performancePreferenceDenialReason;
@@ -59,6 +62,9 @@ struct RVVLowPrecisionSameTargetMeasurementPolicyInput {
   std::string providerResourceRouteFamilyPlan;
   std::string providerSupportedMirror;
   std::string providerRuntimeABIOrder;
+  std::string providerScheduleDecisionContract;
+  std::string providerScheduleDecision;
+  std::string providerScheduleDecisionReason;
   std::string providerPrimitiveChainContract;
   std::string providerPrimitiveChainKind;
   std::string providerPrimitiveWideningProductRelation;
