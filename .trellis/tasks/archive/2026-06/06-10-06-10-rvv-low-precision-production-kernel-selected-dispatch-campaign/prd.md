@@ -6,11 +6,11 @@ Create a macro Trellis owner for the RVV Stage 2 low-precision
 production-kernel selected-dispatch campaign. The campaign connects the already
 proven low-precision primitive surface, Gearbox/resource facts, target artifact
 evidence, and same-target measurement policy to a bounded selected
-`tcrv.exec` RVV production-kernel dispatch workflow. Gates 1-3 are complete.
-Gate 3 represents same-target measurement evidence as bounded
-selected-dispatch policy input, cross-checks it against provider-owned
-primitive/resource/artifact facts, and consumes it only to choose a
-performance-preferred route or the conservative fallback path.
+`tcrv.exec` RVV production-kernel dispatch workflow. Gates 1-4 are complete.
+Gate 4 refreshed the final same-target `ssh rvv` correctness/performance
+evidence, synchronized the accepted provider-owned evidence contract, and kept
+the selected-dispatch policy on the conservative correctness fallback path
+because the measured packed-i4 result is still a regression/no-win.
 
 ## What I Already Know
 
@@ -69,7 +69,7 @@ performance-preferred route or the conservative fallback path.
   route/export/artifact validation with fallback semantics preserved.
 - [x] Gate 3: same-target measurement evidence updates only the bounded policy
   input and demonstrates preferred-route or conservative-fallback behavior.
-- [ ] Gate 4: final `ssh rvv` correctness/performance evidence and spec/task
+- [x] Gate 4: final `ssh rvv` correctness/performance evidence and spec/task
   archive after production gates are satisfied.
 
 ## Current Slice: Gate 1 Selected-Dispatch Policy Boundary
@@ -298,6 +298,88 @@ tie-backs, remediation handoff, target capability mirrors, and performance
 preference flags. No new runtime, correctness, or performance claim is made in
 this gate; Gate 4 remains the final `ssh rvv` evidence and closeout owner.
 
+## Current Slice: Gate 4 Final ssh rvv Evidence And Closeout
+
+- [x] Ran final same-target `ssh rvv` measurement for the bounded packed-i4
+  `widening_product_reduce_dequantize_f32` selected-dispatch path.
+- [x] Synchronized the accepted Gate 4 evidence id and best-speedup range
+  across provider resource facts, policy constants, script mirrors, target
+  header/artifact fixtures, and RVV plugin spec text.
+- [x] Preserved route/correctness support while denying performance selection
+  and performance-win claims for the accepted regression/no-win input.
+- [x] Preserved the measured-win positive path only for a matched provider
+  maturity/eligibility/remediation/measurement fixture; measurement-only wins
+  still fail closed.
+- [x] Verified generated header/artifact mirrors carry selected-dispatch
+  case/fallback facts, provider-owned low-precision resource facts, and the
+  final Gate 4 evidence id/range.
+- [x] Ran focused C++ tests, script self-tests, generated-bundle dry-runs,
+  direct header export, bounded old-authority scans, and whitespace checks.
+
+## Gate 4 Acceptance Criteria
+
+- [x] Real `ssh rvv` evidence exists for the final selected-dispatch
+  low-precision path:
+  `artifacts/tmp/rvv_generated_bundle_same_target_measure/gate4-selected-dispatch-final-ssh/`.
+- [x] The measurement reports `summaries=12`, `measurements=60`,
+  `correctness=12`, `classification=regression`, and
+  `best_speedup_range=0.684318..0.708057`.
+- [x] The policy input reports `same_target_measurement=true`,
+  `ssh_evidence=true`, `target_profile=ssh rvv`,
+  `provider_performance_selection_eligible=false`, and
+  `performance_win_claim_allowed=false`.
+- [x] The production accepted evidence id is
+  `gate4-selected-dispatch-final-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`.
+- [x] Provider/header/artifact mirrors use the final evidence id and range,
+  while Common EmitC/export remains a neutral carrier of provider-built facts.
+- [x] Conservative fallback is selected for the no-win/regression input:
+  route support and correctness execution are allowed, performance selection is
+  denied, `dispatchPolicyPath=correctness-fallback`, and
+  `dispatchPreference=not-performance-preferred`.
+- [x] Measured-win selection remains bounded: the policy selects
+  `performance-preferred` only when same-target win evidence and provider
+  maturity, eligibility, dispatch preference, remediation, target, and
+  measurement tie-backs all agree.
+- [x] Stale measurement identity, stale speedup range, missing `ssh rvv`
+  evidence, stale provider tie-back, stale primitive facts, stale selected
+  dispatch mirrors, sibling measurements, and measurement-only win promotion
+  fail closed.
+- [x] No q8/q4/llama label, route id, artifact name, helper name, ABI string,
+  test name, descriptor residue, status field, or Common EmitC inference
+  becomes dispatch, route, dtype/config, or evidence authority.
+- [x] `.trellis/spec/extension-plugins/rvv-plugin.md` records the final Gate 4
+  selected-dispatch policy contract evidence id and range.
+- [x] One coherent commit records the Gate 4 closeout slice.
+
+## Gate 4 Completion Notes
+
+Gate 4 is complete. The final same-target `ssh rvv` run for the bounded
+packed-i4 `widening_product_reduce_dequantize_f32` path completed successfully
+under `gate4-selected-dispatch-final-ssh` with 12 summary records, 60 timing
+measurements, 12 correctness guards, classification `regression`, and
+best-speedup range `0.684318..0.708057`. The selected-dispatch policy continues
+to preserve route/correctness support while denying performance selection and
+performance-win claims.
+
+The accepted evidence contract now points at
+`gate4-selected-dispatch-final-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`
+and the provider/header/artifact mirrors carry the final range
+`0.684318..0.708057`. The previous accepted range
+`0.689938..0.705891` is retained only as a stale-evidence negative case.
+
+Focused C++ tests prove the conservative fallback outcome for the accepted
+no-win/regression input and the positive measured-win outcome only when
+provider maturity, selection eligibility, dispatch preference, remediation,
+target, and measurement facts all agree. Script self-tests and dry-runs prove
+the evidence-input bridge is mirror-only and cannot promote measurement-only
+claims into dispatch authority.
+
+Spec closeout is complete for this campaign: the RVV plugin spec records the
+Gate 4 packed-i4 dispatch/performance policy surface and the final selected
+evidence id/range. No additional durable rule is needed beyond that spec
+update. All campaign gates are complete and the task is ready to archive after
+the final commit.
+
 ## Out Of Scope
 
 - New q8/q4 route ids or llama.cpp-named route authority.
@@ -331,7 +413,5 @@ this gate; Gate 4 remains the final `ssh rvv` evidence and closeout owner.
 
 ## Continuation Point
 
-Current continuation is Gate 4: run or refresh final `ssh rvv`
-correctness/performance evidence for the bounded production selected-dispatch
-path, then perform spec/task closeout only if the macro campaign acceptance
-gates are genuinely satisfied.
+All macro gates are complete. The task can be archived after final checks and
+the coherent Gate 4 closeout commit.

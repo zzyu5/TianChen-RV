@@ -513,3 +513,70 @@ promoted only after Gate 4 closes final `ssh rvv` evidence and task closeout.
 [OPEN] Gate 3 is complete. Gate 4 remains unchecked. Continue with final
 `ssh rvv` correctness/performance evidence and campaign closeout only when the
 macro acceptance gates are genuinely satisfied.
+
+## Session 581: RVV low-precision selected-dispatch Gate 4 closeout
+
+**Date**: 2026-06-10
+**Task**: RVV low-precision production-kernel selected-dispatch campaign
+**Branch**: `main`
+
+### Summary
+
+Completed Gate 4 for the active macro task. The final same-target `ssh rvv`
+measurement for the bounded packed-i4
+`widening_product_reduce_dequantize_f32` selected-dispatch path completed
+successfully, but still classifies as a regression/no-win. The selected-dispatch
+policy therefore preserves route/correctness support and chooses the
+`correctness-fallback` path while denying performance selection and
+performance-win claims.
+
+### Main Changes
+
+- Updated the accepted Gate 4 measurement identity to
+  `gate4-selected-dispatch-final-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`.
+- Updated the accepted same-target best-speedup range to
+  `0.684318..0.708057` and retained the previous accepted range
+  `0.689938..0.705891` as a stale-evidence negative case.
+- Synchronized provider resource constants, low-precision dispatch/performance
+  policy constants, generated-bundle script mirrors, target header/artifact
+  fixture expectations, and RVV plugin spec text.
+- Preserved the measured-win path only for a matched provider maturity,
+  selection eligibility, remediation, dispatch, target, and same-target
+  measurement fixture; measurement-only win promotion remains fail-closed.
+- Updated the active PRD to mark Gates 1-4 complete and record the exact
+  archive-ready closeout state.
+
+### Evidence
+
+- Real same-target `ssh rvv` measurement:
+  `python3 scripts/rvv_generated_bundle_same_target_measure.py --artifact-root artifacts/tmp/rvv_generated_bundle_same_target_measure --run-id gate4-selected-dispatch-final-ssh --overwrite --op-kind widening_product_reduce_dequantize_f32 --input test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir`
+- Result: `summaries=12`, `measurements=60`, `correctness=12`,
+  `classification=regression`, `best_speedup_range=0.684318..0.708057`,
+  `provider_performance_selection_eligible=false`, and
+  `performance_win_claim_allowed=false`.
+- Rebuilt focused binaries:
+  `ninja -C build tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`
+- `build/bin/tianchenrv-target-artifact-export-test`
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- Same-target dry-run after contract sync:
+  `python3 scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root artifacts/tmp/rvv_generated_bundle_same_target_measure --run-id gate4-selected-dispatch-final-dry-run --overwrite --op-kind widening_product_reduce_dequantize_f32 --input test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir`
+- Generated-bundle ABI dry-run after contract sync:
+  `python3 scripts/rvv_generated_bundle_abi_e2e.py --pre-realized-selected-body --op-kind widening_product_reduce_dequantize_f32 --input test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir --artifact-root artifacts/tmp/rvv_generated_bundle_abi_e2e --run-id gate4-selected-dispatch-final-dry-run --dry-run --overwrite`
+- Direct `tcrv-opt | tcrv-translate --tcrv-export-target-header-artifact`
+  check showed header mirrors for
+  `gate4-selected-dispatch-final-ssh` and `0.684318..0.708057`.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` now records the final
+selected-dispatch Gate 4 evidence id and best-speedup range. This is the
+campaign-level promotion deferred by Gate 3.
+
+### Status
+
+[READY TO ARCHIVE] Gates 1-4 are complete. The remaining work is mechanical
+final verification, old-authority scan, whitespace checks, archive, and one
+coherent Gate 4 closeout commit.
