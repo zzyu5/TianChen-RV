@@ -51,6 +51,10 @@ PACKED_I4_BASELINE_IDENTITIES = {
         "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
     ),
 }
+RESULT_CLASSIFICATION_NOT_MEASURED = "not-measured"
+RESULT_CLASSIFICATION_WIN = "win"
+RESULT_CLASSIFICATION_NO_WIN = "no-win"
+RESULT_CLASSIFICATION_REGRESSION = "regression"
 
 
 @dataclass(frozen=True)
@@ -1262,6 +1266,191 @@ def parse_measurement_stdout(stdout: str) -> dict[str, Any]:
     }
 
 
+def parse_float_record_field(
+    record: dict[str, str], field: str, context: str
+) -> float:
+    value = record.get(field)
+    if value is None:
+        raise abi.EvidenceError(f"{context} missing {field}")
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise abi.EvidenceError(
+            f"{context} has non-numeric {field}: {value}"
+        ) from exc
+
+
+def not_measured_result_classification(reason: str) -> dict[str, Any]:
+    return {
+        "classification": RESULT_CLASSIFICATION_NOT_MEASURED,
+        "outcome_family": RESULT_CLASSIFICATION_NOT_MEASURED,
+        "reason": reason,
+        "timing_method": TIMING_METHOD,
+        "correctness_before_timing": True,
+    }
+
+
+def classify_parsed_timing(parsed_timing: dict[str, Any]) -> dict[str, Any]:
+    summary_records = parsed_timing.get("summary_records", [])
+    if not summary_records:
+        raise abi.EvidenceError(
+            "same-target measurement output did not contain SUMMARY records"
+        )
+    case_summaries: list[dict[str, Any]] = []
+    best_speedups: list[float] = []
+    for index, record in enumerate(summary_records):
+        context = f"same-target SUMMARY record {index}"
+        best_speedup = parse_float_record_field(record, "best_speedup", context)
+        baseline_best = parse_float_record_field(
+            record, "baseline_best_per_iter_ns", context
+        )
+        generated_best = parse_float_record_field(
+            record, "generated_best_per_iter_ns", context
+        )
+        best_speedups.append(best_speedup)
+        case_summaries.append(
+            {
+                "n": record.get("n", ""),
+                "pattern": record.get("pattern", ""),
+                "scale": record.get("scale", ""),
+                "baseline_best_per_iter_ns": baseline_best,
+                "generated_best_per_iter_ns": generated_best,
+                "best_speedup": best_speedup,
+            }
+        )
+
+    if all(speedup > 1.0 for speedup in best_speedups):
+        classification = RESULT_CLASSIFICATION_WIN
+        outcome_family = RESULT_CLASSIFICATION_WIN
+    elif all(speedup < 1.0 for speedup in best_speedups):
+        classification = RESULT_CLASSIFICATION_REGRESSION
+        outcome_family = RESULT_CLASSIFICATION_NO_WIN
+    else:
+        classification = RESULT_CLASSIFICATION_NO_WIN
+        outcome_family = RESULT_CLASSIFICATION_NO_WIN
+
+    speedup_min = min(best_speedups)
+    speedup_max = max(best_speedups)
+    return {
+        "classification": classification,
+        "outcome_family": outcome_family,
+        "classification_rule": (
+            "win iff every parsed SUMMARY best_speedup is > 1.0; "
+            "regression iff every parsed SUMMARY best_speedup is < 1.0; "
+            "otherwise no-win"
+        ),
+        "basis": (
+            "SUMMARY best_speedup is scalar-baseline best per-iteration time "
+            "divided by generated-artifact best per-iteration time"
+        ),
+        "best_speedup_min": speedup_min,
+        "best_speedup_max": speedup_max,
+        "best_speedup_range": f"{speedup_min:.6f}..{speedup_max:.6f}",
+        "summary_record_count": parsed_timing.get(
+            "summary_record_count", len(summary_records)
+        ),
+        "measurement_record_count": parsed_timing.get("measurement_record_count", 0),
+        "correctness_record_count": parsed_timing.get("correctness_record_count", 0),
+        "case_summaries": case_summaries,
+        "timing_method": TIMING_METHOD,
+        "correctness_before_timing": True,
+    }
+
+
+def packed_i4_provider_feedback_tie_back(
+    *,
+    generation_result: dict[str, Any],
+    expectation: abi.OpExpectation,
+    uses_packed_i4_resource: bool,
+    result_classification: dict[str, Any],
+) -> dict[str, Any]:
+    if not uses_packed_i4_resource:
+        return {
+            "packed_i4_resource_metadata_selected": False,
+            "baseline_identity": baseline_identity_for(
+                expectation, uses_packed_i4_resource=False
+            ),
+            "status": "not-applicable",
+        }
+
+    boundary = generation_result.get("widening_product_reduction_boundary", {})
+    route_metadata = boundary.get("route_metadata", {})
+    provider_low_precision = (
+        boundary.get("provider_route_facts", {}).get("low_precision_resource", {})
+    )
+
+    def resource_field(name: str) -> str:
+        route_key = f"tcrv_rvv.low_precision_resource.{name}"
+        value = route_metadata.get(route_key)
+        if value is None:
+            value = provider_low_precision.get(name)
+        if value is None:
+            raise abi.EvidenceError(
+                f"packed-i4 provider feedback tie-back missing {route_key}"
+            )
+        return str(value)
+
+    expected_fields = {
+        "performance_feedback": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_FEEDBACK
+        ),
+        "performance_baseline": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BASELINE
+        ),
+        "performance_best_speedup_range": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BEST_SPEEDUP_RANGE
+        ),
+        "performance_action": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
+        ),
+        "operand_form": abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_OPERAND_FORM,
+        "packing_layout": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PACKING_LAYOUT
+        ),
+        "unpack_intent": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_UNPACK_INTENT
+        ),
+    }
+    fields = {name: resource_field(name) for name in expected_fields}
+    for name, expected in expected_fields.items():
+        abi.require_equal(
+            fields[name],
+            expected,
+            f"packed-i4 provider feedback tie-back {name}",
+        )
+
+    classification = result_classification.get("classification", "")
+    if classification == RESULT_CLASSIFICATION_NOT_MEASURED:
+        alignment = "not-measured"
+    elif classification == RESULT_CLASSIFICATION_WIN:
+        alignment = "conflicts-with-current-no-win-feedback-requires-provider-update"
+    else:
+        alignment = "consistent-with-current-no-win-feedback"
+
+    return {
+        "packed_i4_resource_metadata_selected": True,
+        "authority": (
+            "provider-owned low-precision resource facts mirrored by generated "
+            "object/header metadata after target artifact validation"
+        ),
+        "fields": fields,
+        "expected_fields": expected_fields,
+        "baseline_identity": baseline_identity_for(
+            expectation, uses_packed_i4_resource=True
+        ),
+        "result_alignment": alignment,
+        "performance_win_claim_allowed": (
+            classification == RESULT_CLASSIFICATION_WIN
+            and fields["performance_action"]
+            != abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
+        ),
+        "next_repair_owner_if_no_win": (
+            "RVV plugin-local Gearbox/resource/statement planning for the "
+            "selected packed-i4 product-reduction candidate"
+        ),
+    }
+
+
 def make_generation_args(
     op_kind: str, timeout: int, input_path: Path | None
 ) -> argparse.Namespace:
@@ -1476,6 +1665,8 @@ def op_measurement_summary(
     config: MeasurementConfig,
     remote: dict[str, Any] | None,
     uses_packed_i4_resource: bool,
+    result_classification: dict[str, Any],
+    provider_feedback_tie_back: dict[str, Any],
 ) -> dict[str, Any]:
     bundle_checks = generation_result["bundle_checks"]
     bundle_dir = Path(generation_result["artifact_dir"]) / "generated_bundle"
@@ -1490,6 +1681,8 @@ def op_measurement_summary(
         "baseline_identity": baseline_identity,
         "baseline_role": "same-target scalar C comparator and correctness oracle",
         "packed_i4_resource_metadata_selected": uses_packed_i4_resource,
+        "result_classification": result_classification,
+        "provider_feedback_tie_back": provider_feedback_tie_back,
         "generated_artifact_identity": {
             "selected_variant": expectation.selected_variant,
             "function_name": expectation.function_name,
@@ -1554,6 +1747,7 @@ def op_measurement_summary(
                 remote.get("target_profile_stdout", ""), limit=8192
             ),
             "parsed_timing": remote.get("parsed_timing", {}),
+            "result_classification": result_classification,
             "compile_command": abi.command_summary(commands.get("compile", {})),
             "run_command": abi.command_summary(commands.get("run", {})),
         }
@@ -1665,6 +1859,9 @@ def run_one_measurement(
         if args.dry_run:
             evidence["ssh_evidence"] = False
             evidence["status"] = "dry_run_success"
+            result_classification = not_measured_result_classification(
+                "dry-run generated and validated bundle/harness but did not run ssh rvv timing"
+            )
         else:
             remote = run_remote_measurement(
                 op_artifact_dir=op_artifact_dir,
@@ -1681,6 +1878,17 @@ def run_one_measurement(
             evidence["remote_measurement"] = remote
             evidence["ssh_evidence"] = True
             evidence["status"] = "success"
+            result_classification = classify_parsed_timing(
+                remote.get("parsed_timing", {})
+            )
+        provider_feedback_tie_back = packed_i4_provider_feedback_tie_back(
+            generation_result=generation_result,
+            expectation=expectation,
+            uses_packed_i4_resource=uses_packed_i4_resource,
+            result_classification=result_classification,
+        )
+        evidence["result_classification"] = result_classification
+        evidence["provider_feedback_tie_back"] = provider_feedback_tie_back
         evidence["op_summary"] = op_measurement_summary(
             expectation=expectation,
             generation_result=generation_result,
@@ -1688,6 +1896,8 @@ def run_one_measurement(
             config=config,
             remote=remote,
             uses_packed_i4_resource=uses_packed_i4_resource,
+            result_classification=result_classification,
+            provider_feedback_tie_back=provider_feedback_tie_back,
         )
         evidence["completed_at"] = abi.utc_timestamp()
         abi.write_json(op_artifact_dir / "same_target_measurement_evidence.json", evidence)
@@ -1797,9 +2007,12 @@ def run_measurement(args: argparse.Namespace) -> int:
                     result.get("ssh_measurement_summary", {})
                     .get("parsed_timing", {})
                 )
+                classification = result.get("result_classification", {})
                 print(
                     f"[{op_kind}] summaries={parsed.get('summary_record_count', 0)} "
-                    f"measurements={parsed.get('measurement_record_count', 0)}"
+                    f"measurements={parsed.get('measurement_record_count', 0)} "
+                    f"classification={classification.get('classification', '')} "
+                    f"best_speedup_range={classification.get('best_speedup_range', '')}"
                 )
         return 0
     except Exception as exc:  # noqa: BLE001 - evidence should record blockers.
@@ -1888,7 +2101,8 @@ def run_self_test() -> int:
                 "MEASURE op=widening_product_reduce_dequantize_f32 n=257 "
                 "baseline_ns=100 generated_ns=50",
                 "SUMMARY op=widening_product_reduce_dequantize_f32 n=257 "
-                "baseline_best_per_iter_ns=100 generated_best_per_iter_ns=50",
+                "pattern=0 scale=-0.125 baseline_best_per_iter_ns=100 "
+                "generated_best_per_iter_ns=125 best_speedup=0.800000",
                 "PASS op=widening_product_reduce_dequantize_f32 measurement",
             ]
         )
@@ -1900,6 +2114,76 @@ def run_self_test() -> int:
         or not parsed["pass_lines"]
     ):
         raise AssertionError("self-test measurement stdout parser lost records")
+    regression = classify_parsed_timing(parsed)
+    if (
+        regression["classification"] != RESULT_CLASSIFICATION_REGRESSION
+        or regression["outcome_family"] != RESULT_CLASSIFICATION_NO_WIN
+        or regression["best_speedup_range"] != "0.800000..0.800000"
+    ):
+        raise AssertionError("self-test timing classifier lost regression result")
+    win = classify_parsed_timing(
+        parse_measurement_stdout(
+            "SUMMARY op=widening_product_reduce_dequantize_f32 n=257 "
+            "pattern=0 scale=-0.125 baseline_best_per_iter_ns=200 "
+            "generated_best_per_iter_ns=100 best_speedup=2.000000"
+        )
+    )
+    if win["classification"] != RESULT_CLASSIFICATION_WIN:
+        raise AssertionError("self-test timing classifier lost win result")
+    mixed = classify_parsed_timing(
+        parse_measurement_stdout(
+            "\n".join(
+                [
+                    "SUMMARY op=widening_product_reduce_dequantize_f32 n=257 "
+                    "pattern=0 scale=-0.125 baseline_best_per_iter_ns=100 "
+                    "generated_best_per_iter_ns=100 best_speedup=1.000000",
+                    "SUMMARY op=widening_product_reduce_dequantize_f32 n=4096 "
+                    "pattern=1 scale=0.375 baseline_best_per_iter_ns=110 "
+                    "generated_best_per_iter_ns=100 best_speedup=1.100000",
+                ]
+            )
+        )
+    )
+    if mixed["classification"] != RESULT_CLASSIFICATION_NO_WIN:
+        raise AssertionError("self-test timing classifier lost no-win result")
+    feedback_metadata = {
+        "tcrv_rvv.low_precision_resource.performance_feedback": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_FEEDBACK
+        ),
+        "tcrv_rvv.low_precision_resource.performance_baseline": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BASELINE
+        ),
+        "tcrv_rvv.low_precision_resource.performance_best_speedup_range": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BEST_SPEEDUP_RANGE
+        ),
+        "tcrv_rvv.low_precision_resource.performance_action": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
+        ),
+        "tcrv_rvv.low_precision_resource.operand_form": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_OPERAND_FORM
+        ),
+        "tcrv_rvv.low_precision_resource.packing_layout": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PACKING_LAYOUT
+        ),
+        "tcrv_rvv.low_precision_resource.unpack_intent": (
+            abi.WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_UNPACK_INTENT
+        ),
+    }
+    tie_back = packed_i4_provider_feedback_tie_back(
+        generation_result={
+            "widening_product_reduction_boundary": {
+                "route_metadata": feedback_metadata
+            }
+        },
+        expectation=packed_expectation,
+        uses_packed_i4_resource=True,
+        result_classification=regression,
+    )
+    if (
+        tie_back["result_alignment"] != "consistent-with-current-no-win-feedback"
+        or tie_back["performance_win_claim_allowed"]
+    ):
+        raise AssertionError("self-test packed-i4 feedback tie-back lost no-win guard")
     print(f"{SCRIPT_NAME} self-test passed")
     return 0
 

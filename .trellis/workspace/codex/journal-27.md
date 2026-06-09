@@ -616,3 +616,114 @@ live in `.trellis/spec/extension-plugins/rvv-plugin.md`. This round implemented
 and verified that existing contract in the generated-bundle evidence verifier
 and lit surface, but did not add a new metadata field, command signature,
 validation matrix, or cross-layer behavior requiring a spec edit.
+
+## Session 581: RVV packed low-precision Gate 4 same-target measurement
+
+**Date**: 2026-06-09
+**Task**: RVV production-kernel packed low-precision performance repair campaign
+
+### Summary
+
+Continued the active macro repair campaign at Gate 4. Gates 1-3 were already
+complete from the prior slices; this slice did not modify C++ production owners.
+The focused change was to harden `scripts/rvv_generated_bundle_same_target_measure.py`
+so same-target measurement evidence records a structured win/no-win/regression
+classification and ties that result back to provider-owned packed-i4 feedback
+facts from the validated generated bundle.
+
+The script now classifies parsed `SUMMARY` records as `win` only when every
+`best_speedup` is above 1.0, `regression` when every `best_speedup` is below
+1.0, and `no-win` for mixed/tie cases. Dry-run evidence is explicitly
+`not-measured`. Packed-i4 evidence also carries a provider feedback tie-back
+with `performance_feedback = same-target-packed-i4-no-win.v1`,
+`performance_baseline = scalar-c-reference/product-reduction-dequant-packed-i4-v1`,
+`performance_best_speedup_range = 0.761006..0.807006`, and
+`performance_action = no-win-repair-required-before-performance-claim`.
+
+The real `ssh rvv` run measured the generated packed-i4 RVV artifact against
+`scalar-c-reference/product-reduction-dequant-packed-i4-v1` on the same target
+with input sizes `257,4096,65536`, scales `-0.125,0.375`, warmups `2`, repeats
+`5`, iterations `8`, compile flags `-O2 -march=rv64gcv -mabi=lp64d -I.`, and
+`clock_gettime(CLOCK_MONOTONIC_RAW)`. Target profile capture reported
+`ssh_target=rvv`, `remote_arch=riscv64`, `/usr/bin/clang`, Ubuntu clang 18.1.3,
+and 64 CPUs.
+
+Evidence artifacts:
+
+- root evidence:
+  `artifacts/tmp/gate4-same-target-measurement/gate4_packed_i4_same_target_measure_ssh_current/evidence.json`;
+- per-op evidence:
+  `artifacts/tmp/gate4-same-target-measurement/gate4_packed_i4_same_target_measure_ssh_current/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`;
+- raw target profile:
+  `artifacts/tmp/gate4-same-target-measurement/gate4_packed_i4_same_target_measure_ssh_current/widening_product_reduce_dequantize_f32/remote_target_profile_stdout.txt`;
+- raw timing stdout:
+  `artifacts/tmp/gate4-same-target-measurement/gate4_packed_i4_same_target_measure_ssh_current/widening_product_reduce_dequantize_f32/remote_measure_run_stdout.txt`.
+
+Parsed Gate 4 result:
+
+```text
+n      pattern  scale   scalar ns/iter  generated ns/iter  speedup
+257    0       -0.125   622.500         812.500            0.766154
+257    0        0.375   622.500         817.500            0.761468
+257    1       -0.125   622.500         815.000            0.763804
+257    1        0.375   620.000         810.000            0.765432
+4096   0       -0.125   9127.500        11352.500          0.804008
+4096   0        0.375   9125.000        11357.500          0.803434
+4096   1       -0.125   9125.000        11355.000          0.803611
+4096   1        0.375   9127.500        11352.500          0.804008
+65536  0       -0.125   145292.500      181245.000         0.801636
+65536  0        0.375   145300.000      181252.500         0.801644
+65536  1       -0.125   145292.500      181240.000         0.801658
+65536  1        0.375   145297.500      181237.500         0.801697
+```
+
+All 12 summaries are below 1.0, so the structured classification is
+`regression` with `best_speedup_range = 0.761468..0.804008`. The provider
+feedback tie-back is `consistent-with-current-no-win-feedback` and
+`performance_win_claim_allowed = false`.
+
+### Testing
+
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_same_target_measure.py scripts/rvv_generated_bundle_abi_e2e.py`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] packed-i4 same-target measurement dry-run with fixture override,
+  counts `257,4096,65536`, warmups `2`, repeats `5`, iterations `8`, and
+  `--llvm-readobj ""`
+- [OK] default product-dequant/dequant-clamp same-target measurement dry-run
+  regression with counts `257,1024`, warmups `1`, repeats `2`, iterations `3`,
+  and `--llvm-readobj ""`
+- [OK] real packed-i4 same-target measurement on `ssh rvv`; evidence has
+  60 raw `MEASURE` records, 12 `SUMMARY` records, correctness guards, and
+  classification `regression`
+- [OK] focused `jq` assertions for dry-run not-measured behavior, real
+  regression classification/range/counts, provider feedback tie-back, and default
+  path non-packed baseline selection
+- [OK] focused `rg` assertions over raw timing stdout for baseline identity,
+  min/max best speedup records, and PASS line
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+
+`FileCheck` and `llvm-lit` are unavailable in this local environment, so the
+updated lit file was validated through actual dry-run artifacts and focused
+`jq`/`rg` assertions.
+
+### Status
+
+[OPEN] Gate 4 same-target measurement evidence is complete and classified as
+regression. The macro task remains active because the continuation rule says a
+no-win/regression Gate 4 result should leave the next production repair owner
+for Hermes review instead of archiving the campaign. Next continuation point:
+repair the RVV plugin-local Gearbox/resource/statement-planning path for the
+selected packed-i4 product-reduction candidate, then rerun the same Gate 4
+measurement contract and update provider-owned feedback facts if the measured
+result changes.
+
+### Spec Update Decision
+
+[UPDATED] Added `Packed-I4 Same-Target Measurement Classification Evidence` to
+`.trellis/spec/extension-plugins/rvv-plugin.md` because this round changed the
+machine-readable evidence contract: dry-run evidence is `not-measured`, real
+same-target runs classify parsed `SUMMARY best_speedup` records as win/no-win/
+regression, and packed-i4 timing evidence must carry provider feedback tie-back
+before any performance claim is allowed.

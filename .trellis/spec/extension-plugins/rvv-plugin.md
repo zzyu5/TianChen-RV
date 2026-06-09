@@ -6025,6 +6025,154 @@ typed low-precision tcrv_rvv body
   -> same-target correctness and timing against named baseline
 ```
 
+## Packed-I4 Same-Target Measurement Classification Evidence
+
+### 1. Scope / Trigger
+
+Use this contract when a same-target measurement tool records packed-i4
+product-reduction-dequant timing evidence for the generated RVV artifact against
+`scalar-c-reference/product-reduction-dequant-packed-i4-v1`. The classification
+is evidence interpretation only. It is not route authority, not a q4/q8 route
+label, not a benchmark-name owner, and not permission for Common EmitC to infer
+RVV semantics.
+
+### 2. Signatures
+
+Per-op measurement evidence must contain a structured result object equivalent
+to:
+
+```json
+{
+  "result_classification": {
+    "classification": "win | no-win | regression | not-measured",
+    "outcome_family": "win | no-win | not-measured",
+    "best_speedup_min": 0.0,
+    "best_speedup_max": 0.0,
+    "best_speedup_range": "0.000000..0.000000",
+    "summary_record_count": 12,
+    "measurement_record_count": 60,
+    "correctness_record_count": 12,
+    "case_summaries": [
+      {
+        "n": "257",
+        "pattern": "0",
+        "scale": "-0.125",
+        "baseline_best_per_iter_ns": 0.0,
+        "generated_best_per_iter_ns": 0.0,
+        "best_speedup": 0.0
+      }
+    ],
+    "timing_method": "clock_gettime(CLOCK_MONOTONIC_RAW)",
+    "correctness_before_timing": true
+  }
+}
+```
+
+Packed-i4 measurement evidence must also contain a provider feedback tie-back
+object equivalent to:
+
+```json
+{
+  "provider_feedback_tie_back": {
+    "packed_i4_resource_metadata_selected": true,
+    "fields": {
+      "performance_feedback": "same-target-packed-i4-no-win.v1",
+      "performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1",
+      "performance_best_speedup_range": "0.761006..0.807006",
+      "performance_action": "no-win-repair-required-before-performance-claim",
+      "operand_form": "packed-i4-nibbles",
+      "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
+      "unpack_intent": "sign-extend-i4-nibbles-before-widening-product"
+    },
+    "result_alignment": "consistent-with-current-no-win-feedback",
+    "performance_win_claim_allowed": false,
+    "next_repair_owner_if_no_win": "RVV plugin-local Gearbox/resource/statement planning for the selected packed-i4 product-reduction candidate"
+  }
+}
+```
+
+### 3. Contracts
+
+- `best_speedup` is the scalar-baseline best per-iteration time divided by the
+  generated-artifact best per-iteration time for one parsed `SUMMARY` case.
+- Classify as `win` only when every parsed `SUMMARY best_speedup` is greater
+  than `1.0`.
+- Classify as `regression` when every parsed `SUMMARY best_speedup` is less
+  than `1.0`; its `outcome_family` is still `no-win`.
+- Classify as `no-win` for mixed or tie cases that are not all above or all
+  below `1.0`.
+- Dry-run evidence must classify as `not-measured`; it may validate bundle and
+  harness structure but must not present timing as runtime/performance evidence.
+- The packed-i4 scalar baseline/oracle may be selected only after validated
+  generated object/header metadata proves provider-owned `packed-i4-nibbles`
+  resource facts.
+- Provider feedback tie-back fields must be copied from validated provider route
+  or generated object/header metadata mirrors, not from fixture names, artifact
+  paths, route ids, or benchmark labels.
+
+### 4. Validation & Error Matrix
+
+- Missing parsed `SUMMARY` records in a real run -> fail the measurement
+  evidence.
+- Missing or non-numeric `best_speedup`, `baseline_best_per_iter_ns`, or
+  `generated_best_per_iter_ns` -> fail the measurement evidence.
+- Packed-i4 measurement evidence lacks the named packed scalar baseline,
+  correctness guard count, target profile, raw timing stdout, parsed summaries,
+  or compile flags -> it is not packed-i4 performance evidence.
+- Packed-i4 provider feedback tie-back omits or changes any expected
+  performance/resource field -> fail closed before accepting the measurement
+  summary.
+- A report claims a packed-i4 performance win while classification is
+  `no-win`, `regression`, or `not-measured`, or while
+  `performance_win_claim_allowed = false` -> invalid evidence boundary.
+
+### 5. Good/Base/Bad Cases
+
+- Good: generated packed-i4 RVV bundle validates provider-owned resource facts
+  -> harness selects the packed scalar baseline -> correctness guards pass ->
+  same-target `SUMMARY` records classify as `regression` -> provider feedback
+  tie-back remains `consistent-with-current-no-win-feedback`.
+- Base: dry-run bundle/harness evidence records `classification =
+  not-measured` and cannot support runtime or performance claims.
+- Bad: a fixture name or artifact path selects the packed scalar baseline before
+  object/header metadata validates `packed-i4-nibbles`.
+- Bad: a raw stdout table is pasted into a PRD without machine-readable
+  classification and provider feedback tie-back.
+
+### 6. Tests Required
+
+- Python self-test or equivalent unit coverage for `win`, `no-win`,
+  `regression`, and `not-measured` classification behavior.
+- Dry-run script/lit coverage asserting `not-measured`, packed-i4 baseline/oracle
+  selection only after validated metadata, and no packed-i4 oracle leakage into
+  default product-dequant/dequant-clamp paths.
+- Real `ssh rvv` evidence for any runtime/performance claim, including raw
+  `MEASURE` lines, parsed `SUMMARY` records, correctness guards, target profile,
+  compile flags, and structured classification.
+- Focused assertions that provider feedback tie-back preserves
+  `performance_feedback`, `performance_baseline`, `performance_best_speedup_range`,
+  `performance_action`, operand form, packing layout, and unpack intent.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+artifact path contains packed-i4
+  -> harness chooses packed scalar baseline
+  -> PRD says performance improved
+```
+
+Correct:
+
+```text
+validated provider-owned packed-i4 resource metadata
+  -> harness chooses packed scalar baseline
+  -> same-target raw timing and correctness guards
+  -> structured win/no-win/regression classification
+  -> provider feedback tie-back controls whether a win claim is allowed
+```
+
 ## Packed-I4 No-Win Performance Feedback Facts
 
 ### 1. Scope / Trigger
