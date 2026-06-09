@@ -3862,6 +3862,132 @@ llvm::Error validateRVVLowPrecisionPrimitiveChainResourceProviderFacts(
       selection.primitiveReductionStoreVL, primitive.reductionStoreVL);
 }
 
+llvm::Error validateRVVLowPrecisionProductReductionRealizationProviderFacts(
+    const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
+  const plugin::rvv::RVVLowPrecisionContractionResourceSelection &selection =
+      contract.lowPrecisionResourceSelection;
+  if (!selection.hasSelection)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned low-precision product-reduction "
+        "resource/realization facts before artifact export");
+  if (!selection.isLegal)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned low-precision product-reduction "
+        "resource/realization facts to be legal before artifact export");
+  if (selection.rejectionReason !=
+      plugin::rvv::kRVVLowPrecisionResourceNoRejectionReason)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " rejects stale low-precision product-reduction resource rejection "
+        "reason '" +
+        selection.rejectionReason + "' before artifact export");
+
+  const llvm::StringRef expectedRealizationDecision =
+      plugin::rvv::getRVVLowPrecisionContractionResourceRealizationDecision(
+          selection.selectedCandidateID);
+  if (expectedRealizationDecision.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " cannot derive provider-owned low-precision product-reduction "
+        "realization decision for selected candidate '" +
+        selection.selectedCandidateID + "' before artifact export");
+  if (selection.peakLiveVectorGroups > selection.vectorRegisterBudget ||
+      selection.realizedPeakLiveVectorGroups > selection.vectorRegisterBudget)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned low-precision product-reduction resource "
+        "budget facts before artifact export");
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "low-precision resource unroll factor",
+          selection.unrollFactor,
+          plugin::rvv::getRVVLowPrecisionResourceExpectedUnrollFactor(
+              selection.selectedCandidateID)))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "low-precision resource accumulator count",
+          selection.accumulatorCount,
+          plugin::rvv::getRVVLowPrecisionResourceExpectedAccumulatorCount(
+              selection.selectedCandidateID)))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel,
+          "low-precision resource vsetvl region count",
+          selection.vsetvlRegionCount,
+          plugin::rvv::getRVVLowPrecisionResourceExpectedVSetVLRegionCount(
+              selection.selectedCandidateID)))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel,
+          "low-precision resource peak live vector groups",
+          selection.peakLiveVectorGroups,
+          plugin::rvv::getRVVLowPrecisionResourceExpectedPeakLiveVectorGroups(
+              selection.selectedCandidateID)))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "low-precision realization producer",
+          selection.realizationProducer,
+          plugin::rvv::kRVVLowPrecisionResourceRealizationProducer))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "low-precision realization decision",
+          selection.realizationDecision, expectedRealizationDecision))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "low-precision realized unroll factor",
+          selection.realizedUnrollFactor,
+          plugin::rvv::getRVVLowPrecisionResourceExpectedUnrollFactor(
+              selection.selectedCandidateID)))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel,
+          "low-precision realized vsetvl region count",
+          selection.realizedVSetVLRegionCount,
+          plugin::rvv::
+              getRVVLowPrecisionResourceExpectedVSetVLRegionCountForRealizationDecision(
+                  expectedRealizationDecision)))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel,
+          "low-precision realized peak live vector groups",
+          selection.realizedPeakLiveVectorGroups,
+          plugin::rvv::getRVVLowPrecisionResourceExpectedPeakLiveVectorGroups(
+              selection.selectedCandidateID)))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "low-precision product region index",
+          selection.productRegionIndex,
+          plugin::rvv::
+              getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
+                  expectedRealizationDecision)))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "low-precision dequant region index",
+          selection.dequantRegionIndex,
+          plugin::rvv::
+              getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+                  expectedRealizationDecision)))
+    return error;
+  if (selection.productRegionIndex <= 0 || selection.dequantRegionIndex <= 0 ||
+      selection.productRegionIndex >= selection.dequantRegionIndex ||
+      selection.dequantRegionIndex > selection.realizedVSetVLRegionCount)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires ordered provider-owned low-precision product/dequant "
+        "realization region facts before artifact export");
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "low-precision product phase",
+          selection.productPhase,
+          plugin::rvv::
+              getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
+                  expectedRealizationDecision)))
+    return error;
+  return requireRVVWideningDotContractStringField(
+      contract.consumerLabel, "low-precision dequant phase",
+      selection.dequantPhase, "dequant-store");
+}
+
 llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description,
     const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
@@ -3884,6 +4010,11 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
       contract.lowPrecisionResourceSelection.hasSelection)
     if (llvm::Error error =
             validateRVVLowPrecisionPrimitiveChainResourceProviderFacts(
+                contract))
+      return error;
+  if (isProductReductionDequantization)
+    if (llvm::Error error =
+            validateRVVLowPrecisionProductReductionRealizationProviderFacts(
                 contract))
       return error;
   if (usesPackedI4LowPrecisionProductReduction)

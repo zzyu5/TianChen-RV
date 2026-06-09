@@ -1104,3 +1104,64 @@ validation must consume the selected Gearbox realization primitive/resource
 facts and reject stale or unsupported performance/resource claims without
 treating route ids, artifact names, Common EmitC, or measurement scripts as
 authority.
+
+## 2026-06-09 - RVV production-kernel capability campaign Gate 3 first slice
+
+### Summary
+
+- Continued the active macro task
+  `06-09-rvv-production-kernel-capability-campaign`.
+- Completed the first Gate 3 production source slice: low-precision
+  product-reduction statement planning now requires the selected Gearbox
+  realization/resource facts before statement construction.
+- Target artifact provider validation now rejects missing or stale
+  low-precision product-reduction resource/realization facts before route
+  statements or candidate metadata mirrors can be accepted.
+- Candidate metadata remains a mirror only. The added target coverage rejects a
+  stale realization-decision mirror instead of treating artifact metadata as
+  route authority.
+- No generated-bundle, `ssh rvv`, dispatch policy, or performance claim changed
+  in this slice.
+
+### Evidence
+
+- `rtk ninja -C build tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+  passed.
+- `rtk build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `rtk build/bin/tianchenrv-target-artifact-export-test` passed.
+- `rtk git diff --check` passed.
+- `rtk git diff --cached --check` passed.
+- JSONL parse check for the task implement/check logs passed.
+- Bounded code-only touched-diff old-authority scan found no new
+  `RVVI32M1`, `rvv-i32m1`, `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m`,
+  source-front-door, source-artifact, or descriptor authority.
+
+### Self-Repair
+
+- Qualified RVV low-precision realization constants in
+  `test/Plugin/RVVExtensionPluginTest.cpp` after the first rebuild exposed
+  missing namespace qualification.
+- Added target candidate-mirror stale realization-decision coverage after the
+  first focused tests showed provider-description coverage was stronger than
+  metadata-mirror coverage.
+
+### Spec Update Decision
+
+[NO CHANGE] Existing RVV plugin and EmitC route specs already require
+provider-owned primitive/resource/realization facts and target mirror
+validation. This slice implemented that contract without introducing a new
+cross-session rule.
+
+### Status
+
+[OPEN] Gate 3 first production source slice is complete. Gate 3 remains open
+only for additional route/provider/target mirror broadening if Hermes selects
+it. Gates 4 and 5 remain open, and `.trellis/.current-task` intentionally
+remains active for the macro campaign.
+
+### Continuation
+
+Next owner: either continue Gate 3 if another route/provider/target mirror
+surface is identified, or advance to Gate 4 generated artifact correctness and
+same-target measurement for the changed production path. Gate 5 dispatch/
+performance policy must wait for Gate 4 measurement facts.

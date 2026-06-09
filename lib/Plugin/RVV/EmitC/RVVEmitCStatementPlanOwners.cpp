@@ -1122,6 +1122,76 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
                                         providerSelection.rejectionReason,
                                         familySelection.rejectionReason))
     return error;
+
+  const llvm::StringRef expectedRealizationDecision =
+      getRVVLowPrecisionContractionResourceRealizationDecision(
+          familySelection.selectedCandidateID);
+  if (expectedRealizationDecision.empty())
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction statement-plan owner cannot derive a "
+        "low-precision direct-contraction realization decision for selected "
+        "candidate '" +
+        familySelection.selectedCandidateID +
+        "' before statement construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (llvm::Error error = requireExpectedString(
+          "realization producer", familySelection.realizationProducer,
+          kRVVLowPrecisionResourceRealizationProducer))
+    return error;
+  if (llvm::Error error =
+          requireExpectedString("realization decision",
+                                familySelection.realizationDecision,
+                                expectedRealizationDecision))
+    return error;
+  if (llvm::Error error = requireExpectedInteger(
+          "realized unroll factor", familySelection.realizedUnrollFactor,
+          getRVVLowPrecisionResourceExpectedUnrollFactor(
+              familySelection.selectedCandidateID)))
+    return error;
+  if (llvm::Error error = requireExpectedInteger(
+          "realized vsetvl region count",
+          familySelection.realizedVSetVLRegionCount,
+          getRVVLowPrecisionResourceExpectedVSetVLRegionCountForRealizationDecision(
+              expectedRealizationDecision)))
+    return error;
+  if (llvm::Error error = requireExpectedInteger(
+          "realized peak live vector groups",
+          familySelection.realizedPeakLiveVectorGroups,
+          getRVVLowPrecisionResourceExpectedPeakLiveVectorGroups(
+              familySelection.selectedCandidateID)))
+    return error;
+  if (llvm::Error error = requireExpectedInteger(
+          "product region index", familySelection.productRegionIndex,
+          getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
+              expectedRealizationDecision)))
+    return error;
+  if (llvm::Error error = requireExpectedInteger(
+          "dequant region index", familySelection.dequantRegionIndex,
+          getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+              expectedRealizationDecision)))
+    return error;
+  if (familySelection.productRegionIndex <= 0 ||
+      familySelection.dequantRegionIndex <= 0 ||
+      familySelection.productRegionIndex >=
+          familySelection.dequantRegionIndex ||
+      familySelection.dequantRegionIndex >
+          familySelection.realizedVSetVLRegionCount)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " direct contraction statement-plan owner requires ordered "
+        "low-precision product/dequant realization region indices before "
+        "statement construction for operation '" +
+        stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  if (llvm::Error error =
+          requireExpectedString("product phase", familySelection.productPhase,
+                                getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
+                                    expectedRealizationDecision)))
+    return error;
+  if (llvm::Error error = requireExpectedString(
+          "dequant phase", familySelection.dequantPhase, "dequant-store"))
+    return error;
+
   const bool isPackedI4Resource =
       isRVVLowPrecisionResourcePackedI4CandidateID(
           familySelection.selectedCandidateID);

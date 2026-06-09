@@ -9115,6 +9115,22 @@ module {
                   "runtime_abi:n" &&
               productDequantResourceSelection.runtimeABIOrder ==
                   "lhs,rhs,acc,scale,out,n" &&
+              productDequantResourceSelection.realizationProducer ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourceRealizationProducer &&
+              productDequantResourceSelection.realizationDecision ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourceGroupedRealizationDecision &&
+              productDequantResourceSelection.realizedUnrollFactor == 2 &&
+              productDequantResourceSelection.realizedVSetVLRegionCount == 3 &&
+              productDequantResourceSelection.realizedPeakLiveVectorGroups ==
+                  7 &&
+              productDequantResourceSelection.productRegionIndex == 2 &&
+              productDequantResourceSelection.dequantRegionIndex == 3 &&
+              productDequantResourceSelection.productPhase ==
+                  "tail-product-reduce" &&
+              productDequantResourceSelection.dequantPhase ==
+                  "dequant-store" &&
               productDequantResourceSelection.isLegal &&
               productDequantResourceSelection.rejectionReason == "none" &&
               productDequantAnalysis->description
@@ -9331,6 +9347,47 @@ module {
           {"low-precision direct-contraction resource selection",
            "operand form", "unpacked-byte-elements",
            "packed-i4-nibbles"}))
+    return result;
+
+  auto staleProductDequantRealizationAnalysis = *productDequantAnalysis;
+  staleProductDequantRealizationAnalysis.contractionRouteFamilyPlan
+      ->lowPrecisionResourceSelection.realizationDecision =
+      "artifact-derived-realization-decision";
+  auto staleProductDequantRealizationMaterializationFacts =
+      getRVVSelectedBodyRouteMaterializationFacts(
+          staleProductDequantRealizationAnalysis,
+          "selected-boundary stale product-reduction-dequant realization "
+          "statement test");
+  if (!staleProductDequantRealizationMaterializationFacts)
+    return fail("stale product-reduction-dequant realization "
+                "materialization facts: " +
+                llvm::toString(
+                    staleProductDequantRealizationMaterializationFacts
+                        .takeError()));
+  auto staleProductDequantRealizationMathFacts =
+      getRVVSelectedBodyMathRouteOperandBindingFacts(
+          staleProductDequantRealizationAnalysis,
+          "selected-boundary stale product-reduction-dequant realization "
+          "statement test");
+  if (!staleProductDequantRealizationMathFacts)
+    return fail("stale product-reduction-dequant realization math facts: " +
+                llvm::toString(
+                    staleProductDequantRealizationMathFacts.takeError()));
+  auto staleProductDequantRealizationSelectedStatementPlan =
+      getRVVSelectedBodyRouteStatementPlanOwnerSelection(
+          staleProductDequantRealizationAnalysis,
+          *staleProductDequantRealizationMaterializationFacts,
+          emptyProductDequantElementwiseFacts,
+          emptyProductDequantMemoryFacts,
+          *staleProductDequantRealizationMathFacts,
+          emptyProductDequantResidualFacts,
+          "selected-boundary stale product-reduction-dequant realization "
+          "statement test");
+  if (int result = expectErrorContains(
+          staleProductDequantRealizationSelectedStatementPlan.takeError(),
+          {"low-precision direct-contraction resource selection",
+           "realization decision",
+           "artifact-derived-realization-decision"}))
     return result;
 
   VariantOp packedI4ProductDequantVariant =

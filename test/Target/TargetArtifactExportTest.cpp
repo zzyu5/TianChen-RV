@@ -13471,6 +13471,53 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-derived-packed-operands"}))
     return false;
 
+  RVVRouteDescription missingPackedI4ResourceRealization =
+      packedI4ProductDequantDescription;
+  missingPackedI4ResourceRealization.lowPrecisionResourceSelection =
+      tianchenrv::plugin::rvv::RVVLowPrecisionContractionResourceSelection{};
+  if (!expectWideningDotProviderFailure(
+          packedI4ProductDequantFixture.candidate,
+          packedI4ProductDequantRoute, missingPackedI4ResourceRealization,
+          "packed-i4 product-reduction registry rejects missing "
+          "resource/realization facts",
+          {"low-precision product-reduction resource/realization facts",
+           "before artifact export"}))
+    return false;
+
+  RVVRouteDescription stalePackedI4RealizationDecision =
+      packedI4ProductDequantDescription;
+  stalePackedI4RealizationDecision.lowPrecisionResourceSelection
+      .realizationDecision = "artifact-derived-realization-decision";
+  if (!expectWideningDotProviderFailure(
+          packedI4ProductDequantFixture.candidate,
+          packedI4ProductDequantRoute, stalePackedI4RealizationDecision,
+          "packed-i4 product-reduction registry rejects stale realization "
+          "decision",
+          {"low-precision realization decision",
+           "artifact-derived-realization-decision"}))
+    return false;
+
+  TargetArtifactCandidate stalePackedI4RealizationDecisionMirror =
+      packedI4ProductDequantFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          stalePackedI4RealizationDecisionMirror,
+          "tcrv_rvv.low_precision_resource.realization_decision",
+          "artifact-derived-realization-decision")) {
+    llvm::errs() << "packed-i4 test fixture did not contain realization "
+                    "decision metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          stalePackedI4RealizationDecisionMirror,
+          packedI4ProductDequantRoute, packedI4ProductDequantDescription,
+          "packed-i4 product-reduction registry rejects stale realization "
+          "decision metadata",
+          {"realization decision",
+           "consume-low-precision-packed-i4-product-pair-sum-single-reduce-"
+           "budget-7of32.v1",
+           "artifact-derived-realization-decision"}))
+    return false;
+
   TargetArtifactCandidate stalePackedI4UnpackIntentMirror =
       packedI4ProductDequantFixture.candidate;
   if (!rewriteArtifactMetadataValue(

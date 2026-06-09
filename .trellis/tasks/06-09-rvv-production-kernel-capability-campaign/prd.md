@@ -103,7 +103,7 @@ until all campaign gates below are complete.
   truthfully without promoting stale/no-win/regression evidence into route
   authority or win claims.
 
-## Current Round Slice
+## Completed Gate 2 Slice
 
 Completed Gate 2 as a production source slice:
 
@@ -122,6 +122,28 @@ Completed Gate 2 as a production source slice:
   realization/resource fact.
 - [x] Leave the Trellis macro task active after the slice unless all gates are
   completed by later work.
+
+## Completed Gate 3 First Slice
+
+Completed the first Gate 3 production source slice:
+
+- [x] Require low-precision product-reduction route/statement planning to
+  consume the selected Gearbox realization resource facts before statement
+  construction.
+- [x] Require target artifact provider validation to reject missing or stale
+  low-precision realization/resource facts before accepting route statements or
+  candidate metadata mirrors.
+- [x] Keep the facts provider-owned: selected candidate, realization producer,
+  realization decision, realized unroll, realized VL-region count, realized
+  peak-live estimate, product/dequant region ordering, product/dequant phases,
+  primitive chain, target capability mirrors, and performance maturity mirrors
+  stay RVV resource/provider facts.
+- [x] Add focused positive/fail-closed C++ coverage for statement planning and
+  target artifact validation. The tests must prove validation derives from
+  provider resource/realization facts, not artifact names, route ids, Common
+  EmitC inference, or measurement output.
+- [x] Leave the Trellis macro task active after the slice unless Gates 3, 4,
+  and 5 are all complete.
 
 ## Gate 1 Acceptance Criteria
 
@@ -168,6 +190,29 @@ Completed Gate 2 as a production source slice:
   diagnostics or realized IR when text-visible behavior changes.
 - [x] `git diff --check` and `git diff --cached --check` pass.
 
+## Gate 3 Acceptance Criteria
+
+- [ ] Route-family planning, statement planning, provider mirrors, and target
+  artifact validation consume the same selected primitive-chain/resource/
+  realization facts for the low-precision product-reduction contraction path.
+- [ ] Missing or stale selected candidate, realization producer/decision,
+  realized resource budget, product/dequant region facts, primitive-chain facts,
+  provider mirror, or target-validation mirror fails closed before artifact
+  acceptance.
+- [ ] Focused positive coverage proves route/statement planning and target
+  artifact validation consume provider-owned facts, not route ids, artifact
+  names, Common EmitC, status fields, or measurement scripts.
+- [ ] Focused negative coverage proves stale or missing realization/resource
+  facts are rejected.
+- [ ] No q4/q8/llama-named route authority, source-front-door authority,
+  descriptor-driven computation, Common EmitC semantic branch, or one-fixture
+  evidence-only work is introduced.
+- [ ] `build/bin/tianchenrv-rvv-extension-plugin-test` passes if provider or
+  statement-planning logic changes.
+- [ ] `build/bin/tianchenrv-target-artifact-export-test` passes if target mirror
+  validation changes.
+- [ ] `git diff --check` and `git diff --cached --check` pass.
+
 ## Out of Scope
 
 - No generated-bundle or same-target rerun unless this slice changes the
@@ -179,7 +224,8 @@ Completed Gate 2 as a production source slice:
 - No Common EmitC invention of RVV dtype, schedule, primitive, resource,
   performance, or dispatch semantics.
 - No dispatch/performance preference change or performance-win claim.
-- No archive/finish after Gate 2 unless all macro gates are also complete.
+- No archive/finish after this Gate 3 slice unless all macro gates are also
+  complete.
 
 ## Technical Notes
 
@@ -202,10 +248,12 @@ Completed Gate 2 as a production source slice:
 
 ## Continuation Point
 
-Gate 1 and Gate 2 are complete. Gates 3-5 remain open, so this macro task stays
+Gate 1 and Gate 2 are complete. The first Gate 3 source slice is complete, but
+Gate 3 remains open for any follow-up broadening that Hermes selects before
+artifact measurement. Gates 4 and 5 remain open, so this macro task stays
 active.
 
-Next owner: Gate 3 route/statement planning and target artifact mirror
-validation must consume the selected Gearbox realization primitive/resource
-facts and reject stale or unsupported performance/resource claims without making
-route ids, artifact names, Common EmitC, or measurement scripts the authority.
+Next owner: either continue Gate 3 only if another route/provider/target mirror
+surface is identified, or advance to Gate 4 generated artifact correctness and
+same-target measurement for the changed production path. Gate 5 dispatch/
+performance policy must wait for Gate 4 measurement facts.
