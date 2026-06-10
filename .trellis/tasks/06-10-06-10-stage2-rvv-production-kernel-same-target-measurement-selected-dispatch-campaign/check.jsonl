@@ -1,7 +1,7 @@
 {"file": ".trellis/spec/index.md", "reason": "Verify the slice stays within RVV Stage 2 production-kernel measurement scope."}
 {"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin/provider facts remain authoritative and no q8/q4 or artifact-name authority is added."}
 {"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check Common EmitC/export remains neutral and only carries provider-built facts."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check Gate 1 advances measured same-target input boundary instead of evidence-only drift."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check the active Gate slice advances the measured same-target path instead of evidence-only drift."}
 {"file": ".trellis/spec/testing/index.md", "reason": "Check focused C++ tests, measurement script self-test, and evidence boundary."}
 {"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Check target/profile facts are validated but not used as route or dtype authority."}
 {"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Check plugin/target locality for performance policy and dispatch measurement consumption."}

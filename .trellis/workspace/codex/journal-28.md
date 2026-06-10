@@ -1216,3 +1216,91 @@ introduced.
 slice. Gates 2-4 remain open; the next continuation point is Gate 2 same-target
 `ssh rvv` measurement evidence for a representative low-precision contraction
 generated artifact.
+
+
+## Session 592: Stage2 RVV production-kernel measurement Gate 2
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV production-kernel same-target measurement and selected-dispatch campaign
+**Branch**: `main`
+
+### Summary
+
+Completed Gate 2 for the active macro task by connecting the representative
+packed-i4 generated artifact same-target measurement output to the Gate 1
+measurement-record boundary. The script now emits an explicit
+`same_target_measurement_record` object, and the RVV policy API can materialize
+that object into `RVVLowPrecisionSameTargetMeasurementRecord` before building
+`RVVLowPrecisionSameTargetMeasurementPolicyInput`.
+
+### Main Changes
+
+- Added `buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput` and
+  `buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput` to
+  the low-precision performance policy API.
+- Updated `scripts/rvv_generated_bundle_same_target_measure.py` so packed-i4
+  same-target evidence emits `same_target_measurement_record` at per-op,
+  summary, and root levels while keeping reporting-only fields outside the C++
+  record shape.
+- Added focused plugin tests for evidence-object parsing, policy-input
+  construction, and missing measurement id / stale target / stale runtime ABI /
+  stale primitive-chain fail-closed cases.
+- Updated the script dry-run FileCheck coverage to assert the new record object.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the executable
+  contract for the evidence record payload and C++ API signatures.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`.
+- Packed-i4 same-target dry-run:
+  `python3 scripts/rvv_generated_bundle_same_target_measure.py --dry-run
+  --artifact-root artifacts/tmp/gate2-packed-i4-same-target-dry-run --run-id
+  gate2-packed-i4-record-dry-run --overwrite --op-kind
+  widening_product_reduce_dequantize_f32 --input
+  test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir
+  --measure-count 257 --measure-count 4096 --measure-count 65536
+  --warmup-count 2 --repeat-count 5 --measure-iterations 8 --tcrv-opt
+  build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj
+  /usr/bin/llvm-readobj-20`.
+- Packed-i4 real same-target `ssh rvv` run:
+  `python3 scripts/rvv_generated_bundle_same_target_measure.py
+  --artifact-root artifacts/tmp/gate2-packed-i4-same-target-measurement
+  --run-id gate2-packed-i4-generated-artifact-measure --overwrite --op-kind
+  widening_product_reduce_dequantize_f32 --input
+  test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir
+  --measure-count 257 --measure-count 4096 --measure-count 65536
+  --warmup-count 2 --repeat-count 5 --measure-iterations 8 --tcrv-opt
+  build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj
+  /usr/bin/llvm-readobj-20`.
+- Real evidence path:
+  `artifacts/tmp/gate2-packed-i4-same-target-measurement/gate2-packed-i4-generated-artifact-measure/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json`.
+- Real run result: `status=success`, `ssh_evidence=true`,
+  `classification=regression`, `measurement_summary_record_count=12`,
+  `measurement_record_count=60`, `correctness_record_count=12`,
+  `measurement_best_speedup_range=0.689567..0.705465`,
+  `provider_runtime_abi_order=lhs,rhs,acc,scale,out,n`,
+  `provider_primitive_chain_kind=signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1`,
+  `provider_schedule_decision=select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1`,
+  and `performance_win_claim_allowed=false`.
+- `git diff --check`.
+- Focused diff old-authority scan found no newly added legacy RVV authority;
+  the only diff hit was the PRD negative q8/q4/no-descriptor acceptance line.
+
+### Spec Update Decision
+
+[SPEC UPDATED] This slice added a new executable API and payload contract, so
+`.trellis/spec/extension-plugins/rvv-plugin.md` now documents
+`same_target_measurement_record`, the C++ evidence-input builders, validation
+errors, good/base/bad cases, and required tests.
+
+### Status
+
+[OPEN MACRO TASK] Gate 2 is complete. The macro task remains active because
+Gate 3 and Gate 4 remain open. The next continuation point is Gate 3:
+selected-dispatch/performance preference must consume source-backed
+measurement records plus primitive/resource facts with full stale sibling-route,
+wrong-target, wrong-ABI, and wrong-primitive-chain diagnostics.

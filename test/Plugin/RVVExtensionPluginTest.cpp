@@ -45,6 +45,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/JSON.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <cstddef>
@@ -111,6 +112,87 @@ int expectErrorContains(llvm::Error error,
                   "': " + message);
   }
   return 0;
+}
+
+llvm::json::Object makeSameTargetMeasurementRecordEvidenceInput(
+    const tianchenrv::plugin::rvv::RVVLowPrecisionSameTargetMeasurementRecord
+        &record) {
+  llvm::json::Object evidenceInput;
+  evidenceInput["contract"] = record.contract;
+  evidenceInput["authority"] = record.authority;
+  evidenceInput["measurement_evidence_id"] = record.measurementEvidenceID;
+  evidenceInput["measurement_classification"] =
+      record.measurementClassification;
+  evidenceInput["measurement_outcome_family"] = record.measurementOutcomeFamily;
+  evidenceInput["measurement_best_speedup_range"] =
+      record.measurementBestSpeedupRange;
+  evidenceInput["measurement_summary_record_count"] =
+      record.measurementSummaryRecordCount;
+  evidenceInput["measurement_record_count"] = record.measurementRecordCount;
+  evidenceInput["correctness_record_count"] = record.correctnessRecordCount;
+  evidenceInput["same_target_measurement"] = record.sameTargetMeasurement;
+  evidenceInput["ssh_evidence"] = record.sshEvidence;
+  evidenceInput["target_profile"] = record.targetProfile;
+  evidenceInput["provider_resource_selected_candidate"] =
+      record.providerResourceSelectedCandidate;
+  evidenceInput["provider_resource_route_family_plan"] =
+      record.providerResourceRouteFamilyPlan;
+  evidenceInput["provider_supported_mirror"] = record.providerSupportedMirror;
+  evidenceInput["provider_runtime_abi_order"] = record.providerRuntimeABIOrder;
+  evidenceInput["provider_schedule_decision_contract"] =
+      record.providerScheduleDecisionContract;
+  evidenceInput["provider_schedule_decision"] =
+      record.providerScheduleDecision;
+  evidenceInput["provider_schedule_decision_reason"] =
+      record.providerScheduleDecisionReason;
+  evidenceInput["provider_primitive_chain_contract"] =
+      record.providerPrimitiveChainContract;
+  evidenceInput["provider_primitive_chain_kind"] =
+      record.providerPrimitiveChainKind;
+  evidenceInput["provider_primitive_widening_product_relation"] =
+      record.providerPrimitiveWideningProductRelation;
+  evidenceInput["provider_primitive_product_reduction_chain_relation"] =
+      record.providerPrimitiveProductReductionChainRelation;
+  evidenceInput["provider_remediation_handoff_contract"] =
+      record.providerRemediationHandoffContract;
+  evidenceInput["provider_remediation_diagnosis"] =
+      record.providerRemediationDiagnosis;
+  evidenceInput["provider_remediation_measurement_evidence"] =
+      record.providerRemediationMeasurementEvidence;
+  evidenceInput["provider_remediation_decision"] =
+      record.providerRemediationDecision;
+  evidenceInput["provider_remediation_action"] =
+      record.providerRemediationAction;
+  evidenceInput["provider_remediation_dispatch_preference"] =
+      record.providerRemediationDispatchPreference;
+  evidenceInput["provider_remediation_blocker"] =
+      record.providerRemediationBlocker;
+  evidenceInput["target_capability_provider_mirror"] =
+      record.targetCapabilityProviderMirror;
+  evidenceInput["target_capability_legality_mirror"] =
+      record.targetCapabilityLegalityMirror;
+  evidenceInput["provider_maturity"] = record.providerMaturity;
+  evidenceInput["provider_maturity_evidence"] =
+      record.providerMaturityEvidence;
+  evidenceInput["provider_maturity_outcome"] = record.providerMaturityOutcome;
+  evidenceInput["provider_performance_selection_eligible"] =
+      record.providerPerformanceSelectionEligible;
+  evidenceInput["provider_dispatch_preference"] =
+      record.providerDispatchPreference;
+  evidenceInput["provider_performance_action"] =
+      record.providerPerformanceAction;
+  evidenceInput["performance_preference_denied"] =
+      record.performancePreferenceDenied;
+  evidenceInput["performance_preference_denial_reason"] =
+      record.performancePreferenceDenialReason;
+  evidenceInput["performance_win_claim_allowed"] =
+      record.performanceWinClaimAllowed;
+  evidenceInput["correctness_execution_allowed"] =
+      record.correctnessExecutionAllowed;
+  evidenceInput["provider_contract_update_required"] =
+      record.providerContractUpdateRequired;
+  evidenceInput["route_support_effect"] = record.routeSupportEffect;
+  return evidenceInput;
 }
 
 mlir::OwningOpRef<mlir::ModuleOp> parseModule(mlir::MLIRContext &context,
@@ -9949,6 +10031,107 @@ module {
           tianchenrv::plugin::rvv::
               buildRVVPackedI4Gate4SameTargetMeasurementRecord(
                   packedI4ResourceSelection);
+  llvm::json::Object acceptedPackedI4Gate2EvidenceInput =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  auto parsedPackedI4Gate2Record =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
+              acceptedPackedI4Gate2EvidenceInput,
+              "selected-boundary packed-i4 Gate 2 generated artifact "
+              "measurement record");
+  if (!parsedPackedI4Gate2Record)
+    return fail("packed-i4 Gate 2 generated artifact measurement record: " +
+                llvm::toString(parsedPackedI4Gate2Record.takeError()));
+  if (int result = expect(
+          parsedPackedI4Gate2Record->measurementEvidenceID ==
+                  acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
+              parsedPackedI4Gate2Record->providerRuntimeABIOrder ==
+                  packedI4ResourceSelection.runtimeABIOrder &&
+              parsedPackedI4Gate2Record->providerPrimitiveChainKind ==
+                  packedI4ResourceSelection.primitiveChainKind &&
+              parsedPackedI4Gate2Record->providerScheduleDecision ==
+                  packedI4ResourceSelection.scheduleDecision,
+          "packed-i4 Gate 2 generated artifact record JSON preserves "
+          "measurement identity, ABI, primitive, and schedule tie-backs"))
+    return result;
+  auto parsedPackedI4Gate2PolicyInput =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+              packedI4ResourceSelection, acceptedPackedI4Gate2EvidenceInput,
+              "selected-boundary packed-i4 Gate 2 generated artifact "
+              "measurement policy input");
+  if (!parsedPackedI4Gate2PolicyInput)
+    return fail("packed-i4 Gate 2 generated artifact policy input: " +
+                llvm::toString(parsedPackedI4Gate2PolicyInput.takeError()));
+  if (int result = expect(
+          parsedPackedI4Gate2PolicyInput->measurementEvidenceID ==
+                  acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
+              parsedPackedI4Gate2PolicyInput->providerResourceSelectedCandidate ==
+                  packedI4ResourceSelection.selectedCandidateID &&
+              parsedPackedI4Gate2PolicyInput->targetCapabilityLegalityMirror ==
+                  packedI4ResourceSelection.targetCapabilityLegalityMirror,
+          "packed-i4 Gate 2 generated artifact evidence object feeds the Gate "
+          "1 policy-input boundary"))
+    return result;
+
+  llvm::json::Object missingMeasurementIDGate2Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  missingMeasurementIDGate2Evidence.erase("measurement_evidence_id");
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
+                  missingMeasurementIDGate2Evidence,
+                  "selected-boundary packed-i4 Gate 2 missing measurement "
+                  "identity")
+                  .takeError(),
+          {"same-target measurement record string field",
+           "measurement_evidence_id"}))
+    return result;
+
+  llvm::json::Object staleTargetGate2Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  staleTargetGate2Evidence["target_profile"] = "local-x86";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+                  packedI4ResourceSelection, staleTargetGate2Evidence,
+                  "selected-boundary packed-i4 Gate 2 stale target profile")
+                  .takeError(),
+          {"target profile", "ssh rvv", "local-x86"}))
+    return result;
+
+  llvm::json::Object staleRuntimeABIGate2Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  staleRuntimeABIGate2Evidence["provider_runtime_abi_order"] = "lhs,rhs,out,n";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+                  packedI4ResourceSelection, staleRuntimeABIGate2Evidence,
+                  "selected-boundary packed-i4 Gate 2 stale runtime ABI")
+                  .takeError(),
+          {"provider runtime ABI order", "lhs,rhs,out,n",
+           "lhs,rhs,acc,scale,out,n"}))
+    return result;
+
+  llvm::json::Object stalePrimitiveGate2Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  stalePrimitiveGate2Evidence["provider_primitive_chain_kind"] =
+      "artifact-name-derived-primitive";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+                  packedI4ResourceSelection, stalePrimitiveGate2Evidence,
+                  "selected-boundary packed-i4 Gate 2 stale primitive chain")
+                  .takeError(),
+          {"provider primitive chain kind", "artifact-name-derived-primitive",
+           tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePrimitiveChainKind}))
+    return result;
+
   auto acceptedPackedI4Gate4OutcomeOr =
       tianchenrv::plugin::rvv::
           buildRVVLowPrecisionPerformanceMeasurementOutcomeFromSameTargetRecord(

@@ -63,6 +63,52 @@ PACKED_I4_MATURITY_CONTRACT_AUTHORITY = (
     "low-precision resource facts and target artifact mirrors remain "
     "the maturity contract"
 )
+PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS = (
+    "contract",
+    "authority",
+    "measurement_evidence_id",
+    "measurement_classification",
+    "measurement_outcome_family",
+    "measurement_best_speedup_range",
+    "measurement_summary_record_count",
+    "measurement_record_count",
+    "correctness_record_count",
+    "same_target_measurement",
+    "ssh_evidence",
+    "target_profile",
+    "provider_resource_selected_candidate",
+    "provider_resource_route_family_plan",
+    "provider_supported_mirror",
+    "provider_runtime_abi_order",
+    "provider_schedule_decision_contract",
+    "provider_schedule_decision",
+    "provider_schedule_decision_reason",
+    "provider_primitive_chain_contract",
+    "provider_primitive_chain_kind",
+    "provider_primitive_widening_product_relation",
+    "provider_primitive_product_reduction_chain_relation",
+    "provider_remediation_handoff_contract",
+    "provider_remediation_diagnosis",
+    "provider_remediation_measurement_evidence",
+    "provider_remediation_decision",
+    "provider_remediation_action",
+    "provider_remediation_dispatch_preference",
+    "provider_remediation_blocker",
+    "target_capability_provider_mirror",
+    "target_capability_legality_mirror",
+    "provider_maturity",
+    "provider_maturity_evidence",
+    "provider_maturity_outcome",
+    "provider_performance_selection_eligible",
+    "provider_dispatch_preference",
+    "provider_performance_action",
+    "performance_preference_denied",
+    "performance_preference_denial_reason",
+    "performance_win_claim_allowed",
+    "correctness_execution_allowed",
+    "provider_contract_update_required",
+    "route_support_effect",
+)
 PACKED_I4_SSH_TARGET_PROFILE = "ssh rvv"
 PACKED_I4_PERFORMANCE_PREFERRED_DISPATCH = "performance-preferred"
 
@@ -1550,6 +1596,15 @@ def packed_i4_maturity_contract_evidence_input(
     }
 
 
+def packed_i4_same_target_measurement_record(
+    maturity_input: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        field: maturity_input[field]
+        for field in PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS
+    }
+
+
 def require_maturity_input_value(
     maturity_input: dict[str, Any],
     field: str,
@@ -1878,6 +1933,9 @@ def packed_i4_provider_feedback_tie_back(
         ),
         "result_alignment": maturity_input["contract_alignment"],
         "maturity_contract_evidence_input": maturity_input,
+        "same_target_measurement_record": (
+            packed_i4_same_target_measurement_record(maturity_input)
+        ),
         "performance_win_claim_allowed": maturity_input[
             "performance_win_claim_allowed"
         ],
@@ -2180,6 +2238,11 @@ def op_measurement_summary(
     )
     if maturity_input:
         summary["performance_maturity_contract_evidence_input"] = maturity_input
+    same_target_record = provider_feedback_tie_back.get(
+        "same_target_measurement_record"
+    )
+    if same_target_record:
+        summary["same_target_measurement_record"] = same_target_record
     if remote:
         commands = remote.get("commands", {})
         summary["ssh_measurement_summary"] = {
@@ -2390,6 +2453,11 @@ def run_one_measurement(
             evidence["performance_maturity_contract_evidence_input"] = (
                 maturity_input
             )
+        same_target_record = provider_feedback_tie_back.get(
+            "same_target_measurement_record"
+        )
+        if same_target_record:
+            evidence["same_target_measurement_record"] = same_target_record
         evidence["op_summary"] = op_measurement_summary(
             expectation=expectation,
             generation_result=generation_result,
@@ -2473,6 +2541,7 @@ def run_measurement(args: argparse.Namespace) -> int:
         },
         "op_results": {},
         "performance_maturity_contract_inputs": {},
+        "same_target_measurement_records": {},
     }
     try:
         validate_measurement_config(config)
@@ -2514,6 +2583,11 @@ def run_measurement(args: argparse.Namespace) -> int:
                 evidence["performance_maturity_contract_inputs"][
                     expectation.kind
                 ] = maturity_input
+            same_target_record = result.get("same_target_measurement_record")
+            if same_target_record:
+                evidence["same_target_measurement_records"][
+                    expectation.kind
+                ] = same_target_record
 
         evidence["ssh_evidence"] = not args.dry_run
         evidence["status"] = "success" if not args.dry_run else "dry_run_success"
@@ -2705,6 +2779,29 @@ def run_self_test() -> int:
             or maturity_input["performance_win_claim_allowed"]
         ):
             raise AssertionError("self-test packed-i4 contract allowed stale win")
+        record = tie_back["same_target_measurement_record"]
+        if tuple(record.keys()) != PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS:
+            raise AssertionError(
+                "self-test packed-i4 measurement record field order changed"
+            )
+        expected_record = {
+            field: maturity_input[field]
+            for field in PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS
+        }
+        if record != expected_record:
+            raise AssertionError(
+                "self-test packed-i4 measurement record lost evidence fields"
+            )
+        for reporting_only_field in (
+            "contract_alignment",
+            "provider_remediation_plan",
+            "provider_remediation_product_plan",
+        ):
+            if reporting_only_field in record:
+                raise AssertionError(
+                    "self-test packed-i4 measurement record leaked "
+                    f"{reporting_only_field}"
+                )
         if maturity_input["measurement_evidence_id"] != measurement_evidence_id:
             raise AssertionError("self-test packed-i4 measurement evidence id lost")
         if maturity_input["authority"] != PACKED_I4_MATURITY_CONTRACT_AUTHORITY:

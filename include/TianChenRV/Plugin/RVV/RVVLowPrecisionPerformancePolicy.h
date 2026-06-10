@@ -9,6 +9,10 @@
 #include <cstdint>
 #include <string>
 
+namespace llvm::json {
+class Object;
+} // namespace llvm::json
+
 namespace tianchenrv::plugin::rvv {
 
 struct RVVLowPrecisionPerformanceMeasurementOutcome {
@@ -201,6 +205,10 @@ RVVLowPrecisionSameTargetMeasurementRecord
 buildRVVPackedI4Gate4SameTargetMeasurementRecord(
     const RVVLowPrecisionContractionResourceSelection &selection);
 
+llvm::Expected<RVVLowPrecisionSameTargetMeasurementRecord>
+buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
+    const llvm::json::Object &evidenceInput, llvm::StringRef context);
+
 llvm::Expected<RVVLowPrecisionPerformanceMeasurementOutcome>
 buildRVVLowPrecisionPerformanceMeasurementOutcomeFromSameTargetRecord(
     const RVVLowPrecisionContractionResourceSelection &selection,
@@ -217,6 +225,11 @@ buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionSameTargetMeasurementRecord &record,
     llvm::StringRef context);
+
+llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput>
+buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const llvm::json::Object &evidenceInput, llvm::StringRef context);
 
 llvm::Expected<RVVLowPrecisionPerformanceMeasurementOutcome>
 consumeRVVLowPrecisionSameTargetMeasurementPolicyInput(

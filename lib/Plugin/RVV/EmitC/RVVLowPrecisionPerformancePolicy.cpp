@@ -5,7 +5,9 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/JSON.h"
 
+#include <optional>
 #include <utility>
 
 namespace tianchenrv::plugin::rvv {
@@ -106,6 +108,37 @@ llvm::Error requireNonEmptyPolicyString(llvm::StringRef context,
     return llvm::Error::success();
   return makeRVVLowPrecisionPerformancePolicyError(
       llvm::Twine(context) + " requires non-empty " + label);
+}
+
+llvm::Expected<std::string>
+requireEvidenceInputString(const llvm::json::Object &evidenceInput,
+                           llvm::StringRef context, llvm::StringRef key) {
+  if (std::optional<llvm::StringRef> value = evidenceInput.getString(key))
+    return value->str();
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) + " requires same-target measurement record string "
+                            "field '" +
+      key + "'");
+}
+
+llvm::Expected<std::int64_t>
+requireEvidenceInputInt(const llvm::json::Object &evidenceInput,
+                        llvm::StringRef context, llvm::StringRef key) {
+  if (std::optional<std::int64_t> value = evidenceInput.getInteger(key))
+    return *value;
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) +
+      " requires same-target measurement record integer field '" + key + "'");
+}
+
+llvm::Expected<bool>
+requireEvidenceInputBool(const llvm::json::Object &evidenceInput,
+                         llvm::StringRef context, llvm::StringRef key) {
+  if (std::optional<bool> value = evidenceInput.getBoolean(key))
+    return *value;
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) +
+      " requires same-target measurement record boolean field '" + key + "'");
 }
 
 llvm::Error requireSameTargetPolicyInputTieBack(llvm::StringRef context,
@@ -981,6 +1014,133 @@ buildRVVPackedI4Gate4SameTargetMeasurementRecord(
   return record;
 }
 
+llvm::Expected<RVVLowPrecisionSameTargetMeasurementRecord>
+buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
+    const llvm::json::Object &evidenceInput, llvm::StringRef context) {
+  RVVLowPrecisionSameTargetMeasurementRecord record;
+
+  auto readString = [&](llvm::StringRef key,
+                        std::string &field) -> llvm::Error {
+    llvm::Expected<std::string> value =
+        requireEvidenceInputString(evidenceInput, context, key);
+    if (!value)
+      return value.takeError();
+    field = *value;
+    return llvm::Error::success();
+  };
+  auto readInt = [&](llvm::StringRef key,
+                     std::int64_t &field) -> llvm::Error {
+    llvm::Expected<std::int64_t> value =
+        requireEvidenceInputInt(evidenceInput, context, key);
+    if (!value)
+      return value.takeError();
+    field = *value;
+    return llvm::Error::success();
+  };
+  auto readBool = [&](llvm::StringRef key, bool &field) -> llvm::Error {
+    llvm::Expected<bool> value =
+        requireEvidenceInputBool(evidenceInput, context, key);
+    if (!value)
+      return value.takeError();
+    field = *value;
+    return llvm::Error::success();
+  };
+
+#define TCRV_READ_RECORD_STRING(Field, Key)                                    \
+  if (llvm::Error error = readString(Key, record.Field))                       \
+    return std::move(error)
+#define TCRV_READ_RECORD_INT(Field, Key)                                       \
+  if (llvm::Error error = readInt(Key, record.Field))                          \
+    return std::move(error)
+#define TCRV_READ_RECORD_BOOL(Field, Key)                                      \
+  if (llvm::Error error = readBool(Key, record.Field))                         \
+    return std::move(error)
+
+  TCRV_READ_RECORD_STRING(contract, "contract");
+  TCRV_READ_RECORD_STRING(authority, "authority");
+  TCRV_READ_RECORD_STRING(measurementEvidenceID, "measurement_evidence_id");
+  TCRV_READ_RECORD_STRING(measurementClassification,
+                          "measurement_classification");
+  TCRV_READ_RECORD_STRING(measurementOutcomeFamily,
+                          "measurement_outcome_family");
+  TCRV_READ_RECORD_STRING(measurementBestSpeedupRange,
+                          "measurement_best_speedup_range");
+  TCRV_READ_RECORD_INT(measurementSummaryRecordCount,
+                       "measurement_summary_record_count");
+  TCRV_READ_RECORD_INT(measurementRecordCount, "measurement_record_count");
+  TCRV_READ_RECORD_INT(correctnessRecordCount, "correctness_record_count");
+  TCRV_READ_RECORD_BOOL(sameTargetMeasurement, "same_target_measurement");
+  TCRV_READ_RECORD_BOOL(sshEvidence, "ssh_evidence");
+  TCRV_READ_RECORD_STRING(targetProfile, "target_profile");
+  TCRV_READ_RECORD_STRING(providerResourceSelectedCandidate,
+                          "provider_resource_selected_candidate");
+  TCRV_READ_RECORD_STRING(providerResourceRouteFamilyPlan,
+                          "provider_resource_route_family_plan");
+  TCRV_READ_RECORD_STRING(providerSupportedMirror, "provider_supported_mirror");
+  TCRV_READ_RECORD_STRING(providerRuntimeABIOrder,
+                          "provider_runtime_abi_order");
+  TCRV_READ_RECORD_STRING(providerScheduleDecisionContract,
+                          "provider_schedule_decision_contract");
+  TCRV_READ_RECORD_STRING(providerScheduleDecision,
+                          "provider_schedule_decision");
+  TCRV_READ_RECORD_STRING(providerScheduleDecisionReason,
+                          "provider_schedule_decision_reason");
+  TCRV_READ_RECORD_STRING(providerPrimitiveChainContract,
+                          "provider_primitive_chain_contract");
+  TCRV_READ_RECORD_STRING(providerPrimitiveChainKind,
+                          "provider_primitive_chain_kind");
+  TCRV_READ_RECORD_STRING(providerPrimitiveWideningProductRelation,
+                          "provider_primitive_widening_product_relation");
+  TCRV_READ_RECORD_STRING(
+      providerPrimitiveProductReductionChainRelation,
+      "provider_primitive_product_reduction_chain_relation");
+  TCRV_READ_RECORD_STRING(providerRemediationHandoffContract,
+                          "provider_remediation_handoff_contract");
+  TCRV_READ_RECORD_STRING(providerRemediationDiagnosis,
+                          "provider_remediation_diagnosis");
+  TCRV_READ_RECORD_STRING(providerRemediationMeasurementEvidence,
+                          "provider_remediation_measurement_evidence");
+  TCRV_READ_RECORD_STRING(providerRemediationDecision,
+                          "provider_remediation_decision");
+  TCRV_READ_RECORD_STRING(providerRemediationAction,
+                          "provider_remediation_action");
+  TCRV_READ_RECORD_STRING(providerRemediationDispatchPreference,
+                          "provider_remediation_dispatch_preference");
+  TCRV_READ_RECORD_STRING(providerRemediationBlocker,
+                          "provider_remediation_blocker");
+  TCRV_READ_RECORD_STRING(targetCapabilityProviderMirror,
+                          "target_capability_provider_mirror");
+  TCRV_READ_RECORD_STRING(targetCapabilityLegalityMirror,
+                          "target_capability_legality_mirror");
+  TCRV_READ_RECORD_STRING(providerMaturity, "provider_maturity");
+  TCRV_READ_RECORD_STRING(providerMaturityEvidence,
+                          "provider_maturity_evidence");
+  TCRV_READ_RECORD_STRING(providerMaturityOutcome, "provider_maturity_outcome");
+  TCRV_READ_RECORD_STRING(providerPerformanceSelectionEligible,
+                          "provider_performance_selection_eligible");
+  TCRV_READ_RECORD_STRING(providerDispatchPreference,
+                          "provider_dispatch_preference");
+  TCRV_READ_RECORD_STRING(providerPerformanceAction,
+                          "provider_performance_action");
+  TCRV_READ_RECORD_BOOL(performancePreferenceDenied,
+                        "performance_preference_denied");
+  TCRV_READ_RECORD_STRING(performancePreferenceDenialReason,
+                          "performance_preference_denial_reason");
+  TCRV_READ_RECORD_BOOL(performanceWinClaimAllowed,
+                        "performance_win_claim_allowed");
+  TCRV_READ_RECORD_BOOL(correctnessExecutionAllowed,
+                        "correctness_execution_allowed");
+  TCRV_READ_RECORD_BOOL(providerContractUpdateRequired,
+                        "provider_contract_update_required");
+  TCRV_READ_RECORD_STRING(routeSupportEffect, "route_support_effect");
+
+#undef TCRV_READ_RECORD_STRING
+#undef TCRV_READ_RECORD_INT
+#undef TCRV_READ_RECORD_BOOL
+
+  return record;
+}
+
 RVVLowPrecisionSameTargetMeasurementPolicyInput
 buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
     const RVVLowPrecisionContractionResourceSelection &selection,
@@ -1068,6 +1228,19 @@ buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
                                                          context))
     return std::move(error);
   return input;
+}
+
+llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput>
+buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const llvm::json::Object &evidenceInput, llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionSameTargetMeasurementRecord> record =
+      buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
+          evidenceInput, context);
+  if (!record)
+    return record.takeError();
+  return buildRVVLowPrecisionSameTargetMeasurementPolicyInput(selection, *record,
+                                                             context);
 }
 
 llvm::Expected<RVVLowPrecisionPerformanceMeasurementOutcome>

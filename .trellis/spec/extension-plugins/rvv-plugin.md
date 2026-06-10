@@ -6486,6 +6486,12 @@ payload is measurement evidence input to the provider-owned maturity contract.
 It is not route support, RVV compute semantics, dispatch authority, or Common
 EmitC logic.
 
+The per-op payload may also carry `same_target_measurement_record`, which is the
+script-output object consumed by the C++
+`RVVLowPrecisionSameTargetMeasurementRecord` boundary. This record is a carrier
+for parsed measurement and provider tie-back fields only; it is not a policy
+decision and does not replace provider-owned resource facts.
+
 ### 2. Signatures
 
 Packed-i4 per-op evidence and root summaries may carry:
@@ -6521,7 +6527,33 @@ Packed-i4 per-op evidence and root summaries may carry:
 ```
 
 Root evidence may also aggregate per-op objects under
-`performance_maturity_contract_inputs`.
+`performance_maturity_contract_inputs` and per-op C++ record objects under
+`same_target_measurement_records`.
+
+The C++ consumption surface is:
+
+```c++
+llvm::Expected<RVVLowPrecisionSameTargetMeasurementRecord>
+buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
+    const llvm::json::Object &evidenceInput, llvm::StringRef context);
+
+llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput>
+buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const llvm::json::Object &evidenceInput, llvm::StringRef context);
+```
+
+`same_target_measurement_record` must contain the fields of
+`RVVLowPrecisionSameTargetMeasurementRecord` using the script's snake_case field
+names, including `measurement_evidence_id`,
+`measurement_classification`, `measurement_best_speedup_range`,
+`measurement_summary_record_count`, `measurement_record_count`,
+`correctness_record_count`, `same_target_measurement`, `ssh_evidence`,
+`target_profile`, `provider_runtime_abi_order`,
+`provider_primitive_chain_kind`, `provider_schedule_decision`, and the other
+provider/resource/remediation/target tie-backs. It must not include
+reporting-only fields such as `contract_alignment` or remediation-plan detail
+fields that are not part of `RVVLowPrecisionSameTargetMeasurementRecord`.
 
 ### 3. Contracts
 
@@ -6529,6 +6561,11 @@ Root evidence may also aggregate per-op objects under
   classification and the current evidence path.
 - `provider_*` fields must be copied from provider-owned route/resource facts or
   generated object/header metadata mirrors after target artifact validation.
+- `same_target_measurement_record` is an exact record-shaped subset of the
+  validated evidence input. It feeds the C++ record boundary before policy input
+  is built; it must not carry reporting-only alignment fields as policy facts.
+- C++ record consumption must fail closed for missing or type-mismatched record
+  fields before policy input is materialized.
 - Gate 4 policy input must carry the Gate 2b provider-owned schedule-decision
   fields: `provider_schedule_decision_contract`,
   `provider_schedule_decision`, and `provider_schedule_decision_reason`.
@@ -6548,9 +6585,16 @@ Root evidence may also aggregate per-op objects under
 
 - Packed-i4 measurement evidence lacks the evidence-input object -> reporting
   bridge is incomplete.
+- Packed-i4 measurement evidence lacks `same_target_measurement_record`, or the
+  record lacks `measurement_evidence_id` or another required field -> C++ record
+  parsing fails before policy input.
 - Provider maturity, eligibility, dispatch, or action fields are missing from
   validated metadata -> fail the provider feedback tie-back before accepting
   the measurement summary.
+- Record target profile differs from `ssh rvv`, `ssh_evidence` is false for a
+  measured record, runtime ABI order differs from provider facts, primitive
+  chain tie-back differs, or schedule-decision tie-back differs -> C++ policy
+  input construction fails before dispatch/performance policy consumption.
 - Measurement classification is `regression`, `no-win`, or `not-measured` while
   `performance_win_claim_allowed = true` -> invalid evidence boundary.
 - Provider selection eligibility is `"false"` but reporting claims dispatch or
@@ -6566,11 +6610,18 @@ Root evidence may also aggregate per-op objects under
   `regression` -> evidence-input records provider outcome `regression`,
   selection `false`, dispatch `not-performance-preferred`,
   claim allowed `false`, and correctness execution allowed `true`.
+- Good: the same payload emits `same_target_measurement_record`; C++ parses it
+  into `RVVLowPrecisionSameTargetMeasurementRecord`, then builds
+  `RVVLowPrecisionSameTargetMeasurementPolicyInput` through provider
+  tie-back validation.
 - Base: dry-run measurement records `not-measured`, denies performance claims,
-  and keeps provider maturity mirrors visible as non-authoritative reporting
-  input.
+  sets `same_target_measurement = false` and `ssh_evidence = false`, and keeps
+  provider maturity mirrors visible as non-authoritative reporting input.
 - Bad: a same-target dry-run object or raw stdout table edits provider maturity
   fields or marks performance selection eligible.
+- Bad: a script record changes `provider_runtime_abi_order`,
+  `provider_primitive_chain_kind`, or `target_profile` while keeping the
+  evidence id intact; C++ policy input construction must reject it as stale.
 - Bad: a measurement win directly enables dispatch preference without a
   provider/resource contract update and new target artifact validation.
 
@@ -6578,9 +6629,15 @@ Root evidence may also aggregate per-op objects under
 
 - Script self-test must cover `regression`, mixed `no-win`, and hypothetical
   `win` classifications against the current provider contract.
+- Script self-test must assert `same_target_measurement_record` is exactly the
+  C++ record-shaped field subset and does not leak reporting-only fields.
+- C++ provider/policy tests must assert evidence-object parsing into
+  `RVVLowPrecisionSameTargetMeasurementRecord`, policy-input construction from
+  that object, and fail-closed missing measurement id, stale target, stale
+  runtime ABI, and stale primitive-chain cases.
 - Dry-run FileCheck coverage must assert the evidence-input object, provider
-  maturity mirrors, claim allowance, denial reason, route-support effect, and
-  correctness execution allowance.
+  maturity mirrors, `same_target_measurement_record`, claim allowance, denial
+  reason, route-support effect, and correctness execution allowance.
 - Same-target real-run evidence is required only when claiming runtime,
   correctness, or performance results beyond the dry-run/reporting bridge.
 
