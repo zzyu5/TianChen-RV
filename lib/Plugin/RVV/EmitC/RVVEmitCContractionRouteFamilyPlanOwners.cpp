@@ -120,6 +120,21 @@ constexpr llvm::StringLiteral kRVVLowPrecisionPrimitiveSignedSourceExtensionKind
 constexpr llvm::StringLiteral
     kRVVLowPrecisionPrimitiveUnsignedSourceExtensionKind(
         "zero-extend-u8-to-u16-product");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionSignedWideningProductMultiplicandRoles(
+        "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;"
+        "rhs=rhs-input-buffer:wprod-rhs:src-i8mf4");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionUnsignedWideningProductMultiplicandRoles(
+        "lhs=lhs-input-buffer:wprod-lhs:src-u8mf4;"
+        "rhs=rhs-input-buffer:wprod-rhs:src-u8mf4");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionSignedWideningProductExtensionPolicy(
+        "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionUnsignedWideningProductExtensionPolicy(
+        "source=unsigned;extension=zero-extend-u8-to-u16-product;"
+        "product=u16mf2");
 constexpr llvm::StringLiteral kRVVLHSStrideSource("runtime_abi:lhs_stride");
 constexpr llvm::StringLiteral kRVVRHSStrideSource("runtime_abi:rhs_stride");
 constexpr llvm::StringLiteral kRVVStridedInputDotSourceMemoryForm(
@@ -1298,6 +1313,10 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
             wideningProductFacts->destinationMemoryForm ||
         description.wideningProductRelation !=
             wideningProductFacts->wideningProductRelation ||
+        description.wideningProductMultiplicandRoleSummary !=
+            wideningProductFacts->wideningProductMultiplicandRoleSummary ||
+        description.wideningProductExtensionPolicy !=
+            wideningProductFacts->wideningProductExtensionPolicy ||
         description.sourceVectorLoadIntrinsic !=
             wideningProductFacts->sourceVectorLoadIntrinsic ||
         description.wideningProductIntrinsic !=
@@ -1707,6 +1726,10 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
             plan.destinationMemoryForm ||
         analysis.description.wideningProductRelation !=
             plan.wideningProductRelation ||
+        analysis.description.wideningProductMultiplicandRoleSummary !=
+            plan.wideningProductMultiplicandRoleSummary ||
+        analysis.description.wideningProductExtensionPolicy !=
+            plan.wideningProductExtensionPolicy ||
         analysis.description.intrinsic != plan.wideningProductIntrinsic ||
         analysis.description.wideningProductIntrinsic !=
             plan.wideningProductIntrinsic ||
@@ -1908,6 +1931,16 @@ buildRVVWideningProductRouteFacts(RVVSelectedBodyOperationKind operation,
   facts.sourceMemoryForm = kRVVUnitStrideSourceMemoryForm;
   facts.destinationMemoryForm = kRVVDestinationMemoryForm;
   facts.wideningProductRelation = relation;
+  facts.wideningProductMultiplicandRoleSummary =
+      isUnsigned ? llvm::StringRef(
+                       kRVVLowPrecisionUnsignedWideningProductMultiplicandRoles)
+                 : llvm::StringRef(
+                       kRVVLowPrecisionSignedWideningProductMultiplicandRoles);
+  facts.wideningProductExtensionPolicy =
+      isUnsigned ? llvm::StringRef(
+                       kRVVLowPrecisionUnsignedWideningProductExtensionPolicy)
+                 : llvm::StringRef(
+                       kRVVLowPrecisionSignedWideningProductExtensionPolicy);
   facts.sourceVectorLoadIntrinsic =
       getContractionVectorLoadIntrinsic(kSourceSEW, kSourceLMUL, isUnsigned);
   facts.wideningProductIntrinsic = getContractionWideningProductIntrinsic(
@@ -2070,6 +2103,10 @@ static void populateRVVWideningProductValidationContract(
   contract.destinationMemoryForm = facts.destinationMemoryForm.str();
   contract.wideningProductRelation =
       facts.wideningProductRelation.str();
+  contract.wideningProductMultiplicandRoleSummary =
+      facts.wideningProductMultiplicandRoleSummary.str();
+  contract.wideningProductExtensionPolicy =
+      facts.wideningProductExtensionPolicy.str();
   contract.sourceVectorLoadIntrinsic =
       facts.sourceVectorLoadIntrinsic.str();
   contract.wideningProductIntrinsic =
@@ -6784,6 +6821,38 @@ llvm::StringRef getRVVLowPrecisionPrimitiveSourceExtensionKind(
   return {};
 }
 
+static bool isRVVUnsignedLowPrecisionWideningProductPlan(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  return plan.usesWideningProduct &&
+         plan.wideningProductRelation ==
+             getContractionWideningProductRelation(
+                 tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(),
+                 tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
+                 /*isUnsigned=*/true);
+}
+
+llvm::StringRef getRVVWideningProductMultiplicandRoleSummary(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  if (!plan.usesWideningProduct)
+    return {};
+  return isRVVUnsignedLowPrecisionWideningProductPlan(plan)
+             ? llvm::StringRef(
+                   kRVVLowPrecisionUnsignedWideningProductMultiplicandRoles)
+             : llvm::StringRef(
+                   kRVVLowPrecisionSignedWideningProductMultiplicandRoles);
+}
+
+llvm::StringRef getRVVWideningProductExtensionPolicy(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  if (!plan.usesWideningProduct)
+    return {};
+  return isRVVUnsignedLowPrecisionWideningProductPlan(plan)
+             ? llvm::StringRef(
+                   kRVVLowPrecisionUnsignedWideningProductExtensionPolicy)
+             : llvm::StringRef(
+                   kRVVLowPrecisionSignedWideningProductExtensionPolicy);
+}
+
 void populateRVVLowPrecisionPrimitiveFacts(
     RVVSelectedBodyContractionRouteFamilyPlan &plan) {
   if (!plan.usesWideningProduct && !plan.usesProductReductionChain)
@@ -6803,6 +6872,10 @@ void populateRVVLowPrecisionPrimitiveFacts(
     plan.lowPrecisionPrimitiveProductElementTypeName = plan.elementTypeName;
     plan.lowPrecisionPrimitiveAccumulatorElementTypeName = "";
     plan.lowPrecisionPrimitiveResultElementTypeName = plan.elementTypeName;
+    plan.wideningProductMultiplicandRoleSummary =
+        getRVVWideningProductMultiplicandRoleSummary(plan);
+    plan.wideningProductExtensionPolicy =
+        getRVVWideningProductExtensionPolicy(plan);
     return;
   }
 
@@ -7678,6 +7751,27 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "low-precision primitive result dtype",
             plan.lowPrecisionPrimitiveResultElementTypeName, ""))
+      return error;
+  }
+  if (isWideningProduct) {
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "widening product multiplicand roles",
+            plan.wideningProductMultiplicandRoleSummary,
+            getRVVWideningProductMultiplicandRoleSummary(plan)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "widening product extension policy",
+            plan.wideningProductExtensionPolicy,
+            getRVVWideningProductExtensionPolicy(plan)))
+      return error;
+  } else {
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "widening product multiplicand roles",
+            plan.wideningProductMultiplicandRoleSummary, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "widening product extension policy",
+            plan.wideningProductExtensionPolicy, ""))
       return error;
   }
   if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
@@ -8772,6 +8866,10 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
     description.sourceMemoryForm = plan.sourceMemoryForm;
     description.destinationMemoryForm = plan.destinationMemoryForm;
     description.wideningProductRelation = plan.wideningProductRelation;
+    description.wideningProductMultiplicandRoleSummary =
+        plan.wideningProductMultiplicandRoleSummary;
+    description.wideningProductExtensionPolicy =
+        plan.wideningProductExtensionPolicy;
     description.wideningProductIntrinsic = plan.wideningProductIntrinsic;
     description.intrinsic = plan.wideningProductIntrinsic;
     return;
@@ -9195,6 +9293,16 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
             context, "widening product relation",
             description.wideningProductRelation,
             wideningProductFacts->wideningProductRelation))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "widening product multiplicand roles",
+            description.wideningProductMultiplicandRoleSummary,
+            wideningProductFacts->wideningProductMultiplicandRoleSummary))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "widening product extension policy",
+            description.wideningProductExtensionPolicy,
+            wideningProductFacts->wideningProductExtensionPolicy))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "widening product intrinsic",

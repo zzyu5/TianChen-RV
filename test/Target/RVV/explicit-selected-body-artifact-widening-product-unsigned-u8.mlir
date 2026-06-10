@@ -6,6 +6,8 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.source_load\", value = \"unit-stride-byte-load\"/s//tcrv_rvv.low_precision_primitive.source_load\", value = \"metadata-only-byte-load\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-LOAD
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.source_extension\", value = \"zero-extend-u8-to-u16-product\"/s//tcrv_rvv.low_precision_primitive.source_extension\", value = \"sign-extend-i8-to-i16-product\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-EXT
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.c_type_mapping\", value = \"vl:size_t,source:unsigned-e8mf4,result:unsigned-e16mf2,mask:b32\"/s//tcrv_rvv.c_type_mapping\", value = \"vl:size_t,source:signed-e8mf4,result:signed-e16mf2,mask:b32\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CTYPE
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.widening_product_multiplicand_roles\", value = \"lhs=lhs-input-buffer:wprod-lhs:src-u8mf4;rhs=rhs-input-buffer:wprod-rhs:src-u8mf4\"/s//tcrv_rvv.widening_product_multiplicand_roles\", value = \"lhs=metadata-only:wprod-lhs:src-u8mf4;rhs=metadata-only:wprod-rhs:src-u8mf4\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ROLES
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.widening_product_extension_policy\", value = \"source=unsigned;extension=zero-extend-u8-to-u16-product;product=u16mf2\"/s//tcrv_rvv.widening_product_extension_policy\", value = \"source=metadata;extension=artifact-name-derived;product=u16mf2\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-POLICY
 
 // Explicit selected-body input for the bounded Stage 2 unsigned low-precision
 // widening-product primitive. The typed tcrv_rvv body carries ui8 source
@@ -55,6 +57,8 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.result_sew", value = "16"}
 // PLAN-SAME: {key = "tcrv_rvv.result_lmul", value = "mf2"}
 // PLAN-SAME: {key = "tcrv_rvv.widening_product_relation", value = "unsigned-u8mf4xu8mf4-to-u16mf2"}
+// PLAN-SAME: {key = "tcrv_rvv.widening_product_multiplicand_roles", value = "lhs=lhs-input-buffer:wprod-lhs:src-u8mf4;rhs=rhs-input-buffer:wprod-rhs:src-u8mf4"}
+// PLAN-SAME: {key = "tcrv_rvv.widening_product_extension_policy", value = "source=unsigned;extension=zero-extend-u8-to-u16-product;product=u16mf2"}
 // PLAN-SAME: {key = "tcrv_rvv.widening_product_intrinsic", value = "__riscv_vwmulu_vv_u16mf2"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.contract", value = "rvv-low-precision-widening-primitive-facts.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.kind", value = "unsigned-u8mf4xu8mf4-to-u16mf2-widening-product.v1"}
@@ -86,6 +90,8 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_primitive.source_extension: zero-extend-u8-to-u16-product
 // HEADER: tianchenrv.rvv.low_precision_primitive.product_dtype: u16
 // HEADER: tianchenrv.rvv.low_precision_primitive.result_dtype: u16
+// HEADER: tianchenrv.rvv.widening_product_multiplicand_roles: lhs=lhs-input-buffer:wprod-lhs:src-u8mf4;rhs=rhs-input-buffer:wprod-rhs:src-u8mf4
+// HEADER: tianchenrv.rvv.widening_product_extension_policy: source=unsigned;extension=zero-extend-u8-to-u16-product;product=u16mf2
 // HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-u8mf4-u16mf2-contraction-leaf-profile.v1
 // HEADER: tianchenrv.rvv.route_operand_binding_plan: rvv-route-operand-binding:widening_product_u8_u16.v1
 // HEADER: tianchenrv.rvv.contraction_route_family_plan: rvv-contraction-route-family-plan.v1
@@ -97,3 +103,5 @@ module {
 // STALE-LOAD: candidate tcrv_rvv.low_precision_primitive.source_load provenance must mirror selected typed RVV widening product low-precision primitive source load 'unit-stride-byte-load' but was 'metadata-only-byte-load'
 // STALE-EXT: candidate tcrv_rvv.low_precision_primitive.source_extension provenance must mirror selected typed RVV widening product low-precision primitive source extension 'zero-extend-u8-to-u16-product' but was 'sign-extend-i8-to-i16-product'
 // STALE-CTYPE: candidate tcrv_rvv.c_type_mapping provenance must mirror selected typed RVV widening product route type mapping summary 'vl:size_t,source:unsigned-e8mf4,result:unsigned-e16mf2,mask:b32' but was 'vl:size_t,source:signed-e8mf4,result:signed-e16mf2,mask:b32'
+// STALE-ROLES: candidate tcrv_rvv.widening_product_multiplicand_roles provenance must mirror selected typed RVV widening product multiplicand roles 'lhs=lhs-input-buffer:wprod-lhs:src-u8mf4;rhs=rhs-input-buffer:wprod-rhs:src-u8mf4' but was 'lhs=metadata-only:wprod-lhs:src-u8mf4;rhs=metadata-only:wprod-rhs:src-u8mf4'
+// STALE-POLICY: candidate tcrv_rvv.widening_product_extension_policy provenance must mirror selected typed RVV widening product extension policy 'source=unsigned;extension=zero-extend-u8-to-u16-product;product=u16mf2' but was 'source=metadata;extension=artifact-name-derived;product=u16mf2'

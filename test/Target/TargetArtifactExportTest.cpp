@@ -10969,6 +10969,10 @@ bool expectRVVTargetArtifactExporterShape(
           wideningProductFacts->typedComputeOpName ||
       wideningProductDescription.wideningProductRelation !=
           wideningProductFacts->wideningProductRelation ||
+      wideningProductDescription.wideningProductMultiplicandRoleSummary !=
+          wideningProductFacts->wideningProductMultiplicandRoleSummary ||
+      wideningProductDescription.wideningProductExtensionPolicy !=
+          wideningProductFacts->wideningProductExtensionPolicy ||
       wideningProductDescription.wideningProductIntrinsic !=
           wideningProductFacts->wideningProductIntrinsic ||
       wideningProductDescription.lowPrecisionPrimitiveContractID !=
@@ -11000,6 +11004,10 @@ bool expectRVVTargetArtifactExporterShape(
           wideningProductFacts->lowPrecisionPrimitiveSourceLoadKind ||
       wideningProductContract->lowPrecisionPrimitiveSourceExtensionKind !=
           wideningProductFacts->lowPrecisionPrimitiveSourceExtensionKind ||
+      wideningProductContract->wideningProductMultiplicandRoleSummary !=
+          wideningProductFacts->wideningProductMultiplicandRoleSummary ||
+      wideningProductContract->wideningProductExtensionPolicy !=
+          wideningProductFacts->wideningProductExtensionPolicy ||
       !tianchenrv::support::runtimeABIParametersEqual(
           wideningProductDescription.runtimeABIParameters,
           wideningProductFacts->runtimeABIParameters)) {
@@ -11162,6 +11170,33 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-derived-widening-product-relation"}))
     return false;
 
+  RVVRouteDescription staleWideningProductMultiplicandRoles =
+      wideningProductDescription;
+  staleWideningProductMultiplicandRoles
+      .wideningProductMultiplicandRoleSummary =
+      "lhs=metadata-only:wprod-lhs:src-i8mf4;"
+      "rhs=metadata-only:wprod-rhs:src-i8mf4";
+  if (!expectWideningProductProviderFailure(
+          staleWideningProductMultiplicandRoles,
+          "low-precision widening-product registry rejects stale "
+          "multiplicand roles",
+          {"widening product multiplicand roles",
+           "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4"}))
+    return false;
+
+  RVVRouteDescription staleWideningProductExtensionPolicy =
+      wideningProductDescription;
+  staleWideningProductExtensionPolicy.wideningProductExtensionPolicy =
+      "source=metadata;extension=artifact-name-derived;product=i16mf2";
+  if (!expectWideningProductProviderFailure(
+          staleWideningProductExtensionPolicy,
+          "low-precision widening-product registry rejects stale extension "
+          "policy",
+          {"widening product extension policy",
+           "source=signed;extension=sign-extend-i8-to-i16-product;"
+           "product=i16mf2"}))
+    return false;
+
   RVVRouteDescription staleWideningProductPrimitiveSignedness =
       wideningProductDescription;
   staleWideningProductPrimitiveSignedness
@@ -11244,6 +11279,44 @@ bool expectRVVTargetArtifactExporterShape(
           {"tcrv_rvv.widening_product_relation",
            "signed-i8mf4xi8mf4-to-i16mf2",
            "metadata-derived-widening-product-relation"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningProductMultiplicandRolesMirror =
+      wideningProductFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleWideningProductMultiplicandRolesMirror,
+          "tcrv_rvv.widening_product_multiplicand_roles",
+          "lhs=metadata-only:wprod-lhs:src-i8mf4;"
+          "rhs=metadata-only:wprod-rhs:src-i8mf4")) {
+    llvm::errs() << "test fixture did not contain widening-product "
+                    "multiplicand-role metadata\n";
+    return false;
+  }
+  if (!expectWideningProductCandidateFailure(
+          staleWideningProductMultiplicandRolesMirror,
+          "low-precision widening-product registry rejects stale "
+          "multiplicand-role mirror",
+          {"tcrv_rvv.widening_product_multiplicand_roles",
+           "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4"}))
+    return false;
+
+  TargetArtifactCandidate staleWideningProductExtensionPolicyMirror =
+      wideningProductFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleWideningProductExtensionPolicyMirror,
+          "tcrv_rvv.widening_product_extension_policy",
+          "source=metadata;extension=artifact-name-derived;product=i16mf2")) {
+    llvm::errs() << "test fixture did not contain widening-product "
+                    "extension-policy metadata\n";
+    return false;
+  }
+  if (!expectWideningProductCandidateFailure(
+          staleWideningProductExtensionPolicyMirror,
+          "low-precision widening-product registry rejects stale extension "
+          "policy mirror",
+          {"tcrv_rvv.widening_product_extension_policy",
+           "source=signed;extension=sign-extend-i8-to-i16-product;"
+           "product=i16mf2"}))
     return false;
 
   TargetArtifactCandidate staleWideningProductCTypeMappingMirror =

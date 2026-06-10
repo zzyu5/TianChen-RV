@@ -57,6 +57,64 @@ or fallback behavior.
 
 Final coherent commit is created after this journal entry.
 
+## Session 582: Stage2 RVV low-precision contraction primitive Gate 2
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed Gate 2 only. Gate 1 already
+made typed i8/u8 source load and source extension facts visible. This round
+hardened standalone low-precision widening-product facts by adding explicit
+provider-owned multiplicand-role and extension-policy fields for signed i8 and
+unsigned u8 products, then requiring those fields through route-family
+planning, route description validation, target metadata, and target artifact
+mirror validation.
+
+### Main Changes
+
+- Added `wideningProductMultiplicandRoleSummary` and
+  `wideningProductExtensionPolicy` to standalone widening-product provider
+  facts, route-family plans, route descriptions, validation contracts, and
+  target artifact metadata.
+- Signed i8 and unsigned u8 widening-product facts now expose explicit lhs/rhs
+  `wprod-*` roles and sign/zero-extension policy summaries alongside the
+  existing source/load/product/intrinsic facts.
+- Added provider and target fail-closed checks for stale multiplicand roles
+  and extension policy before target artifact acceptance.
+- Updated signed and unsigned widening-product lit fixtures with accepted
+  mirrors and stale metadata rejection coverage.
+- Updated the RVV plugin spec with the standalone low-precision
+  widening-product primitive-fact contract.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/RVV/explicit-selected-body-artifact-widening-product.mlir Target/RVV/explicit-selected-body-artifact-widening-product-unsigned-u8.mlir Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir`
+- [OK] `git diff --check`
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` now records that
+standalone low-precision widening-product support must carry provider-owned
+multiplicand-role and extension-policy facts through route validation and
+target mirrors, while Common EmitC/export remains a mirror consumer only.
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-2 are complete. Gates 3-4 remain open. The next
+continuation point is Gate 3: widening reduction/accumulation facts for
+contraction-style kernels, building on the standalone product facts without
+q8/q4 wrappers or metadata authority.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 581: Stage2 RVV Gearbox Gate 4 closeout
 
 **Date**: 2026-06-10

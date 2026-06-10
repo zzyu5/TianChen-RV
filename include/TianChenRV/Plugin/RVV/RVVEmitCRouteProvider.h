@@ -441,6 +441,8 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef wideningDotSourceAccumulatorResultContract;
   llvm::StringRef productReductionChainRelation;
   llvm::StringRef wideningProductRelation;
+  llvm::StringRef wideningProductMultiplicandRoleSummary;
+  llvm::StringRef wideningProductExtensionPolicy;
   llvm::StringRef wideningProductIntrinsic;
   llvm::StringRef lowPrecisionPrimitiveContractID;
   llvm::StringRef lowPrecisionPrimitiveKind;
@@ -2465,6 +2467,8 @@ struct RVVWideningProductRouteFacts {
   llvm::StringRef sourceMemoryForm;
   llvm::StringRef destinationMemoryForm;
   llvm::StringRef wideningProductRelation;
+  llvm::StringRef wideningProductMultiplicandRoleSummary;
+  llvm::StringRef wideningProductExtensionPolicy;
   llvm::StringRef sourceVectorLoadIntrinsic;
   llvm::StringRef wideningProductIntrinsic;
   llvm::StringRef lowPrecisionPrimitiveContractID;
@@ -2571,6 +2575,8 @@ struct RVVWideningProductRouteValidationContract {
   std::string sourceMemoryForm;
   std::string destinationMemoryForm;
   std::string wideningProductRelation;
+  std::string wideningProductMultiplicandRoleSummary;
+  std::string wideningProductExtensionPolicy;
   std::string sourceVectorLoadIntrinsic;
   std::string wideningProductIntrinsic;
   std::string lowPrecisionPrimitiveContractID;

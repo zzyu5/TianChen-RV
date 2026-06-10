@@ -328,6 +328,8 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   llvm::StringRef sourceAccumulatorResultContract;
   llvm::StringRef productReductionChainRelation;
   llvm::StringRef wideningProductRelation;
+  llvm::StringRef wideningProductMultiplicandRoleSummary;
+  llvm::StringRef wideningProductExtensionPolicy;
   llvm::StringRef lowPrecisionPrimitiveContractID;
   llvm::StringRef lowPrecisionPrimitiveKind;
   llvm::StringRef lowPrecisionPrimitiveSourceElementTypeName;

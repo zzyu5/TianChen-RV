@@ -191,6 +191,141 @@ This is not permission to build a current Linalg frontend, high-level kernel
 ops, one-intrinsic wrappers, dtype/LMUL clone batches, global autotuning
 databases, dashboards, or readiness state machines.
 
+## Low-Precision Widening-Product Primitive Facts
+
+### 1. Scope / Trigger
+
+Use this contract when a selected typed RVV body claims standalone
+low-precision widening-product route support, including the bounded signed and
+unsigned forms:
+
+```text
+i8mf4 lhs/rhs  -> signed i8*i8 widening product to i16mf2
+u8mf4 lhs/rhs  -> unsigned u8*u8 widening product to u16mf2
+```
+
+This is a Stage 2 product-fact contract. It is not q8/q4 route authority, not
+an artifact-name route, not a Common EmitC semantic branch, and not a promise
+of widening reduction or accumulation support.
+
+### 2. Required Facts
+
+The RVV provider must derive standalone widening-product facts from the typed
+body/config/runtime facts before route construction. The structural fact set
+must include:
+
+```text
+source element type and signedness
+source SEW/LMUL and vector/C type
+source byte-load fact
+extension/sign policy
+lhs/rhs multiplicand roles
+runtime ABI order and exported lhs/rhs/out/n parameter facts
+product/result element type, SEW/LMUL, vector/C type
+widening-product relation and intrinsic
+target leaf profile, headers, C type mapping, and operand binding plan
+tail/mask policy and runtime AVL/VL control plan
+```
+
+Current provider-owned mirror keys include:
+
+```text
+tcrv_rvv.widening_product_multiplicand_roles
+tcrv_rvv.widening_product_extension_policy
+tcrv_rvv.low_precision_primitive.source_signedness
+tcrv_rvv.low_precision_primitive.source_load
+tcrv_rvv.low_precision_primitive.source_extension
+tcrv_rvv.low_precision_primitive.product_dtype
+tcrv_rvv.widening_product_relation
+tcrv_rvv.widening_product_intrinsic
+```
+
+The multiplicand-role summary must name both ABI-visible operands as product
+multiplicands, for example `lhs=lhs-input-buffer:wprod-lhs:src-i8mf4` and
+`rhs=rhs-input-buffer:wprod-rhs:src-i8mf4` for the signed form, or the
+corresponding `src-u8mf4` facts for the unsigned form. The extension policy
+must pair source signedness with the widening extension rule and product shape,
+for example
+`source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2` or
+`source=unsigned;extension=zero-extend-u8-to-u16-product;product=u16mf2`.
+
+### 3. Contracts
+
+- Dialect verifier legality only proves typed vector/control structure.
+- Route support starts only after the RVV provider derives the product facts
+  above from typed body/config/runtime/capability facts.
+- The route-family plan, route description, route operand binding summary,
+  target validation contract, and target artifact mirrors must compare the
+  same provider-owned product facts exactly.
+- Common EmitC may carry provider payloads only; it must not infer
+  multiplicand roles, signedness, extension policy, product dtype/SEW/LMUL, or
+  intrinsic spelling.
+- Target artifact metadata may mirror these fields only. Stale multiplicand
+  roles, extension policy, product dtype, relation, intrinsic, ABI order, or
+  C type mapping must fail before artifact acceptance.
+
+### 4. Validation & Error Matrix
+
+- Missing or stale lhs/rhs multiplicand-role facts -> provider/target
+  validation error before artifact acceptance.
+- Stale signedness, source-load, source-extension, product dtype, relation, or
+  intrinsic facts -> provider/target validation error before artifact
+  acceptance.
+- Verifier-legal typed body with missing provider-owned product facts -> fail
+  before `TCRVEmitCLowerableRoute` construction.
+- Artifact metadata, route id, ABI string, test name, or Common EmitC helper
+  chooses product support -> invalid architecture; move derivation back to the
+  RVV provider.
+
+### 5. Good/Base/Bad Cases
+
+- Good: typed signed i8 body -> RVV provider derives signed product facts,
+  multiplicand roles, sign-extension policy, product dtype, relation, and
+  intrinsic -> target mirrors match exactly.
+- Good: typed unsigned u8 body -> RVV provider derives unsigned product facts,
+  multiplicand roles, zero-extension policy, product dtype, relation, and
+  intrinsic -> target mirrors match exactly.
+- Base: standalone widening-product support stops at product facts and does
+  not claim widening reduction, accumulation, Gearbox realization, or measured
+  performance.
+- Bad: route operand binding text or artifact metadata says `wprod-lhs`, so
+  target accepts the artifact even though the provider description lacks the
+  multiplicand-role summary.
+- Bad: Common EmitC selects signed or unsigned product support from ABI C
+  pointer spelling instead of consuming an RVV provider-built route.
+
+### 6. Tests Required
+
+- Provider/C++ tests must assert accepted signed and unsigned product facts,
+  runtime ABI operands, multiplicand-role summary, extension policy, product
+  dtype/SEW/LMUL, relation, and intrinsic.
+- Provider/C++ tests must mutate multiplicand roles and extension policy and
+  observe provider-owned fail-closed diagnostics before route support.
+- Target artifact tests must assert accepted signed and unsigned metadata
+  mirrors and stale multiplicand-role, extension-policy, signedness,
+  source-load, source-extension, product dtype, relation, intrinsic, ABI, and
+  C type mapping rejection.
+- Lit/FileCheck fixtures should cover user-visible target export diagnostics
+  for signed i8 and unsigned u8 standalone widening-product routes.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+artifact metadata has wprod-lhs/wprod-rhs
+  -> target accepts standalone widening-product support
+```
+
+Correct:
+
+```text
+typed i8/u8 tcrv_rvv body
+  -> RVV provider derives multiplicand-role and extension-policy facts
+  -> route-family plan and route description validate those facts
+  -> target metadata mirrors those facts exactly or fails closed
+```
+
 ## Unsigned u8 Low-Precision Widening-Product Boundary
 
 ### 1. Scope / Trigger

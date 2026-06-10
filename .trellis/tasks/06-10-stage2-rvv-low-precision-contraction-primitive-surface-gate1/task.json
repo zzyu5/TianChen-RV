@@ -2,7 +2,7 @@
   "id": "stage2-rvv-low-precision-contraction-primitive-surface-gate1",
   "name": "stage2-rvv-low-precision-contraction-primitive-surface-gate1",
   "title": "Stage2 RVV low-precision contraction primitive surface campaign",
-  "description": "Macro campaign for RVV low-precision contraction primitives; current slice implements Gate 1 typed i8/u8 vector/config/load/sign-extension admission.",
+  "description": "Macro campaign for RVV low-precision contraction primitives; Gates 1-2 are complete and the next continuation is Gate 3 widening reduction/accumulation facts.",
   "status": "in_progress",
   "dev_type": null,
   "scope": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "Gate 1 slice completed in this round: provider-owned low-precision primitive source_load/source_extension facts now cover signed i8 and unsigned u8 widening-product admission and product-reduction primitive mirrors. Macro remains active; next continuation is Gate 2 widening product route facts.",
+  "notes": "Gates 1-2 are complete. Gate 2 added provider-owned standalone widening-product multiplicand-role and extension-policy facts for signed i8 and unsigned u8, consumed by route-family planning, route description validation, target metadata, and target artifact mirrors. Macro remains active; next continuation is Gate 3 widening reduction/accumulation facts.",
   "meta": {}
 }

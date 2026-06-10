@@ -2931,6 +2931,16 @@ llvm::Error validateRVVWideningProductDescriptionAgainstContract(
           contract.wideningProductRelation))
     return error;
   if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "widening product multiplicand roles",
+          description.wideningProductMultiplicandRoleSummary,
+          contract.wideningProductMultiplicandRoleSummary))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "widening product extension policy",
+          description.wideningProductExtensionPolicy,
+          contract.wideningProductExtensionPolicy))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
           contract.consumerLabel, "source vector load intrinsic",
           description.sourceVectorLoadIntrinsic,
           contract.sourceVectorLoadIntrinsic))
@@ -3389,6 +3399,16 @@ llvm::Error validateRVVWideningProductTargetArtifactCandidateMirrors(
           candidate, "tcrv_rvv.widening_product_relation",
           contract->wideningProductRelation,
           "selected typed RVV widening product relation"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.widening_product_multiplicand_roles",
+          contract->wideningProductMultiplicandRoleSummary,
+          "selected typed RVV widening product multiplicand roles"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.widening_product_extension_policy",
+          contract->wideningProductExtensionPolicy,
+          "selected typed RVV widening product extension policy"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.widening_product_intrinsic",

@@ -8652,6 +8652,48 @@ module {
                   "come from the owner-derived typed route-family plan"))
         return result;
 
+      if (ownerPlan->usesWideningProduct) {
+        llvm::StringRef expectedMultiplicandRoles =
+            ownerPlan->lowPrecisionPrimitiveSourceSignedness == "unsigned"
+                ? "lhs=lhs-input-buffer:wprod-lhs:src-u8mf4;"
+                  "rhs=rhs-input-buffer:wprod-rhs:src-u8mf4"
+                : "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;"
+                  "rhs=rhs-input-buffer:wprod-rhs:src-i8mf4";
+        llvm::StringRef expectedExtensionPolicy =
+            ownerPlan->lowPrecisionPrimitiveSourceSignedness == "unsigned"
+                ? "source=unsigned;extension=zero-extend-u8-to-u16-product;"
+                  "product=u16mf2"
+                : "source=signed;extension=sign-extend-i8-to-i16-product;"
+                  "product=i16mf2";
+        if (int result = expect(
+                ownerPlan->wideningProductMultiplicandRoleSummary ==
+                        expectedMultiplicandRoles &&
+                    ownerPlan->wideningProductExtensionPolicy ==
+                        expectedExtensionPolicy,
+                llvm::Twine(label) +
+                    " owner-derived widening product facts expose "
+                    "multiplicand roles and extension policy"))
+          return result;
+
+        stalePlan = *ownerPlan;
+        stalePlan.wideningProductMultiplicandRoleSummary =
+            "metadata-only-multiplicands";
+        if (int result = expectErrorContains(
+                validateRVVSelectedBodyContractionRouteFamilyPlan(stalePlan),
+                {"widening product multiplicand roles",
+                 expectedMultiplicandRoles}))
+          return result;
+
+        stalePlan = *ownerPlan;
+        stalePlan.wideningProductExtensionPolicy =
+            "metadata-only-extension-policy";
+        if (int result = expectErrorContains(
+                validateRVVSelectedBodyContractionRouteFamilyPlan(stalePlan),
+                {"widening product extension policy",
+                 expectedExtensionPolicy}))
+          return result;
+      }
+
       stalePlan = *ownerPlan;
       stalePlan.lowPrecisionPrimitiveSourceLoadKind =
           "metadata-only-byte-load";

@@ -43144,6 +43144,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         description.destinationMemoryForm});
     metadata.push_back({"tcrv_rvv.widening_product_relation",
                         description.wideningProductRelation});
+    metadata.push_back({"tcrv_rvv.widening_product_multiplicand_roles",
+                        description.wideningProductMultiplicandRoleSummary});
+    metadata.push_back({"tcrv_rvv.widening_product_extension_policy",
+                        description.wideningProductExtensionPolicy});
     metadata.push_back({"tcrv_rvv.widening_product_intrinsic",
                         description.wideningProductIntrinsic});
   }

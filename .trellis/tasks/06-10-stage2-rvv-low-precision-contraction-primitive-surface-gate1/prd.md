@@ -8,11 +8,11 @@ low-level `tcrv_rvv` primitive facts and RVV plugin-owned legality/planning,
 not q8/q4 route ids, artifact names, source-front-door markers, or
 generated-bundle-only evidence.
 
-The current round implements Gate 1 only: typed i8/u8 vector/config and
-byte-load sign-or-zero-extension admission for later low-precision contraction
-use. The slice must change production compiler surface or provide a specific
-no-source-change proof tied to Gate 1, and focused tests must prove accepted
-typed facts and fail-closed stale/missing/metadata-derived facts.
+Gate 1 is complete. The current round implements Gate 2: provider-owned
+low-precision widening-product facts for signed i8 and unsigned u8
+multiplicands, including explicit multiplicand-role and extension-policy facts
+that route-family planning, route validation, target metadata, and target
+artifact validation consume before any later reduction/accumulation claim.
 
 ## What I Already Know
 
@@ -48,6 +48,13 @@ typed facts and fail-closed stale/missing/metadata-derived facts.
 - Gate 1 admission must derive from typed `tcrv_rvv` body/config, target
   capability, and runtime ABI facts. It must fail closed when required facts
   are missing, stale, or metadata-derived.
+- Gate 2 must structurally represent signed i8 and unsigned u8 widening-product
+  multiplicand roles, extension/sign policy, product dtype/SEW/LMUL, typed
+  config/policy, runtime ABI operand facts, route-family validation facts, and
+  target artifact mirrors.
+- Gate 2 facts must be provider-owned and derived from typed body/config,
+  runtime ABI, and target capability facts. Artifact metadata, route ids,
+  helper names, ABI strings, or test names must not invent support.
 - Targeted diagnostics must distinguish missing typed vector/config facts,
   unsupported signedness/extension form, missing byte-load facts, and
   metadata/route-id/artifact-name authority attempts where the code surface can
@@ -62,7 +69,7 @@ typed facts and fail-closed stale/missing/metadata-derived facts.
 - [x] Gate 1: typed i8/u8 RVV primitive surface and byte-load
   sign-or-zero-extension admission are modeled and consumed by RVV plugin
   legality/planning with fail-closed diagnostics.
-- [ ] Gate 2: low-precision widening product facts are structurally
+- [x] Gate 2: low-precision widening product facts are structurally
   represented and provider-consumed without route-id or artifact-name
   authority.
 - [ ] Gate 3: widening reduction/accumulation facts are represented and
@@ -71,28 +78,37 @@ typed facts and fail-closed stale/missing/metadata-derived facts.
   same-target comparison consume these primitive facts with source-backed
   evidence.
 
-## Current Round Slice: Gate 1
+## Current Round Slice: Gate 2
 
-Implementation will first inspect the existing typed RVV value/config/op
-surface and RVV plugin/provider low-precision owners. If part of Gate 1 already
-exists, the slice will close the exact missing production compiler surface
-rather than duplicating helper metadata.
+Implementation first inspected the existing typed RVV value/config/op surface,
+RVV contraction route-family facts, target artifact validation, and signed/u8
+widening-product fixtures. The existing production path already derived signed
+i8 and unsigned u8 product relation, intrinsic, source load/extension, product
+dtype, runtime ABI, and C type facts. The missing Gate 2 hardening was an
+explicit provider-owned product-fact surface for lhs/rhs multiplicand roles and
+extension policy that survives route-family planning, route description,
+target metadata, and target validation without being hidden inside route
+binding strings.
 
 Acceptance criteria:
 
-- [x] Production C++ models typed low-precision i8/u8 source facts, byte-load
-  facts, and sign-or-zero-extension admission as RVV-owned primitive facts or
-  equivalent existing structures.
-- [x] RVV plugin legality/planning consumes those facts before a later
-  contraction primitive can claim route support.
+- [x] Production C++ models signed i8 and unsigned u8 widening-product
+  multiplicand roles, extension policy, source/load/product facts, typed
+  config/policy, runtime ABI order, and target mirrors as provider-owned RVV
+  route facts.
+- [x] RVV route-family plan validation and route description validation consume
+  those facts before a widening-product route can claim support.
+- [x] Target artifact validation compares provider-owned multiplicand-role,
+  extension-policy, source/load/extension/product, relation, intrinsic, ABI,
+  and C type mirrors before candidate acceptance.
 - [x] Focused tests prove accepted signed i8 sign-extension and unsigned u8
-  zero-extension admission from typed body/config facts.
-- [x] Focused tests prove stale/missing/metadata-derived facts fail closed with
-  targeted diagnostics.
+  zero-extension product facts from typed body/config/runtime ABI facts.
+- [x] Focused tests prove stale/missing/metadata-derived product facts fail
+  closed with targeted diagnostics.
 - [x] Bounded scan confirms touched code and added diff do not introduce legacy
   RVV route-authority markers as positive support.
 - [x] Relevant focused build/test targets pass.
-- [x] Task remains active with Gate 1 marked complete and Gates 2-4 remaining,
+- [x] Task remains active with Gates 1-2 marked complete and Gates 3-4 remaining,
   unless repository evidence proves all gates are already complete.
 
 Completed Gate 1 slice:
@@ -111,6 +127,25 @@ Completed Gate 1 slice:
 - Target artifact support bundles export the new mirror keys:
   `tcrv_rvv.low_precision_primitive.source_load` and
   `tcrv_rvv.low_precision_primitive.source_extension`.
+
+Completed Gate 2 slice:
+
+- Added provider-owned standalone widening-product fact fields:
+  `wideningProductMultiplicandRoleSummary` and
+  `wideningProductExtensionPolicy`.
+- Signed i8 widening-product facts now explicitly mirror:
+  `lhs=lhs-input-buffer:wprod-lhs:src-i8mf4`,
+  `rhs=rhs-input-buffer:wprod-rhs:src-i8mf4`, and
+  `source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2`.
+- Unsigned u8 widening-product facts now explicitly mirror:
+  `lhs=lhs-input-buffer:wprod-lhs:src-u8mf4`,
+  `rhs=rhs-input-buffer:wprod-rhs:src-u8mf4`, and
+  `source=unsigned;extension=zero-extend-u8-to-u16-product;product=u16mf2`.
+- RVV contraction route-family plan validation, route description validation,
+  target provider-facts validation, target support bundle metadata, and target
+  artifact mirror validation all consume the new fields.
+- Signed and unsigned widening-product lit fixtures now prove accepted mirrors
+  and stale metadata rejection for multiplicand roles and extension policy.
 
 ## Non-Goals
 
@@ -147,6 +182,12 @@ Completed Gate 1 slice:
 
 - `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
 - `build/bin/tianchenrv-rvv-extension-plugin-test`
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- `build/bin/tianchenrv-target-artifact-export-test`
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv
+  Target/RVV/explicit-selected-body-artifact-widening-product.mlir
+  Target/RVV/explicit-selected-body-artifact-widening-product-unsigned-u8.mlir
+  Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir`
 - Additional focused dialect/target tests if the implementation changes
   dialect syntax, verifier behavior, or target artifact validation.
 - `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1`
@@ -173,17 +214,30 @@ Completed Gate 1 slice:
 - Bounded added-line scan for `RVVI32M1`, `rvv-i32m1`, `tcrv_rvv.i32_`,
   `!tcrv_rvv.i32m`, source-front-door, q8/q4 route naming, and exact
   `__riscv_*_i32m1` old-authority introduction found no matches.
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate` passed with
+  pre-existing switch/unused-function warnings.
+- `build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `build/bin/tianchenrv-target-artifact-export-test` passed.
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv
+  Target/RVV/explicit-selected-body-artifact-widening-product.mlir
+  Target/RVV/explicit-selected-body-artifact-widening-product-unsigned-u8.mlir
+  Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir`
+  passed from `build/test`.
 
 ## Spec Update Decision
 
 - Updated `.trellis/spec/extension-plugins/rvv-plugin.md` to record the
-  provider-owned source-load/source-extension primitive-fact contract and the
-  corresponding target mirror rejection requirements.
+  provider-owned standalone widening-product primitive-fact contract, including
+  multiplicand-role and extension-policy mirrors plus target rejection
+  requirements.
 
 ## Continuation Point
 
-Keep this macro task active. The next unfinished milestone is Gate 2:
-structurally represent and provider-consume i8/u8 widening product facts
-without route-id, artifact-name, test-name, or metadata authority. Gate 2
-should build on the Gate 1 source-load/source-extension facts rather than
-introducing q8/q4 wrappers or Common EmitC semantic inference.
+Keep this macro task active. The next unfinished milestone is Gate 3:
+represent and consume widening reduction/accumulation facts for
+contraction-style kernels, building on the Gate 2 standalone
+widening-product facts rather than introducing q8/q4 wrappers, artifact-name
+authority, or Common EmitC semantic inference. Gate 4 Gearbox/resource-aware
+selected-body realization plus measured same-target comparison remains after
+Gate 3.
