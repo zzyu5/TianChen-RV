@@ -948,3 +948,73 @@ is complete. Gate 2 still needs a final closure audit for any remaining
 low-precision product-reduction representative source gaps. Gates 3 and 4
 remain future work. No runtime/correctness/performance claim was made, so no
 `ssh rvv` evidence was required in this slice.
+
+
+## Session 588: Stage2 RVV low-precision primitive-surface Gate 2 closure audit
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Closed Gate 2 for the active macro task by auditing the campaign's bounded
+low-precision product-reduction representatives against direct production
+source consumers. No missing selected-body, Gearbox/resource,
+provider/statement-plan, or target-boundary consumer was found, so this slice
+updates the macro PRD/journal and leaves production source unchanged.
+
+### Source Inventory
+
+- Plain widening product-reduce add is covered by provider primitive-fact
+  validation and target route/statement validation. It does not require
+  Gearbox resource scheduling, so absence of a Gearbox resource consumer is not
+  a Gate 2 gap for that representative.
+- Product-reduce dequantize f32 and product-reduce dequant-clamp f32 are
+  consumed by `RVVContractionSelectedBodyRealizationOwner.cpp`,
+  `RVVGearboxSchedules.cpp`,
+  `RVVEmitCContractionRouteFamilyPlanOwners.cpp`, and
+  `RVVTargetArtifactRouteFamilyValidation.cpp`.
+- The explicit dequant-clamp selected-body fixture is
+  `test/Target/RVV/explicit-selected-body-realization-widening-product-reduce-dequant-clamp-f32.mlir`.
+  It validates the same provider/target boundary after selected-body
+  realization.
+- Packed-i4 product-reduce dequantize remains provider-owned across operand
+  packing/unpack facts, remediation schedule, statement payload, target
+  mirrors, and selected-dispatch policy scope.
+- `RVVEmitCReductionAccumulationStatementPlanOwners.cpp` was audited as a
+  relevant generic reduction seam. It is not the owner for this Gate 2
+  low-precision product-reduction representative path; the contraction
+  route-family plan owner contains the needed consumers.
+
+### Evidence
+
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- Plain product-reduce add: `PLAN`, `HEADER`, and `STALE-PRIM-ACC`.
+- Product-reduce dequantize f32: `REALIZED`, `PLAN`, `HEADER`, and
+  `STALE-PROVIDER-PRIMITIVE-RESOURCE`.
+- Product-reduce dequant-clamp f32: `REALIZED`, `GEARBOX-CONSUME`, `PLAN`,
+  `HEADER`, and `STALE-RESOURCE-MEMORY`.
+- Explicit dequant-clamp selected body: `REALIZED`, `PLAN`, `HEADER`, and
+  `STALE-PROVIDER`.
+- Packed-i4 product-reduce dequantize: `REALIZED`, `PLAN`, `HEADER`, `CPP`,
+  `STALE-PACKED-HANDOFF-REMEDIATION`, and
+  `STALE-ARTIFACT-SCHEDULE-DECISION`.
+- Final housekeeping for the slice: `git diff --check`,
+  `git diff --cached --check`, and a bounded old-authority scan over touched
+  task/journal text.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] This audit applies the existing RVV plugin, EmitC route, and
+variant-pipeline contracts. It did not introduce a new durable architecture
+rule.
+
+### Status
+
+[OPEN MACRO TASK] Gate 2 is closed by source-backed audit. The macro task stays
+active because Gate 3 generated artifact correctness plus same-target `ssh rvv`
+evidence and Gate 4 selected-dispatch/performance-policy consumption remain
+future milestones. The next continuation point is Gate 3 for the representative
+generated artifact correctness path.

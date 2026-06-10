@@ -60,15 +60,17 @@ authority.
 
 - [x] Gate 1: production primitive-surface contract plus fail-closed consumer
   for low-precision widening contraction facts.
-- [ ] Gate 2: RVV plugin-local selected-body realization and Gearbox scheduling
-  consume those primitive facts for a coherent contraction slice.
+- [x] Gate 2: RVV plugin-local selected-body realization and Gearbox scheduling
+  consume those primitive facts for the campaign's bounded low-precision
+  product-reduction representatives, with provider/statement-plan and target
+  validation fail-closing stale or disconnected facts.
 - [ ] Gate 3: generated artifact correctness plus same-target `ssh rvv`
   measurement for the changed production path when runtime/correctness or
   performance behavior is claimed.
 - [ ] Gate 4: selected-dispatch/performance policy consumes measurement and
   schedule facts without promoting measurement-only wins.
 
-## Current Slice: Gate 2b Representative Resource Consumption
+## Completed Slice Checklist: Gate 2b Representative Resource Consumption
 
 - [x] Inspect repository state, recent commits, and current Trellis pointer.
 - [x] Read relevant specs:
@@ -104,7 +106,7 @@ authority.
 - [x] Commit one coherent Gate 2 slice while leaving `.trellis/.current-task`
   active.
 
-## Acceptance Criteria For This Round
+## Acceptance Criteria For Gate 2b Slice
 
 - [x] Production source changes stay in the RVV plugin/provider seams, not
   Common EmitC.
@@ -214,6 +216,94 @@ authority.
 - No runtime/correctness/performance claim was made, so no `ssh rvv` evidence
   was required in this Gate 2b slice.
 
+## Completed Slice: 2026-06-10 Gate 2 Closure Audit
+
+- Completed the Gate 2 closure inventory for the campaign's low-precision
+  product-reduction representatives:
+  plain widening product-reduce add, product-reduce dequantize f32,
+  product-reduce dequant-clamp f32, explicit dequant-clamp selected body, and
+  packed-i4 product-reduce dequantize.
+- Selected-body realization source proof is in
+  `lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp`:
+  `validateLowPrecisionPrimitiveFactsForRealization` consumes provider-owned
+  primitive facts before realization;
+  `materializeLowPrecisionResourceRealizationAttrs` rebuilds and validates
+  resource candidates and selected schedules from source/provider facts; and
+  `realizePreRealizedRVVSelectedContractionFamily` materializes the realized
+  product-reduction, dequantize/dequant-clamp, handoff, and packed-i4 resource
+  structure from those facts rather than from artifact or route metadata.
+- Gearbox/resource scheduling source proof is in
+  `lib/Plugin/RVV/RVVGearboxSchedules.cpp`:
+  `validateLowPrecisionResourceCandidatePrimitiveSurface` compares selected
+  resource candidates against
+  `RVVLowPrecisionWideningReductionPrimitiveFacts`;
+  `materializeLowPrecisionResourceAttrs` writes the provider-owned selected
+  resource and primitive-chain facts onto producer/consumer `with_vl` regions;
+  and `validateLowPrecisionProductDequantGearboxBody` re-consumes realized
+  body structure, cross-region handoff facts, runtime AVL/VL, primitive-chain
+  facts, packed-i4 remediation/schedule facts, and resource memory form before
+  allowing route planning to continue.
+- Provider route and statement-planning source proof is in
+  `lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp`:
+  `deriveRVVSelectedBodyContractionRouteFamilyPlan` validates selected-body
+  product-reduction/dequantize/dequant-clamp structure before building route
+  facts; `deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts`
+  re-consumes realized `with_vl` resource attrs;
+  `verifyRVVLowPrecisionContractionResourceSelection` checks selected
+  resource, primitive, runtime, ABI, route-family, provider, schedule, and
+  packed-i4 policy facts; and the primitive-chain/resource handoff validators
+  fail closed before route construction when any selected fact is stale or
+  disconnected.
+- Target-boundary source proof is in
+  `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp`:
+  `validateRVVLowPrecisionWideningReductionPrimitiveProviderFacts`,
+  `validateRVVLowPrecisionPrimitiveChainResourceProviderFacts`,
+  `validateRVVLowPrecisionProductReductionRealizationProviderFacts`, and
+  `validateRVVPackedI4LowPrecisionResourceProviderFacts` rebuild target-side
+  validation from provider route descriptions, while the widening-dot
+  statement and artifact-candidate validators treat artifact fields as mirrors
+  and fail closed on stale primitive/resource/schedule facts.
+- `lib/Plugin/RVV/EmitC/RVVEmitCReductionAccumulationStatementPlanOwners.cpp`
+  was audited as requested. It owns the generic reduction/accumulation
+  statement-plan seam, but the Gate 2 low-precision product-reduction
+  representative ownership lives in the contraction route-family plan owner
+  above; no missing production consumer was found in this file.
+- Existing focused fixtures already cover the source-backed representatives:
+  `test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir`,
+  `test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir`,
+  `test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32.mlir`,
+  `test/Target/RVV/explicit-selected-body-realization-widening-product-reduce-dequant-clamp-f32.mlir`,
+  and
+  `test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir`.
+- No production source gap was found. This closure slice therefore updates the
+  macro PRD and journal with bounded source anchors instead of adding another
+  generated-bundle, helper-only, or `ssh rvv` evidence seam.
+- No runtime/correctness/performance claim was made in this closure audit, so
+  no `ssh rvv` evidence is required for Gate 2.
+
+## Acceptance Criteria For Gate 2 Closure Audit
+
+- [x] Every campaign low-precision product-reduction representative has a
+  bounded production-source consumer map across selected-body realization,
+  Gearbox/resource scheduling when applicable, provider route/statement
+  planning, and target-boundary validation.
+- [x] Plain product-reduce add is covered by provider primitive-fact
+  validation and target route/statement validation without Gearbox resource
+  scheduling being treated as a false requirement.
+- [x] Dequantize and dequant-clamp product-reduction representatives have
+  direct selected-body, Gearbox/resource, provider/statement-plan, and
+  target-boundary source proof.
+- [x] Packed-i4 product-reduce dequantize keeps operand packing, unpack,
+  remediation, schedule, and policy facts provider-owned and fail-closed at
+  selected-body/provider/target boundaries.
+- [x] No q8/q4/llama label, artifact name, route id, helper name, descriptor,
+  status field, source-front-door marker, or test name becomes authority.
+- [x] No Common EmitC code infers RVV low-precision semantics.
+- [x] Focused RVV plugin, target artifact, FileCheck, diff, and authority
+  checks pass for the closure audit.
+- [x] Gate 2 is closed truthfully from production source proof, while Gates 3
+  and 4 remain open future milestones.
+
 ## Out Of Scope
 
 - New q8/q4/llama-named route ids, wrappers, artifact authority, or benchmark
@@ -242,13 +332,17 @@ authority.
   unsigned u8 widening product, signed i8 product-reduction/vwredsum facts, and
   packed-i4 remediation/schedule facts. This slice hardens the provider
   resource consumer rather than introducing q8/q4 authority.
+- The Gate 2 closure audit did not find a missing product-reduction
+  production-source consumer. `RVVEmitCReductionAccumulationStatementPlanOwners`
+  was inspected because it is a relevant generic reduction seam, but the
+  low-precision product-reduction representative ownership is in the RVV
+  contraction route-family plan owner.
 
 ## Continuation Point
 
-Gate 2 remains open after this sub-slice, but Gate 2b representative
-dequant-clamp and packed-i4 resource-consumption evidence is complete. Continue
-by auditing whether any remaining low-precision product-reduction
-representative still lacks direct selected-body/provider/statement-plan/target
-proof. If no source gap remains, close Gate 2 explicitly and move to Gate 3
-generated artifact correctness plus same-target `ssh rvv` evidence for the
-changed production path. Gates 3 and 4 remain future work.
+Gate 2 is closed by source-backed audit. Keep this macro task active and
+continue with Gate 3: run representative generated artifact correctness for
+the Gate 2 production surface and collect same-target `ssh rvv` evidence only
+for runtime/correctness/performance claims actually made in that slice. Gate 4
+remains future work after Gate 3: selected-dispatch/performance policy must
+consume measurement and schedule facts without promoting measurement-only wins.
