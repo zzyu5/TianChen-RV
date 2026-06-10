@@ -1612,3 +1612,67 @@ production representative required by human steering. Gates 3 and 4 remain
 future milestones. The next continuation point is any remaining Gate 2
 production representative, not generated artifact or same-target measurement
 evidence unless Gate 2 is accepted as complete.
+
+## 2026-06-10 - Stage2 RVV Gearbox resource-planning Gate 2 dequant-clamp representative
+
+### Summary
+
+Continued the active production-kernel Gearbox/resource-aware selected-body
+realization macro task at the Gate 2 additional representative slice. Source
+inspection showed the generalized production path already covers
+`widening_product_reduce_dequant_clamp_f32`: selected-body realization populates
+marker and handoff `planning_contract` from the selected low-precision resource
+candidate, dialect verification rejects stale/missing marker and handoff
+contracts, and route-family validation compares those structural facts with the
+selected provider resource plan before route construction.
+
+### Main Changes
+
+- Updated the dequant-clamp pre-realized target fixture to assert
+  `rvv-low-precision-production-resource-planning-contract.v1` on all realized
+  `tcrv_rvv.vsetvl_region_marker` ops, the
+  `tcrv_rvv.gearbox_cross_region_handoff`, emission-plan provider mirrors, and
+  target header mirrors.
+- Added stale and missing marker/handoff planning-contract negative coverage
+  for the dequant-clamp representative before Common EmitC route construction.
+- Updated the active macro PRD to mark Gate 2 complete and name Gate 3 generated
+  artifact/same-target measurement evidence as the next continuation point.
+- No production C++ changes were required for this slice.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv .
+  --filter pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32`.
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -q .` still has 12
+  unrelated existing failures; the dequant-clamp fixture is no longer in the
+  failure set.
+- `python3 .trellis/scripts/task.py validate
+  .trellis/tasks/06-10-stage2-rvv-production-kernel-gearbox-resource-realization-campaign`.
+- `git diff --check` and `git diff --cached --check`.
+- Bounded added-diff scan found no `RVVI32M1`, `rvv-i32m1`,
+  `tcrv_rvv.i32_`, `!tcrv_rvv.i32m`, q8/q4/llama, descriptor, or
+  source-front-door authority. The only initial scan hits were the intentional
+  `metadata-derived-*` strings in new negative diagnostics.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] The executable contract already exists in
+`.trellis/spec/extension-plugins/rvv-plugin.md` under the Gearbox
+product-reduce-dequant/clamp cross-region handoff section, including marker and
+handoff `planning_contract` requirements and dequant-clamp tests. This slice
+adds missing focused evidence for that existing contract rather than changing
+the contract.
+
+### Status
+
+[OPEN MACRO TASK] Gate 1 is complete. Gate 2 is now complete for the bounded
+representative surface: product-reduction dequant handoff/marker consumers and
+the additional product-reduction dequant-clamp representative are covered by
+structural planning-contract evidence. Gate 3 generated artifact/same-target
+measurement evidence and Gate 4 selected-dispatch/performance policy remain
+open. The next continuation point is Gate 3, not another Gate 2 representative
+unless human steering reopens Gate 2.

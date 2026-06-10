@@ -12,6 +12,10 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | sed '0,/tcrv_rvv.low_precision_resource.accumulator_dtype = "i32"/s//tcrv_rvv.low_precision_resource.accumulator_dtype = "i16"/' | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE-ACC
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | sed '0,/tcrv_rvv.low_precision_resource.reduction_layout = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1"/s//tcrv_rvv.low_precision_resource.reduction_layout = "metadata-layout"/' | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE-REDUCTION-LAYOUT
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-rvv-materialize-gearbox-schedules | sed '0,/tcrv_rvv.low_precision_resource.memory_form = "unit-stride-widening-product-reduce-dequant-clamp-f32"/s//tcrv_rvv.low_precision_resource.memory_form = "unit-stride-widening-product-reduce-dequantize-f32"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE-MEMORY
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/planning_contract = "rvv-low-precision-production-resource-planning-contract.v1"/planning_contract = "metadata-derived-resource-planning-contract"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-PLANNING
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/planning_contract = "rvv-low-precision-production-resource-planning-contract.v1", //' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-HANDOFF-PLANNING
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/vsetvl_region_marker/s/planning_contract = "rvv-low-precision-production-resource-planning-contract.v1"/planning_contract = "metadata-derived-marker-planning-contract"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-MARKER-PLANNING
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/vsetvl_region_marker/s/planning_contract = "rvv-low-precision-production-resource-planning-contract.v1", //' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-MARKER-PLANNING
 // RUN: sed '/typed_widening_product_reduce_dequant_clamp_f32_pre_realized_body/s/policy = /route_id = "rvv-i32m1", policy = /' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-AUTH
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/provider_supported_mirror:rvv-contraction-family-plan-validated/s//provider_supported_mirror:rvv-artifact-name-authority/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n/s//tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,lower_bound,scale,upper_bound,out,n/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ABI
@@ -70,10 +74,12 @@ module {
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
 // REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
 // REALIZED-SAME: phase = "grouped-product-reduce-main"
+// REALIZED-SAME: planning_contract = "rvv-low-precision-production-resource-planning-contract.v1"
 // REALIZED-SAME: region_count = 3 : i64
 // REALIZED-SAME: region_index = 1 : i64
 // REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
 // REALIZED-SAME: phase = "tail-product-reduce"
+// REALIZED-SAME: planning_contract = "rvv-low-precision-production-resource-planning-contract.v1"
 // REALIZED-SAME: region_count = 3 : i64
 // REALIZED-SAME: region_index = 2 : i64
 // REALIZED: %[[LHS:.*]] = tcrv_rvv.load
@@ -90,6 +96,7 @@ module {
 // REALIZED-SAME: consumer_scope = "gearbox-scope:dequant-store"
 // REALIZED-SAME: contract = "gearbox-product-reduce-to-dequant-cross-region-handoff.v1"
 // REALIZED-SAME: from_phase = "tail-product-reduce"
+// REALIZED-SAME: planning_contract = "rvv-low-precision-production-resource-planning-contract.v1"
 // REALIZED-SAME: primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1"
 // REALIZED-SAME: primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
 // REALIZED-SAME: primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
@@ -100,6 +107,7 @@ module {
 // REALIZED-SAME: tcrv_rvv.gearbox.consumer_scope = "gearbox-scope:dequant-store"
 // REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
 // REALIZED-SAME: phase = "dequant-store"
+// REALIZED-SAME: planning_contract = "rvv-low-precision-production-resource-planning-contract.v1"
 // REALIZED-SAME: region_count = 3 : i64
 // REALIZED-SAME: region_index = 3 : i64
 // REALIZED: %[[DEQUANT:.*]] = tcrv_rvv.dequantize %[[HANDOFF]], %{{[0-9]+}}, %[[VL]]
@@ -119,6 +127,7 @@ module {
 // REALIZED-NOT: tcrv_rvv.typed_widening_product_reduce_dequant_clamp_f32_pre_realized_body
 
 // GEARBOX-CONSUME: tcrv_rvv.gearbox_cross_region_handoff
+// GEARBOX-CONSUME-SAME: planning_contract = "rvv-low-precision-production-resource-planning-contract.v1"
 // GEARBOX-CONSUME-SAME: resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
 // GEARBOX-CONSUME: tcrv_rvv.with_vl
 // GEARBOX-CONSUME-SAME: tcrv_rvv.low_precision_resource.memory_form = "unit-stride-widening-product-reduce-dequant-clamp-f32"
@@ -179,6 +188,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.masked_merge_intrinsic", value = "__riscv_vmerge_vvm_f32m1"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selection_reason", value = "static-bounded-product-reduction-dequant-clamp-i8mf4-i16mf2-i32m1-f32m1-u2-grouped-tail-safe-runtime-avl"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.planning_contract", value = "rvv-low-precision-production-resource-planning-contract.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.memory_form", value = "unit-stride-widening-product-reduce-dequant-clamp-f32"}
 // PLAN-SAME: {key = "tcrv_rvv.gearbox.producer_scope", value = "gearbox-scope:product-reduction"}
 // PLAN-SAME: {key = "tcrv_rvv.gearbox.consumer_scope", value = "gearbox-scope:dequant-store"}
@@ -224,6 +234,7 @@ module {
 // HEADER-DAG: tianchenrv.rvv.dequant_scale_name: scale
 // HEADER-DAG: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]
 // HEADER-DAG: tianchenrv.rvv.low_precision_resource.selection_reason: static-bounded-product-reduction-dequant-clamp-i8mf4-i16mf2-i32m1-f32m1-u2-grouped-tail-safe-runtime-avl
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.planning_contract: rvv-low-precision-production-resource-planning-contract.v1
 // HEADER-DAG: tianchenrv.rvv.low_precision_resource.memory_form: unit-stride-widening-product-reduce-dequant-clamp-f32
 // HEADER-DAG: tianchenrv.rvv.gearbox_producer_scope: gearbox-scope:product-reduction
 // HEADER-DAG: tianchenrv.rvv.gearbox_consumer_scope: gearbox-scope:dequant-store
@@ -274,6 +285,20 @@ module {
 // STALE-RESOURCE-MEMORY-SAME: selected candidate
 // STALE-RESOURCE-MEMORY-SAME: product-reduction-dequant-clamp-f32
 
+// STALE-HANDOFF-PLANNING: requires planning_contract to match the selected low-precision resource planning contract
+// STALE-HANDOFF-PLANNING-SAME: rvv-low-precision-production-resource-planning-contract.v1
+// STALE-HANDOFF-PLANNING-SAME: metadata-derived-resource-planning-contract
+
+// MISSING-HANDOFF-PLANNING: requires planning_contract
+// MISSING-HANDOFF-PLANNING-SAME: rvv-low-precision-production-resource-planning-contract.v1
+
+// STALE-MARKER-PLANNING: requires planning_contract to match the selected low-precision resource planning contract
+// STALE-MARKER-PLANNING-SAME: rvv-low-precision-production-resource-planning-contract.v1
+// STALE-MARKER-PLANNING-SAME: metadata-derived-marker-planning-contract
+
+// MISSING-MARKER-PLANNING: requires planning_contract
+// MISSING-MARKER-PLANNING-SAME: rvv-low-precision-production-resource-planning-contract.v1
+
 // STALE-AUTH: does not accept authority metadata attribute
 // STALE-AUTH-SAME: route_id
 
@@ -321,11 +346,13 @@ module {
 // STALE-PRODUCT-CTYPE-SAME: vint32m1_t
 
 // STALE-WPROD: RVV materialized EmitC target artifact bridge failed
-// STALE-WPROD: tcrv_rvv.widening_product_intrinsic
+// STALE-WPROD: primitive widening product intrinsic
+// STALE-WPROD-SAME: __riscv_vwmul_vv_i16mf2
 // STALE-WPROD-SAME: __riscv_vwmul_vv_i32m1
 
 // STALE-WRED: RVV materialized EmitC target artifact bridge failed
-// STALE-WRED: tcrv_rvv.widening_reduction_intrinsic
+// STALE-WRED: primitive reduction intrinsic
+// STALE-WRED-SAME: __riscv_vwredsum_vs_i16mf2_i32m1
 // STALE-WRED-SAME: __riscv_vredsum_vs_i32m1_i32m1
 
 // STALE-DEQUANT: RVV materialized EmitC target artifact bridge failed

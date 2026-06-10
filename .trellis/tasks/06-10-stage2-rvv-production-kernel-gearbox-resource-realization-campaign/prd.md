@@ -10,13 +10,15 @@ schedule facts, mask/tail policy, runtime AVL/ABI facts, same-target
 measurement-policy prerequisites, provider validation, target validation, and
 later dispatch policy flow through one RVV-owned fail-closed boundary.
 
-Gate 1 is complete. The current round continues Gate 2 with a bounded
-production sub-slice: the RVV selected-body realization handoff for the
-representative product-reduction dequant path must carry the Gate 1 planning
-contract as structural `tcrv_rvv.gearbox_cross_region_handoff` data, and
-dialect/provider validation must fail closed when that handoff planning
-contract is missing or stale. Gates 3-4 remain future milestones unless this
-PRD is updated by human steering or later evidence.
+Gate 1 is complete. Gate 2 has already connected the representative
+product-reduction dequant path through structural handoff and marker
+planning-contract consumers. The current round closes Gate 2 by proving the
+same generalized selected-body realization path covers the additional
+`widening_product_reduce_dequant_clamp_f32` production representative: the
+RVV-owned planning contract is present in realized marker/handoff structure,
+mirrored from provider facts, and stale or missing marker/handoff contracts fail
+closed before route construction. Gates 3-4 remain future milestones unless
+this PRD is updated by human steering or later evidence.
 
 ## What I Already Know
 
@@ -75,7 +77,7 @@ PRD is updated by human steering or later evidence.
 
 - [x] Gate 1: resource-planning contract plus first production
   selected-body/provider consumer and fail-closed diagnostics.
-- [ ] Gate 2: selected-body realization uses the resource plan for a
+- [x] Gate 2: selected-body realization uses the resource plan for a
   representative low-precision/contraction body without changing computation
   semantics, dtype semantics, parameter roles, runtime AVL/VL, variant origin,
   dispatch, or fallback behavior.
@@ -146,6 +148,29 @@ PRD is updated by human steering or later evidence.
   artifact/same-target measurement evidence and Gate 4 selected-dispatch/
   performance policy remain future milestones.
 
+## Current Slice: Gate 2 Additional Representative Planning-Contract Consumer
+
+- [x] Keep the same macro task active and target the additional
+  `widening_product_reduce_dequant_clamp_f32` production representative.
+- [x] Inspect production selected-body realization, dialect verification,
+  route planning, and contraction route-family validation for generalized
+  `selectedCandidate.planningContract` consumption.
+- [x] Prove the existing production path already carries
+  `rvv-low-precision-production-resource-planning-contract.v1` through the
+  realized dequant-clamp `tcrv_rvv.vsetvl_region_marker` ops,
+  `tcrv_rvv.gearbox_cross_region_handoff`, emission-plan provider mirrors, and
+  target header metadata mirrors.
+- [x] Add focused dequant-clamp positive FileCheck coverage for the structural
+  marker/handoff planning contract.
+- [x] Add focused dequant-clamp stale and missing marker/handoff
+  planning-contract diagnostics before Common EmitC route construction.
+- [x] Leave computation semantics, dtype semantics, ABI roles, runtime AVL/VL,
+  variant origin, dispatch, fallback behavior, and Common EmitC neutrality
+  unchanged.
+- [x] Mark Gate 2 complete because both representative product-reduction
+  dequant and dequant-clamp paths now have structural resource-plan consumer
+  coverage.
+
 ## Acceptance Criteria For Gate 1
 
 - [x] A production C++ contract or contract field names the low-precision
@@ -208,14 +233,24 @@ PRD is updated by human steering or later evidence.
   diagnostics for the representative product-reduction-dequant Gearbox path.
 - Updated the RVV plugin spec with the executable marker planning-contract
   requirement and test obligations.
+- Proved the existing generalized production path covers the additional
+  `widening_product_reduce_dequant_clamp_f32` representative without new source
+  changes: selected-body realization already populates marker and handoff
+  `planning_contract` from the selected resource candidate, and verifier plus
+  route-family validation consume the selected provider resource plan before
+  route construction.
+- Added dequant-clamp FileCheck evidence that marker/handoff structure,
+  emission-plan provider mirrors, and target header mirrors carry
+  `rvv-low-precision-production-resource-planning-contract.v1`.
+- Added dequant-clamp stale and missing marker/handoff planning-contract
+  negative diagnostics.
 
 ## Remaining Campaign Gates
 
-- Gate 2 remains partially open: the handoff and marker planning-contract
-  consumers are complete for the representative product-reduction dequant path,
-  but the macro Gate 2 can still extend the same structural resource-plan checks
-  to any additional low-precision/contraction representative required by human
-  steering.
+- Gate 2 is complete for the campaign's bounded representative surface:
+  product-reduction dequant handoff and marker consumers are complete, and the
+  additional dequant-clamp representative is covered by focused structural
+  evidence using the same generalized production path.
 - Gate 3 remains: generated artifact and same-target measurement evidence for
   the realized resource-aware path when executable correctness or performance is
   claimed.
@@ -270,10 +305,19 @@ PRD is updated by human steering or later evidence.
   `test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir`,
   and
   `test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir`.
+- Gate 2 additional representative sub-slice inspected
+  `lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp`,
+  `lib/Dialect/RVV/IR/RVVDialect.cpp`,
+  `lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp`, and
+  `lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp`, then
+  updated only
+  `test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32.mlir`
+  for focused structural evidence.
 
 ## Continuation Point
 
-After this Gate 2 marker sub-slice, continue the same macro task at any
-remaining Gate 2 production representative if required by human steering. Do not
-move to Gate 3 generated artifact/same-target evidence unless the remaining
-Gate 2 realization-consumer surface is accepted as complete.
+After this Gate 2 additional representative sub-slice, continue the same macro
+task at Gate 3: generated artifact and same-target measurement evidence for the
+realized resource-aware path when executable correctness or performance is
+claimed. Do not archive the macro task yet because Gate 3 and Gate 4 remain
+open.
