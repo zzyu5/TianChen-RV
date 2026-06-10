@@ -337,8 +337,8 @@ def VSetVLRegionMarkerOp : TCRVRVV_Op<"vsetvl_region_marker"> {
     Records one RVV plugin-local selected-body realization boundary for a
     resource-aware vsetvl placement decision. The op is nested directly under
     tcrv_rvv.with_vl, consumes the active !tcrv_rvv.vl token, and carries the
-    realized region phase, one-based region index, total region count, and
-    resource decision string.
+    realized region phase, one-based region index, total region count,
+    selected resource-planning contract, and resource decision string.
 
     This op is structural schedule evidence only. It does not model compute,
     dtype, memory access, an intrinsic wrapper, route id, artifact metadata,
@@ -350,6 +350,7 @@ def VSetVLRegionMarkerOp : TCRVRVV_Op<"vsetvl_region_marker"> {
   let arguments = (ins
     AnyType:$vl,
     StrAttr:$phase,
+    OptionalAttr<StrAttr>:$planning_contract,
     I64Attr:$region_index,
     I64Attr:$region_count,
     StrAttr:$resource_decision

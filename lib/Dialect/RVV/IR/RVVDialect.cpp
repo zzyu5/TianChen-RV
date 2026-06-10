@@ -290,7 +290,8 @@ bool isAllowedWithVLAttr(llvm::StringRef name) {
 
 bool isAllowedVSetVLRegionMarkerAttr(llvm::StringRef name) {
   return name == "phase" || name == "region_index" ||
-         name == "region_count" || name == "resource_decision";
+         name == "region_count" || name == "resource_decision" ||
+         name == kPlanningContractAttrName;
 }
 
 bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
@@ -4008,8 +4009,8 @@ mlir::LogicalResult VSetVLRegionMarkerOp::verify() {
     if (!isAllowedVSetVLRegionMarkerAttr(attrName))
       return emitOpError()
              << "only accepts RVV realization placement attributes 'phase', "
-                "'region_index', 'region_count', and 'resource_decision'; "
-                "unexpected attribute '"
+                "'planning_contract', 'region_index', 'region_count', and "
+                "'resource_decision'; unexpected attribute '"
              << attr.getName() << "'";
   }
 
@@ -4031,6 +4032,30 @@ mlir::LogicalResult VSetVLRegionMarkerOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyBoundedMetadata(op, "resource_decision",
                                          getResourceDecision())))
+    return mlir::failure();
+  auto planningContract =
+      op->getAttrOfType<mlir::StringAttr>(kPlanningContractAttrName);
+  if (tianchenrv::plugin::rvv::
+          isRVVLowPrecisionResourceSupportedRealizationDecision(
+              getResourceDecision())) {
+    if (!planningContract)
+      return emitOpError()
+             << "requires planning_contract '"
+             << tianchenrv::plugin::rvv::
+                    kRVVLowPrecisionResourcePlanningContract
+             << "' from the selected low-precision resource plan";
+    if (planningContract.getValue() !=
+        tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePlanningContract)
+      return emitOpError()
+             << "requires planning_contract to match the selected "
+                "low-precision resource planning contract '"
+             << tianchenrv::plugin::rvv::
+                    kRVVLowPrecisionResourcePlanningContract
+             << "' but found '" << planningContract.getValue() << "'";
+  }
+  if (planningContract &&
+      mlir::failed(verifyBoundedMetadata(op, kPlanningContractAttrName,
+                                         planningContract.getValue())))
     return mlir::failure();
 
   if (getRegionCount() <= 0)
@@ -4329,6 +4354,13 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
   tcrv::rvv::VSetVLRegionMarkerOp firstMarker;
   tcrv::rvv::VSetVLRegionMarkerOp secondMarker;
   bool sawHandoff = false;
+  auto markerMatchesHandoffPlanningContract =
+      [&](tcrv::rvv::VSetVLRegionMarkerOp marker) {
+        auto markerPlanningContract =
+            marker->getAttrOfType<mlir::StringAttr>(kPlanningContractAttrName);
+        return markerPlanningContract &&
+               markerPlanningContract.getValue() == planningContract.getValue();
+      };
   for (mlir::Operation &nested : op->getParentRegion()->front()) {
     if (&nested == op) {
       sawHandoff = true;
@@ -4339,11 +4371,12 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
       continue;
     if (marker.getVl() != getVl() ||
         marker.getRegionCount() != getRegionCount() ||
-        marker.getResourceDecision() != getResourceDecision())
+        marker.getResourceDecision() != getResourceDecision() ||
+        !markerMatchesHandoffPlanningContract(marker))
       return emitOpError()
              << "requires surrounding tcrv_rvv.vsetvl_region_marker ops to "
                 "consume the same !tcrv_rvv.vl token and carry matching "
-                "region_count/resource_decision";
+                "region_count/resource_decision/planning_contract";
     if (!sawHandoff &&
         static_cast<std::int64_t>(marker.getRegionIndex()) ==
             expectedProducerMarkerIndex &&
@@ -4402,7 +4435,8 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
                           expectedConsumerMarkerIndex &&
                       marker.getRegionCount() == getRegionCount() &&
                       marker.getPhase() == getToPhase() &&
-                      marker.getResourceDecision() == getResourceDecision())
+                      marker.getResourceDecision() == getResourceDecision() &&
+                      markerMatchesHandoffPlanningContract(marker))
                     nestedSecondMarker = marker;
                   continue;
                 }

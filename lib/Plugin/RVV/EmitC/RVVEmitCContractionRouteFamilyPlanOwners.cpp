@@ -5267,6 +5267,23 @@ llvm::Error requireRVVLowPrecisionRealizedVSetVLRegionStructure(
           " selected-body realization low-precision direct-contraction "
           "structure requires each tcrv_rvv.vsetvl_region_marker to consume "
           "the selected with_vl token");
+    auto planningContract =
+        marker->getAttrOfType<mlir::StringAttr>("planning_contract");
+    if (!planningContract)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " selected-body realization low-precision direct-contraction "
+          "structure requires each tcrv_rvv.vsetvl_region_marker to carry "
+          "planning_contract from the selected resource plan");
+    if (planningContract.getValue() != selection.planningContract)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " selected-body realization low-precision direct-contraction "
+          "structure has stale or inconsistent vsetvl region marker "
+          "planning_contract at position " +
+          llvm::Twine(expectedIndex) + ": expected '" +
+          selection.planningContract + "' but found '" +
+          planningContract.getValue() + "'");
     if (static_cast<std::int64_t>(marker.getRegionIndex()) != expectedIndex ||
         static_cast<std::int64_t>(marker.getRegionCount()) !=
             expectedRegionCount ||

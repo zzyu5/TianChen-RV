@@ -748,7 +748,6 @@ Completed the active packed-i4 performance remediation macro task by threading G
 
 - None - task complete
 
-
 ## Session 576: Stage2 RVV Gearbox resource-planning Gate 1
 
 **Date**: 2026-06-10
@@ -1555,3 +1554,61 @@ Closed the active same-target measurement selected-dispatch macro campaign with 
 ### Next Steps
 
 - None - task complete
+
+## 2026-06-10 - Stage2 RVV Gearbox resource-planning Gate 2 marker consumer
+
+### Summary
+
+Continued the active production-kernel Gearbox/resource-aware selected-body
+realization macro task at the remaining Gate 2 marker surface. This sub-slice
+makes realized `tcrv_rvv.vsetvl_region_marker` ops consume the same
+`rvv-low-precision-production-resource-planning-contract.v1` selected resource
+plan as the Gearbox handoff, then verifies stale or missing marker planning
+facts before route construction or Common EmitC materialization.
+
+### Main Changes
+
+- Added optional `planning_contract` syntax to
+  `tcrv_rvv.vsetvl_region_marker` and required the production low-precision
+  resource contract whenever the marker carries a supported low-precision
+  resource decision.
+- Made selected-body realization populate marker `planning_contract` from the
+  selected `RVVLowPrecisionContractionResourceCandidate`.
+- Made Gearbox handoff verification and contraction route-family validation
+  compare marker planning contracts with the selected resource plan.
+- Added positive C++/MLIR coverage and stale/missing marker planning-contract
+  diagnostics for the representative product-reduction-dequant Gearbox path.
+- Updated the active PRD and RVV plugin spec with the marker-level executable
+  contract.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- Manual positive `tcrv-opt` check showing three realized
+  `tcrv_rvv.vsetvl_region_marker` ops with
+  `planning_contract =
+  "rvv-low-precision-production-resource-planning-contract.v1"`.
+- Manual stale marker planning-contract negative `tcrv-opt` check.
+- Manual missing marker planning-contract negative `tcrv-opt` check.
+- Manual explicit selected-body fixture `tcrv-opt` emission-plan check.
+- `git diff --check`.
+
+### Spec Update Decision
+
+[SPEC UPDATED] This slice changed the executable marker-level selected-body
+contract, so `.trellis/spec/extension-plugins/rvv-plugin.md` now documents the
+marker `planning_contract` field, stale/missing marker diagnostics, good path,
+and required tests.
+
+### Status
+
+[OPEN MACRO TASK] Gate 1 is complete. Gate 2 handoff and marker
+planning-contract consumers are complete for the representative
+product-reduction-dequant path, but Gate 2 remains open for any additional
+production representative required by human steering. Gates 3 and 4 remain
+future milestones. The next continuation point is any remaining Gate 2
+production representative, not generated artifact or same-target measurement
+evidence unless Gate 2 is accepted as complete.

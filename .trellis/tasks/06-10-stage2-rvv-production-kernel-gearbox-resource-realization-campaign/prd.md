@@ -125,6 +125,27 @@ PRD is updated by human steering or later evidence.
   the same pattern to marker-level planning-contract checks or additional
   production representatives if human steering requires it.
 
+## Current Slice: Gate 2 Marker Planning-Contract Consumer
+
+- [x] Keep the same macro task active and continue the representative
+  `widening_product_reduce_dequantize_f32` product-reduction Gearbox path.
+- [x] Make selected-body realization copy the selected low-precision resource
+  planning contract into each realized
+  `tcrv_rvv.vsetvl_region_marker`, not only `with_vl` attrs, handoff attrs,
+  or route metadata mirrors.
+- [x] Make `tcrv_rvv.vsetvl_region_marker` verification reject missing or stale
+  marker planning contracts for supported low-precision resource decisions.
+- [x] Make Gearbox handoff verification and RVV route-family validation compare
+  marker planning contracts with the selected provider resource plan before
+  `TCRVEmitCLowerableRoute` construction.
+- [x] Add focused positive C++/MLIR coverage and stale/missing marker
+  planning-contract diagnostics without changing computation semantics, dtype
+  semantics, ABI roles, runtime AVL/VL, variant origin, dispatch, or fallback
+  behavior.
+- [x] Leave the macro task active after this sub-slice because Gate 3 generated
+  artifact/same-target measurement evidence and Gate 4 selected-dispatch/
+  performance policy remain future milestones.
+
 ## Acceptance Criteria For Gate 1
 
 - [x] A production C++ contract or contract field names the low-precision
@@ -177,14 +198,24 @@ PRD is updated by human steering or later evidence.
   path.
 - Updated the RVV plugin spec with the executable handoff planning-contract
   requirement and test obligations.
+- Added a structural marker-level `planning_contract` attr to realized
+  `tcrv_rvv.vsetvl_region_marker` ops, populated from the selected
+  low-precision resource candidate.
+- Made the RVV marker verifier, Gearbox handoff verifier, consumer-scope route
+  collection, and contraction route-family validation reject missing or stale
+  marker planning-contract facts before Common EmitC route construction.
+- Added positive C++/MLIR coverage plus stale/missing marker planning-contract
+  diagnostics for the representative product-reduction-dequant Gearbox path.
+- Updated the RVV plugin spec with the executable marker planning-contract
+  requirement and test obligations.
 
 ## Remaining Campaign Gates
 
-- Gate 2 remains partially open: the handoff planning-contract consumer is
-  complete for the representative product-reduction dequant path, but the macro
-  Gate 2 can still extend the same structural resource-plan checks to marker
-  attrs and any additional low-precision/contraction representative required by
-  human steering.
+- Gate 2 remains partially open: the handoff and marker planning-contract
+  consumers are complete for the representative product-reduction dequant path,
+  but the macro Gate 2 can still extend the same structural resource-plan checks
+  to any additional low-precision/contraction representative required by human
+  steering.
 - Gate 3 remains: generated artifact and same-target measurement evidence for
   the realized resource-aware path when executable correctness or performance is
   claimed.
@@ -229,12 +260,20 @@ PRD is updated by human steering or later evidence.
   `lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp`,
   `test/Plugin/RVVExtensionPluginTest.cpp`, and
   `test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir`.
+- Gate 2 marker planning-contract sub-slice additionally touched
+  `include/TianChenRV/Dialect/RVV/IR/RVVOps.td`,
+  `lib/Dialect/RVV/IR/RVVDialect.cpp`,
+  `lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp`,
+  `lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp`,
+  `lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp`,
+  `test/Plugin/RVVExtensionPluginTest.cpp`,
+  `test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir`,
+  and
+  `test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir`.
 
 ## Continuation Point
 
-After this Gate 2 sub-slice, continue the same macro task at the remaining Gate
-2 surface if needed: extend resource-plan structural checks from the
-cross-region handoff to marker-level facts or another production
-low-precision/contraction representative. Do not move to Gate 3 generated
-artifact/same-target evidence unless the remaining Gate 2 realization-consumer
-surface is accepted as complete.
+After this Gate 2 marker sub-slice, continue the same macro task at any
+remaining Gate 2 production representative if required by human steering. Do not
+move to Gate 3 generated artifact/same-target evidence unless the remaining
+Gate 2 realization-consumer surface is accepted as complete.

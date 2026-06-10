@@ -5756,15 +5756,24 @@ The current production resource-planning boundary uses:
 ```text
 tcrv_rvv.low_precision_resource.planning_contract =
   "rvv-low-precision-production-resource-planning-contract.v1"
+
+tcrv_rvv.vsetvl_region_marker %vl {
+  phase,
+  planning_contract =
+    "rvv-low-precision-production-resource-planning-contract.v1",
+  region_index,
+  region_count,
+  resource_decision
+}
 ```
 
 `RVVLowPrecisionContractionResourceCandidate` and
 `RVVLowPrecisionContractionResourceSelection` must carry this id when a bounded
 low-precision product-reduction resource candidate is selected. Gearbox schedule
 materialization, selected-body realization, provider route-family validation,
-and target artifact validation consume the same id as a fail-closed handoff
-check. It is not route authority and is not derived from artifact metadata,
-route ids, q8/q4 names, helper names, or Common EmitC.
+and target artifact validation consume the same id as a fail-closed marker and
+handoff check. It is not route authority and is not derived from artifact
+metadata, route ids, q8/q4 names, helper names, or Common EmitC.
 
 ### 3. Contracts
 
@@ -5834,6 +5843,15 @@ route ids, q8/q4 names, helper names, or Common EmitC.
   planning contract and resource decision from the selected candidate and reject
   stale marker/handoff/resource facts before constructing
   `TCRVEmitCLowerableRoute`.
+- For low-precision product-reduction Gearbox markers,
+  `tcrv_rvv.vsetvl_region_marker` must carry `planning_contract =
+  "rvv-low-precision-production-resource-planning-contract.v1"` when
+  `resource_decision` is a supported low-precision realization decision. The
+  marker verifier, handoff verifier, selected-body route planner, and
+  contraction route-family validation must reject missing or stale marker
+  planning contracts before Common EmitC route materialization. A marker-only
+  resource decision without this contract is still marker-level metadata, not a
+  valid selected resource-plan consumer.
 - For product-reduction Gearbox selected-body realization, the cross-region
   handoff must also carry the selected primitive-chain resource facts:
   `primitive_chain_contract`, `primitive_chain_kind`,
@@ -5950,6 +5968,10 @@ route ids, q8/q4 names, helper names, or Common EmitC.
   missing or stale `tcrv_rvv.low_precision_resource.planning_contract` value ->
   fail closed in RVV Gearbox/selected-body/provider validation before Common
   EmitC materializes a route.
+- A realized `tcrv_rvv.vsetvl_region_marker` carries a supported
+  low-precision resource decision but has missing or stale `planning_contract`
+  -> fail closed in the RVV marker verifier or provider marker-structure
+  validation before route construction.
 - Target artifact export sees a stale planning-contract metadata mirror ->
   fail closed by comparing the mirror to provider-owned resource facts; do not
   use the mirror to repair the provider selection.
@@ -6047,8 +6069,10 @@ route ids, q8/q4 names, helper names, or Common EmitC.
 - Provider/target artifact validation proving selected candidate facts are
   consumed before artifact acceptance and stale metadata-only candidates fail.
 - Focused C++ or lit tests proving the planning contract is produced by the
-  Gearbox/selected-body resource path, consumed by provider validation, and
-  rejected when stale or missing before route construction or artifact export.
+  Gearbox/selected-body resource path, copied into realized
+  `tcrv_rvv.vsetvl_region_marker` and Gearbox handoff structure, consumed by
+  provider validation, and rejected when stale or missing before route
+  construction or artifact export.
 - Focused C++ statement-plan coverage for the positive packed-i4 low/high nibble
   sign-extension sequence, low/high widening products, product-pair add, single
   widening reduction, and provider-built lowerable route eligibility without
@@ -6977,6 +7001,19 @@ The bounded structural op is:
     -> !tcrv_rvv.vector<i32, "m1">
 ```
 
+The paired region markers are part of the same structural contract:
+
+```mlir
+tcrv_rvv.vsetvl_region_marker %vl {
+  phase = "load-product-reduce" | "tail-product-reduce" | "dequant-store",
+  planning_contract =
+    "rvv-low-precision-production-resource-planning-contract.v1",
+  region_index = <one-based region index>,
+  region_count = <selected resource region count>,
+  resource_decision = <selected low-precision resource realization decision>
+} : !tcrv_rvv.vl
+```
+
 The realized body shape is:
 
 ```text
@@ -7059,9 +7096,12 @@ tcrv_rvv.widening_product
 - Missing, sibling, unordered, or wrong-VL consumer `with_vl` for the
   dequant-store phase -> selected-boundary collection or provider planning
   fails closed before route support.
-- Marker count/order/phase/resource decision diverges from the handoff/resource
-  facts -> fail closed; markers remain transitional evidence, not route
-  authority.
+- Marker count/order/phase/planning contract/resource decision diverges from
+  the handoff/resource facts -> fail closed; markers remain transitional
+  evidence, not route authority.
+- Marker has a supported low-precision resource decision but a missing or stale
+  `planning_contract` -> fail closed in RVV marker verifier or provider
+  marker-structure validation before route support.
 - Dequant-clamp route missing lower/upper bound roles, lower-then-upper
   compare/select dataflow, dequant-store marker, clamp result store, or
   `product-reduction-dequant-clamp-f32` resource candidate -> fail closed
@@ -7091,15 +7131,17 @@ tcrv_rvv.widening_product
   and invalid source chain.
 - Selected-body realization FileCheck showing
   `standalone_reduce -> gearbox_cross_region_handoff -> nested consumer with_vl
-  -> dequantize -> store` with `runtime_abi:n` and matching marker phases.
+  -> dequantize -> store` with `runtime_abi:n`, matching marker phases, and
+  marker `planning_contract =
+  "rvv-low-precision-production-resource-planning-contract.v1"`.
 - Dequant-clamp selected-body realization FileCheck must additionally show
   lower/upper splats, lower compare/select, upper compare/select, and final
   clamped store inside the nested consumer `with_vl`.
 - Explicit already-realized fixture containing the same handoff as the authority
   for route planning.
 - Provider fail-closed evidence for missing handoff, stale dequantize consumer,
-  stale scope facts, stale or missing handoff `planning_contract`, and stale
-  realized region/resource facts after schedule/resource facts exist.
+  stale scope facts, stale or missing marker/handoff `planning_contract`, and
+  stale realized region/resource facts after schedule/resource facts exist.
 - Header/artifact export evidence showing the four-op non-clamp typed compute
   chain, or six-op dequant-clamp typed compute chain, is accepted by
   construction and target validation.

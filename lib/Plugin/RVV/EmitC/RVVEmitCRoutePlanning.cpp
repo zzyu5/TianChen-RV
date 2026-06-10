@@ -18012,6 +18012,11 @@ bool isRVVGearboxProductReduceDequantConsumerScope(
       hasRegionMarker =
           marker.getVl() == producerWithVL.getVl() &&
           marker.getPhase() == "dequant-store" &&
+          marker->getAttrOfType<mlir::StringAttr>(
+              kGearboxHandoffPlanningContractAttrName) &&
+          marker->getAttrOfType<mlir::StringAttr>(
+              kGearboxHandoffPlanningContractAttrName)
+                  .getValue() == kRVVLowPrecisionResourcePlanningContract &&
           static_cast<std::int64_t>(marker.getRegionIndex()) ==
               getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
                   marker.getResourceDecision()) &&

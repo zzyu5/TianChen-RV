@@ -9027,6 +9027,21 @@ module {
           "into setvl/producer-with_vl/load/load/widening_product/"
           "standalone_reduce/handoff/consumer-with_vl/dequantize/store IR"))
     return result;
+  auto productDequantFirstMarker = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::VSetVLRegionMarkerOp>(
+      findFirstNestedOp(productDequantVariant,
+                        "tcrv_rvv.vsetvl_region_marker"));
+  if (int result = expect(
+          productDequantFirstMarker &&
+              productDequantFirstMarker->getAttrOfType<mlir::StringAttr>(
+                  "planning_contract") &&
+              productDequantFirstMarker->getAttrOfType<mlir::StringAttr>(
+                  "planning_contract").getValue() ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePlanningContract,
+          "selected-boundary product-reduction-dequant realizes vsetvl "
+          "region markers with the selected resource planning contract"))
+    return result;
   auto productDequantHandoff = llvm::dyn_cast_or_null<
       tianchenrv::tcrv::rvv::GearboxCrossRegionHandoffOp>(
       findFirstNestedOp(productDequantVariant,

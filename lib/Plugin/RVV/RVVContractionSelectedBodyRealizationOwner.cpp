@@ -859,12 +859,15 @@ void createRealizedGenericStore(mlir::OpBuilder &builder, mlir::Location loc,
 void createRealizedVSetVLRegionMarker(mlir::OpBuilder &builder,
                                       mlir::Location loc, mlir::Value vl,
                                       llvm::StringRef phase,
+                                      llvm::StringRef planningContract,
                                       std::int64_t regionIndex,
                                       std::int64_t regionCount,
                                       llvm::StringRef resourceDecision) {
   mlir::OperationState state(loc, "tcrv_rvv.vsetvl_region_marker");
   state.addOperands(vl);
   state.addAttribute("phase", builder.getStringAttr(phase));
+  state.addAttribute("planning_contract",
+                     builder.getStringAttr(planningContract));
   state.addAttribute("region_index", builder.getI64IntegerAttr(regionIndex));
   state.addAttribute("region_count", builder.getI64IntegerAttr(regionCount));
   state.addAttribute("resource_decision",
@@ -1534,10 +1537,12 @@ realizePreRealizedRVVSelectedContractionFamily(
             ? llvm::StringRef("grouped-product-reduce-main")
             : getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
                   resourceDecision),
-        1, selectedResourceCandidate->vsetvlRegionCount, resourceDecision);
+        selectedResourceCandidate->planningContract, 1,
+        selectedResourceCandidate->vsetvlRegionCount, resourceDecision);
     if (usesGroupedLowPrecisionProductReduction)
       createRealizedVSetVLRegionMarker(
-          builder, loc, setvl.getVl(), "tail-product-reduce", 2,
+          builder, loc, setvl.getVl(), "tail-product-reduce",
+          selectedResourceCandidate->planningContract, 2,
           selectedResourceCandidate->vsetvlRegionCount, resourceDecision);
   }
   if (plan.usesComputedMask) {
@@ -1625,6 +1630,7 @@ realizePreRealizedRVVSelectedContractionFamily(
     builder.setInsertionPointToStart(&consumerWithVL.getBody().front());
     createRealizedVSetVLRegionMarker(
         builder, loc, setvl.getVl(), "dequant-store",
+        consumerCandidate->planningContract,
         getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
             getRVVLowPrecisionContractionResourceRealizationDecision(
                 consumerCandidate->candidateID)),
