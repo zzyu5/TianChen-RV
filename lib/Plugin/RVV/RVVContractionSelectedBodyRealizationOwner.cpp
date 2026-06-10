@@ -4,6 +4,7 @@
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
+#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
@@ -37,6 +38,24 @@ void copyLowPrecisionResourceAttrs(mlir::Operation *source,
   for (mlir::NamedAttribute attr : source->getAttrs())
     if (isRVVLowPrecisionResourceAttrName(attr.getName().getValue()))
       destination->setAttr(attr.getName(), attr.getValue());
+}
+
+void materializeLowPrecisionRealizationAdmissionAttrs(
+    mlir::OpBuilder &builder, mlir::Operation *destination,
+    const RVVLowPrecisionSelectedBodyRealizationAdmission &admission) {
+  destination->setAttr(
+      kRVVLowPrecisionResourceRealizationAdmissionContractAttrName,
+      builder.getStringAttr(admission.admissionContract));
+  destination->setAttr(
+      kRVVLowPrecisionResourceRealizationAdmissionDecisionAttrName,
+      builder.getStringAttr(stringifyRVVLowPrecisionRealizationAdmissionDecision(
+          admission.decision)));
+  destination->setAttr(
+      kRVVLowPrecisionResourceRealizationAdmissionEvidenceAttrName,
+      builder.getStringAttr(admission.measurementEvidenceID));
+  destination->setAttr(
+      kRVVLowPrecisionResourceRealizationAdmissionDispatchPolicyAttrName,
+      builder.getStringAttr(admission.dispatchPolicyPath));
 }
 
 llvm::Expected<std::string>
@@ -1502,7 +1521,9 @@ makeContractionRealizationPlan(
 llvm::Expected<tcrv::rvv::WithVLOp>
 realizePreRealizedRVVSelectedContractionFamily(
     const VariantLoweringBoundaryRequest &request, mlir::ArrayAttr requires,
-    const RVVSelectedBodyContractionRealizationPlan &plan) {
+    const RVVSelectedBodyContractionRealizationPlan &plan,
+    const RVVLowPrecisionProductionPressureProfile *pressureProfile =
+        nullptr) {
   if (!plan.preRealizedBody)
     return makeRVVPluginError(
         "pre-realized RVV contraction selected-body realization requires a "
@@ -1539,6 +1560,11 @@ realizePreRealizedRVVSelectedContractionFamily(
     return makeRVVPluginError(
         "pre-realized RVV contraction selected-body realization requires "
         "compare lhs/rhs runtime ABI values for computed-mask routes");
+  if (pressureProfile && !plan.usesProductReductionDequantization)
+    return makeRVVPluginError(
+        "pre-realized RVV contraction selected-body realization admission "
+        "currently applies only to low-precision product-reduction "
+        "dequantization families");
 
   std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
       lowPrecisionPrimitiveFacts;
@@ -1579,6 +1605,8 @@ realizePreRealizedRVVSelectedContractionFamily(
   copyLowPrecisionResourceAttrs(plan.preRealizedBody, withVL.getOperation());
   std::optional<RVVLowPrecisionContractionResourceCandidate>
       selectedResourceCandidate;
+  std::optional<RVVLowPrecisionSelectedBodyRealizationAdmission>
+      selectedAdmission;
   if (plan.usesProductReductionDequantization) {
     if (!lowPrecisionPrimitiveFacts)
       return makeRVVPluginError(
@@ -1596,6 +1624,22 @@ realizePreRealizedRVVSelectedContractionFamily(
     if (!candidate)
       return candidate.takeError();
     selectedResourceCandidate = *candidate;
+    if (pressureProfile) {
+      llvm::Expected<RVVLowPrecisionSelectedBodyRealizationAdmission>
+          admission = admitRVVLowPrecisionSelectedBodyRealization(
+              *selectedResourceCandidate, pressureProfile,
+              "pre-realized RVV contraction selected-body realization "
+              "admission");
+      if (!admission)
+        return admission.takeError();
+      if (!admission->admitsRealization())
+        return makeRVVPluginError(
+            "pre-realized RVV contraction selected-body realization "
+            "admission did not admit resource-aware realization");
+      materializeLowPrecisionRealizationAdmissionAttrs(
+          builder, withVL.getOperation(), *admission);
+      selectedAdmission = *admission;
+    }
   }
 
   builder.setInsertionPointToStart(&withVL.getBody().front());
@@ -1703,6 +1747,9 @@ realizePreRealizedRVVSelectedContractionFamily(
           "pre-realized RVV contraction selected-body realization requires "
           "producer and consumer scopes to consume the same selected "
           "low-precision resource candidate");
+    if (selectedAdmission)
+      materializeLowPrecisionRealizationAdmissionAttrs(
+          builder, consumerWithVL.getOperation(), *selectedAdmission);
     builder.setInsertionPointToStart(&consumerWithVL.getBody().front());
     createRealizedVSetVLRegionMarker(
         builder, loc, setvl.getVl(), "dequant-store",
@@ -1804,8 +1851,10 @@ bool isPreRealizedRVVContractionClusterOp(mlir::Operation *op) {
       tcrv::rvv::TypedWideningProductReduceDequantClampF32BodyOp>(op);
 }
 
-llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
-    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+llvm::Expected<tcrv::rvv::WithVLOp>
+realizePreRealizedRVVContractionOwnerImpl(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp,
+    const RVVLowPrecisionProductionPressureProfile *pressureProfile) {
   if (!isPreRealizedRVVContractionClusterOp(bodyOp))
     return makeRVVPluginError(
         "contraction selected-body realization owner received a body outside "
@@ -1830,7 +1879,8 @@ llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
                                                            wideningMAccBody))
       return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires, makeContractionRealizationPlan(wideningMAccBody));
+        request, requires, makeContractionRealizationPlan(wideningMAccBody),
+        pressureProfile);
   }
 
   if (auto dotReduceBody = llvm::dyn_cast<
@@ -1840,7 +1890,8 @@ llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
                 request, dotReduceBody))
       return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires, makeContractionRealizationPlan(dotReduceBody));
+        request, requires, makeContractionRealizationPlan(dotReduceBody),
+        pressureProfile);
   }
 
   if (auto stridedDotReduceBody =
@@ -1853,7 +1904,8 @@ llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
       return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
         request, requires,
-        makeContractionRealizationPlan(stridedDotReduceBody));
+        makeContractionRealizationPlan(stridedDotReduceBody),
+        pressureProfile);
   }
 
   if (auto maskedDotReduceBody =
@@ -1865,7 +1917,8 @@ llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
                 request, maskedDotReduceBody))
       return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
-        request, requires, makeContractionRealizationPlan(maskedDotReduceBody));
+        request, requires, makeContractionRealizationPlan(maskedDotReduceBody),
+        pressureProfile);
   }
 
   if (auto maskedStridedDotReduceBody =
@@ -1878,7 +1931,8 @@ llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
       return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
         request, requires,
-        makeContractionRealizationPlan(maskedStridedDotReduceBody));
+        makeContractionRealizationPlan(maskedStridedDotReduceBody),
+        pressureProfile);
   }
 
   if (auto productReduceDequantBody =
@@ -1891,7 +1945,8 @@ llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
       return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
         request, requires,
-        makeContractionRealizationPlan(productReduceDequantBody));
+        makeContractionRealizationPlan(productReduceDequantBody),
+        pressureProfile);
   }
 
   if (auto productReduceDequantClampBody =
@@ -1904,7 +1959,8 @@ llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
       return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
         request, requires,
-        makeContractionRealizationPlan(productReduceDequantClampBody));
+        makeContractionRealizationPlan(productReduceDequantClampBody),
+        pressureProfile);
   }
 
   if (auto explicitProductReduceDequantClampBody =
@@ -1917,12 +1973,25 @@ llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
       return std::move(error);
     return realizePreRealizedRVVSelectedContractionFamily(
         request, requires,
-        makeContractionRealizationPlan(explicitProductReduceDequantClampBody));
+        makeContractionRealizationPlan(explicitProductReduceDequantClampBody),
+        pressureProfile);
   }
 
   return makeRVVPluginError(
       "contraction selected-body realization owner found an unsupported "
       "pre-realized body op");
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp) {
+  return realizePreRealizedRVVContractionOwnerImpl(request, bodyOp, nullptr);
+}
+
+llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp,
+    const RVVLowPrecisionProductionPressureProfile &pressureProfile) {
+  return realizePreRealizedRVVContractionOwnerImpl(request, bodyOp,
+                                                  &pressureProfile);
 }
 
 } // namespace tianchenrv::plugin::rvv

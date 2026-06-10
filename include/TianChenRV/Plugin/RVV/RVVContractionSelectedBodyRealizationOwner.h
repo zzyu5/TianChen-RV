@@ -3,6 +3,7 @@
 
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
+#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 
 #include "mlir/IR/Operation.h"
 #include "llvm/Support/Error.h"
@@ -13,6 +14,10 @@ bool isPreRealizedRVVContractionClusterOp(mlir::Operation *op);
 
 llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
     const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp);
+
+llvm::Expected<tcrv::rvv::WithVLOp> realizePreRealizedRVVContractionOwner(
+    const VariantLoweringBoundaryRequest &request, mlir::Operation *bodyOp,
+    const RVVLowPrecisionProductionPressureProfile &pressureProfile);
 
 } // namespace tianchenrv::plugin::rvv
 

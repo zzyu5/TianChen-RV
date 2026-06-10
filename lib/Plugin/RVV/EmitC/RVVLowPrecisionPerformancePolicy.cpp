@@ -43,6 +43,10 @@ constexpr llvm::StringLiteral kProductionPressureProfileContract(
 constexpr llvm::StringLiteral kProductionPressureProfileAuthority(
     "selected-typed-rvv-provider-resource-facts-plus-source-backed-"
     "same-target-measurement-and-selected-dispatch-policy-inputs");
+constexpr llvm::StringLiteral kSelectedBodyRealizationAdmissionContract(
+    "rvv-low-precision-selected-body-realization-admission.v1");
+constexpr llvm::StringLiteral kSelectedBodyRealizationAdmissionOwner(
+    "rvv-contraction-selected-body-realization-owner");
 constexpr llvm::StringLiteral kSourceBackedMeasurementRecordContract(
     "rvv-low-precision-source-backed-artifact-measurement-record.v1");
 constexpr llvm::StringLiteral kGeneratedArtifactIdentityContract(
@@ -1624,6 +1628,609 @@ materializeRVVLowPrecisionProductionPressureProfile(
   return profile;
 }
 
+llvm::Error rejectProductionPressureProfileMarkerOnlyFacts(
+    const RVVLowPrecisionProductionPressureProfile &profile,
+    llvm::StringRef context) {
+  struct Field {
+    llvm::StringRef label;
+    llvm::StringRef value;
+  };
+  Field fields[] = {
+      {"pressure profile authority", profile.authority},
+      {"pressure path", profile.pressurePath},
+      {"selected candidate", profile.selectedCandidateID},
+      {"measurement provider candidate",
+       profile.measurementProviderCandidateID},
+      {"resource planning contract", profile.resourcePlanningContract},
+      {"resource operand form", profile.resourceOperandForm},
+      {"resource packing layout", profile.resourcePackingLayout},
+      {"resource unpack intent", profile.resourceUnpackIntent},
+      {"runtime AVL source", profile.runtimeAVLSource},
+      {"runtime ABI order", profile.runtimeABIOrder},
+      {"route-family plan", profile.routeFamilyPlan},
+      {"provider-supported mirror", profile.providerSupportedMirror},
+      {"source record contract", profile.sourceRecordContract},
+      {"source selected variant", profile.sourceSelectedVariant},
+      {"source selected input", profile.sourceSelectedInput},
+      {"source generated function", profile.sourceGeneratedFunction},
+      {"generated artifact object path",
+       profile.generatedArtifactObjectPath},
+      {"generated artifact object sha256",
+       profile.generatedArtifactObjectSHA256},
+      {"generated artifact header path",
+       profile.generatedArtifactHeaderPath},
+      {"generated artifact header sha256",
+       profile.generatedArtifactHeaderSHA256},
+      {"measurement target", profile.measurementTarget},
+      {"measurement target provenance", profile.measurementTargetProvenance},
+      {"measurement runtime count set",
+       profile.measurementRuntimeCountSet},
+      {"measurement runtime count provenance",
+       profile.measurementRuntimeCountProvenance},
+      {"pressure profile label", profile.pressureProfileLabel},
+      {"pressure profile label provenance",
+       profile.pressureProfileLabelProvenance},
+      {"primitive chain contract", profile.primitiveChainContract},
+      {"primitive kind", profile.primitiveKind},
+      {"primitive source dtype", profile.primitiveSourceDType},
+      {"primitive source signedness", profile.primitiveSourceSignedness},
+      {"primitive product dtype", profile.primitiveProductDType},
+      {"primitive accumulator dtype", profile.primitiveAccumulatorDType},
+      {"primitive result dtype", profile.primitiveResultDType},
+      {"primitive widening product relation",
+       profile.primitiveWideningProductRelation},
+      {"primitive product-reduction relation",
+       profile.primitiveProductReductionChainRelation},
+      {"primitive widening product intrinsic",
+       profile.primitiveWideningProductIntrinsic},
+      {"primitive reduction intrinsic", profile.primitiveReductionIntrinsic},
+      {"primitive scalar seed splat intrinsic",
+       profile.primitiveScalarSeedSplatIntrinsic},
+      {"primitive accumulator layout", profile.primitiveAccumulatorLayout},
+      {"primitive result layout", profile.primitiveResultLayout},
+      {"primitive reduction store VL", profile.primitiveReductionStoreVL},
+      {"schedule decision contract", profile.scheduleDecisionContract},
+      {"schedule decision", profile.scheduleDecision},
+      {"schedule decision reason", profile.scheduleDecisionReason},
+      {"target profile", profile.targetProfile},
+      {"target capability provider mirror",
+       profile.targetCapabilityProviderMirror},
+      {"target capability legality mirror",
+       profile.targetCapabilityLegalityMirror},
+      {"measurement evidence id", profile.measurementEvidenceID},
+      {"selected dispatch case mirror",
+       profile.selectedDispatchCaseMirror},
+      {"selected dispatch fallback mirror",
+       profile.selectedDispatchFallbackMirror},
+      {"selected dispatch case variant", profile.selectedCaseVariant},
+      {"fallback variant", profile.fallbackVariant},
+      {"dispatch policy path", profile.dispatchPolicyPath},
+      {"dispatch preference", profile.dispatchPreference},
+  };
+  for (const Field &field : fields) {
+    if (llvm::Error error =
+            rejectLabelOnlyPressureMarker(context, field.label, field.value))
+      return error;
+    if (llvm::Error error =
+            rejectMetadataOnlyPressureMarker(context, field.label, field.value))
+      return error;
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error verifyProductionPressureProfileDispatchAdmission(
+    const RVVLowPrecisionProductionPressureProfile &profile,
+    llvm::StringRef context) {
+  if (llvm::Error error =
+          requirePolicyBool(context, "route support allowed",
+                            profile.routeSupportAllowed, true))
+    return error;
+  if (llvm::Error error =
+          requirePolicyBool(context, "correctness execution allowed",
+                            profile.correctnessExecutionAllowed, true))
+    return error;
+  if (profile.dispatchPolicyPath == kPackedI4CorrectnessFallbackPolicyPath) {
+    if (llvm::Error error =
+            requirePolicyBool(context, "correctness fallback path selected",
+                              profile.correctnessFallbackPathSelected, true))
+      return error;
+    if (llvm::Error error =
+            requirePolicyBool(context, "performance preferred path selected",
+                              profile.performancePreferredPathSelected, false))
+      return error;
+    return llvm::Error::success();
+  }
+  if (profile.dispatchPolicyPath == kPackedI4PerformancePreferredPolicyPath) {
+    if (llvm::Error error =
+            requirePolicyBool(context, "performance preferred path selected",
+                              profile.performancePreferredPathSelected, true))
+      return error;
+    if (llvm::Error error =
+            requirePolicyBool(context, "performance selection allowed",
+                              profile.performanceSelectionAllowed, true))
+      return error;
+    if (llvm::Error error =
+            requirePolicyBool(context, "performance win claim allowed",
+                              profile.performanceWinClaimAllowed, true))
+      return error;
+    return llvm::Error::success();
+  }
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) +
+      " selected-body realization admission rejects unsupported dispatch "
+      "policy path '" +
+      profile.dispatchPolicyPath +
+      "'; expected correctness-fallback or performance-preferred");
+}
+
+llvm::Error verifyProductionPressureProfileAgainstCandidate(
+    const RVVLowPrecisionContractionResourceCandidate &candidate,
+    const RVVLowPrecisionProductionPressureProfile &profile,
+    llvm::StringRef context) {
+  if (!isRVVLowPrecisionResourcePackedI4CandidateID(candidate.candidateID))
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " selected-body realization admission requires a source-backed "
+        "packed-i4 low-precision production pressure profile for the current "
+        "Gate 1 boundary");
+  if (llvm::Error error =
+          requirePolicyString(context, "pressure profile contract",
+                              profile.contract,
+                              kProductionPressureProfileContract))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "pressure profile authority",
+                              profile.authority,
+                              kProductionPressureProfileAuthority))
+    return error;
+  if (llvm::Error error =
+          rejectProductionPressureProfileMarkerOnlyFacts(profile, context))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "selected candidate", profile.selectedCandidateID,
+          candidate.candidateID))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "measurement provider candidate",
+                              profile.measurementProviderCandidateID,
+                              candidate.candidateID))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "resource planning contract",
+                              profile.resourcePlanningContract,
+                              candidate.planningContract))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "resource operand form",
+                              profile.resourceOperandForm,
+                              candidate.operandForm))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "resource source signedness",
+                              profile.resourceSourceSignedness,
+                              candidate.sourceSignedness))
+    return error;
+  if (llvm::Error error =
+          requirePolicyInt(context, "resource storage element width",
+                           profile.resourceStorageElementWidth,
+                           candidate.storageElementWidth))
+    return error;
+  if (llvm::Error error =
+          requirePolicyInt(context, "resource effective element width",
+                           profile.resourceEffectiveElementWidth,
+                           candidate.effectiveElementWidth))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "resource packing layout",
+                              profile.resourcePackingLayout,
+                              candidate.packingLayout))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "resource unpack intent",
+                              profile.resourceUnpackIntent,
+                              candidate.unpackIntent))
+    return error;
+  if (llvm::Error error =
+          requirePolicyInt(context, "resource vsetvl region count",
+                           profile.vsetvlRegionCount,
+                           candidate.vsetvlRegionCount))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "runtime AVL source",
+                              profile.runtimeAVLSource,
+                              candidate.runtimeAVLSource))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "runtime ABI order",
+                              profile.runtimeABIOrder,
+                              candidate.runtimeABIOrder))
+    return error;
+  if (llvm::Error error =
+          requireNonEmptyPolicyString(context, "route-family plan",
+                                      profile.routeFamilyPlan))
+    return error;
+  if (llvm::Error error =
+          requireNonEmptyPolicyString(context, "provider-supported mirror",
+                                      profile.providerSupportedMirror))
+    return error;
+
+  if (llvm::Error error =
+          requirePolicyString(context, "source record contract",
+                              profile.sourceRecordContract,
+                              kSourceBackedMeasurementRecordContract))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "source selected variant",
+                              profile.sourceSelectedVariant,
+                              getPackedI4SourceSelectedVariantForCandidate(
+                                  candidate.candidateID)))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "source selected input",
+                              profile.sourceSelectedInput,
+                              getPackedI4SourceSelectedInputForCandidate(
+                                  candidate.candidateID)))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "source generated function",
+                              profile.sourceGeneratedFunction,
+                              getPackedI4SourceGeneratedFunctionForCandidate(
+                                  candidate.candidateID)))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "generated artifact identity contract",
+                              profile.generatedArtifactIdentityContract,
+                              kGeneratedArtifactIdentityContract))
+    return error;
+  if (llvm::Error error =
+          requireNonEmptyPolicyString(context, "generated artifact object path",
+                                      profile.generatedArtifactObjectPath))
+    return error;
+  if (llvm::Error error =
+          requireNonEmptyPolicyString(context, "generated artifact object sha256",
+                                      profile.generatedArtifactObjectSHA256))
+    return error;
+  if (llvm::Error error =
+          requireNonEmptyPolicyString(context, "generated artifact header path",
+                                      profile.generatedArtifactHeaderPath))
+    return error;
+  if (llvm::Error error =
+          requireNonEmptyPolicyString(context, "generated artifact header sha256",
+                                      profile.generatedArtifactHeaderSHA256))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "measurement target",
+                              profile.measurementTarget, profile.targetProfile))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "measurement target provenance",
+                              profile.measurementTargetProvenance,
+                              kMeasurementTargetProvenance))
+    return error;
+  if (llvm::Error error =
+          requireNonEmptyPolicyString(context, "measurement runtime count set",
+                                      profile.measurementRuntimeCountSet))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "measurement runtime count provenance",
+                              profile.measurementRuntimeCountProvenance,
+                              kMeasurementRuntimeCountProvenance))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "pressure profile label",
+                              profile.pressureProfileLabel,
+                              kProductionPressureProfileLabel))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "pressure profile label provenance",
+                              profile.pressureProfileLabelProvenance,
+                              kProductionPressureProfileLabelProvenance))
+    return error;
+
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive chain contract",
+                              profile.primitiveChainContract,
+                              candidate.primitiveChainContractID))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive chain kind",
+                              profile.primitiveChainKind,
+                              candidate.primitiveChainKind))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive contract",
+                              profile.primitiveContract,
+                              candidate.primitiveContractID))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive kind", profile.primitiveKind,
+                              candidate.primitiveKind))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive source dtype",
+                              profile.primitiveSourceDType,
+                              candidate.sourceElementTypeName))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive source signedness",
+                              profile.primitiveSourceSignedness,
+                              candidate.sourceSignedness))
+    return error;
+  if (llvm::Error error =
+          requirePolicyInt(context, "primitive source SEW",
+                           profile.primitiveSourceSEW, candidate.sourceSEW))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive source LMUL",
+                              profile.primitiveSourceLMUL,
+                              candidate.sourceLMUL))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive product dtype",
+                              profile.primitiveProductDType,
+                              candidate.productElementTypeName))
+    return error;
+  if (llvm::Error error =
+          requirePolicyInt(context, "primitive product SEW",
+                           profile.primitiveProductSEW, candidate.productSEW))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive product LMUL",
+                              profile.primitiveProductLMUL,
+                              candidate.productLMUL))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive accumulator dtype",
+                              profile.primitiveAccumulatorDType,
+                              candidate.accumulatorElementTypeName))
+    return error;
+  if (llvm::Error error =
+          requirePolicyInt(context, "primitive accumulator SEW",
+                           profile.primitiveAccumulatorSEW,
+                           candidate.accumulatorSEW))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive accumulator LMUL",
+                              profile.primitiveAccumulatorLMUL,
+                              candidate.accumulatorLMUL))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive result dtype",
+                              profile.primitiveResultDType,
+                              candidate.resultElementTypeName))
+    return error;
+  if (llvm::Error error =
+          requirePolicyInt(context, "primitive result SEW",
+                           profile.primitiveResultSEW, candidate.resultSEW))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive result LMUL",
+                              profile.primitiveResultLMUL,
+                              candidate.resultLMUL))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive widening product relation",
+                              profile.primitiveWideningProductRelation,
+                              candidate.primitiveWideningProductRelation))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context,
+                              "primitive product-reduction chain relation",
+                              profile.primitiveProductReductionChainRelation,
+                              candidate
+                                  .primitiveProductReductionChainRelation))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive widening product intrinsic",
+                              profile.primitiveWideningProductIntrinsic,
+                              candidate.primitiveWideningProductIntrinsic))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive reduction intrinsic",
+                              profile.primitiveReductionIntrinsic,
+                              candidate.primitiveReductionIntrinsic))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive scalar seed splat intrinsic",
+                              profile.primitiveScalarSeedSplatIntrinsic,
+                              candidate.primitiveScalarSeedSplatIntrinsic))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive accumulator layout",
+                              profile.primitiveAccumulatorLayout,
+                              candidate.primitiveAccumulatorLayout))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive result layout",
+                              profile.primitiveResultLayout,
+                              candidate.primitiveResultLayout))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive reduction store VL",
+                              profile.primitiveReductionStoreVL,
+                              candidate.primitiveReductionStoreVL))
+    return error;
+
+  if (llvm::Error error =
+          requirePolicyString(context, "schedule decision contract",
+                              profile.scheduleDecisionContract,
+                              candidate.scheduleDecisionContract))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "schedule decision",
+                              profile.scheduleDecision,
+                              candidate.scheduleDecision))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "schedule decision reason",
+                              profile.scheduleDecisionReason,
+                              candidate.scheduleDecisionReason))
+    return error;
+  if (llvm::Error error =
+          requireNonEmptyPolicyString(context, "target profile",
+                                      profile.targetProfile))
+    return error;
+  if (llvm::Error error =
+          requireNonEmptyPolicyString(context,
+                                      "target capability provider mirror",
+                                      profile.targetCapabilityProviderMirror))
+    return error;
+  if (llvm::Error error =
+          requireNonEmptyPolicyString(context,
+                                      "target capability legality mirror",
+                                      profile.targetCapabilityLegalityMirror))
+    return error;
+  if (llvm::Error error =
+          requireNonEmptyPolicyString(context, "measurement evidence id",
+                                      profile.measurementEvidenceID))
+    return error;
+  if (llvm::Error error =
+          requirePositivePolicyInt(context, "measurement summary record count",
+                                   profile.measurementSummaryRecordCount))
+    return error;
+  if (llvm::Error error =
+          requirePositivePolicyInt(context, "measurement record count",
+                                   profile.measurementRecordCount))
+    return error;
+  if (llvm::Error error =
+          requirePositivePolicyInt(context, "correctness record count",
+                                   profile.correctnessRecordCount))
+    return error;
+  if (llvm::Error error =
+          requireNonEmptyPolicyString(context, "selected dispatch case mirror",
+                                      profile.selectedDispatchCaseMirror))
+    return error;
+  if (llvm::Error error =
+          requireNonEmptyPolicyString(context,
+                                      "selected dispatch fallback mirror",
+                                      profile.selectedDispatchFallbackMirror))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "selected dispatch case variant",
+                              profile.selectedCaseVariant,
+                              profile.sourceSelectedVariant))
+    return error;
+  if (llvm::Error error =
+          requireNonEmptyPolicyString(context, "fallback variant",
+                                      profile.fallbackVariant))
+    return error;
+  return verifyProductionPressureProfileDispatchAdmission(profile, context);
+}
+
+llvm::Error verifyProductionPressureProfileAgainstSelection(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionProductionPressureProfile &profile,
+    llvm::StringRef context) {
+  if (!selection.hasSelection)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " selected-body realization admission requires provider-selected "
+        "low-precision resource facts");
+  RVVLowPrecisionContractionResourceCandidate candidate;
+  candidate.candidateSetID = selection.candidateSetID;
+  candidate.candidateID = selection.selectedCandidateID;
+  candidate.selectionReason = selection.selectionReason;
+  candidate.planningContract = selection.planningContract;
+  candidate.legalityScope = selection.legalityScope;
+  candidate.sourceElementTypeName = selection.sourceElementTypeName;
+  candidate.sourceSEW = selection.sourceSEW;
+  candidate.sourceLMUL = selection.sourceLMUL;
+  candidate.operandForm = selection.operandForm;
+  candidate.sourceSignedness = selection.sourceSignedness;
+  candidate.storageElementWidth = selection.storageElementWidth;
+  candidate.effectiveElementWidth = selection.effectiveElementWidth;
+  candidate.packingLayout = selection.packingLayout;
+  candidate.unpackIntent = selection.unpackIntent;
+  candidate.productElementTypeName = selection.productElementTypeName;
+  candidate.productSEW = selection.productSEW;
+  candidate.productLMUL = selection.productLMUL;
+  candidate.productEMUL = selection.productEMUL;
+  candidate.accumulatorElementTypeName =
+      selection.accumulatorElementTypeName;
+  candidate.accumulatorSEW = selection.accumulatorSEW;
+  candidate.accumulatorLMUL = selection.accumulatorLMUL;
+  candidate.accumulatorEMUL = selection.accumulatorEMUL;
+  candidate.resultElementTypeName = selection.resultElementTypeName;
+  candidate.resultSEW = selection.resultSEW;
+  candidate.resultLMUL = selection.resultLMUL;
+  candidate.memoryForm = selection.memoryForm;
+  candidate.tailPolicy = selection.tailPolicy;
+  candidate.maskPolicy = selection.maskPolicy;
+  candidate.unrollFactor = selection.unrollFactor;
+  candidate.accumulatorCount = selection.accumulatorCount;
+  candidate.reductionLayout = selection.reductionLayout;
+  candidate.vsetvlRegionCount = selection.vsetvlRegionCount;
+  candidate.peakLiveVectorGroups = selection.peakLiveVectorGroups;
+  candidate.vectorRegisterBudget = selection.vectorRegisterBudget;
+  candidate.runtimeAVLSource = selection.runtimeAVLSource;
+  candidate.producerScope = selection.producerScope;
+  candidate.consumerScope = selection.consumerScope;
+  candidate.runtimeABIOrder = selection.runtimeABIOrder;
+  candidate.primitiveContractID = selection.primitiveContractID;
+  candidate.primitiveKind = selection.primitiveKind;
+  candidate.primitiveChainContractID = selection.primitiveChainContractID;
+  candidate.primitiveChainKind = selection.primitiveChainKind;
+  candidate.primitiveWideningProductRelation =
+      selection.primitiveWideningProductRelation;
+  candidate.primitiveProductReductionChainRelation =
+      selection.primitiveProductReductionChainRelation;
+  candidate.primitiveWideningProductIntrinsic =
+      selection.primitiveWideningProductIntrinsic;
+  candidate.primitiveReductionIntrinsic =
+      selection.primitiveReductionIntrinsic;
+  candidate.primitiveScalarSeedSplatIntrinsic =
+      selection.primitiveScalarSeedSplatIntrinsic;
+  candidate.primitiveAccumulatorLayout = selection.primitiveAccumulatorLayout;
+  candidate.primitiveResultLayout = selection.primitiveResultLayout;
+  candidate.primitiveReductionStoreVL = selection.primitiveReductionStoreVL;
+  candidate.scheduleDecisionContract = selection.scheduleDecisionContract;
+  candidate.scheduleDecision = selection.scheduleDecision;
+  candidate.scheduleDecisionReason = selection.scheduleDecisionReason;
+  candidate.isLegal = selection.isLegal;
+  candidate.rejectionReason = selection.rejectionReason;
+  if (llvm::Error error =
+          verifyProductionPressureProfileAgainstCandidate(candidate, profile,
+                                                         context))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "route-family plan",
+                              profile.routeFamilyPlan,
+                              selection.routeFamilyPlanID))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "provider-supported mirror",
+                              profile.providerSupportedMirror,
+                              selection.providerSupportedMirror))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "target capability provider mirror",
+                              profile.targetCapabilityProviderMirror,
+                              selection.targetCapabilityProviderMirror))
+    return error;
+  return requirePolicyString(context, "target capability legality mirror",
+                             profile.targetCapabilityLegalityMirror,
+                             selection.targetCapabilityLegalityMirror);
+}
+
+RVVLowPrecisionSelectedBodyRealizationAdmission
+makeSelectedBodyRealizationAdmission(
+    const RVVLowPrecisionProductionPressureProfile &profile) {
+  RVVLowPrecisionSelectedBodyRealizationAdmission admission;
+  admission.admissionContract =
+      kSelectedBodyRealizationAdmissionContract.str();
+  admission.admissionOwner = kSelectedBodyRealizationAdmissionOwner.str();
+  admission.decision =
+      RVVLowPrecisionRealizationAdmissionDecision::Realize;
+  admission.selectedCandidateID = profile.selectedCandidateID;
+  admission.pressureProfileContract = profile.contract;
+  admission.measurementEvidenceID = profile.measurementEvidenceID;
+  admission.dispatchPolicyPath = profile.dispatchPolicyPath;
+  admission.diagnostic =
+      "source-backed production pressure profile accepted for selected-body "
+      "resource-aware realization";
+  return admission;
+}
+
 } // namespace
 
 RVVLowPrecisionSameTargetMeasurementRecord
@@ -2195,6 +2802,80 @@ llvm::Error verifyRVVLowPrecisionProductionPressureProfile(
                                                    dispatchBoundary, context);
   if (!profile)
     return profile.takeError();
+  return llvm::Error::success();
+}
+
+bool RVVLowPrecisionSelectedBodyRealizationAdmission::admitsRealization()
+    const {
+  return decision == RVVLowPrecisionRealizationAdmissionDecision::Realize;
+}
+
+llvm::StringRef stringifyRVVLowPrecisionRealizationAdmissionDecision(
+    RVVLowPrecisionRealizationAdmissionDecision decision) {
+  switch (decision) {
+  case RVVLowPrecisionRealizationAdmissionDecision::Realize:
+    return "realize";
+  case RVVLowPrecisionRealizationAdmissionDecision::Defer:
+    return "defer";
+  case RVVLowPrecisionRealizationAdmissionDecision::Deny:
+    return "deny";
+  }
+  return "unknown";
+}
+
+llvm::Expected<RVVLowPrecisionSelectedBodyRealizationAdmission>
+admitRVVLowPrecisionSelectedBodyRealization(
+    const RVVLowPrecisionContractionResourceCandidate &candidate,
+    const RVVLowPrecisionProductionPressureProfile *profile,
+    llvm::StringRef context) {
+  if (!profile)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " selected-body realization admission requires source-backed "
+        "production pressure profile before resource-aware realization");
+  if (llvm::Error error =
+          verifyProductionPressureProfileAgainstCandidate(candidate, *profile,
+                                                         context))
+    return std::move(error);
+  return makeSelectedBodyRealizationAdmission(*profile);
+}
+
+llvm::Expected<RVVLowPrecisionSelectedBodyRealizationAdmission>
+admitRVVLowPrecisionSelectedBodyRealization(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionProductionPressureProfile *profile,
+    llvm::StringRef context) {
+  if (!profile)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " selected-body realization admission requires source-backed "
+        "production pressure profile before resource-aware realization");
+  if (llvm::Error error =
+          verifyProductionPressureProfileAgainstSelection(selection, *profile,
+                                                         context))
+    return std::move(error);
+  return makeSelectedBodyRealizationAdmission(*profile);
+}
+
+llvm::Error verifyRVVLowPrecisionSelectedBodyRealizationAdmission(
+    const RVVLowPrecisionContractionResourceCandidate &candidate,
+    const RVVLowPrecisionProductionPressureProfile *profile,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionSelectedBodyRealizationAdmission> admission =
+      admitRVVLowPrecisionSelectedBodyRealization(candidate, profile, context);
+  if (!admission)
+    return admission.takeError();
+  return llvm::Error::success();
+}
+
+llvm::Error verifyRVVLowPrecisionSelectedBodyRealizationAdmission(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionProductionPressureProfile *profile,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionSelectedBodyRealizationAdmission> admission =
+      admitRVVLowPrecisionSelectedBodyRealization(selection, profile, context);
+  if (!admission)
+    return admission.takeError();
   return llvm::Error::success();
 }
 

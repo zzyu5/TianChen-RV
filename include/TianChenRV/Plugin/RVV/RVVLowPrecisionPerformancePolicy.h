@@ -2,6 +2,7 @@
 #define TIANCHENRV_PLUGIN_RVV_RVVLOWPRECISIONPERFORMANCEPOLICY_H
 
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
+#include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
@@ -381,6 +382,26 @@ struct RVVLowPrecisionProductionPressureProfile {
   bool performancePreferredPathSelected = false;
 };
 
+enum class RVVLowPrecisionRealizationAdmissionDecision {
+  Realize,
+  Defer,
+  Deny,
+};
+
+struct RVVLowPrecisionSelectedBodyRealizationAdmission {
+  std::string admissionContract;
+  std::string admissionOwner;
+  RVVLowPrecisionRealizationAdmissionDecision decision =
+      RVVLowPrecisionRealizationAdmissionDecision::Deny;
+  std::string selectedCandidateID;
+  std::string pressureProfileContract;
+  std::string measurementEvidenceID;
+  std::string dispatchPolicyPath;
+  std::string diagnostic;
+
+  bool admitsRealization() const;
+};
+
 RVVLowPrecisionSameTargetMeasurementRecord
 buildRVVPackedI4Gate4SameTargetMeasurementRecord(
     const RVVLowPrecisionContractionResourceSelection &selection);
@@ -441,6 +462,31 @@ llvm::Error verifyRVVLowPrecisionProductionPressureProfile(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionSameTargetMeasurementRecord &record,
     const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context);
+
+llvm::StringRef stringifyRVVLowPrecisionRealizationAdmissionDecision(
+    RVVLowPrecisionRealizationAdmissionDecision decision);
+
+llvm::Expected<RVVLowPrecisionSelectedBodyRealizationAdmission>
+admitRVVLowPrecisionSelectedBodyRealization(
+    const RVVLowPrecisionContractionResourceCandidate &candidate,
+    const RVVLowPrecisionProductionPressureProfile *profile,
+    llvm::StringRef context);
+
+llvm::Expected<RVVLowPrecisionSelectedBodyRealizationAdmission>
+admitRVVLowPrecisionSelectedBodyRealization(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionProductionPressureProfile *profile,
+    llvm::StringRef context);
+
+llvm::Error verifyRVVLowPrecisionSelectedBodyRealizationAdmission(
+    const RVVLowPrecisionContractionResourceCandidate &candidate,
+    const RVVLowPrecisionProductionPressureProfile *profile,
+    llvm::StringRef context);
+
+llvm::Error verifyRVVLowPrecisionSelectedBodyRealizationAdmission(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionProductionPressureProfile *profile,
     llvm::StringRef context);
 
 llvm::StringRef stringifyRVVLowPrecisionPerformanceMeasurementDiagnosisKind(

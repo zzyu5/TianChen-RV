@@ -7,6 +7,7 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 #include "TianChenRV/Plugin/RVV/RVVComputedMaskMAccSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
+#include "TianChenRV/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCContractionRouteFamilyPlanOwners.h"
@@ -10801,6 +10802,165 @@ module {
               !packedI4PressureProfile->performancePreferredPathSelected,
           "packed-i4 Gate 1 production pressure profile ties provider "
           "resource, primitive, measurement, and selected-dispatch facts"))
+    return result;
+
+  auto packedI4RealizationAdmission =
+      tianchenrv::plugin::rvv::admitRVVLowPrecisionSelectedBodyRealization(
+          packedI4ResourceSelection, &*packedI4PressureProfile,
+          "selected-dispatch packed-i4 Gate 1 selected-body realization "
+          "admission");
+  if (!packedI4RealizationAdmission)
+    return fail("packed-i4 Gate 1 selected-body realization admission: " +
+                llvm::toString(packedI4RealizationAdmission.takeError()));
+  if (int result = expect(
+          packedI4RealizationAdmission->admitsRealization() &&
+              packedI4RealizationAdmission->decision ==
+                  tianchenrv::plugin::rvv::
+                      RVVLowPrecisionRealizationAdmissionDecision::Realize &&
+              packedI4RealizationAdmission->admissionContract ==
+                  "rvv-low-precision-selected-body-realization-admission.v1" &&
+              packedI4RealizationAdmission->selectedCandidateID ==
+                  packedI4ResourceSelection.selectedCandidateID &&
+              packedI4RealizationAdmission->pressureProfileContract ==
+                  packedI4PressureProfile->contract &&
+              packedI4RealizationAdmission->measurementEvidenceID ==
+                  acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
+              packedI4RealizationAdmission->dispatchPolicyPath ==
+                  "correctness-fallback",
+          "packed-i4 Gate 1 selected-body realization admission consumes "
+          "source-backed pressure profile facts before Gearbox realization"))
+    return result;
+
+  mlir::OwningOpRef<mlir::ModuleOp> admissionModule =
+      parseModule(context, sourceWithPrimitiveResourceFacts);
+  if (!admissionModule)
+    return fail("packed-i4 Gate 1 realization admission fixture failed to "
+                "parse");
+  KernelOp admissionKernel =
+      findKernel(*admissionModule,
+                 "rvv_pre_realized_contraction_route_entry_kernel");
+  if (!admissionKernel)
+    return fail("packed-i4 Gate 1 realization admission fixture missing "
+                "kernel");
+  TargetCapabilitySet admissionCapabilities =
+      TargetCapabilitySet::buildFromKernel(admissionKernel);
+  VariantOp admissionVariant =
+      findVariant(admissionKernel,
+                  "rvv_pre_route_product_reduce_dequantize_packed_i4");
+  if (!admissionVariant)
+    return fail("packed-i4 Gate 1 realization admission fixture missing "
+                "packed-i4 variant");
+  mlir::Operation *admissionBody = findFirstNestedOp(
+      admissionVariant,
+      "tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body");
+  if (!admissionBody)
+    return fail("packed-i4 Gate 1 realization admission fixture missing "
+                "pre-realized body");
+  mlir::OpBuilder admissionBuilder(admissionModule->getContext());
+  auto admittedRealization =
+      tianchenrv::plugin::rvv::realizePreRealizedRVVContractionOwner(
+          VariantLoweringBoundaryRequest(
+              admissionVariant, admissionKernel, admissionCapabilities,
+              VariantEmissionRole::DirectVariant, admissionBuilder),
+          admissionBody, *packedI4PressureProfile);
+  if (!admittedRealization)
+    return fail("packed-i4 Gate 1 owner admission realization failed: " +
+                llvm::toString(admittedRealization.takeError()));
+  auto admissionContractAttr =
+      admittedRealization->getOperation()->getAttrOfType<mlir::StringAttr>(
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceRealizationAdmissionContractAttrName);
+  auto admissionDecisionAttr =
+      admittedRealization->getOperation()->getAttrOfType<mlir::StringAttr>(
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceRealizationAdmissionDecisionAttrName);
+  auto admissionEvidenceAttr =
+      admittedRealization->getOperation()->getAttrOfType<mlir::StringAttr>(
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceRealizationAdmissionEvidenceAttrName);
+  if (int result = expect(
+          admissionContractAttr &&
+              admissionContractAttr.getValue() ==
+                  "rvv-low-precision-selected-body-realization-admission.v1" &&
+              admissionDecisionAttr &&
+              admissionDecisionAttr.getValue() == "realize" &&
+              admissionEvidenceAttr &&
+              admissionEvidenceAttr.getValue() ==
+                  acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID,
+          "packed-i4 Gate 1 owner overload materializes realization "
+          "admission mirrors on the realized selected body"))
+    return result;
+
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionSelectedBodyRealizationAdmission(
+                  packedI4ResourceSelection, nullptr,
+                  "selected-dispatch packed-i4 Gate 1 missing realization "
+                  "pressure profile"),
+          {"selected-body realization admission",
+           "requires source-backed production pressure profile"}))
+    return result;
+
+  auto staleAdmissionRuntimeProfile = *packedI4PressureProfile;
+  staleAdmissionRuntimeProfile.runtimeABIOrder = "lhs,rhs,out,n";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionSelectedBodyRealizationAdmission(
+                  packedI4ResourceSelection, &staleAdmissionRuntimeProfile,
+                  "selected-dispatch packed-i4 Gate 1 stale admission "
+                  "runtime ABI"),
+          {"runtime ABI order", "lhs,rhs,out,n",
+           packedI4ResourceSelection.runtimeABIOrder}))
+    return result;
+
+  auto metadataOnlyAdmissionProfile = *packedI4PressureProfile;
+  metadataOnlyAdmissionProfile.providerSupportedMirror =
+      "metadata-only-provider-supported-mirror";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionSelectedBodyRealizationAdmission(
+                  packedI4ResourceSelection, &metadataOnlyAdmissionProfile,
+                  "selected-dispatch packed-i4 Gate 1 metadata-only "
+                  "admission mirror"),
+          {"metadata-only pressure fact", "provider-supported mirror"}))
+    return result;
+
+  auto staleRouteFamilyAdmissionProfile = *packedI4PressureProfile;
+  staleRouteFamilyAdmissionProfile.routeFamilyPlan =
+      "stale-low-precision-route-family-plan";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionSelectedBodyRealizationAdmission(
+                  packedI4ResourceSelection, &staleRouteFamilyAdmissionProfile,
+                  "selected-dispatch packed-i4 Gate 1 stale route-family "
+                  "admission"),
+          {"route-family plan", "stale-low-precision-route-family-plan",
+           packedI4ResourceSelection.routeFamilyPlanID}))
+    return result;
+
+  auto staleDispatchAdmissionProfile = *packedI4PressureProfile;
+  staleDispatchAdmissionProfile.selectedCaseVariant =
+      "pre_realized_body_rvv_product_reduce_dequantize_sibling";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionSelectedBodyRealizationAdmission(
+                  packedI4ResourceSelection, &staleDispatchAdmissionProfile,
+                  "selected-dispatch packed-i4 Gate 1 stale selected case "
+                  "admission"),
+          {"selected dispatch case variant",
+           "pre_realized_body_rvv_product_reduce_dequantize_sibling",
+           packedI4PressureProfile->sourceSelectedVariant}))
+    return result;
+
+  auto labelOnlyAdmissionProfile = *packedI4PressureProfile;
+  labelOnlyAdmissionProfile.pressureProfileLabel =
+      "q8-label-only-pressure-profile";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionSelectedBodyRealizationAdmission(
+                  packedI4ResourceSelection, &labelOnlyAdmissionProfile,
+                  "selected-dispatch packed-i4 Gate 1 label-only admission"),
+          {"label-only q8/q4", "pressure profile label"}))
     return result;
 
   auto packedI4RecordPressureProfile =

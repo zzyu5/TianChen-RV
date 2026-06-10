@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, RVV Stage 2 selected-body realization boundary, and Common EmitC neutrality"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, low-precision primitive facts, selected-body realization, and fail-closed provider contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC route responsibility and provider-owned route value contract"}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused test and evidence policy for MLIR/C++ changes"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h", "reason": "Added low-precision selected-body realization admission model and candidate/selection admission APIs"}
+{"file": "lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp", "reason": "Implemented source-backed production pressure-profile admission validation and fail-closed provenance checks"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h", "reason": "Added realization admission mirror attrs to the low-precision resource attr surface"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.h", "reason": "Added pressure-profile overload for contraction selected-body realization admission"}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Wired admission consumption into the low-precision product-reduction realization boundary before resource-aware body materialization"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Added focused Gate 1 admission success, owner-consumption, and fail-closed provenance coverage"}

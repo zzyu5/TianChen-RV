@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the change preserves the RVV-first authority chain and Stage 2 selected-body realization scope"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify admission consumes typed/provider facts without turning metadata, route ids, or artifacts into authority"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC/export remains neutral and only carries provider payloads or mirrors"}
+{"file": ".trellis/spec/testing/index.md", "reason": "Verify focused C++ coverage and bounded regression checks are appropriate"}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Focused binary rebuilt and executed successfully after admission API and owner wiring changes"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Validates existing RVV plugin coverage plus new Gate 1 admission success and fail-closed checks"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h", "reason": "Checked public admission model and API surface"}
+{"file": "lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp", "reason": "Checked fail-closed pressure-profile admission validation"}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Checked owner admission consumption before low-precision resource-aware realization"}
