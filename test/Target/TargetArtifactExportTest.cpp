@@ -14080,6 +14080,19 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-derived-packed-operands"}))
     return false;
 
+  RVVRouteDescription stalePackedI4ResourcePrimitiveProductSEW =
+      packedI4ProductDequantDescription;
+  stalePackedI4ResourcePrimitiveProductSEW.lowPrecisionResourceSelection
+      .productSEW = 32;
+  if (!expectWideningDotProviderFailure(
+          packedI4ProductDequantFixture.candidate,
+          packedI4ProductDequantRoute,
+          stalePackedI4ResourcePrimitiveProductSEW,
+          "packed-i4 product-reduction registry rejects stale resource "
+          "primitive product SEW",
+          {"resource primitive product SEW", "16", "32"}))
+    return false;
+
   RVVRouteDescription stalePackedI4PlanningContract =
       packedI4ProductDequantDescription;
   stalePackedI4PlanningContract.lowPrecisionResourceSelection.planningContract =

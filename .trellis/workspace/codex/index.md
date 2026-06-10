@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-28.md`
-- **Total Sessions**: 576
+- **Active File**: `journal-29.md`
+- **Total Sessions**: 577
 - **Last Active**: 2026-06-10
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-28.md` | ~1980 | Active |
+| `journal-29.md` | ~60 | Active |
+| `journal-28.md` | ~1980 | Archived |
 | `journal-27.md` | ~1982 | Archived |
 | `journal-26.md` | ~1976 | Archived |
 | `journal-25.md` | ~1968 | Archived |
@@ -56,6 +57,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 577 | 2026-06-10 | Stage2 RVV low-precision contraction primitive Gate 1 | created-after-journal-entry | `main` |
 | 576 | 2026-06-10 | Stage2 RVV Gate 4 target-artifact policy mirror closure | `b7b30d94` | `main` |
 | 575 | 2026-06-10 | Stage2 RVV same-target measurement Gate 4 audit | `this commit` | `main` |
 | 574 | 2026-06-10 | Session 584: Packed-i4 remediation Gate 4 policy consumption | pending-gate4-closeout | `main` |

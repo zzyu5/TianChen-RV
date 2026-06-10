@@ -3936,6 +3936,67 @@ llvm::Error validateRVVLowPrecisionPrimitiveChainResourceProviderFacts(
         " requires provider-owned low-precision resource and "
         "widening-reduction primitive facts before artifact export");
   if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "resource primitive source dtype",
+          selection.sourceElementTypeName, primitive.sourceElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "resource primitive source signedness",
+          selection.sourceSignedness, primitive.sourceSignedness))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "resource primitive source SEW",
+          selection.sourceSEW, primitive.sourceSEW))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "resource primitive source LMUL",
+          selection.sourceLMUL, primitive.sourceLMUL))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "resource primitive product dtype",
+          selection.productElementTypeName, primitive.productElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "resource primitive product SEW",
+          selection.productSEW, primitive.productSEW))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "resource primitive product LMUL",
+          selection.productLMUL, primitive.productLMUL))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "resource primitive accumulator dtype",
+          selection.accumulatorElementTypeName,
+          primitive.accumulatorElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "resource primitive accumulator SEW",
+          selection.accumulatorSEW, primitive.accumulatorSEW))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "resource primitive accumulator LMUL",
+          selection.accumulatorLMUL, primitive.accumulatorLMUL))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "resource primitive reduction result dtype",
+          selection.accumulatorElementTypeName,
+          primitive.reductionResultElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel,
+          "resource primitive reduction result SEW",
+          selection.accumulatorSEW, primitive.reductionResultSEW))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "resource primitive reduction result LMUL",
+          selection.accumulatorLMUL, primitive.reductionResultLMUL))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "resource primitive final result dtype",
+          selection.resultElementTypeName, primitive.finalResultElementTypeName))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "resource primitive contract",
           selection.primitiveContractID,
           primitive.lowPrecisionPrimitiveContractID))

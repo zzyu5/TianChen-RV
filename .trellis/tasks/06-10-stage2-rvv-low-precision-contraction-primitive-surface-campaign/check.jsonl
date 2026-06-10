@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the completed slice remains RVV Stage 2 typed low-precision coverage work."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify RVV plugin/provider facts, diagnostics, and tests are authoritative."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC/export did not invent RVV primitive semantics."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify Gate 1 did not claim Gate 2-4 selected-realization or performance policy completion."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Verify focused test, bounded scan, and evidence expectations were met."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Review target/capability handling against capability-first boundaries."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Review plugin-local ownership of new primitive facts."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Review no descriptor, frontend, or generated-string compute authority was introduced."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Passed after adding target provider-facts validation for stale low-precision resource primitive surface fields."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Passed after target validation hardening to confirm adjacent RVV provider behavior remains stable."}
+{"file": ".trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-campaign/task.json", "reason": "Trellis task validation passed after PRD/context updates."}
+{"file": ".trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-campaign/check.jsonl", "reason": "git diff --check passed before task/journal finalization."}
