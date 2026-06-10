@@ -13555,6 +13555,42 @@ bool expectRVVTargetArtifactExporterShape(
            "fallback mirror"}))
     return false;
 
+  constexpr llvm::StringLiteral staleProviderSelectedDispatchCaseMirror(
+      "selected_dispatch_case_mirror:@rvv_pre_route_product_reduce_dequantize_"
+      "packed_i4_sibling;role=dispatch case;runtime_guard_required=false;"
+      "runtime_guard=none;origin=rvv-plugin;policy=target-artifact-packed-i4-"
+      "product-reduction-dequant-case");
+  TargetArtifactCandidate staleProviderSelectedDispatchCaseCandidate =
+      selectedDispatchPackedI4Candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleProviderSelectedDispatchCaseCandidate,
+          "tcrv_rvv.selected_dispatch_case_mirror",
+          staleProviderSelectedDispatchCaseMirror)) {
+    llvm::errs() << "selected-dispatch packed-i4 target test did not contain "
+                    "case mirror metadata for stale provider test\n";
+    return false;
+  }
+  RVVRouteDescription staleProviderSelectedDispatchCaseDescription =
+      selectedDispatchPackedI4Description;
+  staleProviderSelectedDispatchCaseDescription.selectedDispatchCaseMirror =
+      staleProviderSelectedDispatchCaseMirror.str();
+  staleProviderSelectedDispatchCaseDescription
+      .lowPrecisionSelectedDispatchPolicyBoundary.selectedDispatchCaseMirror =
+      staleProviderSelectedDispatchCaseMirror.str();
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  RVVRouteValidationContext{
+                      staleProviderSelectedDispatchCaseCandidate,
+                      packedI4ProductDequantRoute,
+                      staleProviderSelectedDispatchCaseDescription}),
+          "packed-i4 target artifact rejects stale provider selected-dispatch "
+          "case mirror even when candidate metadata matches it",
+          {"case mirror", "provider-owned selected-dispatch case variant",
+           "rvv_pre_route_product_reduce_dequantize_packed_i4",
+           "rvv_pre_route_product_reduce_dequantize_packed_i4_sibling"}))
+    return false;
+
   RVVRouteDescription missingSelectedDispatchFallbackBoundary =
       selectedDispatchPackedI4Description;
   missingSelectedDispatchFallbackBoundary

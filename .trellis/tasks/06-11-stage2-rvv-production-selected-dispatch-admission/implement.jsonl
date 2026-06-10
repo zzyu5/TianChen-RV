@@ -1,0 +1,16 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV Stage 2 RVV authority and architecture boundary"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV low-precision, packed-i4 no-win, selected-dispatch performance policy contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built route and target mirror authority boundaries"}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused compiler/test evidence policy"}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Dispatch/performance admission must stay capability/provider fact driven"}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "RVV selected-dispatch hardening must stay plugin-local"}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Avoid moving RVV compute semantics into core/common layers"}
+{"file": ".trellis/tasks/archive/2026-06/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1/prd.md", "reason": "Previous packed-i4 Gate 4 no-win closure and continuation state"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h", "reason": "Policy handoff API surface"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Selected-dispatch boundary structure and route description fields"}
+{"file": "lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp", "reason": "Gate 1 policy-to-dispatch production hardening"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Real tcrv.exec dispatch/fallback fact collection and mirror formatting"}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Target artifact mirror consumer boundary"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused RVV policy/provider regression coverage"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Focused target artifact mirror regression coverage"}
+{"file": "test/Target/RVV/selected-dispatch-fallback-envelope-scalar-broadcast-macc-negative.mlir", "reason": "Existing selected-dispatch/fallback envelope lit coverage"}

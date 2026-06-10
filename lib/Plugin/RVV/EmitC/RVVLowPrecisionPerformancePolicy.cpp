@@ -197,6 +197,88 @@ llvm::Error rejectNoWinDispatchPerformancePreferenceMarker(
       "performance-preferred dispatch without measured-win evidence");
 }
 
+llvm::Error requireSelectedDispatchMirrorToken(llvm::StringRef context,
+                                               llvm::StringRef mirrorLabel,
+                                               llvm::StringRef mirror,
+                                               llvm::StringRef factLabel,
+                                               const llvm::Twine &token) {
+  std::string tokenStorage = token.str();
+  if (mirror.contains(tokenStorage))
+    return llvm::Error::success();
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) + " requires " + mirrorLabel + " to mirror " +
+      factLabel + " token '" + tokenStorage + "' but found '" + mirror + "'");
+}
+
+llvm::Error verifyRVVLowPrecisionSelectedDispatchMirrorTieBack(
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  if (llvm::Error error = requireSelectedDispatchMirrorToken(
+          context, "selected dispatch case mirror",
+          dispatchBoundary.selectedDispatchCaseMirror,
+          "selected-dispatch case variant",
+          llvm::Twine("selected_dispatch_case_mirror:@") +
+              dispatchBoundary.selectedCaseVariant + ";"))
+    return error;
+  if (llvm::Error error = requireSelectedDispatchMirrorToken(
+          context, "selected dispatch case mirror",
+          dispatchBoundary.selectedDispatchCaseMirror, "selected case role",
+          llvm::Twine("role=") + dispatchBoundary.selectedCaseRole))
+    return error;
+  if (llvm::Error error = requireSelectedDispatchMirrorToken(
+          context, "selected dispatch case mirror",
+          dispatchBoundary.selectedDispatchCaseMirror, "runtime guard flag",
+          llvm::Twine("runtime_guard_required=") +
+              (dispatchBoundary.runtimeGuardRequired ? "true" : "false")))
+    return error;
+  if (llvm::Error error = requireNonEmptyPolicyString(
+          context, "selected dispatch runtime guard mirror fact",
+          dispatchBoundary.runtimeGuard))
+    return error;
+  if (llvm::Error error = requireSelectedDispatchMirrorToken(
+          context, "selected dispatch case mirror",
+          dispatchBoundary.selectedDispatchCaseMirror, "runtime guard",
+          llvm::Twine("runtime_guard=") + dispatchBoundary.runtimeGuard))
+    return error;
+  if (llvm::Error error = requireSelectedDispatchMirrorToken(
+          context, "selected dispatch case mirror",
+          dispatchBoundary.selectedDispatchCaseMirror, "selected case origin",
+          llvm::Twine("origin=") + dispatchBoundary.selectedCaseOrigin))
+    return error;
+  if (llvm::Error error = requireSelectedDispatchMirrorToken(
+          context, "selected dispatch case mirror",
+          dispatchBoundary.selectedDispatchCaseMirror, "selected case policy",
+          llvm::Twine("policy=") + dispatchBoundary.selectedCasePolicy))
+    return error;
+
+  if (llvm::Error error = requireSelectedDispatchMirrorToken(
+          context, "selected dispatch fallback mirror",
+          dispatchBoundary.selectedDispatchFallbackMirror, "fallback variant",
+          llvm::Twine("selected_dispatch_fallback_mirror:@") +
+              dispatchBoundary.fallbackVariant + ";"))
+    return error;
+  if (llvm::Error error = requireSelectedDispatchMirrorToken(
+          context, "selected dispatch fallback mirror",
+          dispatchBoundary.selectedDispatchFallbackMirror,
+          "fallback path role",
+          llvm::Twine("role=") + dispatchBoundary.fallbackPathRole))
+    return error;
+  if (llvm::Error error = requireSelectedDispatchMirrorToken(
+          context, "selected dispatch fallback mirror",
+          dispatchBoundary.selectedDispatchFallbackMirror, "fallback role",
+          llvm::Twine("fallback_role=") + dispatchBoundary.fallbackRole))
+    return error;
+  if (llvm::Error error = requireSelectedDispatchMirrorToken(
+          context, "selected dispatch fallback mirror",
+          dispatchBoundary.selectedDispatchFallbackMirror, "fallback origin",
+          llvm::Twine("origin=") + dispatchBoundary.fallbackOrigin))
+    return error;
+  return requireSelectedDispatchMirrorToken(
+      context, "selected dispatch fallback mirror",
+      dispatchBoundary.selectedDispatchFallbackMirror, "fallback policy",
+      llvm::Twine("policy=") + dispatchBoundary.fallbackPolicy);
+}
+
 llvm::Error rejectPressureProfileMarkerOnlyFacts(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
@@ -2531,7 +2613,8 @@ llvm::Error verifyRVVLowPrecisionSelectedDispatchBoundary(
           llvm::Twine(context) +
           " performance-preferred selected-dispatch policy requires the "
           "performance-preferred dispatch path");
-    return llvm::Error::success();
+    return verifyRVVLowPrecisionSelectedDispatchMirrorTieBack(dispatchBoundary,
+                                                            context);
   }
   if (!decision.correctnessFallbackPathSelected ||
       decision.dispatchPolicyPath != kPackedI4CorrectnessFallbackPolicyPath)
@@ -2539,8 +2622,12 @@ llvm::Error verifyRVVLowPrecisionSelectedDispatchBoundary(
         llvm::Twine(context) +
         " no-win/regression selected-dispatch policy requires the "
         "correctness-fallback dispatch path");
-  return verifyNoWinSelectedDispatchPreferenceDenial(decision, dispatchBoundary,
-                                                    context);
+  if (llvm::Error error =
+          verifyNoWinSelectedDispatchPreferenceDenial(decision,
+                                                     dispatchBoundary, context))
+    return error;
+  return verifyRVVLowPrecisionSelectedDispatchMirrorTieBack(dispatchBoundary,
+                                                          context);
 }
 
 llvm::Expected<RVVLowPrecisionProductionPressureProfile>

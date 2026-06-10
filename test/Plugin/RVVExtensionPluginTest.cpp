@@ -11024,6 +11024,32 @@ module {
            "performance-preferred dispatch"}))
     return result;
 
+  auto staleSelectedCaseMirrorBoundary = packedI4SelectedDispatchBoundary;
+  staleSelectedCaseMirrorBoundary.selectedDispatchCaseMirror =
+      "selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_"
+      "dequantize_sibling;role=dispatch case;runtime_guard_required=false;"
+      "runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-"
+      "widening-product-reduce-dequantize-f32-case";
+  if (int result = expectPackedI4SelectedDispatchPolicyError(
+          staleSelectedCaseMirrorBoundary,
+          {"selected dispatch case mirror", "selected-dispatch case variant",
+           "pre_realized_body_rvv_product_reduce_dequantize",
+           "pre_realized_body_rvv_product_reduce_dequantize_sibling"}))
+    return result;
+
+  auto staleSelectedFallbackMirrorBoundary = packedI4SelectedDispatchBoundary;
+  staleSelectedFallbackMirrorBoundary.selectedDispatchFallbackMirror =
+      "selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback_"
+      "sibling;role=dispatch fallback;fallback_role=conservative;"
+      "origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-"
+      "reduce-dequantize-f32-fallback-envelope";
+  if (int result = expectPackedI4SelectedDispatchPolicyError(
+          staleSelectedFallbackMirrorBoundary,
+          {"selected dispatch fallback mirror", "fallback variant",
+           "pre_realized_body_scalar_fallback",
+           "pre_realized_body_scalar_fallback_sibling"}))
+    return result;
+
   auto acceptedPackedI4PolicyInputOr =
       tianchenrv::plugin::rvv::
           buildRVVLowPrecisionSameTargetMeasurementPolicyInput(

@@ -1,0 +1,9 @@
+{"check": "cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2", "result": "passed; target artifact build emitted existing switch/unused-function warnings unrelated to this slice"}
+{"check": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "initially failed after the mirror tie-back check preempted an existing no-win performance-preferred diagnostic; moved mirror tie-back after no-win marker validation and then passed"}
+{"check": "build/bin/tianchenrv-target-artifact-export-test", "result": "initially failed because the stale provider mirror negative test still passed; added target-side provider-boundary mirror tie-back, tightened variant token matching with a semicolon boundary, then passed"}
+{"check": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter selected-dispatch", "cwd": "build/test", "result": "passed 1/1 selected-dispatch lit test"}
+{"check": "bounded old-authority scan over added diff lines", "result": "passed: no added RVVI32M1, rvv-i32m1, tcrv_rvv.i32_, !tcrv_rvv.i32m, __riscv_*_i32m1, source-front-door, source-artifact, descriptor, emission_plan, or status=supported authority strings"}
+{"check": "bounded production-file old-authority scan", "result": "noted existing untouched target validation strings at lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp:5129 and :5762 for exact i32m1 intrinsic checks; no new production old-authority strings were added"}
+{"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-production-selected-dispatch-admission", "result": "passed"}
+{"check": "git diff --check", "result": "passed"}
+{"check": "git diff --cached --check", "result": "passed"}

@@ -6537,6 +6537,26 @@ llvm::Error validateRVVLowPrecisionSelectedDispatchCandidateMirrors(
         "widening dot-reduction target artifact consumer requires "
         "provider-owned selected-dispatch low-precision policy boundary case "
         "facts before validating selected dispatch artifact mirrors");
+  auto requireBoundaryMirrorToken =
+      [&](llvm::StringRef mirrorLabel, llvm::StringRef mirror,
+          llvm::StringRef factLabel, const llvm::Twine &token) -> llvm::Error {
+    std::string tokenStorage = token.str();
+    if (mirror.contains(tokenStorage))
+      return llvm::Error::success();
+    return makeRVVTargetRouteError(
+        llvm::Twine("widening dot-reduction target artifact consumer requires ") +
+        mirrorLabel + " to mirror provider-owned selected-dispatch " +
+        factLabel + " token '" + tokenStorage + "' but found '" + mirror + "'");
+  };
+  if (llvm::Error error = requireBoundaryMirrorToken(
+          "case mirror", boundary.selectedDispatchCaseMirror,
+          "case variant", llvm::Twine("selected_dispatch_case_mirror:@") +
+                              boundary.selectedCaseVariant + ";"))
+    return error;
+  if (llvm::Error error = requireBoundaryMirrorToken(
+          "case mirror", boundary.selectedDispatchCaseMirror, "case policy",
+          llvm::Twine("policy=") + boundary.selectedCasePolicy))
+    return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.selected_dispatch_case_mirror",
           boundary.selectedDispatchCaseMirror,
@@ -6551,6 +6571,16 @@ llvm::Error validateRVVLowPrecisionSelectedDispatchCandidateMirrors(
         "provider-owned selected-dispatch low-precision policy boundary "
         "fallback facts before validating conservative fallback artifact "
         "mirrors");
+  if (llvm::Error error = requireBoundaryMirrorToken(
+          "fallback mirror", boundary.selectedDispatchFallbackMirror,
+          "fallback variant",
+          llvm::Twine("selected_dispatch_fallback_mirror:@") +
+              boundary.fallbackVariant + ";"))
+    return error;
+  if (llvm::Error error = requireBoundaryMirrorToken(
+          "fallback mirror", boundary.selectedDispatchFallbackMirror,
+          "fallback policy", llvm::Twine("policy=") + boundary.fallbackPolicy))
+    return error;
   return requireCandidateMetadataMirror(
       candidate, "tcrv_rvv.selected_dispatch_fallback_mirror",
       boundary.selectedDispatchFallbackMirror,

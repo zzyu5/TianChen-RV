@@ -895,6 +895,62 @@ Completed a Gate 4 slice for the active RVV low-precision macro task: primitive 
 - None - task complete
 
 
+## Session 581: Stage2 RVV selected-dispatch performance admission Gate 1
+
+**Date**: 2026-06-11
+**Task**: 06-11-stage2-rvv-production-selected-dispatch-admission
+**Branch**: `main`
+
+### Summary
+
+Created the macro Trellis task for the Stage2 RVV production-kernel
+selected-dispatch performance-admission campaign and completed the Gate 1
+selected-dispatch provider-mirror hardening slice.
+
+### Main Changes
+
+- Added `RVVLowPrecisionPerformancePolicy` validation that selected-dispatch
+  case/fallback mirrors must tie back to the structured dispatch boundary
+  fields collected from the real `tcrv.exec.dispatch` envelope.
+- Added target artifact validation so candidate metadata cannot validate a
+  stale provider selected-dispatch mirror merely by matching it exactly.
+- Added RVV plugin and target artifact regression tests for stale provider case
+  and fallback mirror handoffs.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the executable
+  selected-dispatch mirror tie-back contract.
+- Recorded the macro PRD, checks, and continuation point; the task remains
+  active for Gates 2-4.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv .
+  --filter selected-dispatch` from `build/test` passed 1/1
+- [OK] `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-11-stage2-rvv-production-selected-dispatch-admission`
+- [OK] `git diff --check`
+- [OK] Bounded added-line old-authority scan found no new legacy RVV authority
+  strings
+
+### Status
+
+[OPEN MACRO TASK] Gate 1 current slice complete. Gates 2-4 remain open. No
+fresh `ssh rvv` evidence was required because this slice changes validation and
+diagnostics only, not generated runtime behavior, correctness behavior, or
+performance claims.
+
+### Continuation
+
+Next continuation point: Gate 2 should carry one concrete low-precision or
+contraction pressure path's policy output into selected-dispatch/fallback
+behavior through provider-owned facts, without artifact metadata, route id,
+q8/q4 label, or test-name authority.
+
+
 ## Session 581: Gate 4 packed-i4 dequant-clamp no-win policy audit
 
 **Date**: 2026-06-10

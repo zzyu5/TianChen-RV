@@ -7470,6 +7470,13 @@ performance-preferred
   handoff is accepted. If the record is stale, resolver variants preserve the
   original stale measurement diagnostic instead of replacing it with a generic
   dispatch-boundary error.
+- Selected-dispatch case/fallback mirrors are provider-produced mirrors of the
+  structured boundary facts, not independent dispatch authority. The policy
+  boundary and target artifact consumer must reject a mirror unless it ties back
+  to the same selected case variant, case role, runtime guard flag/value, case
+  origin, case policy, fallback variant, fallback path role, fallback role,
+  fallback origin, and fallback policy already collected from the real
+  `tcrv.exec.dispatch` envelope.
 - The current accepted Gate 4 packed-i4 regression/no-win outcome must set:
 
   ```text
@@ -7638,6 +7645,10 @@ performance-preferred
   artifact acceptance.
 - Route selection is illegal or rejected -> correctness fallback cannot claim
   route support; policy must keep performance preference denied.
+- A selected-dispatch case or fallback mirror names a sibling variant, stale
+  policy, stale runtime guard, stale origin, or stale fallback role while the
+  structured dispatch boundary carries different facts -> policy evaluation and
+  target artifact validation fail before the mirror can be accepted.
 
 ### 5. Good/Base/Bad Cases
 
@@ -7688,6 +7699,9 @@ performance-preferred
   verification.
 - Target artifact tests must assert stale performance-selection and dispatch
   mirrors fail closed before artifact acceptance.
+- Target artifact tests must assert stale provider selected-dispatch mirrors
+  fail closed even when candidate metadata mirrors the stale provider value
+  exactly.
 - Script self-tests and dry-run lit coverage must keep evidence-input reporting
   mirror-only and must not allow no-win/regression/not-measured evidence to
   authorize performance dispatch.
