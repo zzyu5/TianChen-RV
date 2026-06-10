@@ -57,6 +57,68 @@ or fallback behavior.
 
 Final coherent commit is created after this journal entry.
 
+## Session 581: Stage2 RVV production-kernel capability campaign Gate 1
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV production-kernel capability campaign
+**Branch**: `main`
+
+### Summary
+
+Created the new active macro task for the RVV production-kernel capability
+campaign and completed Gate 1 only. The completed slice adds a production
+pressure-profile boundary in the RVV low-precision performance-policy layer so
+provider-owned resource/Gearbox facts, typed low-precision primitive facts,
+runtime ABI facts, target capability mirrors, source-backed same-target
+measurement inputs, and selected-dispatch policy facts are validated together
+before selected-dispatch policy-input or measurement-record decisions return.
+
+### Main Changes
+
+- Added `RVVLowPrecisionProductionPressureProfile` and build/verify APIs to
+  the low-precision performance policy contract.
+- Added label-only q8/q4 and metadata-only pressure preflight rejection while
+  reusing the existing provider tie-back, sibling-route, stale measurement, and
+  selected-dispatch boundary validators.
+- Wired selected-dispatch policy-input and source-backed record overloads
+  through the pressure-profile materializer.
+- Added focused RVV plugin positive coverage and fail-closed coverage for
+  label-only authority, stale runtime ABI, stale primitive intrinsic, stale
+  schedule decision, metadata-only provider support, sibling-route measurement,
+  and stale selected-dispatch origin.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-production-kernel-capability-campaign`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded current-diff scan for legacy RVV route-authority markers returned
+  no matches.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] The existing RVV plugin, EmitC route, variant-pipeline, and
+testing specs already require provider-owned typed facts, same-target
+measurement records, selected-dispatch mirrors, and fail-closed stale or
+metadata-only rejection. This slice implements that existing contract as a
+production pressure-profile boundary; no new durable rule was discovered.
+
+### Status
+
+[OPEN MACRO TASK] Gate 1 is complete. Gates 2-4 remain open. The next
+continuation point is Gate 2: generated artifact and measurement workflow emits
+source-backed same-target comparison records for the representative pressure
+path on `ssh rvv`, using the production pressure-profile boundary as the
+policy/measurement input contract.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 580: Stage2 RVV low-precision contraction primitive Gate 4
 
 **Date**: 2026-06-10

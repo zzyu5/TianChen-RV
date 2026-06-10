@@ -261,6 +261,81 @@ struct RVVLowPrecisionPerformancePolicyDecision {
   std::string fallbackReason;
 };
 
+struct RVVLowPrecisionProductionPressureProfile {
+  std::string contract;
+  std::string authority;
+  std::string pressurePath;
+
+  std::string selectedCandidateID;
+  std::string measurementProviderCandidateID;
+  std::string resourcePlanningContract;
+  std::string resourceOperandForm;
+  std::string resourceSourceSignedness;
+  std::int64_t resourceStorageElementWidth = 0;
+  std::int64_t resourceEffectiveElementWidth = 0;
+  std::string resourcePackingLayout;
+  std::string resourceUnpackIntent;
+  std::int64_t vsetvlRegionCount = 0;
+  std::string runtimeAVLSource;
+  std::string runtimeABIOrder;
+  std::string routeFamilyPlan;
+  std::string providerSupportedMirror;
+
+  std::string primitiveChainContract;
+  std::string primitiveChainKind;
+  std::string primitiveContract;
+  std::string primitiveKind;
+  std::string primitiveSourceDType;
+  std::string primitiveSourceSignedness;
+  std::int64_t primitiveSourceSEW = 0;
+  std::string primitiveSourceLMUL;
+  std::string primitiveProductDType;
+  std::int64_t primitiveProductSEW = 0;
+  std::string primitiveProductLMUL;
+  std::string primitiveAccumulatorDType;
+  std::int64_t primitiveAccumulatorSEW = 0;
+  std::string primitiveAccumulatorLMUL;
+  std::string primitiveResultDType;
+  std::int64_t primitiveResultSEW = 0;
+  std::string primitiveResultLMUL;
+  std::string primitiveWideningProductRelation;
+  std::string primitiveProductReductionChainRelation;
+  std::string primitiveWideningProductIntrinsic;
+  std::string primitiveReductionIntrinsic;
+  std::string primitiveScalarSeedSplatIntrinsic;
+  std::string primitiveAccumulatorLayout;
+  std::string primitiveResultLayout;
+  std::string primitiveReductionStoreVL;
+
+  std::string scheduleDecisionContract;
+  std::string scheduleDecision;
+  std::string scheduleDecisionReason;
+  std::string targetProfile;
+  std::string targetCapabilityProviderMirror;
+  std::string targetCapabilityLegalityMirror;
+  std::string measurementEvidenceID;
+  std::string measurementClassification;
+  std::string measurementOutcomeFamily;
+  std::string measurementBestSpeedupRange;
+  std::int64_t measurementSummaryRecordCount = 0;
+  std::int64_t measurementRecordCount = 0;
+  std::int64_t correctnessRecordCount = 0;
+
+  std::string selectedDispatchCaseMirror;
+  std::string selectedDispatchFallbackMirror;
+  std::string selectedCaseVariant;
+  std::string fallbackVariant;
+
+  std::string dispatchPolicyPath;
+  std::string dispatchPreference;
+  bool routeSupportAllowed = false;
+  bool correctnessExecutionAllowed = false;
+  bool performanceSelectionAllowed = false;
+  bool performanceWinClaimAllowed = false;
+  bool correctnessFallbackPathSelected = false;
+  bool performancePreferredPathSelected = false;
+};
+
 RVVLowPrecisionSameTargetMeasurementRecord
 buildRVVPackedI4Gate4SameTargetMeasurementRecord(
     const RVVLowPrecisionContractionResourceSelection &selection);
@@ -295,6 +370,32 @@ llvm::Expected<RVVLowPrecisionPerformanceMeasurementOutcome>
 consumeRVVLowPrecisionSameTargetMeasurementPolicyInput(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    llvm::StringRef context);
+
+llvm::Expected<RVVLowPrecisionProductionPressureProfile>
+buildRVVLowPrecisionProductionPressureProfile(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context);
+
+llvm::Expected<RVVLowPrecisionProductionPressureProfile>
+buildRVVLowPrecisionProductionPressureProfile(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context);
+
+llvm::Error verifyRVVLowPrecisionProductionPressureProfile(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context);
+
+llvm::Error verifyRVVLowPrecisionProductionPressureProfile(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
     llvm::StringRef context);
 
 llvm::StringRef stringifyRVVLowPrecisionPerformanceMeasurementDiagnosisKind(

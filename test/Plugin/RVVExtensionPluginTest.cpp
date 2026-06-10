@@ -10599,6 +10599,171 @@ module {
           "packed-i4 Gate 3 bounded same-target measurement policy input "
           "preserves conservative fallback after provider facts match"))
     return result;
+  auto packedI4PressureProfile =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionProductionPressureProfile(
+              packedI4ResourceSelection, acceptedPackedI4PolicyInput,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 1 production pressure "
+              "profile");
+  if (!packedI4PressureProfile)
+    return fail("packed-i4 Gate 1 production pressure profile: " +
+                llvm::toString(packedI4PressureProfile.takeError()));
+  if (int result = expect(
+          packedI4PressureProfile->contract ==
+                  "rvv-low-precision-production-pressure-profile.v1" &&
+              packedI4PressureProfile->selectedCandidateID ==
+                  packedI4ResourceSelection.selectedCandidateID &&
+              packedI4PressureProfile->measurementProviderCandidateID ==
+                  packedI4ResourceSelection.selectedCandidateID &&
+              packedI4PressureProfile->resourceOperandForm ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourceOperandFormPackedI4Nibbles &&
+              packedI4PressureProfile->runtimeABIOrder ==
+                  packedI4ResourceSelection.runtimeABIOrder &&
+              packedI4PressureProfile->primitiveReductionIntrinsic ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePrimitiveReductionIntrinsic &&
+              packedI4PressureProfile->targetProfile == "ssh rvv" &&
+              packedI4PressureProfile->measurementEvidenceID ==
+                  acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
+              packedI4PressureProfile->selectedDispatchCaseMirror ==
+                  packedI4SelectedDispatchBoundary
+                      .selectedDispatchCaseMirror &&
+              packedI4PressureProfile->selectedDispatchFallbackMirror ==
+                  packedI4SelectedDispatchBoundary
+                      .selectedDispatchFallbackMirror &&
+              packedI4PressureProfile->correctnessFallbackPathSelected &&
+              !packedI4PressureProfile->performancePreferredPathSelected,
+          "packed-i4 Gate 1 production pressure profile ties provider "
+          "resource, primitive, measurement, and selected-dispatch facts"))
+    return result;
+
+  auto packedI4RecordPressureProfile =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionProductionPressureProfile(
+              packedI4ResourceSelection,
+              acceptedPackedI4Gate4MeasurementRecord,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 1 source-backed record "
+              "pressure profile");
+  if (!packedI4RecordPressureProfile)
+    return fail("packed-i4 Gate 1 source-backed record pressure profile: " +
+                llvm::toString(packedI4RecordPressureProfile.takeError()));
+  if (int result = expect(
+          packedI4RecordPressureProfile->measurementEvidenceID ==
+                  acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
+              packedI4RecordPressureProfile->measurementRecordCount ==
+                  acceptedPackedI4Gate4MeasurementRecord.measurementRecordCount,
+          "packed-i4 Gate 1 pressure profile can be built directly from the "
+          "source-backed same-target measurement record"))
+    return result;
+
+  auto labelOnlyPackedI4PressureInput = acceptedPackedI4PolicyInput;
+  labelOnlyPackedI4PressureInput.authority =
+      "q8/q4-label-only-pressure-profile";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionProductionPressureProfile(
+                  packedI4ResourceSelection, labelOnlyPackedI4PressureInput,
+                  packedI4SelectedDispatchBoundary,
+                  "selected-dispatch packed-i4 Gate 1 pressure rejects "
+                  "label-only authority"),
+          {"pressure-profile boundary", "label-only q8/q4",
+           "measurement authority"}))
+    return result;
+
+  auto staleRuntimePackedI4PressureInput = acceptedPackedI4PolicyInput;
+  staleRuntimePackedI4PressureInput.providerRuntimeABIOrder = "lhs,rhs,out,n";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionProductionPressureProfile(
+                  packedI4ResourceSelection, staleRuntimePackedI4PressureInput,
+                  packedI4SelectedDispatchBoundary,
+                  "selected-dispatch packed-i4 Gate 1 pressure rejects stale "
+                  "runtime ABI"),
+          {"provider runtime ABI order", "lhs,rhs,out,n",
+           "lhs,rhs,acc,scale,out,n"}))
+    return result;
+
+  auto stalePrimitivePackedI4PressureInput = acceptedPackedI4PolicyInput;
+  stalePrimitivePackedI4PressureInput.providerPrimitiveReductionIntrinsic =
+      "artifact-derived-vwredsum";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionProductionPressureProfile(
+                  packedI4ResourceSelection,
+                  stalePrimitivePackedI4PressureInput,
+                  packedI4SelectedDispatchBoundary,
+                  "selected-dispatch packed-i4 Gate 1 pressure rejects stale "
+                  "primitive intrinsic"),
+          {"provider primitive reduction intrinsic", "artifact-derived-vwredsum",
+           tianchenrv::plugin::rvv::
+               kRVVLowPrecisionResourcePrimitiveReductionIntrinsic}))
+    return result;
+
+  auto staleSchedulePackedI4PressureInput = acceptedPackedI4PolicyInput;
+  staleSchedulePackedI4PressureInput.providerScheduleDecision =
+      "stale-packed-i4-schedule-decision";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionProductionPressureProfile(
+                  packedI4ResourceSelection,
+                  staleSchedulePackedI4PressureInput,
+                  packedI4SelectedDispatchBoundary,
+                  "selected-dispatch packed-i4 Gate 1 pressure rejects stale "
+                  "schedule decision"),
+          {"provider schedule decision", "stale-packed-i4-schedule-decision",
+           tianchenrv::plugin::rvv::
+               kRVVLowPrecisionResourcePackedI4ScheduleDecision}))
+    return result;
+
+  auto metadataOnlyPackedI4PressureInput = acceptedPackedI4PolicyInput;
+  metadataOnlyPackedI4PressureInput.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionProductionPressureProfile(
+                  packedI4ResourceSelection,
+                  metadataOnlyPackedI4PressureInput,
+                  packedI4SelectedDispatchBoundary,
+                  "selected-dispatch packed-i4 Gate 1 pressure rejects "
+                  "metadata-only provider support"),
+          {"pressure-profile boundary", "metadata-only",
+           "provider-supported mirror"}))
+    return result;
+
+  auto siblingPackedI4PressureSelection = packedI4ResourceSelection;
+  siblingPackedI4PressureSelection.selectedCandidateID =
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourceDequantClampPackedI4Candidate.str();
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionProductionPressureProfile(
+                  siblingPackedI4PressureSelection, acceptedPackedI4PolicyInput,
+                  packedI4SelectedDispatchBoundary,
+                  "selected-dispatch packed-i4 Gate 1 pressure rejects "
+                  "sibling-route measurement"),
+          {"stale-sibling-route-measurement",
+           tianchenrv::plugin::rvv::
+               kRVVLowPrecisionResourceDequantPackedI4Candidate,
+           tianchenrv::plugin::rvv::
+               kRVVLowPrecisionResourceDequantClampPackedI4Candidate}))
+    return result;
+
+  auto staleDispatchPackedI4PressureBoundary =
+      packedI4SelectedDispatchBoundary;
+  staleDispatchPackedI4PressureBoundary.selectedCaseOrigin = "ime-plugin";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionProductionPressureProfile(
+                  packedI4ResourceSelection, acceptedPackedI4PolicyInput,
+                  staleDispatchPackedI4PressureBoundary,
+                  "selected-dispatch packed-i4 Gate 1 pressure rejects stale "
+                  "selected-dispatch origin"),
+          {"selected dispatch case origin", "rvv-plugin", "ime-plugin"}))
+    return result;
+
   auto packedI4SelectedDispatchRecordPolicy =
       tianchenrv::plugin::rvv::
           evaluateRVVLowPrecisionPerformancePolicy(

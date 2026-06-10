@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Verify the implementation preserves the RVV-first authority chain and Stage 2 campaign scope"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify pressure-profile facts remain RVV provider/realization owned and fail closed for stale facts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verify Common EmitC/export remains a neutral carrier of provider payloads and mirrors"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify the round advances production-kernel capability rather than evidence-only drift"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify same-target measurement and selected-dispatch evidence remain mirror-only and source-backed"}
+{"file": ".trellis/tasks/06-10-stage2-rvv-production-kernel-capability-campaign/prd.md", "reason": "Verify Gate 1 acceptance criteria and macro-task continuation state"}

@@ -38,6 +38,11 @@ constexpr llvm::StringLiteral kPackedI4CorrectnessFallbackPolicyPath(
     "correctness-fallback");
 constexpr llvm::StringLiteral kPackedI4PerformancePreferredPolicyPath(
     "performance-preferred");
+constexpr llvm::StringLiteral kProductionPressureProfileContract(
+    "rvv-low-precision-production-pressure-profile.v1");
+constexpr llvm::StringLiteral kProductionPressureProfileAuthority(
+    "selected-typed-rvv-provider-resource-facts-plus-source-backed-"
+    "same-target-measurement-and-selected-dispatch-policy-inputs");
 constexpr llvm::StringLiteral kDispatchCaseRoleValue("dispatch case");
 constexpr llvm::StringLiteral kDispatchFallbackRoleValue("dispatch fallback");
 constexpr llvm::StringLiteral kRVVPluginOriginValue("rvv-plugin");
@@ -115,6 +120,81 @@ llvm::Error requireNonEmptyPolicyString(llvm::StringRef context,
     return llvm::Error::success();
   return makeRVVLowPrecisionPerformancePolicyError(
       llvm::Twine(context) + " requires non-empty " + label);
+}
+
+bool containsPolicyMarker(llvm::StringRef value, llvm::StringRef marker) {
+  std::string lowerStorage = value.lower();
+  llvm::StringRef lower(lowerStorage);
+  return lower.contains(marker);
+}
+
+bool containsLabelOnlyPressureMarker(llvm::StringRef value) {
+  return containsPolicyMarker(value, "label-only") ||
+         containsPolicyMarker(value, "q8") ||
+         containsPolicyMarker(value, "q4") ||
+         containsPolicyMarker(value, "llama");
+}
+
+llvm::Error rejectLabelOnlyPressureMarker(llvm::StringRef context,
+                                          llvm::StringRef label,
+                                          llvm::StringRef value) {
+  if (!containsLabelOnlyPressureMarker(value))
+    return llvm::Error::success();
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) +
+      " pressure-profile boundary rejects label-only q8/q4 pressure marker in " +
+      label + " '" + value +
+      "'; typed tcrv_rvv/provider facts and source-backed measurement "
+      "tie-backs are required");
+}
+
+llvm::Error rejectMetadataOnlyPressureMarker(llvm::StringRef context,
+                                             llvm::StringRef label,
+                                             llvm::StringRef value) {
+  if (!containsPolicyMarker(value, "metadata-only"))
+    return llvm::Error::success();
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) +
+      " pressure-profile boundary rejects metadata-only pressure fact in " +
+      label + " '" + value +
+      "'; provider-owned facts must match the same-target measurement and "
+      "selected-dispatch policy inputs");
+}
+
+llvm::Error rejectPressureProfileMarkerOnlyFacts(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  struct Field {
+    llvm::StringRef label;
+    llvm::StringRef value;
+  };
+  Field fields[] = {
+      {"selection candidate", selection.selectedCandidateID},
+      {"selection reason", selection.selectionReason},
+      {"measurement authority", input.authority},
+      {"measurement evidence id", input.measurementEvidenceID},
+      {"measurement provider candidate",
+       input.providerResourceSelectedCandidate},
+      {"provider route-family plan", input.providerResourceRouteFamilyPlan},
+      {"provider-supported mirror", input.providerSupportedMirror},
+      {"selected-dispatch case variant", dispatchBoundary.selectedCaseVariant},
+      {"selected-dispatch case policy", dispatchBoundary.selectedCasePolicy},
+      {"selected-dispatch case mirror",
+       dispatchBoundary.selectedDispatchCaseMirror},
+      {"selected-dispatch fallback mirror",
+       dispatchBoundary.selectedDispatchFallbackMirror},
+  };
+  for (const Field &field : fields) {
+    if (llvm::Error error =
+            rejectLabelOnlyPressureMarker(context, field.label, field.value))
+      return error;
+    if (llvm::Error error =
+            rejectMetadataOnlyPressureMarker(context, field.label, field.value))
+      return error;
+  }
+  return llvm::Error::success();
 }
 
 bool hasPackedI4SiblingRouteMeasurement(
@@ -1218,6 +1298,122 @@ llvm::Error verifyRVVLowPrecisionSelectedDispatchBoundary(
   return llvm::Error::success();
 }
 
+llvm::Expected<RVVLowPrecisionProductionPressureProfile>
+materializeRVVLowPrecisionProductionPressureProfile(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    const RVVLowPrecisionPerformancePolicyDecision &decision,
+    llvm::StringRef context) {
+  if (llvm::Error error =
+          verifyPackedI4SameTargetMeasurementPolicyInput(selection, input,
+                                                         context))
+    return std::move(error);
+  if (llvm::Error error = rejectPressureProfileMarkerOnlyFacts(
+          selection, input, dispatchBoundary, context))
+    return std::move(error);
+  if (llvm::Error error =
+          verifyRVVLowPrecisionSelectedDispatchBoundary(decision,
+                                                        dispatchBoundary,
+                                                        context))
+    return std::move(error);
+
+  RVVLowPrecisionProductionPressureProfile profile;
+  profile.contract = kProductionPressureProfileContract.str();
+  profile.authority = kProductionPressureProfileAuthority.str();
+  profile.pressurePath = selection.primitiveKind;
+  profile.selectedCandidateID = selection.selectedCandidateID;
+  profile.measurementProviderCandidateID =
+      input.providerResourceSelectedCandidate;
+  profile.resourcePlanningContract = input.providerResourcePlanningContract;
+  profile.resourceOperandForm = input.providerResourceOperandForm;
+  profile.resourceSourceSignedness = input.providerResourceSourceSignedness;
+  profile.resourceStorageElementWidth =
+      input.providerResourceStorageElementWidth;
+  profile.resourceEffectiveElementWidth =
+      input.providerResourceEffectiveElementWidth;
+  profile.resourcePackingLayout = input.providerResourcePackingLayout;
+  profile.resourceUnpackIntent = input.providerResourceUnpackIntent;
+  profile.vsetvlRegionCount = input.providerResourceVSetVLRegionCount;
+  profile.runtimeAVLSource = input.providerRuntimeAVLSource;
+  profile.runtimeABIOrder = input.providerRuntimeABIOrder;
+  profile.routeFamilyPlan = input.providerResourceRouteFamilyPlan;
+  profile.providerSupportedMirror = input.providerSupportedMirror;
+
+  profile.primitiveChainContract = input.providerPrimitiveChainContract;
+  profile.primitiveChainKind = input.providerPrimitiveChainKind;
+  profile.primitiveContract = input.providerPrimitiveContract;
+  profile.primitiveKind = input.providerPrimitiveKind;
+  profile.primitiveSourceDType = input.providerPrimitiveSourceDType;
+  profile.primitiveSourceSignedness = input.providerPrimitiveSourceSignedness;
+  profile.primitiveSourceSEW = input.providerPrimitiveSourceSEW;
+  profile.primitiveSourceLMUL = input.providerPrimitiveSourceLMUL;
+  profile.primitiveProductDType = input.providerPrimitiveProductDType;
+  profile.primitiveProductSEW = input.providerPrimitiveProductSEW;
+  profile.primitiveProductLMUL = input.providerPrimitiveProductLMUL;
+  profile.primitiveAccumulatorDType =
+      input.providerPrimitiveAccumulatorDType;
+  profile.primitiveAccumulatorSEW =
+      input.providerPrimitiveAccumulatorSEW;
+  profile.primitiveAccumulatorLMUL =
+      input.providerPrimitiveAccumulatorLMUL;
+  profile.primitiveResultDType = input.providerPrimitiveResultDType;
+  profile.primitiveResultSEW = input.providerPrimitiveResultSEW;
+  profile.primitiveResultLMUL = input.providerPrimitiveResultLMUL;
+  profile.primitiveWideningProductRelation =
+      input.providerPrimitiveWideningProductRelation;
+  profile.primitiveProductReductionChainRelation =
+      input.providerPrimitiveProductReductionChainRelation;
+  profile.primitiveWideningProductIntrinsic =
+      input.providerPrimitiveWideningProductIntrinsic;
+  profile.primitiveReductionIntrinsic =
+      input.providerPrimitiveReductionIntrinsic;
+  profile.primitiveScalarSeedSplatIntrinsic =
+      input.providerPrimitiveScalarSeedSplatIntrinsic;
+  profile.primitiveAccumulatorLayout =
+      input.providerPrimitiveAccumulatorLayout;
+  profile.primitiveResultLayout = input.providerPrimitiveResultLayout;
+  profile.primitiveReductionStoreVL =
+      input.providerPrimitiveReductionStoreVL;
+
+  profile.scheduleDecisionContract =
+      input.providerScheduleDecisionContract;
+  profile.scheduleDecision = input.providerScheduleDecision;
+  profile.scheduleDecisionReason = input.providerScheduleDecisionReason;
+  profile.targetProfile = input.targetProfile;
+  profile.targetCapabilityProviderMirror =
+      input.targetCapabilityProviderMirror;
+  profile.targetCapabilityLegalityMirror =
+      input.targetCapabilityLegalityMirror;
+  profile.measurementEvidenceID = input.measurementEvidenceID;
+  profile.measurementClassification = input.measurementClassification;
+  profile.measurementOutcomeFamily = input.measurementOutcomeFamily;
+  profile.measurementBestSpeedupRange = input.measurementBestSpeedupRange;
+  profile.measurementSummaryRecordCount =
+      input.measurementSummaryRecordCount;
+  profile.measurementRecordCount = input.measurementRecordCount;
+  profile.correctnessRecordCount = input.correctnessRecordCount;
+
+  profile.selectedDispatchCaseMirror =
+      dispatchBoundary.selectedDispatchCaseMirror;
+  profile.selectedDispatchFallbackMirror =
+      dispatchBoundary.selectedDispatchFallbackMirror;
+  profile.selectedCaseVariant = dispatchBoundary.selectedCaseVariant;
+  profile.fallbackVariant = dispatchBoundary.fallbackVariant;
+
+  profile.dispatchPolicyPath = decision.dispatchPolicyPath;
+  profile.dispatchPreference = decision.dispatchPreference;
+  profile.routeSupportAllowed = decision.routeSupportAllowed;
+  profile.correctnessExecutionAllowed = decision.correctnessExecutionAllowed;
+  profile.performanceSelectionAllowed = decision.performanceSelectionAllowed;
+  profile.performanceWinClaimAllowed = decision.performanceWinClaimAllowed;
+  profile.correctnessFallbackPathSelected =
+      decision.correctnessFallbackPathSelected;
+  profile.performancePreferredPathSelected =
+      decision.performancePreferredPathSelected;
+  return profile;
+}
+
 } // namespace
 
 RVVLowPrecisionSameTargetMeasurementRecord
@@ -1680,6 +1876,65 @@ consumeRVVLowPrecisionSameTargetMeasurementPolicyInput(
   return materializeRVVLowPrecisionMeasurementOutcomeFromPolicyInput(input);
 }
 
+llvm::Expected<RVVLowPrecisionProductionPressureProfile>
+buildRVVLowPrecisionProductionPressureProfile(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  if (llvm::Error error = rejectPressureProfileMarkerOnlyFacts(
+          selection, input, dispatchBoundary, context))
+    return std::move(error);
+  llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
+      evaluateRVVLowPrecisionPerformancePolicy(selection, input, context);
+  if (!decision)
+    return decision.takeError();
+  return materializeRVVLowPrecisionProductionPressureProfile(
+      selection, input, dispatchBoundary, *decision, context);
+}
+
+llvm::Expected<RVVLowPrecisionProductionPressureProfile>
+buildRVVLowPrecisionProductionPressureProfile(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput> input =
+      buildRVVLowPrecisionSameTargetMeasurementPolicyInput(selection, record,
+                                                           context);
+  if (!input)
+    return input.takeError();
+  return buildRVVLowPrecisionProductionPressureProfile(selection, *input,
+                                                      dispatchBoundary,
+                                                      context);
+}
+
+llvm::Error verifyRVVLowPrecisionProductionPressureProfile(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionProductionPressureProfile> profile =
+      buildRVVLowPrecisionProductionPressureProfile(selection, input,
+                                                   dispatchBoundary, context);
+  if (!profile)
+    return profile.takeError();
+  return llvm::Error::success();
+}
+
+llvm::Error verifyRVVLowPrecisionProductionPressureProfile(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionProductionPressureProfile> profile =
+      buildRVVLowPrecisionProductionPressureProfile(selection, record,
+                                                   dispatchBoundary, context);
+  if (!profile)
+    return profile.takeError();
+  return llvm::Error::success();
+}
+
 llvm::StringRef stringifyRVVLowPrecisionPerformanceMeasurementDiagnosisKind(
     RVVLowPrecisionPerformanceMeasurementDiagnosisKind kind) {
   switch (kind) {
@@ -2043,6 +2298,11 @@ evaluateRVVLowPrecisionPerformancePolicy(
                                                         dispatchBoundary,
                                                         context))
     return std::move(error);
+  llvm::Expected<RVVLowPrecisionProductionPressureProfile> pressureProfile =
+      materializeRVVLowPrecisionProductionPressureProfile(
+          selection, input, dispatchBoundary, *decision, context);
+  if (!pressureProfile)
+    return pressureProfile.takeError();
   return decision;
 }
 
@@ -2061,6 +2321,16 @@ evaluateRVVLowPrecisionPerformancePolicy(
                                                         dispatchBoundary,
                                                         context))
     return std::move(error);
+  llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput> input =
+      buildRVVLowPrecisionSameTargetMeasurementPolicyInput(selection, record,
+                                                           context);
+  if (!input)
+    return input.takeError();
+  llvm::Expected<RVVLowPrecisionProductionPressureProfile> pressureProfile =
+      materializeRVVLowPrecisionProductionPressureProfile(
+          selection, *input, dispatchBoundary, *decision, context);
+  if (!pressureProfile)
+    return pressureProfile.takeError();
   return decision;
 }
 

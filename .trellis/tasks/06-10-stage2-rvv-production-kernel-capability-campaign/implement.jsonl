@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV authority chain, Stage 2 RVV priority, and compiler stack boundaries"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin-owned typed body, low-precision primitive facts, selected-body realization, and fail-closed provider contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC lowerable-route container boundary and provider-owned operand-binding mirror rules"}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Stage 2 production-kernel campaign priority and q8/q4 pressure-test framing"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Same-target measurement and selected-dispatch evidence contracts used by the pressure-profile boundary"}
+{"file": ".trellis/tasks/archive/2026-06/06-10-stage2-rvv-low-precision-contraction-primitive-surface-campaign/prd.md", "reason": "Previous completed primitive-surface campaign gates and produced facts that this macro campaign must consume"}
