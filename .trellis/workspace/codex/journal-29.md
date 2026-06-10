@@ -504,3 +504,36 @@ can be finished or archived.
 ### Git Commits
 
 Final coherent commit is created after this journal entry.
+
+
+## Session 578: Stage2 RVV Gearbox Gate 1 pressure-profile admission
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV Gearbox Gate 1 pressure-profile admission
+**Branch**: `main`
+
+### Summary
+
+Implemented Gate 1 low-precision production pressure-profile admission API, wired RVV contraction selected-body realization owner overload to consume it, added focused C++ success and fail-closed provenance coverage, and kept the macro campaign active for Gate 2.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `469a69ac` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

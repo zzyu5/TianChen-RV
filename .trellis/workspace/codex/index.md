@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-29.md`
-- **Total Sessions**: 577
+- **Total Sessions**: 578
 - **Last Active**: 2026-06-10
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-29.md` | ~60 | Active |
+| `journal-29.md` | ~539 | Active |
 | `journal-28.md` | ~1980 | Archived |
 | `journal-27.md` | ~1982 | Archived |
 | `journal-26.md` | ~1976 | Archived |
@@ -57,6 +57,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 578 | 2026-06-10 | Stage2 RVV Gearbox Gate 1 pressure-profile admission | `469a69ac` | `main` |
 | 577 | 2026-06-10 | Stage2 RVV low-precision contraction primitive Gate 1 | created-after-journal-entry | `main` |
 | 576 | 2026-06-10 | Stage2 RVV Gate 4 target-artifact policy mirror closure | `b7b30d94` | `main` |
 | 575 | 2026-06-10 | Stage2 RVV same-target measurement Gate 4 audit | `this commit` | `main` |
