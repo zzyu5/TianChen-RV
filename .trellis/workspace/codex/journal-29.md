@@ -57,6 +57,66 @@ or fallback behavior.
 
 Final coherent commit is created after this journal entry.
 
+## Session 581: Stage2 RVV Gearbox Gate 3 route/artifact/measurement proof
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV Gearbox resource-aware selected-body realization campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed Gate 3 only. Gates 1-2 already
+established pressure-profile admission and admitted Gearbox schedule mirrors;
+this round made the route/provider, target artifact, and same-target
+measurement policy path consume and prove those admitted packed-i4 schedule
+facts against source-backed same-target records. The macro task remains open
+for Gate 4.
+
+### Main Changes
+
+- Added realization-admission proof fields to low-precision resource selection,
+  same-target measurement records, policy inputs/outcomes, and production
+  pressure profiles.
+- Wired realized Gate 2 admission mirrors into the RVV route/provider resource
+  selection path and validated them against schedule contract, decision, reason,
+  dispatch policy, and measurement evidence identity.
+- Required target artifact validation to reject missing, stale, mismatched, or
+  metadata-only packed-i4 realization-admission proof before accepting artifact
+  mirrors.
+- Updated generated same-target evidence support and the dequant-clamp fixture
+  with required provider realization-admission proof fields.
+- Added focused C++ and lit coverage for successful Gate 3 proof and
+  fail-closed stale/missing/sibling proof.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -v Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir` from `build/test`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-gearbox-realization-campaign`
+- [OK] Bounded added-line scan returned no new legacy RVV route-authority markers.
+- [OK] Bounded `lib/Conversion` / `include/TianChenRV/Conversion` diff was empty, preserving Common EmitC neutrality.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` now records the Gate 3
+realization-admission proof consumption contract, payload fields, validation
+matrix, good/base/bad cases, required tests, and wrong-vs-correct authority
+path.
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-3 are complete. Gate 4 remains open. The next
+continuation point is Gate 4: compose selected-dispatch policy, realization
+admission, target artifact evidence, and measurement provenance into one
+closeout test, then archive only if the composed campaign acceptance criteria
+are actually met.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 580: Stage2 RVV production-kernel capability Gate 4 closeout
 
 **Date**: 2026-06-10

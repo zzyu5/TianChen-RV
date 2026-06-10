@@ -6247,6 +6247,148 @@ selected packed-i4 resource candidate
   -> provider validates before route construction
 ```
 
+## Low-Precision Gate 3 Realization Admission Proof Consumption
+
+### 1. Scope / Trigger
+
+Use this contract when the realized packed-i4 low-precision contraction body
+has Gate 2 realization-admission schedule mirrors and the RVV route/provider,
+target artifact, and same-target measurement policy path must prove that those
+mirrors still match provider-owned resource facts and source-backed same-target
+records. This is a Gate 3 proof-consumption boundary. It is not artifact
+metadata authority, route-id authority, helper-name authority, q4/q8 label
+authority, or Common EmitC schedule inference.
+
+### 2. Signatures
+
+The route/provider resource selection must carry the admission proof as
+provider-owned facts before target artifact or measurement policy consumers can
+accept a packed-i4 product-reduction route:
+
+```c++
+struct RVVLowPrecisionContractionResourceSelection {
+  std::string realizationAdmissionContract;
+  std::string realizationAdmissionDecision;
+  std::string realizationAdmissionEvidence;
+  std::string realizationAdmissionDispatchPolicy;
+  std::string realizationAdmissionScheduleDecisionContract;
+  std::string realizationAdmissionScheduleDecision;
+  std::string realizationAdmissionScheduleDecisionReason;
+};
+```
+
+Same-target record, policy input, measurement outcome, and production pressure
+profile payloads must carry exact provider-prefixed mirrors:
+
+```text
+provider_realization_admission_contract
+provider_realization_admission_decision
+provider_realization_admission_evidence
+provider_realization_admission_dispatch_policy
+provider_realization_admission_schedule_decision_contract
+provider_realization_admission_schedule_decision
+provider_realization_admission_schedule_decision_reason
+```
+
+The route path may use:
+
+```c++
+llvm::Error populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(
+    RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context);
+```
+
+### 3. Contracts
+
+- The proof is accepted only when
+  `realizationAdmissionContract =
+  rvv-low-precision-selected-body-realization-admission.v1` and
+  `realizationAdmissionDecision = realize`.
+- `realizationAdmissionEvidence` must equal the selected same-target
+  `measurementEvidenceID` or the selection's remediation measurement evidence
+  when a measured-win/remediation branch rewrites the evidence identity before
+  the record is rebuilt.
+- Admission schedule contract, decision, and reason must exactly equal the
+  provider-owned packed-i4 schedule contract, decision, and reason already on
+  the selected resource candidate.
+- Target artifact metadata and generated headers may mirror these fields only
+  after route/provider validation. They cannot create, repair, or select a
+  schedule proof.
+- Common EmitC/export remains neutral. It may transport a validated
+  `TCRVEmitCLowerableRoute` payload and mirrored metadata, but it must not
+  infer admission, schedule, measurement identity, dtype, ABI roles, or
+  dispatch policy.
+
+### 4. Validation & Error Matrix
+
+- Missing admission contract/decision/evidence on a packed-i4 selection ->
+  provider or target artifact validation fails before artifact acceptance.
+- Admission decision other than `realize` -> measurement policy and target
+  artifact validation fail before performance or artifact proof is accepted.
+- Admission evidence differs from the source-backed same-target record identity
+  -> record/policy validation fails as stale or sibling-route proof.
+- Admission dispatch policy differs from selected-dispatch policy facts when a
+  dispatch boundary is present -> policy validation fails before realization
+  admission is trusted.
+- Admission schedule contract, decision, or reason differs from the selected
+  resource schedule facts -> provider, measurement policy, or target artifact
+  validation fails with an admission schedule diagnostic.
+- Artifact metadata contains a matching label but the provider selection lacks
+  the proof -> target artifact validation fails as metadata-only proof.
+
+### 5. Good/Base/Bad Cases
+
+- Good: realized `with_vl`/Gearbox handoff carries Gate 2 admitted schedule
+  mirrors -> route selection imports them as provider-owned proof -> same-target
+  record/policy input and target artifact validation prove the same evidence
+  and schedule before accepting the artifact path.
+- Base: older non-dispatch fixtures may populate the proof from provider-owned
+  selection facts without claiming selected-dispatch policy preference.
+- Bad: measurement JSON copies the schedule decision from a sibling packed-i4
+  route while `measurementEvidenceID` names another operation.
+- Bad: artifact metadata has
+  `tcrv_rvv.low_precision_resource.realization_admission_schedule_decision`,
+  but the provider selection lacks matching admission fields.
+- Bad: Common EmitC or a generated-bundle script accepts a packed-i4 artifact
+  because the route id, artifact name, or q4/q8 label looks right.
+
+### 6. Tests Required
+
+- C++ RVV plugin tests must assert successful policy input/materialized
+  pressure-profile proof carries admission contract, decision, evidence,
+  dispatch policy, and schedule decision fields.
+- C++ RVV plugin tests must reject missing admission record fields, stale
+  admission schedule decisions, and sibling admission evidence.
+- Target artifact tests must assert provider-built packed-i4 artifacts require
+  admission proof and reject stale provider or metadata-only admission schedule
+  mirrors before header/artifact acceptance.
+- Focused lit/export coverage must show the admission mirrors appear in
+  emission-plan metadata and generated headers only after route validation, and
+  stale artifact admission schedule mirrors fail closed.
+- Bounded diff scans must show no new Common EmitC semantic inference and no
+  legacy i32 route-authority path is added.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+artifact metadata says realization_admission_schedule_decision = packed-i4
+  -> target artifact exporter accepts the route
+  -> measurement report claims schedule proof
+```
+
+Correct:
+
+```text
+realized packed-i4 body
+  -> route/provider imports admitted schedule proof
+  -> same-target record ties proof to measurement evidence
+  -> target artifact validator compares provider facts and metadata mirrors
+  -> Common EmitC/export only transports the validated route payload
+```
+
 ## Packed-I4 Same-Target Measurement Classification Evidence
 
 ### 1. Scope / Trigger

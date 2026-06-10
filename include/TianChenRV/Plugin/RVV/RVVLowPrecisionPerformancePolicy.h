@@ -39,6 +39,13 @@ struct RVVLowPrecisionPerformanceMeasurementOutcome {
   std::string providerScheduleDecisionContract;
   std::string providerScheduleDecision;
   std::string providerScheduleDecisionReason;
+  std::string providerRealizationAdmissionContract;
+  std::string providerRealizationAdmissionDecision;
+  std::string providerRealizationAdmissionEvidence;
+  std::string providerRealizationAdmissionDispatchPolicy;
+  std::string providerRealizationAdmissionScheduleDecisionContract;
+  std::string providerRealizationAdmissionScheduleDecision;
+  std::string providerRealizationAdmissionScheduleDecisionReason;
 
   bool performancePreferenceDenied = false;
   std::string performancePreferenceDenialReason;
@@ -94,6 +101,13 @@ struct RVVLowPrecisionSameTargetMeasurementRecord {
   std::string providerScheduleDecisionContract;
   std::string providerScheduleDecision;
   std::string providerScheduleDecisionReason;
+  std::string providerRealizationAdmissionContract;
+  std::string providerRealizationAdmissionDecision;
+  std::string providerRealizationAdmissionEvidence;
+  std::string providerRealizationAdmissionDispatchPolicy;
+  std::string providerRealizationAdmissionScheduleDecisionContract;
+  std::string providerRealizationAdmissionScheduleDecision;
+  std::string providerRealizationAdmissionScheduleDecisionReason;
   std::string providerPrimitiveChainContract;
   std::string providerPrimitiveChainKind;
   std::string providerPrimitiveContract;
@@ -192,6 +206,13 @@ struct RVVLowPrecisionSameTargetMeasurementPolicyInput {
   std::string providerScheduleDecisionContract;
   std::string providerScheduleDecision;
   std::string providerScheduleDecisionReason;
+  std::string providerRealizationAdmissionContract;
+  std::string providerRealizationAdmissionDecision;
+  std::string providerRealizationAdmissionEvidence;
+  std::string providerRealizationAdmissionDispatchPolicy;
+  std::string providerRealizationAdmissionScheduleDecisionContract;
+  std::string providerRealizationAdmissionScheduleDecision;
+  std::string providerRealizationAdmissionScheduleDecisionReason;
   std::string providerPrimitiveChainContract;
   std::string providerPrimitiveChainKind;
   std::string providerPrimitiveContract;
@@ -356,6 +377,13 @@ struct RVVLowPrecisionProductionPressureProfile {
   std::string scheduleDecisionContract;
   std::string scheduleDecision;
   std::string scheduleDecisionReason;
+  std::string realizationAdmissionContract;
+  std::string realizationAdmissionDecision;
+  std::string realizationAdmissionEvidence;
+  std::string realizationAdmissionDispatchPolicy;
+  std::string realizationAdmissionScheduleDecisionContract;
+  std::string realizationAdmissionScheduleDecision;
+  std::string realizationAdmissionScheduleDecisionReason;
   std::string targetProfile;
   std::string targetCapabilityProviderMirror;
   std::string targetCapabilityLegalityMirror;
@@ -452,6 +480,11 @@ llvm::Expected<RVVLowPrecisionProductionPressureProfile>
 buildRVVLowPrecisionProductionPressureProfile(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context);
+
+llvm::Error populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(
+    RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
     llvm::StringRef context);
 

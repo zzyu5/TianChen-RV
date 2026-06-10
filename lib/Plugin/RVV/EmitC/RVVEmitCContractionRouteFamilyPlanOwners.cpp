@@ -4700,6 +4700,26 @@ void populateRVVLowPrecisionContractionResourceRemediationHandoff(
           selection.selectedCandidateID))
     return;
 
+  if (selection.realizationAdmissionContract.empty()) {
+    selection.realizationAdmissionContract =
+        "rvv-low-precision-selected-body-realization-admission.v1";
+    selection.realizationAdmissionDecision =
+        stringifyRVVLowPrecisionRealizationAdmissionDecision(
+            RVVLowPrecisionRealizationAdmissionDecision::Realize)
+            .str();
+    selection.realizationAdmissionEvidence =
+        getRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceIDForCandidate(
+            selection.selectedCandidateID)
+            .str();
+    selection.realizationAdmissionDispatchPolicy = "correctness-fallback";
+    selection.realizationAdmissionScheduleDecisionContract =
+        selection.scheduleDecisionContract;
+    selection.realizationAdmissionScheduleDecision =
+        selection.scheduleDecision;
+    selection.realizationAdmissionScheduleDecisionReason =
+        selection.scheduleDecisionReason;
+  }
+
   RVVLowPrecisionSameTargetMeasurementRecord measurementRecord =
       buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
   RVVLowPrecisionPerformancePolicyHandoff handoff =
@@ -5601,6 +5621,7 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan,
     RVVSelectedBodyRouteSlice &slice,
     const RVVSelectedTargetCapabilityFacts &targetFacts, mlir::Operation *op,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
     llvm::StringRef context) {
   using namespace tianchenrv::plugin::rvv;
   RVVLowPrecisionContractionResourceSelection selection;
@@ -5612,6 +5633,12 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
   auto readInteger =
       [&](llvm::StringRef attrName) -> llvm::Expected<std::int64_t> {
     return requireRVVLowPrecisionResourcePassIntegerFact(op, context, attrName);
+  };
+  auto readOptionalString =
+      [&](llvm::StringRef attrName) -> std::optional<std::string> {
+    if (auto attr = op->getAttrOfType<mlir::StringAttr>(attrName))
+      return attr.getValue().str();
+    return std::nullopt;
   };
 
   if (llvm::Expected<std::string> value =
@@ -6031,6 +6058,27 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
       selection.scheduleDecisionReason = *value;
     else
       return value.takeError();
+    if (std::optional<std::string> value = readOptionalString(
+            kRVVLowPrecisionResourceRealizationAdmissionContractAttrName))
+      selection.realizationAdmissionContract = *value;
+    if (std::optional<std::string> value = readOptionalString(
+            kRVVLowPrecisionResourceRealizationAdmissionDecisionAttrName))
+      selection.realizationAdmissionDecision = *value;
+    if (std::optional<std::string> value = readOptionalString(
+            kRVVLowPrecisionResourceRealizationAdmissionEvidenceAttrName))
+      selection.realizationAdmissionEvidence = *value;
+    if (std::optional<std::string> value = readOptionalString(
+            kRVVLowPrecisionResourceRealizationAdmissionDispatchPolicyAttrName))
+      selection.realizationAdmissionDispatchPolicy = *value;
+    if (std::optional<std::string> value = readOptionalString(
+            kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionContractAttrName))
+      selection.realizationAdmissionScheduleDecisionContract = *value;
+    if (std::optional<std::string> value = readOptionalString(
+            kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionAttrName))
+      selection.realizationAdmissionScheduleDecision = *value;
+    if (std::optional<std::string> value = readOptionalString(
+            kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionReasonAttrName))
+      selection.realizationAdmissionScheduleDecisionReason = *value;
     if (llvm::Expected<std::string> value = readString(
             kRVVLowPrecisionResourcePerformanceMaturityAttrName))
       selection.performanceMaturity = *value;
@@ -6061,6 +6109,11 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
   populateRVVLowPrecisionContractionResourceRouteFacts(selection, plan);
   selection.targetCapabilityProviderMirror = targetFacts.providerMirror;
   selection.targetCapabilityLegalityMirror = targetFacts.legalityMirror;
+  if (llvm::Error error =
+          populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(
+              selection, dispatchBoundary,
+              (llvm::Twine(context) + " realization admission proof").str()))
+    return std::move(error);
 
   RVVSelectedBodyContractionRouteFamilyPlan validatedPlan = plan;
   validatedPlan.lowPrecisionResourceSelection = selection;
@@ -6559,6 +6612,20 @@ bool isRVVLowPrecisionResourceSelectionEqual(
          lhs.providerSupportedMirror == rhs.providerSupportedMirror &&
          lhs.realizationProducer == rhs.realizationProducer &&
          lhs.realizationDecision == rhs.realizationDecision &&
+         lhs.realizationAdmissionContract ==
+             rhs.realizationAdmissionContract &&
+         lhs.realizationAdmissionDecision ==
+             rhs.realizationAdmissionDecision &&
+         lhs.realizationAdmissionEvidence ==
+             rhs.realizationAdmissionEvidence &&
+         lhs.realizationAdmissionDispatchPolicy ==
+             rhs.realizationAdmissionDispatchPolicy &&
+         lhs.realizationAdmissionScheduleDecisionContract ==
+             rhs.realizationAdmissionScheduleDecisionContract &&
+         lhs.realizationAdmissionScheduleDecision ==
+             rhs.realizationAdmissionScheduleDecision &&
+         lhs.realizationAdmissionScheduleDecisionReason ==
+             rhs.realizationAdmissionScheduleDecisionReason &&
          lhs.realizedUnrollFactor == rhs.realizedUnrollFactor &&
          lhs.realizedVSetVLRegionCount == rhs.realizedVSetVLRegionCount &&
          lhs.realizedPeakLiveVectorGroups ==
@@ -8538,6 +8605,7 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
           deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
               plan, analysis.slice, analysis.selectedTargetCapabilityFacts,
               analysis.slice.withVL.getOperation(),
+              analysis.description.lowPrecisionSelectedDispatchPolicyBoundary,
               "contraction route-family plan derivation");
       if (!selection)
         return selection.takeError();
@@ -8547,6 +8615,12 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
           deriveRVVLowPrecisionContractionResourceSelection(
               plan, analysis.selectedTargetCapabilityFacts);
     }
+    if (llvm::Error error =
+            populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(
+                plan.lowPrecisionResourceSelection,
+                analysis.description.lowPrecisionSelectedDispatchPolicyBoundary,
+                "contraction route-family plan realization admission proof"))
+      return std::move(error);
   }
 
   if (llvm::Error error =

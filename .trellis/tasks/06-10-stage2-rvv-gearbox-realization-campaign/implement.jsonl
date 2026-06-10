@@ -8,3 +8,16 @@
 {"file": "include/TianChenRV/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.h", "reason": "Added pressure-profile overload for contraction selected-body realization admission"}
 {"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Wired admission consumption into the low-precision product-reduction realization boundary before resource-aware body materialization"}
 {"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Added focused Gate 1 admission success, owner-consumption, and fail-closed provenance coverage"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Added Gate 3 realization-admission proof fields to RVV low-precision resource selection and declared the proof population helper"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h", "reason": "Added realization-admission proof fields to packed-i4 measurement record, policy input, measurement outcome, and pressure profile payloads"}
+{"file": "lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp", "reason": "Validated admission proof against selected schedule facts, dispatch policy, and same-target measurement identity across record, policy, outcome, and pressure-profile flows"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Imported realized Gate 2 admission mirrors into route/provider resource selection and failed closed stale proof before route planning"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Mirrored validated realization-admission proof fields into emission-plan artifact metadata"}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Required packed-i4 target artifact validation to consume provider-owned realization-admission proof and reject stale metadata-only mirrors"}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Allowed explicit realization-admission mirror metadata keys in RVV target support bundles"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Added Gate 3 success and fail-closed coverage for missing, stale, and sibling realization-admission proof records"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added target artifact proof validation coverage and self-repair for measured-win admission evidence regeneration"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir", "reason": "Added artifact/header mirror checks and stale admission schedule metadata lit coverage"}
+{"file": "scripts/rvv_generated_bundle_same_target_measure.py", "reason": "Updated same-target evidence generation and self-tests for required provider realization-admission proof fields"}
+{"file": "artifacts/gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json", "reason": "Updated source-backed packed-i4 dequant-clamp evidence fixture with required Gate 3 admission proof record fields"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Recorded the Gate 3 realization-admission proof consumption contract, fields, validation matrix, and tests"}

@@ -7,3 +7,10 @@
 {"file": "include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h", "reason": "Checked public admission model and API surface"}
 {"file": "lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp", "reason": "Checked fail-closed pressure-profile admission validation"}
 {"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Checked owner admission consumption before low-precision resource-aware realization"}
+{"file": "build/bin/tcrv-opt", "reason": "Gate 3 route/artifact/export touched targets rebuilt successfully with cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate"}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Focused RVV plugin tests passed after Gate 3 admission proof propagation and fail-closed coverage"}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Focused target artifact export tests passed after requiring provider-owned admission proof mirrors"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir", "reason": "Focused lit artifact/header/export checks passed from build/test with generated site config"}
+{"file": ".trellis/tasks/06-10-stage2-rvv-gearbox-realization-campaign/prd.md", "reason": "Trellis task context validated before final staging with python3 ./.trellis/scripts/task.py validate"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Bounded added-line scan found no matches for legacy RVV route authority markers in this Gate 3 diff"}
+{"file": "lib/Conversion/CMakeLists.txt", "reason": "Common EmitC/Conversion diff was empty; Gate 3 semantics stayed in RVV plugin/target consumers"}

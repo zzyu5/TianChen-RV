@@ -127,6 +127,13 @@ PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS = (
     "provider_schedule_decision_contract",
     "provider_schedule_decision",
     "provider_schedule_decision_reason",
+    "provider_realization_admission_contract",
+    "provider_realization_admission_decision",
+    "provider_realization_admission_evidence",
+    "provider_realization_admission_dispatch_policy",
+    "provider_realization_admission_schedule_decision_contract",
+    "provider_realization_admission_schedule_decision",
+    "provider_realization_admission_schedule_decision_reason",
     "provider_primitive_chain_contract",
     "provider_primitive_chain_kind",
     "provider_primitive_contract",
@@ -2207,6 +2214,27 @@ def packed_i4_maturity_contract_evidence_input(
         ],
         "provider_schedule_decision": fields["schedule_decision"],
         "provider_schedule_decision_reason": fields["schedule_decision_reason"],
+        "provider_realization_admission_contract": fields[
+            "realization_admission_contract"
+        ],
+        "provider_realization_admission_decision": fields[
+            "realization_admission_decision"
+        ],
+        "provider_realization_admission_evidence": fields[
+            "realization_admission_evidence"
+        ],
+        "provider_realization_admission_dispatch_policy": fields[
+            "realization_admission_dispatch_policy"
+        ],
+        "provider_realization_admission_schedule_decision_contract": fields[
+            "realization_admission_schedule_decision_contract"
+        ],
+        "provider_realization_admission_schedule_decision": fields[
+            "realization_admission_schedule_decision"
+        ],
+        "provider_realization_admission_schedule_decision_reason": fields[
+            "realization_admission_schedule_decision_reason"
+        ],
         "target_capability_provider_mirror": fields[
             "target_capability_provider_mirror"
         ],
@@ -2450,6 +2478,27 @@ def validate_packed_i4_maturity_contract_evidence_input(
         ],
         "provider_schedule_decision": fields["schedule_decision"],
         "provider_schedule_decision_reason": fields["schedule_decision_reason"],
+        "provider_realization_admission_contract": fields[
+            "realization_admission_contract"
+        ],
+        "provider_realization_admission_decision": fields[
+            "realization_admission_decision"
+        ],
+        "provider_realization_admission_evidence": fields[
+            "realization_admission_evidence"
+        ],
+        "provider_realization_admission_dispatch_policy": fields[
+            "realization_admission_dispatch_policy"
+        ],
+        "provider_realization_admission_schedule_decision_contract": fields[
+            "realization_admission_schedule_decision_contract"
+        ],
+        "provider_realization_admission_schedule_decision": fields[
+            "realization_admission_schedule_decision"
+        ],
+        "provider_realization_admission_schedule_decision_reason": fields[
+            "realization_admission_schedule_decision_reason"
+        ],
         "target_capability_provider_mirror": fields[
             "target_capability_provider_mirror"
         ],
@@ -2982,6 +3031,15 @@ def op_measurement_summary(
             "provider_schedule_decision_reason": fields.get(
                 "schedule_decision_reason", ""
             ),
+            "provider_realization_admission_schedule_decision_contract": fields.get(
+                "realization_admission_schedule_decision_contract", ""
+            ),
+            "provider_realization_admission_schedule_decision": fields.get(
+                "realization_admission_schedule_decision", ""
+            ),
+            "provider_realization_admission_schedule_decision_reason": fields.get(
+                "realization_admission_schedule_decision_reason", ""
+            ),
         }
         summary["measurement_harness"].update(schedule_decision_evidence)
         summary["same_target_schedule_decision_evidence"] = (
@@ -3184,6 +3242,15 @@ def run_one_measurement(
                 "provider_schedule_decision": fields["schedule_decision"],
                 "provider_schedule_decision_reason": fields[
                     "schedule_decision_reason"
+                ],
+                "provider_realization_admission_schedule_decision_contract": fields[
+                    "realization_admission_schedule_decision_contract"
+                ],
+                "provider_realization_admission_schedule_decision": fields[
+                    "realization_admission_schedule_decision"
+                ],
+                "provider_realization_admission_schedule_decision_reason": fields[
+                    "realization_admission_schedule_decision_reason"
                 ],
                 "source": (
                     "provider-owned packed-i4 schedule decision mirrored by "
@@ -3941,6 +4008,16 @@ def run_self_test() -> int:
             "provider_schedule_decision",
             "metadata-only-packed-i4-schedule-decision",
             "schedule_decision",
+        ),
+        (
+            "provider_realization_admission_evidence",
+            "sibling-route-packed-i4-measurement-evidence",
+            "realization_admission_evidence",
+        ),
+        (
+            "provider_realization_admission_schedule_decision",
+            "metadata-only-packed-i4-admission-schedule-decision",
+            "realization_admission_schedule_decision",
         ),
         (
             "target_capability_legality_mirror",

@@ -43386,6 +43386,33 @@ getRVVSelectedBodyConfigArtifactMetadata(
                           selection.realizationProducer});
       metadata.push_back({"tcrv_rvv.low_precision_resource.realization_decision",
                           selection.realizationDecision});
+      if (!selection.realizationAdmissionContract.empty()) {
+        metadata.push_back(
+            {"tcrv_rvv.low_precision_resource.realization_admission_contract",
+             selection.realizationAdmissionContract});
+        metadata.push_back(
+            {"tcrv_rvv.low_precision_resource.realization_admission_decision",
+             selection.realizationAdmissionDecision});
+        metadata.push_back(
+            {"tcrv_rvv.low_precision_resource.realization_admission_evidence",
+             selection.realizationAdmissionEvidence});
+        metadata.push_back(
+            {"tcrv_rvv.low_precision_resource."
+             "realization_admission_dispatch_policy",
+             selection.realizationAdmissionDispatchPolicy});
+        metadata.push_back(
+            {"tcrv_rvv.low_precision_resource."
+             "realization_admission_schedule_decision_contract",
+             selection.realizationAdmissionScheduleDecisionContract});
+        metadata.push_back(
+            {"tcrv_rvv.low_precision_resource."
+             "realization_admission_schedule_decision",
+             selection.realizationAdmissionScheduleDecision});
+        metadata.push_back(
+            {"tcrv_rvv.low_precision_resource."
+             "realization_admission_schedule_decision_reason",
+             selection.realizationAdmissionScheduleDecisionReason});
+      }
       metadata.push_back(
           {"tcrv_rvv.low_precision_resource.realized_unroll_factor",
            llvm::Twine(selection.realizedUnrollFactor).str()});

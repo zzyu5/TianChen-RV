@@ -734,6 +734,76 @@ llvm::Error verifyPackedI4SameTargetMeasurementPolicyInput(
           selection.scheduleDecisionReason))
     return error;
   if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider realization admission contract",
+          input.providerRealizationAdmissionContract,
+          selection.realizationAdmissionContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider realization admission contract",
+          input.providerRealizationAdmissionContract,
+          kSelectedBodyRealizationAdmissionContract))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider realization admission decision",
+          input.providerRealizationAdmissionDecision,
+          selection.realizationAdmissionDecision))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider realization admission decision",
+          input.providerRealizationAdmissionDecision,
+          stringifyRVVLowPrecisionRealizationAdmissionDecision(
+              RVVLowPrecisionRealizationAdmissionDecision::Realize)))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider realization admission evidence",
+          input.providerRealizationAdmissionEvidence,
+          selection.realizationAdmissionEvidence))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider realization admission evidence",
+          input.providerRealizationAdmissionEvidence,
+          input.measurementEvidenceID))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider realization admission dispatch policy",
+          input.providerRealizationAdmissionDispatchPolicy,
+          selection.realizationAdmissionDispatchPolicy))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context,
+          "provider realization admission schedule decision contract",
+          input.providerRealizationAdmissionScheduleDecisionContract,
+          selection.realizationAdmissionScheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context,
+          "provider realization admission schedule decision contract",
+          input.providerRealizationAdmissionScheduleDecisionContract,
+          input.providerScheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider realization admission schedule decision",
+          input.providerRealizationAdmissionScheduleDecision,
+          selection.realizationAdmissionScheduleDecision))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider realization admission schedule decision",
+          input.providerRealizationAdmissionScheduleDecision,
+          input.providerScheduleDecision))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context,
+          "provider realization admission schedule decision reason",
+          input.providerRealizationAdmissionScheduleDecisionReason,
+          selection.realizationAdmissionScheduleDecisionReason))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context,
+          "provider realization admission schedule decision reason",
+          input.providerRealizationAdmissionScheduleDecisionReason,
+          input.providerScheduleDecisionReason))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
           context, "provider primitive chain contract",
           input.providerPrimitiveChainContract,
           selection.primitiveChainContractID))
@@ -943,6 +1013,20 @@ materializeRVVLowPrecisionMeasurementOutcomeFromPolicyInput(
   outcome.providerScheduleDecision = input.providerScheduleDecision;
   outcome.providerScheduleDecisionReason =
       input.providerScheduleDecisionReason;
+  outcome.providerRealizationAdmissionContract =
+      input.providerRealizationAdmissionContract;
+  outcome.providerRealizationAdmissionDecision =
+      input.providerRealizationAdmissionDecision;
+  outcome.providerRealizationAdmissionEvidence =
+      input.providerRealizationAdmissionEvidence;
+  outcome.providerRealizationAdmissionDispatchPolicy =
+      input.providerRealizationAdmissionDispatchPolicy;
+  outcome.providerRealizationAdmissionScheduleDecisionContract =
+      input.providerRealizationAdmissionScheduleDecisionContract;
+  outcome.providerRealizationAdmissionScheduleDecision =
+      input.providerRealizationAdmissionScheduleDecision;
+  outcome.providerRealizationAdmissionScheduleDecisionReason =
+      input.providerRealizationAdmissionScheduleDecisionReason;
   outcome.performancePreferenceDenied = input.performancePreferenceDenied;
   outcome.performancePreferenceDenialReason =
       input.performancePreferenceDenialReason;
@@ -1015,6 +1099,20 @@ materializeRVVLowPrecisionPolicyInputFromMeasurementRecord(
   input.providerScheduleDecision = record.providerScheduleDecision;
   input.providerScheduleDecisionReason =
       record.providerScheduleDecisionReason;
+  input.providerRealizationAdmissionContract =
+      record.providerRealizationAdmissionContract;
+  input.providerRealizationAdmissionDecision =
+      record.providerRealizationAdmissionDecision;
+  input.providerRealizationAdmissionEvidence =
+      record.providerRealizationAdmissionEvidence;
+  input.providerRealizationAdmissionDispatchPolicy =
+      record.providerRealizationAdmissionDispatchPolicy;
+  input.providerRealizationAdmissionScheduleDecisionContract =
+      record.providerRealizationAdmissionScheduleDecisionContract;
+  input.providerRealizationAdmissionScheduleDecision =
+      record.providerRealizationAdmissionScheduleDecision;
+  input.providerRealizationAdmissionScheduleDecisionReason =
+      record.providerRealizationAdmissionScheduleDecisionReason;
   input.providerPrimitiveChainContract =
       record.providerPrimitiveChainContract;
   input.providerPrimitiveChainKind = record.providerPrimitiveChainKind;
@@ -1594,6 +1692,20 @@ materializeRVVLowPrecisionProductionPressureProfile(
       input.providerScheduleDecisionContract;
   profile.scheduleDecision = input.providerScheduleDecision;
   profile.scheduleDecisionReason = input.providerScheduleDecisionReason;
+  profile.realizationAdmissionContract =
+      input.providerRealizationAdmissionContract;
+  profile.realizationAdmissionDecision =
+      input.providerRealizationAdmissionDecision;
+  profile.realizationAdmissionEvidence =
+      input.providerRealizationAdmissionEvidence;
+  profile.realizationAdmissionDispatchPolicy =
+      input.providerRealizationAdmissionDispatchPolicy;
+  profile.realizationAdmissionScheduleDecisionContract =
+      input.providerRealizationAdmissionScheduleDecisionContract;
+  profile.realizationAdmissionScheduleDecision =
+      input.providerRealizationAdmissionScheduleDecision;
+  profile.realizationAdmissionScheduleDecisionReason =
+      input.providerRealizationAdmissionScheduleDecisionReason;
   profile.targetProfile = input.targetProfile;
   profile.targetCapabilityProviderMirror =
       input.targetCapabilityProviderMirror;
@@ -1692,6 +1804,20 @@ llvm::Error rejectProductionPressureProfileMarkerOnlyFacts(
       {"schedule decision contract", profile.scheduleDecisionContract},
       {"schedule decision", profile.scheduleDecision},
       {"schedule decision reason", profile.scheduleDecisionReason},
+      {"realization admission contract",
+       profile.realizationAdmissionContract},
+      {"realization admission decision",
+       profile.realizationAdmissionDecision},
+      {"realization admission evidence",
+       profile.realizationAdmissionEvidence},
+      {"realization admission dispatch policy",
+       profile.realizationAdmissionDispatchPolicy},
+      {"realization admission schedule decision contract",
+       profile.realizationAdmissionScheduleDecisionContract},
+      {"realization admission schedule decision",
+       profile.realizationAdmissionScheduleDecision},
+      {"realization admission schedule decision reason",
+       profile.realizationAdmissionScheduleDecisionReason},
       {"target profile", profile.targetProfile},
       {"target capability provider mirror",
        profile.targetCapabilityProviderMirror},
@@ -2081,6 +2207,42 @@ llvm::Error verifyProductionPressureProfileAgainstCandidate(
                               profile.scheduleDecisionReason,
                               candidate.scheduleDecisionReason))
     return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "realization admission contract",
+          profile.realizationAdmissionContract,
+          kSelectedBodyRealizationAdmissionContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "realization admission decision",
+          profile.realizationAdmissionDecision,
+          stringifyRVVLowPrecisionRealizationAdmissionDecision(
+              RVVLowPrecisionRealizationAdmissionDecision::Realize)))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "realization admission evidence",
+                              profile.realizationAdmissionEvidence,
+                              profile.measurementEvidenceID))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "realization admission dispatch policy",
+          profile.realizationAdmissionDispatchPolicy,
+          profile.dispatchPolicyPath))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "realization admission schedule decision contract",
+          profile.realizationAdmissionScheduleDecisionContract,
+          profile.scheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "realization admission schedule decision",
+          profile.realizationAdmissionScheduleDecision,
+          profile.scheduleDecision))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "realization admission schedule decision reason",
+          profile.realizationAdmissionScheduleDecisionReason,
+          profile.scheduleDecisionReason))
+    return error;
   if (llvm::Error error =
           requireNonEmptyPolicyString(context, "target profile",
                                       profile.targetProfile))
@@ -2329,6 +2491,20 @@ buildRVVPackedI4Gate4SameTargetMeasurementRecord(
   record.providerScheduleDecision = selection.scheduleDecision;
   record.providerScheduleDecisionReason =
       selection.scheduleDecisionReason;
+  record.providerRealizationAdmissionContract =
+      selection.realizationAdmissionContract;
+  record.providerRealizationAdmissionDecision =
+      selection.realizationAdmissionDecision;
+  record.providerRealizationAdmissionEvidence =
+      selection.realizationAdmissionEvidence;
+  record.providerRealizationAdmissionDispatchPolicy =
+      selection.realizationAdmissionDispatchPolicy;
+  record.providerRealizationAdmissionScheduleDecisionContract =
+      selection.realizationAdmissionScheduleDecisionContract;
+  record.providerRealizationAdmissionScheduleDecision =
+      selection.realizationAdmissionScheduleDecision;
+  record.providerRealizationAdmissionScheduleDecisionReason =
+      selection.realizationAdmissionScheduleDecisionReason;
   record.providerPrimitiveChainContract =
       selection.primitiveChainContractID;
   record.providerPrimitiveChainKind = selection.primitiveChainKind;
@@ -2507,6 +2683,23 @@ buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
                           "provider_schedule_decision");
   TCRV_READ_RECORD_STRING(providerScheduleDecisionReason,
                           "provider_schedule_decision_reason");
+  TCRV_READ_RECORD_STRING(providerRealizationAdmissionContract,
+                          "provider_realization_admission_contract");
+  TCRV_READ_RECORD_STRING(providerRealizationAdmissionDecision,
+                          "provider_realization_admission_decision");
+  TCRV_READ_RECORD_STRING(providerRealizationAdmissionEvidence,
+                          "provider_realization_admission_evidence");
+  TCRV_READ_RECORD_STRING(providerRealizationAdmissionDispatchPolicy,
+                          "provider_realization_admission_dispatch_policy");
+  TCRV_READ_RECORD_STRING(
+      providerRealizationAdmissionScheduleDecisionContract,
+      "provider_realization_admission_schedule_decision_contract");
+  TCRV_READ_RECORD_STRING(
+      providerRealizationAdmissionScheduleDecision,
+      "provider_realization_admission_schedule_decision");
+  TCRV_READ_RECORD_STRING(
+      providerRealizationAdmissionScheduleDecisionReason,
+      "provider_realization_admission_schedule_decision_reason");
   TCRV_READ_RECORD_STRING(providerPrimitiveChainContract,
                           "provider_primitive_chain_contract");
   TCRV_READ_RECORD_STRING(providerPrimitiveChainKind,
@@ -2641,6 +2834,20 @@ buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
   input.providerScheduleDecision = outcome.providerScheduleDecision;
   input.providerScheduleDecisionReason =
       outcome.providerScheduleDecisionReason;
+  input.providerRealizationAdmissionContract =
+      selection.realizationAdmissionContract;
+  input.providerRealizationAdmissionDecision =
+      selection.realizationAdmissionDecision;
+  input.providerRealizationAdmissionEvidence =
+      selection.realizationAdmissionEvidence;
+  input.providerRealizationAdmissionDispatchPolicy =
+      selection.realizationAdmissionDispatchPolicy;
+  input.providerRealizationAdmissionScheduleDecisionContract =
+      selection.realizationAdmissionScheduleDecisionContract;
+  input.providerRealizationAdmissionScheduleDecision =
+      selection.realizationAdmissionScheduleDecision;
+  input.providerRealizationAdmissionScheduleDecisionReason =
+      selection.realizationAdmissionScheduleDecisionReason;
   input.providerPrimitiveChainContract = selection.primitiveChainContractID;
   input.providerPrimitiveChainKind = selection.primitiveChainKind;
   input.providerPrimitiveContract = selection.primitiveContractID;
@@ -2795,6 +3002,130 @@ buildRVVLowPrecisionProductionPressureProfile(
   return buildRVVLowPrecisionProductionPressureProfile(selection, *input,
                                                       dispatchBoundary,
                                                       context);
+}
+
+llvm::Error populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(
+    RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  if (!isRVVLowPrecisionResourcePackedI4CandidateID(
+          selection.selectedCandidateID))
+    return llvm::Error::success();
+
+  auto setOrVerify = [&](llvm::StringRef label, std::string &field,
+                         llvm::StringRef expected) -> llvm::Error {
+    if (field.empty()) {
+      field = expected.str();
+      return llvm::Error::success();
+    }
+    return requirePolicyString(context, label, field, expected);
+  };
+
+  RVVLowPrecisionSameTargetMeasurementRecord record =
+      buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
+  const std::string measurementEvidenceID =
+      selection.remediationMeasurementEvidenceID.empty()
+          ? record.measurementEvidenceID
+          : selection.remediationMeasurementEvidenceID;
+  if (llvm::Error error = setOrVerify(
+          "realization admission contract",
+          selection.realizationAdmissionContract,
+          kSelectedBodyRealizationAdmissionContract))
+    return error;
+  if (llvm::Error error = setOrVerify(
+          "realization admission decision",
+          selection.realizationAdmissionDecision,
+          stringifyRVVLowPrecisionRealizationAdmissionDecision(
+              RVVLowPrecisionRealizationAdmissionDecision::Realize)))
+    return error;
+  if (llvm::Error error =
+          setOrVerify("realization admission evidence",
+                      selection.realizationAdmissionEvidence,
+                      measurementEvidenceID))
+    return error;
+  if (selection.realizationAdmissionDispatchPolicy.empty()) {
+    selection.realizationAdmissionDispatchPolicy =
+        selection.dispatchPreference == kPackedI4PerformancePreferredPolicyPath
+            ? kPackedI4PerformancePreferredPolicyPath.str()
+            : kPackedI4CorrectnessFallbackPolicyPath.str();
+  }
+  if (llvm::Error error = setOrVerify(
+          "realization admission schedule decision contract",
+          selection.realizationAdmissionScheduleDecisionContract,
+          selection.scheduleDecisionContract))
+    return error;
+  if (llvm::Error error = setOrVerify(
+          "realization admission schedule decision",
+          selection.realizationAdmissionScheduleDecision,
+          selection.scheduleDecision))
+    return error;
+  if (llvm::Error error = setOrVerify(
+          "realization admission schedule decision reason",
+          selection.realizationAdmissionScheduleDecisionReason,
+          selection.scheduleDecisionReason))
+    return error;
+
+  if (!dispatchBoundary.hasFacts())
+    return llvm::Error::success();
+
+  record = buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
+  llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
+      evaluateRVVLowPrecisionPerformancePolicy(selection, record,
+                                               dispatchBoundary, context);
+  if (!decision)
+    return decision.takeError();
+  if (llvm::Error error =
+          setOrVerify("realization admission dispatch policy",
+                      selection.realizationAdmissionDispatchPolicy,
+                      decision->dispatchPolicyPath))
+    return error;
+
+  record = buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
+  llvm::Expected<RVVLowPrecisionProductionPressureProfile> profile =
+      buildRVVLowPrecisionProductionPressureProfile(selection, record,
+                                                   dispatchBoundary, context);
+  if (!profile)
+    return profile.takeError();
+  llvm::Expected<RVVLowPrecisionSelectedBodyRealizationAdmission> admission =
+      admitRVVLowPrecisionSelectedBodyRealization(selection, &*profile,
+                                                  context);
+  if (!admission)
+    return admission.takeError();
+  if (llvm::Error error = requirePolicyString(
+          context, "realization admission contract",
+          selection.realizationAdmissionContract,
+          admission->admissionContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "realization admission decision",
+          selection.realizationAdmissionDecision,
+          stringifyRVVLowPrecisionRealizationAdmissionDecision(
+              admission->decision)))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "realization admission evidence",
+          selection.realizationAdmissionEvidence,
+          admission->measurementEvidenceID))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "realization admission dispatch policy",
+          selection.realizationAdmissionDispatchPolicy,
+          admission->dispatchPolicyPath))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "realization admission schedule decision contract",
+          selection.realizationAdmissionScheduleDecisionContract,
+          admission->scheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "realization admission schedule decision",
+          selection.realizationAdmissionScheduleDecision,
+          admission->scheduleDecision))
+    return error;
+  return requirePolicyString(
+      context, "realization admission schedule decision reason",
+      selection.realizationAdmissionScheduleDecisionReason,
+      admission->scheduleDecisionReason);
 }
 
 llvm::Error verifyRVVLowPrecisionProductionPressureProfile(

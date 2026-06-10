@@ -974,6 +974,33 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       {"low_precision_resource.realization_decision",
        "tcrv_rvv.low_precision_resource.realization_decision", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.realization_admission_contract",
+       "tcrv_rvv.low_precision_resource.realization_admission_contract", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.realization_admission_decision",
+       "tcrv_rvv.low_precision_resource.realization_admission_decision", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.realization_admission_evidence",
+       "tcrv_rvv.low_precision_resource.realization_admission_evidence", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.realization_admission_dispatch_policy",
+       "tcrv_rvv.low_precision_resource."
+       "realization_admission_dispatch_policy",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource."
+       "realization_admission_schedule_decision_contract",
+       "tcrv_rvv.low_precision_resource."
+       "realization_admission_schedule_decision_contract",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.realization_admission_schedule_decision",
+       "tcrv_rvv.low_precision_resource."
+       "realization_admission_schedule_decision",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource."
+       "realization_admission_schedule_decision_reason",
+       "tcrv_rvv.low_precision_resource."
+       "realization_admission_schedule_decision_reason",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.realized_unroll_factor",
        "tcrv_rvv.low_precision_resource.realized_unroll_factor", "",
        /*allowDynamicValue=*/true, /*optional=*/true},

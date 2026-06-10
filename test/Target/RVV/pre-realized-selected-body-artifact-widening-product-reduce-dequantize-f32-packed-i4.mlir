@@ -12,6 +12,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.remediation_statement_strategy", value = "unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum"/s//tcrv_rvv.low_precision_resource.remediation_statement_strategy", value = "metadata-only-packed-i4-unpack-plan"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-REMEDIATION-STATEMENT-STRATEGY
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.remediation_product_plan", value = "two-signed-i4-widening-products-plus-i16-pair-sum.v1"/s//tcrv_rvv.low_precision_resource.remediation_product_plan", value = "metadata-only-packed-i4-product-plan"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-REMEDIATION-PRODUCT-PLAN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.schedule_decision", value = "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"/s//tcrv_rvv.low_precision_resource.schedule_decision", value = "metadata-only-packed-i4-schedule-decision"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-SCHEDULE-DECISION
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.realization_admission_schedule_decision", value = "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"/s//tcrv_rvv.low_precision_resource.realization_admission_schedule_decision", value = "metadata-only-packed-i4-admission-schedule-decision"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-ADMISSION-SCHEDULE-DECISION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_selection_eligible", value = "false"/s//tcrv_rvv.low_precision_resource.performance_selection_eligible", value = "true"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-PERFORMANCE-SELECTION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_maturity_outcome", value = "regression"/s//tcrv_rvv.low_precision_resource.performance_maturity_outcome", value = "win"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-PERFORMANCE-OUTCOME
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.dispatch_preference", value = "not-performance-preferred"/s//tcrv_rvv.low_precision_resource.dispatch_preference", value = "performance-preferred"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-DISPATCH-PREFERENCE
@@ -121,6 +122,13 @@ module {
 // PLAN: {key = "tcrv_rvv.selected_dispatch_case_mirror", value = "selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequantize;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-case"}
 // PLAN: {key = "tcrv_rvv.selected_dispatch_fallback_mirror", value = "selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-fallback-envelope"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.realization_decision", value = "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.realization_admission_contract", value = "rvv-low-precision-selected-body-realization-admission.v1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.realization_admission_decision", value = "realize"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.realization_admission_evidence", value = "gate3-packed-i4-schedule-decision-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.realization_admission_dispatch_policy", value = "correctness-fallback"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision_contract", value = "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision", value = "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision_reason", value = "accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count", value = "2"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.product_region_index", value = "1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.dequant_region_index", value = "2"}
@@ -157,6 +165,13 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.unpack_intent: sign-extend-i4-nibbles-before-widening-product
 // HEADER: tianchenrv.rvv.low_precision_resource.peak_live_vector_groups: 7
 // HEADER: tianchenrv.rvv.low_precision_resource.realization_decision: consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.realization_admission_contract: rvv-low-precision-selected-body-realization-admission.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.realization_admission_decision: realize
+// HEADER: tianchenrv.rvv.low_precision_resource.realization_admission_evidence: gate3-packed-i4-schedule-decision-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
+// HEADER: tianchenrv.rvv.low_precision_resource.realization_admission_dispatch_policy: correctness-fallback
+// HEADER: tianchenrv.rvv.low_precision_resource.realization_admission_schedule_decision_contract: rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.realization_admission_schedule_decision: select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.realization_admission_schedule_decision_reason: accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32
 // HEADER: tianchenrv.rvv.low_precision_resource.realized_vsetvl_region_count: 2
 // HEADER: tianchenrv.rvv.low_precision_resource.product_region_index: 1
 // HEADER: tianchenrv.rvv.low_precision_resource.dequant_region_index: 2
@@ -201,8 +216,8 @@ module {
 // CPP: __riscv_vwredsum_vs_i16mf2_i32m1
 // CPP: tcrv_emitc.assign target=dot_acc_vec
 
-// STALE-PACKED-DECISION: selected-body realization low-precision direct-contraction structure has stale or inconsistent vsetvl region marker
-// STALE-PACKED-DECISION-SAME: resource decision 'consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1'
+// STALE-PACKED-DECISION: requires resource_decision to match the selected low-precision resource candidate
+// STALE-PACKED-DECISION: consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1
 
 // STALE-PACKED-REGION-COUNT: requires region_count to match the bounded Gearbox resource decision
 
@@ -233,6 +248,8 @@ module {
 
 // STALE-ARTIFACT-SCHEDULE-DECISION: low_precision_resource.schedule_decision provenance must mirror provider-selected low-precision direct-contraction resource schedule decision 'select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1'
 // STALE-ARTIFACT-SCHEDULE-DECISION-SAME: metadata-only-packed-i4-schedule-decision
+// STALE-ARTIFACT-ADMISSION-SCHEDULE-DECISION: low_precision_resource.realization_admission_schedule_decision provenance must mirror provider-selected low-precision direct-contraction resource realization admission schedule decision 'select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1'
+// STALE-ARTIFACT-ADMISSION-SCHEDULE-DECISION-SAME: metadata-only-packed-i4-admission-schedule-decision
 
 // STALE-ARTIFACT-PERFORMANCE-SELECTION: low_precision_resource.performance_selection_eligible provenance must mirror provider-selected low-precision direct-contraction resource performance selection eligibility 'false'
 // STALE-ARTIFACT-PERFORMANCE-SELECTION-SAME: true

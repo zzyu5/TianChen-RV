@@ -187,6 +187,13 @@ struct RVVLowPrecisionContractionResourceSelection {
 
   std::string realizationProducer;
   std::string realizationDecision;
+  std::string realizationAdmissionContract;
+  std::string realizationAdmissionDecision;
+  std::string realizationAdmissionEvidence;
+  std::string realizationAdmissionDispatchPolicy;
+  std::string realizationAdmissionScheduleDecisionContract;
+  std::string realizationAdmissionScheduleDecision;
+  std::string realizationAdmissionScheduleDecisionReason;
   std::int64_t realizedUnrollFactor = 0;
   std::int64_t realizedVSetVLRegionCount = 0;
   std::int64_t realizedPeakLiveVectorGroups = 0;

@@ -13519,6 +13519,24 @@ bool expectRVVTargetArtifactExporterShape(
   measuredWinTargetSelection.performanceMaturityOutcome = "win";
   measuredWinTargetSelection.performanceSelectionEligible = "true";
   measuredWinTargetSelection.dispatchPreference = "performance-preferred";
+  measuredWinTargetSelection.realizationAdmissionContract = "";
+  measuredWinTargetSelection.realizationAdmissionDecision = "";
+  measuredWinTargetSelection.realizationAdmissionEvidence = "";
+  measuredWinTargetSelection.realizationAdmissionDispatchPolicy = "";
+  measuredWinTargetSelection.realizationAdmissionScheduleDecisionContract = "";
+  measuredWinTargetSelection.realizationAdmissionScheduleDecision = "";
+  measuredWinTargetSelection.realizationAdmissionScheduleDecisionReason = "";
+  if (auto error = tianchenrv::plugin::rvv::
+          populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(
+              measuredWinTargetSelection,
+              tianchenrv::plugin::rvv::
+                  RVVLowPrecisionSelectedDispatchPolicyBoundary(),
+              "packed-i4 target artifact measured-win admission proof")) {
+    llvm::errs()
+        << "packed-i4 target artifact measured-win admission proof failed: "
+        << llvm::toString(std::move(error)) << "\n";
+    return false;
+  }
   tianchenrv::plugin::rvv::RVVLowPrecisionSameTargetMeasurementRecord
       measuredWinTargetMeasurementRecord =
           tianchenrv::plugin::rvv::
@@ -14213,11 +14231,25 @@ bool expectRVVTargetArtifactExporterShape(
           packedI4ProductDequantFixture.candidate,
           packedI4ProductDequantRoute, stalePackedI4ScheduleDecision,
           "packed-i4 product-reduction registry rejects stale resource-aware "
-          "schedule decision",
-          {"packed-i4 schedule decision",
+          "schedule decision proof",
+          {"realization admission schedule decision",
            "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-"
            "7of32.v1",
            "metadata-only-packed-i4-schedule-decision"}))
+    return false;
+
+  RVVRouteDescription stalePackedI4AdmissionDispatchProof =
+      packedI4ProductDequantDescription;
+  stalePackedI4AdmissionDispatchProof.lowPrecisionResourceSelection
+      .realizationAdmissionDispatchPolicy =
+      "metadata-only-packed-i4-admission-dispatch";
+  if (!expectWideningDotProviderFailure(
+          packedI4ProductDequantFixture.candidate,
+          packedI4ProductDequantRoute, stalePackedI4AdmissionDispatchProof,
+          "packed-i4 product-reduction registry rejects stale realization "
+          "admission dispatch proof",
+          {"realization admission dispatch policy", "correctness-fallback",
+           "metadata-only-packed-i4-admission-dispatch"}))
     return false;
 
   RVVRouteDescription stalePackedI4ProviderMirror =

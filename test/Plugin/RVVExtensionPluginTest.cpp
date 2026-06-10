@@ -189,6 +189,20 @@ llvm::json::Object makeSameTargetMeasurementRecordEvidenceInput(
       record.providerScheduleDecision;
   evidenceInput["provider_schedule_decision_reason"] =
       record.providerScheduleDecisionReason;
+  evidenceInput["provider_realization_admission_contract"] =
+      record.providerRealizationAdmissionContract;
+  evidenceInput["provider_realization_admission_decision"] =
+      record.providerRealizationAdmissionDecision;
+  evidenceInput["provider_realization_admission_evidence"] =
+      record.providerRealizationAdmissionEvidence;
+  evidenceInput["provider_realization_admission_dispatch_policy"] =
+      record.providerRealizationAdmissionDispatchPolicy;
+  evidenceInput["provider_realization_admission_schedule_decision_contract"] =
+      record.providerRealizationAdmissionScheduleDecisionContract;
+  evidenceInput["provider_realization_admission_schedule_decision"] =
+      record.providerRealizationAdmissionScheduleDecision;
+  evidenceInput["provider_realization_admission_schedule_decision_reason"] =
+      record.providerRealizationAdmissionScheduleDecisionReason;
   evidenceInput["provider_primitive_chain_contract"] =
       record.providerPrimitiveChainContract;
   evidenceInput["provider_primitive_chain_kind"] =
@@ -10288,10 +10302,19 @@ module {
               parsedPackedI4Gate2Record->providerPrimitiveReductionIntrinsic ==
                   packedI4ResourceSelection.primitiveReductionIntrinsic &&
               parsedPackedI4Gate2Record->providerScheduleDecision ==
+                  packedI4ResourceSelection.scheduleDecision &&
+              parsedPackedI4Gate2Record
+                      ->providerRealizationAdmissionEvidence ==
+                  acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
+              parsedPackedI4Gate2Record
+                      ->providerRealizationAdmissionDispatchPolicy ==
+                  "correctness-fallback" &&
+              parsedPackedI4Gate2Record
+                      ->providerRealizationAdmissionScheduleDecision ==
                   packedI4ResourceSelection.scheduleDecision,
           "packed-i4 Gate 3 generated artifact record JSON preserves "
           "measurement identity, planning, resource, runtime, primitive, and "
-          "schedule tie-backs"))
+          "admitted schedule tie-backs"))
     return result;
   auto parsedPackedI4Gate2PolicyInput =
       tianchenrv::plugin::rvv::
@@ -10328,10 +10351,67 @@ module {
               parsedPackedI4Gate2PolicyInput
                       ->providerPrimitiveWideningProductIntrinsic ==
                   packedI4ResourceSelection.primitiveWideningProductIntrinsic &&
+              parsedPackedI4Gate2PolicyInput
+                      ->providerRealizationAdmissionScheduleDecision ==
+                  packedI4ResourceSelection
+                      .realizationAdmissionScheduleDecision &&
               parsedPackedI4Gate2PolicyInput->targetCapabilityLegalityMirror ==
                   packedI4ResourceSelection.targetCapabilityLegalityMirror,
           "packed-i4 Gate 3 generated artifact evidence object feeds the "
-          "policy-input boundary with planning/runtime provenance"))
+          "policy-input boundary with planning/runtime/admission provenance"))
+    return result;
+
+  llvm::json::Object missingAdmissionScheduleGate3Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  missingAdmissionScheduleGate3Evidence.erase(
+      "provider_realization_admission_schedule_decision");
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
+                  missingAdmissionScheduleGate3Evidence,
+                  "selected-boundary packed-i4 Gate 3 missing admitted "
+                  "schedule proof")
+                  .takeError(),
+          {"same-target measurement record string field",
+           "provider_realization_admission_schedule_decision"}))
+    return result;
+
+  llvm::json::Object staleAdmissionScheduleGate3Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  staleAdmissionScheduleGate3Evidence
+      ["provider_realization_admission_schedule_decision"] =
+          "metadata-only-packed-i4-admission-schedule";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+                  packedI4ResourceSelection,
+                  staleAdmissionScheduleGate3Evidence,
+                  "selected-boundary packed-i4 Gate 3 stale admitted "
+                  "schedule proof")
+                  .takeError(),
+          {"provider realization admission schedule decision",
+           "metadata-only-packed-i4-admission-schedule",
+           packedI4ResourceSelection.scheduleDecision}))
+    return result;
+
+  llvm::json::Object siblingAdmissionEvidenceGate3 =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  siblingAdmissionEvidenceGate3["provider_realization_admission_evidence"] =
+      "sibling-route-packed-i4-measurement-evidence";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+                  packedI4ResourceSelection,
+                  siblingAdmissionEvidenceGate3,
+                  "selected-boundary packed-i4 Gate 3 stale admitted "
+                  "measurement proof")
+                  .takeError(),
+          {"provider realization admission evidence",
+           "sibling-route-packed-i4-measurement-evidence",
+           acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID}))
     return result;
 
   llvm::json::Object missingMeasurementIDGate2Evidence =
@@ -10792,6 +10872,11 @@ module {
               packedI4PressureProfile->targetProfile == "ssh rvv" &&
               packedI4PressureProfile->measurementEvidenceID ==
                   acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
+              packedI4PressureProfile->realizationAdmissionEvidence ==
+                  acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
+              packedI4PressureProfile
+                      ->realizationAdmissionScheduleDecision ==
+                  packedI4ResourceSelection.scheduleDecision &&
               packedI4PressureProfile->selectedDispatchCaseMirror ==
                   packedI4SelectedDispatchBoundary
                       .selectedDispatchCaseMirror &&
@@ -11258,6 +11343,17 @@ module {
           getRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceIDForCandidate(
               dequantClampPackedI4ResourceSelection.selectedCandidateID)
               .str();
+  dequantClampPackedI4ResourceSelection.realizationAdmissionContract.clear();
+  dequantClampPackedI4ResourceSelection.realizationAdmissionDecision.clear();
+  dequantClampPackedI4ResourceSelection.realizationAdmissionEvidence.clear();
+  dequantClampPackedI4ResourceSelection
+      .realizationAdmissionDispatchPolicy.clear();
+  dequantClampPackedI4ResourceSelection
+      .realizationAdmissionScheduleDecisionContract.clear();
+  dequantClampPackedI4ResourceSelection
+      .realizationAdmissionScheduleDecision.clear();
+  dequantClampPackedI4ResourceSelection
+      .realizationAdmissionScheduleDecisionReason.clear();
 
   auto dequantClampSelectedDispatchBoundary =
       packedI4SelectedDispatchBoundary;
@@ -11279,6 +11375,16 @@ module {
       "role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;"
       "policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-"
       "f32-fallback-envelope";
+
+  if (llvm::Error error =
+          tianchenrv::plugin::rvv::
+              populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(
+                  dequantClampPackedI4ResourceSelection,
+                  dequantClampSelectedDispatchBoundary,
+                  "selected-dispatch packed-i4 dequant-clamp Gate 3 "
+                  "admission proof"))
+    return fail("packed-i4 dequant-clamp Gate 3 admission proof: " +
+                llvm::toString(std::move(error)));
 
   constexpr llvm::StringLiteral kDequantClampEvidencePath(
       "artifacts/gate3-packed-i4-dequant-clamp-ssh/"
@@ -11833,6 +11939,24 @@ module {
   measuredWinPackedI4Selection.performanceMaturityOutcome = "win";
   measuredWinPackedI4Selection.performanceSelectionEligible = "true";
   measuredWinPackedI4Selection.dispatchPreference = "performance-preferred";
+  measuredWinPackedI4Selection.realizationAdmissionContract.clear();
+  measuredWinPackedI4Selection.realizationAdmissionDecision.clear();
+  measuredWinPackedI4Selection.realizationAdmissionEvidence.clear();
+  measuredWinPackedI4Selection.realizationAdmissionDispatchPolicy.clear();
+  measuredWinPackedI4Selection
+      .realizationAdmissionScheduleDecisionContract.clear();
+  measuredWinPackedI4Selection.realizationAdmissionScheduleDecision.clear();
+  measuredWinPackedI4Selection
+      .realizationAdmissionScheduleDecisionReason.clear();
+  if (llvm::Error error =
+          tianchenrv::plugin::rvv::
+              populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(
+                  measuredWinPackedI4Selection,
+                  tianchenrv::plugin::rvv::
+                      RVVLowPrecisionSelectedDispatchPolicyBoundary(),
+                  "selected-boundary packed-i4 measured-win admission proof"))
+    return fail("packed-i4 measured-win admission proof: " +
+                llvm::toString(std::move(error)));
 
   tianchenrv::plugin::rvv::RVVLowPrecisionSameTargetMeasurementRecord
       measuredWinPackedI4Record =
