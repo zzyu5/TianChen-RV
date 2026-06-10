@@ -346,15 +346,15 @@ Completed Gate 4 schedule/resource repair slice:
   primitive facts, pair-sum, and single-`vwredsum` semantics.
 - Updated provider resource schedule/remediation facts, target artifact mirror
   validation, generated-bundle script checks, and focused C++/FileCheck tests
-  to require `low-product-before-high-unpack` schedule evidence instead of the
+  to require `low-shifted-product-rescale` schedule evidence instead of the
   older pair-sum-only schedule label.
 - Collected fresh `ssh rvv` same-target timing after the production schedule
   change:
   `widening_product_reduce_dequantize_f32` remains regression/no-win with
-  best speedup range `0.688202..0.705410`, 12 summary records, 60 measurement
+  best speedup range `0.688202..0.705133`, 12 summary records, 60 measurement
   records, and 12 correctness records.
   `widening_product_reduce_dequant_clamp_f32` remains regression/no-win with
-  best speedup range `0.683721..0.705212`, 24 summary records, 120 measurement
+  best speedup range `0.677994..0.704931`, 24 summary records, 120 measurement
   records, and 24 correctness records.
 - Because both fresh measurements remain below 1.0, the consumed performance
   policy keeps `dispatchPolicyPath = correctness-fallback`,
@@ -369,7 +369,7 @@ Completed Gate 4 schedule/resource repair slice:
 Current Gate 4 evidence-root policy-ingestion slice:
 
 - This round refines the production policy denial boundary after the fresh
-  low-product-before-high-unpack measurements remained regression/no-win. The
+  low-shifted-product-rescale measurements remained regression/no-win. The
   bounded improvement is not another generated-bundle closeout and not another
   schedule rewrite; it makes the RVV low-precision performance policy consume
   the complete same-target evidence JSON root before selected-dispatch
@@ -382,11 +382,10 @@ Current Gate 4 evidence-root policy-ingestion slice:
   oracle selection, maturity evidence input, provider feedback tie-back, and
   nested source-backed record all agree with the provider-owned packed-i4
   resource/schedule facts before correctness fallback is accepted.
-- No fresh `ssh rvv` measurement is required in this slice because generated
-  RVV statement order, target artifact payload, and runtime behavior are
-  unchanged. The existing source-backed dequant and dequant-clamp measurements
-  remain the current evidence inputs and continue to deny performance
-  preference.
+- This earlier evidence-root policy slice did not itself change the runtime
+  statement schedule. After the current low-shifted-product-rescale schedule
+  repair, the final source-backed dequant and dequant-clamp measurement roots
+  are the current policy inputs and continue to deny performance preference.
 
 Acceptance:
 
@@ -425,6 +424,52 @@ Completed Gate 4 evidence-root policy-ingestion slice:
   `performanceSelectionAllowed = false`,
   `performanceWinClaimAllowed = false`, and
   `same-target-measurement-no-win-or-regression`.
+
+Current Gate 4 low-shifted-product schedule/resource repair slice:
+
+- This round changes production RVV plugin statement planning for the
+  provider-owned packed-i4 product-reduction-dequant/dequant-clamp path. The
+  concrete bottleneck is the remaining low-nibble unpack schedule: after
+  loading packed bytes, the current path sign-extends each low nibble with
+  shift-left 4 followed by arithmetic shift-right 4 for both operands before
+  the low widening product. That keeps extra i8 low-nibble vectors live and
+  spends two i8 arithmetic shifts before the product can be formed.
+- The intended repair keeps packed-i4 semantics and the single pair-sum
+  `vwredsum` reduction strategy, but changes the provider-owned schedule to
+  compute the low product from the shift-left low-nibble operands directly and
+  arithmetic-shift the widened i16 low-product vector right by 8 before the
+  high-nibble product, pair-sum, and reduction. This preserves
+  `(sign_extend_i4(lhs_low) * sign_extend_i4(rhs_low))` while reducing the
+  low-nibble unpack/product statement count and the selected peak-live resource
+  estimate.
+- Because this changes generated RVV statement/runtime behavior, the slice must
+  run fresh same-target timing for the affected packed-i4 candidate after
+  focused compiler tests pass. A measured no-win/regression keeps correctness
+  fallback and records a sharper provider-owned blocker; a measured win may
+  become `performance-preferred` only through matching provider-owned maturity,
+  target mirror, measurement, and policy facts.
+
+Acceptance:
+
+- [x] Packed-i4 provider/resource facts identify the low-shifted-product
+  rescale schedule, selected vector budget, and remaining no-win blocker without
+  relying on route ids, artifact names, q8/q4 labels, or Common EmitC
+  inference.
+- [x] Statement planning emits the low-shifted-product/rescale schedule from
+  provider-owned packed-i4 resource facts and target artifact validation rejects
+  stale old low-nibble sign-extension or metadata-only schedule mirrors.
+- [x] Focused C++/FileCheck/script coverage proves the repaired statement order,
+  target artifact metadata, dry-run harness evidence, and stale policy
+  rejection boundaries.
+- [x] Fresh `ssh rvv` same-target timing is collected for dequant and
+  dequant-clamp packed-i4 paths, or a precise hardware/build blocker is
+  recorded before policy update.
+- [x] Performance policy remains `correctness-fallback` on fresh no-win/
+  regression evidence, or selects `performance-preferred` only if measured-win
+  evidence and provider-owned maturity facts agree.
+- [x] Bounded scans show no new legacy RVV route authority, q8/q4 route naming,
+  source-front-door positive route, descriptor-driven compute, or Common EmitC
+  semantic inference.
 
 ## Non-Goals
 
@@ -556,8 +601,8 @@ Current Gate 4 schedule/resource repair verification:
   passed.
 - Fresh `ssh rvv` same-target timing after the production schedule repair
   passed correctness and produced regression/no-win evidence:
-  dequant `0.688202..0.705410` with 12 summaries / 60 measurements / 12
-  correctness records, and dequant-clamp `0.683721..0.705212` with 24
+  dequant `0.688202..0.705133` with 12 summaries / 60 measurements / 12
+  correctness records, and dequant-clamp `0.677994..0.704931` with 24
   summaries / 120 measurements / 24 correctness records.
 - Bounded scan over touched source/tests/spec/current Gate 4 evidence found no
   old Gate 3 packed-i4 evidence ID, old pair-sum-only schedule decision,
@@ -586,10 +631,9 @@ Current Gate 4 evidence-root policy-ingestion verification:
   dequantize-f32-packed-i4-dry-run|rvv-generated-bundle-abi-e2e-pre-realized-
   widening-product-reduce-dequant-clamp-f32-packed-i4-dry-run'` passed from
   `build/test` with 5 focused tests.
-- No fresh `ssh rvv` timing was rerun in this slice because the generated RVV
-  statement schedule, target artifact payload, and runtime behavior did not
-  change. The existing fresh dequant `0.688202..0.705410` and dequant-clamp
-  `0.683721..0.705212` regression/no-win records remain the consumed evidence
+- Fresh `ssh rvv` timing was rerun after the generated RVV statement schedule
+  changed. The final dequant `0.688202..0.705133` and dequant-clamp
+  `0.677994..0.704931` regression/no-win records are the consumed evidence
   inputs and still deny performance preference.
 
 ## Spec Update Decision
@@ -605,7 +649,7 @@ Current Gate 4 evidence-root policy-ingestion verification:
   selected-dispatch case or mirror text that claims `performance-preferred`
   without measured-win evidence.
 - Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the packed-i4
-  low-product-before-high-unpack schedule/resource repair contract, the
+  low-shifted-product-rescale schedule/resource repair contract, the
   provider-mirror vs fresh-measurement range distinction, current same-target
   evidence IDs, and the strict no-win/regression dispatch policy ranges.
 - Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the complete

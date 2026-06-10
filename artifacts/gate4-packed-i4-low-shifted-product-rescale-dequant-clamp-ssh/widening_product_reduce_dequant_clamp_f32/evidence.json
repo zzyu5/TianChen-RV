@@ -1,0 +1,3293 @@
+{
+  "artifact_dir": "artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32",
+  "bundle_checks": {
+    "header": {
+      "extern_c_guard": true,
+      "path": "artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+      "prototype": "void tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);",
+      "sha256": "505f8ff91e30e389cd149a02205f4a75d135de57e86dd3b68ea2c84c0e936dd8",
+      "size": 21919
+    },
+    "header_file": "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+    "index": {
+      "parsed": {
+        "artifact_count": "2",
+        "bundle_status": "complete",
+        "records": [
+          {
+            "artifact_kind": "riscv-elf-relocatable-object",
+            "artifact_metadata": [
+              {
+                "key": "rvv_emitc_lowerable_route",
+                "value": "rvv-generic-widening-product-reduce-dequant-clamp-f32-emitc-route"
+              },
+              {
+                "key": "rvv_selected_body_operation",
+                "value": "widening_product_reduce_dequant_clamp_f32"
+              },
+              {
+                "key": "rvv_selected_body_typed_compute_op",
+                "value": "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
+              },
+              {
+                "key": "rvv_source_ops",
+                "value": "tcrv_rvv.runtime_abi_value->setvl->with_vl->load_family->compute_family->store_family;typed-op-detail=rvv_typed_role_realization"
+              },
+              {
+                "key": "rvv_source_roles",
+                "value": "runtime_abi->configure->scope->load->load->compute->optional_compute->store"
+              },
+              {
+                "key": "rvv_source_op_interface",
+                "value": "TCRVEmitCLowerableOpInterface"
+              },
+              {
+                "key": "rvv_construction_protocol",
+                "value": "extension-family-construction-protocol.v1"
+              },
+              {
+                "key": "rvv_extension_archetype",
+                "value": "rvv-generic-typed-body"
+              },
+              {
+                "key": "rvv_semantic_role_graph",
+                "value": "runtime_abi->configure->scope->load->compute->store"
+              },
+              {
+                "key": "rvv_common_interface_realization",
+                "value": "runtime_abi/resource+emitc;configure/config+emitc;scope/config+emitc;load/memory+resource+emitc;compute/compute+resource+emitc;store/memory+resource+emitc"
+              },
+              {
+                "key": "rvv_typed_role_realization",
+                "value": "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;scope:tcrv_rvv.with_vl;load:typed-load-family;compute:typed-compute-family;store:typed-store-family;exact-ops=rvv-construction-protocol-realizations"
+              },
+              {
+                "key": "rvv_emitc_route_mapping",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_route",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_kind",
+                "value": "riscv-elf-relocatable-object"
+              },
+              {
+                "key": "rvv_evidence_profile",
+                "value": "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims"
+              },
+              {
+                "key": "rvv_runtime_abi_name",
+                "value": "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1"
+              },
+              {
+                "key": "rvv_runtime_abi_contract",
+                "value": "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi"
+              },
+              {
+                "key": "rvv_bundle_component_group",
+                "value": "rvv-generic-typed-body-materialized-emitc-bundle.v1"
+              },
+              {
+                "key": "rvv_object_handoff",
+                "value": "materialized-emitc-cpp-rvv-intrinsic-object"
+              },
+              {
+                "key": "tcrv_rvv.config_contract",
+                "value": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
+              },
+              {
+                "key": "tcrv_rvv.element_type",
+                "value": "f32"
+              },
+              {
+                "key": "tcrv_rvv.sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.tail_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.mask_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.runtime_control_plan",
+                "value": "rvv-runtime-avl-vl-control-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.memory_form",
+                "value": "unit-stride-widening-product-reduce-dequant-clamp-f32"
+              },
+              {
+                "key": "tcrv_rvv.runtime_vl_contract",
+                "value": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_source",
+                "value": "runtime_abi:n"
+              },
+              {
+                "key": "tcrv_rvv.vl_def",
+                "value": "tcrv_rvv.setvl"
+              },
+              {
+                "key": "tcrv_rvv.vl_scope",
+                "value": "tcrv_rvv.with_vl"
+              },
+              {
+                "key": "tcrv_rvv.vl_uses",
+                "value": "emitc_for,with_vl,load,(load|broadcast_load),(binary|compare->select|reduce|macc|widening_convert|widening_macc|widening_dot_reduce|widening_product),store"
+              },
+              {
+                "key": "tcrv_rvv.runtime_abi_order",
+                "value": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_abi_parameter",
+                "value": "n"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_provider_mirror",
+                "value": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_legality_mirror",
+                "value": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_case_mirror",
+                "value": "selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequant_clamp;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-case"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_fallback_mirror",
+                "value": "selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-fallback-envelope"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_plan",
+                "value": "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_operands",
+                "value": "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1;lhs=lhs-input-buffer:lhs:abi|ld|wpl|i8mf4|hdr;rhs=rhs-input-buffer:rhs:abi|ld|wpr|i8mf4|hdr;acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;scale=dequant-scale-value:scale:abi|scale|f32|deq|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|up|splat|cmp|sel|hdr;out=output-buffer:out:abi|cdeq|store|f32m1|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary",
+                "value": "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1"
+              },
+              {
+                "key": "tcrv_rvv.contraction_route_family_plan",
+                "value": "rvv-contraction-route-family-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.emitc_loop",
+                "value": "emitc.for"
+              },
+              {
+                "key": "tcrv_rvv.loop_induction",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.loop_step",
+                "value": "full_chunk_vl"
+              },
+              {
+                "key": "tcrv_rvv.remaining_avl",
+                "value": "n-offset"
+              },
+              {
+                "key": "tcrv_rvv.pointer_advance",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.bounded_slice",
+                "value": "multi-vl-selected-body-sew32-lmul-m1"
+              },
+              {
+                "key": "tcrv_rvv.multi_vl",
+                "value": "supported"
+              },
+              {
+                "key": "tcrv_rvv.target_leaf_profile",
+                "value": "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequant-clamp-leaf-profile.v1"
+              },
+              {
+                "key": "tcrv_rvv.provider_supported_mirror",
+                "value": "provider_supported_mirror:rvv-contraction-family-plan-validated"
+              },
+              {
+                "key": "tcrv_rvv.required_header_declarations",
+                "value": "stddef.h,stdint.h,riscv_vector.h"
+              },
+              {
+                "key": "tcrv_rvv.c_type_mapping",
+                "value": "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,dequant-splat/clamped:float-e32m1,scale:float,lower:float,upper:float"
+              },
+              {
+                "key": "tcrv_rvv.source_sew",
+                "value": "8"
+              },
+              {
+                "key": "tcrv_rvv.source_lmul",
+                "value": "mf4"
+              },
+              {
+                "key": "tcrv_rvv.product_sew",
+                "value": "16"
+              },
+              {
+                "key": "tcrv_rvv.product_lmul",
+                "value": "mf2"
+              },
+              {
+                "key": "tcrv_rvv.product_vector_type",
+                "value": "!tcrv_rvv.vector<i16, \"mf2\">"
+              },
+              {
+                "key": "tcrv_rvv.product_vector_c_type",
+                "value": "vint16mf2_t"
+              },
+              {
+                "key": "tcrv_rvv.accumulator_sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.accumulator_lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.result_sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.result_lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.source_memory_form",
+                "value": "unit-stride-load"
+              },
+              {
+                "key": "tcrv_rvv.destination_memory_form",
+                "value": "unit-stride-store"
+              },
+              {
+                "key": "tcrv_rvv.reduction_accumulator_layout",
+                "value": "scalar-i32-seed-lane0-from-accumulator-input"
+              },
+              {
+                "key": "tcrv_rvv.reduction_result_layout",
+                "value": "store-standalone-reduction-lane0-to-output-scalar"
+              },
+              {
+                "key": "tcrv_rvv.widening_product_relation",
+                "value": "signed-i8mf4xi8mf4-to-i16mf2"
+              },
+              {
+                "key": "tcrv_rvv.widening_product_multiplicand_roles",
+                "value": "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"
+              },
+              {
+                "key": "tcrv_rvv.widening_product_extension_policy",
+                "value": "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2"
+              },
+              {
+                "key": "tcrv_rvv.product_reduction_chain_relation",
+                "value": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
+              },
+              {
+                "key": "tcrv_rvv.widening_product_intrinsic",
+                "value": "__riscv_vwmul_vv_i16mf2"
+              },
+              {
+                "key": "tcrv_rvv.widening_reduction_intrinsic",
+                "value": "__riscv_vwredsum_vs_i16mf2_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.scalar_seed_splat_intrinsic",
+                "value": "__riscv_vmv_v_x_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.reduction_store_vl",
+                "value": "1"
+              },
+              {
+                "key": "tcrv_rvv.scalar_result_runtime_boundary",
+                "value": "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1"
+              },
+              {
+                "key": "tcrv_rvv.dequantization_relation",
+                "value": "signed-i32m1-to-f32m1-scale-f32"
+              },
+              {
+                "key": "tcrv_rvv.dequant_scale_role",
+                "value": "dequant-scale-value"
+              },
+              {
+                "key": "tcrv_rvv.dequant_scale_c_type",
+                "value": "float"
+              },
+              {
+                "key": "tcrv_rvv.dequant_scale_name",
+                "value": "scale"
+              },
+              {
+                "key": "tcrv_rvv.rhs_broadcast_intrinsic",
+                "value": "__riscv_vfmv_v_f_f32m1"
+              },
+              {
+                "key": "tcrv_rvv.lower_bound_role",
+                "value": "lower-bound-scalar-value"
+              },
+              {
+                "key": "tcrv_rvv.upper_bound_role",
+                "value": "upper-bound-scalar-value"
+              },
+              {
+                "key": "tcrv_rvv.lower_bound_c_type",
+                "value": "float"
+              },
+              {
+                "key": "tcrv_rvv.upper_bound_c_type",
+                "value": "float"
+              },
+              {
+                "key": "tcrv_rvv.bound_order",
+                "value": "lower-bound-before-upper-bound"
+              },
+              {
+                "key": "tcrv_rvv.clamp_relation",
+                "value": "signed-i8mf4xi8mf4-i32-reduction-scale-f32-clamp-lower-upper-to-f32m1"
+              },
+              {
+                "key": "tcrv_rvv.select_layout",
+                "value": "clamp-lower-then-upper"
+              },
+              {
+                "key": "tcrv_rvv.compare_predicate_kind",
+                "value": "slt"
+              },
+              {
+                "key": "tcrv_rvv.compare_intrinsic",
+                "value": "__riscv_vmflt_vv_f32m1_b32"
+              },
+              {
+                "key": "tcrv_rvv.secondary_compare_predicate_kind",
+                "value": "slt"
+              },
+              {
+                "key": "tcrv_rvv.secondary_compare_intrinsic",
+                "value": "__riscv_vmflt_vv_f32m1_b32"
+              },
+              {
+                "key": "tcrv_rvv.masked_merge_intrinsic",
+                "value": "__riscv_vmerge_vvm_f32m1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.contract",
+                "value": "rvv-low-precision-widening-primitive-facts.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.kind",
+                "value": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant-clamp.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.source_dtype",
+                "value": "i8"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.source_signedness",
+                "value": "signed"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.source_load",
+                "value": "unit-stride-byte-load"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.source_extension",
+                "value": "sign-extend-i8-to-i16-product"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.product_dtype",
+                "value": "i16"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.accumulator_dtype",
+                "value": "i32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.result_dtype",
+                "value": "f32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.candidate_set",
+                "value": "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.selected_candidate",
+                "value": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.selection_reason",
+                "value": "static-bounded-product-reduction-dequant-clamp-signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1-u1-unpack-required-runtime-avl"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.planning_contract",
+                "value": "rvv-low-precision-production-resource-planning-contract.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.legality_scope",
+                "value": "typed-low-precision-product-reduction-dequant-resource-legality.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.source_dtype",
+                "value": "i8"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.source_sew",
+                "value": "8"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.source_lmul",
+                "value": "mf4"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.operand_form",
+                "value": "packed-i4-nibbles"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.source_signedness",
+                "value": "signed"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.storage_element_width",
+                "value": "8"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.effective_element_width",
+                "value": "4"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.packing_layout",
+                "value": "two-signed-i4-elements-per-byte-low-high-nibbles"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.unpack_intent",
+                "value": "sign-extend-i4-nibbles-before-widening-product"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.product_dtype",
+                "value": "i16"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.product_sew",
+                "value": "16"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.product_lmul",
+                "value": "mf2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.product_emul",
+                "value": "mf2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.accumulator_dtype",
+                "value": "i32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.accumulator_sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.accumulator_lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.accumulator_emul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.result_dtype",
+                "value": "f32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.result_sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.result_lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.memory_form",
+                "value": "unit-stride-widening-product-reduce-dequant-clamp-f32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.tail_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.mask_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.unroll_factor",
+                "value": "1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.accumulator_count",
+                "value": "1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.reduction_layout",
+                "value": "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.vsetvl_region_count",
+                "value": "2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.peak_live_vector_groups",
+                "value": "6"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.vector_register_budget",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.runtime_avl_source",
+                "value": "runtime_abi:n"
+              },
+              {
+                "key": "tcrv_rvv.gearbox.producer_scope",
+                "value": "gearbox-scope:product-reduction"
+              },
+              {
+                "key": "tcrv_rvv.gearbox.consumer_scope",
+                "value": "gearbox-scope:dequant-store"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.runtime_abi_order",
+                "value": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.route_family_plan",
+                "value": "rvv-contraction-route-family-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.provider_supported_mirror",
+                "value": "provider_supported_mirror:rvv-contraction-family-plan-validated"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_contract",
+                "value": "rvv-low-precision-widening-primitive-facts.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_kind",
+                "value": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant-clamp.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_chain_contract",
+                "value": "rvv-low-precision-widening-reduction-primitive-facts.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_chain_kind",
+                "value": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles",
+                "value": "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.widening_product_extension_policy",
+                "value": "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_source_load",
+                "value": "unit-stride-byte-load"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_source_extension",
+                "value": "sign-extend-i8-to-i16-product"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_widening_product_relation",
+                "value": "signed-i8mf4xi8mf4-to-i16mf2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation",
+                "value": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic",
+                "value": "__riscv_vwmul_vv_i16mf2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic",
+                "value": "__riscv_vwredsum_vs_i16mf2_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic",
+                "value": "__riscv_vmv_v_x_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_accumulator_layout",
+                "value": "scalar-i32-seed-lane0-from-accumulator-input"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_result_layout",
+                "value": "store-standalone-reduction-lane0-to-output-scalar"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_reduction_store_vl",
+                "value": "1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_producer",
+                "value": "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_decision",
+                "value": "consume-low-precision-packed-i4-low-shifted-product-rescale-single-reduce-budget-6of32.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_admission_contract",
+                "value": "rvv-low-precision-selected-body-realization-admission.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_admission_decision",
+                "value": "realize"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_admission_evidence",
+                "value": "gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_admission_dispatch_policy",
+                "value": "correctness-fallback"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision_contract",
+                "value": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision",
+                "value": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision_reason",
+                "value": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realized_unroll_factor",
+                "value": "1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count",
+                "value": "2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups",
+                "value": "6"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.product_region_index",
+                "value": "1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.dequant_region_index",
+                "value": "2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.product_phase",
+                "value": "load-product-reduce"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.dequant_phase",
+                "value": "dequant-store"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_feedback",
+                "value": "same-target-packed-i4-no-win.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_baseline",
+                "value": "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
+                "value": "0.686981..0.705666"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_action",
+                "value": "no-win-repair-required-before-performance-claim"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
+                "value": "rvv-low-precision-packed-i4-measurement-policy-handoff.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_diagnosis",
+                "value": "correctness-supported-no-win-regression"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_measurement_evidence",
+                "value": "gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_decision",
+                "value": "accepted-no-win-regression-low-shifted-product-rescale-repair-required.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_action",
+                "value": "no-win-repair-required-before-performance-claim"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_dispatch_preference",
+                "value": "not-performance-preferred"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_blocker",
+                "value": "same-target-packed-i4-low-shifted-product-rescale-no-win-or-regression"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_plan_contract",
+                "value": "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_plan",
+                "value": "repair-packed-i4-low-shifted-product-rescale-single-reduce-before-performance-claim.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_statement_strategy",
+                "value": "low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_vector_budget",
+                "value": "packed-i4-remediation-budget-6of32-vector-groups"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_schedule_contract",
+                "value": "rvv-low-precision-packed-i4-resource-remediation-schedule.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_unpack_plan",
+                "value": "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_product_plan",
+                "value": "low-shifted-product-i16-rescale-plus-high-product-pair-sum.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_reduction_plan",
+                "value": "single-vwredsum-i16-pair-sum-with-i32-seed.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_vl_plan",
+                "value": "two-region-runtime-avl-product-reduce-then-dequant-store.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.schedule_decision_contract",
+                "value": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.schedule_decision",
+                "value": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.schedule_decision_reason",
+                "value": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_maturity",
+                "value": "executable-not-performance-mature"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
+                "value": "same-target-packed-i4-low-shifted-product-rescale-regression-gate4.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
+                "value": "regression"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_selection_eligible",
+                "value": "false"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.dispatch_preference",
+                "value": "not-performance-preferred"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.target_capability_provider_mirror",
+                "value": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.target_capability_legality_mirror",
+                "value": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.legality",
+                "value": "legal"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.rejection_reason",
+                "value": "none"
+              }
+            ],
+            "component_group": "rvv-generic-typed-body-materialized-emitc-bundle.v1",
+            "component_role": "object",
+            "components": [
+              {
+                "role": "dispatch case",
+                "selected_variant": "pre_realized_body_rvv_product_reduce_dequant_clamp"
+              }
+            ],
+            "evidence_role": "relocatable-object",
+            "external_abi_name": "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1",
+            "file_name": "artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+            "handoff_kind": "materialized-emitc-cpp-rvv-intrinsic-object",
+            "owner": "rvv-plugin",
+            "role": "dispatch case",
+            "route": "rvv-generic-typed-body-emitc-route-family",
+            "runtime_abi": "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1",
+            "runtime_abi_kind": "plugin-owned-runtime-abi",
+            "runtime_abi_name": "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1",
+            "runtime_abi_parameter_count": "8",
+            "runtime_abi_parameters": [
+              {
+                "c_name": "lhs",
+                "c_type": "const int8_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "lhs-input-buffer"
+              },
+              {
+                "c_name": "rhs",
+                "c_type": "const int8_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "rhs-input-buffer"
+              },
+              {
+                "c_name": "acc",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "accumulator-input-buffer"
+              },
+              {
+                "c_name": "scale",
+                "c_type": "float",
+                "ownership": "target-export-abi-owned",
+                "role": "dequant-scale-value"
+              },
+              {
+                "c_name": "lower_bound",
+                "c_type": "float",
+                "ownership": "target-export-abi-owned",
+                "role": "lower-bound-scalar-value"
+              },
+              {
+                "c_name": "upper_bound",
+                "c_type": "float",
+                "ownership": "target-export-abi-owned",
+                "role": "upper-bound-scalar-value"
+              },
+              {
+                "c_name": "out",
+                "c_type": "float *",
+                "ownership": "target-export-abi-owned",
+                "role": "output-buffer"
+              },
+              {
+                "c_name": "n",
+                "c_type": "size_t",
+                "ownership": "target-export-abi-owned",
+                "role": "runtime-element-count"
+              }
+            ],
+            "selected_variant": "pre_realized_body_rvv_product_reduce_dequant_clamp"
+          },
+          {
+            "artifact_kind": "runtime-callable-c-header",
+            "artifact_metadata": [
+              {
+                "key": "rvv_emitc_lowerable_route",
+                "value": "rvv-generic-widening-product-reduce-dequant-clamp-f32-emitc-route"
+              },
+              {
+                "key": "rvv_selected_body_operation",
+                "value": "widening_product_reduce_dequant_clamp_f32"
+              },
+              {
+                "key": "rvv_selected_body_typed_compute_op",
+                "value": "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
+              },
+              {
+                "key": "rvv_source_ops",
+                "value": "tcrv_rvv.runtime_abi_value->setvl->with_vl->load_family->compute_family->store_family;typed-op-detail=rvv_typed_role_realization"
+              },
+              {
+                "key": "rvv_source_roles",
+                "value": "runtime_abi->configure->scope->load->load->compute->optional_compute->store"
+              },
+              {
+                "key": "rvv_source_op_interface",
+                "value": "TCRVEmitCLowerableOpInterface"
+              },
+              {
+                "key": "rvv_construction_protocol",
+                "value": "extension-family-construction-protocol.v1"
+              },
+              {
+                "key": "rvv_extension_archetype",
+                "value": "rvv-generic-typed-body"
+              },
+              {
+                "key": "rvv_semantic_role_graph",
+                "value": "runtime_abi->configure->scope->load->compute->store"
+              },
+              {
+                "key": "rvv_common_interface_realization",
+                "value": "runtime_abi/resource+emitc;configure/config+emitc;scope/config+emitc;load/memory+resource+emitc;compute/compute+resource+emitc;store/memory+resource+emitc"
+              },
+              {
+                "key": "rvv_typed_role_realization",
+                "value": "runtime_abi:tcrv_rvv.runtime_abi_value;configure:tcrv_rvv.setvl;scope:tcrv_rvv.with_vl;load:typed-load-family;compute:typed-compute-family;store:typed-store-family;exact-ops=rvv-construction-protocol-realizations"
+              },
+              {
+                "key": "rvv_emitc_route_mapping",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_route",
+                "value": "rvv-generic-typed-body-emitc-route-family"
+              },
+              {
+                "key": "rvv_target_artifact_kind",
+                "value": "riscv-elf-relocatable-object"
+              },
+              {
+                "key": "rvv_evidence_profile",
+                "value": "parse_verify|capability|interface|selected_boundary_or_route|emitc_route_mapping|materialized_target_artifact|ssh_rvv_required_for_runtime_claims"
+              },
+              {
+                "key": "rvv_runtime_abi_name",
+                "value": "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1"
+              },
+              {
+                "key": "rvv_runtime_abi_contract",
+                "value": "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi"
+              },
+              {
+                "key": "rvv_bundle_component_group",
+                "value": "rvv-generic-typed-body-materialized-emitc-bundle.v1"
+              },
+              {
+                "key": "rvv_object_handoff",
+                "value": "materialized-emitc-cpp-rvv-intrinsic-object"
+              },
+              {
+                "key": "tcrv_rvv.config_contract",
+                "value": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1"
+              },
+              {
+                "key": "tcrv_rvv.element_type",
+                "value": "f32"
+              },
+              {
+                "key": "tcrv_rvv.sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.tail_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.mask_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.runtime_control_plan",
+                "value": "rvv-runtime-avl-vl-control-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.memory_form",
+                "value": "unit-stride-widening-product-reduce-dequant-clamp-f32"
+              },
+              {
+                "key": "tcrv_rvv.runtime_vl_contract",
+                "value": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_source",
+                "value": "runtime_abi:n"
+              },
+              {
+                "key": "tcrv_rvv.vl_def",
+                "value": "tcrv_rvv.setvl"
+              },
+              {
+                "key": "tcrv_rvv.vl_scope",
+                "value": "tcrv_rvv.with_vl"
+              },
+              {
+                "key": "tcrv_rvv.vl_uses",
+                "value": "emitc_for,with_vl,load,(load|broadcast_load),(binary|compare->select|reduce|macc|widening_convert|widening_macc|widening_dot_reduce|widening_product),store"
+              },
+              {
+                "key": "tcrv_rvv.runtime_abi_order",
+                "value": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
+              },
+              {
+                "key": "tcrv_rvv.runtime_avl_abi_parameter",
+                "value": "n"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_provider_mirror",
+                "value": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
+              },
+              {
+                "key": "tcrv_rvv.target_capability_legality_mirror",
+                "value": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_case_mirror",
+                "value": "selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequant_clamp;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-case"
+              },
+              {
+                "key": "tcrv_rvv.selected_dispatch_fallback_mirror",
+                "value": "selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-fallback-envelope"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_plan",
+                "value": "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1"
+              },
+              {
+                "key": "tcrv_rvv.route_operand_binding_operands",
+                "value": "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1;lhs=lhs-input-buffer:lhs:abi|ld|wpl|i8mf4|hdr;rhs=rhs-input-buffer:rhs:abi|ld|wpr|i8mf4|hdr;acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;scale=dequant-scale-value:scale:abi|scale|f32|deq|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|up|splat|cmp|sel|hdr;out=output-buffer:out:abi|cdeq|store|f32m1|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr"
+              },
+              {
+                "key": "tcrv_rvv.standalone_reduction_scalar_result_runtime_boundary",
+                "value": "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1"
+              },
+              {
+                "key": "tcrv_rvv.contraction_route_family_plan",
+                "value": "rvv-contraction-route-family-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.emitc_loop",
+                "value": "emitc.for"
+              },
+              {
+                "key": "tcrv_rvv.loop_induction",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.loop_step",
+                "value": "full_chunk_vl"
+              },
+              {
+                "key": "tcrv_rvv.remaining_avl",
+                "value": "n-offset"
+              },
+              {
+                "key": "tcrv_rvv.pointer_advance",
+                "value": "offset"
+              },
+              {
+                "key": "tcrv_rvv.bounded_slice",
+                "value": "multi-vl-selected-body-sew32-lmul-m1"
+              },
+              {
+                "key": "tcrv_rvv.multi_vl",
+                "value": "supported"
+              },
+              {
+                "key": "tcrv_rvv.target_leaf_profile",
+                "value": "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequant-clamp-leaf-profile.v1"
+              },
+              {
+                "key": "tcrv_rvv.provider_supported_mirror",
+                "value": "provider_supported_mirror:rvv-contraction-family-plan-validated"
+              },
+              {
+                "key": "tcrv_rvv.required_header_declarations",
+                "value": "stddef.h,stdint.h,riscv_vector.h"
+              },
+              {
+                "key": "tcrv_rvv.c_type_mapping",
+                "value": "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,dequant-splat/clamped:float-e32m1,scale:float,lower:float,upper:float"
+              },
+              {
+                "key": "tcrv_rvv.source_sew",
+                "value": "8"
+              },
+              {
+                "key": "tcrv_rvv.source_lmul",
+                "value": "mf4"
+              },
+              {
+                "key": "tcrv_rvv.product_sew",
+                "value": "16"
+              },
+              {
+                "key": "tcrv_rvv.product_lmul",
+                "value": "mf2"
+              },
+              {
+                "key": "tcrv_rvv.product_vector_type",
+                "value": "!tcrv_rvv.vector<i16, \"mf2\">"
+              },
+              {
+                "key": "tcrv_rvv.product_vector_c_type",
+                "value": "vint16mf2_t"
+              },
+              {
+                "key": "tcrv_rvv.accumulator_sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.accumulator_lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.result_sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.result_lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.source_memory_form",
+                "value": "unit-stride-load"
+              },
+              {
+                "key": "tcrv_rvv.destination_memory_form",
+                "value": "unit-stride-store"
+              },
+              {
+                "key": "tcrv_rvv.reduction_accumulator_layout",
+                "value": "scalar-i32-seed-lane0-from-accumulator-input"
+              },
+              {
+                "key": "tcrv_rvv.reduction_result_layout",
+                "value": "store-standalone-reduction-lane0-to-output-scalar"
+              },
+              {
+                "key": "tcrv_rvv.widening_product_relation",
+                "value": "signed-i8mf4xi8mf4-to-i16mf2"
+              },
+              {
+                "key": "tcrv_rvv.widening_product_multiplicand_roles",
+                "value": "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"
+              },
+              {
+                "key": "tcrv_rvv.widening_product_extension_policy",
+                "value": "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2"
+              },
+              {
+                "key": "tcrv_rvv.product_reduction_chain_relation",
+                "value": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
+              },
+              {
+                "key": "tcrv_rvv.widening_product_intrinsic",
+                "value": "__riscv_vwmul_vv_i16mf2"
+              },
+              {
+                "key": "tcrv_rvv.widening_reduction_intrinsic",
+                "value": "__riscv_vwredsum_vs_i16mf2_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.scalar_seed_splat_intrinsic",
+                "value": "__riscv_vmv_v_x_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.reduction_store_vl",
+                "value": "1"
+              },
+              {
+                "key": "tcrv_rvv.scalar_result_runtime_boundary",
+                "value": "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1"
+              },
+              {
+                "key": "tcrv_rvv.dequantization_relation",
+                "value": "signed-i32m1-to-f32m1-scale-f32"
+              },
+              {
+                "key": "tcrv_rvv.dequant_scale_role",
+                "value": "dequant-scale-value"
+              },
+              {
+                "key": "tcrv_rvv.dequant_scale_c_type",
+                "value": "float"
+              },
+              {
+                "key": "tcrv_rvv.dequant_scale_name",
+                "value": "scale"
+              },
+              {
+                "key": "tcrv_rvv.rhs_broadcast_intrinsic",
+                "value": "__riscv_vfmv_v_f_f32m1"
+              },
+              {
+                "key": "tcrv_rvv.lower_bound_role",
+                "value": "lower-bound-scalar-value"
+              },
+              {
+                "key": "tcrv_rvv.upper_bound_role",
+                "value": "upper-bound-scalar-value"
+              },
+              {
+                "key": "tcrv_rvv.lower_bound_c_type",
+                "value": "float"
+              },
+              {
+                "key": "tcrv_rvv.upper_bound_c_type",
+                "value": "float"
+              },
+              {
+                "key": "tcrv_rvv.bound_order",
+                "value": "lower-bound-before-upper-bound"
+              },
+              {
+                "key": "tcrv_rvv.clamp_relation",
+                "value": "signed-i8mf4xi8mf4-i32-reduction-scale-f32-clamp-lower-upper-to-f32m1"
+              },
+              {
+                "key": "tcrv_rvv.select_layout",
+                "value": "clamp-lower-then-upper"
+              },
+              {
+                "key": "tcrv_rvv.compare_predicate_kind",
+                "value": "slt"
+              },
+              {
+                "key": "tcrv_rvv.compare_intrinsic",
+                "value": "__riscv_vmflt_vv_f32m1_b32"
+              },
+              {
+                "key": "tcrv_rvv.secondary_compare_predicate_kind",
+                "value": "slt"
+              },
+              {
+                "key": "tcrv_rvv.secondary_compare_intrinsic",
+                "value": "__riscv_vmflt_vv_f32m1_b32"
+              },
+              {
+                "key": "tcrv_rvv.masked_merge_intrinsic",
+                "value": "__riscv_vmerge_vvm_f32m1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.contract",
+                "value": "rvv-low-precision-widening-primitive-facts.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.kind",
+                "value": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant-clamp.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.source_dtype",
+                "value": "i8"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.source_signedness",
+                "value": "signed"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.source_load",
+                "value": "unit-stride-byte-load"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.source_extension",
+                "value": "sign-extend-i8-to-i16-product"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.product_dtype",
+                "value": "i16"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.accumulator_dtype",
+                "value": "i32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_primitive.result_dtype",
+                "value": "f32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.candidate_set",
+                "value": "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.selected_candidate",
+                "value": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.selection_reason",
+                "value": "static-bounded-product-reduction-dequant-clamp-signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1-u1-unpack-required-runtime-avl"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.planning_contract",
+                "value": "rvv-low-precision-production-resource-planning-contract.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.legality_scope",
+                "value": "typed-low-precision-product-reduction-dequant-resource-legality.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.source_dtype",
+                "value": "i8"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.source_sew",
+                "value": "8"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.source_lmul",
+                "value": "mf4"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.operand_form",
+                "value": "packed-i4-nibbles"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.source_signedness",
+                "value": "signed"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.storage_element_width",
+                "value": "8"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.effective_element_width",
+                "value": "4"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.packing_layout",
+                "value": "two-signed-i4-elements-per-byte-low-high-nibbles"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.unpack_intent",
+                "value": "sign-extend-i4-nibbles-before-widening-product"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.product_dtype",
+                "value": "i16"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.product_sew",
+                "value": "16"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.product_lmul",
+                "value": "mf2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.product_emul",
+                "value": "mf2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.accumulator_dtype",
+                "value": "i32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.accumulator_sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.accumulator_lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.accumulator_emul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.result_dtype",
+                "value": "f32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.result_sew",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.result_lmul",
+                "value": "m1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.memory_form",
+                "value": "unit-stride-widening-product-reduce-dequant-clamp-f32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.tail_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.mask_policy",
+                "value": "agnostic"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.unroll_factor",
+                "value": "1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.accumulator_count",
+                "value": "1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.reduction_layout",
+                "value": "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.vsetvl_region_count",
+                "value": "2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.peak_live_vector_groups",
+                "value": "6"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.vector_register_budget",
+                "value": "32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.runtime_avl_source",
+                "value": "runtime_abi:n"
+              },
+              {
+                "key": "tcrv_rvv.gearbox.producer_scope",
+                "value": "gearbox-scope:product-reduction"
+              },
+              {
+                "key": "tcrv_rvv.gearbox.consumer_scope",
+                "value": "gearbox-scope:dequant-store"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.runtime_abi_order",
+                "value": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.route_family_plan",
+                "value": "rvv-contraction-route-family-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.provider_supported_mirror",
+                "value": "provider_supported_mirror:rvv-contraction-family-plan-validated"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_contract",
+                "value": "rvv-low-precision-widening-primitive-facts.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_kind",
+                "value": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant-clamp.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_chain_contract",
+                "value": "rvv-low-precision-widening-reduction-primitive-facts.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_chain_kind",
+                "value": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles",
+                "value": "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.widening_product_extension_policy",
+                "value": "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_source_load",
+                "value": "unit-stride-byte-load"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_source_extension",
+                "value": "sign-extend-i8-to-i16-product"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_widening_product_relation",
+                "value": "signed-i8mf4xi8mf4-to-i16mf2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation",
+                "value": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic",
+                "value": "__riscv_vwmul_vv_i16mf2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic",
+                "value": "__riscv_vwredsum_vs_i16mf2_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic",
+                "value": "__riscv_vmv_v_x_i32m1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_accumulator_layout",
+                "value": "scalar-i32-seed-lane0-from-accumulator-input"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_result_layout",
+                "value": "store-standalone-reduction-lane0-to-output-scalar"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.primitive_reduction_store_vl",
+                "value": "1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_producer",
+                "value": "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_decision",
+                "value": "consume-low-precision-packed-i4-low-shifted-product-rescale-single-reduce-budget-6of32.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_admission_contract",
+                "value": "rvv-low-precision-selected-body-realization-admission.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_admission_decision",
+                "value": "realize"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_admission_evidence",
+                "value": "gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_admission_dispatch_policy",
+                "value": "correctness-fallback"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision_contract",
+                "value": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision",
+                "value": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision_reason",
+                "value": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realized_unroll_factor",
+                "value": "1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count",
+                "value": "2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups",
+                "value": "6"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.product_region_index",
+                "value": "1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.dequant_region_index",
+                "value": "2"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.product_phase",
+                "value": "load-product-reduce"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.dequant_phase",
+                "value": "dequant-store"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_feedback",
+                "value": "same-target-packed-i4-no-win.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_baseline",
+                "value": "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
+                "value": "0.686981..0.705666"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_action",
+                "value": "no-win-repair-required-before-performance-claim"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
+                "value": "rvv-low-precision-packed-i4-measurement-policy-handoff.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_diagnosis",
+                "value": "correctness-supported-no-win-regression"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_measurement_evidence",
+                "value": "gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_decision",
+                "value": "accepted-no-win-regression-low-shifted-product-rescale-repair-required.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_action",
+                "value": "no-win-repair-required-before-performance-claim"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_dispatch_preference",
+                "value": "not-performance-preferred"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_blocker",
+                "value": "same-target-packed-i4-low-shifted-product-rescale-no-win-or-regression"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_plan_contract",
+                "value": "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_plan",
+                "value": "repair-packed-i4-low-shifted-product-rescale-single-reduce-before-performance-claim.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_statement_strategy",
+                "value": "low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_vector_budget",
+                "value": "packed-i4-remediation-budget-6of32-vector-groups"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_schedule_contract",
+                "value": "rvv-low-precision-packed-i4-resource-remediation-schedule.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_unpack_plan",
+                "value": "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_product_plan",
+                "value": "low-shifted-product-i16-rescale-plus-high-product-pair-sum.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_reduction_plan",
+                "value": "single-vwredsum-i16-pair-sum-with-i32-seed.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.remediation_vl_plan",
+                "value": "two-region-runtime-avl-product-reduce-then-dequant-store.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.schedule_decision_contract",
+                "value": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.schedule_decision",
+                "value": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.schedule_decision_reason",
+                "value": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_maturity",
+                "value": "executable-not-performance-mature"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
+                "value": "same-target-packed-i4-low-shifted-product-rescale-regression-gate4.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
+                "value": "regression"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_selection_eligible",
+                "value": "false"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.dispatch_preference",
+                "value": "not-performance-preferred"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.target_capability_provider_mirror",
+                "value": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.target_capability_legality_mirror",
+                "value": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.legality",
+                "value": "legal"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.rejection_reason",
+                "value": "none"
+              }
+            ],
+            "component_group": "rvv-generic-typed-body-materialized-emitc-bundle.v1",
+            "component_role": "header",
+            "components": [
+              {
+                "role": "dispatch case",
+                "selected_variant": "pre_realized_body_rvv_product_reduce_dequant_clamp"
+              }
+            ],
+            "evidence_role": "header-declaration",
+            "external_abi_name": "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1",
+            "file_name": "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
+            "handoff_kind": "materialized-emitc-cpp-rvv-intrinsic-object",
+            "owner": "rvv-plugin",
+            "role": "dispatch case",
+            "route": "rvv-generic-typed-body-emitc-route-family.header",
+            "runtime_abi": "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1",
+            "runtime_abi_kind": "plugin-owned-runtime-abi",
+            "runtime_abi_name": "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1",
+            "runtime_abi_parameter_count": "8",
+            "runtime_abi_parameters": [
+              {
+                "c_name": "lhs",
+                "c_type": "const int8_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "lhs-input-buffer"
+              },
+              {
+                "c_name": "rhs",
+                "c_type": "const int8_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "rhs-input-buffer"
+              },
+              {
+                "c_name": "acc",
+                "c_type": "const int32_t *",
+                "ownership": "target-export-abi-owned",
+                "role": "accumulator-input-buffer"
+              },
+              {
+                "c_name": "scale",
+                "c_type": "float",
+                "ownership": "target-export-abi-owned",
+                "role": "dequant-scale-value"
+              },
+              {
+                "c_name": "lower_bound",
+                "c_type": "float",
+                "ownership": "target-export-abi-owned",
+                "role": "lower-bound-scalar-value"
+              },
+              {
+                "c_name": "upper_bound",
+                "c_type": "float",
+                "ownership": "target-export-abi-owned",
+                "role": "upper-bound-scalar-value"
+              },
+              {
+                "c_name": "out",
+                "c_type": "float *",
+                "ownership": "target-export-abi-owned",
+                "role": "output-buffer"
+              },
+              {
+                "c_name": "n",
+                "c_type": "size_t",
+                "ownership": "target-export-abi-owned",
+                "role": "runtime-element-count"
+              }
+            ],
+            "selected_variant": "pre_realized_body_rvv_product_reduce_dequant_clamp"
+          }
+        ],
+        "version": "1"
+      },
+      "path": "artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/generated_bundle/tianchenrv-target-artifact-bundle.index",
+      "sha256": "6dd08a6bec94ba3b4f1f779d08826d550cffd35275b0b578fc2491e647102b65",
+      "size": 60785
+    },
+    "object": {
+      "path": "artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+      "readobj": {
+        "command": "/usr/lib/llvm-20/bin/llvm-readobj -h artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+        "exit_code": 0,
+        "finished_at": "2026-06-10T16:35:55Z",
+        "started_at": "2026-06-10T16:35:55Z",
+        "stderr": "",
+        "stdout": "\nFile: artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o\nFormat: elf64-littleriscv\nArch: riscv64\nAddressSize: 64bit\nLoadName: <Not found>\nElfHeader {\n  Ident {\n    Magic: (7F 45 4C 46)\n    Class: 64-bit (0x2)\n    DataEncoding: LittleEndian (0x1)\n    FileVersion: 1\n    OS/ABI: SystemV (0x0)\n    ABIVersion: 0\n    Unused: (00 00 00 00 00 00 00)\n  }\n  Type: Relocatable (0x1)\n  Machine: EM_RISCV (0xF3)\n  Version: 1\n  Entry: 0x0\n  ProgramHeaderOffset: 0x0\n  SectionHeaderOffset: 0x3D0\n  Flags [ (0x5)\n    EF_RISCV_FLOAT_ABI_DOUBLE (0x4)\n    EF_RISCV_RVC (0x1)\n  ]\n  HeaderSize: 64\n  ProgramHeaderEntrySize: 0\n  ProgramHeaderCount: 0\n  SectionHeaderEntrySize: 64\n  SectionHeaderCount: 9\n  StringTableSectionIndex: 1\n}\n"
+      },
+      "sha256": "f3d1c5b59469d22e58f9a60873461e662bf65d294b7be6d1ea2d676fcd8fe2d2",
+      "size": 1552,
+      "symbols": {
+        "command": "/usr/lib/llvm-20/bin/llvm-readobj --symbols artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
+        "selected_symbol": "tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp",
+        "unmangled_selected_symbol": true
+      }
+    },
+    "object_file": "artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o"
+  },
+  "completed_at": "2026-06-10T16:35:55Z",
+  "created_at": "2026-06-10T16:35:54Z",
+  "dequant_scale_contract": {
+    "f32_abs_tolerance": 1e-05,
+    "finite": true,
+    "minimum_scale_cases": 2,
+    "nonzero": true,
+    "scale_values_are_runtime_cases_not_dequant_authority": true
+  },
+  "dequant_scale_values": [
+    -0.125,
+    0.375
+  ],
+  "dequantization_boundary": {
+    "artifact_abi": {
+      "prototype": "void tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);",
+      "runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n",
+      "runtime_parameters": [
+        {
+          "c_name": "lhs",
+          "c_type": "const int8_t *",
+          "ownership": "target-export-abi-owned",
+          "role": "lhs-input-buffer"
+        },
+        {
+          "c_name": "rhs",
+          "c_type": "const int8_t *",
+          "ownership": "target-export-abi-owned",
+          "role": "rhs-input-buffer"
+        },
+        {
+          "c_name": "acc",
+          "c_type": "const int32_t *",
+          "ownership": "target-export-abi-owned",
+          "role": "accumulator-input-buffer"
+        },
+        {
+          "c_name": "scale",
+          "c_type": "float",
+          "ownership": "target-export-abi-owned",
+          "role": "dequant-scale-value"
+        },
+        {
+          "c_name": "lower_bound",
+          "c_type": "float",
+          "ownership": "target-export-abi-owned",
+          "role": "lower-bound-scalar-value"
+        },
+        {
+          "c_name": "upper_bound",
+          "c_type": "float",
+          "ownership": "target-export-abi-owned",
+          "role": "upper-bound-scalar-value"
+        },
+        {
+          "c_name": "out",
+          "c_type": "float *",
+          "ownership": "target-export-abi-owned",
+          "role": "output-buffer"
+        },
+        {
+          "c_name": "n",
+          "c_type": "size_t",
+          "ownership": "target-export-abi-owned",
+          "role": "runtime-element-count"
+        }
+      ]
+    },
+    "artifact_metadata_role": "mirror-only-after-provider-route",
+    "authority": "provider-derived typed tcrv_rvv dequantization body/config/runtime scale facts",
+    "conversion_kind": null,
+    "dequant_scale_values": [
+      -0.125,
+      0.375
+    ],
+    "dequantization_relation": "signed-i32m1-to-f32m1-scale-f32",
+    "emitted_cpp": {
+      "forbids_vector_convert_intrinsic": "__riscv_vfcvt_f_x_v_f32m1",
+      "forbids_vector_scale_intrinsic": "__riscv_vfmul_vf_f32m1",
+      "scalar_dequant_expression": "dot_acc_scalar * scale",
+      "scalar_store_vl": "1",
+      "splat_intrinsic": "__riscv_vfmv_v_f_f32m1",
+      "store_intrinsic": "__riscv_vse32_v_f32m1"
+    },
+    "f32_abs_tolerance": 1e-05,
+    "gearbox_preflight": {
+      "candidate_set": null,
+      "checked_before_runtime": true,
+      "emitted_cpp_loop_step": null,
+      "emitted_cpp_second_loop_vl": null,
+      "schedule_id": null,
+      "second_slice_statement_count": 5,
+      "selected_candidate": null,
+      "unroll": null,
+      "vl_policy": null
+    },
+    "materialized_body": {
+      "conversion_kind": "i32_to_f32_scaled",
+      "dequantization_relation": "signed-i32m1-to-f32m1-scale-f32",
+      "result_element_type": "f32",
+      "result_lmul": "m1",
+      "result_sew": "32",
+      "result_vector_type": "!tcrv_rvv.vector<f32, \"m1\">",
+      "runtime_avl_vl_control": {
+        "lmul": "m1",
+        "policy": "explicit-tcrv-rvv-policy",
+        "runtime_avl_abi_parameter": "n",
+        "runtime_avl_source": "runtime_abi:n",
+        "runtime_avl_value": "%7",
+        "setvl_consumes_runtime_avl": true,
+        "setvl_result": "%8",
+        "sew": "32",
+        "with_vl_consumes_setvl": true
+      },
+      "scale_abi_role": "dequant-scale-value",
+      "scale_c_type": "float",
+      "source_element_type": "i32",
+      "source_lmul": "m1",
+      "source_sew": "32",
+      "source_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+      "typed_compute_op": "tcrv_rvv.dequantize"
+    },
+    "memory_form": "unit-stride-widening-product-reduce-dequant-clamp-f32",
+    "provider_route_facts": {
+      "c_type_mapping": "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,dequant-splat/clamped:float-e32m1,scale:float,lower:float,upper:float",
+      "convert_intrinsic": "__riscv_vfcvt_f_x_v_f32m1",
+      "gearbox_candidate_set": null,
+      "gearbox_legality_scope": null,
+      "gearbox_schedule_id": null,
+      "gearbox_selected_candidate": null,
+      "gearbox_selection_reason": null,
+      "gearbox_unroll": null,
+      "gearbox_vl_policy": null,
+      "provider_supported_mirror": "provider_supported_mirror:rvv-contraction-family-plan-validated",
+      "route_operand_binding_operands": "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1;lhs=lhs-input-buffer:lhs:abi|ld|wpl|i8mf4|hdr;rhs=rhs-input-buffer:rhs:abi|ld|wpr|i8mf4|hdr;acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;scale=dequant-scale-value:scale:abi|scale|f32|deq|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|up|splat|cmp|sel|hdr;out=output-buffer:out:abi|cdeq|store|f32m1|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr",
+      "route_operand_binding_plan": "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1",
+      "runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n",
+      "runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+      "scale_intrinsic": "__riscv_vfmul_vf_f32m1",
+      "source_load_intrinsic": "__riscv_vle32_v_i32m1",
+      "store_intrinsic": "__riscv_vse32_v_f32m1",
+      "target_leaf_profile": "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequant-clamp-leaf-profile.v1"
+    },
+    "result_type_policy": {
+      "element_c_type": "float",
+      "element_type": "f32",
+      "lmul": "m1",
+      "sew": "32",
+      "vector_c_type": "vfloat32m1_t"
+    },
+    "route_metadata": {
+      "tcrv_rvv.c_type_mapping": "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,dequant-splat/clamped:float-e32m1,scale:float,lower:float,upper:float",
+      "tcrv_rvv.config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+      "tcrv_rvv.dequant_scale_c_type": "float",
+      "tcrv_rvv.dequant_scale_name": "scale",
+      "tcrv_rvv.dequant_scale_role": "dequant-scale-value",
+      "tcrv_rvv.dequantization_relation": "signed-i32m1-to-f32m1-scale-f32",
+      "tcrv_rvv.destination_memory_form": "unit-stride-store",
+      "tcrv_rvv.element_type": "f32",
+      "tcrv_rvv.lmul": "m1",
+      "tcrv_rvv.mask_policy": "agnostic",
+      "tcrv_rvv.memory_form": "unit-stride-widening-product-reduce-dequant-clamp-f32",
+      "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-contraction-family-plan-validated",
+      "tcrv_rvv.required_header_declarations": "stddef.h,stdint.h,riscv_vector.h",
+      "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1;lhs=lhs-input-buffer:lhs:abi|ld|wpl|i8mf4|hdr;rhs=rhs-input-buffer:rhs:abi|ld|wpr|i8mf4|hdr;acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;scale=dequant-scale-value:scale:abi|scale|f32|deq|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|up|splat|cmp|sel|hdr;out=output-buffer:out:abi|cdeq|store|f32m1|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr",
+      "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1",
+      "tcrv_rvv.runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n",
+      "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+      "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+      "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+      "tcrv_rvv.sew": "32",
+      "tcrv_rvv.source_lmul": "mf4",
+      "tcrv_rvv.source_memory_form": "unit-stride-load",
+      "tcrv_rvv.source_sew": "8",
+      "tcrv_rvv.tail_policy": "agnostic",
+      "tcrv_rvv.target_leaf_profile": "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequant-clamp-leaf-profile.v1"
+    },
+    "runtime_bound_pairs": [
+      {
+        "lower_bound": -1.5,
+        "upper_bound": 2.25
+      },
+      {
+        "lower_bound": -8.0,
+        "upper_bound": -0.75
+      }
+    ],
+    "runtime_counts": [
+      257,
+      4096,
+      65536
+    ],
+    "runtime_counts_and_scale_values_are_execution_cases_not_dequant_authority": true,
+    "runtime_scale_c_type": "float",
+    "runtime_scale_name": "scale",
+    "runtime_scale_role": "dequant-scale-value",
+    "selected_source_abi": {
+      "acc": "accumulator-input-buffer scalar-seed acc[0]",
+      "lhs": "lhs-input-buffer source-load product-lhs",
+      "lower_bound": "lower-bound-scalar-value runtime-clamp-bound",
+      "n": "runtime-element-count setvl-avl loop",
+      "out": "output-buffer result-store clamped-dequant-result",
+      "rhs": "rhs-input-buffer source-load product-rhs",
+      "scale": "dequant-scale-value runtime-scale scale-f32",
+      "upper_bound": "upper-bound-scalar-value runtime-clamp-bound"
+    },
+    "source": "selected tcrv.exec RVV variant -> typed tcrv_rvv product/reduction/dequantize/clamp body/config/runtime-scale/runtime-bound facts -> RVV provider route facts -> statement plan -> emitted product, reduction, conversion, scale, lower/upper clamp/select, and store intrinsics -> runtime-callable artifact ABI",
+    "source_type_policy": {
+      "element_c_type": "int32_t",
+      "element_type": "i32",
+      "lmul": "m1",
+      "sew": "32",
+      "source": "post-reduction vector carry scalar extract",
+      "vector_c_type": "vint32m1_t"
+    },
+    "statement_plan": {
+      "family": "product-reduction runtime-scale f32 dequantization plus f32 clamp",
+      "loop_callees": [
+        "__riscv_vsetvl_e32m1",
+        "__riscv_vle8_v_i8mf4",
+        "__riscv_vle8_v_i8mf4",
+        "__riscv_vwmul_vv_i16mf2",
+        "__riscv_vwredsum_vs_i16mf2_i32m1"
+      ],
+      "loop_clamp_select_forbidden": true,
+      "loop_dequantization_forbidden": true,
+      "lower_compare_operand_order": "scaled_f32, lower_bound_splat, scalar_vl",
+      "lower_select_operand_order": "lower_mask, lower_bound, scaled_f32, scalar_vl",
+      "post_loop_callees": [
+        "__riscv_vmv_x_s_i32m1_i32",
+        "__riscv_vfmv_v_f_f32m1",
+        "__riscv_vmflt_vv_f32m1_b32",
+        "__riscv_vmerge_vvm_f32m1",
+        "__riscv_vfmv_v_f_f32m1",
+        "__riscv_vmflt_vv_f32m1_b32",
+        "__riscv_vmerge_vvm_f32m1",
+        "__riscv_vse32_v_f32m1"
+      ],
+      "pre_loop_callees": [
+        "__riscv_vsetvl_e32m1",
+        "__riscv_vmv_v_x_i32m1"
+      ],
+      "product_operand_order": "lhs,rhs,vl",
+      "reduction_operand_order": "products,current_dot_acc_vec,vl",
+      "scale_operand_order": "final_scalar_dot_acc * scale, scalar_vl",
+      "store_operand_order": "out, clamped_f32_scalar_vector, scalar_vl",
+      "upper_compare_operand_order": "upper_bound_splat, lower_clamped, scalar_vl",
+      "upper_select_operand_order": "upper_mask, upper_bound, lower_clamped, scalar_vl"
+    },
+    "typed_compute_op": "tcrv_rvv.dequantize"
+  },
+  "dry_run": true,
+  "emitted_rvv_cpp_checks": {
+    "compare_select_predicate_boundary": {
+      "bound_order": "lower-bound-before-upper-bound",
+      "clamp_relation": "signed-i8mf4xi8mf4-i32-reduction-scale-f32-clamp-lower-upper-to-f32m1",
+      "compare_intrinsic": "__riscv_vmflt_vv_f32m1_b32",
+      "lower_bound_abi_parameter": "v5",
+      "lower_bound_role": "lower-bound-scalar-value",
+      "scalar_store_vl": "1",
+      "select_intrinsic": "__riscv_vmerge_vvm_f32m1",
+      "select_layout": "clamp-lower-then-upper",
+      "splat_intrinsic": "__riscv_vfmv_v_f_f32m1",
+      "store_intrinsic": "__riscv_vse32_v_f32m1",
+      "upper_bound_abi_parameter": "v6",
+      "upper_bound_role": "upper-bound-scalar-value"
+    },
+    "computed_masked_macc_boundary": {},
+    "computed_masked_widening_dot_reduce_boundary": {},
+    "conversion_sew_policy_boundary": {},
+    "dequant_clamp_epilogue_boundary": {},
+    "dequantization_boundary": {
+      "forbids_vector_convert_intrinsic": "__riscv_vfcvt_f_x_v_f32m1",
+      "forbids_vector_scale_intrinsic": "__riscv_vfmul_vf_f32m1",
+      "scalar_dequant_expression": "dot_acc_scalar * scale",
+      "scalar_store_vl": "1",
+      "splat_intrinsic": "__riscv_vfmv_v_f_f32m1",
+      "store_intrinsic": "__riscv_vse32_v_f32m1"
+    },
+    "element_c_type": "float",
+    "element_type": "f32",
+    "intrinsics": [
+      "__riscv_vsetvl_e32m1",
+      "__riscv_vle8_v_i8mf4",
+      "__riscv_vwmul_vv_i16mf2",
+      "__riscv_vmv_v_x_i32m1",
+      "__riscv_vwredsum_vs_i16mf2_i32m1",
+      "__riscv_vmv_x_s_i32m1_i32",
+      "__riscv_vfmv_v_f_f32m1",
+      "__riscv_vfmv_v_f_f32m1",
+      "__riscv_vmflt_vv_f32m1_b32",
+      "__riscv_vmerge_vvm_f32m1",
+      "__riscv_vse32_v_f32m1"
+    ],
+    "lmul": "m1",
+    "mask_tail_policy_boundary": {},
+    "multiply_accumulate_boundary": {},
+    "path": "artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/materialized_rvv_emitc.cpp",
+    "reduction_accumulation_boundary": {},
+    "required_header": "riscv_vector.h",
+    "runtime_avl_vl_boundary": {
+      "full_chunk_vl": "v10",
+      "post_loop_store_uses_scalar_result_vl": true,
+      "runtime_abi_parameter": "v8",
+      "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+      "uses_loop_vl_for_i8_load_product_widening_reduction": true,
+      "uses_runtime_n_avl": true
+    },
+    "runtime_scalar_computed_mask_memory_boundary": {},
+    "sew": "32",
+    "sha256": "64ff4b45d7dc450cfaeec2ae41d611d201993c7eddf1a659447059a3d2e2eec2",
+    "size": 5533,
+    "vector_c_type": "vfloat32m1_t",
+    "vector_reduction_boundary": {},
+    "widening_dot_reduction_boundary": {},
+    "widening_product_reduction_boundary": {
+      "acc_abi_parameter": "v3",
+      "lhs_abi_parameter": "v1",
+      "local_vector_carry": "v9",
+      "loop_accumulator_source": "dot_acc_vec",
+      "loop_dequantization_forbidden": true,
+      "loop_end": 3782,
+      "loop_reduction_accumulator": "v28",
+      "loop_start": 1127,
+      "loop_updates_vector_carry": true,
+      "lower_bound_abi_parameter": "v5",
+      "out_abi_parameter": "v7",
+      "packed_i4_statement_payload": {
+        "high_nibble_sign_extension": "arithmetic-shift-right-4",
+        "high_product_vector": "v26",
+        "lhs_high_vector": "v24",
+        "lhs_low_shifted_vector": "v20",
+        "lhs_packed_vector": "v17",
+        "low_nibble_product_rescale": "shift-left-operands-vwmul-then-arithmetic-shift-right-8",
+        "low_product_vector": "v23",
+        "low_scaled_product_vector": "v22",
+        "operand_form": "packed-i4-nibbles",
+        "product_pair_sum_vector": "v27",
+        "rhs_high_vector": "v25",
+        "rhs_low_shifted_vector": "v21",
+        "rhs_packed_vector": "v19",
+        "single_reduction_vector": "v29"
+      },
+      "post_loop_clamp_select": {
+        "bound_order": "lower-bound-before-upper-bound",
+        "clamp_relation": "signed-i8mf4xi8mf4-i32-reduction-scale-f32-clamp-lower-upper-to-f32m1",
+        "compare_intrinsic": "__riscv_vmflt_vv_f32m1_b32",
+        "lower_bound_abi_parameter": "v5",
+        "lower_bound_role": "lower-bound-scalar-value",
+        "scalar_store_vl": "1",
+        "select_intrinsic": "__riscv_vmerge_vvm_f32m1",
+        "select_layout": "clamp-lower-then-upper",
+        "splat_intrinsic": "__riscv_vfmv_v_f_f32m1",
+        "store_intrinsic": "__riscv_vse32_v_f32m1",
+        "upper_bound_abi_parameter": "v6",
+        "upper_bound_role": "upper-bound-scalar-value"
+      },
+      "post_loop_dequantization": {
+        "forbids_vector_convert_intrinsic": "__riscv_vfcvt_f_x_v_f32m1",
+        "forbids_vector_scale_intrinsic": "__riscv_vfmul_vf_f32m1",
+        "scalar_dequant_expression": "dot_acc_scalar * scale",
+        "scalar_store_vl": "1",
+        "splat_intrinsic": "__riscv_vfmv_v_f_f32m1",
+        "store_intrinsic": "__riscv_vse32_v_f32m1"
+      },
+      "post_loop_scalar_extract": "v31",
+      "rhs_abi_parameter": "v2",
+      "runtime_avl_vl_control": {
+        "full_chunk_vl": "v10",
+        "post_loop_store_uses_scalar_result_vl": true,
+        "runtime_abi_parameter": "v8",
+        "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+        "uses_loop_vl_for_i8_load_product_widening_reduction": true,
+        "uses_runtime_n_avl": true
+      },
+      "scale_abi_parameter": "v4",
+      "seed_source": "acc[0]",
+      "seed_vector": "v12",
+      "typed_compute_op": "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select",
+      "upper_bound_abi_parameter": "v6"
+    }
+  },
+  "expected_function": "tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp",
+  "expected_runtime_abi_name": "rvv-generic-widening-product-reduce-dequant-clamp-f32-callable-c-abi.v1",
+  "expected_selected_variant": "pre_realized_body_rvv_product_reduce_dequant_clamp",
+  "f32_abs_tolerance": 1e-05,
+  "f32_clamp_bound_pairs": [
+    {
+      "lower_bound": -1.5,
+      "upper_bound": 2.25
+    },
+    {
+      "lower_bound": -8.0,
+      "upper_bound": -0.75
+    }
+  ],
+  "f32_clamp_contract": {
+    "minimum_bound_pair_cases": 2,
+    "ordered_bounds": true,
+    "runtime_bound_pairs_are_execution_cases_not_bound_authority": true,
+    "source_preservation_required": true,
+    "tail_sentinel_preservation_required": true
+  },
+  "harness": {
+    "boundary": "external C ABI consumer of generated header and object only",
+    "dequant_scale_values": [
+      -0.125,
+      0.375
+    ],
+    "dequantization_contract": "signed i8 products reduce through an i32m1 vector carry, extract one post-loop scalar, multiply by the runtime scale parameter, apply runtime lower/upper clamp bounds, and store only out[0] through the generated external ABI",
+    "f32_abs_tolerance": 1e-05,
+    "f32_clamp_bound_pairs": [
+      {
+        "lower_bound": -1.5,
+        "upper_bound": 2.25
+      },
+      {
+        "lower_bound": -8.0,
+        "upper_bound": -0.75
+      }
+    ],
+    "packed_i4_reference_oracle": {
+      "operand_form": "packed-i4-nibbles",
+      "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
+      "reference": "scalar sign-extend low/high i4 nibbles from each packed byte, accumulate low and high products per byte, then apply runtime f32 scale and runtime lower/upper clamp",
+      "runtime_n_unit": "packed input bytes",
+      "source": "provider-owned low-precision resource metadata selected signed packed-i4 nibbles",
+      "unpack_intent": "sign-extend-i4-nibbles-before-widening-product"
+    },
+    "pass_marker": "tcrv_rvv_generated_bundle_abi_widening_product_reduce_dequant_clamp_f32_ok",
+    "path": "artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/rvv_generated_bundle_abi_widening_product_reduce_dequant_clamp_f32_harness.c",
+    "product_distinguishing_contract": "multi-byte packed-i4 cases include mixed-sign low/high nibble products so the oracle distinguishes true signed packed unpack from byte-wise i8 multiplication, unsigned nibble interpretation, low-only reduction, high-only reduction, add-only, and missing-seed behavior",
+    "product_reduction_contract": "two signed i4 lanes packed in each int8_t source byte are sign-extended before two widening product/reduction steps feed the i32 scalar seed",
+    "scalar_result_contract": "only out[0] is written after runtime-scale f32 dequantization and runtime lower/upper clamp, and tail/non-scalar output slots preserve sentinels",
+    "select_coverage_contract": "post-reduction scalar clamp cases execute lower-clamped, in-bound, and upper-clamped results across ordered runtime bound pairs",
+    "sha256": "051c9d068715cdc09ef15fd84ad896c511c5bc5361b790ce3dcfdb3809b8350a",
+    "source_pattern_contract": "two signed int8 source patterns are executed for every runtime count and source/accumulator buffers are preserved",
+    "tail_lane_contract": "non-scalar output slots preserve their f32 sentinels"
+  },
+  "input": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir",
+  "input_mode": "pre-realized-selected-body",
+  "local_bundle_generation": {
+    "emitted_rvv_cpp": "artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/materialized_rvv_emitc.cpp",
+    "front_door": "pre-realized-selected-tcrv-exec-rvv-body",
+    "input_mode": "pre-realized-selected-body",
+    "materialized_selected_body": "artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/materialized_selected_body.mlir",
+    "materializer": "tcrv-materialize-selected-lowering-boundaries",
+    "pipeline": "build/bin/tcrv-opt test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans -o artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/materialized_selected_body.mlir && build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/materialized_selected_body.mlir -o artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/materialized_rvv_emitc.cpp && build/bin/tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/generated_bundle artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/materialized_selected_body.mlir",
+    "realization_boundary": "public selected lowering-boundary materialization consumed the pre-realized typed tcrv_rvv body before provider route construction",
+    "route_entry_realization": false,
+    "selected_body_realization_producer": "rvv-plugin-local-selected-body-realization-owner-registry",
+    "source_seed": false,
+    "target_export": "tcrv-export-target-artifact-bundle",
+    "tcrv_opt": {
+      "command": "build/bin/tcrv-opt test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans -o artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/materialized_selected_body.mlir",
+      "exit_code": 0,
+      "finished_at": "2026-06-10T16:35:54Z",
+      "started_at": "2026-06-10T16:35:54Z",
+      "stderr": "",
+      "stdout": ""
+    },
+    "tcrv_rvv_emitc_cpp": {
+      "command": "build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/materialized_selected_body.mlir -o artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/materialized_rvv_emitc.cpp",
+      "exit_code": 0,
+      "finished_at": "2026-06-10T16:35:54Z",
+      "started_at": "2026-06-10T16:35:54Z",
+      "stderr": "",
+      "stdout": ""
+    },
+    "tcrv_translate": {
+      "command": "build/bin/tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/generated_bundle artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/materialized_selected_body.mlir",
+      "exit_code": 0,
+      "finished_at": "2026-06-10T16:35:55Z",
+      "started_at": "2026-06-10T16:35:54Z",
+      "stderr": "",
+      "stdout": "tianchenrv.target_artifact_bundle_export: complete\nindex_file: \"tianchenrv-target-artifact-bundle.index\"\n"
+    }
+  },
+  "materialized_selected_body_checks": {
+    "compare_select_predicate_boundary": {},
+    "computed_masked_macc_boundary": {},
+    "computed_masked_widening_dot_reduce_boundary": {},
+    "contains_with_vl": true,
+    "conversion_sew_policy_boundary": {},
+    "dequant_clamp_epilogue_boundary": {},
+    "dequantization_boundary": {
+      "conversion_kind": "i32_to_f32_scaled",
+      "dequantization_relation": "signed-i32m1-to-f32m1-scale-f32",
+      "result_element_type": "f32",
+      "result_lmul": "m1",
+      "result_sew": "32",
+      "result_vector_type": "!tcrv_rvv.vector<f32, \"m1\">",
+      "runtime_avl_vl_control": {
+        "lmul": "m1",
+        "policy": "explicit-tcrv-rvv-policy",
+        "runtime_avl_abi_parameter": "n",
+        "runtime_avl_source": "runtime_abi:n",
+        "runtime_avl_value": "%7",
+        "setvl_consumes_runtime_avl": true,
+        "setvl_result": "%8",
+        "sew": "32",
+        "with_vl_consumes_setvl": true
+      },
+      "scale_abi_role": "dequant-scale-value",
+      "scale_c_type": "float",
+      "source_element_type": "i32",
+      "source_lmul": "m1",
+      "source_sew": "32",
+      "source_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+      "typed_compute_op": "tcrv_rvv.dequantize"
+    },
+    "explicit_compound_body_consumed": false,
+    "lmul": "m1",
+    "mask_tail_policy_boundary": {},
+    "memory_form": "unit-stride-widening-product-reduce-dequant-clamp-f32",
+    "multiply_accumulate_boundary": {},
+    "path": "artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/materialized_selected_body.mlir",
+    "pre_realized_body_consumed": true,
+    "reduction_accumulation_boundary": {},
+    "runtime_avl_vl_boundary": {
+      "lmul": "m1",
+      "policy": "explicit-tcrv-rvv-policy",
+      "runtime_avl_abi_parameter": "n",
+      "runtime_avl_source": "runtime_abi:n",
+      "runtime_avl_value": "%7",
+      "setvl_consumes_runtime_avl": true,
+      "setvl_result": "%8",
+      "sew": "32",
+      "with_vl_consumes_setvl": true
+    },
+    "runtime_scalar_computed_mask_memory_boundary": {},
+    "selected_variant": "pre_realized_body_rvv_product_reduce_dequant_clamp",
+    "sha256": "bb266655757fd09226674093fe69503becc86b9031fe3b86862838eff4e6a2e9",
+    "source_front_door_family_contract": {},
+    "typed_compute_op": "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select",
+    "vector_reduction_boundary": {},
+    "widening_dot_reduction_boundary": {},
+    "widening_product_reduction_boundary": {
+      "accumulator_element_type": "i32",
+      "accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "gearbox_cross_region_handoff": {
+        "consumer_scope": "gearbox-scope:dequant-store",
+        "contract": "gearbox-product-reduce-to-dequant-cross-region-handoff.v1",
+        "from_phase": "load-product-reduce",
+        "op": "tcrv_rvv.gearbox_cross_region_handoff",
+        "producer_scope": "gearbox-scope:product-reduction",
+        "region_count": 2,
+        "resource_decision": "consume-low-precision-packed-i4-low-shifted-product-rescale-single-reduce-budget-6of32.v1",
+        "runtime_avl_source": "runtime_abi:n",
+        "to_phase": "dequant-store"
+      },
+      "low_precision_resource": {
+        "candidate_set": "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]",
+        "effective_element_width": "4",
+        "legality_scope": "typed-low-precision-product-reduction-dequant-resource-legality.v1",
+        "memory_form": "unit-stride-widening-product-reduce-dequant-clamp-f32",
+        "operand_form": "packed-i4-nibbles",
+        "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
+        "peak_live_vector_groups": 6,
+        "runtime_avl_source": "runtime_abi:n",
+        "selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]",
+        "selection_reason": "static-bounded-product-reduction-dequant-clamp-signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1-u1-unpack-required-runtime-avl",
+        "source_signedness": "signed",
+        "storage_element_width": "8",
+        "unpack_intent": "sign-extend-i4-nibbles-before-widening-product",
+        "vector_register_budget": 32,
+        "vsetvl_region_count": 2
+      },
+      "product_element_type": "i16",
+      "product_lmul": "mf2",
+      "product_reduction_chain_relation": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32",
+      "product_relation": "signed-i8mf4xi8mf4-to-i16mf2",
+      "product_sew": "16",
+      "product_vector_type": "!tcrv_rvv.vector<i16, \"mf2\">",
+      "result_element_type": "f32",
+      "result_layout": "store-standalone-reduction-lane0-to-output-scalar",
+      "result_lmul": "m1",
+      "result_sew": "32",
+      "result_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+      "runtime_avl_vl_control": {
+        "lmul": "m1",
+        "policy": "explicit-tcrv-rvv-policy",
+        "runtime_avl_abi_parameter": "n",
+        "runtime_avl_source": "runtime_abi:n",
+        "runtime_avl_value": "%7",
+        "setvl_consumes_runtime_avl": true,
+        "setvl_result": "%8",
+        "sew": "32",
+        "with_vl_consumes_setvl": true
+      },
+      "selected_source_abi": {
+        "acc": "accumulator-input-buffer",
+        "lhs": "lhs-input-buffer",
+        "lower_bound": "lower-bound-scalar-value",
+        "n": "runtime-element-count",
+        "out": "output-buffer",
+        "rhs": "rhs-input-buffer",
+        "scale": "dequant-scale-value",
+        "upper_bound": "upper-bound-scalar-value"
+      },
+      "source_element_type": "i8",
+      "source_lmul": "mf4",
+      "source_sew": "8",
+      "source_vector_type": "!tcrv_rvv.vector<i8, \"mf4\">",
+      "typed_compute_op": "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
+    }
+  },
+  "op_kind": "widening_product_reduce_dequant_clamp_f32",
+  "run_id": "gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh",
+  "runtime_avl_vl_boundary": {
+    "artifact_abi": {
+      "prototype": "void tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);",
+      "runtime_parameter_count": 8
+    },
+    "authority": "provider-derived typed tcrv_rvv body/config/runtime facts",
+    "emitted_cpp": {
+      "full_chunk_vl": "v10",
+      "post_loop_store_uses_scalar_result_vl": true,
+      "runtime_abi_parameter": "v8",
+      "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+      "uses_loop_vl_for_i8_load_product_widening_reduction": true,
+      "uses_runtime_n_avl": true
+    },
+    "evidence_role": "mirror-only-after-provider-route-and-materialized-emitc",
+    "materialized_setvl": {
+      "lmul": "m1",
+      "policy": "explicit-tcrv-rvv-policy",
+      "runtime_avl_abi_parameter": "n",
+      "runtime_avl_source": "runtime_abi:n",
+      "runtime_avl_value": "%7",
+      "setvl_consumes_runtime_avl": true,
+      "setvl_result": "%8",
+      "sew": "32",
+      "with_vl_consumes_setvl": true
+    },
+    "route_metadata": {
+      "tcrv_rvv.emitc_loop": "emitc.for",
+      "tcrv_rvv.loop_induction": "offset",
+      "tcrv_rvv.loop_step": "full_chunk_vl",
+      "tcrv_rvv.multi_vl": "supported",
+      "tcrv_rvv.pointer_advance": "offset",
+      "tcrv_rvv.remaining_avl": "n-offset",
+      "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1;lhs=lhs-input-buffer:lhs:abi|ld|wpl|i8mf4|hdr;rhs=rhs-input-buffer:rhs:abi|ld|wpr|i8mf4|hdr;acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;scale=dequant-scale-value:scale:abi|scale|f32|deq|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|up|splat|cmp|sel|hdr;out=output-buffer:out:abi|cdeq|store|f32m1|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr",
+      "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1",
+      "tcrv_rvv.runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n",
+      "tcrv_rvv.runtime_avl_abi_parameter": "n",
+      "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+      "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+      "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+      "tcrv_rvv.vl_def": "tcrv_rvv.setvl",
+      "tcrv_rvv.vl_scope": "tcrv_rvv.with_vl"
+    },
+    "runtime_counts": [
+      257,
+      4096,
+      65536
+    ],
+    "runtime_counts_are_execution_cases_not_vl_authority": true,
+    "selected_runtime_abi": {
+      "c_name": "n",
+      "c_type": "size_t",
+      "ownership": "target-export-abi-owned",
+      "role": "runtime-element-count"
+    },
+    "source": "selected runtime ABI n -> tcrv_rvv.setvl -> RVV provider route facts -> emitted loop setvl -> artifact ABI"
+  },
+  "runtime_count_contract": {
+    "case_count": 3,
+    "max_runtime_count": 65536,
+    "minimum_case_count": 2,
+    "non_one_vector_sentinel_min_n": 17
+  },
+  "runtime_counts": [
+    257,
+    4096,
+    65536
+  ],
+  "same_target_scalar_reference_comparison": {
+    "baseline": "external C scalar packed-i4 reference oracle",
+    "generated": "generated RVV artifact callable through exported header",
+    "metadata_gate": {
+      "expected_operand_form": "packed-i4-nibbles",
+      "expected_packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
+      "expected_remediation_statement_strategy": "low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum",
+      "expected_selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]",
+      "expected_unpack_intent": "sign-extend-i4-nibbles-before-widening-product",
+      "metadata_source": "validated object/header low_precision_resource mirrors",
+      "operand_form": "packed-i4-nibbles",
+      "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
+      "reference_oracle_selected_from_provider_metadata": true,
+      "remediation_statement_strategy": "low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum",
+      "selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]",
+      "unpack_intent": "sign-extend-i4-nibbles-before-widening-product"
+    },
+    "target": "ssh rvv required",
+    "timing": "not_measured"
+  },
+  "schema_version": 1,
+  "selected_input": {
+    "copy": "artifacts/gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/pre_realized_selected_body_input.mlir",
+    "mode": "pre-realized-selected-body",
+    "path": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir",
+    "sha256": "9501897e3b9f3ad465affeaad79f19d186210730d64120204b547563e7926620",
+    "source_seed": false
+  },
+  "source_seed": false,
+  "ssh_evidence": false,
+  "status": "dry_run_success",
+  "tool": "rvv_generated_bundle_abi_e2e",
+  "typed_config_artifact_closure": {
+    "artifact_metadata_role": "mirror-only-after-provider-route",
+    "config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+    "element_c_type": "float",
+    "element_type": "f32",
+    "intrinsics": [
+      "__riscv_vsetvl_e32m1",
+      "__riscv_vle8_v_i8mf4",
+      "__riscv_vwmul_vv_i16mf2",
+      "__riscv_vmv_v_x_i32m1",
+      "__riscv_vwredsum_vs_i16mf2_i32m1",
+      "__riscv_vmv_x_s_i32m1_i32",
+      "__riscv_vfmv_v_f_f32m1",
+      "__riscv_vfmv_v_f_f32m1",
+      "__riscv_vmflt_vv_f32m1_b32",
+      "__riscv_vmerge_vvm_f32m1",
+      "__riscv_vse32_v_f32m1"
+    ],
+    "lmul": "m1",
+    "required_header": "riscv_vector.h",
+    "sew": "32",
+    "source": "provider-derived typed tcrv_rvv body/config/runtime facts",
+    "vector_c_type": "vfloat32m1_t"
+  },
+  "widening_product_reduction_boundary": {
+    "accumulator_type_policy": {
+      "abi_role": "accumulator-input-buffer",
+      "element_c_type": "int32_t",
+      "element_type": "i32",
+      "layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "lmul": "m1",
+      "loop_carry_source": "dot_acc_vec",
+      "seed_source": "acc[0]",
+      "sew": "32"
+    },
+    "artifact_abi": {
+      "prototype": "void tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);",
+      "runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
+    },
+    "artifact_metadata_role": "mirror-only-after-provider-route",
+    "authority": "provider-derived typed tcrv_rvv low-precision product-reduction body/config/runtime facts",
+    "contraction_kind": "widening_product_reduce_dequant_clamp_f32",
+    "direct_pre_realized_route_entry_supported": false,
+    "emitted_cpp": {
+      "acc_abi_parameter": "v3",
+      "lhs_abi_parameter": "v1",
+      "local_vector_carry": "v9",
+      "loop_accumulator_source": "dot_acc_vec",
+      "loop_dequantization_forbidden": true,
+      "loop_end": 3782,
+      "loop_reduction_accumulator": "v28",
+      "loop_start": 1127,
+      "loop_updates_vector_carry": true,
+      "lower_bound_abi_parameter": "v5",
+      "out_abi_parameter": "v7",
+      "packed_i4_statement_payload": {
+        "high_nibble_sign_extension": "arithmetic-shift-right-4",
+        "high_product_vector": "v26",
+        "lhs_high_vector": "v24",
+        "lhs_low_shifted_vector": "v20",
+        "lhs_packed_vector": "v17",
+        "low_nibble_product_rescale": "shift-left-operands-vwmul-then-arithmetic-shift-right-8",
+        "low_product_vector": "v23",
+        "low_scaled_product_vector": "v22",
+        "operand_form": "packed-i4-nibbles",
+        "product_pair_sum_vector": "v27",
+        "rhs_high_vector": "v25",
+        "rhs_low_shifted_vector": "v21",
+        "rhs_packed_vector": "v19",
+        "single_reduction_vector": "v29"
+      },
+      "post_loop_clamp_select": {
+        "bound_order": "lower-bound-before-upper-bound",
+        "clamp_relation": "signed-i8mf4xi8mf4-i32-reduction-scale-f32-clamp-lower-upper-to-f32m1",
+        "compare_intrinsic": "__riscv_vmflt_vv_f32m1_b32",
+        "lower_bound_abi_parameter": "v5",
+        "lower_bound_role": "lower-bound-scalar-value",
+        "scalar_store_vl": "1",
+        "select_intrinsic": "__riscv_vmerge_vvm_f32m1",
+        "select_layout": "clamp-lower-then-upper",
+        "splat_intrinsic": "__riscv_vfmv_v_f_f32m1",
+        "store_intrinsic": "__riscv_vse32_v_f32m1",
+        "upper_bound_abi_parameter": "v6",
+        "upper_bound_role": "upper-bound-scalar-value"
+      },
+      "post_loop_dequantization": {
+        "forbids_vector_convert_intrinsic": "__riscv_vfcvt_f_x_v_f32m1",
+        "forbids_vector_scale_intrinsic": "__riscv_vfmul_vf_f32m1",
+        "scalar_dequant_expression": "dot_acc_scalar * scale",
+        "scalar_store_vl": "1",
+        "splat_intrinsic": "__riscv_vfmv_v_f_f32m1",
+        "store_intrinsic": "__riscv_vse32_v_f32m1"
+      },
+      "post_loop_scalar_extract": "v31",
+      "rhs_abi_parameter": "v2",
+      "runtime_avl_vl_control": {
+        "full_chunk_vl": "v10",
+        "post_loop_store_uses_scalar_result_vl": true,
+        "runtime_abi_parameter": "v8",
+        "setvl_intrinsic": "__riscv_vsetvl_e32m1",
+        "uses_loop_vl_for_i8_load_product_widening_reduction": true,
+        "uses_runtime_n_avl": true
+      },
+      "scale_abi_parameter": "v4",
+      "seed_source": "acc[0]",
+      "seed_vector": "v12",
+      "typed_compute_op": "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select",
+      "upper_bound_abi_parameter": "v6"
+    },
+    "empty_count_behavior": "runtime loop skipped after local seed initialization; final post-loop f32 scalar store still writes out[0], and output tail sentinels are preserved",
+    "generated_artifact_resource_schedule_evidence": {
+      "artifact_metadata_role": "mirror-only-after-provider-route",
+      "authority": "RVV provider-owned low-precision realization schedule facts",
+      "expected_fields": {
+        "candidate_set": "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]",
+        "dequant_phase": "dequant-store",
+        "dequant_region_index": "2",
+        "effective_element_width": "4",
+        "operand_form": "packed-i4-nibbles",
+        "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
+        "peak_live_vector_groups": "6",
+        "primitive_accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+        "primitive_chain_contract": "rvv-low-precision-widening-reduction-primitive-facts.v1",
+        "primitive_chain_kind": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1",
+        "primitive_product_reduction_chain_relation": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32",
+        "primitive_reduction_intrinsic": "__riscv_vwredsum_vs_i16mf2_i32m1",
+        "primitive_reduction_store_vl": "1",
+        "primitive_result_layout": "store-standalone-reduction-lane0-to-output-scalar",
+        "primitive_scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+        "primitive_widening_product_intrinsic": "__riscv_vwmul_vv_i16mf2",
+        "primitive_widening_product_relation": "signed-i8mf4xi8mf4-to-i16mf2",
+        "product_phase": "load-product-reduce",
+        "product_region_index": "1",
+        "realization_decision": "consume-low-precision-packed-i4-low-shifted-product-rescale-single-reduce-budget-6of32.v1",
+        "realization_producer": "rvv-plugin-local-selected-body-realization-resource-consumer.v1",
+        "realized_peak_live_vector_groups": "6",
+        "realized_unroll_factor": "1",
+        "realized_vsetvl_region_count": "2",
+        "resource_decision_mirror": "consume-low-precision-packed-i4-low-shifted-product-rescale-single-reduce-budget-6of32.v1",
+        "runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n",
+        "runtime_avl_source": "runtime_abi:n",
+        "selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]",
+        "selection_reason": "static-bounded-product-reduction-dequant-clamp-signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1-u1-unpack-required-runtime-avl",
+        "source_signedness": "signed",
+        "storage_element_width": "8",
+        "target_capability_legality_mirror": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic",
+        "target_capability_provider_mirror": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact",
+        "unpack_intent": "sign-extend-i4-nibbles-before-widening-product",
+        "vector_register_budget": "32",
+        "vsetvl_region_count": "2"
+      },
+      "fields": {
+        "candidate_set": "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]",
+        "dequant_phase": "dequant-store",
+        "dequant_region_index": "2",
+        "effective_element_width": "4",
+        "operand_form": "packed-i4-nibbles",
+        "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
+        "peak_live_vector_groups": "6",
+        "primitive_accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+        "primitive_chain_contract": "rvv-low-precision-widening-reduction-primitive-facts.v1",
+        "primitive_chain_kind": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1",
+        "primitive_product_reduction_chain_relation": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32",
+        "primitive_reduction_intrinsic": "__riscv_vwredsum_vs_i16mf2_i32m1",
+        "primitive_reduction_store_vl": "1",
+        "primitive_result_layout": "store-standalone-reduction-lane0-to-output-scalar",
+        "primitive_scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+        "primitive_widening_product_intrinsic": "__riscv_vwmul_vv_i16mf2",
+        "primitive_widening_product_relation": "signed-i8mf4xi8mf4-to-i16mf2",
+        "product_phase": "load-product-reduce",
+        "product_region_index": "1",
+        "realization_decision": "consume-low-precision-packed-i4-low-shifted-product-rescale-single-reduce-budget-6of32.v1",
+        "realization_producer": "rvv-plugin-local-selected-body-realization-resource-consumer.v1",
+        "realized_peak_live_vector_groups": "6",
+        "realized_unroll_factor": "1",
+        "realized_vsetvl_region_count": "2",
+        "resource_decision_mirror": "consume-low-precision-packed-i4-low-shifted-product-rescale-single-reduce-budget-6of32.v1",
+        "runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n",
+        "runtime_avl_source": "runtime_abi:n",
+        "selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]",
+        "selection_reason": "static-bounded-product-reduction-dequant-clamp-signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1-u1-unpack-required-runtime-avl",
+        "source_signedness": "signed",
+        "storage_element_width": "8",
+        "target_capability_legality_mirror": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic",
+        "target_capability_provider_mirror": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact",
+        "unpack_intent": "sign-extend-i4-nibbles-before-widening-product",
+        "vector_register_budget": "32",
+        "vsetvl_region_count": "2"
+      },
+      "object_header_agreement_checked": true,
+      "packed_i4_resource_remediation_evidence": {
+        "expected_fields": {
+          "performance_action": "no-win-repair-required-before-performance-claim",
+          "performance_feedback": "same-target-packed-i4-no-win.v1",
+          "remediation_action": "no-win-repair-required-before-performance-claim",
+          "remediation_blocker": "same-target-packed-i4-low-shifted-product-rescale-no-win-or-regression",
+          "remediation_decision": "accepted-no-win-regression-low-shifted-product-rescale-repair-required.v1",
+          "remediation_diagnosis": "correctness-supported-no-win-regression",
+          "remediation_dispatch_preference": "not-performance-preferred",
+          "remediation_handoff_contract": "rvv-low-precision-packed-i4-measurement-policy-handoff.v1",
+          "remediation_measurement_evidence": "gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json",
+          "remediation_plan": "repair-packed-i4-low-shifted-product-rescale-single-reduce-before-performance-claim.v1",
+          "remediation_plan_contract": "rvv-low-precision-packed-i4-resource-remediation-plan.v1",
+          "remediation_product_plan": "low-shifted-product-i16-rescale-plus-high-product-pair-sum.v1",
+          "remediation_reduction_plan": "single-vwredsum-i16-pair-sum-with-i32-seed.v1",
+          "remediation_schedule_contract": "rvv-low-precision-packed-i4-resource-remediation-schedule.v1",
+          "remediation_statement_strategy": "low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum",
+          "remediation_unpack_plan": "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1",
+          "remediation_vector_budget": "packed-i4-remediation-budget-6of32-vector-groups",
+          "remediation_vl_plan": "two-region-runtime-avl-product-reduce-then-dequant-store.v1",
+          "schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
+          "schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
+          "schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32"
+        },
+        "fields": {
+          "performance_action": "no-win-repair-required-before-performance-claim",
+          "performance_feedback": "same-target-packed-i4-no-win.v1",
+          "remediation_action": "no-win-repair-required-before-performance-claim",
+          "remediation_blocker": "same-target-packed-i4-low-shifted-product-rescale-no-win-or-regression",
+          "remediation_decision": "accepted-no-win-regression-low-shifted-product-rescale-repair-required.v1",
+          "remediation_diagnosis": "correctness-supported-no-win-regression",
+          "remediation_dispatch_preference": "not-performance-preferred",
+          "remediation_handoff_contract": "rvv-low-precision-packed-i4-measurement-policy-handoff.v1",
+          "remediation_measurement_evidence": "gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json",
+          "remediation_plan": "repair-packed-i4-low-shifted-product-rescale-single-reduce-before-performance-claim.v1",
+          "remediation_plan_contract": "rvv-low-precision-packed-i4-resource-remediation-plan.v1",
+          "remediation_product_plan": "low-shifted-product-i16-rescale-plus-high-product-pair-sum.v1",
+          "remediation_reduction_plan": "single-vwredsum-i16-pair-sum-with-i32-seed.v1",
+          "remediation_schedule_contract": "rvv-low-precision-packed-i4-resource-remediation-schedule.v1",
+          "remediation_statement_strategy": "low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum",
+          "remediation_unpack_plan": "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1",
+          "remediation_vector_budget": "packed-i4-remediation-budget-6of32-vector-groups",
+          "remediation_vl_plan": "two-region-runtime-avl-product-reduce-then-dequant-store.v1",
+          "schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
+          "schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
+          "schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32"
+        },
+        "reference_oracle_source": "provider-owned packed-i4 operand form and remediation metadata, not artifact path/name metadata",
+        "source": "validated object/header low-precision resource mirrors for the provider-selected packed-i4 resource"
+      },
+      "source": "generated object/header bundle metadata after RVV provider route construction and target artifact validation"
+    },
+    "materialized_body": {
+      "accumulator_element_type": "i32",
+      "accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "gearbox_cross_region_handoff": {
+        "consumer_scope": "gearbox-scope:dequant-store",
+        "contract": "gearbox-product-reduce-to-dequant-cross-region-handoff.v1",
+        "from_phase": "load-product-reduce",
+        "op": "tcrv_rvv.gearbox_cross_region_handoff",
+        "producer_scope": "gearbox-scope:product-reduction",
+        "region_count": 2,
+        "resource_decision": "consume-low-precision-packed-i4-low-shifted-product-rescale-single-reduce-budget-6of32.v1",
+        "runtime_avl_source": "runtime_abi:n",
+        "to_phase": "dequant-store"
+      },
+      "low_precision_resource": {
+        "candidate_set": "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]",
+        "effective_element_width": "4",
+        "legality_scope": "typed-low-precision-product-reduction-dequant-resource-legality.v1",
+        "memory_form": "unit-stride-widening-product-reduce-dequant-clamp-f32",
+        "operand_form": "packed-i4-nibbles",
+        "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
+        "peak_live_vector_groups": 6,
+        "runtime_avl_source": "runtime_abi:n",
+        "selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]",
+        "selection_reason": "static-bounded-product-reduction-dequant-clamp-signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1-u1-unpack-required-runtime-avl",
+        "source_signedness": "signed",
+        "storage_element_width": "8",
+        "unpack_intent": "sign-extend-i4-nibbles-before-widening-product",
+        "vector_register_budget": 32,
+        "vsetvl_region_count": 2
+      },
+      "product_element_type": "i16",
+      "product_lmul": "mf2",
+      "product_reduction_chain_relation": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32",
+      "product_relation": "signed-i8mf4xi8mf4-to-i16mf2",
+      "product_sew": "16",
+      "product_vector_type": "!tcrv_rvv.vector<i16, \"mf2\">",
+      "result_element_type": "f32",
+      "result_layout": "store-standalone-reduction-lane0-to-output-scalar",
+      "result_lmul": "m1",
+      "result_sew": "32",
+      "result_vector_type": "!tcrv_rvv.vector<i32, \"m1\">",
+      "runtime_avl_vl_control": {
+        "lmul": "m1",
+        "policy": "explicit-tcrv-rvv-policy",
+        "runtime_avl_abi_parameter": "n",
+        "runtime_avl_source": "runtime_abi:n",
+        "runtime_avl_value": "%7",
+        "setvl_consumes_runtime_avl": true,
+        "setvl_result": "%8",
+        "sew": "32",
+        "with_vl_consumes_setvl": true
+      },
+      "selected_source_abi": {
+        "acc": "accumulator-input-buffer",
+        "lhs": "lhs-input-buffer",
+        "lower_bound": "lower-bound-scalar-value",
+        "n": "runtime-element-count",
+        "out": "output-buffer",
+        "rhs": "rhs-input-buffer",
+        "scale": "dequant-scale-value",
+        "upper_bound": "upper-bound-scalar-value"
+      },
+      "source_element_type": "i8",
+      "source_lmul": "mf4",
+      "source_sew": "8",
+      "source_vector_type": "!tcrv_rvv.vector<i8, \"mf4\">",
+      "typed_compute_op": "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
+    },
+    "memory_form": "unit-stride-widening-product-reduce-dequant-clamp-f32",
+    "product_reduction_chain_relation": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32",
+    "product_relation": "signed-i8mf4xi8mf4-to-i16mf2",
+    "product_type_policy": {
+      "element_c_type": "int16_t",
+      "element_type": "i16",
+      "lmul": "mf2",
+      "sew": "16",
+      "vector_c_type": "vint16mf2_t",
+      "vector_type": "!tcrv_rvv.vector<i16, \"mf2\">"
+    },
+    "provider_route_facts": {
+      "accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "accumulator_lmul": "m1",
+      "accumulator_sew": "32",
+      "c_type_mapping": "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,dequant-splat/clamped:float-e32m1,scale:float,lower:float,upper:float",
+      "clamp_select": {
+        "bound_order": "lower-bound-before-upper-bound",
+        "clamp_relation": "signed-i8mf4xi8mf4-i32-reduction-scale-f32-clamp-lower-upper-to-f32m1",
+        "compare_intrinsic": "__riscv_vmflt_vv_f32m1_b32",
+        "lower_bound_role": "lower-bound-scalar-value",
+        "select_intrinsic": "__riscv_vmerge_vvm_f32m1",
+        "splat_intrinsic": "__riscv_vfmv_v_f_f32m1",
+        "upper_bound_role": "upper-bound-scalar-value"
+      },
+      "contraction_route_family_plan": "rvv-contraction-route-family-plan.v1",
+      "dequantization": {
+        "forbids_vector_convert_intrinsic": "__riscv_vfcvt_f_x_v_f32m1",
+        "forbids_vector_scale_intrinsic": "__riscv_vfmul_vf_f32m1",
+        "relation": "signed-i32m1-to-f32m1-scale-f32",
+        "scalar_dequant_expression": "dot_acc_scalar * scale",
+        "scalar_splat_intrinsic": "__riscv_vfmv_v_f_f32m1",
+        "scale_c_type": "float",
+        "scale_name": "scale",
+        "scale_role": "dequant-scale-value"
+      },
+      "destination_memory_form": "unit-stride-store",
+      "gearbox_cross_region_handoff": {
+        "consumer_scope": "gearbox-scope:dequant-store",
+        "contract": "gearbox-product-reduce-to-dequant-cross-region-handoff.v1",
+        "from_phase": "load-product-reduce",
+        "op": "tcrv_rvv.gearbox_cross_region_handoff",
+        "producer_scope": "gearbox-scope:product-reduction",
+        "region_count": "2",
+        "resource_decision": "consume-low-precision-packed-i4-low-shifted-product-rescale-single-reduce-budget-6of32.v1",
+        "runtime_avl_source": "runtime_abi:n",
+        "to_phase": "dequant-store"
+      },
+      "low_precision_resource": {
+        "accumulator_count": "1",
+        "accumulator_dtype": "i32",
+        "candidate_set": "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]",
+        "dequant_phase": "dequant-store",
+        "dequant_region_index": "2",
+        "dispatch_preference": "not-performance-preferred",
+        "effective_element_width": "4",
+        "expected_dispatch_preference": "not-performance-preferred",
+        "expected_memory_form": "unit-stride-widening-product-reduce-dequant-clamp-f32",
+        "expected_operand_form": "packed-i4-nibbles",
+        "expected_performance_action": "no-win-repair-required-before-performance-claim",
+        "expected_performance_baseline": "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1",
+        "expected_performance_best_speedup_range": "0.686981..0.705666",
+        "expected_performance_feedback": "same-target-packed-i4-no-win.v1",
+        "expected_performance_maturity": "executable-not-performance-mature",
+        "expected_performance_maturity_evidence": "same-target-packed-i4-low-shifted-product-rescale-regression-gate4.v1",
+        "expected_performance_maturity_outcome": "regression",
+        "expected_performance_selection_eligible": "false",
+        "expected_primitive_accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+        "expected_primitive_chain_contract": "rvv-low-precision-widening-reduction-primitive-facts.v1",
+        "expected_primitive_chain_kind": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1",
+        "expected_primitive_contract": "rvv-low-precision-widening-primitive-facts.v1",
+        "expected_primitive_kind": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant-clamp.v1",
+        "expected_primitive_product_reduction_chain_relation": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32",
+        "expected_primitive_reduction_intrinsic": "__riscv_vwredsum_vs_i16mf2_i32m1",
+        "expected_primitive_reduction_store_vl": "1",
+        "expected_primitive_result_layout": "store-standalone-reduction-lane0-to-output-scalar",
+        "expected_primitive_scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+        "expected_primitive_widening_product_intrinsic": "__riscv_vwmul_vv_i16mf2",
+        "expected_primitive_widening_product_relation": "signed-i8mf4xi8mf4-to-i16mf2",
+        "expected_remediation_action": "no-win-repair-required-before-performance-claim",
+        "expected_remediation_blocker": "same-target-packed-i4-low-shifted-product-rescale-no-win-or-regression",
+        "expected_remediation_decision": "accepted-no-win-regression-low-shifted-product-rescale-repair-required.v1",
+        "expected_remediation_diagnosis": "correctness-supported-no-win-regression",
+        "expected_remediation_dispatch_preference": "not-performance-preferred",
+        "expected_remediation_handoff_contract": "rvv-low-precision-packed-i4-measurement-policy-handoff.v1",
+        "expected_remediation_measurement_evidence": "gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json",
+        "expected_remediation_plan": "repair-packed-i4-low-shifted-product-rescale-single-reduce-before-performance-claim.v1",
+        "expected_remediation_plan_contract": "rvv-low-precision-packed-i4-resource-remediation-plan.v1",
+        "expected_remediation_statement_strategy": "low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum",
+        "expected_remediation_vector_budget": "packed-i4-remediation-budget-6of32-vector-groups",
+        "expected_selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]",
+        "expected_selection_reason": "static-bounded-product-reduction-dequant-clamp-signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1-u1-unpack-required-runtime-avl",
+        "legality": "legal",
+        "legality_scope": "typed-low-precision-product-reduction-dequant-resource-legality.v1",
+        "memory_form": "unit-stride-widening-product-reduce-dequant-clamp-f32",
+        "operand_form": "packed-i4-nibbles",
+        "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
+        "peak_live_vector_groups": "6",
+        "performance_action": "no-win-repair-required-before-performance-claim",
+        "performance_baseline": "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1",
+        "performance_best_speedup_range": "0.686981..0.705666",
+        "performance_feedback": "same-target-packed-i4-no-win.v1",
+        "performance_maturity": "executable-not-performance-mature",
+        "performance_maturity_evidence": "same-target-packed-i4-low-shifted-product-rescale-regression-gate4.v1",
+        "performance_maturity_outcome": "regression",
+        "performance_selection_eligible": "false",
+        "primitive_accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+        "primitive_chain_contract": "rvv-low-precision-widening-reduction-primitive-facts.v1",
+        "primitive_chain_kind": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1",
+        "primitive_contract": "rvv-low-precision-widening-primitive-facts.v1",
+        "primitive_kind": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant-clamp.v1",
+        "primitive_product_reduction_chain_relation": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32",
+        "primitive_reduction_intrinsic": "__riscv_vwredsum_vs_i16mf2_i32m1",
+        "primitive_reduction_store_vl": "1",
+        "primitive_result_layout": "store-standalone-reduction-lane0-to-output-scalar",
+        "primitive_scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+        "primitive_widening_product_intrinsic": "__riscv_vwmul_vv_i16mf2",
+        "primitive_widening_product_relation": "signed-i8mf4xi8mf4-to-i16mf2",
+        "product_dtype": "i16",
+        "product_phase": "load-product-reduce",
+        "product_region_index": "1",
+        "realization_decision": "consume-low-precision-packed-i4-low-shifted-product-rescale-single-reduce-budget-6of32.v1",
+        "realization_producer": "rvv-plugin-local-selected-body-realization-resource-consumer.v1",
+        "realized_peak_live_vector_groups": "6",
+        "realized_unroll_factor": "1",
+        "realized_vsetvl_region_count": "2",
+        "rejection_reason": "none",
+        "remediation_action": "no-win-repair-required-before-performance-claim",
+        "remediation_blocker": "same-target-packed-i4-low-shifted-product-rescale-no-win-or-regression",
+        "remediation_decision": "accepted-no-win-regression-low-shifted-product-rescale-repair-required.v1",
+        "remediation_diagnosis": "correctness-supported-no-win-regression",
+        "remediation_dispatch_preference": "not-performance-preferred",
+        "remediation_handoff_contract": "rvv-low-precision-packed-i4-measurement-policy-handoff.v1",
+        "remediation_measurement_evidence": "gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json",
+        "remediation_plan": "repair-packed-i4-low-shifted-product-rescale-single-reduce-before-performance-claim.v1",
+        "remediation_plan_contract": "rvv-low-precision-packed-i4-resource-remediation-plan.v1",
+        "remediation_statement_strategy": "low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum",
+        "remediation_vector_budget": "packed-i4-remediation-budget-6of32-vector-groups",
+        "result_dtype": "f32",
+        "runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n",
+        "runtime_avl_source": "runtime_abi:n",
+        "selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]",
+        "selection_reason": "static-bounded-product-reduction-dequant-clamp-signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1-u1-unpack-required-runtime-avl",
+        "source_dtype": "i8",
+        "source_signedness": "signed",
+        "storage_element_width": "8",
+        "target_capability_legality_mirror": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic",
+        "target_capability_provider_mirror": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact",
+        "unpack_intent": "sign-extend-i4-nibbles-before-widening-product",
+        "unroll_factor": "1",
+        "vector_register_budget": "32",
+        "vsetvl_region_count": "2"
+      },
+      "product_lmul": "mf2",
+      "product_reduction_chain_relation": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32",
+      "product_sew": "16",
+      "provider_supported_mirror": "provider_supported_mirror:rvv-contraction-family-plan-validated",
+      "reduction_store_vl": "1",
+      "required_header_declarations": "stddef.h,stdint.h,riscv_vector.h",
+      "result_layout": "store-standalone-reduction-lane0-to-output-scalar",
+      "result_lmul": "m1",
+      "result_sew": "32",
+      "route_operand_binding_operands": "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1;lhs=lhs-input-buffer:lhs:abi|ld|wpl|i8mf4|hdr;rhs=rhs-input-buffer:rhs:abi|ld|wpr|i8mf4|hdr;acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;scale=dequant-scale-value:scale:abi|scale|f32|deq|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|up|splat|cmp|sel|hdr;out=output-buffer:out:abi|cdeq|store|f32m1|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr",
+      "route_operand_binding_plan": "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1",
+      "runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n",
+      "scalar_result_runtime_boundary": "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1",
+      "scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+      "source_lmul": "mf4",
+      "source_load_intrinsic": "__riscv_vle8_v_i8mf4",
+      "source_memory_form": "unit-stride-load",
+      "source_sew": "8",
+      "store_intrinsic": "__riscv_vse32_v_f32m1",
+      "target_leaf_profile": "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequant-clamp-leaf-profile.v1",
+      "widening_product_intrinsic": "__riscv_vwmul_vv_i16mf2",
+      "widening_product_relation": "signed-i8mf4xi8mf4-to-i16mf2",
+      "widening_reduction_intrinsic": "__riscv_vwredsum_vs_i16mf2_i32m1"
+    },
+    "result_type_policy": {
+      "abi_role": "output-buffer",
+      "element_c_type": "float",
+      "element_type": "f32",
+      "layout": "post-loop f32 clamped dequantized scalar-result store",
+      "lmul": "m1",
+      "scalar_store_vl": "1",
+      "sew": "32"
+    },
+    "route_metadata": {
+      "tcrv_rvv.accumulator_lmul": "m1",
+      "tcrv_rvv.accumulator_sew": "32",
+      "tcrv_rvv.c_type_mapping": "vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,dequant-splat/clamped:float-e32m1,scale:float,lower:float,upper:float",
+      "tcrv_rvv.config_contract": "rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1",
+      "tcrv_rvv.contraction_route_family_plan": "rvv-contraction-route-family-plan.v1",
+      "tcrv_rvv.dequant_scale_c_type": "float",
+      "tcrv_rvv.dequant_scale_name": "scale",
+      "tcrv_rvv.dequant_scale_role": "dequant-scale-value",
+      "tcrv_rvv.dequantization_relation": "signed-i32m1-to-f32m1-scale-f32",
+      "tcrv_rvv.destination_memory_form": "unit-stride-store",
+      "tcrv_rvv.element_type": "f32",
+      "tcrv_rvv.emitc_loop": "emitc.for",
+      "tcrv_rvv.gearbox.consumer_scope": "gearbox-scope:dequant-store",
+      "tcrv_rvv.gearbox.producer_scope": "gearbox-scope:product-reduction",
+      "tcrv_rvv.lmul": "m1",
+      "tcrv_rvv.loop_induction": "offset",
+      "tcrv_rvv.loop_step": "full_chunk_vl",
+      "tcrv_rvv.low_precision_resource.accumulator_count": "1",
+      "tcrv_rvv.low_precision_resource.accumulator_dtype": "i32",
+      "tcrv_rvv.low_precision_resource.accumulator_emul": "m1",
+      "tcrv_rvv.low_precision_resource.accumulator_lmul": "m1",
+      "tcrv_rvv.low_precision_resource.accumulator_sew": "32",
+      "tcrv_rvv.low_precision_resource.candidate_set": "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]",
+      "tcrv_rvv.low_precision_resource.dequant_phase": "dequant-store",
+      "tcrv_rvv.low_precision_resource.dequant_region_index": "2",
+      "tcrv_rvv.low_precision_resource.dispatch_preference": "not-performance-preferred",
+      "tcrv_rvv.low_precision_resource.effective_element_width": "4",
+      "tcrv_rvv.low_precision_resource.legality": "legal",
+      "tcrv_rvv.low_precision_resource.legality_scope": "typed-low-precision-product-reduction-dequant-resource-legality.v1",
+      "tcrv_rvv.low_precision_resource.mask_policy": "agnostic",
+      "tcrv_rvv.low_precision_resource.memory_form": "unit-stride-widening-product-reduce-dequant-clamp-f32",
+      "tcrv_rvv.low_precision_resource.operand_form": "packed-i4-nibbles",
+      "tcrv_rvv.low_precision_resource.packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
+      "tcrv_rvv.low_precision_resource.peak_live_vector_groups": "6",
+      "tcrv_rvv.low_precision_resource.performance_action": "no-win-repair-required-before-performance-claim",
+      "tcrv_rvv.low_precision_resource.performance_baseline": "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1",
+      "tcrv_rvv.low_precision_resource.performance_best_speedup_range": "0.686981..0.705666",
+      "tcrv_rvv.low_precision_resource.performance_feedback": "same-target-packed-i4-no-win.v1",
+      "tcrv_rvv.low_precision_resource.performance_maturity": "executable-not-performance-mature",
+      "tcrv_rvv.low_precision_resource.performance_maturity_evidence": "same-target-packed-i4-low-shifted-product-rescale-regression-gate4.v1",
+      "tcrv_rvv.low_precision_resource.performance_maturity_outcome": "regression",
+      "tcrv_rvv.low_precision_resource.performance_selection_eligible": "false",
+      "tcrv_rvv.low_precision_resource.primitive_accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "tcrv_rvv.low_precision_resource.primitive_chain_contract": "rvv-low-precision-widening-reduction-primitive-facts.v1",
+      "tcrv_rvv.low_precision_resource.primitive_chain_kind": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1",
+      "tcrv_rvv.low_precision_resource.primitive_contract": "rvv-low-precision-widening-primitive-facts.v1",
+      "tcrv_rvv.low_precision_resource.primitive_kind": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant-clamp.v1",
+      "tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32",
+      "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic": "__riscv_vwredsum_vs_i16mf2_i32m1",
+      "tcrv_rvv.low_precision_resource.primitive_reduction_store_vl": "1",
+      "tcrv_rvv.low_precision_resource.primitive_result_layout": "store-standalone-reduction-lane0-to-output-scalar",
+      "tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+      "tcrv_rvv.low_precision_resource.primitive_source_extension": "sign-extend-i8-to-i16-product",
+      "tcrv_rvv.low_precision_resource.primitive_source_load": "unit-stride-byte-load",
+      "tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic": "__riscv_vwmul_vv_i16mf2",
+      "tcrv_rvv.low_precision_resource.primitive_widening_product_relation": "signed-i8mf4xi8mf4-to-i16mf2",
+      "tcrv_rvv.low_precision_resource.product_dtype": "i16",
+      "tcrv_rvv.low_precision_resource.product_emul": "mf2",
+      "tcrv_rvv.low_precision_resource.product_lmul": "mf2",
+      "tcrv_rvv.low_precision_resource.product_phase": "load-product-reduce",
+      "tcrv_rvv.low_precision_resource.product_region_index": "1",
+      "tcrv_rvv.low_precision_resource.product_sew": "16",
+      "tcrv_rvv.low_precision_resource.realization_admission_contract": "rvv-low-precision-selected-body-realization-admission.v1",
+      "tcrv_rvv.low_precision_resource.realization_admission_decision": "realize",
+      "tcrv_rvv.low_precision_resource.realization_admission_dispatch_policy": "correctness-fallback",
+      "tcrv_rvv.low_precision_resource.realization_admission_evidence": "gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json",
+      "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
+      "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
+      "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32",
+      "tcrv_rvv.low_precision_resource.realization_decision": "consume-low-precision-packed-i4-low-shifted-product-rescale-single-reduce-budget-6of32.v1",
+      "tcrv_rvv.low_precision_resource.realization_producer": "rvv-plugin-local-selected-body-realization-resource-consumer.v1",
+      "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups": "6",
+      "tcrv_rvv.low_precision_resource.realized_unroll_factor": "1",
+      "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count": "2",
+      "tcrv_rvv.low_precision_resource.reduction_layout": "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1",
+      "tcrv_rvv.low_precision_resource.rejection_reason": "none",
+      "tcrv_rvv.low_precision_resource.remediation_action": "no-win-repair-required-before-performance-claim",
+      "tcrv_rvv.low_precision_resource.remediation_blocker": "same-target-packed-i4-low-shifted-product-rescale-no-win-or-regression",
+      "tcrv_rvv.low_precision_resource.remediation_decision": "accepted-no-win-regression-low-shifted-product-rescale-repair-required.v1",
+      "tcrv_rvv.low_precision_resource.remediation_diagnosis": "correctness-supported-no-win-regression",
+      "tcrv_rvv.low_precision_resource.remediation_dispatch_preference": "not-performance-preferred",
+      "tcrv_rvv.low_precision_resource.remediation_handoff_contract": "rvv-low-precision-packed-i4-measurement-policy-handoff.v1",
+      "tcrv_rvv.low_precision_resource.remediation_measurement_evidence": "gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json",
+      "tcrv_rvv.low_precision_resource.remediation_plan": "repair-packed-i4-low-shifted-product-rescale-single-reduce-before-performance-claim.v1",
+      "tcrv_rvv.low_precision_resource.remediation_plan_contract": "rvv-low-precision-packed-i4-resource-remediation-plan.v1",
+      "tcrv_rvv.low_precision_resource.remediation_product_plan": "low-shifted-product-i16-rescale-plus-high-product-pair-sum.v1",
+      "tcrv_rvv.low_precision_resource.remediation_reduction_plan": "single-vwredsum-i16-pair-sum-with-i32-seed.v1",
+      "tcrv_rvv.low_precision_resource.remediation_schedule_contract": "rvv-low-precision-packed-i4-resource-remediation-schedule.v1",
+      "tcrv_rvv.low_precision_resource.remediation_statement_strategy": "low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum",
+      "tcrv_rvv.low_precision_resource.remediation_unpack_plan": "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1",
+      "tcrv_rvv.low_precision_resource.remediation_vector_budget": "packed-i4-remediation-budget-6of32-vector-groups",
+      "tcrv_rvv.low_precision_resource.remediation_vl_plan": "two-region-runtime-avl-product-reduce-then-dequant-store.v1",
+      "tcrv_rvv.low_precision_resource.result_dtype": "f32",
+      "tcrv_rvv.low_precision_resource.result_lmul": "m1",
+      "tcrv_rvv.low_precision_resource.result_sew": "32",
+      "tcrv_rvv.low_precision_resource.runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n",
+      "tcrv_rvv.low_precision_resource.runtime_avl_source": "runtime_abi:n",
+      "tcrv_rvv.low_precision_resource.schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
+      "tcrv_rvv.low_precision_resource.schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
+      "tcrv_rvv.low_precision_resource.schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32",
+      "tcrv_rvv.low_precision_resource.selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]",
+      "tcrv_rvv.low_precision_resource.selection_reason": "static-bounded-product-reduction-dequant-clamp-signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1-u1-unpack-required-runtime-avl",
+      "tcrv_rvv.low_precision_resource.source_dtype": "i8",
+      "tcrv_rvv.low_precision_resource.source_lmul": "mf4",
+      "tcrv_rvv.low_precision_resource.source_sew": "8",
+      "tcrv_rvv.low_precision_resource.source_signedness": "signed",
+      "tcrv_rvv.low_precision_resource.storage_element_width": "8",
+      "tcrv_rvv.low_precision_resource.tail_policy": "agnostic",
+      "tcrv_rvv.low_precision_resource.target_capability_legality_mirror": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic",
+      "tcrv_rvv.low_precision_resource.target_capability_provider_mirror": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact",
+      "tcrv_rvv.low_precision_resource.unpack_intent": "sign-extend-i4-nibbles-before-widening-product",
+      "tcrv_rvv.low_precision_resource.unroll_factor": "1",
+      "tcrv_rvv.low_precision_resource.vector_register_budget": "32",
+      "tcrv_rvv.low_precision_resource.vsetvl_region_count": "2",
+      "tcrv_rvv.low_precision_resource.widening_product_extension_policy": "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2",
+      "tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles": "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4",
+      "tcrv_rvv.mask_policy": "agnostic",
+      "tcrv_rvv.memory_form": "unit-stride-widening-product-reduce-dequant-clamp-f32",
+      "tcrv_rvv.multi_vl": "supported",
+      "tcrv_rvv.pointer_advance": "offset",
+      "tcrv_rvv.product_lmul": "mf2",
+      "tcrv_rvv.product_reduction_chain_relation": "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32",
+      "tcrv_rvv.product_sew": "16",
+      "tcrv_rvv.product_vector_c_type": "vint16mf2_t",
+      "tcrv_rvv.product_vector_type": "!tcrv_rvv.vector<i16, \"mf2\">",
+      "tcrv_rvv.provider_supported_mirror": "provider_supported_mirror:rvv-contraction-family-plan-validated",
+      "tcrv_rvv.reduction_accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
+      "tcrv_rvv.reduction_result_layout": "store-standalone-reduction-lane0-to-output-scalar",
+      "tcrv_rvv.reduction_store_vl": "1",
+      "tcrv_rvv.remaining_avl": "n-offset",
+      "tcrv_rvv.required_header_declarations": "stddef.h,stdint.h,riscv_vector.h",
+      "tcrv_rvv.result_lmul": "m1",
+      "tcrv_rvv.result_sew": "32",
+      "tcrv_rvv.rhs_broadcast_intrinsic": "__riscv_vfmv_v_f_f32m1",
+      "tcrv_rvv.route_operand_binding_operands": "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1;lhs=lhs-input-buffer:lhs:abi|ld|wpl|i8mf4|hdr;rhs=rhs-input-buffer:rhs:abi|ld|wpr|i8mf4|hdr;acc=accumulator-input-buffer:acc:abi|seed|wred|i32|hdr;scale=dequant-scale-value:scale:abi|scale|f32|deq|hdr;lower_bound=lower-bound-scalar-value:lower_bound:abi|lo|splat|cmp|sel|hdr;upper_bound=upper-bound-scalar-value:upper_bound:abi|up|splat|cmp|sel|hdr;out=output-buffer:out:abi|cdeq|store|f32m1|hdr;n=runtime-element-count:n:abi|setvl|loop|hdr",
+      "tcrv_rvv.route_operand_binding_plan": "rvv-route-operand-binding:widening_product_reduce_dequant_clamp_f32.v1",
+      "tcrv_rvv.runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n",
+      "tcrv_rvv.runtime_avl_abi_parameter": "n",
+      "tcrv_rvv.runtime_avl_source": "runtime_abi:n",
+      "tcrv_rvv.runtime_control_plan": "rvv-runtime-avl-vl-control-plan.v1",
+      "tcrv_rvv.runtime_vl_contract": "rvv-runtime-avl-n-multivl-setvl-with-vl-loop.v1",
+      "tcrv_rvv.scalar_result_runtime_boundary": "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1",
+      "tcrv_rvv.scalar_seed_splat_intrinsic": "__riscv_vmv_v_x_i32m1",
+      "tcrv_rvv.sew": "32",
+      "tcrv_rvv.source_lmul": "mf4",
+      "tcrv_rvv.source_memory_form": "unit-stride-load",
+      "tcrv_rvv.source_sew": "8",
+      "tcrv_rvv.tail_policy": "agnostic",
+      "tcrv_rvv.target_leaf_profile": "rvv-v1-i8mf4-i16mf2-i32m1-f32m1-product-reduction-dequant-clamp-leaf-profile.v1",
+      "tcrv_rvv.widening_product_intrinsic": "__riscv_vwmul_vv_i16mf2",
+      "tcrv_rvv.widening_product_relation": "signed-i8mf4xi8mf4-to-i16mf2",
+      "tcrv_rvv.widening_reduction_intrinsic": "__riscv_vwredsum_vs_i16mf2_i32m1"
+    },
+    "runtime_counts": [
+      257,
+      4096,
+      65536
+    ],
+    "runtime_counts_are_execution_cases_not_product_reduction_authority": true,
+    "selected_source_abi": {
+      "acc": "accumulator-input-buffer",
+      "lhs": "lhs-input-buffer",
+      "lower_bound": "lower-bound-scalar-value",
+      "n": "runtime-element-count",
+      "out": "output-buffer",
+      "rhs": "rhs-input-buffer",
+      "scale": "dequant-scale-value",
+      "upper_bound": "upper-bound-scalar-value"
+    },
+    "source": "typed tcrv_rvv.widening_product + standalone_reduce + Gearbox cross-region handoff + dequantize + compare/select body/config/runtime-scale/runtime-bound facts -> contraction, dequantization, resource, multi-with_vl handoff, and clamp route-family plans -> target-owned product-reduction/dequant-clamp validator -> neutral EmitC materializer -> generated RVV C artifact",
+    "source_type_policy": {
+      "element_c_type": "int8_t",
+      "element_type": "i8",
+      "lmul": "mf4",
+      "sew": "8",
+      "vector_c_type": "vint8mf4_t",
+      "vector_type": "!tcrv_rvv.vector<i8, \"mf4\">"
+    },
+    "statement_plan": {
+      "family": "widening product-reduction dequantization contraction with signed packed-i4 nibble unpack",
+      "high_nibble_sign_extension": "arithmetic-shift-right-4",
+      "loop_accumulator_final_source": "reduced_i32_vec",
+      "loop_accumulator_source": "dot_acc_vec",
+      "loop_callees": [
+        "__riscv_vsetvl_e32m1",
+        "__riscv_vle8_v_i8mf4",
+        "__riscv_vle8_v_i8mf4",
+        "__riscv_vsll_vx_i8mf4",
+        "__riscv_vsll_vx_i8mf4",
+        "__riscv_vwmul_vv_i16mf2",
+        "__riscv_vsra_vx_i16mf2",
+        "__riscv_vsra_vx_i8mf4",
+        "__riscv_vsra_vx_i8mf4",
+        "__riscv_vwmul_vv_i16mf2",
+        "__riscv_vadd_vv_i16mf2",
+        "__riscv_vwredsum_vs_i16mf2_i32m1"
+      ],
+      "loop_dequantization_forbidden": true,
+      "low_nibble_product_rescale": "shift-left-operands-vwmul-then-arithmetic-shift-right-8",
+      "packed_operand_form": "packed-i4-nibbles",
+      "packed_source_loads": [
+        "lhs_packed_i4_vec",
+        "rhs_packed_i4_vec"
+      ],
+      "post_loop_callees": [
+        "__riscv_vmv_x_s_i32m1_i32",
+        "__riscv_vfmv_v_f_f32m1",
+        "__riscv_vse32_v_f32m1"
+      ],
+      "pre_loop_callees": [
+        "__riscv_vsetvl_e32m1",
+        "__riscv_vmv_v_x_i32m1"
+      ],
+      "product_operand_order": "low_scaled(lhs_low_i4_shifted_vec,rhs_low_i4_shifted_vec,vl);rescale(product_vec_i4_low_scaled,8,vl);high(lhs_high_i4_vec,rhs_high_i4_vec,vl)",
+      "reduction_operand_order": "pair_sum(product_vec,product_vec_i4_high,vl);single_reduce(product_vec_i4_pair_sum,current_dot_acc_vec,vl)",
+      "scalar_store_vl": "1",
+      "seed_source": "acc[0]"
+    },
+    "target_artifact_validator": "RVVTargetArtifactRouteFamilyValidation.cpp:product-reduction target-owned consumer",
+    "target_validator_consumed_facts": [
+      "runtime ABI order and roles",
+      "route operand binding plan and exact binding summary",
+      "i8 source / i16 product / i32 result dtype chain",
+      "product and widening reduction relation",
+      "accumulator/result layout",
+      "source/result memory form",
+      "setvl/VL control and scalar store VL",
+      "required headers and C type mapping",
+      "mirror-only candidate metadata",
+      "stale dot or non-family fact rejection",
+      "Gearbox producer and nested consumer with_vl scopes",
+      "Gearbox cross-region handoff contract and VL/AVL source",
+      "low-precision resource selection and two-vsetvl-region budget",
+      "provider-owned realization decision, realized region/live-vector schedule, and product/dequant marker phases",
+      "dequant-store consumer marker and post-loop f32 store ABI",
+      "generated header/object ABI agreement for lhs,rhs,acc,scale,lower_bound,upper_bound,out,n",
+      "packed-i4 operand form, signedness, storage/effective width, layout, and unpack intent",
+      "packed lhs/rhs source-vector loads",
+      "low/high nibble sign-extension statement payload",
+      "low/high widening product and reduction carry chain",
+      "final carry assignment into dot_acc_vec"
+    ],
+    "typed_compute_op": "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize+tcrv_rvv.compare+tcrv_rvv.select"
+  }
+}

@@ -26,10 +26,10 @@
 # WPRD-DAG: "object_header_agreement_checked": true
 # WPRD-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
 # WPRD-DAG: "realization_producer": "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
-# WPRD-DAG: "realization_decision": "consume-low-precision-packed-i4-low-product-before-high-unpack-single-reduce-budget-7of32.v1"
+# WPRD-DAG: "realization_decision": "consume-low-precision-packed-i4-low-shifted-product-rescale-single-reduce-budget-6of32.v1"
 # WPRD-DAG: "realized_unroll_factor": "1"
 # WPRD-DAG: "realized_vsetvl_region_count": "2"
-# WPRD-DAG: "realized_peak_live_vector_groups": "7"
+# WPRD-DAG: "realized_peak_live_vector_groups": "6"
 # WPRD-DAG: "product_region_index": "1"
 # WPRD-DAG: "dequant_region_index": "2"
 # WPRD-DAG: "product_phase": "load-product-reduce"
@@ -46,26 +46,26 @@
 # WPRD-DAG: "unpack_intent": "sign-extend-i4-nibbles-before-widening-product"
 # WPRD-DAG: "performance_feedback": "same-target-packed-i4-no-win.v1"
 # WPRD-DAG: "performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
-# WPRD-DAG: "performance_best_speedup_range": "0.685950..0.705587"
+# WPRD-DAG: "performance_best_speedup_range": "0.686981..0.705666"
 # WPRD-DAG: "performance_action": "no-win-repair-required-before-performance-claim"
 # WPRD-DAG: "performance_maturity": "executable-not-performance-mature"
-# WPRD-DAG: "performance_maturity_evidence": "same-target-packed-i4-low-product-before-high-unpack-regression-gate4.v1"
+# WPRD-DAG: "performance_maturity_evidence": "same-target-packed-i4-low-shifted-product-rescale-regression-gate4.v1"
 # WPRD-DAG: "performance_maturity_outcome": "regression"
 # WPRD-DAG: "performance_selection_eligible": "false"
 # WPRD-DAG: "dispatch_preference": "not-performance-preferred"
 # WPRD-DAG: "remediation_schedule_contract": "rvv-low-precision-packed-i4-resource-remediation-schedule.v1"
-# WPRD-DAG: "remediation_unpack_plan": "sign-extend-low-high-signed-i4-nibbles-before-widening-product.v1"
-# WPRD-DAG: "remediation_product_plan": "low-product-before-high-product-plus-i16-pair-sum.v1"
+# WPRD-DAG: "remediation_unpack_plan": "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1"
+# WPRD-DAG: "remediation_product_plan": "low-shifted-product-i16-rescale-plus-high-product-pair-sum.v1"
 # WPRD-DAG: "remediation_reduction_plan": "single-vwredsum-i16-pair-sum-with-i32-seed.v1"
 # WPRD-DAG: "remediation_vl_plan": "two-region-runtime-avl-product-reduce-then-dequant-store.v1"
 # WPRD-DAG: "schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
-# WPRD-DAG: "schedule_decision": "select-packed-i4-low-product-before-high-unpack-single-reduce-u1-two-region-budget-7of32.v1"
-# WPRD-DAG: "schedule_decision_reason": "accepted-remediation-schedule-low-product-before-high-unpack-pair-sum-single-vwredsum-budget-7of32"
+# WPRD-DAG: "schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1"
+# WPRD-DAG: "schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32"
 # WPRD-DAG: "tcrv_rvv.low_precision_resource.schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
-# WPRD-DAG: "tcrv_rvv.low_precision_resource.schedule_decision": "select-packed-i4-low-product-before-high-unpack-single-reduce-u1-two-region-budget-7of32.v1"
-# WPRD-DAG: "tcrv_rvv.low_precision_resource.schedule_decision_reason": "accepted-remediation-schedule-low-product-before-high-unpack-pair-sum-single-vwredsum-budget-7of32"
+# WPRD-DAG: "tcrv_rvv.low_precision_resource.schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1"
+# WPRD-DAG: "tcrv_rvv.low_precision_resource.schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32"
 # WPRD-DAG: "packed_i4_statement_payload"
-# WPRD-DAG: "low_nibble_sign_extension": "shift-left-4-then-arithmetic-shift-right-4"
+# WPRD-DAG: "low_nibble_product_rescale": "shift-left-operands-vwmul-then-arithmetic-shift-right-8"
 # WPRD-DAG: "high_nibble_sign_extension": "arithmetic-shift-right-4"
 # WPRD-DAG: "packed_i4_reference_oracle"
 # WPRD-DAG: "runtime_n_unit": "packed input bytes"
@@ -75,13 +75,13 @@
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.realization_producer"
 # INDEX-DAG: value: "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.realization_decision"
-# INDEX-DAG: value: "consume-low-precision-packed-i4-low-product-before-high-unpack-single-reduce-budget-7of32.v1"
+# INDEX-DAG: value: "consume-low-precision-packed-i4-low-shifted-product-rescale-single-reduce-budget-6of32.v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.realized_unroll_factor"
 # INDEX-DAG: value: "1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count"
 # INDEX-DAG: value: "2"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups"
-# INDEX-DAG: value: "7"
+# INDEX-DAG: value: "6"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.product_region_index"
 # INDEX-DAG: value: "1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.dequant_region_index"
@@ -105,7 +105,7 @@
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.performance_baseline"
 # INDEX-DAG: value: "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.performance_best_speedup_range"
-# INDEX-DAG: value: "0.685950..0.705587"
+# INDEX-DAG: value: "0.686981..0.705666"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.performance_action"
 # INDEX-DAG: value: "no-win-repair-required-before-performance-claim"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.remediation_handoff_contract"
@@ -113,27 +113,27 @@
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.remediation_diagnosis"
 # INDEX-DAG: value: "correctness-supported-no-win-regression"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.remediation_measurement_evidence"
-# INDEX-DAG: value: "gate4-packed-i4-low-product-before-high-unpack-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json"
+# INDEX-DAG: value: "gate4-packed-i4-low-shifted-product-rescale-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.remediation_decision"
-# INDEX-DAG: value: "accepted-no-win-regression-resource-schedule-repair-required.v1"
+# INDEX-DAG: value: "accepted-no-win-regression-low-shifted-product-rescale-repair-required.v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.remediation_dispatch_preference"
 # INDEX-DAG: value: "not-performance-preferred"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.remediation_blocker"
-# INDEX-DAG: value: "same-target-measurement-no-win-or-regression"
+# INDEX-DAG: value: "same-target-packed-i4-low-shifted-product-rescale-no-win-or-regression"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.remediation_plan_contract"
 # INDEX-DAG: value: "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.remediation_plan"
-# INDEX-DAG: value: "repair-packed-i4-low-product-before-high-unpack-single-reduce-before-performance-claim.v1"
+# INDEX-DAG: value: "repair-packed-i4-low-shifted-product-rescale-single-reduce-before-performance-claim.v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.remediation_statement_strategy"
-# INDEX-DAG: value: "unpack-low-signed-i4-nibbles-product-before-high-nibbles-pair-sum-single-vwredsum"
+# INDEX-DAG: value: "low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.remediation_vector_budget"
-# INDEX-DAG: value: "packed-i4-remediation-budget-7of32-vector-groups"
+# INDEX-DAG: value: "packed-i4-remediation-budget-6of32-vector-groups"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.remediation_schedule_contract"
 # INDEX-DAG: value: "rvv-low-precision-packed-i4-resource-remediation-schedule.v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.remediation_unpack_plan"
-# INDEX-DAG: value: "sign-extend-low-high-signed-i4-nibbles-before-widening-product.v1"
+# INDEX-DAG: value: "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.remediation_product_plan"
-# INDEX-DAG: value: "low-product-before-high-product-plus-i16-pair-sum.v1"
+# INDEX-DAG: value: "low-shifted-product-i16-rescale-plus-high-product-pair-sum.v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.remediation_reduction_plan"
 # INDEX-DAG: value: "single-vwredsum-i16-pair-sum-with-i32-seed.v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.remediation_vl_plan"
@@ -141,13 +141,13 @@
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.schedule_decision_contract"
 # INDEX-DAG: value: "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.schedule_decision"
-# INDEX-DAG: value: "select-packed-i4-low-product-before-high-unpack-single-reduce-u1-two-region-budget-7of32.v1"
+# INDEX-DAG: value: "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.schedule_decision_reason"
-# INDEX-DAG: value: "accepted-remediation-schedule-low-product-before-high-unpack-pair-sum-single-vwredsum-budget-7of32"
+# INDEX-DAG: value: "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.performance_maturity"
 # INDEX-DAG: value: "executable-not-performance-mature"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.performance_maturity_evidence"
-# INDEX-DAG: value: "same-target-packed-i4-low-product-before-high-unpack-regression-gate4.v1"
+# INDEX-DAG: value: "same-target-packed-i4-low-shifted-product-rescale-regression-gate4.v1"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.performance_maturity_outcome"
 # INDEX-DAG: value: "regression"
 # INDEX-DAG: key: "tcrv_rvv.low_precision_resource.performance_selection_eligible"
@@ -167,31 +167,31 @@
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.primitive_reduction_intrinsic: __riscv_vwredsum_vs_i16mf2_i32m1
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_feedback: same-target-packed-i4-no-win.v1
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_baseline: scalar-c-reference/product-reduction-dequant-packed-i4-v1
-# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_best_speedup_range: 0.685950..0.705587
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_best_speedup_range: 0.686981..0.705666
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_action: no-win-repair-required-before-performance-claim
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_maturity: executable-not-performance-mature
-# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_maturity_evidence: same-target-packed-i4-low-product-before-high-unpack-regression-gate4.v1
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_maturity_evidence: same-target-packed-i4-low-shifted-product-rescale-regression-gate4.v1
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_maturity_outcome: regression
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_selection_eligible: false
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.dispatch_preference: not-performance-preferred
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_handoff_contract: rvv-low-precision-packed-i4-measurement-policy-handoff.v1
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_diagnosis: correctness-supported-no-win-regression
-# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_measurement_evidence: gate4-packed-i4-low-product-before-high-unpack-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
-# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_decision: accepted-no-win-regression-resource-schedule-repair-required.v1
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_measurement_evidence: gate4-packed-i4-low-shifted-product-rescale-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_decision: accepted-no-win-regression-low-shifted-product-rescale-repair-required.v1
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_dispatch_preference: not-performance-preferred
-# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_blocker: same-target-measurement-no-win-or-regression
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_blocker: same-target-packed-i4-low-shifted-product-rescale-no-win-or-regression
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_plan_contract: rvv-low-precision-packed-i4-resource-remediation-plan.v1
-# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_plan: repair-packed-i4-low-product-before-high-unpack-single-reduce-before-performance-claim.v1
-# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_statement_strategy: unpack-low-signed-i4-nibbles-product-before-high-nibbles-pair-sum-single-vwredsum
-# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_vector_budget: packed-i4-remediation-budget-7of32-vector-groups
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_plan: repair-packed-i4-low-shifted-product-rescale-single-reduce-before-performance-claim.v1
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_statement_strategy: low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_vector_budget: packed-i4-remediation-budget-6of32-vector-groups
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_schedule_contract: rvv-low-precision-packed-i4-resource-remediation-schedule.v1
-# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_unpack_plan: sign-extend-low-high-signed-i4-nibbles-before-widening-product.v1
-# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_product_plan: low-product-before-high-product-plus-i16-pair-sum.v1
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_unpack_plan: shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_product_plan: low-shifted-product-i16-rescale-plus-high-product-pair-sum.v1
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_reduction_plan: single-vwredsum-i16-pair-sum-with-i32-seed.v1
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_vl_plan: two-region-runtime-avl-product-reduce-then-dequant-store.v1
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.schedule_decision_contract: rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1
-# HEADER-DAG: tianchenrv.rvv.low_precision_resource.schedule_decision: select-packed-i4-low-product-before-high-unpack-single-reduce-u1-two-region-budget-7of32.v1
-# HEADER-DAG: tianchenrv.rvv.low_precision_resource.schedule_decision_reason: accepted-remediation-schedule-low-product-before-high-unpack-pair-sum-single-vwredsum-budget-7of32
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.schedule_decision: select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.schedule_decision_reason: accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32
 # HEADER-DAG: extern "C" {
 # HEADER-DAG: void tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float *out, size_t n);
 
@@ -199,12 +199,11 @@
 # EMITTED-C: __riscv_vle8_v_i8mf4
 # EMITTED-C: __riscv_vle8_v_i8mf4
 # EMITTED-C: __riscv_vsll_vx_i8mf4
-# EMITTED-C: __riscv_vsra_vx_i8mf4
-# EMITTED-C: __riscv_vsra_vx_i8mf4
 # EMITTED-C: __riscv_vsll_vx_i8mf4
-# EMITTED-C: __riscv_vsra_vx_i8mf4
-# EMITTED-C: __riscv_vsra_vx_i8mf4
 # EMITTED-C: __riscv_vwmul_vv_i16mf2
+# EMITTED-C: __riscv_vsra_vx_i16mf2
+# EMITTED-C: __riscv_vsra_vx_i8mf4
+# EMITTED-C: __riscv_vsra_vx_i8mf4
 # EMITTED-C: __riscv_vwmul_vv_i16mf2
 # EMITTED-C: __riscv_vadd_vv_i16mf2
 # EMITTED-C: __riscv_vwredsum_vs_i16mf2_i32m1

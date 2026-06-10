@@ -5003,6 +5003,10 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
   const llvm::StringRef packedI4ShiftLeftIntrinsic = "__riscv_vsll_vx_i8mf4";
   const llvm::StringRef packedI4ArithmeticShiftRightIntrinsic =
       "__riscv_vsra_vx_i8mf4";
+  const llvm::StringRef packedI4LowProductRescaleIntrinsic =
+      "__riscv_vsra_vx_i16mf2";
+  const llvm::StringRef packedI4LowProductRescaleShiftAmount = "8";
+  const llvm::StringRef packedI4LowProductRescaleShiftAmountCType = "uint8_t";
   const llvm::StringRef packedI4ProductPairAddIntrinsic =
       "__riscv_vadd_vv_i16mf2";
   const llvm::StringRef accumulatorVectorCType =
@@ -5280,28 +5284,17 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
     return validateUnitSourceLoad(step, abi, resultName, stepLabel);
   };
 
-  auto validatePackedI4LowSignExtend =
+  auto validatePackedI4LowShiftLeft =
       [&](std::size_t shiftLeftIndex, llvm::StringRef packedVecName,
-          llvm::StringRef lowShiftedVecName, llvm::StringRef lowVecName,
-          llvm::StringRef shiftLeftLabel,
-          llvm::StringRef lowShiftRightLabel) -> llvm::Error {
-    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-            loop.bodySteps[shiftLeftIndex], consumerLabel, shiftLeftLabel,
-            packedI4ShiftLeftIntrinsic,
-            {{packedVecName, description.sourceVectorCType},
-             {packedI4ShiftAmount, packedI4ShiftAmountCType},
-             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
-            lowShiftedVecName, description.sourceVectorCType))
-      return error;
-    if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-            loop.bodySteps[shiftLeftIndex + 1], consumerLabel,
-            lowShiftRightLabel, packedI4ArithmeticShiftRightIntrinsic,
-            {{lowShiftedVecName, description.sourceVectorCType},
-             {packedI4ShiftAmount, packedI4ShiftAmountCType},
-             {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
-            lowVecName, description.sourceVectorCType))
-      return error;
-    return llvm::Error::success();
+          llvm::StringRef lowShiftedVecName,
+          llvm::StringRef shiftLeftLabel) -> llvm::Error {
+    return validateRVVProviderBuiltRouteStep(
+        loop.bodySteps[shiftLeftIndex], consumerLabel, shiftLeftLabel,
+        packedI4ShiftLeftIntrinsic,
+        {{packedVecName, description.sourceVectorCType},
+         {packedI4ShiftAmount, packedI4ShiftAmountCType},
+         {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+        lowShiftedVecName, description.sourceVectorCType);
   };
 
   auto validatePackedI4HighSignExtend =
@@ -5389,37 +5382,43 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
               loop.bodySteps[2], *rhsABI, "rhs_packed_i4_vec",
               "rhs packed-i4 source load"))
         return error;
-      if (llvm::Error error = validatePackedI4LowSignExtend(
+      if (llvm::Error error = validatePackedI4LowShiftLeft(
               3, "lhs_packed_i4_vec", "lhs_low_i4_shifted_vec",
-              "lhs_low_i4_vec",
-              "lhs packed-i4 low-nibble shift-left",
-              "lhs packed-i4 low-nibble arithmetic shift-right"))
+              "lhs packed-i4 low-nibble shift-left"))
         return error;
-      if (llvm::Error error = validatePackedI4LowSignExtend(
-              5, "rhs_packed_i4_vec", "rhs_low_i4_shifted_vec",
-              "rhs_low_i4_vec",
-              "rhs packed-i4 low-nibble shift-left",
-              "rhs packed-i4 low-nibble arithmetic shift-right"))
+      if (llvm::Error error = validatePackedI4LowShiftLeft(
+              4, "rhs_packed_i4_vec", "rhs_low_i4_shifted_vec",
+              "rhs packed-i4 low-nibble shift-left"))
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              loop.bodySteps[7], consumerLabel,
-              "packed-i4 low-nibble widening product",
+              loop.bodySteps[5], consumerLabel,
+              "packed-i4 shifted low-nibble widening product",
               description.wideningProductIntrinsic,
-              {{"lhs_low_i4_vec", description.sourceVectorCType},
-               {"rhs_low_i4_vec", description.sourceVectorCType},
+              {{"lhs_low_i4_shifted_vec", description.sourceVectorCType},
+               {"rhs_low_i4_shifted_vec", description.sourceVectorCType},
+               {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
+              "product_vec_i4_low_scaled", description.productVectorCType))
+        return error;
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              loop.bodySteps[6], consumerLabel,
+              "packed-i4 low-product arithmetic rescale",
+              packedI4LowProductRescaleIntrinsic,
+              {{"product_vec_i4_low_scaled", description.productVectorCType},
+               {packedI4LowProductRescaleShiftAmount,
+                packedI4LowProductRescaleShiftAmountCType},
                {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
               "product_vec", description.productVectorCType))
         return error;
       if (llvm::Error error = validatePackedI4HighSignExtend(
-              8, "lhs_packed_i4_vec", "lhs_high_i4_vec",
+              7, "lhs_packed_i4_vec", "lhs_high_i4_vec",
               "lhs packed-i4 high-nibble arithmetic shift-right"))
         return error;
       if (llvm::Error error = validatePackedI4HighSignExtend(
-              9, "rhs_packed_i4_vec", "rhs_high_i4_vec",
+              8, "rhs_packed_i4_vec", "rhs_high_i4_vec",
               "rhs packed-i4 high-nibble arithmetic shift-right"))
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              loop.bodySteps[10], consumerLabel,
+              loop.bodySteps[9], consumerLabel,
               "packed-i4 high-nibble widening product",
               description.wideningProductIntrinsic,
               {{"lhs_high_i4_vec", description.sourceVectorCType},
@@ -5428,7 +5427,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
               "product_vec_i4_high", description.productVectorCType))
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              loop.bodySteps[11], consumerLabel,
+              loop.bodySteps[10], consumerLabel,
               "packed-i4 low/high product-pair sum",
               packedI4ProductPairAddIntrinsic,
               {{"product_vec", description.productVectorCType},
@@ -5462,7 +5461,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
   }
 
   const std::size_t seedIndex =
-      isComputedMask ? 9 : usesPackedI4LowPrecisionProductReduction ? 12 : 4;
+      isComputedMask ? 9 : usesPackedI4LowPrecisionProductReduction ? 11 : 4;
   const std::size_t reductionIndex =
       isProductReductionDequantization ? seedIndex : seedIndex + 1;
   const std::size_t storeIndex = reductionIndex + 1;

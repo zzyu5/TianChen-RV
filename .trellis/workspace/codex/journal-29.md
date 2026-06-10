@@ -1128,3 +1128,60 @@ continue to deny performance preference.
 [UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` now records complete
 same-target evidence-root policy ingestion and stale root-level
 result/schedule rejection as the current Gate 4 policy contract.
+
+## Session 585: Gate 4 packed-i4 low-shifted-product-rescale schedule repair
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active Gate 4 macro task with a production schedule/resource
+repair slice. The packed-i4 provider schedule now avoids materializing both
+low signed-i4 values before the low product: it shift-lefts the low nibbles,
+computes the widening low product on shifted operands, arithmetic-rescales the
+i16 product by 8, then forms the high product, pair-sum, and single `vwredsum`.
+
+### Main Changes
+
+- Updated provider-owned packed-i4 schedule/remediation facts to the
+  low-shifted-product-rescale budget-6of32 decision.
+- Updated statement generation, route-family step counts, target artifact
+  validation, generated-bundle scripts, FileCheck fixtures, and C++ tests for
+  the new 12-step packed-i4 loop body.
+- Refreshed source-backed same-target evidence roots for dequant and
+  dequant-clamp and kept policy on correctness fallback because both remain
+  regression/no-win.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py
+  --self-test`
+- [OK] Focused packed-i4 Gate 4 lit filter: 5 tests passed from `build/test`
+- [OK] Fresh `ssh rvv` same-target timing:
+  dequant `0.688202..0.705133`, dequant-clamp `0.677994..0.704931`
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-3 remain complete. Gate 4 remains open because the
+repaired packed-i4 schedule is correctness-supported but still below the scalar
+packed-i4 baseline. The selected-dispatch policy remains
+`correctness-fallback` with performance preference denied.
+
+### Continuation
+
+Next owner should pick a different provider-owned packed-i4 resource bottleneck
+or record a sharper production blocker before any `performance-preferred`
+claim.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` records the
+low-shifted-product-rescale schedule/resource contract and final candidate-
+sensitive Gate 4 no-win measurement ranges.

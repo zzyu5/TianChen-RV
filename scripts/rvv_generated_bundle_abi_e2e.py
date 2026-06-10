@@ -698,7 +698,7 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION = (
     "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_DECISION = (
-    "consume-low-precision-packed-i4-low-product-before-high-unpack-single-reduce-budget-7of32.v1"
+    "consume-low-precision-packed-i4-low-shifted-product-rescale-single-reduce-budget-6of32.v1"
 )
 LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT = (
     "rvv-low-precision-widening-primitive-facts.v1"
@@ -743,7 +743,7 @@ WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_PERFORMANCE_BASELINE = (
     "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BEST_SPEEDUP_RANGE = (
-    "0.685950..0.705587"
+    "0.686981..0.705666"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION = (
     "no-win-repair-required-before-performance-claim"
@@ -752,7 +752,7 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY = (
     "executable-not-performance-mature"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_EVIDENCE = (
-    "same-target-packed-i4-low-product-before-high-unpack-regression-gate4.v1"
+    "same-target-packed-i4-low-shifted-product-rescale-regression-gate4.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_OUTCOME = (
     "regression"
@@ -770,15 +770,15 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DIAGNOSIS = (
     "correctness-supported-no-win-regression"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVIDENCE = (
-    "gate4-packed-i4-low-product-before-high-unpack-dequant-ssh/"
+    "gate4-packed-i4-low-shifted-product-rescale-dequant-ssh/"
     "widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVIDENCE = (
-    "gate4-packed-i4-low-product-before-high-unpack-dequant-clamp-ssh/"
+    "gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/"
     "widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DECISION = (
-    "accepted-no-win-regression-resource-schedule-repair-required.v1"
+    "accepted-no-win-regression-low-shifted-product-rescale-repair-required.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_ACTION = (
     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
@@ -787,28 +787,28 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DISPATCH_PREFERENCE
     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_DISPATCH_PREFERENCE
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_BLOCKER = (
-    "same-target-measurement-no-win-or-regression"
+    "same-target-packed-i4-low-shifted-product-rescale-no-win-or-regression"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PLAN_CONTRACT = (
     "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PLAN = (
-    "repair-packed-i4-low-product-before-high-unpack-single-reduce-before-performance-claim.v1"
+    "repair-packed-i4-low-shifted-product-rescale-single-reduce-before-performance-claim.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_STATEMENT_STRATEGY = (
-    "unpack-low-signed-i4-nibbles-product-before-high-nibbles-pair-sum-single-vwredsum"
+    "low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_VECTOR_BUDGET = (
-    "packed-i4-remediation-budget-7of32-vector-groups"
+    "packed-i4-remediation-budget-6of32-vector-groups"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_SCHEDULE_CONTRACT = (
     "rvv-low-precision-packed-i4-resource-remediation-schedule.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_UNPACK_PLAN = (
-    "sign-extend-low-high-signed-i4-nibbles-before-widening-product.v1"
+    "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PRODUCT_PLAN = (
-    "low-product-before-high-product-plus-i16-pair-sum.v1"
+    "low-shifted-product-i16-rescale-plus-high-product-pair-sum.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_REDUCTION_PLAN = (
     "single-vwredsum-i16-pair-sum-with-i32-seed.v1"
@@ -820,11 +820,11 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_CONTRACT = (
     "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION = (
-    "select-packed-i4-low-product-before-high-unpack-single-reduce-u1-two-region-budget-7of32.v1"
+    "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_REASON = (
-    "accepted-remediation-schedule-low-product-before-high-unpack-pair-sum-"
-    "single-vwredsum-budget-7of32"
+    "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-"
+    "single-vwredsum-budget-6of32"
 )
 LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER = (
     "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
@@ -852,6 +852,9 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC = (
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC = (
     "__riscv_vsra_vx_i8mf4"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_LOW_PRODUCT_RESCALE_INTRINSIC = (
+    "__riscv_vsra_vx_i16mf2"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PRODUCT_PAIR_ADD_INTRINSIC = (
     "__riscv_vadd_vv_i16mf2"
@@ -9441,7 +9444,7 @@ def product_dequant_low_precision_resource_profile(
             "unroll_factor": "1",
             "accumulator_count": "1",
             "vsetvl_region_count": "2",
-            "peak_live_vector_groups": "7",
+            "peak_live_vector_groups": "6",
             "primitive_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT,
             "primitive_kind": (
                 LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_CLAMP_KIND
@@ -9468,7 +9471,7 @@ def product_dequant_low_precision_resource_profile(
             ),
             "realized_unroll_factor": "1",
             "realized_vsetvl_region_count": "2",
-            "realized_peak_live_vector_groups": "7",
+            "realized_peak_live_vector_groups": "6",
             "producer_phase": "load-product-reduce",
             "consumer_phase": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_GEARBOX_CONSUMER_PHASE,
             "producer_region_index": "1",
@@ -14244,17 +14247,16 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
                 WIDENING_PRODUCT_REDUCE_SOURCE_LOAD_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_SOURCE_LOAD_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC,
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC,
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_LOW_PRODUCT_RESCALE_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PRODUCT_PAIR_ADD_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC,
             ],
-            "emitted RVV C/C++ packed-i4 low-product-before-high-unpack "
+            "emitted RVV C/C++ packed-i4 low-shifted-product-rescale "
             "statement order",
         )
         reduction = require_regex(
@@ -14263,21 +14265,17 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
             rf"{re.escape(WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC)}"
             rf"\((?P<lhs_packed>v[0-9]+), 4, (?P<loop_vl>v[0-9]+)\);\s*"
             rf"(?://[^\n]*\n\s*)*"
-            rf"vint8mf4_t (?P<lhs_low>v[0-9]+) = "
-            rf"{re.escape(WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC)}"
-            rf"\((?P=lhs_low_shift), 4, (?P=loop_vl)\);\s*"
-            rf"(?://[^\n]*\n\s*)*"
             rf"vint8mf4_t (?P<rhs_low_shift>v[0-9]+) = "
             rf"{re.escape(WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC)}"
             rf"\((?P<rhs_packed>v[0-9]+), 4, (?P=loop_vl)\);\s*"
             rf"(?://[^\n]*\n\s*)*"
-            rf"vint8mf4_t (?P<rhs_low>v[0-9]+) = "
-            rf"{re.escape(WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC)}"
-            rf"\((?P=rhs_low_shift), 4, (?P=loop_vl)\);\s*"
+            rf"vint16mf2_t (?P<product_low_scaled>v[0-9]+) = "
+            rf"{re.escape(WIDENING_PRODUCT_REDUCE_INTRINSIC)}"
+            rf"\((?P=lhs_low_shift), (?P=rhs_low_shift), (?P=loop_vl)\);\s*"
             rf"(?://[^\n]*\n\s*)*"
             rf"vint16mf2_t (?P<product_low>v[0-9]+) = "
-            rf"{re.escape(WIDENING_PRODUCT_REDUCE_INTRINSIC)}"
-            rf"\((?P=lhs_low), (?P=rhs_low), (?P=loop_vl)\);\s*"
+            rf"{re.escape(WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_LOW_PRODUCT_RESCALE_INTRINSIC)}"
+            rf"\((?P=product_low_scaled), 8, (?P=loop_vl)\);\s*"
             rf"(?://[^\n]*\n\s*)*"
             rf"vint8mf4_t (?P<lhs_high>v[0-9]+) = "
             rf"{re.escape(WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC)}"
@@ -14310,15 +14308,16 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
             "operand_form": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_OPERAND_FORM,
             "lhs_packed_vector": reduction.group("lhs_packed"),
             "rhs_packed_vector": reduction.group("rhs_packed"),
-            "lhs_low_vector": reduction.group("lhs_low"),
-            "rhs_low_vector": reduction.group("rhs_low"),
+            "lhs_low_shifted_vector": reduction.group("lhs_low_shift"),
+            "rhs_low_shifted_vector": reduction.group("rhs_low_shift"),
             "lhs_high_vector": reduction.group("lhs_high"),
             "rhs_high_vector": reduction.group("rhs_high"),
+            "low_scaled_product_vector": reduction.group("product_low_scaled"),
             "low_product_vector": reduction.group("product_low"),
             "high_product_vector": reduction.group("product_high"),
             "product_pair_sum_vector": reduction.group("product_pair_sum"),
             "single_reduction_vector": reduction.group("reduced"),
-            "low_nibble_sign_extension": "shift-left-4-then-arithmetic-shift-right-4",
+            "low_nibble_product_rescale": "shift-left-operands-vwmul-then-arithmetic-shift-right-8",
             "high_nibble_sign_extension": "arithmetic-shift-right-4",
         }
     else:
@@ -34718,12 +34717,11 @@ def widening_product_reduction_boundary_summary(
                 WIDENING_PRODUCT_REDUCE_SOURCE_LOAD_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_SOURCE_LOAD_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC,
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC,
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
-                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_LOW_PRODUCT_RESCALE_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PRODUCT_PAIR_ADD_INTRINSIC,
                 WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC,
@@ -34737,12 +34735,13 @@ def widening_product_reduction_boundary_summary(
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_OPERAND_FORM
             ),
             "packed_source_loads": ["lhs_packed_i4_vec", "rhs_packed_i4_vec"],
-            "low_nibble_sign_extension": (
-                "shift-left-4-then-arithmetic-shift-right-4"
+            "low_nibble_product_rescale": (
+                "shift-left-operands-vwmul-then-arithmetic-shift-right-8"
             ),
             "high_nibble_sign_extension": "arithmetic-shift-right-4",
             "product_operand_order": (
-                "low(lhs_low_i4_vec,rhs_low_i4_vec,vl);"
+                "low_scaled(lhs_low_i4_shifted_vec,rhs_low_i4_shifted_vec,vl);"
+                "rescale(product_vec_i4_low_scaled,8,vl);"
                 "high(lhs_high_i4_vec,rhs_high_i4_vec,vl)"
             ),
             "reduction_operand_order": (
