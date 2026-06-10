@@ -11529,6 +11529,35 @@ module {
           "dispatch fallback into one closeout boundary"))
     return result;
 
+  auto parsedPackedI4DequantClampAdmission =
+      tianchenrv::plugin::rvv::admitRVVLowPrecisionSelectedBodyRealization(
+          dequantClampPackedI4ResourceSelection,
+          &*parsedPackedI4DequantClampPressureProfile,
+          "selected-dispatch packed-i4 dequant-clamp Gate 4 realization "
+          "admission closeout");
+  if (!parsedPackedI4DequantClampAdmission)
+    return fail("packed-i4 dequant-clamp Gate 4 realization admission "
+                "closeout: " +
+                llvm::toString(
+                    parsedPackedI4DequantClampAdmission.takeError()));
+  if (int result = expect(
+          parsedPackedI4DequantClampAdmission->admitsRealization() &&
+              parsedPackedI4DequantClampAdmission->admissionContract ==
+                  "rvv-low-precision-selected-body-realization-admission.v1" &&
+              parsedPackedI4DequantClampAdmission->selectedCandidateID ==
+                  dequantClampPackedI4ResourceSelection.selectedCandidateID &&
+              parsedPackedI4DequantClampAdmission->measurementEvidenceID ==
+                  dequantClampPackedI4ResourceSelection
+                      .remediationMeasurementEvidenceID &&
+              parsedPackedI4DequantClampAdmission->dispatchPolicyPath ==
+                  "correctness-fallback" &&
+              parsedPackedI4DequantClampAdmission->scheduleDecision ==
+                  dequantClampPackedI4ResourceSelection.scheduleDecision,
+          "packed-i4 dequant-clamp Gate 4 closeout admits selected-body "
+          "realization only after parsed artifact evidence, provider facts, "
+          "measurement provenance, and selected dispatch agree"))
+    return result;
+
   auto staleScheduleDequantClampRecord = *parsedPackedI4DequantClampRecord;
   staleScheduleDequantClampRecord.providerScheduleDecision =
       "metadata-only-packed-i4-schedule-decision";
@@ -11542,6 +11571,36 @@ module {
           {"policy handoff diagnosis", "stale-measurement",
            "provider schedule decision",
            "metadata-only-packed-i4-schedule-decision"}))
+    return result;
+
+  auto staleArtifactIdentityDequantClampRecord =
+      *parsedPackedI4DequantClampRecord;
+  staleArtifactIdentityDequantClampRecord.generatedArtifactObjectSHA256 =
+      "metadata-only-generated-artifact-identity";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              dequantClampPackedI4ResourceSelection,
+              staleArtifactIdentityDequantClampRecord,
+              dequantClampSelectedDispatchBoundary,
+              "selected-dispatch packed-i4 dequant-clamp Gate 4 record "
+              "rejects stale artifact identity"),
+          {"policy handoff diagnosis", "stale-measurement",
+           "generated artifact object sha256", "metadata-only"}))
+    return result;
+
+  auto metadataOnlyProviderSupportDequantClampRecord =
+      *parsedPackedI4DequantClampRecord;
+  metadataOnlyProviderSupportDequantClampRecord.providerSupportedMirror =
+      "provider_supported_mirror:metadata-only";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              dequantClampPackedI4ResourceSelection,
+              metadataOnlyProviderSupportDequantClampRecord,
+              dequantClampSelectedDispatchBoundary,
+              "selected-dispatch packed-i4 dequant-clamp Gate 4 record "
+              "rejects metadata-only provider support"),
+          {"policy handoff diagnosis", "stale-measurement",
+           "provider-supported mirror", "metadata-only"}))
     return result;
 
   auto disabledCorrectnessDequantClampRecord =

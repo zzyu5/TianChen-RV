@@ -9,15 +9,16 @@ facts, target capability facts, runtime ABI facts, and selected-dispatch policy
 results affect RVV selected-body realization and later Gearbox schedule
 admission.
 
-Gates 1-3 are complete. The current round completed Gate 3: after a trusted
-Gate 1 pressure-profile admission and Gate 2 admitted Gearbox/resource-aware
-schedule choice, the realized packed-i4 low-precision contraction body plus
-RVV-owned route/artifact/measurement proof path must consume the admitted
-schedule facts. Downstream proof must fail closed when schedule evidence is
-missing, stale, mismatched, label-only, metadata-only, sibling-route-derived,
-or not tied to source-backed same-target records. The boundary is not route
-authority, artifact-name authority, helper-name authority, or Common EmitC
-semantic inference.
+Gates 1-4 are complete. The current round completed Gate 4 closeout: selected
+dispatch policy, RVV plugin-local realization admission, target artifact
+evidence identity, and same-target measurement provenance now compose into one
+fail-closed production-kernel capability workflow for the packed-i4
+dequant-clamp path. Downstream proof fails closed when admission proof,
+dispatch policy, artifact evidence identity, measurement provenance, provider
+support, or performance mirrors are missing, stale, mismatched, metadata-only,
+sibling-route-derived, or not tied to source-backed same-target records. The
+boundary is not route authority, artifact-name authority, helper-name
+authority, or Common EmitC semantic inference.
 
 ## What I Already Know
 
@@ -73,46 +74,47 @@ semantic inference.
   changing compute semantics.
 - [x] Gate 3: realized body plus route/artifact/measurement path proves the
   selected schedule against source-backed same-target records.
-- [ ] Gate 4: selected-dispatch policy, realization admission, artifact
+- [x] Gate 4: selected-dispatch policy, realization admission, artifact
   evidence, and measurement provenance compose into one closeout test; archive
   only after this gate.
 
-## Current Round Slice: Gate 3
+## Current Round Slice: Gate 4
 
-Implement a focused production proof-consumption seam:
+Implement a focused production closeout seam:
 
-- Carry admitted packed-i4 schedule proof from realized `with_vl` / Gearbox
-  handoff structure into the RVV route/provider selected-resource fact surface.
-- Make target artifact validation and source-backed same-target measurement
-  record/policy input validation consume that admitted schedule proof as exact
-  mirrors of provider-owned facts.
+- Feed the source-backed dequant-clamp `same_target_measurement_record` parsed
+  from the generated artifact evidence JSON through the selected-dispatch
+  record overload, not only through a helper-built representative record.
+- Compose the parsed measurement record with the provider-selected packed-i4
+  resource facts, admitted Gearbox schedule proof, selected dispatch boundary,
+  target artifact identity, production pressure profile, and selected-body
+  realization admission decision.
 - Preserve existing computation, dtype, parameter roles, selected variant
   origin, dispatch/fallback behavior, and runtime AVL/VL values.
-- Fail closed when admitted schedule proof or same-target proof is missing,
-  stale, mismatched, metadata-only, label-only, sibling-route-derived, or not
-  source-backed.
+- Fail closed when schedule proof, correctness allowance, artifact identity,
+  provider-supported facts, or dispatch/performance mirrors are stale,
+  metadata-only, or sibling-route-derived.
 - Keep Common EmitC/export neutral; route/artifact/report metadata remain
   mirrors only.
 
 Acceptance criteria:
 
-- [x] Production C++ route/provider fact surface carries admitted schedule
-  proof only after the realized body materialized Gate 2 admission mirrors.
-- [x] Target artifact validation consumes admitted schedule proof mirrors and
-  rejects missing/stale/mismatched proof before accepting packed-i4 artifacts.
-- [x] Source-backed same-target record and policy input validation tie schedule
-  proof to the provider-selected resource candidate and measurement identity.
-- [x] Focused C++ tests prove successful Gate 3 proof from realized admission
-  through route/artifact/measurement consumers.
-- [x] Focused C++ tests prove missing/stale/mismatched admission schedule proof
-  fails closed before route/artifact/measurement proof can be accepted.
-- [x] Existing Gate 1 pressure-profile and selected-dispatch policy tests still
-  pass.
+- [x] Production C++ policy/admission APIs compose parsed dequant-clamp
+  evidence, selected dispatch, pressure profile, and selected-body realization
+  admission in one Gate 4 closeout path.
+- [x] Focused C++ tests prove the parsed dequant-clamp artifact evidence
+  selects correctness fallback, denies performance preference, and admits
+  selected-body realization through the source-backed pressure profile.
+- [x] Focused C++ tests prove stale schedule proof, correctness-disabled
+  records, stale artifact identity, and metadata-only provider support fail
+  closed before Gate 4 closeout acceptance.
+- [x] Existing Gate 1-3 pressure-profile, selected-dispatch policy, target
+  artifact, and generated evidence tests still pass.
 - [x] Bounded check confirms Common EmitC/export remains neutral and metadata
   fields are mirrors only.
 - [x] Relevant focused checks pass.
-- [x] Task remains active with Gates 1-3 marked complete and Gate 4
-  remaining.
+- [x] All gates are satisfied; the macro task is ready to archive after this
+  slice is committed.
 
 ## Completed Slice: Gate 1
 
@@ -157,7 +159,7 @@ Acceptance criteria:
   global autotuning database, dashboard, source-front-door positive route,
   q8/q4 named route authority, llama.cpp wrapper authority, dtype/LMUL clone
   batch, or Common EmitC RVV semantic inference.
-- No campaign archive after Gate 2.
+- No campaign archive before all four gates are complete.
 
 ## Technical Notes
 
@@ -182,7 +184,9 @@ Acceptance criteria:
 
 - `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
 - `build/bin/tianchenrv-rvv-extension-plugin-test`
-- Any focused target artifact/export check touched by the implementation.
+- `cmake --build build --target tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- `build/bin/tianchenrv-target-artifact-export-test`
+- Focused packed-i4 target/artifact lit check when lit is available.
 - `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-gearbox-realization-campaign`
 - `git diff --check`
 - `git diff --cached --check`
@@ -192,26 +196,28 @@ Acceptance criteria:
 
 - Passed `cmake --build build --target tianchenrv-rvv-extension-plugin-test`.
 - Passed `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- Passed `cmake --build build --target tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`.
+- Passed `build/bin/tianchenrv-target-artifact-export-test`.
+- Passed focused packed-i4 target/artifact lit check:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir`
+  from `build/test`.
 - Passed `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-gearbox-realization-campaign`.
 - Passed `git diff --check`.
 - Passed `git diff --cached --check`.
 - Passed bounded added-diff scan over source/test changes for legacy RVV
-  route-authority markers. The PRD's own forbidden-marker vocabulary is
-  non-authority reporting text only.
-- Confirmed changed paths stay in RVV plugin/admission/owner/test/spec/task
-  documentation and do not modify common EmitC/export materializer code.
-- No focused target artifact/export check was run because this Gate 2 slice did
-  not touch route/artifact/export boundaries.
-- Initial `task.py validate` failed because command strings were placed in
-  `check.jsonl.file`; repaired `check.jsonl` to reference real files.
+  route-authority markers; no matches.
+- Confirmed changed paths are limited to this task PRD and
+  `test/Plugin/RVVExtensionPluginTest.cpp`; Common EmitC/Conversion remained
+  untouched.
 
 ## Spec Update Decision
 
-Updated `.trellis/spec/extension-plugins/rvv-plugin.md` because Gate 2 changed
-the executable realization admission payload. The new
-Low-Precision Realization Admission Schedule Handoff contract records the
-schedule decision fields, validation matrix, mirror-only realized structure
-contract, tests required, and Common EmitC/export neutrality boundary.
+[NO SPEC UPDATE] Gate 4 implements the existing
+`Packed-I4 Dispatch/Performance Policy Consumption` and same-target evidence
+contracts already recorded in `.trellis/spec/extension-plugins/rvv-plugin.md`
+and `.trellis/spec/testing/mlir-testing-contract.md`. This slice adds focused
+closeout coverage and PRD status repair only; it does not introduce a new
+signature, payload field, validation matrix, or long-lived convention.
 
 ## Completed Slices
 
@@ -253,12 +259,26 @@ Implemented the production route/artifact/measurement proof-consumption seam:
 - Added focused C++ and lit coverage for successful proof flow and
   missing/stale/mismatched/sibling evidence fail-closed cases.
 
+## Completed Slice: Gate 4
+
+Implemented the production closeout proof:
+
+- Repaired the current round PRD from stale Gate 3 wording to Gate 4 closeout
+  acceptance criteria.
+- Extended focused RVV plugin coverage so the dequant-clamp
+  `same_target_measurement_record` parsed from generated artifact evidence JSON
+  flows through selected-dispatch record policy, production pressure profile,
+  and selected-body realization admission.
+- Added fail-closed dequant-clamp coverage for stale schedule proof,
+  correctness-disabled evidence, stale artifact object identity, and
+  metadata-only provider support before closeout acceptance.
+- Re-ran focused plugin, target artifact, tool, lit, Trellis validation, and
+  bounded neutrality/legacy-authority checks.
+
 ## Remaining Slices
 
-- Gate 4 composed closeout and archive.
+- None.
 
 ## Next Continuation Point
 
-Continue with Gate 4: compose selected-dispatch policy, realization admission,
-target artifact evidence, and measurement provenance into one closeout test,
-then archive only if the composed Gate 4 acceptance criteria are actually met.
+Archive the macro task after the Gate 4 closeout commit.

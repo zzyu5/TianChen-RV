@@ -57,6 +57,64 @@ or fallback behavior.
 
 Final coherent commit is created after this journal entry.
 
+## Session 581: Stage2 RVV Gearbox Gate 4 closeout
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV Gearbox resource-aware selected-body realization campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed Gate 4. Gates 1-3 already
+connected pressure-profile admission, Gearbox schedule choice, and
+route/artifact/measurement proof consumption. This round closed the campaign by
+proving that source-backed dequant-clamp artifact evidence parsed from JSON
+composes with selected dispatch, production pressure profile, and
+selected-body realization admission.
+
+### Main Changes
+
+- Repaired the macro PRD from stale Gate 3 current-slice wording to Gate 4
+  closeout acceptance criteria, then marked Gates 1-4 complete.
+- Extended focused RVV plugin coverage so the parsed dequant-clamp
+  `same_target_measurement_record` flows through selected-dispatch policy,
+  production pressure profile, and `admitRVVLowPrecisionSelectedBodyRealization`.
+- Added Gate 4 fail-closed coverage for stale dequant-clamp artifact identity
+  and metadata-only provider support, alongside existing stale schedule and
+  correctness-disabled negative cases.
+- Confirmed Common EmitC/Conversion stayed untouched; route/artifact/report
+  metadata remains mirror-only.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir` from `build/test`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-gearbox-realization-campaign`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Bounded added-diff scan returned no legacy RVV route-authority matches.
+- [OK] Common EmitC/Conversion neutrality scan returned no changed common
+  conversion paths.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] Gate 4 implements existing RVV plugin/testing contracts for
+packed-i4 dispatch/performance policy consumption and source-backed
+same-target measurement evidence. No new API signature, payload field,
+validation matrix, or long-lived convention was introduced.
+
+### Status
+
+[READY TO ARCHIVE] Gates 1-4 are complete. Remaining slices: none. The macro
+task can be archived after the coherent Gate 4 commit.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 581: Stage2 RVV Gearbox Gate 3 route/artifact/measurement proof
 
 **Date**: 2026-06-10
