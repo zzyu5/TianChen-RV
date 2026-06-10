@@ -893,3 +893,65 @@ Completed a Gate 4 slice for the active RVV low-precision macro task: primitive 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 581: Gate 4 packed-i4 dequant-clamp no-win policy audit
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task under Gate 4. Audited the packed-i4
+dequant/dequant-clamp same-target comparison boundary and found no safe
+production resource-schedule win to claim in this slice: the current
+dequant-clamp generated C++ already materializes the selected packed-i4
+low/high nibble unpack, two widening products, pair-sum, single `vwredsum`, and
+f32 dequant/clamp/store path. The current measured evidence remains a
+regression/no-win boundary, so performance preference stays explicitly denied
+while route support and correctness execution remain allowed.
+
+### Main Changes
+
+- Hardened the dequant-clamp packed-i4 target fixture so generated C++ must
+  expose the full low/high i4 unpack, pair-sum, single-reduction, f32 clamp, and
+  store sequence before the no-win policy evidence can be trusted.
+- Updated the macro PRD and task notes with the current measured-comparison
+  slice, no-production-source-change justification, no-win denial outcome, and
+  remaining continuation point.
+- Left Gate 4 open for a future provider-owned schedule/resource repair plus
+  fresh same-target timing before any performance-preferred dispatch claim.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] Focused lit/FileCheck for
+  `pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Bounded added-diff old-authority scan. The only match was negative PRD
+  wording for q8/q4 named wrappers; no new positive legacy route authority was
+  added.
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-3 remain complete. Gate 4 remains open; this slice
+keeps the current dequant-clamp packed-i4 no-win/regression as an explicit
+performance-preference denial.
+
+### Spec Update Decision
+
+[NO SPEC CHANGE] This slice added no new API, payload field, command signature,
+or policy contract. The existing RVV plugin, variant-pipeline, EmitC route, and
+testing specs already cover the packed-i4 no-win maturity boundary,
+source-backed same-target evidence, performance-selection denial, and
+metadata-only claim rejection. The durable state change is captured in the PRD,
+fixture coverage, and check records.

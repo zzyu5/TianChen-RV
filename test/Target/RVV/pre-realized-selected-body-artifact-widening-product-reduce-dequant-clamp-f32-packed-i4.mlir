@@ -60,13 +60,25 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.remediation_measurement_evidence: gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
 // HEADER: void tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);
 
+// CPP: __riscv_vle8_v_i8mf4
+// CPP: __riscv_vle8_v_i8mf4
 // CPP: __riscv_vsll_vx_i8mf4
 // CPP: __riscv_vsra_vx_i8mf4
+// CPP: __riscv_vsra_vx_i8mf4
+// CPP: __riscv_vsll_vx_i8mf4
+// CPP: __riscv_vsra_vx_i8mf4
+// CPP: __riscv_vsra_vx_i8mf4
+// CPP: __riscv_vwmul_vv_i16mf2
+// CPP: __riscv_vwmul_vv_i16mf2
 // CPP: __riscv_vadd_vv_i16mf2
 // CPP: __riscv_vwredsum_vs_i16mf2_i32m1
 // CPP: __riscv_vfmv_v_f_f32m1
 // CPP: __riscv_vmflt_vv_f32m1_b32
 // CPP: __riscv_vmerge_vvm_f32m1
+// CPP: __riscv_vfmv_v_f_f32m1
+// CPP: __riscv_vmflt_vv_f32m1_b32
+// CPP: __riscv_vmerge_vvm_f32m1
+// CPP: __riscv_vse32_v_f32m1
 
 // STALE-ARTIFACT-BASELINE: performance_baseline provenance
 // STALE-ARTIFACT-BASELINE-SAME: scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1

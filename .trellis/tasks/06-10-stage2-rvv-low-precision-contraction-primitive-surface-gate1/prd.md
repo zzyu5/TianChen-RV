@@ -210,15 +210,60 @@ Completed Gate 4 slice in this round:
   facts while still denying performance-preferred dispatch for the measured
   no-win/regression outcome.
 
+Current Gate 4 measured-comparison slice:
+
+- Audited the source-backed packed-i4 dequant/dequant-clamp same-target
+  comparison path against the production compiler route.
+- No production compiler source change was made in this slice because the
+  current dequant-clamp generated C++ already materializes the selected
+  packed-i4 resource schedule as low/high nibble sign-extension, two widening
+  products, an i16 pair-sum, one `vwredsum`, and the f32 dequant/clamp epilogue
+  before target artifact export. The Gate 4 blocker is not missing codegen for
+  this representative; it is preventing the measured regression/no-win evidence
+  from being confused with route unsupported, missing evidence, or a
+  performance-preferred dispatch claim.
+- Hardened the dequant-clamp packed-i4 target fixture so the generated C++
+  path must expose the low/high nibble unpack, two-product pair-sum,
+  single-reduction schedule, and f32 clamp/select/store sequence. This ties the
+  source-backed same-target no-win policy to the actual emitted statement
+  structure, not just packed-i4 metadata or artifact names.
+- Existing parsed dequant-clamp evidence still reports regression/no-win:
+  best speedup range `0.693878..0.964286`, 24 summary records, 24 measurement
+  records, 24 correctness records, `performance_selection_eligible = false`,
+  and `dispatch_preference = not-performance-preferred`.
+- The correct current dispatch/policy outcome remains:
+  route support and correctness execution are preserved, while performance
+  preference and performance-win claims are denied with
+  `same-target-measurement-no-win-or-regression`.
+
+Current Gate 4 measured-comparison acceptance:
+
+- [x] Audit shows no safe resource-schedule improvement is available without a
+  new production schedule/resource repair and new same-target timing.
+- [x] Dequant-clamp packed-i4 generated C++ must prove the selected resource
+  schedule, not only metadata: load packed bytes, sign-extend low/high signed
+  i4 nibbles, compute two widening products, pair-sum them, reduce once, then
+  apply dequant/clamp/store.
+- [x] Parsed dequant-clamp same-target evidence remains source-backed and
+  candidate-sensitive, with measurement counts and speedup range bound to the
+  dequant-clamp packed-i4 candidate.
+- [x] Performance policy keeps the current no-win/regression as an explicit
+  performance-preference denial, not route unsupported and not missing
+  evidence.
+- [x] Macro task remains active because Gate 4 still needs a future
+  provider-owned schedule/resource repair plus fresh same-target timing before
+  any performance-preferred dispatch can be claimed.
+
 Remaining Gate 4 continuation:
 
 - Use the now-source-backed primitive/resource/measurement provenance to
   improve or audit the low-precision production-kernel same-target comparison
   path. The next owner should focus on whether the measured packed-i4
-  dequant/dequant-clamp resource schedule can be improved or whether the
-  source-backed regression evidence should remain the explicit performance
-  denial. Do not switch to new route ids, q8/q4 named wrappers, or
-  generated-bundle-only evidence.
+  dequant/dequant-clamp resource schedule can be improved with a real
+  provider-owned schedule/resource repair and fresh same-target timing. Until
+  then, the source-backed regression evidence remains the explicit
+  performance-preference denial. Do not switch to new route ids, q8/q4 named
+  wrappers, or generated-bundle-only evidence.
 
 ## Non-Goals
 
