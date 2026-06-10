@@ -10348,6 +10348,39 @@ module {
           "packed-i4 Gate 3 selected-dispatch policy consumes the same-target "
           "measurement record directly before choosing correctness fallback"))
     return result;
+  auto parsedPackedI4SelectedDispatchRecordPolicy =
+      tianchenrv::plugin::rvv::
+          evaluateRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection, *parsedPackedI4Gate2Record,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 4 parsed evidence record "
+              "policy audit");
+  if (!parsedPackedI4SelectedDispatchRecordPolicy)
+    return fail("packed-i4 Gate 4 parsed evidence selected-dispatch record "
+                "policy: " +
+                llvm::toString(
+                    parsedPackedI4SelectedDispatchRecordPolicy.takeError()));
+  if (int result = expect(
+          parsedPackedI4SelectedDispatchRecordPolicy->routeSupportAllowed &&
+              parsedPackedI4SelectedDispatchRecordPolicy
+                  ->correctnessExecutionAllowed &&
+              !parsedPackedI4SelectedDispatchRecordPolicy
+                   ->performanceSelectionAllowed &&
+              !parsedPackedI4SelectedDispatchRecordPolicy
+                   ->performanceWinClaimAllowed &&
+              parsedPackedI4SelectedDispatchRecordPolicy
+                  ->correctnessFallbackPathSelected &&
+              parsedPackedI4SelectedDispatchRecordPolicy->dispatchPolicyPath ==
+                  "correctness-fallback" &&
+              parsedPackedI4SelectedDispatchRecordPolicy->handoff
+                      .measurementEvidenceID ==
+                  acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
+              parsedPackedI4SelectedDispatchRecordPolicy->handoff
+                  .acceptedForDispatchPolicy,
+          "packed-i4 Gate 4 selected-dispatch audit consumes the parsed "
+          "same-target evidence record directly and keeps correctness "
+          "execution separate from performance preference"))
+    return result;
   tianchenrv::plugin::rvv::RVVLowPrecisionPerformancePolicyDecision
       packedI4SelectedDispatchRecordResolver =
           tianchenrv::plugin::rvv::
@@ -10549,6 +10582,40 @@ module {
           {"policy handoff diagnosis", "stale-measurement",
            "provider primitive chain kind", "artifact-name-derived-primitive",
            tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePrimitiveChainKind}))
+    return result;
+
+  auto disabledCorrectnessPackedI4Record =
+      acceptedPackedI4Gate4MeasurementRecord;
+  disabledCorrectnessPackedI4Record.correctnessExecutionAllowed = false;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection, disabledCorrectnessPackedI4Record,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 4 record rejects "
+              "correctness-disabled evidence"),
+          {"policy handoff diagnosis", "stale-measurement",
+           "correctness execution allowance", "true", "false"}))
+    return result;
+
+  auto measurementOnlyWinPackedI4Record =
+      acceptedPackedI4Gate4MeasurementRecord;
+  measurementOnlyWinPackedI4Record.measurementClassification = "win";
+  measurementOnlyWinPackedI4Record.measurementOutcomeFamily = "win";
+  measurementOnlyWinPackedI4Record.measurementBestSpeedupRange =
+      "1.125000..1.250000";
+  measurementOnlyWinPackedI4Record.performancePreferenceDenied = false;
+  measurementOnlyWinPackedI4Record.performancePreferenceDenialReason = "";
+  measurementOnlyWinPackedI4Record.performanceWinClaimAllowed = true;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection, measurementOnlyWinPackedI4Record,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 4 record rejects "
+              "measurement-only win promotion"),
+          {"policy handoff diagnosis", "performance-preferred-measured-win",
+           "packed-i4 performance feedback",
+           "same-target-packed-i4-measured-win.v1",
+           "same-target-packed-i4-no-win.v1"}))
     return result;
 
   auto missingDispatchCaseRecordBoundary = packedI4SelectedDispatchBoundary;

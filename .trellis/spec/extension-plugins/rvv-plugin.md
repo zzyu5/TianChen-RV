@@ -6858,13 +6858,18 @@ performance-preferred
   decision is produced through the direct
   `RVVLowPrecisionSameTargetMeasurementRecord` + selected-dispatch boundary
   overload, not only through a prebuilt policy input.
+- Gate 4 final-audit coverage must also feed a record parsed from the generated
+  evidence JSON object through that same selected-dispatch record overload; a
+  helper-built representative record alone is not enough to prove the
+  source-backed record ingestion boundary.
 - C++ provider/policy tests must assert a measured-win fixture selects
   `performance-preferred` only after provider maturity, eligibility, dispatch,
   remediation, and measurement tie-back facts all agree.
 - C++ provider/policy tests must assert stale measurement identity, stale
   measured best-speedup range, missing `ssh rvv` evidence, stale target profile,
   stale provider tie-back, stale primitive facts, stale schedule-decision facts,
-  and measurement-only win promotion fail strict verification.
+  correctness-disabled records, and measurement-only win promotion fail strict
+  verification.
 - Target artifact tests must assert stale performance-selection and dispatch
   mirrors fail closed before artifact acceptance.
 - Script self-tests and dry-run lit coverage must keep evidence-input reporting

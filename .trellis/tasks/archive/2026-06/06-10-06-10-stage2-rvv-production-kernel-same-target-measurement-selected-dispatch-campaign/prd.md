@@ -9,14 +9,11 @@ artifacts, source-backed same-target measurement records, target validation,
 and selected-dispatch performance preference into one fail-closed compiler
 workflow.
 
-Gates 1 and 2 are complete. This round implements Gate 3: the selected-dispatch
-and performance-preference policy boundary must consume source-backed
-same-target measurement records together with provider-owned primitive,
-resource, schedule, target, runtime ABI, and selected-dispatch facts. A valid
-record must produce an explicit dispatch/performance policy decision; stale or
-mismatched record, provider, target, runtime ABI, primitive-chain, schedule, or
-selected-dispatch inputs must fail closed with targeted diagnostics before any
-performance-preferred dispatch claim is accepted.
+Gates 1-3 are complete. This round performs Gate 4: the final campaign audit
+must reconcile stale macro checklist state, prove that correctness execution,
+same-target measurement evidence, selected-dispatch performance preference, and
+performance-win claims remain separate authority boundaries, and archive this
+macro task only if all campaign gates are truthfully complete.
 
 ## What I Already Know
 
@@ -25,8 +22,9 @@ performance-preferred dispatch claim is accepted.
 - Commit `2eebb03e` archived the previous low-precision contraction
   primitive-surface campaign after Gates 1-4. That campaign made target
   validation consume `RVVLowPrecisionSameTargetMeasurementPolicyInput`, but
-  the current target validation path still obtains the accepted measurement by
-  calling `getAcceptedRVVPackedI4Gate4MeasurementOutcome()`.
+  the target validation path still obtained the accepted measurement by calling
+  `getAcceptedRVVPackedI4Gate4MeasurementOutcome()` before Gate 1 of this macro
+  campaign repaired the seam.
 - Current specs require RVV performance-sensitive Stage 2 work to advance
   resource-aware selected-body realization, typed low-precision coverage, or a
   measured same-target comparison path. q8/q4 or llama.cpp examples remain
@@ -42,10 +40,11 @@ performance-preferred dispatch claim is accepted.
   fields such as measurement evidence id, classification, outcome family,
   speedup range, record counts, same-target/ssh evidence, target profile, and
   provider policy tie-backs.
-- The production gap for Gate 1 is the input boundary: policy/target tests and
-  target validation can still materialize the representative Gate 4 measurement
-  outcome from a fixed helper instead of from an explicit measurement-record
-  source object.
+- Gate 4 source audit must confirm the repaired path remains record-based:
+  `RVVLowPrecisionSameTargetMeasurementRecord` is the measurement input object,
+  generated evidence parsing can materialize that record shape, provider/target
+  selected-dispatch validation consumes the record policy boundary, and metadata
+  or reports cannot act as selected-dispatch/performance authority.
 
 ## Requirements
 
@@ -75,10 +74,10 @@ performance-preferred dispatch claim is accepted.
 - [x] Gate 2: a representative low-precision contraction generated artifact can
   produce same-target correctness/performance measurement evidence on `ssh rvv`;
   q8/q4 and llama.cpp examples are pressure tests only.
-- [ ] Gate 3: selected-dispatch/performance preference consumes measurement
+- [x] Gate 3: selected-dispatch/performance preference consumes measurement
   records plus primitive/resource facts with fail-closed stale sibling-route,
   wrong-target, wrong-ABI, and wrong-primitive-chain diagnostics.
-- [ ] Gate 4: final campaign audit separates correctness execution,
+- [x] Gate 4: final campaign audit separates correctness execution,
   performance preference, and performance-win claims, then archives this macro
   task only when all gates are complete.
 
@@ -119,6 +118,46 @@ performance-preferred dispatch claim is accepted.
   closed before performance preference or selected dispatch is accepted.
 - [x] Commit the Gate 3 slice and leave `.trellis/.current-task` active because
   Gate 4 remains incomplete.
+
+## Current Slice: Gate 4
+
+- [x] Reconcile the macro checklist so Gate 3 is marked complete only where
+  the production source and tests still support the claim.
+- [x] Audit production APIs and target/provider validation to confirm
+  same-target measurement records remain input-only and selected-dispatch
+  decisions still consume provider/resource/schedule/runtime/target facts.
+- [x] Add focused Gate 4 coverage where needed to prove parsed evidence records
+  can feed selected-dispatch policy directly, correctness execution remains
+  separate from performance preference, and measurement-only win promotion
+  fails closed.
+- [x] Run focused build, C++ tests, measurement script self-test, old-authority
+  scan, whitespace checks, and Trellis validation/finish checks.
+- [x] Archive the macro task only after all campaign gates are checked
+  truthfully.
+
+## Acceptance Criteria For Gate 4
+
+- [x] Gate 1 source-backed measurement record ingestion remains complete:
+  evidence JSON can materialize an explicit record-shaped C++ object, and stale
+  target, runtime ABI, primitive-chain, schedule, provider/resource, and
+  measurement identity fields fail closed before policy acceptance.
+- [x] Gate 2 representative same-target evidence remains evidence-only:
+  `ssh rvv` correctness/timing records justify the measurement record, but dry
+  runs, raw reports, artifact names, q8/q4 labels, and metadata mirrors do not
+  authorize performance preference.
+- [x] Gate 3 selected-dispatch/performance policy remains record-based and
+  provider-fact-bound: parsed records, accepted regression/no-win records, and
+  bounded measured-win records all pass through the same resource/schedule/
+  runtime/target/dispatch validation boundary.
+- [x] Correctness execution, performance selection, performance-preferred path
+  selection, and performance-win claims stay distinct in tests and production
+  diagnostics.
+- [x] Common EmitC/export remains neutral and carries provider-built routes or
+  mirrors only; it does not infer low-precision measurement, dispatch, schedule,
+  dtype, primitive, or performance semantics.
+- [x] No legacy i32 route authority, source-front-door positive path,
+  descriptor residue, artifact-name authority, status/report authority, or
+  q8/q4/llama-named authority is introduced in touched code.
 
 ## Acceptance Criteria For Gate 3
 
@@ -250,15 +289,30 @@ performance-preferred dispatch claim is accepted.
 - Updated the RVV plugin spec with the direct record-based dispatch/performance
   policy API contract and test obligations.
 
+## Completed Slice: 2026-06-10 Gate 4
+
+- Reconciled the macro checklist: Gates 1-3 remain supported by production
+  source and focused tests, and Gate 4 is the final closure slice.
+- Audited the production policy/provider/target path. `RVVLowPrecisionSameTargetMeasurementRecord`
+  remains the measurement input object, target/provider selected-dispatch
+  validation calls the record policy boundary, target artifact metadata-only
+  performance/dispatch claim mirrors fail closed, and Common EmitC has no
+  low-precision measurement or dispatch-policy authority.
+- Added focused C++ coverage proving a parsed generated-evidence JSON record
+  can directly feed selected-dispatch policy and still select conservative
+  `correctness-fallback` while preserving correctness execution and denying
+  performance selection/win claims.
+- Added focused record-level negatives proving correctness-disabled evidence and
+  measurement-only win promotion fail closed before selected-dispatch
+  performance preference is accepted.
+- Ran focused build/tests, measurement script self-test, stale-helper scan,
+  added-line old-authority scan, and whitespace checks.
+
 ## Remaining Gates And Continuation
 
-- Gate 4 remains open: final campaign audit must separate correctness
-  execution, performance preference, and performance-win claims before this
-  macro task can be archived.
-- Next continuation point: start Gate 4 with a final campaign audit that checks
-  correctness execution evidence, same-target measurement evidence, and
-  selected-dispatch/performance policy authority remain separate, then archive
-  this macro task only if all gates remain truthfully complete.
+- All campaign gates are complete. No remaining macro continuation point.
+- This task can be finished and archived after Trellis validation and the final
+  coherent commit.
 
 ## Out Of Scope
 
@@ -286,6 +340,8 @@ performance-preferred dispatch claim is accepted.
 - Archived predecessor task read:
   `.trellis/tasks/archive/2026-06/06-10-stage2-rvv-low-precision-contraction-primitive-surface-campaign/`.
 - Initial source inspection found the target validation path at
-  `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp` still calls
-  `getAcceptedRVVPackedI4Gate4MeasurementOutcome()` before building the
-  policy input. This is the Gate 1 production seam.
+  `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp` still called
+  `getAcceptedRVVPackedI4Gate4MeasurementOutcome()` before building the policy
+  input. Gate 1 repaired that seam; Gate 4 source audit found no remaining
+  `getAcceptedRVVPackedI4Gate4MeasurementOutcome()` use in `include/`, `lib/`,
+  `test/`, or `scripts/`.

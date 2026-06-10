@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-28.md`
-- **Total Sessions**: 574
+- **Total Sessions**: 575
 - **Last Active**: 2026-06-10
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-28.md` | ~749 | Active |
+| `journal-28.md` | ~1451 | Active |
 | `journal-27.md` | ~1982 | Archived |
 | `journal-26.md` | ~1976 | Archived |
 | `journal-25.md` | ~1968 | Archived |
@@ -56,6 +56,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 575 | 2026-06-10 | Stage2 RVV same-target measurement Gate 4 audit | `this commit` | `main` |
 | 574 | 2026-06-10 | Session 584: Packed-i4 remediation Gate 4 policy consumption | pending-gate4-closeout | `main` |
 | 573 | 2026-06-10 | RVV packed-i4 Gate 4 policy evidence consumption | `af53faa3` | `main` |
 | 572 | 2026-06-09 | Packed-i4 Gate 5/6 product-pair-sum repair | `5ffa4741` | `main` |

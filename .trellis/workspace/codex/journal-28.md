@@ -1362,3 +1362,90 @@ Gate 4 remains open. The next continuation point is Gate 4: perform the final
 campaign audit separating correctness execution evidence, same-target
 measurement evidence, and selected-dispatch/performance policy authority before
 archiving.
+
+## 2026-06-10 - Stage2 RVV same-target measurement campaign Gate 4
+
+### Summary
+
+Completed the Gate 4 final audit for the active macro task. Gates 1-3 remain
+truthful: source-backed measurement records reach the C++ policy boundary,
+representative same-target `ssh rvv` evidence remains evidence-only, and
+selected-dispatch/performance decisions consume measurement records together
+with provider/resource/schedule/runtime/target/dispatch facts. The final audit
+keeps correctness execution, performance selection, performance-preferred path
+selection, and performance-win claims separate.
+
+### Main Changes
+
+- Added focused plugin test coverage proving a parsed generated-evidence JSON
+  record feeds the selected-dispatch
+  `RVVLowPrecisionSameTargetMeasurementRecord` policy overload directly and
+  still selects conservative `correctness-fallback`.
+- Added record-level negatives for correctness-disabled evidence and
+  measurement-only win promotion before selected-dispatch performance
+  preference can be accepted.
+- Updated the active PRD to mark Gates 1-4 complete and record that there is no
+  remaining macro continuation point.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` so future Gate 4
+  audits require parsed evidence-record selected-dispatch coverage, not only a
+  helper-built representative record.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`.
+- `python3 ./.trellis/scripts/task.py validate
+  06-10-06-10-stage2-rvv-production-kernel-same-target-measurement-selected-dispatch-campaign`.
+- `rg -n "getAcceptedRVVPackedI4Gate4MeasurementOutcome" include lib test
+  scripts` found no remaining source/test/script use.
+- Focused added-line scan over the touched C++ test found no newly added legacy
+  RVV route-authority, source-front-door, descriptor, or q8/q4/llama authority.
+- `git diff --check`.
+
+### Spec Update Decision
+
+[SPEC UPDATED] Gate 4 made an executable test obligation explicit:
+`.trellis/spec/extension-plugins/rvv-plugin.md` now requires parsed evidence
+records to feed the selected-dispatch record overload directly and requires
+record-level correctness-disabled and measurement-only win promotion negatives.
+
+### Status
+
+[READY TO ARCHIVE] All campaign gates are complete. The task can be finished
+and archived after final validation and the coherent Gate 4 commit.
+
+
+## Session 575: Stage2 RVV same-target measurement Gate 4 audit
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV same-target measurement Gate 4 audit
+**Branch**: `main`
+
+### Summary
+
+Closed the active same-target measurement selected-dispatch macro campaign with parsed-record selected-dispatch audit coverage, record-level performance-claim negatives, spec update, and Trellis archive.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | Gate 4 audit closeout commit |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
