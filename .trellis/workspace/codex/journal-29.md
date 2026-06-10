@@ -57,6 +57,69 @@ or fallback behavior.
 
 Final coherent commit is created after this journal entry.
 
+## Session 580: Stage2 RVV low-precision contraction primitive Gate 4
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the final Gate 4 reconciliation.
+Live source inspection showed the selected-dispatch/performance policy consumer
+already exists in production source: `RVVLowPrecisionPerformancePolicy` exposes
+strict evaluate/verify entry points and safe dispatch resolvers for same-target
+measurement outcomes, policy inputs, measurement records, and selected-dispatch
+boundary facts; provider route planning and target artifact validation consume
+that policy before accepting packed-i4 performance preference or selected
+dispatch mirrors.
+
+### Main Changes
+
+- Repaired the macro PRD from stale Gate 3 wording to the current Gate 4 final
+  state and marked Gates 1-4 complete.
+- Updated `task.json` so Trellis task metadata no longer reports Gate 4 open.
+- Refreshed `check.jsonl` with the Gate 4 inspection and verification evidence.
+- Did not change production C++ because the exact Gate 4 consumer requested by
+  the direction brief was already present and covered: plugin tests parse the
+  checked-in Gate 3 dequant-clamp `same_target_measurement_record` JSON, feed
+  the selected-dispatch record overload, preserve correctness fallback, deny
+  regression/no-win performance preference, reject stale schedule and
+  correctness-disabled records, and cover the measured-win preference path.
+
+### Testing
+
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-campaign`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] `python3 -m json.tool artifacts/gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_same_target_measure.py`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded current-diff scan for legacy RVV route-authority markers returned
+  no positive legacy-authority additions. The only `metadata-only` /
+  `descriptor residue` matches are negative PRD guardrails.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] The RVV plugin spec already contains the Gate 4 packed-i4
+selected-dispatch/performance policy consumption contract, including the
+source-backed record overload, selected-dispatch boundary checks, resolver
+fallback behavior, stale provenance rejection, and measured-win acceptance
+requirements. This session reconciled the active Trellis task state with that
+implemented contract.
+
+### Status
+
+[READY TO ARCHIVE] Gates 1-4 are complete. After final status checks, archive
+the macro task and clear `.trellis/.current-task`.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 579: Stage2 RVV low-precision contraction primitive Gate 3
 
 **Date**: 2026-06-10

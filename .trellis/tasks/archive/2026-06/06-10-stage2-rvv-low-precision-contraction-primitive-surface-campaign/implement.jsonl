@@ -1,5 +1,15 @@
-{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture and RVV stage ordering for this macro task."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, low-precision primitive contracts, and Stage 2 boundaries."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built TCRVEmitCLowerableRoute and Common EmitC neutrality rules."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Stage 2 primitive-surface and Gearbox/resource-aware realization priority ladder."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit evidence expectations and RVV runtime evidence boundary."}
+{"file": ".trellis/spec/index.md", "reason": "Confirm RVV-first Stage 2 typed tcrv_rvv authority chain and low-precision coverage scope."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin/provider ownership for low-precision primitive facts, Gate 3 measurement records, and Gate 4 selected-dispatch policy consumption."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Keep Common EmitC neutral and provider-built route/policy payloads authoritative."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Keep selected-body realization, same-target measurement, and dispatch/performance policy work separated from high-level frontend or metadata-only paths."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Use focused C++/script/json checks and evidence boundaries appropriate for production compiler policy consumption."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Ensure capability/profile facts constrain but do not replace typed RVV body/config/provider authority."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep primitive fact validation and performance policy local to the RVV plugin/provider/target boundary."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Avoid high-level compute IR, descriptor-driven semantics, generated-string authority, or Common EmitC semantic inference."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h", "reason": "Inspect Gate 4 strict evaluate/verify APIs and safe resolver overloads."}
+{"file": "lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp", "reason": "Inspect Gate 4 fail-closed policy implementation for matched evidence, stale provenance, measured wins, and correctness fallback."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Inspect provider route planning policy consumers."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Inspect target artifact policy and selected-dispatch mirror consumers."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Inspect source-backed Gate 3 JSON record ingestion and Gate 4 selected-dispatch policy coverage."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Inspect target artifact Gate 4 policy and mirror coverage."}
+{"file": "artifacts/gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json", "reason": "Inspect checked-in same-target measurement evidence consumed by Gate 4 policy tests."}

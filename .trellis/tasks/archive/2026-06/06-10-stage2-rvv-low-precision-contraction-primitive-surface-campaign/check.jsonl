@@ -1,5 +1,17 @@
-{"file": ".trellis/spec/index.md", "reason": "Verify the slice preserves RVV-first authority and Stage 2 scope."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check primitive-surface ownership, fail-closed provider validation, and no q8/q4 authority drift."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Check Common EmitC/export remains neutral and provider-built facts remain authority."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Check this is Gate 1 primitive-surface progress, not evidence-only or premature Gate 2-4 work."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Check focused C++/target tests and evidence boundary."}
+{"file": ".trellis/spec/index.md", "reason": "Verified the completed macro remains RVV Stage 2 typed low-precision coverage and same-target policy-consumption work."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verified Gate 4 selected-dispatch/performance policy consumption matches the packed-i4 same-target measurement-record contract."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Verified the policy consumer remains RVV/plugin-owned and Common EmitC does not invent primitive or dispatch semantics."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verified the final slice closes the measured same-target performance-comparison path instead of adding another evidence-only route seam."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Verified focused C++ tests, script checks, JSON validation, whitespace checks, and bounded legacy scan satisfy the testing contract."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h", "reason": "Inspected strict evaluate/verify APIs and safe dispatch resolver overloads for outcomes, policy inputs, records, and selected-dispatch boundaries."}
+{"file": "lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp", "reason": "Inspected fail-closed provider/resource/primitive/schedule/runtime/target tie-back checks, measured-win preference, regression denial, and resolver fallback behavior."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Verified provider route planning consumes low-precision selected-dispatch/performance policy facts before route construction."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Verified target artifact validation consumes packed-i4 performance policy and selected-dispatch mirrors before artifact acceptance."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Verified plugin coverage parses the Gate 3 dequant-clamp evidence JSON record, feeds selected-dispatch policy, denies stale/no-win performance, preserves correctness fallback, and covers measured-win preference."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Verified target coverage checks selected-dispatch mirrors, policy input tie-backs, stale target/runtime/planning/primitive facts, and measured-win preference behavior."}
+{"file": "artifacts/gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json", "reason": "Validated checked-in source-backed Gate 3 evidence JSON consumed by Gate 4 policy tests."}
+{"file": "build/bin/tianchenrv-rvv-extension-plugin-test", "reason": "Passed after Gate 4 PRD reconciliation; confirms focused RVV plugin/policy coverage remains green."}
+{"file": "build/bin/tianchenrv-target-artifact-export-test", "reason": "Passed after Gate 4 PRD reconciliation; confirms target artifact policy/mirror coverage remains green."}
+{"file": "scripts/rvv_generated_bundle_same_target_measure.py", "reason": "Self-test and py_compile passed; measurement record schema remains consistent with policy consumption."}
+{"file": ".trellis/tasks/archive/2026-06/06-10-stage2-rvv-low-precision-contraction-primitive-surface-campaign/prd.md", "reason": "Updated archived PRD to mark Gates 1-4 complete and record the final Gate 4 production consumer verification."}
+{"file": ".trellis/tasks/archive/2026-06/06-10-stage2-rvv-low-precision-contraction-primitive-surface-campaign/task.json", "reason": "Updated archived task description and completion state for the macro task."}

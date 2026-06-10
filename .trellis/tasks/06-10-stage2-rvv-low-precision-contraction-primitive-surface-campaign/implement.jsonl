@@ -1,8 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "Confirm RVV-first Stage 2 typed tcrv_rvv authority chain and low-precision coverage scope."}
-{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Check RVV plugin/provider ownership for typed low-precision primitive facts and fail-closed diagnostics."}
-{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Keep Common EmitC neutral and provider-built route payloads authoritative."}
-{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Keep selected-body realization and later policy work separated from current Gate 1 primitive facts."}
-{"file": ".trellis/spec/testing/index.md", "reason": "Use focused C++/lit checks and evidence boundaries appropriate for production compiler surface changes."}
-{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Ensure capability/profile facts validate but do not replace typed RVV body/config authority."}
-{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep primitive fact validation and diagnostics local to the RVV plugin/provider/target boundary."}
-{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Avoid high-level compute IR, descriptor-driven semantics, or generated-string authority."}
