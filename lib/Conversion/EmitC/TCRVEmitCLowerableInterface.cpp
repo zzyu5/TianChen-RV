@@ -77,7 +77,8 @@ llvm::Error validateABIParameter(
 TCRVEmitCLowerableRoute::TCRVEmitCLowerableRoute()
     : routeID(), routeKind(), headers(), typeMappings(), abiMappings(),
       functionDeclarations(), sourceOpProvenance(), localVariables(),
-      callOpaqueSteps(), preLoopAssignments(), forLoops(), postLoopSteps() {}
+      callOpaqueSteps(), preLoopAssignments(), forLoops(), postLoopSteps(),
+      postLoopAssignments() {}
 
 TCRVEmitCLowerableRoute::TCRVEmitCLowerableRoute(llvm::StringRef routeID,
                                                  llvm::StringRef routeKind)
@@ -120,6 +121,9 @@ TCRVEmitCLowerableRoute &TCRVEmitCLowerableRoute::operator=(
   forLoops.append(other.forLoops.begin(), other.forLoops.end());
   postLoopSteps.clear();
   postLoopSteps.append(other.postLoopSteps.begin(), other.postLoopSteps.end());
+  postLoopAssignments.clear();
+  postLoopAssignments.append(other.postLoopAssignments.begin(),
+                             other.postLoopAssignments.end());
   return *this;
 }
 
@@ -149,6 +153,7 @@ void TCRVEmitCLowerableRoute::reset(llvm::StringRef routeID,
   preLoopAssignments.clear();
   forLoops.clear();
   postLoopSteps.clear();
+  postLoopAssignments.clear();
 }
 
 void TCRVEmitCLowerableRoute::addHeader(llvm::StringRef header) {
@@ -203,6 +208,11 @@ void TCRVEmitCLowerableRoute::addForLoop(TCRVEmitCForLoop loop) {
 void TCRVEmitCLowerableRoute::addPostLoopStep(
     TCRVEmitCCallOpaqueStep step) {
   postLoopSteps.push_back(std::move(step));
+}
+
+void TCRVEmitCLowerableRoute::addPostLoopAssignment(
+    TCRVEmitCAssignStep step) {
+  postLoopAssignments.push_back(std::move(step));
 }
 
 static llvm::Error validateCallOpaqueStep(llvm::StringRef routeID,
@@ -313,11 +323,12 @@ llvm::Error TCRVEmitCLowerableRoute::verify() const {
   if (headers.empty())
     return makeRouteError(routeID,
                           "requires at least one header requirement");
-  if (callOpaqueSteps.empty() && forLoops.empty() && postLoopSteps.empty())
+  if (callOpaqueSteps.empty() && forLoops.empty() && postLoopSteps.empty() &&
+      postLoopAssignments.empty())
     return makeRouteError(
         routeID,
         "requires at least one emitc.call_opaque construction step or "
-        "structured EmitC loop");
+        "structured EmitC loop/assignment");
 
   for (const TCRVEmitCHeaderRequirement &header : headers)
     if (llvm::Error error = validateHeader(routeID, header))
@@ -424,6 +435,9 @@ llvm::Error TCRVEmitCLowerableRoute::verify() const {
 
   for (const TCRVEmitCCallOpaqueStep &step : postLoopSteps)
     if (llvm::Error error = validateCallOpaqueStep(routeID, step))
+      return error;
+  for (const TCRVEmitCAssignStep &step : postLoopAssignments)
+    if (llvm::Error error = validateAssignStep(routeID, step))
       return error;
 
   return llvm::Error::success();

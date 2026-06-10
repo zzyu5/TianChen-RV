@@ -296,6 +296,55 @@ int expectStructuredLoopRouteMaterializes(mlir::MLIRContext &context) {
   return 0;
 }
 
+TCRVEmitCLowerableRoute makePostLoopSubscriptStoreRoute(
+    llvm::StringRef targetName = "out[0]") {
+  TCRVEmitCLowerableRoute route =
+      makeGenericRoute("test-post-loop-subscript-store-route");
+
+  TCRVEmitCAssignStep store;
+  store.sourceOp = {"test.common.store", "store", kCommonInterfaceName.str()};
+  store.targetName = targetName.str();
+  store.value = {"sum", "int32_t"};
+  route.addPostLoopAssignment(std::move(store));
+  return route;
+}
+
+int expectPostLoopSubscriptStoreRouteMaterializes(mlir::MLIRContext &context) {
+  TCRVEmitCLowerableRoute route = makePostLoopSubscriptStoreRoute();
+  llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> module =
+      materializeTCRVEmitCLowerableRoute(
+          context, route,
+          makeMaterializerOptions("tcrv_emitc_post_loop_store_route"));
+  if (!module)
+    return fail(llvm::Twine("expected post-loop assignment route to "
+                            "materialize: ") +
+                llvm::toString(module.takeError()));
+
+  unsigned assignCount = 0;
+  unsigned subscriptCount = 0;
+  module->get().walk([&](mlir::emitc::AssignOp) { ++assignCount; });
+  module->get().walk([&](mlir::emitc::SubscriptOp) { ++subscriptCount; });
+  if (int result =
+          expect(assignCount == 1,
+                 "post-loop subscript store materializes one assign op"))
+    return result;
+  if (int result =
+          expect(subscriptCount == 1,
+                 "post-loop subscript store materializes one subscript op"))
+    return result;
+
+  std::string ir;
+  llvm::raw_string_ostream os(ir);
+  module->get().print(os);
+  os.flush();
+  if (int result = expect(llvm::StringRef(ir).contains(
+                              "tcrv_emitc.assign target=out[0] "
+                              "source_op=test.common.store"),
+                          "post-loop assignment preserves source provenance"))
+    return result;
+  return 0;
+}
+
 } // namespace
 
 int main() {
@@ -345,6 +394,8 @@ int main() {
 
   if (int result = expectStructuredLoopRouteMaterializes(context))
     return result;
+  if (int result = expectPostLoopSubscriptStoreRouteMaterializes(context))
+    return result;
 
   if (int result = expectMaterializationFails(
           makeGenericRoute("test-bad-unknown-value", "missing_lhs", "sum"),
@@ -353,6 +404,10 @@ int main() {
   if (int result = expectMaterializationFails(
           makeGenericRoute("test-bad-duplicate-result", "lhs", "lhs"),
           "duplicate call_opaque result name"))
+    return result;
+  if (int result = expectMaterializationFails(
+          makePostLoopSubscriptStoreRoute("missing[0]"),
+          "unknown subscript base"))
     return result;
 
   InvalidMissingCalleeLowerable invalid;

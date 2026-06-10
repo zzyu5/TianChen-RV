@@ -8,6 +8,23 @@
 {"check": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8|explicit-selected-body-artifact-widening-product-reduce-add|explicit-selected-body-artifact-widening-product-unsigned-u8|explicit-selected-body-artifact-widening-product\\.mlir", "result": "passed", "cwd": "build/test"}
 {"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1", "result": "passed"}
 {"check": "git diff --check", "result": "passed"}
+{"check": "cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tianchenrv-emitc-lowerable-interface-test -j2", "result": "passed; target artifact test build still emits existing switch-coverage warnings"}
+{"check": "build/bin/tianchenrv-emitc-lowerable-interface-test", "result": "passed"}
+{"check": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "initially failed on stale dequant generatedArtifactObjectSHA256 after fresh evidence; expected source-backed object SHA was updated, then passed"}
+{"check": "build/bin/tianchenrv-target-artifact-export-test", "result": "initially failed on stale packed-i4 realization decision diagnostic text; expected scalar-epilogue provider fact was updated, then passed"}
+{"check": "python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py scripts/rvv_generated_bundle_same_target_measure.py", "result": "passed"}
+{"check": "python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test", "result": "passed"}
+{"check": "python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test", "result": "passed"}
+{"check": "rvv_generated_bundle_abi_e2e packed-i4 dequant scalar-epilogue dry-run", "result": "passed with build/bin/tcrv-opt, build/bin/tcrv-translate, and empty llvm-readobj override"}
+{"check": "rvv_generated_bundle_abi_e2e packed-i4 dequant-clamp scalar-epilogue dry-run", "result": "passed with build/bin/tcrv-opt, build/bin/tcrv-translate, and empty llvm-readobj override"}
+{"check": "rvv_generated_bundle_same_target_measure Gate 4 dry-runs", "result": "passed for generic Gate 4 and source-backed packed-i4 scalar-epilogue dequant/dequant-clamp dry-runs"}
+{"check": "fresh ssh rvv measurement: gate4-packed-i4-scalar-epilogue-dequant-ssh", "result": "passed correctness; classification=no-win best_speedup_range=0.895307..1.027027 summaries=12 measurements=60 correctness=12"}
+{"check": "fresh ssh rvv measurement: gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh", "result": "passed correctness; classification=no-win best_speedup_range=0.874735..1.061579 summaries=24 measurements=120 correctness=24"}
+{"check": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv --filter packed-i4|same-target-measure-gate4 .", "result": "initially failed on stale dequant emitted-C vector-store FileCheck; updated to scalar extract/out[0], then passed 5/5 from build/test"}
+{"check": "cmake --build build --target check-tianchenrv -j2", "result": "failed 15 wider-suite tests outside the focused packed-i4 Gate 4 scope after the stale focused FileCheck was repaired; retained as a non-blocking broad-suite finding after focused changed tests passed"}
+{"check": "bounded old fact scan over include lib test scripts", "result": "passed: no stale high-nibble-vwmacc single-reduce, no-provider beyond-local, local-frontier, q8/q4 route, descriptor, or source-front-door authority marker remained in touched production/test/script surfaces"}
+{"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1", "result": "passed after scalar-epilogue PRD, task notes, implement log, and check log updates"}
+{"check": "git diff --cached --check", "result": "initially hit generated artifact EOF blank-line issues; normalized materialized_rvv_emitc.cpp and materialized_selected_body.mlir in both new evidence roots, then passed"}
 {"check": "git diff --cached --check", "result": "passed"}
 {"check": "bounded staged old-authority scan", "result": "passed: matches are PRD/journal guardrail wording for q8/q4/source-front-door/descriptor/direct C exporter only; no production route authority added"}
 {"check": "git diff --cached --check", "result": "passed"}

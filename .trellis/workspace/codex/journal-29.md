@@ -1594,3 +1594,36 @@ reports, generated-bundle status, or q8/q4 labels cannot reopen the boundary.
 [UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` records the
 provider-owned beyond-local no-further-repair admission blocker and the future
 measured-win reopen requirement.
+
+
+## Session 580: Stage2 RVV Gate 4 packed-i4 scalar-epilogue repair
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV Gate 4 packed-i4 scalar-epilogue repair
+**Branch**: `main`
+
+### Summary
+
+Implemented provider-owned packed-i4 scalar post-loop dequant/dequant-clamp epilogue, refreshed ssh rvv same-target no-win evidence, kept performance-preferred denied, and left the macro task active for the next beyond-local repair.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `this commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

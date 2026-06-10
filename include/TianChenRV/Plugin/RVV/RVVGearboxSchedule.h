@@ -533,7 +533,7 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceGroupedRealizationDecision(
         "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4RealizationDecision(
-    "consume-low-precision-packed-i4-high-nibble-vwmacc-single-reduce-budget-5of32.v1");
+    "consume-low-precision-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-budget-5of32.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceFeedback(
         "same-target-packed-i4-no-win.v1");
@@ -545,7 +545,7 @@ constexpr llvm::StringLiteral
         "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange(
-        "0.896848..1.020953");
+        "0.895307..1.027027");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4PerformanceAction(
     "no-win-repair-required-before-performance-claim");
 constexpr llvm::StringLiteral
@@ -556,27 +556,27 @@ constexpr llvm::StringLiteral
         "correctness-supported-no-win-regression");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID(
-        "gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/"
+        "gate4-packed-i4-scalar-epilogue-dequant-ssh/"
         "widening_product_reduce_dequantize_f32/"
         "same_target_measurement_evidence.json");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4DequantClampRemediationMeasurementEvidenceID(
-        "gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/"
+        "gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/"
         "widening_product_reduce_dequant_clamp_f32/"
         "same_target_measurement_evidence.json");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationDecision(
-        "accepted-no-win-local-repair-frontier-closure.v1");
+        "accepted-beyond-local-scalar-epilogue-repair-candidate.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4RemediationBlocker(
-    "same-target-packed-i4-local-repair-frontier-no-win-or-regression");
+    "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-or-regression");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationPlanContract(
         "rvv-low-precision-packed-i4-resource-remediation-plan.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4RemediationPlan(
-    "close-packed-i4-local-statement-repair-frontier-before-performance-claim.v1");
+    "attempt-packed-i4-beyond-local-scalar-epilogue-before-performance-claim.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy(
-        "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum");
+        "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationVectorBudget(
         "packed-i4-remediation-budget-5of32-vector-groups");
@@ -588,48 +588,47 @@ constexpr llvm::StringLiteral
         "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationProductPlan(
-        "low-shifted-product-i16-rescale-plus-high-nibble-vwmacc.v1");
+        "low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationReductionPlan(
-        "single-vwredsum-i16-high-vwmacc-pair-sum-with-i32-seed.v1");
+        "single-vwredsum-i16-high-vwmacc-pair-sum-with-i32-seed-scalar-epilogue.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationVLPlan(
-        "two-region-runtime-avl-product-reduce-then-dequant-store.v1");
+        "two-region-runtime-avl-product-reduce-then-scalar-epilogue-store.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract(
         "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4ScheduleDecision(
-    "select-packed-i4-high-nibble-vwmacc-single-reduce-u1-two-region-budget-5of32.v1");
+    "select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason(
-        "accepted-remediation-schedule-high-nibble-vwmacc-single-vwredsum-"
+        "accepted-beyond-local-scalar-epilogue-high-nibble-vwmacc-single-vwredsum-"
         "budget-5of32");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4CostContract(
     "rvv-low-precision-packed-i4-resource-cost-contract.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4CostModel(
-    "high-nibble-vwmacc-loop-11-peak-live-5of32-two-region-vsetvl.v1");
+    "high-nibble-vwmacc-loop-11-peak-live-5of32-scalar-epilogue-two-region-vsetvl.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4CostBlocker(
-    "packed-i4-local-repair-frontier-loop-11-budget-5of32-no-win");
+    "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision(
-        "deny-performance-preferred-with-resource-cost-no-win-blocker");
+        "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure(
-        "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32."
-        "v1");
+        "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement(
-        "provider-repair-beyond-local-statement-frontier-plus-source-backed-"
+        "new-typed-provider-beyond-local-repair-plus-source-backed-"
         "measured-win-and-updated-admission-facts.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract(
         "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision(
-        "deny-performance-preferred-no-provider-repair-beyond-local-frontier");
+        "deny-performance-preferred-provider-scalar-epilogue-measured-no-win");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker(
-        "packed-i4-no-provider-beyond-local-repair-facts");
+        "packed-i4-beyond-local-scalar-epilogue-measured-no-win");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement(
         "new-typed-provider-beyond-local-repair-plus-source-backed-"
@@ -657,7 +656,7 @@ constexpr llvm::StringLiteral
         "executable-not-performance-mature");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence(
-        "same-target-packed-i4-local-repair-frontier-no-win-gate4.v1");
+        "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-gate4.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome("no-win");
 constexpr llvm::StringLiteral

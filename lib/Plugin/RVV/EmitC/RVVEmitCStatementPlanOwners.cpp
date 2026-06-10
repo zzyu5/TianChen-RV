@@ -151,6 +151,10 @@ void moveMigratedStatementPlan(
       std::make_move_iterator(plan.postLoopSteps.begin()),
       std::make_move_iterator(plan.postLoopSteps.end()));
   plan.postLoopSteps.clear();
+  selection.postLoopAssignments.append(
+      std::make_move_iterator(plan.postLoopAssignments.begin()),
+      std::make_move_iterator(plan.postLoopAssignments.end()));
+  plan.postLoopAssignments.clear();
 }
 
 void moveDirectContractionStatementPlan(
@@ -180,6 +184,10 @@ void moveDirectContractionStatementPlan(
       std::make_move_iterator(plan.postLoopSteps.begin()),
       std::make_move_iterator(plan.postLoopSteps.end()));
   plan.postLoopSteps.clear();
+  selection.postLoopAssignments.append(
+      std::make_move_iterator(plan.postLoopAssignments.begin()),
+      std::make_move_iterator(plan.postLoopAssignments.end()));
+  plan.postLoopAssignments.clear();
 }
 
 } // namespace
@@ -558,6 +566,10 @@ constexpr llvm::StringLiteral kRVVPackedI4LowProductRescaleIntrinsic(
 constexpr llvm::StringLiteral kRVVPackedI4LowProductRescaleShiftAmount("8");
 constexpr llvm::StringLiteral kRVVPackedI4LowProductRescaleShiftAmountCType(
     "uint8_t");
+constexpr llvm::StringLiteral kRVVPackedI4ScalarLowerClampIntrinsic(
+    "__builtin_fmaxf");
+constexpr llvm::StringLiteral kRVVPackedI4ScalarUpperClampIntrinsic(
+    "__builtin_fminf");
 
 llvm::Error requireRVVDirectContractionStatementOwnerLeaf(
     llvm::StringRef leaf, const llvm::Twine &leafName,
@@ -778,6 +790,25 @@ llvm::Error addRVVDirectContractionStatementOwnerPreLoopAssignment(
   step.targetName = target.str();
   step.value = std::move(value);
   plan.preLoopAssignments.push_back(std::move(step));
+  return llvm::Error::success();
+}
+
+llvm::Error addRVVDirectContractionStatementOwnerPostLoopAssignment(
+    RVVSelectedBodyDirectContractionRouteStatementPlan &plan,
+    mlir::Operation *op, llvm::StringRef expectedRole, llvm::StringRef target,
+    conversion::emitc::TCRVEmitCCallOpaqueOperand value,
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  llvm::Expected<conversion::emitc::TCRVEmitCSourceOpProvenance> source =
+      getRVVDirectContractionStatementOwnerSourceProvenance(
+          op, expectedRole, description, context);
+  if (!source)
+    return source.takeError();
+  conversion::emitc::TCRVEmitCAssignStep step;
+  step.sourceOp = std::move(*source);
+  step.targetName = target.str();
+  step.value = std::move(value);
+  plan.postLoopAssignments.push_back(std::move(step));
   return llvm::Error::success();
 }
 
@@ -2411,6 +2442,50 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
       const std::string scalarDequantExpression =
           (llvm::Twine("dot_acc_scalar * ") + boundDequantScaleABI->cName)
               .str();
+      const std::string scalarStoreTarget =
+          (llvm::Twine(boundOutABI->cName) + "[0]").str();
+      if (usesPackedI4LowPrecisionProductReduction) {
+        if (!isProductReductionDequantClamp) {
+          if (llvm::Error error =
+                  addRVVDirectContractionStatementOwnerPostLoopAssignment(
+                      plan, slice.storeOperation, "store", scalarStoreTarget,
+                      TCRVEmitCCallOpaqueOperand{scalarDequantExpression,
+                                                 "float"},
+                      description, context))
+            return error;
+          return llvm::Error::success();
+        }
+        if (llvm::Error error =
+                addRVVDirectContractionStatementOwnerPostLoopStep(
+                    plan, slice.compareOp.getOperation(), "compute",
+                    kRVVPackedI4ScalarLowerClampIntrinsic,
+                    {TCRVEmitCCallOpaqueOperand{scalarDequantExpression,
+                                                "float"},
+                     TCRVEmitCCallOpaqueOperand{boundLowerBoundABI->cName,
+                                                boundLowerBoundABI->cType}},
+                    description, context,
+                    TCRVEmitCCallOpaqueResult{"lower_clamped_scalar",
+                                              "float"}))
+          return error;
+        if (llvm::Error error =
+                addRVVDirectContractionStatementOwnerPostLoopStep(
+                    plan, slice.secondaryCompareOp.getOperation(), "compute",
+                    kRVVPackedI4ScalarUpperClampIntrinsic,
+                    {TCRVEmitCCallOpaqueOperand{"lower_clamped_scalar",
+                                                "float"},
+                     TCRVEmitCCallOpaqueOperand{boundUpperBoundABI->cName,
+                                                boundUpperBoundABI->cType}},
+                    description, context,
+                    TCRVEmitCCallOpaqueResult{"clamped_scalar", "float"}))
+          return error;
+        if (llvm::Error error =
+                addRVVDirectContractionStatementOwnerPostLoopAssignment(
+                    plan, slice.storeOperation, "store", scalarStoreTarget,
+                    TCRVEmitCCallOpaqueOperand{"clamped_scalar", "float"},
+                    description, context))
+          return error;
+        return llvm::Error::success();
+      }
       if (llvm::Error error = addRVVDirectContractionStatementOwnerPostLoopStep(
               plan, slice.dequantizeOp.getOperation(), "compute",
               description.rhsBroadcastIntrinsic,
@@ -3003,6 +3078,18 @@ llvm::Error verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
     for (const conversion::emitc::TCRVEmitCForLoop &loop :
          statementPlanOwnerSelection.extraLoops)
       if (hasCallee(loop.bodySteps, callee))
+      return true;
+    return false;
+  };
+  const bool usesPackedI4LowPrecisionProductReduction =
+      providerPlan.plansProductReductionDequantization &&
+      isRVVLowPrecisionResourcePackedI4CandidateID(
+          providerPlan.lowPrecisionResourceSelection.selectedCandidateID);
+  auto selectionHasPostLoopAssignment = [&]() {
+    for (const conversion::emitc::TCRVEmitCAssignStep &assignment :
+         statementPlanOwnerSelection.postLoopAssignments)
+      if (!assignment.targetName.empty() &&
+          assignment.sourceOp.role == "store")
         return true;
     return false;
   };
@@ -3025,8 +3112,16 @@ llvm::Error verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
     if (llvm::Error error =
             requireStatementLeaf(providerPlan.sourceLoadLeaf, "source load"))
       return error;
-  if (llvm::Error error =
-          requireStatementLeaf(providerPlan.storeLeaf, "store"))
+  if (usesPackedI4LowPrecisionProductReduction) {
+    if (!selectionHasPostLoopAssignment())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " direct contraction route construction requires direct contraction "
+          "owner post-loop scalar store assignment before creating "
+          "TCRVEmitCLowerableRoute for operation '" +
+          stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
+  } else if (llvm::Error error =
+                 requireStatementLeaf(providerPlan.storeLeaf, "store"))
     return error;
   if (!providerPlan.plansWideningProduct)
     if (llvm::Error error = requireStatementLeaf(
@@ -3048,21 +3143,39 @@ llvm::Error verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
             providerPlan.scalarSeedSplatLeaf, "scalar seed splat"))
       return error;
   if (providerPlan.plansProductReductionDequantization) {
-    if (llvm::Error error =
-            requireStatementLeaf(description.rhsBroadcastIntrinsic,
-                                 "post-loop dequant scalar splat"))
-      return error;
+    if (usesPackedI4LowPrecisionProductReduction) {
+      if (llvm::Error error = requireStatementLeaf(
+              "__riscv_vmv_x_s_i32m1_i32",
+              "post-loop packed-i4 vector carry scalar extract"))
+        return error;
+    } else {
+      if (llvm::Error error =
+              requireStatementLeaf(description.rhsBroadcastIntrinsic,
+                                   "post-loop dequant scalar splat"))
+        return error;
+    }
   }
   if (providerPlan.plansProductReductionDequantClamp) {
-    if (llvm::Error error = requireStatementLeaf(providerPlan.compareLeaf,
-                                                 "lower compare"))
-      return error;
-    if (llvm::Error error = requireStatementLeaf(
-            providerPlan.secondaryCompareLeaf, "upper compare"))
-      return error;
-    if (llvm::Error error = requireStatementLeaf(providerPlan.maskedMergeLeaf,
-                                                 "clamp select"))
-      return error;
+    if (usesPackedI4LowPrecisionProductReduction) {
+      if (llvm::Error error = requireStatementLeaf(
+              kRVVPackedI4ScalarLowerClampIntrinsic,
+              "packed-i4 scalar lower clamp"))
+        return error;
+      if (llvm::Error error = requireStatementLeaf(
+              kRVVPackedI4ScalarUpperClampIntrinsic,
+              "packed-i4 scalar upper clamp"))
+        return error;
+    } else {
+      if (llvm::Error error = requireStatementLeaf(providerPlan.compareLeaf,
+                                                   "lower compare"))
+        return error;
+      if (llvm::Error error = requireStatementLeaf(
+              providerPlan.secondaryCompareLeaf, "upper compare"))
+        return error;
+      if (llvm::Error error = requireStatementLeaf(providerPlan.maskedMergeLeaf,
+                                                   "clamp select"))
+        return error;
+    }
   }
   if (providerPlan.plansComputedMask) {
     if (llvm::Error error = requireStatementLeaf(providerPlan.vectorLoadLeaf,
@@ -3214,6 +3327,9 @@ llvm::Error attachRVVSelectedBodyRouteStatementPlanOwnerSelection(
   for (conversion::emitc::TCRVEmitCCallOpaqueStep &step :
        selection.postLoopSteps)
     route.addPostLoopStep(std::move(step));
+  for (conversion::emitc::TCRVEmitCAssignStep &step :
+       selection.postLoopAssignments)
+    route.addPostLoopAssignment(std::move(step));
   return llvm::Error::success();
 }
 

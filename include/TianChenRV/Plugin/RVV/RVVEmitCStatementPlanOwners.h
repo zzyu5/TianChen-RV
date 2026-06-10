@@ -417,6 +417,8 @@ struct RVVSelectedBodyRouteStatementPlanOwnerSelection {
   llvm::SmallVector<conversion::emitc::TCRVEmitCForLoop, 1> extraLoops;
   llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 4>
       postLoopSteps;
+  llvm::SmallVector<conversion::emitc::TCRVEmitCAssignStep, 2>
+      postLoopAssignments;
 };
 
 bool isRVVSelectedBodyRouteStatementPlanOwnerConsumer(

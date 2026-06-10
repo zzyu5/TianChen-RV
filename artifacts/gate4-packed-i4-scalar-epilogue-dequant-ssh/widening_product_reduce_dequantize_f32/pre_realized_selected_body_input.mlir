@@ -63,7 +63,7 @@ module {
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 2 : i64
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_feedback = "same-target-packed-i4-no-win.v1"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_baseline = "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
-// REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_best_speedup_range = "0.895307..1.027027"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_best_speedup_range = "0.896848..1.020953"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_action = "no-win-repair-required-before-performance-claim"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_admission_decision = "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_admission_closure = "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1"
@@ -151,7 +151,7 @@ module {
 // PLAN: {key = "tcrv_rvv.low_precision_resource.dequant_phase", value = "dequant-store"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_feedback", value = "same-target-packed-i4-no-win.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_baseline", value = "scalar-c-reference/product-reduction-dequant-packed-i4-v1"}
-// PLAN: {key = "tcrv_rvv.low_precision_resource.performance_best_speedup_range", value = "0.895307..1.027027"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.performance_best_speedup_range", value = "0.896848..1.020953"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_action", value = "no-win-repair-required-before-performance-claim"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.remediation_plan_contract", value = "rvv-low-precision-packed-i4-resource-remediation-plan.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.remediation_plan", value = "attempt-packed-i4-beyond-local-scalar-epilogue-before-performance-claim.v1"}
@@ -201,7 +201,7 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.dequant_phase: dequant-store
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_feedback: same-target-packed-i4-no-win.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_baseline: scalar-c-reference/product-reduction-dequant-packed-i4-v1
-// HEADER: tianchenrv.rvv.low_precision_resource.performance_best_speedup_range: 0.895307..1.027027
+// HEADER: tianchenrv.rvv.low_precision_resource.performance_best_speedup_range: 0.896848..1.020953
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_action: no-win-repair-required-before-performance-claim
 // HEADER: tianchenrv.rvv.low_precision_resource.remediation_plan_contract: rvv-low-precision-packed-i4-resource-remediation-plan.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.remediation_plan: attempt-packed-i4-beyond-local-scalar-epilogue-before-performance-claim.v1

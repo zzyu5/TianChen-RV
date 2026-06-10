@@ -531,6 +531,9 @@ public:
     for (const TCRVEmitCCallOpaqueStep &step : route.getPostLoopSteps())
       if (llvm::Error error = materializeStep(step))
         return std::move(error);
+    for (const TCRVEmitCAssignStep &step : route.getPostLoopAssignments())
+      if (llvm::Error error = materializeAssignment(step))
+        return std::move(error);
     builder.create<mlir::emitc::ReturnOp>(loc, mlir::Value());
 
     if (options.verifyModule && mlir::failed(mlir::verify(*module)))
@@ -1099,15 +1102,11 @@ private:
   llvm::Error materializeAssignment(const TCRVEmitCAssignStep &step) {
     if (llvm::Error error = validateSafeProvenance(route, step.sourceOp))
       return error;
-    if (llvm::Error error = validateSafeIdentifier(
-            route.getRouteID(), "EmitC assignment target", step.targetName))
-      return error;
-    mlir::Value target = lvalueMap.lookup(step.targetName);
-    if (!target)
-      return makeMaterializerError(
-          route.getRouteID(),
-          llvm::Twine("assignment target '") + step.targetName +
-              "' is not a materialized EmitC local variable");
+    llvm::Expected<mlir::Value> targetOrError =
+        materializeAssignmentTarget(step.targetName);
+    if (!targetOrError)
+      return targetOrError.takeError();
+    mlir::Value target = *targetOrError;
     auto targetLValue =
         llvm::dyn_cast<mlir::TypedValue<mlir::emitc::LValueType>>(target);
     if (!targetLValue)
@@ -1130,6 +1129,52 @@ private:
                                             makeAssignProvenanceComment(step));
     builder.create<mlir::emitc::AssignOp>(loc, target, *value);
     return llvm::Error::success();
+  }
+
+  llvm::Expected<mlir::Value>
+  materializeAssignmentTarget(llvm::StringRef targetName) {
+    if (isSafeIdentifier(targetName)) {
+      mlir::Value target = lvalueMap.lookup(targetName);
+      if (!target)
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("assignment target '") + targetName +
+                "' is not a materialized EmitC local variable");
+      return target;
+    }
+
+    if (std::optional<std::pair<llvm::StringRef, std::uint64_t>> subscript =
+            parseSimpleSubscriptExpression(targetName)) {
+      llvm::StringRef baseName = subscript->first;
+      mlir::Value base = valueMap.lookup(baseName);
+      if (!base)
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("assignment target '") + targetName +
+                "' references unknown subscript base '" + baseName + "'");
+      auto pointer =
+          llvm::dyn_cast<mlir::TypedValue<mlir::emitc::PointerType>>(base);
+      if (!pointer)
+        return makeMaterializerError(
+            route.getRouteID(),
+            llvm::Twine("assignment target '") + targetName +
+                "' requires a pointer-typed subscript base");
+      mlir::Value index =
+          builder
+              .create<mlir::emitc::LiteralOp>(
+                  builder.getUnknownLoc(), builder.getIndexType(),
+                  llvm::Twine(subscript->second).str())
+              .getResult();
+      mlir::emitc::SubscriptOp subscriptOp =
+          builder.create<mlir::emitc::SubscriptOp>(
+              builder.getUnknownLoc(), pointer, index);
+      return subscriptOp.getResult();
+    }
+
+    return makeMaterializerError(
+        route.getRouteID(),
+        llvm::Twine("assignment target '") + targetName +
+            "' must be a local variable or safe pointer subscript");
   }
 
   llvm::Error materializeStep(const TCRVEmitCCallOpaqueStep &step) {

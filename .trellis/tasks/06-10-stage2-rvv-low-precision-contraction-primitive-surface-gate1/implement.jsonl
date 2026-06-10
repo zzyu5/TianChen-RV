@@ -155,3 +155,26 @@
 {"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Recorded the beyond-local no-further-repair admission blocker contract and measured-win reopen requirement"}
 {"file": ".trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1/prd.md", "reason": "Marked the beyond-local repair/admission slice complete while keeping Gate 4 macro task active"}
 {"file": ".trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1/task.json", "reason": "Updated active macro task notes with beyond-local admission blocker facts and continuation point"}
+{"file": "include/TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h", "reason": "Added neutral provider-built post-loop assignment payload storage to lowerable routes"}
+{"file": "lib/Conversion/EmitC/TCRVEmitCLowerableInterface.cpp", "reason": "Copied, reset, and verified route-level post-loop assignment payloads"}
+{"file": "lib/Conversion/EmitC/TCRVEmitCLowerableMaterializer.cpp", "reason": "Materialized provider-built post-loop assignments and safe pointer constant-index lvalues such as out[0] without adding RVV semantics"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h", "reason": "Carried RVV statement-plan post-loop assignments through direct contraction and migrated route plans"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h", "reason": "Exposed selected-body statement-plan post-loop assignments for route attachment"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h", "reason": "Updated packed-i4 provider resource/admission facts, evidence roots, speedup ranges, and scalar-epilogue no-win blocker constants"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "Emitted packed-i4 scalar post-loop dequant, scalar clamp, and out[0] store assignment from provider-owned statement planning"}
+{"file": "lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp", "reason": "Consumed scalar-epilogue measurement ranges and no-win policy facts for packed-i4 performance admission"}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Validated packed-i4 scalar epilogue post-loop steps and route-level out[0] assignment before artifact export"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Parsed and checked packed-i4 scalar dequant/clamp epilogue source boundaries in generated bundles"}
+{"file": "scripts/rvv_generated_bundle_same_target_measure.py", "reason": "Generated same-target scalar-epilogue packed-i4 evidence with updated provider facts and speedup ranges"}
+{"file": "test/Conversion/EmitC/TCRVEmitCLowerableInterfaceTest.cpp", "reason": "Covered post-loop subscript store assignment and fail-closed unknown subscript base handling"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Covered scalar-epilogue evidence roots, source-backed artifact identity, policy fallback, and stale policy boundaries"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Covered scalar-epilogue target artifact validation and stale provider fact diagnostics"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir", "reason": "Asserted packed-i4 dequant scalar extract and out[0] assignment while rejecting old vector epilogue markers"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir", "reason": "Asserted packed-i4 dequant-clamp scalar fmax/fmin epilogue and out[0] assignment while rejecting old vector epilogue markers"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequantize-f32-packed-i4-dry-run.test", "reason": "Asserted generated-bundle dry-run metadata and emitted C scalar dequant epilogue"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequant-clamp-f32-packed-i4-dry-run.test", "reason": "Asserted generated-bundle dry-run metadata and emitted C scalar clamp epilogue"}
+{"file": "test/Scripts/rvv-generated-bundle-same-target-measure-gate4-dry-run.test", "reason": "Asserted same-target dry-run records carry scalar-epilogue beyond-local admission facts"}
+{"file": "artifacts/gate4-packed-i4-scalar-epilogue-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json", "reason": "Recorded fresh source-backed ssh rvv no-win timing for packed-i4 scalar-epilogue dequant"}
+{"file": "artifacts/gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json", "reason": "Recorded fresh source-backed ssh rvv no-win timing for packed-i4 scalar-epilogue dequant-clamp"}
+{"file": ".trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1/prd.md", "reason": "Marked the scalar-epilogue beyond-local repair slice complete and kept Gate 4 macro task active"}
+{"file": ".trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1/task.json", "reason": "Updated active macro task notes with scalar-epilogue repair facts, fresh no-win measurements, and continuation point"}

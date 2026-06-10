@@ -5076,6 +5076,8 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
   const llvm::StringRef packedI4LowProductRescaleShiftAmountCType = "uint8_t";
   const llvm::StringRef packedI4HighProductAccumulateIntrinsic =
       "__riscv_vwmacc_vv_i16mf2";
+  const llvm::StringRef packedI4ScalarLowerClampIntrinsic = "__builtin_fmaxf";
+  const llvm::StringRef packedI4ScalarUpperClampIntrinsic = "__builtin_fminf";
   const llvm::StringRef accumulatorVectorCType =
       isProductReductionDequantization ? llvm::StringRef("vint32m1_t")
                                        : description.vectorCType;
@@ -5718,19 +5720,36 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
         return error;
     }
     const std::size_t expectedPostLoopStepCount =
-        isProductReductionDequantClamp ? 9 : 3;
+        usesPackedI4LowPrecisionProductReduction
+            ? (isProductReductionDequantClamp ? 3 : 1)
+            : (isProductReductionDequantClamp ? 9 : 3);
     if (route.getPostLoopSteps().size() != expectedPostLoopStepCount)
       return makeRVVTargetRouteError(
           llvm::Twine(consumerLabel) +
           " requires exactly " + llvm::Twine(expectedPostLoopStepCount) +
           " provider-built post-loop dequant/clamp/store statements before "
           "artifact export");
+    const std::size_t expectedPostLoopAssignmentCount =
+        usesPackedI4LowPrecisionProductReduction ? 1 : 0;
+    if (route.getPostLoopAssignments().size() != expectedPostLoopAssignmentCount)
+      return makeRVVTargetRouteError(
+          llvm::Twine(consumerLabel) +
+          " requires exactly " + llvm::Twine(expectedPostLoopAssignmentCount) +
+          " provider-built post-loop scalar store assignments before artifact "
+          "export");
     for (const conversion::emitc::TCRVEmitCCallOpaqueStep &step :
          route.getPostLoopSteps())
       if (!routeStepSourceIsSelectedRVVBody(step))
         return makeRVVTargetRouteError(
             "widening dot-reduction target artifact consumer requires "
             "post-loop statements to carry selected typed RVV source "
+            "provenance");
+    for (const conversion::emitc::TCRVEmitCAssignStep &assign :
+         route.getPostLoopAssignments())
+      if (!routeAssignSourceIsSelectedRVVBody(assign))
+        return makeRVVTargetRouteError(
+            "widening dot-reduction target artifact consumer requires "
+            "post-loop assignments to carry selected typed RVV source "
             "provenance");
     const llvm::StringRef scaledResultName =
         isProductReductionDequantClamp ? llvm::StringRef("dequantized_vec")
@@ -5744,6 +5763,45 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
             {{"dot_acc_vec", accumulatorVectorCType}},
             "dot_acc_scalar", scalarI32CType))
       return error;
+    if (usesPackedI4LowPrecisionProductReduction) {
+      auto validateScalarStoreAssignment =
+          [&](llvm::StringRef expectedValue,
+              llvm::StringRef expectedValueCType) -> llvm::Error {
+        const conversion::emitc::TCRVEmitCAssignStep &assign =
+            route.getPostLoopAssignments().front();
+        const std::string expectedTarget =
+            (llvm::Twine(outABI->cName) + "[0]").str();
+        if (assign.targetName != expectedTarget ||
+            assign.value.expression != expectedValue ||
+            assign.value.cType != expectedValueCType)
+          return makeRVVTargetRouteError(
+              llvm::Twine(consumerLabel) +
+              " requires provider-built packed-i4 scalar epilogue assignment "
+              "to store the final f32 lane to output[0] before artifact export");
+        return llvm::Error::success();
+      };
+      if (!isProductReductionDequantClamp)
+        return validateScalarStoreAssignment(expectedScalarDequantExpression,
+                                             finalResultScalarCType);
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              route.getPostLoopSteps()[1], consumerLabel,
+              "post-loop packed-i4 scalar lower clamp",
+              packedI4ScalarLowerClampIntrinsic,
+              {{expectedScalarDequantExpression, finalResultScalarCType},
+               {lowerBoundABI->cName, lowerBoundABI->cType}},
+              "lower_clamped_scalar", finalResultScalarCType))
+        return error;
+      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
+              route.getPostLoopSteps()[2], consumerLabel,
+              "post-loop packed-i4 scalar upper clamp",
+              packedI4ScalarUpperClampIntrinsic,
+              {{"lower_clamped_scalar", finalResultScalarCType},
+               {upperBoundABI->cName, upperBoundABI->cType}},
+              "clamped_scalar", finalResultScalarCType))
+        return error;
+      return validateScalarStoreAssignment("clamped_scalar",
+                                           finalResultScalarCType);
+    }
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             route.getPostLoopSteps()[1], consumerLabel,
             "post-loop scalar dequant splat", description.rhsBroadcastIntrinsic,
@@ -5824,10 +5882,11 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
                   {description.reductionStoreVL, runtimeContract.vlCType}}))
     return error;
 
-  if (!loop.bodyAssignments.empty() || !route.getPostLoopSteps().empty())
+  if (!loop.bodyAssignments.empty() || !route.getPostLoopSteps().empty() ||
+      !route.getPostLoopAssignments().empty())
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
-        " rejects local carry assignments or post-loop statements for "
+        " rejects local carry assignments or post-loop statements/assignments for "
         "non-dequant widening dot-reduction artifacts");
 
   return llvm::Error::success();

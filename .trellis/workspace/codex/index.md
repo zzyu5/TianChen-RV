@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-29.md`
-- **Total Sessions**: 579
-- **Last Active**: 2026-06-10
+- **Total Sessions**: 580
+- **Last Active**: 2026-06-11
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-29.md` | ~867 | Active |
+| `journal-29.md` | ~1629 | Active |
 | `journal-28.md` | ~1980 | Archived |
 | `journal-27.md` | ~1982 | Archived |
 | `journal-26.md` | ~1976 | Archived |
@@ -57,6 +57,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 580 | 2026-06-11 | Stage2 RVV Gate 4 packed-i4 scalar-epilogue repair | this commit | `main` |
 | 579 | 2026-06-10 | Gate 4 primitive provenance through Gearbox measurement | final-commit-see-git-log | `main` |
 | 578 | 2026-06-10 | Stage2 RVV Gearbox Gate 1 pressure-profile admission | `469a69ac` | `main` |
 | 577 | 2026-06-10 | Stage2 RVV low-precision contraction primitive Gate 1 | created-after-journal-entry | `main` |

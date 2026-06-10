@@ -876,6 +876,95 @@ Remaining Gate 4 continuation point after this slice:
   updated provider admission facts. Metadata, artifact names, route ids,
   reports, generated-bundle status, or q8/q4 labels cannot reopen the boundary.
 
+Current Gate 4 beyond-local scalar-epilogue repair slice:
+
+- This round attempts a typed/provider-owned repair beyond the local packed-i4
+  product statement frontier. The product loop remains the provider-owned
+  high-nibble vwmacc 11-step/5-of-32 schedule, but the post-loop dequant and
+  dequant-clamp epilogue currently splats a single scalar result into f32 RVV
+  vectors, applies single-lane RVV clamp/select for the clamp path, and stores
+  one f32 lane through an RVV vector store.
+- The intended repair keeps packed-i4 product/reduction semantics, runtime AVL,
+  source facts, and provider route authority unchanged while making the
+  post-loop epilogue scalar: extract the i32 reduction carry, compute scalar
+  dequantization, apply scalar clamp for the clamp path, and store `out[0]`
+  through provider-built neutral EmitC assignment payload. Common EmitC may
+  materialize the provider-built assignment mechanics, but it must not infer
+  RVV dtype, schedule, clamp semantics, or performance policy.
+- Because this changes generated RVV/C++ runtime behavior for both dequant and
+  dequant-clamp packed-i4 representatives, the slice must refresh source-backed
+  same-target `ssh rvv` evidence before any policy update. A measured no-win
+  keeps correctness fallback and records the scalar-epilogue repair as a
+  consumed beyond-local no-win blocker; a measured win may admit
+  `performance-preferred` only when provider maturity, resource-cost admission,
+  beyond-local admission, target mirrors, evidence roots, and policy facts all
+  agree.
+
+Acceptance:
+
+- [x] Common route payload supports provider-built post-loop assignments as a
+  neutral materialization mechanism, including safe ABI pointer constant-index
+  targets such as `out[0]`, without adding RVV semantic inference to Common
+  EmitC.
+- [x] Packed-i4 provider/resource facts identify the scalar-epilogue
+  beyond-local repair, selected loop resource budget, evidence IDs, admission
+  decision, blocker or measured-win admission, and reopen requirement without
+  relying on route ids, artifact names, q8/q4 labels, reports, or Common EmitC
+  inference.
+- [x] Statement planning emits scalar post-loop dequant/clamp/store for the
+  packed-i4 dequant and dequant-clamp paths from provider-owned facts, and
+  target artifact validation rejects stale vector-epilogue mirrors or missing
+  post-loop assignment payload before artifact export.
+- [x] Focused C++/FileCheck/script coverage proves the scalar epilogue, target
+  mirrors, generated-bundle dry-run metadata, and stale policy/metadata
+  rejection boundaries.
+- [x] Fresh same-target `ssh rvv` timing is collected for both packed-i4
+  dequant and dequant-clamp after the runtime generation change, or a precise
+  hardware/build blocker is recorded before policy update.
+- [x] Performance policy remains `correctness-fallback` on fresh no-win/
+  regression evidence, or selects `performance-preferred` only if measured-win
+  evidence and provider-owned maturity/resource-cost/beyond-local admission
+  facts agree.
+- [x] Bounded scans show no new legacy RVV route authority, q8/q4 route naming,
+  source-front-door positive route, descriptor-driven compute, or Common EmitC
+  semantic inference.
+
+Completed Gate 4 beyond-local scalar-epilogue repair slice:
+
+- Added neutral Common EmitC support for provider-built route-level post-loop
+  assignments, including validated pointer constant-index targets such as
+  `out[0]`. Common EmitC now materializes the assignment mechanics but still
+  does not infer RVV dtype, schedule, clamp, contraction, or policy semantics.
+- Changed the packed-i4 product-reduction-dequant/dequant-clamp statement plan
+  so the product loop remains the provider-owned high-nibble vwmacc
+  11-step/5-of-32 schedule, while the post-loop epilogue extracts the scalar
+  reduction carry, computes scalar dequantization, applies scalar clamp with
+  `__builtin_fmaxf`/`__builtin_fminf` for the clamp path, and stores `out[0]`.
+- Updated provider resource/admission facts, route planning payloads, target
+  artifact validation, generated-bundle scripts, same-target measurement
+  records, and `RVVLowPrecisionPerformancePolicy` to consume the scalar-
+  epilogue repair as the current beyond-local repair candidate.
+- Collected fresh source-backed `ssh rvv` timing after the generated runtime
+  change. Dequant remains `no-win` with best speedup range
+  `0.895307..1.027027`, 12 summary records, 60 measurement records, and 12
+  correctness records. Dequant-clamp remains `no-win` with best speedup range
+  `0.874735..1.061579`, 24 summary records, 120 measurement records, and 24
+  correctness records.
+- Because the fresh measurements do not prove a win, the consumed policy
+  remains correctness fallback: route support and correctness execution are
+  allowed, while performance selection and performance-win claims are denied by
+  the scalar-epilogue beyond-local no-win blocker.
+
+Remaining Gate 4 continuation point after this slice:
+
+- Gate 4 remains open. The next owner should either introduce a new
+  typed/provider-owned beyond-local packed-i4 schedule/resource repair with
+  source-backed dequant and dequant-clamp measured-win evidence, or make a
+  campaign-level no-further-repair decision that is itself consumed through
+  provider facts, target mirrors, evidence roots, and policy. Metadata,
+  artifact names, route ids, generated-bundle status, reports, or q8/q4 labels
+  still cannot reopen performance-preferred dispatch.
+
 ## Non-Goals
 
 - No generated-bundle-only or `ssh rvv`-only closeout unless it validates

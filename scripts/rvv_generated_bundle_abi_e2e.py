@@ -698,7 +698,7 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION = (
     "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_DECISION = (
-    "consume-low-precision-packed-i4-high-nibble-vwmacc-single-reduce-budget-5of32.v1"
+    "consume-low-precision-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-budget-5of32.v1"
 )
 LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT = (
     "rvv-low-precision-widening-primitive-facts.v1"
@@ -743,7 +743,7 @@ WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_PERFORMANCE_BASELINE = (
     "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_BEST_SPEEDUP_RANGE = (
-    "0.896848..1.020953"
+    "0.895307..1.027027"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION = (
     "no-win-repair-required-before-performance-claim"
@@ -752,7 +752,7 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY = (
     "executable-not-performance-mature"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_EVIDENCE = (
-    "same-target-packed-i4-local-repair-frontier-no-win-gate4.v1"
+    "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-gate4.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_OUTCOME = (
     "no-win"
@@ -770,15 +770,15 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DIAGNOSIS = (
     "correctness-supported-no-win-regression"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVIDENCE = (
-    "gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/"
+    "gate4-packed-i4-scalar-epilogue-dequant-ssh/"
     "widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVIDENCE = (
-    "gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/"
+    "gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/"
     "widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DECISION = (
-    "accepted-no-win-local-repair-frontier-closure.v1"
+    "accepted-beyond-local-scalar-epilogue-repair-candidate.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_ACTION = (
     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
@@ -787,16 +787,16 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DISPATCH_PREFERENCE
     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_DISPATCH_PREFERENCE
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_BLOCKER = (
-    "same-target-packed-i4-local-repair-frontier-no-win-or-regression"
+    "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-or-regression"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PLAN_CONTRACT = (
     "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PLAN = (
-    "close-packed-i4-local-statement-repair-frontier-before-performance-claim.v1"
+    "attempt-packed-i4-beyond-local-scalar-epilogue-before-performance-claim.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_STATEMENT_STRATEGY = (
-    "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum"
+    "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_VECTOR_BUDGET = (
     "packed-i4-remediation-budget-5of32-vector-groups"
@@ -808,54 +808,54 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_UNPACK_PLAN = (
     "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PRODUCT_PLAN = (
-    "low-shifted-product-i16-rescale-plus-high-nibble-vwmacc.v1"
+    "low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_REDUCTION_PLAN = (
-    "single-vwredsum-i16-high-vwmacc-pair-sum-with-i32-seed.v1"
+    "single-vwredsum-i16-high-vwmacc-pair-sum-with-i32-seed-scalar-epilogue.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_VL_PLAN = (
-    "two-region-runtime-avl-product-reduce-then-dequant-store.v1"
+    "two-region-runtime-avl-product-reduce-then-scalar-epilogue-store.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_CONTRACT = (
     "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION = (
-    "select-packed-i4-high-nibble-vwmacc-single-reduce-u1-two-region-budget-5of32.v1"
+    "select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_REASON = (
-    "accepted-remediation-schedule-high-nibble-vwmacc-single-vwredsum-"
+    "accepted-beyond-local-scalar-epilogue-high-nibble-vwmacc-single-vwredsum-"
     "budget-5of32"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_CONTRACT = (
     "rvv-low-precision-packed-i4-resource-cost-contract.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_MODEL = (
-    "high-nibble-vwmacc-loop-11-peak-live-5of32-two-region-vsetvl.v1"
+    "high-nibble-vwmacc-loop-11-peak-live-5of32-scalar-epilogue-two-region-vsetvl.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_LOOP_BODY_STEPS = (
     "11"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_BLOCKER = (
-    "packed-i4-local-repair-frontier-loop-11-budget-5of32-no-win"
+    "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_DECISION = (
-    "deny-performance-preferred-with-resource-cost-no-win-blocker"
+    "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_CLOSURE = (
-    "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1"
+    "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_REOPEN_REQUIREMENT = (
-    "provider-repair-beyond-local-statement-frontier-plus-source-backed-"
+    "new-typed-provider-beyond-local-repair-plus-source-backed-"
     "measured-win-and-updated-admission-facts.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_CONTRACT = (
     "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_DECISION = (
-    "deny-performance-preferred-no-provider-repair-beyond-local-frontier"
+    "deny-performance-preferred-provider-scalar-epilogue-measured-no-win"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_BLOCKER = (
-    "packed-i4-no-provider-beyond-local-repair-facts"
+    "packed-i4-beyond-local-scalar-epilogue-measured-no-win"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_REOPEN_REQUIREMENT = (
     "new-typed-provider-beyond-local-repair-plus-source-backed-"
@@ -1637,6 +1637,8 @@ F32_CLAMP_SELECT_SPLAT_INTRINSIC = "__riscv_vfmv_v_f_f32m1"
 F32_CLAMP_SELECT_COMPARE_INTRINSIC = "__riscv_vmflt_vv_f32m1_b32"
 F32_CLAMP_SELECT_SELECT_INTRINSIC = "__riscv_vmerge_vvm_f32m1"
 F32_CLAMP_SELECT_STORE_INTRINSIC = "__riscv_vse32_v_f32m1"
+F32_CLAMP_SELECT_SCALAR_LOWER_INTRINSIC = "__builtin_fmaxf"
+F32_CLAMP_SELECT_SCALAR_UPPER_INTRINSIC = "__builtin_fminf"
 F32_CLAMP_SELECT_OUT_SENTINEL = "-76543.25f"
 F32_CLAMP_SELECT_ABS_TOLERANCE = 0.00001
 DEFAULT_F32_CLAMP_BOUND_PAIRS = ((-1.5, 2.25), (-8.0, -0.75))
@@ -13622,6 +13624,10 @@ def verify_emitted_rvv_cpp(
         or expectation.is_widening_product_reduce_dequant_clamp_f32
     ):
         vector_c_type = DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE
+        uses_packed_i4_resource = (
+            WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC
+            in text
+        )
         intrinsics = [
             expectation.setvl_intrinsic,
             WIDENING_PRODUCT_REDUCE_SOURCE_LOAD_INTRINSIC,
@@ -13629,9 +13635,29 @@ def verify_emitted_rvv_cpp(
             WIDENING_PRODUCT_REDUCE_SCALAR_SEED_SPLAT_INTRINSIC,
             WIDENING_PRODUCT_REDUCE_WIDENING_REDUCTION_INTRINSIC,
             "__riscv_vmv_x_s_i32m1_i32",
-            F32_CLAMP_SELECT_SPLAT_INTRINSIC,
         ]
-        if expectation.is_widening_product_reduce_dequant_clamp_f32:
+        if uses_packed_i4_resource:
+            intrinsics.extend(
+                [
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_LEFT_INTRINSIC,
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SHIFT_RIGHT_INTRINSIC,
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_LOW_PRODUCT_RESCALE_INTRINSIC,
+                    WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_HIGH_PRODUCT_ACCUMULATE_INTRINSIC,
+                ]
+            )
+            if expectation.is_widening_product_reduce_dequant_clamp_f32:
+                intrinsics.extend(
+                    [
+                        F32_CLAMP_SELECT_SCALAR_LOWER_INTRINSIC,
+                        F32_CLAMP_SELECT_SCALAR_UPPER_INTRINSIC,
+                    ]
+                )
+        else:
+            intrinsics.append(F32_CLAMP_SELECT_SPLAT_INTRINSIC)
+        if (
+            expectation.is_widening_product_reduce_dequant_clamp_f32
+            and not uses_packed_i4_resource
+        ):
             intrinsics.extend(
                 [
                     F32_CLAMP_SELECT_SPLAT_INTRINSIC,
@@ -13641,8 +13667,9 @@ def verify_emitted_rvv_cpp(
                 ]
             )
         else:
-            intrinsics.append(DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC)
-        for vector_type, context in (
+            if not uses_packed_i4_resource:
+                intrinsics.append(DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC)
+        vector_type_requirements = [
             (
                 "vint8mf4_t",
                 "emitted RVV C/C++ product-reduction dequant source vector type",
@@ -13655,23 +13682,43 @@ def verify_emitted_rvv_cpp(
                 "vint32m1_t",
                 "emitted RVV C/C++ product-reduction dequant accumulator vector type",
             ),
-            (
-                DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE,
-                "emitted RVV C/C++ product-reduction dequant f32 result vector type",
-            ),
-        ):
+        ]
+        if not uses_packed_i4_resource:
+            vector_type_requirements.append(
+                (
+                    DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE,
+                    "emitted RVV C/C++ product-reduction dequant f32 result vector type",
+                )
+            )
+        for vector_type, context in vector_type_requirements:
             require_contains(text, vector_type, context)
-        require_contains(
-            text,
-            "float",
-            "emitted RVV C/C++ product-reduction dequant runtime scale/output C type",
-        )
+        if uses_packed_i4_resource:
+            require_not_contains(
+                text,
+                DEQUANTIZE_I32_TO_F32_RESULT_VECTOR_C_TYPE,
+                "emitted RVV C/C++ packed-i4 scalar epilogue result vector type",
+            )
+            require_not_contains(
+                text,
+                DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
+                "emitted RVV C/C++ packed-i4 scalar epilogue vector store",
+            )
+            require_contains(
+                text,
+                "tcrv_emitc.assign target=out[0]",
+                "emitted RVV C/C++ packed-i4 scalar epilogue store assignment",
+            )
         for intrinsic in intrinsics:
             require_contains(
                 text,
                 intrinsic,
                 "emitted RVV C/C++ product-reduction dequant intrinsic spelling",
             )
+        require_contains(
+            text,
+            "float",
+            "emitted RVV C/C++ product-reduction dequant runtime scale/output C type",
+        )
         product_dequant_boundary = (
             extract_widening_product_reduce_dequantize_emitc_boundary(
                 text, expectation
@@ -14552,7 +14599,105 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
         DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC,
         "emitted RVV C/C++ product-reduction dequant optimized post-loop",
     )
-    if expectation.is_widening_product_reduce_dequant_clamp_f32:
+    lower_bound = (
+        signature.group("lower_bound")
+        if expectation.is_widening_product_reduce_dequant_clamp_f32
+        else ""
+    )
+    upper_bound = (
+        signature.group("upper_bound")
+        if expectation.is_widening_product_reduce_dequant_clamp_f32
+        else ""
+    )
+    post_loop_dequantization = {
+        "scalar_dequant_expression": "dot_acc_scalar * scale",
+        "splat_intrinsic": F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+        "forbids_vector_convert_intrinsic": (
+            DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC
+        ),
+        "forbids_vector_scale_intrinsic": (
+            DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
+        ),
+        "store_intrinsic": DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
+        "scalar_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
+    }
+    post_loop_clamp_select = {}
+    if uses_packed_i4_resource:
+        for forbidden, context in (
+            (F32_CLAMP_SELECT_SPLAT_INTRINSIC, "vector f32 splat"),
+            (F32_CLAMP_SELECT_COMPARE_INTRINSIC, "vector f32 compare"),
+            (F32_CLAMP_SELECT_SELECT_INTRINSIC, "vector f32 select"),
+            (DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC, "vector f32 store"),
+        ):
+            require_not_contains(
+                post_loop,
+                forbidden,
+                f"emitted RVV C/C++ packed-i4 scalar epilogue {context}",
+            )
+        if expectation.is_widening_product_reduce_dequant_clamp_f32:
+            scalar_epilogue = require_regex(
+                post_loop,
+                rf"float (?P<cast>v[0-9]+) = \(float\) {extracted};\s*"
+                rf"float (?P<scaled>v[0-9]+) = (?P=cast) \* "
+                rf"{signature.group('scale')};\s*"
+                rf"float (?P<lower_clamped>v[0-9]+) = "
+                rf"{re.escape(F32_CLAMP_SELECT_SCALAR_LOWER_INTRINSIC)}"
+                rf"\((?P=scaled), {lower_bound}\);\s*"
+                rf"(?://[^\n]*\n\s*)*"
+                rf"float (?P<clamped>v[0-9]+) = "
+                rf"{re.escape(F32_CLAMP_SELECT_SCALAR_UPPER_INTRINSIC)}"
+                rf"\((?P=lower_clamped), {upper_bound}\);\s*"
+                rf"(?://[^\n]*tcrv_emitc\.assign target=out\[0\][^\n]*\n\s*)"
+                rf"{signature.group('out')}\[0\] = (?P=clamped);",
+                "emitted RVV C/C++ packed-i4 scalar clamp epilogue",
+            )
+            post_loop_clamp_select = {
+                "lower_bound_abi_parameter": lower_bound,
+                "upper_bound_abi_parameter": upper_bound,
+                "lower_bound_role": F32_CLAMP_SELECT_LOWER_BOUND_ROLE,
+                "upper_bound_role": F32_CLAMP_SELECT_UPPER_BOUND_ROLE,
+                "bound_order": F32_CLAMP_SELECT_BOUND_ORDER,
+                "select_layout": "scalar-lower-fmaxf-then-upper-fminf",
+                "clamp_relation": (
+                    WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_CLAMP_RELATION
+                ),
+                "lower_scalar_intrinsic": F32_CLAMP_SELECT_SCALAR_LOWER_INTRINSIC,
+                "upper_scalar_intrinsic": F32_CLAMP_SELECT_SCALAR_UPPER_INTRINSIC,
+                "store_assignment_target": "out[0]",
+            }
+            post_loop_dequantization = {
+                "scalar_dequant_cast": scalar_epilogue.group("cast"),
+                "scalar_dequant_value": scalar_epilogue.group("scaled"),
+                "scalar_dequant_expression": "dot_acc_scalar * scale",
+                "scalar_store_value": scalar_epilogue.group("clamped"),
+                "store_assignment_target": "out[0]",
+                "forbids_vector_splat_intrinsic": F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+                "forbids_vector_store_intrinsic": (
+                    DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC
+                ),
+            }
+        else:
+            scalar_epilogue = require_regex(
+                post_loop,
+                rf"float (?P<cast>v[0-9]+) = \(float\) {extracted};\s*"
+                rf"float (?P<scaled>v[0-9]+) = (?P=cast) \* "
+                rf"{signature.group('scale')};\s*"
+                rf"(?://[^\n]*tcrv_emitc\.assign target=out\[0\][^\n]*\n\s*)"
+                rf"{signature.group('out')}\[0\] = (?P=scaled);",
+                "emitted RVV C/C++ packed-i4 scalar dequant epilogue",
+            )
+            post_loop_dequantization = {
+                "scalar_dequant_cast": scalar_epilogue.group("cast"),
+                "scalar_dequant_value": scalar_epilogue.group("scaled"),
+                "scalar_dequant_expression": "dot_acc_scalar * scale",
+                "scalar_store_value": scalar_epilogue.group("scaled"),
+                "store_assignment_target": "out[0]",
+                "forbids_vector_splat_intrinsic": F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+                "forbids_vector_store_intrinsic": (
+                    DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC
+                ),
+            }
+    elif expectation.is_widening_product_reduce_dequant_clamp_f32:
         require_ordered_tokens(
             post_loop,
             [
@@ -14567,27 +14712,6 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
             ],
             "emitted RVV C/C++ product-reduction dequant-clamp post-loop chain",
         )
-    else:
-        require_ordered_tokens(
-            post_loop,
-            [
-                F32_CLAMP_SELECT_SPLAT_INTRINSIC,
-                DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
-            ],
-            "emitted RVV C/C++ product-reduction dequant post-loop store chain",
-        )
-    lower_bound = (
-        signature.group("lower_bound")
-        if expectation.is_widening_product_reduce_dequant_clamp_f32
-        else ""
-    )
-    upper_bound = (
-        signature.group("upper_bound")
-        if expectation.is_widening_product_reduce_dequant_clamp_f32
-        else ""
-    )
-    post_loop_clamp_select = {}
-    if expectation.is_widening_product_reduce_dequant_clamp_f32:
         post_loop_clamp_select = {
             "lower_bound_abi_parameter": lower_bound,
             "upper_bound_abi_parameter": upper_bound,
@@ -14604,6 +14728,15 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
             "store_intrinsic": DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
             "scalar_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
         }
+    else:
+        require_ordered_tokens(
+            post_loop,
+            [
+                F32_CLAMP_SELECT_SPLAT_INTRINSIC,
+                DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
+            ],
+            "emitted RVV C/C++ product-reduction dequant post-loop store chain",
+        )
     return {
         "typed_compute_op": expectation.typed_compute_op,
         "lhs_abi_parameter": signature.group("lhs"),
@@ -14631,16 +14764,7 @@ def extract_widening_product_reduce_dequantize_emitc_boundary(
         "post_loop_scalar_extract": extracted,
         "loop_dequantization_forbidden": True,
         "post_loop_dequantization": {
-            "scalar_dequant_expression": "dot_acc_scalar * scale",
-            "splat_intrinsic": F32_CLAMP_SELECT_SPLAT_INTRINSIC,
-            "forbids_vector_convert_intrinsic": (
-                DEQUANTIZE_I32_TO_F32_CONVERT_INTRINSIC
-            ),
-            "forbids_vector_scale_intrinsic": (
-                DEQUANTIZE_I32_TO_F32_SCALE_INTRINSIC
-            ),
-            "store_intrinsic": DEQUANTIZE_I32_TO_F32_STORE_INTRINSIC,
-            "scalar_store_vl": WIDENING_PRODUCT_REDUCE_STORE_VL,
+            **post_loop_dequantization,
         },
         "post_loop_clamp_select": post_loop_clamp_select,
         "loop_start": loop_start,

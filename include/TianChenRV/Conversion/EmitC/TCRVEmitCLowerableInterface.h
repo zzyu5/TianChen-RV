@@ -121,6 +121,9 @@ public:
   llvm::ArrayRef<TCRVEmitCCallOpaqueStep> getPostLoopSteps() const {
     return postLoopSteps;
   }
+  llvm::ArrayRef<TCRVEmitCAssignStep> getPostLoopAssignments() const {
+    return postLoopAssignments;
+  }
 
   void addHeader(llvm::StringRef header);
   void addTypeMapping(llvm::StringRef sourceType, llvm::StringRef cType);
@@ -135,6 +138,7 @@ public:
   void addPreLoopAssignment(TCRVEmitCAssignStep step);
   void addForLoop(TCRVEmitCForLoop loop);
   void addPostLoopStep(TCRVEmitCCallOpaqueStep step);
+  void addPostLoopAssignment(TCRVEmitCAssignStep step);
 
   llvm::Error verify() const;
 
@@ -151,6 +155,7 @@ private:
   llvm::SmallVector<TCRVEmitCAssignStep, 2> preLoopAssignments;
   llvm::SmallVector<TCRVEmitCForLoop, 2> forLoops;
   llvm::SmallVector<TCRVEmitCCallOpaqueStep, 4> postLoopSteps;
+  llvm::SmallVector<TCRVEmitCAssignStep, 2> postLoopAssignments;
 };
 
 class TCRVEmitCLowerableInterface {
