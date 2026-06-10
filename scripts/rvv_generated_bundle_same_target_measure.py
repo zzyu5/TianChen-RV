@@ -3904,15 +3904,15 @@ def run_self_test() -> int:
     )
     regression_tie_back = check_packed_i4_contract_input(
         regression,
-        expected_alignment="matches-provider-maturity-outcome",
-        expected_denial_reason="same-target-measurement-no-win-or-regression",
-        expected_update_required=False,
-    )
-    check_packed_i4_contract_input(
-        mixed,
         expected_alignment="same-no-win-family-denies-performance-preference",
         expected_denial_reason="same-target-measurement-no-win-or-regression",
         expected_update_required=True,
+    )
+    check_packed_i4_contract_input(
+        mixed,
+        expected_alignment="matches-provider-maturity-outcome",
+        expected_denial_reason="same-target-measurement-no-win-or-regression",
+        expected_update_required=False,
     )
     check_packed_i4_contract_input(
         win,

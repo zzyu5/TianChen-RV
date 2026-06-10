@@ -3242,7 +3242,7 @@ static void populateRVVWideningDotValidationContract(
       isProductReductionDequantization ? 2 : 3;
   contract.expectedLoopBodyStepCount =
       usesPackedI4LowPrecisionProductReduction
-          ? 12
+          ? kRVVLowPrecisionResourcePackedI4CostLoopBodySteps
           : isProductReductionDequantization ? 5
           : isComputedMask                  ? 12
                                             : 7;

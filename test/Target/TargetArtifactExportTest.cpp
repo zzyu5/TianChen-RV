@@ -837,16 +837,16 @@ module {
       %scale = tcrv_rvv.runtime_abi_value {c_name = "scale", c_type = "float", ownership = "target-export-abi-owned", role = "dequant-scale-value"} : !tcrv_rvv.runtime_abi_value
       %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "float *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
       %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body %lhs, %rhs, %acc, %scale, %out, %n {accumulator_carry_boundary = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1", accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, dequant_relation = "signed-i32m1-to-f32m1-scale-f32", dequant_store_boundary = "store-dequantized-f32-vector-to-output-buffer", memory_form = "unit-stride-widening-product-reduce-dequantize-f32", op_kind = "widening_product_reduce_dequantize_f32", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, product_lmul = "mf2", product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", product_relation = "signed-i8mf4xi8mf4-to-i16mf2", product_sew = 16 : i64, result_layout = "store-standalone-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, scale_role = "dequant-scale-value", source_lmul = "mf4", source_sew = 8 : i64, tcrv_rvv.gearbox.consumer_scope = "gearbox-scope:dequant-store", tcrv_rvv.gearbox.producer_scope = "gearbox-scope:product-reduction", tcrv_rvv.low_precision_resource.accumulator_count = 1 : i64, tcrv_rvv.low_precision_resource.accumulator_dtype = "i32", tcrv_rvv.low_precision_resource.accumulator_emul = "m1", tcrv_rvv.low_precision_resource.accumulator_lmul = "m1", tcrv_rvv.low_precision_resource.accumulator_sew = 32 : i64, tcrv_rvv.low_precision_resource.candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]", tcrv_rvv.low_precision_resource.dispatch_preference = "not-performance-preferred", tcrv_rvv.low_precision_resource.effective_element_width = 4 : i64, tcrv_rvv.low_precision_resource.legality = "legal", tcrv_rvv.low_precision_resource.legality_scope = "typed-low-precision-product-reduction-dequant-resource-legality.v1", tcrv_rvv.low_precision_resource.mask_policy = "agnostic", tcrv_rvv.low_precision_resource.memory_form = "unit-stride-widening-product-reduce-dequantize-f32", tcrv_rvv.low_precision_resource.operand_form = "packed-i4-nibbles", tcrv_rvv.low_precision_resource.packing_layout = "two-signed-i4-elements-per-byte-low-high-nibbles", tcrv_rvv.low_precision_resource.peak_live_vector_groups = 6 : i64, tcrv_rvv.low_precision_resource.performance_action = "no-win-repair-required-before-performance-claim", tcrv_rvv.low_precision_resource.remediation_action = "no-win-repair-required-before-performance-claim", tcrv_rvv.low_precision_resource.remediation_blocker = "same-target-packed-i4-low-shifted-product-rescale-no-win-or-regression", tcrv_rvv.low_precision_resource.remediation_plan = "repair-packed-i4-low-shifted-product-rescale-single-reduce-before-performance-claim.v1", tcrv_rvv.low_precision_resource.remediation_plan_contract = "rvv-low-precision-packed-i4-resource-remediation-plan.v1", tcrv_rvv.low_precision_resource.remediation_statement_strategy = "low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum", tcrv_rvv.low_precision_resource.remediation_vector_budget = "packed-i4-remediation-budget-6of32-vector-groups", tcrv_rvv.low_precision_resource.remediation_schedule_contract = "rvv-low-precision-packed-i4-resource-remediation-schedule.v1", tcrv_rvv.low_precision_resource.remediation_unpack_plan = "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1", tcrv_rvv.low_precision_resource.remediation_product_plan = "low-shifted-product-i16-rescale-plus-high-product-pair-sum.v1", tcrv_rvv.low_precision_resource.remediation_reduction_plan = "single-vwredsum-i16-pair-sum-with-i32-seed.v1", tcrv_rvv.low_precision_resource.remediation_vl_plan = "two-region-runtime-avl-product-reduce-then-dequant-store.v1", tcrv_rvv.low_precision_resource.schedule_decision_contract = "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1", tcrv_rvv.low_precision_resource.schedule_decision = "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1", tcrv_rvv.low_precision_resource.schedule_decision_reason = "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32", tcrv_rvv.low_precision_resource.remediation_decision = "accepted-no-win-regression-low-shifted-product-rescale-repair-required.v1", tcrv_rvv.low_precision_resource.remediation_diagnosis = "correctness-supported-no-win-regression", tcrv_rvv.low_precision_resource.remediation_dispatch_preference = "not-performance-preferred", tcrv_rvv.low_precision_resource.remediation_handoff_contract = "rvv-low-precision-packed-i4-measurement-policy-handoff.v1", tcrv_rvv.low_precision_resource.remediation_measurement_evidence = "gate4-packed-i4-low-shifted-product-rescale-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json", tcrv_rvv.low_precision_resource.performance_baseline = "scalar-c-reference/product-reduction-dequant-packed-i4-v1", tcrv_rvv.low_precision_resource.performance_best_speedup_range = "0.686981..0.705666", tcrv_rvv.low_precision_resource.performance_feedback = "same-target-packed-i4-no-win.v1", tcrv_rvv.low_precision_resource.performance_maturity = "executable-not-performance-mature", tcrv_rvv.low_precision_resource.performance_maturity_evidence = "same-target-packed-i4-low-shifted-product-rescale-regression-gate4.v1", tcrv_rvv.low_precision_resource.performance_maturity_outcome = "regression", tcrv_rvv.low_precision_resource.performance_selection_eligible = "false", tcrv_rvv.low_precision_resource.product_dtype = "i16", tcrv_rvv.low_precision_resource.product_emul = "mf2", tcrv_rvv.low_precision_resource.product_lmul = "mf2", tcrv_rvv.low_precision_resource.product_sew = 16 : i64, tcrv_rvv.low_precision_resource.reduction_layout = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1", tcrv_rvv.low_precision_resource.rejection_reason = "none", tcrv_rvv.low_precision_resource.result_dtype = "f32", tcrv_rvv.low_precision_resource.result_lmul = "m1", tcrv_rvv.low_precision_resource.result_sew = 32 : i64, tcrv_rvv.low_precision_resource.runtime_abi_order = "lhs,rhs,acc,scale,out,n", tcrv_rvv.low_precision_resource.runtime_avl_source = "runtime_abi:n", tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]", tcrv_rvv.low_precision_resource.selection_reason = "static-bounded-product-reduction-dequant-signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1-u1-unpack-required-runtime-avl", tcrv_rvv.low_precision_resource.source_dtype = "i8", tcrv_rvv.low_precision_resource.source_lmul = "mf4", tcrv_rvv.low_precision_resource.source_sew = 8 : i64, tcrv_rvv.low_precision_resource.source_signedness = "signed", tcrv_rvv.low_precision_resource.storage_element_width = 8 : i64, tcrv_rvv.low_precision_resource.tail_policy = "agnostic", tcrv_rvv.low_precision_resource.unpack_intent = "sign-extend-i4-nibbles-before-widening-product", tcrv_rvv.low_precision_resource.unroll_factor = 1 : i64, tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64, tcrv_rvv.low_precision_resource.vsetvl_region_count = 2 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
+      tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body %lhs, %rhs, %acc, %scale, %out, %n {accumulator_carry_boundary = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1", accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, dequant_relation = "signed-i32m1-to-f32m1-scale-f32", dequant_store_boundary = "store-dequantized-f32-vector-to-output-buffer", memory_form = "unit-stride-widening-product-reduce-dequantize-f32", op_kind = "widening_product_reduce_dequantize_f32", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, product_lmul = "mf2", product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", product_relation = "signed-i8mf4xi8mf4-to-i16mf2", product_sew = 16 : i64, result_layout = "store-standalone-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, scale_role = "dequant-scale-value", source_lmul = "mf4", source_sew = 8 : i64, tcrv_rvv.gearbox.consumer_scope = "gearbox-scope:dequant-store", tcrv_rvv.gearbox.producer_scope = "gearbox-scope:product-reduction", tcrv_rvv.low_precision_resource.accumulator_count = 1 : i64, tcrv_rvv.low_precision_resource.accumulator_dtype = "i32", tcrv_rvv.low_precision_resource.accumulator_emul = "m1", tcrv_rvv.low_precision_resource.accumulator_lmul = "m1", tcrv_rvv.low_precision_resource.accumulator_sew = 32 : i64, tcrv_rvv.low_precision_resource.candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]", tcrv_rvv.low_precision_resource.dispatch_preference = "not-performance-preferred", tcrv_rvv.low_precision_resource.effective_element_width = 4 : i64, tcrv_rvv.low_precision_resource.legality = "legal", tcrv_rvv.low_precision_resource.legality_scope = "typed-low-precision-product-reduction-dequant-resource-legality.v1", tcrv_rvv.low_precision_resource.mask_policy = "agnostic", tcrv_rvv.low_precision_resource.memory_form = "unit-stride-widening-product-reduce-dequantize-f32", tcrv_rvv.low_precision_resource.operand_form = "packed-i4-nibbles", tcrv_rvv.low_precision_resource.packing_layout = "two-signed-i4-elements-per-byte-low-high-nibbles", tcrv_rvv.low_precision_resource.peak_live_vector_groups = 5 : i64, tcrv_rvv.low_precision_resource.performance_action = "no-win-repair-required-before-performance-claim", tcrv_rvv.low_precision_resource.remediation_action = "no-win-repair-required-before-performance-claim", tcrv_rvv.low_precision_resource.remediation_blocker = "same-target-packed-i4-high-nibble-vwmacc-no-win-or-regression", tcrv_rvv.low_precision_resource.remediation_plan = "repair-packed-i4-high-nibble-vwmacc-single-reduce-before-performance-claim.v1", tcrv_rvv.low_precision_resource.remediation_plan_contract = "rvv-low-precision-packed-i4-resource-remediation-plan.v1", tcrv_rvv.low_precision_resource.remediation_statement_strategy = "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum", tcrv_rvv.low_precision_resource.remediation_vector_budget = "packed-i4-remediation-budget-5of32-vector-groups", tcrv_rvv.low_precision_resource.remediation_schedule_contract = "rvv-low-precision-packed-i4-resource-remediation-schedule.v1", tcrv_rvv.low_precision_resource.remediation_unpack_plan = "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1", tcrv_rvv.low_precision_resource.remediation_product_plan = "low-shifted-product-i16-rescale-plus-high-nibble-vwmacc.v1", tcrv_rvv.low_precision_resource.remediation_reduction_plan = "single-vwredsum-i16-high-vwmacc-pair-sum-with-i32-seed.v1", tcrv_rvv.low_precision_resource.remediation_vl_plan = "two-region-runtime-avl-product-reduce-then-dequant-store.v1", tcrv_rvv.low_precision_resource.schedule_decision_contract = "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1", tcrv_rvv.low_precision_resource.schedule_decision = "select-packed-i4-high-nibble-vwmacc-single-reduce-u1-two-region-budget-5of32.v1", tcrv_rvv.low_precision_resource.schedule_decision_reason = "accepted-remediation-schedule-high-nibble-vwmacc-single-vwredsum-budget-5of32", tcrv_rvv.low_precision_resource.remediation_decision = "accepted-no-win-regression-high-nibble-vwmacc-repair-required.v1", tcrv_rvv.low_precision_resource.remediation_diagnosis = "correctness-supported-no-win-regression", tcrv_rvv.low_precision_resource.remediation_dispatch_preference = "not-performance-preferred", tcrv_rvv.low_precision_resource.remediation_handoff_contract = "rvv-low-precision-packed-i4-measurement-policy-handoff.v1", tcrv_rvv.low_precision_resource.remediation_measurement_evidence = "gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json", tcrv_rvv.low_precision_resource.performance_baseline = "scalar-c-reference/product-reduction-dequant-packed-i4-v1", tcrv_rvv.low_precision_resource.performance_best_speedup_range = "0.896848..1.020953", tcrv_rvv.low_precision_resource.performance_feedback = "same-target-packed-i4-no-win.v1", tcrv_rvv.low_precision_resource.performance_maturity = "executable-not-performance-mature", tcrv_rvv.low_precision_resource.performance_maturity_evidence = "same-target-packed-i4-high-nibble-vwmacc-no-win-gate4.v1", tcrv_rvv.low_precision_resource.performance_maturity_outcome = "no-win", tcrv_rvv.low_precision_resource.performance_selection_eligible = "false", tcrv_rvv.low_precision_resource.product_dtype = "i16", tcrv_rvv.low_precision_resource.product_emul = "mf2", tcrv_rvv.low_precision_resource.product_lmul = "mf2", tcrv_rvv.low_precision_resource.product_sew = 16 : i64, tcrv_rvv.low_precision_resource.reduction_layout = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1", tcrv_rvv.low_precision_resource.rejection_reason = "none", tcrv_rvv.low_precision_resource.result_dtype = "f32", tcrv_rvv.low_precision_resource.result_lmul = "m1", tcrv_rvv.low_precision_resource.result_sew = 32 : i64, tcrv_rvv.low_precision_resource.runtime_abi_order = "lhs,rhs,acc,scale,out,n", tcrv_rvv.low_precision_resource.runtime_avl_source = "runtime_abi:n", tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]", tcrv_rvv.low_precision_resource.selection_reason = "static-bounded-product-reduction-dequant-signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1-u1-unpack-required-runtime-avl", tcrv_rvv.low_precision_resource.source_dtype = "i8", tcrv_rvv.low_precision_resource.source_lmul = "mf4", tcrv_rvv.low_precision_resource.source_sew = 8 : i64, tcrv_rvv.low_precision_resource.source_signedness = "signed", tcrv_rvv.low_precision_resource.storage_element_width = 8 : i64, tcrv_rvv.low_precision_resource.tail_policy = "agnostic", tcrv_rvv.low_precision_resource.unpack_intent = "sign-extend-i4-nibbles-before-widening-product", tcrv_rvv.low_precision_resource.unroll_factor = 1 : i64, tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64, tcrv_rvv.low_precision_resource.vsetvl_region_count = 2 : i64} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, index) -> ()
     }
   }
 }
 )mlir";
     os.flush();
     constexpr llvm::StringLiteral primitiveResourceInsertionPoint =
-        "tcrv_rvv.low_precision_resource.peak_live_vector_groups = 6 : i64";
+        "tcrv_rvv.low_precision_resource.peak_live_vector_groups = 5 : i64";
     constexpr llvm::StringLiteral primitiveResourceFacts = R"mlir(, tcrv_rvv.low_precision_resource.primitive_accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", tcrv_rvv.low_precision_resource.primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1", tcrv_rvv.low_precision_resource.primitive_chain_kind = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1", tcrv_rvv.low_precision_resource.primitive_contract = "rvv-low-precision-widening-primitive-facts.v1", tcrv_rvv.low_precision_resource.primitive_kind = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant.v1", tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1", tcrv_rvv.low_precision_resource.primitive_reduction_store_vl = "1", tcrv_rvv.low_precision_resource.primitive_result_layout = "store-standalone-reduction-lane0-to-output-scalar", tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic = "__riscv_vmv_v_x_i32m1", tcrv_rvv.low_precision_resource.primitive_source_extension = "sign-extend-i8-to-i16-product", tcrv_rvv.low_precision_resource.primitive_source_load = "unit-stride-byte-load", tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic = "__riscv_vwmul_vv_i16mf2", tcrv_rvv.low_precision_resource.primitive_widening_product_relation = "signed-i8mf4xi8mf4-to-i16mf2", tcrv_rvv.low_precision_resource.widening_product_extension_policy = "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2", tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles = "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4")mlir";
-    constexpr llvm::StringLiteral resourceCostFacts = R"mlir(, tcrv_rvv.low_precision_resource.resource_cost_contract = "rvv-low-precision-packed-i4-resource-cost-contract.v1", tcrv_rvv.low_precision_resource.resource_cost_model = "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1", tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps = 12 : i64, tcrv_rvv.low_precision_resource.resource_cost_blocker = "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win", tcrv_rvv.low_precision_resource.performance_admission_decision = "deny-performance-preferred-with-resource-cost-no-win-blocker")mlir";
+    constexpr llvm::StringLiteral resourceCostFacts = R"mlir(, tcrv_rvv.low_precision_resource.resource_cost_contract = "rvv-low-precision-packed-i4-resource-cost-contract.v1", tcrv_rvv.low_precision_resource.resource_cost_model = "high-nibble-vwmacc-loop-11-peak-live-5of32-two-region-vsetvl.v1", tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps = 11 : i64, tcrv_rvv.low_precision_resource.resource_cost_blocker = "packed-i4-high-nibble-vwmacc-loop-11-budget-5of32-no-win", tcrv_rvv.low_precision_resource.performance_admission_decision = "deny-performance-preferred-with-resource-cost-no-win-blocker")mlir";
     std::size_t position = source.find(primitiveResourceInsertionPoint.str());
     if (position == std::string::npos)
       return {};
@@ -13242,10 +13242,13 @@ bool expectRVVTargetArtifactExporterShape(
               .providerSupportedMirror !=
           packedI4ProductDequantContract->providerSupportedMirror ||
       packedI4ProductDequantContract->expectedPreLoopStepCount != 2 ||
-      packedI4ProductDequantContract->expectedLoopBodyStepCount != 12 ||
+      packedI4ProductDequantContract->expectedLoopBodyStepCount !=
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4CostLoopBodySteps ||
       packedI4ProductDequantRoute.getForLoops().size() != 1 ||
       packedI4ProductDequantRoute.getForLoops().front().bodySteps.size() !=
-          12 ||
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4CostLoopBodySteps ||
       packedI4ProductDequantRoute.getForLoops()
               .front()
               .bodyAssignments.size() != 1) {
@@ -13354,7 +13357,7 @@ bool expectRVVTargetArtifactExporterShape(
           "correctness-supported-no-win-regression" ||
       !packedI4Policy->handoff.correctnessSupported ||
       !packedI4Policy->handoff.noWin ||
-      !packedI4Policy->handoff.regression ||
+      packedI4Policy->handoff.regression ||
       !packedI4Policy->handoff.acceptedForDispatchPolicy) {
     llvm::errs() << "packed-i4 target artifact policy did not preserve "
                     "correctness through structured handoff while denying "
@@ -13763,7 +13766,7 @@ bool expectRVVTargetArtifactExporterShape(
           "packed-i4 target artifact Gate 4 policy rejects stale speedup "
           "evidence",
           {"dispatch/performance policy", "measurement best-speedup range",
-           "0.688202..0.705133", "0.689938..0.705891"}))
+           "0.896848..1.020953", "0.689938..0.705891"}))
     return false;
 
   RVVTargetArtifactCandidateFixture stridedWideningDotFixture(
@@ -14320,7 +14323,7 @@ bool expectRVVTargetArtifactExporterShape(
           "packed-i4 product-reduction registry rejects stale remediation "
           "statement strategy",
           {"packed-i4 remediation statement strategy",
-           "low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum",
+           "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum",
            "metadata-only-packed-i4-unpack-plan"}))
     return false;
 
@@ -14335,7 +14338,7 @@ bool expectRVVTargetArtifactExporterShape(
           "packed-i4 product-reduction registry rejects stale remediation "
           "product plan",
           {"packed-i4 remediation product plan",
-           "low-shifted-product-i16-rescale-plus-high-product-pair-sum.v1",
+           "low-shifted-product-i16-rescale-plus-high-nibble-vwmacc.v1",
            "metadata-only-packed-i4-product-plan"}))
     return false;
 
@@ -14349,8 +14352,8 @@ bool expectRVVTargetArtifactExporterShape(
           "packed-i4 product-reduction registry rejects stale resource-aware "
           "schedule decision proof",
           {"realization admission schedule decision",
-           "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-"
-           "two-region-budget-6of32.v1",
+           "select-packed-i4-high-nibble-vwmacc-single-reduce-u1-two-region-"
+           "budget-5of32.v1",
            "metadata-only-packed-i4-schedule-decision"}))
     return false;
 
@@ -14418,8 +14421,8 @@ bool expectRVVTargetArtifactExporterShape(
           "packed-i4 product-reduction registry rejects stale realization "
           "decision metadata",
           {"realization decision",
-           "consume-low-precision-packed-i4-low-shifted-product-rescale-"
-           "single-reduce-budget-6of32.v1",
+           "consume-low-precision-packed-i4-high-nibble-vwmacc-single-reduce-"
+           "budget-5of32.v1",
            "artifact-derived-realization-decision"}))
     return false;
 
@@ -14477,7 +14480,7 @@ bool expectRVVTargetArtifactExporterShape(
           "packed-i4 product-reduction registry rejects stale remediation "
           "decision metadata",
           {"remediation decision",
-           "accepted-no-win-regression-low-shifted-product-rescale-repair-required.v1",
+           "accepted-no-win-regression-high-nibble-vwmacc-repair-required.v1",
            "artifact-derived-remediation"}))
     return false;
 
@@ -14497,7 +14500,7 @@ bool expectRVVTargetArtifactExporterShape(
           "packed-i4 product-reduction registry rejects stale remediation "
           "statement strategy metadata",
           {"remediation statement strategy",
-           "low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum",
+           "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum",
            "metadata-only-packed-i4-unpack-plan"}))
     return false;
 
@@ -14517,7 +14520,7 @@ bool expectRVVTargetArtifactExporterShape(
           "packed-i4 product-reduction registry rejects stale remediation "
           "product plan metadata",
           {"remediation product plan",
-           "low-shifted-product-i16-rescale-plus-high-product-pair-sum.v1",
+           "low-shifted-product-i16-rescale-plus-high-nibble-vwmacc.v1",
            "metadata-only-packed-i4-product-plan"}))
     return false;
 
@@ -14537,8 +14540,8 @@ bool expectRVVTargetArtifactExporterShape(
           "packed-i4 product-reduction registry rejects stale resource-aware "
           "schedule decision metadata",
           {"schedule decision",
-           "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-"
-           "two-region-budget-6of32.v1",
+           "select-packed-i4-high-nibble-vwmacc-single-reduce-u1-two-region-"
+           "budget-5of32.v1",
            "metadata-only-packed-i4-schedule-decision"}))
     return false;
 
@@ -14613,7 +14616,7 @@ bool expectRVVTargetArtifactExporterShape(
           packedI4ProductDequantRoute, packedI4ProductDequantDescription,
           "packed-i4 product-reduction registry rejects stale performance "
           "maturity outcome metadata",
-          {"performance maturity outcome", "regression", "win"}))
+          {"performance maturity outcome", "no-win", "win"}))
     return false;
 
   TargetArtifactCandidate stalePackedI4DispatchPreferenceMirror =
@@ -14732,7 +14735,7 @@ bool expectRVVTargetArtifactExporterShape(
       stalePackedI4LowProductRescaleOperand =
           cloneRVVEmitCLowerableRouteWithLoopOperand(
               packedI4ProductDequantRoute, /*loopIndex=*/0,
-              /*stepIndex=*/6, /*operandIndex=*/0, "product_vec_i4_high");
+              /*stepIndex=*/6, /*operandIndex=*/0, "metadata_low_product");
   if (!expectWideningDotRouteFailure(
           packedI4ProductDequantFixture.candidate,
           stalePackedI4LowProductRescaleOperand,
@@ -14740,7 +14743,7 @@ bool expectRVVTargetArtifactExporterShape(
           "packed-i4 product-reduction registry rejects stale low-product "
           "rescale operand",
           {"packed-i4 low-product arithmetic rescale operand[0]",
-           "product_vec_i4_low_scaled", "product_vec_i4_high"}))
+           "product_vec_i4_low_scaled", "metadata_low_product"}))
     return false;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
@@ -14753,45 +14756,46 @@ bool expectRVVTargetArtifactExporterShape(
           packedI4ProductDequantFixture.candidate,
           stalePackedI4HighProductOperand, packedI4ProductDequantDescription,
           "packed-i4 product-reduction registry rejects stale high-nibble "
-          "product operand",
-          {"packed-i4 high-nibble widening product operand[1]",
-           "rhs_high_i4_vec", "rhs_low_i4_shifted_vec"}))
+          "vwmacc operand",
+          {"packed-i4 high-nibble widening product accumulate operand[1]",
+           "lhs_high_i4_vec", "rhs_low_i4_shifted_vec"}))
     return false;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
-      stalePackedI4ProductPairSumOperand =
+      stalePackedI4HighProductAccumulateOperand =
           cloneRVVEmitCLowerableRouteWithLoopOperand(
               packedI4ProductDequantRoute, /*loopIndex=*/0,
-              /*stepIndex=*/10, /*operandIndex=*/1, "product_vec");
+              /*stepIndex=*/9, /*operandIndex=*/0,
+              "product_vec_i4_low_scaled");
   if (!expectWideningDotRouteFailure(
           packedI4ProductDequantFixture.candidate,
-          stalePackedI4ProductPairSumOperand,
+          stalePackedI4HighProductAccumulateOperand,
           packedI4ProductDequantDescription,
-          "packed-i4 product-reduction registry rejects stale low/high "
-          "product-pair sum operand",
-          {"packed-i4 low/high product-pair sum operand[1]",
-           "product_vec_i4_high", "product_vec"}))
+          "packed-i4 product-reduction registry rejects stale high-nibble "
+          "vwmacc accumulator operand",
+          {"packed-i4 high-nibble widening product accumulate operand[0]",
+           "product_vec", "product_vec_i4_low_scaled"}))
     return false;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
       stalePackedI4SingleReductionInput =
           cloneRVVEmitCLowerableRouteWithLoopOperand(
               packedI4ProductDequantRoute, /*loopIndex=*/0,
-              /*stepIndex=*/11, /*operandIndex=*/0, "product_vec_i4_high");
+              /*stepIndex=*/10, /*operandIndex=*/0, "product_vec");
   if (!expectWideningDotRouteFailure(
           packedI4ProductDequantFixture.candidate,
           stalePackedI4SingleReductionInput, packedI4ProductDequantDescription,
           "packed-i4 product-reduction registry rejects stale single "
           "reduction input",
           {"widening dot reduction operand[0]", "product_vec_i4_pair_sum",
-           "product_vec_i4_high"}))
+           "product_vec"}))
     return false;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute
       stalePackedI4SingleReductionResult =
           cloneRVVEmitCLowerableRouteWithLoopResult(
               packedI4ProductDequantRoute, /*loopIndex=*/0,
-              /*stepIndex=*/11, "metadata_reduced_i32_vec");
+              /*stepIndex=*/10, "metadata_reduced_i32_vec");
   if (!expectWideningDotRouteFailure(
           packedI4ProductDequantFixture.candidate,
           stalePackedI4SingleReductionResult,

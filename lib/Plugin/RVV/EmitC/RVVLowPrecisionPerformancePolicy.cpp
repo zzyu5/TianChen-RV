@@ -21,13 +21,13 @@ constexpr llvm::StringLiteral kPackedI4MeasurementInputAuthority(
     "measurement-evidence-input-only; provider-owned low-precision resource "
     "facts and target artifact mirrors remain the maturity contract");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementClassification(
-    "regression");
+    "no-win");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementOutcomeFamily("no-win");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementBestSpeedupRange(
-    "0.688202..0.705133");
+    "0.896848..1.020953");
 constexpr llvm::StringLiteral
     kPackedI4DequantClampGate4MeasurementBestSpeedupRange(
-        "0.677994..0.704931");
+        "0.867416..1.043671");
 constexpr llvm::StringLiteral kPackedI4Gate4TargetProfile("ssh rvv");
 constexpr llvm::StringLiteral kPackedI4PerformancePreferenceDenialReason(
     "same-target-measurement-no-win-or-regression");
@@ -2141,8 +2141,9 @@ llvm::Error verifyPackedI4PolicyOutcomeConsistency(
       kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
-        " requires provider maturity outcome 'regression' for the accepted "
-        "Gate 4 no-win measurement");
+        " requires provider maturity outcome '" +
+        kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome +
+        "' for the accepted Gate 4 no-win measurement");
   if (llvm::StringRef(selection.performanceSelectionEligible) !=
       kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible)
     return makeRVVLowPrecisionPerformancePolicyError(

@@ -594,6 +594,81 @@ Completed Gate 4 resource-cost decision-consumption slice:
 - Gate 4 remains open because this is a policy/provider decision-consumption
   closure, not a new schedule repair or measured runtime win.
 
+Current Gate 4 high-nibble vwmacc schedule/resource repair slice:
+
+- This round changes production RVV plugin statement planning for the
+  provider-owned packed-i4 product-reduction-dequant/dequant-clamp path. The
+  concrete next bottleneck beyond the current 12-step
+  low-shifted-product-rescale path is the adjacent high-nibble sequence: after
+  the low product is rescaled to i16, the current loop still computes the high
+  signed-i4 widening product as a separate `vwmul` and then combines low/high
+  products with a separate i16 add before the single `vwredsum`.
+- The intended repair keeps the typed packed-i4 semantics, low-product rescale,
+  two-region VL structure, and single `vwredsum`, but changes the provider-owned
+  schedule to accumulate the high-nibble widening product directly into the
+  rescaled low product using signed widening multiply-accumulate. This removes
+  the separate high-product temporary and pair-add step from the selected loop
+  body while preserving:
+  `rescale((lhs_low << 4) * (rhs_low << 4)) +
+  sign_extend(lhs_high) * sign_extend(rhs_high)`.
+- Because this changes generated RVV statement/runtime behavior, the slice must
+  run fresh same-target timing for the affected packed-i4 dequant and
+  dequant-clamp candidates after focused compiler tests pass. A measured
+  no-win/regression keeps correctness fallback and records a sharper
+  provider-owned blocker; a measured win may become `performance-preferred` only
+  through matching provider-owned maturity, target mirror, measurement, resource
+  cost, admission, and policy facts.
+
+Acceptance:
+
+- [x] Packed-i4 provider/resource facts identify the high-nibble vwmacc
+  schedule, selected vector budget, loop-body step count, and remaining
+  no-win blocker without relying on route ids, artifact names, q8/q4 labels, or
+  Common EmitC inference.
+- [x] Statement planning emits the high-nibble vwmacc schedule from
+  provider-owned packed-i4 resource facts and target artifact validation rejects
+  stale separate high-product or product-pair-add schedule mirrors.
+- [x] Focused C++/FileCheck/script coverage proves the repaired statement
+  order, target artifact metadata, dry-run harness evidence, and stale policy
+  rejection boundaries.
+- [x] Fresh `ssh rvv` same-target timing is collected for dequant and
+  dequant-clamp packed-i4 paths, or a precise hardware/build blocker is
+  recorded before policy update.
+- [x] Performance policy remains `correctness-fallback` on fresh no-win/
+  regression evidence, or selects `performance-preferred` only if measured-win
+  evidence and provider-owned maturity/resource-cost/admission facts agree.
+- [x] Bounded scans show no new legacy RVV route authority, q8/q4 route naming,
+  source-front-door positive route, descriptor-driven compute, or Common EmitC
+  semantic inference.
+
+Completed in this slice:
+
+- Replaced the packed-i4 high-product `vwmul` plus i16 pair-add with
+  provider-owned high-nibble `__riscv_vwmacc_vv_i16mf2` accumulation into the
+  rescaled low product. The generated packed-i4 product loop is now
+  `high-nibble-vwmacc-loop-11-peak-live-5of32-two-region-vsetvl.v1`, with
+  loop-body steps reduced from 12 to 11 and peak live vector groups reduced
+  from 6/32 to 5/32.
+- Route validation, header/index metadata, generated-bundle checks,
+  evidence-root policy ingestion, and selected-dispatch policy handoff now
+  consume the high-nibble vwmacc schedule/resource facts. Stale separate
+  high-product or product-pair-add schedule evidence fails closed.
+- Fresh `ssh rvv` same-target timing was collected after the runtime schedule
+  change. Dequant produced classification `no-win`,
+  best speedup range `0.896848..1.020953`, 12 summary records, 60 timing
+  records, and 12 correctness records. Dequant-clamp produced classification
+  `no-win`, best speedup range `0.867416..1.043671`, 24 summary records, 120
+  timing records, and 24 correctness records.
+- The policy outcome remains `correctness-fallback` /
+  `not-performance-preferred`; `performance-preferred` remains blocked by
+  `deny-performance-preferred-with-resource-cost-no-win-blocker` until a later
+  provider-owned schedule/resource repair produces measured-win evidence and
+  updates maturity, target mirror, resource-cost admission, and policy facts.
+- Gate 4 remains open. The next continuation point is another provider-owned
+  packed-i4 schedule/resource bottleneck beyond the high-nibble vwmacc
+  11-step/5-of-32 contract, or an explicitly consumed production blocker if no
+  safe local repair is available.
+
 ## Non-Goals
 
 - No generated-bundle-only or `ssh rvv`-only closeout unless it validates
@@ -809,6 +884,38 @@ Current Gate 4 resource-cost decision-consumption verification:
 - No fresh `ssh rvv` timing was rerun because this slice changes policy
   admission consumption only, not generated RVV runtime scheduling.
 
+Current Gate 4 high-nibble vwmacc schedule/resource verification:
+
+- `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test` passed. The target artifact test
+  target still emits its existing switch-coverage warnings.
+- `build/bin/tianchenrv-rvv-extension-plugin-test` passed after self-repairing
+  no-win handoff, evidence-root SHA, and route loop-body-count assertions.
+- `build/bin/tianchenrv-target-artifact-export-test` passed after synchronizing
+  the packed-i4 high-nibble vwmacc loop-body count and no-win handoff checks.
+- `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test` passed.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+  passed after synchronizing self-test alignment expectations with provider
+  no-win maturity.
+- Focused lit passed from `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter
+  'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-
+  packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-
+  dequant-clamp-f32-packed-i4|rvv-generated-bundle-same-target-measure-gate4-
+  dry-run|rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-
+  dequantize-f32-packed-i4-dry-run|rvv-generated-bundle-abi-e2e-pre-realized-
+  widening-product-reduce-dequant-clamp-f32-packed-i4-dry-run'`.
+- Fresh `ssh rvv` same-target timing was rerun because the generated packed-i4
+  runtime schedule changed. The committed evidence roots are
+  `artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh` and
+  `artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh`. Dequant
+  reports classification `no-win`, best speedup range
+  `0.896848..1.020953`, 12 summaries, 60 measurements, and 12 correctness
+  records. Dequant-clamp reports classification `no-win`, best speedup range
+  `0.867416..1.043671`, 24 summaries, 120 measurements, and 24 correctness
+  records.
+
 ## Spec Update Decision
 
 - Updated `.trellis/spec/extension-plugins/rvv-plugin.md` to record the
@@ -838,13 +945,20 @@ Current Gate 4 resource-cost decision-consumption verification:
   `admit-performance-preferred-with-resource-cost-measured-win` decision and
   fails closed if measurement or metadata attempts to promote performance
   without that provider update.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the packed-i4
+  high-nibble vwmacc schedule/resource contract: the selected loop uses
+  `__riscv_vwmacc_vv_i16mf2` to accumulate high-nibble products into the
+  rescaled low product, lowers the provider cost model to 11 loop-body steps
+  and 5-of-32 live vector groups, and keeps no-win policy denial on fresh
+  source-backed same-target evidence.
 
 ## Continuation Point
 
 Keep this macro task active. Gates 1-3 are complete. The next unfinished
 milestone is Gate 4: choose the next provider-owned packed-i4 schedule/resource
-bottleneck beyond the current 12-step low-shifted-product-rescale path, or
+bottleneck beyond the current high-nibble vwmacc
+`high-nibble-vwmacc-loop-11-peak-live-5of32-two-region-vsetvl.v1` contract, or
 record a precise production-consumed blocker if no measured-win repair is
 available. Do not claim performance-preferred dispatch until a source-backed
 same-target measured win agrees with provider maturity, target mirrors,
-measurement roots, and policy facts.
+measurement roots, resource-cost admission, and policy facts.

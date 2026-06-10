@@ -65,3 +65,11 @@
 {"check": "python3 scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root /tmp/tcrv-gate4-packed-i4-dry-run --run-id codex-gate4-resource-cost --overwrite --op-kind widening_product_reduce_dequantize_f32 --op-kind widening_product_reduce_dequant_clamp_f32", "result": "passed: dry_run_success"}
 {"check": "git diff --check", "result": "passed"}
 {"check": "bounded added-diff old-authority scan", "result": "passed: only PRD non-goal wording matched; no new positive RVVI32M1, rvv-i32m1, tcrv_rvv.i32_, !tcrv_rvv.i32m, __riscv_*_i32m1 route authority, source-front-door, or descriptor marker"}
+{"check": "cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test", "result": "passed after high-nibble vwmacc schedule/resource repair; target artifact test target still emits existing switch-coverage warnings"}
+{"check": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed after no-win handoff, evidence-root SHA, and route loop-body-count self-repair"}
+{"check": "build/bin/tianchenrv-target-artifact-export-test", "result": "passed after synchronizing packed-i4 loop-body count and no-win handoff checks"}
+{"check": "python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test", "result": "passed"}
+{"check": "python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test", "result": "passed after synchronizing no-win provider maturity alignment expectations"}
+{"check": "fresh ssh rvv measurement: gate4-packed-i4-high-nibble-vwmacc-dequant-ssh", "result": "passed correctness; classification=no-win best_speedup_range=0.896848..1.020953 summaries=12 measurements=60 correctness=12"}
+{"check": "fresh ssh rvv measurement: gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh", "result": "passed correctness; classification=no-win best_speedup_range=0.867416..1.043671 summaries=24 measurements=120 correctness=24"}
+{"check": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter packed-i4 high-nibble vwmacc Gate 4 target and script dry-run tests", "result": "passed: 5 focused tests from build/test"}

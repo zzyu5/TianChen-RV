@@ -1326,3 +1326,71 @@ measured-win `performance-preferred` policy requires a provider-owned
 resource-cost admission update, while current no-win/regression policy must
 retain the deny admission and fail closed on metadata-only or measurement-only
 promotion.
+
+## Session 588: Gate 4 high-nibble vwmacc schedule/resource repair
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV low-precision contraction primitive surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active Gate 4 macro task with a production schedule/resource
+repair. The packed-i4 product-reduction dequant/dequant-clamp route now
+accumulates the high-nibble widening product into the rescaled low product with
+`__riscv_vwmacc_vv_i16mf2`, replacing the separate high `vwmul` plus i16
+pair-add. The packed-i4 loop contract is now 11 loop-body steps and 5-of-32
+peak live vector groups.
+
+### Main Changes
+
+- Updated provider schedule/resource constants to
+  `high-nibble-vwmacc-loop-11-peak-live-5of32-two-region-vsetvl.v1`.
+- Reworked statement planning to emit low-shifted product rescale followed by
+  high-nibble `vwmacc` and a single `vwredsum`.
+- Made route-family validation, target artifact validation, generated
+  header/index mirrors, ABI e2e checks, and same-target measurement records
+  consume the new schedule/resource facts.
+- Updated packed-i4 policy facts from regression to no-win maturity for this
+  high-nibble vwmacc evidence, while keeping performance preference denied by
+  the resource-cost no-win admission blocker.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py
+  --self-test`
+- [OK] focused lit from `build/test` for the two packed-i4 target fixtures,
+  ABI e2e dry-run tests, and same-target dry-run test
+- [OK] fresh `ssh rvv` measurement:
+  dequant `0.896848..1.020953`, no-win, 12 summaries / 60 measurements /
+  12 correctness records
+- [OK] fresh `ssh rvv` measurement:
+  dequant-clamp `0.867416..1.043671`, no-win, 24 summaries /
+  120 measurements / 24 correctness records
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-3 remain complete. Gate 4 remains open. This slice
+changed generated RVV runtime scheduling and collected fresh same-target
+evidence. The result is still no-win, so route support and correctness
+execution remain allowed through correctness fallback, and
+`performance-preferred` remains denied.
+
+### Continuation
+
+Next owner should choose the next provider-owned packed-i4 schedule/resource
+bottleneck beyond the high-nibble vwmacc 11-step/5-of-32 contract, or record a
+production-consumed blocker if no measured-win repair is available.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` records the
+high-nibble vwmacc schedule/resource contract, 11-step/5-of-32 cost model,
+fresh no-win timing ranges, and the continued correctness-fallback policy
+boundary.

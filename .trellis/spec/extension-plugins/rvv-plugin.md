@@ -6158,26 +6158,29 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
 - The bounded packed-i4 statement boundary is RVV-provider-owned. For a selected
   signed packed-i4 product-reduction candidate, direct-contraction statement
   planning loads packed i8 vectors for both operands, sign-extends the low
-  nibble by shift-left 4 followed by arithmetic shift-right 4, sign-extends the
-  high nibble by arithmetic shift-right 4, computes separate low- and
-  high-nibble signed widening products, combines those i16 product vectors with
-  `__riscv_vadd_vv_i16mf2`, and performs exactly one
-  `__riscv_vwredsum_vs_i16mf2_i32m1` from the pair-sum vector into the i32
-  accumulator. The current provider leaves are `__riscv_vsll_vx_i8mf4`,
-  `__riscv_vsra_vx_i8mf4`, `__riscv_vwmul_vv_i16mf2`,
-  `__riscv_vadd_vv_i16mf2`, and `__riscv_vwredsum_vs_i16mf2_i32m1`; their use
-  is derived from the selected packed-i4 resource facts, not from route ids or
-  artifacts. This boundary proves statement-plan and
-  `TCRVEmitCLowerableRoute` eligibility only.
+  nibble by shift-left 4, computes the shifted low widening product, arithmetic
+  rescales that i16 product right by 8, sign-extends the high nibble by
+  arithmetic shift-right 4, accumulates the high-nibble signed widening product
+  into the rescaled low product with `__riscv_vwmacc_vv_i16mf2`, and performs
+  exactly one `__riscv_vwredsum_vs_i16mf2_i32m1` from that pair-sum vector into
+  the i32 accumulator. The current provider leaves are
+  `__riscv_vsll_vx_i8mf4`, `__riscv_vsra_vx_i8mf4`,
+  `__riscv_vwmul_vv_i16mf2`, `__riscv_vsra_vx_i16mf2`,
+  `__riscv_vwmacc_vv_i16mf2`, and
+  `__riscv_vwredsum_vs_i16mf2_i32m1`; their use is derived from the selected
+  packed-i4 resource facts, not from route ids or artifacts. This boundary
+  proves statement-plan and `TCRVEmitCLowerableRoute` eligibility only.
 - The target artifact/export boundary for the accepted signed packed-i4
   representative must consume the provider-owned resource facts and rebuilt
   route statement payload. It accepts artifact export only when the route
-  carries packed source loads, low/high nibble sign-extension statements for
-  both operands, low/high widening product statements, the product-pair sum
-  statement, one widening reduction from that pair-sum, and the final carry
+  carries packed source loads, low-nibble shift-left statements for both
+  operands, the shifted low widening product, the low-product arithmetic
+  rescale, high-nibble arithmetic shift-right statements for both operands,
+  the high-nibble widening product-accumulate statement, one widening reduction
+  from that pair-sum, and the final carry
   assignment derived from the selected packed-i4 resource facts. Stale resource
   mirrors, stale unpack-intent metadata, missing nibble payloads, mismatched
-  low/high product operands, stale product-pair sum operands, stale single
+  low-product or high-vwmacc operands, stale single
   reduction input/result, or a stale carry assignment fail closed in the target
   bridge. Artifact support is still not generated-bundle support, runtime
   correctness, timing, or parity evidence.
@@ -6259,16 +6262,16 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
 - A selected packed-i4 statement plan reuses the unpacked byte `lhs_vec` /
   `rhs_vec` product path, omits low/high nibble sign-extension statements, uses
   a logical shift-right for signed high-nibble unpack, reduces low/high products
-  separately, omits the product-pair add, or reduces anything other than the
-  product-pair sum -> fail closed before `TCRVEmitCLowerableRoute`
+  separately, omits the high-nibble vwmacc accumulate, or reduces anything other
+  than the product-pair sum -> fail closed before `TCRVEmitCLowerableRoute`
   construction.
 - A provider-built packed-i4 statement route reaches target artifact export
   with stale resource mirrors, stale unpack-intent metadata, missing low/high
-  nibble sign-extension payload, mismatched high-nibble product operands,
-  mismatched product-pair sum operands, a single reduction input not derived
-  from the product-pair sum, a stale single reduction result, or a final carry
-  assignment not derived from that single reduction -> fail closed in the target
-  artifact bridge.
+  nibble payload, mismatched low-product rescale operands, mismatched
+  high-nibble vwmacc operands, a single reduction input not derived from the
+  product-pair sum, a stale single reduction result, or a final carry assignment
+  not derived from that single reduction -> fail closed in the target artifact
+  bridge.
 - A packed-i4 artifact/header/source result is treated as generated-bundle,
   runtime correctness, performance, or llama.cpp parity evidence without the
   matching executable generated-bundle and `ssh rvv` checks -> fail closed as an
@@ -6302,9 +6305,10 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   explicit `packed-i4-nibbles`, storage width 8, effective width 4, low/high
   nibble layout, and sign-extension unpack intent -> selected-body realization
   and provider mirrors consume the resource facts -> direct-contraction
-  statement planning emits RVV-owned low/high nibble sign-extension statements
-  for both operands, two widening products, an i16 product-pair add, and one
-  widening reduction from the pair-sum -> provider-built
+  statement planning emits RVV-owned low-nibble shift-left statements, a shifted
+  low widening product, low-product i16 rescale, high-nibble sign-extension
+  statements, a high-nibble vwmacc accumulate into the rescaled low product, and
+  one widening reduction from the pair-sum -> provider-built
   `TCRVEmitCLowerableRoute` is eligible ->
   target artifact export accepts only the exact rebuilt provider payload and
   mirrors -> generated-bundle/runtime evidence remains a separate gate.
@@ -6342,7 +6346,7 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   provider validation, and rejected when stale or missing before route
   construction or artifact export.
 - Focused C++ statement-plan coverage for the positive packed-i4 low/high nibble
-  sign-extension sequence, low/high widening products, product-pair add, single
+  unpack sequence, low-product rescale, high-nibble vwmacc accumulate, single
   widening reduction, and provider-built lowerable route eligibility without
   target artifact/runtime claims.
 - Focused target/export coverage proving selected packed-i4 statement routes
@@ -6710,7 +6714,7 @@ object equivalent to:
     "fields": {
       "performance_feedback": "same-target-packed-i4-no-win.v1",
       "performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1",
-      "performance_best_speedup_range": "0.686981..0.705666",
+      "performance_best_speedup_range": "0.896848..1.020953",
       "performance_action": "no-win-repair-required-before-performance-claim",
       "operand_form": "packed-i4-nibbles",
       "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
@@ -6842,17 +6846,17 @@ tcrv_rvv.low_precision_resource.performance_feedback =
 tcrv_rvv.low_precision_resource.performance_baseline =
   "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
 tcrv_rvv.low_precision_resource.performance_best_speedup_range =
-  "0.686981..0.705666"
+  "0.896848..1.020953"
 tcrv_rvv.low_precision_resource.performance_action =
   "no-win-repair-required-before-performance-claim"
 tcrv_rvv.low_precision_resource.remediation_plan_contract =
   "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
 tcrv_rvv.low_precision_resource.remediation_plan =
-  "repair-packed-i4-low-shifted-product-rescale-single-reduce-before-performance-claim.v1"
+  "repair-packed-i4-high-nibble-vwmacc-single-reduce-before-performance-claim.v1"
 tcrv_rvv.low_precision_resource.remediation_statement_strategy =
-  "low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum"
+  "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum"
 tcrv_rvv.low_precision_resource.remediation_vector_budget =
-  "packed-i4-remediation-budget-6of32-vector-groups"
+  "packed-i4-remediation-budget-5of32-vector-groups"
 ```
 
 ### 3. Contracts
@@ -6863,14 +6867,15 @@ tcrv_rvv.low_precision_resource.remediation_vector_budget =
 - The selected packed-i4 candidate must also carry the remediation plan attrs
   above as provider-owned resource-planning facts. These facts state the
   concrete production repair boundary: packed signed i4-in-i8 low/high nibble
-  unpack, pair-sum product, single `vwredsum`, and a 7-of-32 vector-group
+  unpack, low-product rescale, high-nibble vwmacc pair-sum, single `vwredsum`,
+  and a 5-of-32 vector-group
   budget. They are not artifact metadata, benchmark labels, or route ids.
 - The route-family provider must parse, verify, and retain the fields as part
   of `RVVLowPrecisionContractionResourceSelection` before route construction.
 - The statement-plan owner must compare provider and family-plan copies before
   constructing the packed-i4 statement payload and must require the exact
   remediation statement strategy before emitting packed-i4 load/unpack/product/
-  pair-sum/reduce statements.
+  high-vwmacc/reduce statements.
 - Route metadata, target support bundles, target artifact validation, and
   generated-bundle dry-run indexes may expose these values only as exact
   mirrors of provider-owned facts.
@@ -6920,7 +6925,7 @@ tcrv_rvv.low_precision_resource.remediation_vector_budget =
   change and new same-target timing; target validation must reject it.
 - Bad: route metadata says `metadata-only-packed-i4-unpack-plan` while the
   provider-owned selection requires
-  `low-shifted-i4-product-rescale-before-high-nibbles-pair-sum-single-vwredsum`; target
+  `low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum`; target
   validation must reject it before header/artifact acceptance.
 
 ### 6. Tests Required
@@ -6989,7 +6994,7 @@ The accepted packed-i4 regression values are:
 tcrv_rvv.low_precision_resource.performance_maturity =
   "executable-not-performance-mature"
 tcrv_rvv.low_precision_resource.performance_maturity_evidence =
-  "same-target-packed-i4-low-shifted-product-rescale-regression-gate4.v1"
+  "same-target-packed-i4-high-nibble-vwmacc-no-win-gate4.v1"
 tcrv_rvv.low_precision_resource.performance_maturity_outcome =
   "regression"
 tcrv_rvv.low_precision_resource.performance_selection_eligible =
@@ -7107,18 +7112,18 @@ Packed-i4 per-op evidence and root summaries may carry:
     "measurement_evidence_id": "run/op/same_target_measurement_evidence.json",
     "measurement_classification": "win | no-win | regression | not-measured",
     "measurement_outcome_family": "win | no-win | not-measured",
-    "measurement_best_speedup_range": "0.688202..0.705133",
+    "measurement_best_speedup_range": "0.896848..1.020953",
     "measurement_summary_record_count": 12,
     "measurement_record_count": 60,
     "provider_maturity": "executable-not-performance-mature",
-    "provider_maturity_evidence": "same-target-packed-i4-low-shifted-product-rescale-regression-gate4.v1",
+    "provider_maturity_evidence": "same-target-packed-i4-high-nibble-vwmacc-no-win-gate4.v1",
     "provider_maturity_outcome": "regression",
     "provider_performance_selection_eligible": "false",
     "provider_dispatch_preference": "not-performance-preferred",
     "provider_performance_action": "no-win-repair-required-before-performance-claim",
     "provider_schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
-    "provider_schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
-    "provider_schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32",
+    "provider_schedule_decision": "select-packed-i4-high-nibble-vwmacc-single-reduce-u1-two-region-budget-5of32.v1",
+    "provider_schedule_decision_reason": "accepted-remediation-schedule-high-nibble-vwmacc-single-vwredsum-budget-5of32",
     "source_record_contract": "rvv-low-precision-source-backed-artifact-measurement-record.v1",
     "source_selected_variant": "rvv_lp_pack_i4_widening_product_reduce_dequantize_f32",
     "source_selected_input": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir",
@@ -7469,10 +7474,10 @@ performance-preferred
 
   ```text
   measurementEvidenceID =
-    gate4-packed-i4-low-shifted-product-rescale-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
+    gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
   measurementClassification = regression
   measurementOutcomeFamily = no-win
-  measurementBestSpeedupRange = 0.688202..0.705133
+  measurementBestSpeedupRange = 0.896848..1.020953
   measurementSummaryRecordCount = 12
   measurementRecordCount = 60
   correctnessRecordCount = 12
@@ -7489,9 +7494,9 @@ performance-preferred
   providerScheduleDecisionContract =
     rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1
   providerScheduleDecision =
-    select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1
+    select-packed-i4-high-nibble-vwmacc-single-reduce-u1-two-region-budget-5of32.v1
   providerScheduleDecisionReason =
-    accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32
+    accepted-remediation-schedule-high-nibble-vwmacc-single-vwredsum-budget-5of32
   ```
 
 - The strict Gate 4 no-win/regression verifier must derive the accepted
@@ -7504,10 +7509,10 @@ performance-preferred
 
   ```text
   measurementEvidenceID =
-    gate4-packed-i4-low-shifted-product-rescale-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
+    gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
   measurementClassification = regression
   measurementOutcomeFamily = no-win
-  measurementBestSpeedupRange = 0.677994..0.704931
+  measurementBestSpeedupRange = 0.867416..1.043671
   measurementSummaryRecordCount = 24
   measurementRecordCount = 120
   correctnessRecordCount = 24

@@ -549,8 +549,8 @@ constexpr llvm::StringLiteral kRVVPackedI4ShiftLeftIntrinsic(
     "__riscv_vsll_vx_i8mf4");
 constexpr llvm::StringLiteral kRVVPackedI4ArithmeticShiftRightIntrinsic(
     "__riscv_vsra_vx_i8mf4");
-constexpr llvm::StringLiteral kRVVPackedI4ProductPairAddIntrinsic(
-    "__riscv_vadd_vv_i16mf2");
+constexpr llvm::StringLiteral kRVVPackedI4HighProductAccumulateIntrinsic(
+    "__riscv_vwmacc_vv_i16mf2");
 constexpr llvm::StringLiteral kRVVPackedI4ShiftAmount("4");
 constexpr llvm::StringLiteral kRVVPackedI4ShiftAmountCType("uint8_t");
 constexpr llvm::StringLiteral kRVVPackedI4LowProductRescaleIntrinsic(
@@ -1646,8 +1646,6 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
       "product_vec_i4_low_scaled");
   constexpr llvm::StringLiteral kPackedI4LHSHighVecName("lhs_high_i4_vec");
   constexpr llvm::StringLiteral kPackedI4RHSHighVecName("rhs_high_i4_vec");
-  constexpr llvm::StringLiteral kPackedI4HighProductVecName(
-      "product_vec_i4_high");
   constexpr llvm::StringLiteral kPackedI4ProductPairSumVecName(
       "product_vec_i4_pair_sum");
 
@@ -2188,23 +2186,13 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
           return error;
         if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
                 plan, slice.wideningProductOp.getOperation(), "compute",
-                providerFacts.wideningProductLeaf,
-                {TCRVEmitCCallOpaqueOperand{kPackedI4LHSHighVecName.str(),
+                kRVVPackedI4HighProductAccumulateIntrinsic,
+                {TCRVEmitCCallOpaqueOperand{"product_vec",
+                                            productVectorCType.str()},
+                 TCRVEmitCCallOpaqueOperand{kPackedI4LHSHighVecName.str(),
                                             sourceVectorCType.str()},
                  TCRVEmitCCallOpaqueOperand{kPackedI4RHSHighVecName.str(),
                                             sourceVectorCType.str()},
-                 TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
-                description, context,
-                TCRVEmitCCallOpaqueResult{kPackedI4HighProductVecName.str(),
-                                          productVectorCType.str()}))
-          return error;
-        if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
-                plan, slice.wideningProductOp.getOperation(), "compute",
-                kRVVPackedI4ProductPairAddIntrinsic,
-                {TCRVEmitCCallOpaqueOperand{"product_vec",
-                                            productVectorCType.str()},
-                 TCRVEmitCCallOpaqueOperand{kPackedI4HighProductVecName.str(),
-                                            productVectorCType.str()},
                  TCRVEmitCCallOpaqueOperand{loopVLName.str(), vlCType.str()}},
                 description, context,
                 TCRVEmitCCallOpaqueResult{

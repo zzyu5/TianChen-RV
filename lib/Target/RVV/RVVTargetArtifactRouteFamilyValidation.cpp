@@ -5033,8 +5033,8 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
       "__riscv_vsra_vx_i16mf2";
   const llvm::StringRef packedI4LowProductRescaleShiftAmount = "8";
   const llvm::StringRef packedI4LowProductRescaleShiftAmountCType = "uint8_t";
-  const llvm::StringRef packedI4ProductPairAddIntrinsic =
-      "__riscv_vadd_vv_i16mf2";
+  const llvm::StringRef packedI4HighProductAccumulateIntrinsic =
+      "__riscv_vwmacc_vv_i16mf2";
   const llvm::StringRef accumulatorVectorCType =
       isProductReductionDequantization ? llvm::StringRef("vint32m1_t")
                                        : description.vectorCType;
@@ -5445,19 +5445,11 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
               loop.bodySteps[9], consumerLabel,
-              "packed-i4 high-nibble widening product",
-              description.wideningProductIntrinsic,
-              {{"lhs_high_i4_vec", description.sourceVectorCType},
-               {"rhs_high_i4_vec", description.sourceVectorCType},
-               {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
-              "product_vec_i4_high", description.productVectorCType))
-        return error;
-      if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              loop.bodySteps[10], consumerLabel,
-              "packed-i4 low/high product-pair sum",
-              packedI4ProductPairAddIntrinsic,
+              "packed-i4 high-nibble widening product accumulate",
+              packedI4HighProductAccumulateIntrinsic,
               {{"product_vec", description.productVectorCType},
-               {"product_vec_i4_high", description.productVectorCType},
+               {"lhs_high_i4_vec", description.sourceVectorCType},
+               {"rhs_high_i4_vec", description.sourceVectorCType},
                {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
               "product_vec_i4_pair_sum", description.productVectorCType))
         return error;
@@ -5487,7 +5479,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
   }
 
   const std::size_t seedIndex =
-      isComputedMask ? 9 : usesPackedI4LowPrecisionProductReduction ? 11 : 4;
+      isComputedMask ? 9 : usesPackedI4LowPrecisionProductReduction ? 10 : 4;
   const std::size_t reductionIndex =
       isProductReductionDequantization ? seedIndex : seedIndex + 1;
   const std::size_t storeIndex = reductionIndex + 1;
