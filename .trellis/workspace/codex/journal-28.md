@@ -869,3 +869,82 @@ remaining representative coverage before Gate 3, especially dequant-clamp and
 packed-i4 resource paths where provider/statement-plan/target boundaries must
 prove they consume selected resource facts rather than mirrors. Gates 3 and 4
 remain future work.
+
+
+## Session 587: Stage2 RVV low-precision primitive-surface Gate 2b
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Completed one Gate 2b representative resource-consumption slice for the active
+macro task. The RVV Gearbox schedules pass now preserves the dequant-clamp
+resource operation when re-consuming an already realized product-reduction
+cross-region handoff, and provider plan verification no longer lets the
+packed-i4 Gate 4 performance-policy gate block non-packed dequant-clamp Gate 2
+realization.
+
+### Main Changes
+
+- Updated `lib/Plugin/RVV/RVVGearboxSchedules.cpp` so
+  `validateLowPrecisionProductDequantGearboxBody` reports whether the realized
+  consumer is a direct dequant store or a lower/upper dequant-clamp
+  compare/select/store chain. `materializeGearboxForWithVL` now uses that
+  body-derived fact to write the matching dequant or dequant-clamp
+  low-precision resource memory form onto both producer and consumer
+  `with_vl` regions.
+- Updated
+  `lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp` so
+  selected-dispatch low-precision performance-policy verification is entered
+  only for provider-selected packed-i4 resource candidates. Packed-i4 policy
+  checks remain active; non-packed dequant/dequant-clamp paths are not forced
+  through packed-i4 measurement evidence.
+- Added dequant-clamp FileCheck coverage for the realized handoff path after a
+  second Gearbox schedules pass, plus a stale memory-form negative chain that
+  fails before emission-plan route construction with the expected clamp memory
+  form, stale dequantize form, and selected dequant-clamp candidate.
+- Refreshed the packed-i4 representative fixture checks to match actual printed
+  provider-owned attr order, then reran selected-body, statement-plan,
+  target-header, CPP, handoff-remediation stale, and artifact-schedule stale
+  checks. No packed-i4 production source gap was found in this seam.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- Dequant-clamp positive selected-body chain:
+  `build/bin/tcrv-opt test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32.mlir --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | /usr/bin/FileCheck-20 ... --check-prefix=REALIZED`.
+- Dequant-clamp realized handoff resource-consumption chain:
+  `build/bin/tcrv-opt ... --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-rvv-materialize-gearbox-schedules | /usr/bin/FileCheck-20 ... --check-prefix=GEARBOX-CONSUME`.
+- Dequant-clamp stale resource memory negative chain:
+  same realized handoff pipeline with a sed-injected dequantize memory form,
+  then `build/bin/tcrv-opt --tcrv-materialize-emission-plans`, checked with
+  `/usr/bin/FileCheck-20 --check-prefix=STALE-RESOURCE-MEMORY` and explicit
+  nonzero exit status.
+- Dequant-clamp statement-plan and target-header chains:
+  `--tcrv-materialize-emission-plans` with `PLAN`, then
+  `build/bin/tcrv-translate --tcrv-export-target-header-artifact` with
+  `HEADER`.
+- Packed-i4 representative checks: `REALIZED`, `PLAN`, `HEADER`, `CPP`,
+  `STALE-PACKED-HANDOFF-REMEDIATION`, and
+  `STALE-ARTIFACT-SCHEDULE-DECISION`.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] This slice implements existing RVV plugin and selected-dispatch
+contracts: representative low-precision resource paths must consume
+provider-owned primitive/resource facts, and packed-i4 measurement policy must
+remain scoped to packed-i4 candidates. No new durable architecture rule was
+introduced.
+
+### Status
+
+[OPEN] Gate 2b representative dequant-clamp and packed-i4 resource consumption
+is complete. Gate 2 still needs a final closure audit for any remaining
+low-precision product-reduction representative source gaps. Gates 3 and 4
+remain future work. No runtime/correctness/performance claim was made, so no
+`ssh rvv` evidence was required in this slice.

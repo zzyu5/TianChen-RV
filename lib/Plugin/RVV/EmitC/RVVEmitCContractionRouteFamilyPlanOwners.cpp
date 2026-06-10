@@ -1153,6 +1153,8 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
           "provider route construction");
   }
   if (plan.lowPrecisionResourceSelection.hasSelection &&
+      isRVVLowPrecisionResourcePackedI4CandidateID(
+          plan.lowPrecisionResourceSelection.selectedCandidateID) &&
       analysis.description.lowPrecisionSelectedDispatchPolicyBoundary
           .hasFacts()) {
     RVVLowPrecisionPerformanceMeasurementOutcome acceptedOutcome =

@@ -105,12 +105,12 @@ module {
 // REALIZED-SAME: remediation_unpack_plan = "sign-extend-low-high-signed-i4-nibbles-before-widening-product.v1"
 // REALIZED-SAME: remediation_vector_budget = "packed-i4-remediation-budget-7of32-vector-groups"
 // REALIZED-SAME: remediation_vl_plan = "two-region-runtime-avl-product-reduce-then-dequant-store.v1"
-// REALIZED-SAME: schedule_decision = "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"
-// REALIZED-SAME: schedule_decision_contract = "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
-// REALIZED-SAME: schedule_decision_reason = "accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32"
 // REALIZED-SAME: resource_candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]"
 // REALIZED-SAME: resource_decision = "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"
 // REALIZED-SAME: resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
+// REALIZED-SAME: schedule_decision = "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"
+// REALIZED-SAME: schedule_decision_contract = "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
+// REALIZED-SAME: schedule_decision_reason = "accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32"
 // REALIZED-SAME: unpack_intent = "sign-extend-i4-nibbles-before-widening-product"
 // REALIZED-SAME: vector_register_budget = 32 : i64
 // REALIZED: tcrv_rvv.vsetvl_region_marker
@@ -118,6 +118,8 @@ module {
 // REALIZED-SAME: region_count = 2 : i64
 // REALIZED-SAME: region_index = 2 : i64
 
+// PLAN: {key = "tcrv_rvv.selected_dispatch_case_mirror", value = "selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequantize;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-case"}
+// PLAN: {key = "tcrv_rvv.selected_dispatch_fallback_mirror", value = "selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-fallback-envelope"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.realization_decision", value = "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.realized_vsetvl_region_count", value = "2"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.product_region_index", value = "1"}
@@ -145,8 +147,6 @@ module {
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_maturity_outcome", value = "regression"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_selection_eligible", value = "false"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.dispatch_preference", value = "not-performance-preferred"}
-// PLAN: {key = "tcrv_rvv.selected_dispatch_case_mirror", value = "selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequantize;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-case"}
-// PLAN: {key = "tcrv_rvv.selected_dispatch_fallback_mirror", value = "selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-fallback-envelope"}
 
 // HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]
 // HEADER: tianchenrv.rvv.low_precision_resource.operand_form: packed-i4-nibbles

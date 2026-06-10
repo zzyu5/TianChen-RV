@@ -1129,8 +1129,10 @@ mlir::LogicalResult validateDequantizationGearboxBody(WithVLOp withVL,
 }
 
 mlir::LogicalResult
-validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
-                                              DequantizeOp dequantize) {
+validateLowPrecisionProductDequantGearboxBody(
+    WithVLOp withVL, DequantizeOp dequantize,
+    bool &usesProductReductionDequantClamp) {
+  usesProductReductionDequantClamp = false;
   SetVLOp setvl = withVL.getVl().getDefiningOp<SetVLOp>();
   tianchenrv::tcrv::rvv::RVVConfigContractDiagnostic config =
       tianchenrv::tcrv::rvv::validateRVVSelectedBodyM1ConfigVLContract(setvl,
@@ -1679,6 +1681,7 @@ validateLowPrecisionProductDequantGearboxBody(WithVLOp withVL,
           clampStore.getBuffer().getDefiningOp<RuntimeABIValueOp>(),
           clampStore, "low-precision output", "output-buffer", "out")))
     return mlir::failure();
+  usesProductReductionDequantClamp = true;
   return mlir::success();
 }
 
@@ -1696,8 +1699,9 @@ mlir::LogicalResult materializeGearboxForWithVL(WithVLOp withVL) {
 
   DequantizeOp dequantize = dequantizeOps.front();
   if (dequantize.getSource().getDefiningOp<GearboxCrossRegionHandoffOp>()) {
+    bool usesProductReductionDequantClamp = false;
     if (mlir::failed(validateLowPrecisionProductDequantGearboxBody(
-            withVL, dequantize)))
+            withVL, dequantize, usesProductReductionDequantClamp)))
       return mlir::failure();
     mlir::OpBuilder builder(withVL.getContext());
     std::optional<tianchenrv::tcrv::rvv::PolicyAttr> policy =
@@ -1714,13 +1718,17 @@ mlir::LogicalResult materializeGearboxForWithVL(WithVLOp withVL) {
       return handoff->emitError()
              << "RVV low-precision Gearbox resource candidate derivation "
                 "requires handoff producer tcrv_rvv.with_vl";
+    llvm::StringRef lowPrecisionMemoryForm =
+        usesProductReductionDequantClamp
+            ? llvm::StringRef(kLowPrecisionProductDequantClampMemoryForm)
+            : llvm::StringRef(kLowPrecisionProductDequantMemoryForm);
     if (mlir::failed(materializeLowPrecisionResourceAttrs(
             producerWithVL.getOperation(), builder, *policy, 8, "mf4", 16,
-            "mf2", 32, "m1", kLowPrecisionProductDequantMemoryForm)))
+            "mf2", 32, "m1", lowPrecisionMemoryForm)))
       return mlir::failure();
     return materializeLowPrecisionResourceAttrs(
         withVL.getOperation(), builder, *policy, 8, "mf4", 16, "mf2", 32,
-        "m1", kLowPrecisionProductDequantMemoryForm);
+        "m1", lowPrecisionMemoryForm);
   }
   if (dequantize.getSource().getDefiningOp<StandaloneReduceOp>())
     return dequantize->emitError()
