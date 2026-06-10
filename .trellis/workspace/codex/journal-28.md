@@ -1304,3 +1304,61 @@ Gate 3 and Gate 4 remain open. The next continuation point is Gate 3:
 selected-dispatch/performance preference must consume source-backed
 measurement records plus primitive/resource facts with full stale sibling-route,
 wrong-target, wrong-ABI, and wrong-primitive-chain diagnostics.
+
+## 2026-06-10 - Stage2 RVV same-target measurement campaign Gate 3
+
+### Summary
+
+Completed Gate 3 for the active macro task by making the selected-dispatch and
+performance-preference policy boundary consume
+`RVVLowPrecisionSameTargetMeasurementRecord` directly. The current packed-i4
+regression/no-win record now produces an explicit conservative
+`correctness-fallback` policy decision, and a bounded measured-win fixture
+selects `performance-preferred` only after the measurement record and
+provider-owned maturity, eligibility, dispatch, remediation, schedule, target,
+and primitive facts agree.
+
+### Main Changes
+
+- Added record-based `evaluateRVVLowPrecisionPerformancePolicy`,
+  `resolveRVVLowPrecisionDispatchPerformancePolicy`, and
+  `verifyRVVLowPrecisionPerformancePolicy` overloads, including
+  `RVVLowPrecisionSelectedDispatchPolicyBoundary` variants.
+- Rewired selected-dispatch provider and target artifact validation to call the
+  record-consumption policy boundary instead of first materializing a policy
+  input as the selected-dispatch authority.
+- Added focused plugin tests proving accepted record consumption, conservative
+  fallback resolution, measured-win promotion only with matching provider
+  facts, and fail-closed stale target/runtime ABI/primitive/dispatch-boundary
+  diagnostics.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the executable
+  record-based dispatch/performance policy API and test obligations.
+- Updated the active PRD to mark Gate 3 complete and leave Gate 4 as the next
+  continuation point.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`.
+- `git diff --check`.
+- Focused added-line old-authority scan over touched files found no new legacy
+  RVV route-authority, stale source-construction, or narrow benchmark-label
+  authority hits.
+
+### Spec Update Decision
+
+[SPEC UPDATED] This slice changed the production API signature and policy
+contract, so `.trellis/spec/extension-plugins/rvv-plugin.md` now documents the
+record-based Gate 3 policy surface, resolver behavior, selected-dispatch
+boundary validation, and required tests.
+
+### Status
+
+[OPEN MACRO TASK] Gate 3 is complete. The macro task remains active because
+Gate 4 remains open. The next continuation point is Gate 4: perform the final
+campaign audit separating correctness execution evidence, same-target
+measurement evidence, and selected-dispatch/performance policy authority before
+archiving.

@@ -1164,15 +1164,8 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
     RVVLowPrecisionSameTargetMeasurementRecord measurementRecord =
         buildRVVPackedI4Gate4SameTargetMeasurementRecord(
             plan.lowPrecisionResourceSelection);
-    llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput>
-        policyInput =
-        buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
-            plan.lowPrecisionResourceSelection, measurementRecord,
-            policyContext);
-    if (!policyInput)
-      return policyInput.takeError();
     if (llvm::Error error = verifyRVVLowPrecisionPerformancePolicy(
-            plan.lowPrecisionResourceSelection, *policyInput,
+            plan.lowPrecisionResourceSelection, measurementRecord,
             analysis.description.lowPrecisionSelectedDispatchPolicyBoundary,
             policyContext))
       return error;

@@ -6698,15 +6698,52 @@ evaluateRVVLowPrecisionPerformancePolicy(
     const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
     llvm::StringRef context);
 
+llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
+evaluateRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    llvm::StringRef context);
+
+llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
+evaluateRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context);
+
 RVVLowPrecisionPerformancePolicyDecision
 resolveRVVLowPrecisionDispatchPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
     llvm::StringRef context);
 
+RVVLowPrecisionPerformancePolicyDecision
+resolveRVVLowPrecisionDispatchPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    llvm::StringRef context);
+
+RVVLowPrecisionPerformancePolicyDecision
+resolveRVVLowPrecisionDispatchPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context);
+
 llvm::Error verifyRVVLowPrecisionPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
+    llvm::StringRef context);
+
+llvm::Error verifyRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    llvm::StringRef context);
+
+llvm::Error verifyRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
     llvm::StringRef context);
 ```
 
@@ -6722,10 +6759,20 @@ performance-preferred
 - `evaluateRVVLowPrecisionPerformancePolicy` is the strict accepted-policy
   entry. It succeeds only when the selected packed-i4 provider resource facts
   and the measurement outcome form a complete accepted policy handoff.
+- The Gate 3 selected-dispatch policy seam must prefer the
+  `RVVLowPrecisionSameTargetMeasurementRecord` overload when source-backed
+  measurement evidence is available. The record overload first builds and
+  validates the same-target policy input from the record, then produces the
+  explicit `RVVLowPrecisionPerformancePolicyDecision`.
 - `resolveRVVLowPrecisionDispatchPerformancePolicy` is the safe dispatch
   resolver. For stale or missing performance evidence, it must deny
   performance preference, preserve correctness fallback when the selected route
   remains legal, and carry the fail-closed reason in `fallbackReason`.
+- The selected-dispatch boundary overloads must validate explicit
+  `tcrv.exec.dispatch` case/fallback facts after the record/resource/measurement
+  handoff is accepted. If the record is stale, resolver variants preserve the
+  original stale measurement diagnostic instead of replacing it with a generic
+  dispatch-boundary error.
 - The current accepted Gate 4 packed-i4 regression/no-win outcome must set:
 
   ```text
@@ -6807,6 +6854,10 @@ performance-preferred
 
 - C++ provider/policy tests must assert current accepted regression/no-win
   selects `correctness-fallback` and denies performance preference.
+- C++ provider/policy tests must assert the same accepted regression/no-win
+  decision is produced through the direct
+  `RVVLowPrecisionSameTargetMeasurementRecord` + selected-dispatch boundary
+  overload, not only through a prebuilt policy input.
 - C++ provider/policy tests must assert a measured-win fixture selects
   `performance-preferred` only after provider maturity, eligibility, dispatch,
   remediation, and measurement tie-back facts all agree.

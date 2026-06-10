@@ -1594,6 +1594,37 @@ evaluateRVVLowPrecisionPerformancePolicy(
 llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
 evaluateRVVLowPrecisionPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    llvm::StringRef context) {
+  RVVLowPrecisionPerformancePolicyHandoff handoff =
+      diagnoseRVVLowPrecisionPerformancePolicyHandoff(selection, record,
+                                                      context);
+  if (!handoff.acceptedForDispatchPolicy)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) + " policy handoff diagnosis '" +
+        handoff.diagnosisKind + "' is not accepted: " +
+        handoff.failureReason);
+
+  RVVLowPrecisionPerformancePolicyDecision decision;
+  decision.policyContract = kPackedI4PerformancePolicyContract.str();
+  decision.handoff = std::move(handoff);
+  decision.routeSupportAllowed = decision.handoff.routeSupportAllowed;
+  decision.correctnessExecutionAllowed =
+      decision.handoff.correctnessExecutionAllowed;
+  decision.performanceSelectionAllowed =
+      decision.handoff.performanceSelectionAllowed;
+  decision.performanceWinClaimAllowed =
+      decision.handoff.performanceWinClaimAllowed;
+  decision.dispatchPreference = decision.handoff.dispatchPreference;
+  decision.performancePreferenceDenialReason =
+      decision.handoff.performancePreferenceDenialReason;
+  populateRVVLowPrecisionPolicyDispatchPath(decision);
+  return decision;
+}
+
+llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
+evaluateRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
     const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
     llvm::StringRef context) {
@@ -1617,6 +1648,24 @@ evaluateRVVLowPrecisionPerformancePolicy(
     llvm::StringRef context) {
   llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
       evaluateRVVLowPrecisionPerformancePolicy(selection, input, context);
+  if (!decision)
+    return decision.takeError();
+  if (llvm::Error error =
+          verifyRVVLowPrecisionSelectedDispatchBoundary(*decision,
+                                                        dispatchBoundary,
+                                                        context))
+    return std::move(error);
+  return decision;
+}
+
+llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
+evaluateRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
+      evaluateRVVLowPrecisionPerformancePolicy(selection, record, context);
   if (!decision)
     return decision.takeError();
   if (llvm::Error error =
@@ -1711,6 +1760,75 @@ resolveRVVLowPrecisionDispatchPerformancePolicy(
   return decision;
 }
 
+RVVLowPrecisionPerformancePolicyDecision
+resolveRVVLowPrecisionDispatchPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    llvm::StringRef context) {
+  RVVLowPrecisionPerformancePolicyHandoff handoff =
+      diagnoseRVVLowPrecisionPerformancePolicyHandoff(selection, record,
+                                                      context);
+  RVVLowPrecisionPerformancePolicyDecision decision;
+  decision.policyContract = kPackedI4PerformancePolicyContract.str();
+  decision.handoff = std::move(handoff);
+  if (decision.handoff.acceptedForDispatchPolicy) {
+    decision.routeSupportAllowed = decision.handoff.routeSupportAllowed;
+    decision.correctnessExecutionAllowed =
+        decision.handoff.correctnessExecutionAllowed;
+    decision.performanceSelectionAllowed =
+        decision.handoff.performanceSelectionAllowed;
+    decision.performanceWinClaimAllowed =
+        decision.handoff.performanceWinClaimAllowed;
+    decision.dispatchPreference = decision.handoff.dispatchPreference;
+    decision.performancePreferenceDenialReason =
+        decision.handoff.performancePreferenceDenialReason;
+    populateRVVLowPrecisionPolicyDispatchPath(decision);
+    return decision;
+  }
+
+  decision.routeSupportAllowed =
+      selection.hasSelection && selection.isLegal &&
+      selection.rejectionReason == kRVVLowPrecisionResourceNoRejectionReason;
+  decision.correctnessExecutionAllowed = decision.routeSupportAllowed;
+  decision.performanceSelectionAllowed = false;
+  decision.performanceWinClaimAllowed = false;
+  decision.dispatchPreference =
+      kRVVLowPrecisionResourcePackedI4DispatchPreference.str();
+  decision.performancePreferenceDenialReason =
+      decision.handoff.failureReason.empty()
+          ? "missing-or-stale-low-precision-performance-evidence"
+          : decision.handoff.failureReason;
+  populateRVVLowPrecisionPolicyDispatchPath(decision);
+  return decision;
+}
+
+RVVLowPrecisionPerformancePolicyDecision
+resolveRVVLowPrecisionDispatchPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  RVVLowPrecisionPerformancePolicyDecision decision =
+      resolveRVVLowPrecisionDispatchPerformancePolicy(selection, record,
+                                                      context);
+  if (!decision.handoff.acceptedForDispatchPolicy)
+    return decision;
+  if (llvm::Error error =
+          verifyRVVLowPrecisionSelectedDispatchBoundary(decision,
+                                                        dispatchBoundary,
+                                                        context)) {
+    decision.performanceSelectionAllowed = false;
+    decision.performanceWinClaimAllowed = false;
+    decision.performancePreferredPathSelected = false;
+    decision.dispatchPreference =
+        kRVVLowPrecisionResourcePackedI4DispatchPreference.str();
+    decision.performancePreferenceDenialReason =
+        llvm::toString(std::move(error));
+    populateRVVLowPrecisionPolicyDispatchPath(decision);
+  }
+  return decision;
+}
+
 llvm::Error verifyRVVLowPrecisionPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
@@ -1787,6 +1905,43 @@ llvm::Error verifyRVVLowPrecisionPerformancePolicy(
 
 llvm::Error verifyRVVLowPrecisionPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
+      evaluateRVVLowPrecisionPerformancePolicy(selection, record, context);
+  if (!decision)
+    return decision.takeError();
+  if (!decision->routeSupportAllowed)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " must preserve executable route support for the accepted same-target "
+        "measurement record");
+  if (!decision->correctnessExecutionAllowed)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " must preserve correctness execution for the accepted same-target "
+        "measurement record");
+  if (decision->performancePreferredPathSelected) {
+    if (decision->dispatchPolicyPath != kPackedI4PerformancePreferredPolicyPath)
+      return makeRVVLowPrecisionPerformancePolicyError(
+          llvm::Twine(context) +
+          " accepted same-target measured-win record must select the "
+          "performance-preferred dispatch path");
+    return llvm::Error::success();
+  }
+  if (decision->performanceSelectionAllowed ||
+      decision->performanceWinClaimAllowed ||
+      !decision->correctnessFallbackPathSelected ||
+      decision->dispatchPolicyPath != kPackedI4CorrectnessFallbackPolicyPath)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " accepted same-target no-win/regression record must deny performance "
+        "selection and preserve the conservative correctness fallback path");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
     const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
     llvm::StringRef context) {
@@ -1847,6 +2002,40 @@ llvm::Error verifyRVVLowPrecisionPerformancePolicy(
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
         " selected-dispatch same-target measurement policy input must deny "
+        "performance selection and preserve the conservative correctness "
+        "fallback path");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
+      evaluateRVVLowPrecisionPerformancePolicy(selection, record,
+                                               dispatchBoundary, context);
+  if (!decision)
+    return decision.takeError();
+  if (!decision->routeSupportAllowed)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " must preserve executable route support for the accepted selected-"
+        "dispatch same-target measurement record");
+  if (!decision->correctnessExecutionAllowed)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " must preserve correctness execution for the accepted selected-"
+        "dispatch same-target measurement record");
+  if (decision->performancePreferredPathSelected)
+    return llvm::Error::success();
+  if (decision->performanceSelectionAllowed ||
+      decision->performanceWinClaimAllowed ||
+      !decision->correctnessFallbackPathSelected ||
+      decision->dispatchPolicyPath != kPackedI4CorrectnessFallbackPolicyPath)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " selected-dispatch same-target measurement record must deny "
         "performance selection and preserve the conservative correctness "
         "fallback path");
   return llvm::Error::success();

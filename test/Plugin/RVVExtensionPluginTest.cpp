@@ -10319,6 +10319,59 @@ module {
           "packed-i4 Gate 3 bounded same-target measurement policy input "
           "preserves conservative fallback after provider facts match"))
     return result;
+  auto packedI4SelectedDispatchRecordPolicy =
+      tianchenrv::plugin::rvv::
+          evaluateRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection,
+              acceptedPackedI4Gate4MeasurementRecord,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 3 same-target measurement "
+              "record policy test");
+  if (!packedI4SelectedDispatchRecordPolicy)
+    return fail("packed-i4 Gate 3 selected-dispatch record policy: " +
+                llvm::toString(
+                    packedI4SelectedDispatchRecordPolicy.takeError()));
+  if (int result = expect(
+          packedI4SelectedDispatchRecordPolicy->routeSupportAllowed &&
+              packedI4SelectedDispatchRecordPolicy
+                  ->correctnessExecutionAllowed &&
+              !packedI4SelectedDispatchRecordPolicy
+                   ->performanceSelectionAllowed &&
+              !packedI4SelectedDispatchRecordPolicy
+                   ->performanceWinClaimAllowed &&
+              packedI4SelectedDispatchRecordPolicy
+                  ->correctnessFallbackPathSelected &&
+              packedI4SelectedDispatchRecordPolicy->dispatchPolicyPath ==
+                  "correctness-fallback" &&
+              packedI4SelectedDispatchRecordPolicy->handoff
+                  .acceptedForDispatchPolicy,
+          "packed-i4 Gate 3 selected-dispatch policy consumes the same-target "
+          "measurement record directly before choosing correctness fallback"))
+    return result;
+  tianchenrv::plugin::rvv::RVVLowPrecisionPerformancePolicyDecision
+      packedI4SelectedDispatchRecordResolver =
+          tianchenrv::plugin::rvv::
+              resolveRVVLowPrecisionDispatchPerformancePolicy(
+                  packedI4ResourceSelection,
+                  acceptedPackedI4Gate4MeasurementRecord,
+                  packedI4SelectedDispatchBoundary,
+                  "selected-dispatch packed-i4 Gate 3 same-target measurement "
+                  "record resolver test");
+  if (int result = expect(
+          packedI4SelectedDispatchRecordResolver.routeSupportAllowed &&
+              packedI4SelectedDispatchRecordResolver
+                  .correctnessExecutionAllowed &&
+              !packedI4SelectedDispatchRecordResolver
+                   .performanceSelectionAllowed &&
+              !packedI4SelectedDispatchRecordResolver
+                   .performanceWinClaimAllowed &&
+              packedI4SelectedDispatchRecordResolver
+                  .correctnessFallbackPathSelected &&
+              packedI4SelectedDispatchRecordResolver.dispatchPolicyPath ==
+                  "correctness-fallback",
+          "packed-i4 Gate 3 selected-dispatch resolver consumes the "
+          "measurement record and keeps the conservative fallback"))
+    return result;
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
               packedI4ResourceSelection, acceptedPackedI4PolicyInput,
@@ -10326,6 +10379,15 @@ module {
               "selected-dispatch packed-i4 Gate 3 same-target policy input "
               "verification"),
           "packed-i4 Gate 3 same-target policy input verification"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection,
+              acceptedPackedI4Gate4MeasurementRecord,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 3 same-target record "
+              "verification"),
+          "packed-i4 Gate 3 same-target record verification"))
     return result;
 
   auto stalePackedI4SchedulePolicyInput = acceptedPackedI4PolicyInput;
@@ -10426,6 +10488,79 @@ module {
               "measurement-only claim"),
           {"policy handoff diagnosis", "stale-measurement",
            "provider primitive chain kind"}))
+    return result;
+
+  auto staleTargetPackedI4Record = acceptedPackedI4Gate4MeasurementRecord;
+  staleTargetPackedI4Record.targetProfile = "local-x86";
+  tianchenrv::plugin::rvv::RVVLowPrecisionPerformancePolicyDecision
+      staleTargetRecordResolver =
+          tianchenrv::plugin::rvv::
+              resolveRVVLowPrecisionDispatchPerformancePolicy(
+                  packedI4ResourceSelection, staleTargetPackedI4Record,
+                  packedI4SelectedDispatchBoundary,
+                  "selected-dispatch packed-i4 Gate 3 record resolver rejects "
+                  "cross-target evidence");
+  if (int result = expect(
+          staleTargetRecordResolver.routeSupportAllowed &&
+              staleTargetRecordResolver.correctnessExecutionAllowed &&
+              !staleTargetRecordResolver.performanceSelectionAllowed &&
+              !staleTargetRecordResolver.performanceWinClaimAllowed &&
+              staleTargetRecordResolver.correctnessFallbackPathSelected &&
+              staleTargetRecordResolver.dispatchPolicyPath ==
+                  "correctness-fallback" &&
+              llvm::StringRef(staleTargetRecordResolver.fallbackReason)
+                  .contains("local-x86"),
+          "packed-i4 Gate 3 record resolver denies performance preference and "
+          "keeps correctness fallback on stale target evidence"))
+    return result;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection, staleTargetPackedI4Record,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 3 record rejects "
+              "cross-target evidence"),
+          {"policy handoff diagnosis", "stale-measurement", "target profile",
+           "ssh rvv", "local-x86"}))
+    return result;
+
+  auto staleRuntimeABIPackedI4Record =
+      acceptedPackedI4Gate4MeasurementRecord;
+  staleRuntimeABIPackedI4Record.providerRuntimeABIOrder = "lhs,rhs,out,n";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection, staleRuntimeABIPackedI4Record,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 3 record rejects stale "
+              "runtime ABI"),
+          {"policy handoff diagnosis", "stale-measurement",
+           "provider runtime ABI order", "lhs,rhs,out,n",
+           "lhs,rhs,acc,scale,out,n"}))
+    return result;
+
+  auto stalePrimitivePackedI4Record = acceptedPackedI4Gate4MeasurementRecord;
+  stalePrimitivePackedI4Record.providerPrimitiveChainKind =
+      "artifact-name-derived-primitive";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection, stalePrimitivePackedI4Record,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 3 record rejects stale "
+              "primitive chain"),
+          {"policy handoff diagnosis", "stale-measurement",
+           "provider primitive chain kind", "artifact-name-derived-primitive",
+           tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePrimitiveChainKind}))
+    return result;
+
+  auto missingDispatchCaseRecordBoundary = packedI4SelectedDispatchBoundary;
+  missingDispatchCaseRecordBoundary.hasSelectedDispatchCase = false;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection,
+              acceptedPackedI4Gate4MeasurementRecord,
+              missingDispatchCaseRecordBoundary,
+              "selected-dispatch packed-i4 Gate 3 record rejects missing "
+              "dispatch case"),
+          {"requires selected tcrv.exec.dispatch case facts"}))
     return result;
 
   if (int result = expectSuccess(
@@ -10600,11 +10735,47 @@ module {
           "packed-i4 Gate 3 bounded same-target measured-win policy input "
           "selects performance-preferred only after provider facts match"))
     return result;
+  auto measuredWinSelectedDispatchRecordPolicy =
+      tianchenrv::plugin::rvv::
+          evaluateRVVLowPrecisionPerformancePolicy(
+              measuredWinPackedI4Selection, measuredWinPackedI4Record,
+              packedI4SelectedDispatchBoundary,
+              "selected-boundary packed-i4 Gate 3 measured-win selected-"
+              "dispatch record policy test");
+  if (!measuredWinSelectedDispatchRecordPolicy)
+    return fail("packed-i4 measured-win selected-dispatch record policy: " +
+                llvm::toString(
+                    measuredWinSelectedDispatchRecordPolicy.takeError()));
+  if (int result = expect(
+          measuredWinSelectedDispatchRecordPolicy->routeSupportAllowed &&
+              measuredWinSelectedDispatchRecordPolicy
+                  ->correctnessExecutionAllowed &&
+              measuredWinSelectedDispatchRecordPolicy
+                  ->performanceSelectionAllowed &&
+              measuredWinSelectedDispatchRecordPolicy
+                  ->performanceWinClaimAllowed &&
+              measuredWinSelectedDispatchRecordPolicy
+                  ->performancePreferredPathSelected &&
+              measuredWinSelectedDispatchRecordPolicy->dispatchPolicyPath ==
+                  "performance-preferred" &&
+              measuredWinSelectedDispatchRecordPolicy->handoff
+                  .acceptedForDispatchPolicy,
+          "packed-i4 Gate 3 bounded same-target measured-win record selects "
+          "performance-preferred only after provider facts match"))
+    return result;
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
               measuredWinPackedI4Selection, measuredWinPackedI4Outcome,
               "selected-boundary packed-i4 Gate 4 measured-win verification"),
           "packed-i4 measured-win performance policy verification"))
+    return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              measuredWinPackedI4Selection, measuredWinPackedI4Record,
+              packedI4SelectedDispatchBoundary,
+              "selected-boundary packed-i4 Gate 3 measured-win record "
+              "verification"),
+          "packed-i4 measured-win selected-dispatch record verification"))
     return result;
 
   tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome

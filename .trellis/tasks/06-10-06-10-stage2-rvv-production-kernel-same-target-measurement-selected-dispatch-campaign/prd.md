@@ -9,12 +9,14 @@ artifacts, source-backed same-target measurement records, target validation,
 and selected-dispatch performance preference into one fail-closed compiler
 workflow.
 
-Gate 1 is complete. This round implements Gate 2: a representative
-low-precision packed-i4 generated artifact must produce a structured
-same-target measurement record shape that can feed the Gate 1
-`RVVLowPrecisionSameTargetMeasurementPolicyInput` boundary, with fail-closed
-validation for stale target, ABI, provider, primitive, schedule, and measurement
-provenance fields.
+Gates 1 and 2 are complete. This round implements Gate 3: the selected-dispatch
+and performance-preference policy boundary must consume source-backed
+same-target measurement records together with provider-owned primitive,
+resource, schedule, target, runtime ABI, and selected-dispatch facts. A valid
+record must produce an explicit dispatch/performance policy decision; stale or
+mismatched record, provider, target, runtime ABI, primitive-chain, schedule, or
+selected-dispatch inputs must fail closed with targeted diagnostics before any
+performance-preferred dispatch claim is accepted.
 
 ## What I Already Know
 
@@ -100,6 +102,48 @@ provenance fields.
 - [x] Commit the Gate 2 slice and leave `.trellis/.current-task` active because
   Gates 3-4 remain incomplete.
 
+## Current Slice: Gate 3
+
+- [x] Add a production policy API where
+  `RVVLowPrecisionSameTargetMeasurementRecord` directly feeds
+  `RVVLowPrecisionPerformancePolicyDecision`, including the selected-dispatch
+  boundary variant.
+- [x] Rewire selected-dispatch provider/target validation to call the record
+  consumption boundary instead of treating a prebuilt policy input or metadata
+  mirror as the dispatch policy source.
+- [x] Prove a valid same-target measurement record plus provider/resource facts
+  produces an explicit conservative `correctness-fallback` decision for the
+  current regression/no-win packed-i4 evidence.
+- [x] Prove stale target, stale runtime ABI, stale primitive/resource facts,
+  missing measurement identity, and stale selected-dispatch boundary facts fail
+  closed before performance preference or selected dispatch is accepted.
+- [x] Commit the Gate 3 slice and leave `.trellis/.current-task` active because
+  Gate 4 remains incomplete.
+
+## Acceptance Criteria For Gate 3
+
+- [x] The public production policy surface can evaluate, resolve, and verify
+  dispatch/performance decisions directly from
+  `RVVLowPrecisionSameTargetMeasurementRecord`, with and without
+  `RVVLowPrecisionSelectedDispatchPolicyBoundary`.
+- [x] Valid source-backed record consumption ties measurement identity,
+  target profile, runtime ABI order, provider resource candidate, provider
+  schedule decision, primitive-chain facts, remediation facts, target capability
+  mirrors, maturity, eligibility, and dispatch preference before producing a
+  policy decision.
+- [x] The current accepted packed-i4 regression/no-win record selects
+  `correctness-fallback`, keeps correctness execution allowed, denies
+  performance selection, and denies performance-win claims.
+- [x] A measured win selects `performance-preferred` only when the measurement
+  record, provider maturity, eligibility, dispatch, remediation, schedule, and
+  target facts all agree.
+- [x] Stale or missing target, runtime ABI, provider/resource, primitive-chain,
+  measurement identity, selected-dispatch case, or selected-dispatch fallback
+  facts fail closed with targeted diagnostics.
+- [x] Measurement records remain input-only: dry-run output, artifact names,
+  route ids, metadata mirrors, report status fields, and Common EmitC/export
+  code do not become selected-dispatch or performance authority.
+
 ## Acceptance Criteria For Gate 2
 
 - [x] The representative packed-i4 generated artifact measurement workflow
@@ -180,18 +224,41 @@ provenance fields.
   `ssh_evidence=false`, `same_target_measurement=false`, and no performance
   claim allowance.
 
+## Completed Slice: 2026-06-10 Gate 3
+
+- Added production policy API overloads so
+  `RVVLowPrecisionSameTargetMeasurementRecord` directly evaluates, resolves,
+  and verifies `RVVLowPrecisionPerformancePolicyDecision`, including
+  `RVVLowPrecisionSelectedDispatchPolicyBoundary` variants.
+- Rewired selected-dispatch provider and target artifact validation to call the
+  record-consumption policy boundary instead of first materializing a policy
+  input as the selected-dispatch authority.
+- Added focused C++ coverage proving the accepted packed-i4 regression/no-win
+  same-target record selects conservative `correctness-fallback`, preserves
+  correctness execution, and denies performance selection and performance-win
+  claims.
+- Added focused C++ coverage proving the bounded measured-win fixture selects
+  `performance-preferred` only when the measurement record and provider
+  maturity, eligibility, dispatch, remediation, schedule, target, and primitive
+  facts agree.
+- Added stale-record coverage for cross-target evidence, stale runtime ABI,
+  stale primitive-chain facts, missing selected-dispatch case facts, and stale
+  record resolver fallback diagnostics. Existing input/outcome negatives still
+  cover missing measurement identity, stale schedule/provider/resource facts,
+  stale sibling-route evidence, missing ssh evidence, stale speedup, and
+  measurement-only win promotion.
+- Updated the RVV plugin spec with the direct record-based dispatch/performance
+  policy API contract and test obligations.
+
 ## Remaining Gates And Continuation
 
-- Gate 3 remains open: selected-dispatch/performance preference must consume
-  measurement records plus primitive/resource facts with full stale/wrong-target
-  diagnostics.
 - Gate 4 remains open: final campaign audit must separate correctness
   execution, performance preference, and performance-win claims before this
   macro task can be archived.
-- Next continuation point: start Gate 3 by making selected-dispatch/performance
-  preference consume the source-backed measurement records plus primitive and
-  resource facts with full stale sibling-route, wrong-target, wrong-ABI, and
-  wrong-primitive-chain diagnostics.
+- Next continuation point: start Gate 4 with a final campaign audit that checks
+  correctness execution evidence, same-target measurement evidence, and
+  selected-dispatch/performance policy authority remain separate, then archive
+  this macro task only if all gates remain truthfully complete.
 
 ## Out Of Scope
 

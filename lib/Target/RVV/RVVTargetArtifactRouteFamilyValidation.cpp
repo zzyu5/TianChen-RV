@@ -6437,22 +6437,17 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
     plugin::rvv::RVVLowPrecisionSameTargetMeasurementRecord measurementRecord =
         plugin::rvv::buildRVVPackedI4Gate4SameTargetMeasurementRecord(
             contract->lowPrecisionResourceSelection);
-    llvm::Expected<plugin::rvv::RVVLowPrecisionSameTargetMeasurementPolicyInput>
-        policyInput =
-        plugin::rvv::buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
-            contract->lowPrecisionResourceSelection, measurementRecord, context);
-    if (!policyInput)
-      return policyInput.takeError();
     if (contract->lowPrecisionSelectedDispatchPolicyBoundary.hasFacts()) {
       if (llvm::Error error =
               plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
-                  contract->lowPrecisionResourceSelection, *policyInput,
+                  contract->lowPrecisionResourceSelection, measurementRecord,
                   contract->lowPrecisionSelectedDispatchPolicyBoundary,
                   context))
         return error;
     } else if (llvm::Error error =
                    plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
-                       contract->lowPrecisionResourceSelection, *policyInput,
+                       contract->lowPrecisionResourceSelection,
+                       measurementRecord,
                        context)) {
       return error;
     }
