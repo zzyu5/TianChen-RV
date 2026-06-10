@@ -57,6 +57,66 @@ or fallback behavior.
 
 Final coherent commit is created after this journal entry.
 
+## Session 579: Stage2 RVV low-precision contraction primitive Gate 3
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed Gate 3 only. Source inspection
+showed route/provider planning and target artifact mirrors already carried the
+low-precision widening-reduction primitive facts, but source-backed same-target
+measurement records only tied back a narrow primitive-chain subset. This round
+expanded the measurement/evidence record boundary so later selected-dispatch
+policy cannot consume a measurement unless it matches the provider-owned
+primitive/resource/config/runtime provenance already validated by export.
+
+### Main Changes
+
+- Extended `RVVLowPrecisionSameTargetMeasurementRecord` and
+  `RVVLowPrecisionSameTargetMeasurementPolicyInput` with provider primitive
+  contract/kind, source/product/accumulator/result dtype and SEW/LMUL facts,
+  primitive widening/reduction intrinsics, scalar seed splat,
+  accumulator/result layouts, and reduction store-VL.
+- Hardened record parsing and policy-input construction so missing or stale
+  primitive measurement fields fail closed before selected-dispatch or
+  performance policy consumption.
+- Updated the same-target measurement script and checked-in dequant-clamp
+  evidence JSON so generated records mirror validated low-precision
+  resource/artifact metadata rather than carrying only primitive-chain names.
+- Added plugin and target artifact C++ coverage for positive record propagation
+  plus missing/stale primitive intrinsic fail-closed cases.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] `python3 -m json.tool artifacts/gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_same_target_measure.py`
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] The existing RVV plugin and EmitC route specs already require
+Gate 3 measurement records to be evidence tie-backs for provider-owned
+resource/primitive facts and to fail closed on stale provider provenance. This
+slice implements that contract at the measurement-record schema and C++ policy
+input boundary.
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-3 are complete. Gate 4 remains open. The next
+continuation point is Gate 4: selected-dispatch/performance policy consumes the
+expanded source-backed same-target measurement records fail-closed, preserving
+correctness fallback and denying stale/no-win performance claims.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 578: Stage2 RVV low-precision contraction primitive Gate 2
 
 **Date**: 2026-06-10

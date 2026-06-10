@@ -485,6 +485,67 @@ llvm::Error verifyPackedI4SameTargetMeasurementPolicyInput(
           input.providerPrimitiveChainKind, selection.primitiveChainKind))
     return error;
   if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive contract",
+          input.providerPrimitiveContract, selection.primitiveContractID))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive kind", input.providerPrimitiveKind,
+          selection.primitiveKind))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive source dtype",
+          input.providerPrimitiveSourceDType, selection.sourceElementTypeName))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive source signedness",
+          input.providerPrimitiveSourceSignedness, selection.sourceSignedness))
+    return error;
+  if (llvm::Error error = requirePolicyInt(
+          context, "provider primitive source SEW",
+          input.providerPrimitiveSourceSEW, selection.sourceSEW))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive source LMUL",
+          input.providerPrimitiveSourceLMUL, selection.sourceLMUL))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive product dtype",
+          input.providerPrimitiveProductDType, selection.productElementTypeName))
+    return error;
+  if (llvm::Error error = requirePolicyInt(
+          context, "provider primitive product SEW",
+          input.providerPrimitiveProductSEW, selection.productSEW))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive product LMUL",
+          input.providerPrimitiveProductLMUL, selection.productLMUL))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive accumulator dtype",
+          input.providerPrimitiveAccumulatorDType,
+          selection.accumulatorElementTypeName))
+    return error;
+  if (llvm::Error error = requirePolicyInt(
+          context, "provider primitive accumulator SEW",
+          input.providerPrimitiveAccumulatorSEW, selection.accumulatorSEW))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive accumulator LMUL",
+          input.providerPrimitiveAccumulatorLMUL, selection.accumulatorLMUL))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive result dtype",
+          input.providerPrimitiveResultDType, selection.resultElementTypeName))
+    return error;
+  if (llvm::Error error = requirePolicyInt(
+          context, "provider primitive result SEW",
+          input.providerPrimitiveResultSEW, selection.resultSEW))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive result LMUL",
+          input.providerPrimitiveResultLMUL, selection.resultLMUL))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
           context, "provider primitive widening-product relation",
           input.providerPrimitiveWideningProductRelation,
           selection.primitiveWideningProductRelation))
@@ -493,6 +554,35 @@ llvm::Error verifyPackedI4SameTargetMeasurementPolicyInput(
           context, "provider primitive product-reduction chain relation",
           input.providerPrimitiveProductReductionChainRelation,
           selection.primitiveProductReductionChainRelation))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive widening-product intrinsic",
+          input.providerPrimitiveWideningProductIntrinsic,
+          selection.primitiveWideningProductIntrinsic))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive reduction intrinsic",
+          input.providerPrimitiveReductionIntrinsic,
+          selection.primitiveReductionIntrinsic))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive scalar seed splat intrinsic",
+          input.providerPrimitiveScalarSeedSplatIntrinsic,
+          selection.primitiveScalarSeedSplatIntrinsic))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive accumulator layout",
+          input.providerPrimitiveAccumulatorLayout,
+          selection.primitiveAccumulatorLayout))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive result layout",
+          input.providerPrimitiveResultLayout, selection.primitiveResultLayout))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive reduction store VL",
+          input.providerPrimitiveReductionStoreVL,
+          selection.primitiveReductionStoreVL))
     return error;
 
   if (llvm::Error error = requireSameTargetPolicyInputTieBack(
@@ -652,10 +742,40 @@ materializeRVVLowPrecisionPolicyInputFromMeasurementRecord(
   input.providerPrimitiveChainContract =
       record.providerPrimitiveChainContract;
   input.providerPrimitiveChainKind = record.providerPrimitiveChainKind;
+  input.providerPrimitiveContract = record.providerPrimitiveContract;
+  input.providerPrimitiveKind = record.providerPrimitiveKind;
+  input.providerPrimitiveSourceDType = record.providerPrimitiveSourceDType;
+  input.providerPrimitiveSourceSignedness =
+      record.providerPrimitiveSourceSignedness;
+  input.providerPrimitiveSourceSEW = record.providerPrimitiveSourceSEW;
+  input.providerPrimitiveSourceLMUL = record.providerPrimitiveSourceLMUL;
+  input.providerPrimitiveProductDType = record.providerPrimitiveProductDType;
+  input.providerPrimitiveProductSEW = record.providerPrimitiveProductSEW;
+  input.providerPrimitiveProductLMUL = record.providerPrimitiveProductLMUL;
+  input.providerPrimitiveAccumulatorDType =
+      record.providerPrimitiveAccumulatorDType;
+  input.providerPrimitiveAccumulatorSEW =
+      record.providerPrimitiveAccumulatorSEW;
+  input.providerPrimitiveAccumulatorLMUL =
+      record.providerPrimitiveAccumulatorLMUL;
+  input.providerPrimitiveResultDType = record.providerPrimitiveResultDType;
+  input.providerPrimitiveResultSEW = record.providerPrimitiveResultSEW;
+  input.providerPrimitiveResultLMUL = record.providerPrimitiveResultLMUL;
   input.providerPrimitiveWideningProductRelation =
       record.providerPrimitiveWideningProductRelation;
   input.providerPrimitiveProductReductionChainRelation =
       record.providerPrimitiveProductReductionChainRelation;
+  input.providerPrimitiveWideningProductIntrinsic =
+      record.providerPrimitiveWideningProductIntrinsic;
+  input.providerPrimitiveReductionIntrinsic =
+      record.providerPrimitiveReductionIntrinsic;
+  input.providerPrimitiveScalarSeedSplatIntrinsic =
+      record.providerPrimitiveScalarSeedSplatIntrinsic;
+  input.providerPrimitiveAccumulatorLayout =
+      record.providerPrimitiveAccumulatorLayout;
+  input.providerPrimitiveResultLayout = record.providerPrimitiveResultLayout;
+  input.providerPrimitiveReductionStoreVL =
+      record.providerPrimitiveReductionStoreVL;
   input.providerRemediationHandoffContract =
       record.providerRemediationHandoffContract;
   input.providerRemediationDiagnosis =
@@ -1152,10 +1272,37 @@ buildRVVPackedI4Gate4SameTargetMeasurementRecord(
   record.providerPrimitiveChainContract =
       selection.primitiveChainContractID;
   record.providerPrimitiveChainKind = selection.primitiveChainKind;
+  record.providerPrimitiveContract = selection.primitiveContractID;
+  record.providerPrimitiveKind = selection.primitiveKind;
+  record.providerPrimitiveSourceDType = selection.sourceElementTypeName;
+  record.providerPrimitiveSourceSignedness = selection.sourceSignedness;
+  record.providerPrimitiveSourceSEW = selection.sourceSEW;
+  record.providerPrimitiveSourceLMUL = selection.sourceLMUL;
+  record.providerPrimitiveProductDType = selection.productElementTypeName;
+  record.providerPrimitiveProductSEW = selection.productSEW;
+  record.providerPrimitiveProductLMUL = selection.productLMUL;
+  record.providerPrimitiveAccumulatorDType =
+      selection.accumulatorElementTypeName;
+  record.providerPrimitiveAccumulatorSEW = selection.accumulatorSEW;
+  record.providerPrimitiveAccumulatorLMUL = selection.accumulatorLMUL;
+  record.providerPrimitiveResultDType = selection.resultElementTypeName;
+  record.providerPrimitiveResultSEW = selection.resultSEW;
+  record.providerPrimitiveResultLMUL = selection.resultLMUL;
   record.providerPrimitiveWideningProductRelation =
       selection.primitiveWideningProductRelation;
   record.providerPrimitiveProductReductionChainRelation =
       selection.primitiveProductReductionChainRelation;
+  record.providerPrimitiveWideningProductIntrinsic =
+      selection.primitiveWideningProductIntrinsic;
+  record.providerPrimitiveReductionIntrinsic =
+      selection.primitiveReductionIntrinsic;
+  record.providerPrimitiveScalarSeedSplatIntrinsic =
+      selection.primitiveScalarSeedSplatIntrinsic;
+  record.providerPrimitiveAccumulatorLayout =
+      selection.primitiveAccumulatorLayout;
+  record.providerPrimitiveResultLayout = selection.primitiveResultLayout;
+  record.providerPrimitiveReductionStoreVL =
+      selection.primitiveReductionStoreVL;
   record.providerRemediationHandoffContract =
       selection.remediationHandoffContract;
   record.providerRemediationDiagnosis = selection.remediationDiagnosis;
@@ -1280,11 +1427,52 @@ buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
                           "provider_primitive_chain_contract");
   TCRV_READ_RECORD_STRING(providerPrimitiveChainKind,
                           "provider_primitive_chain_kind");
+  TCRV_READ_RECORD_STRING(providerPrimitiveContract,
+                          "provider_primitive_contract");
+  TCRV_READ_RECORD_STRING(providerPrimitiveKind, "provider_primitive_kind");
+  TCRV_READ_RECORD_STRING(providerPrimitiveSourceDType,
+                          "provider_primitive_source_dtype");
+  TCRV_READ_RECORD_STRING(providerPrimitiveSourceSignedness,
+                          "provider_primitive_source_signedness");
+  TCRV_READ_RECORD_INT(providerPrimitiveSourceSEW,
+                       "provider_primitive_source_sew");
+  TCRV_READ_RECORD_STRING(providerPrimitiveSourceLMUL,
+                          "provider_primitive_source_lmul");
+  TCRV_READ_RECORD_STRING(providerPrimitiveProductDType,
+                          "provider_primitive_product_dtype");
+  TCRV_READ_RECORD_INT(providerPrimitiveProductSEW,
+                       "provider_primitive_product_sew");
+  TCRV_READ_RECORD_STRING(providerPrimitiveProductLMUL,
+                          "provider_primitive_product_lmul");
+  TCRV_READ_RECORD_STRING(providerPrimitiveAccumulatorDType,
+                          "provider_primitive_accumulator_dtype");
+  TCRV_READ_RECORD_INT(providerPrimitiveAccumulatorSEW,
+                       "provider_primitive_accumulator_sew");
+  TCRV_READ_RECORD_STRING(providerPrimitiveAccumulatorLMUL,
+                          "provider_primitive_accumulator_lmul");
+  TCRV_READ_RECORD_STRING(providerPrimitiveResultDType,
+                          "provider_primitive_result_dtype");
+  TCRV_READ_RECORD_INT(providerPrimitiveResultSEW,
+                       "provider_primitive_result_sew");
+  TCRV_READ_RECORD_STRING(providerPrimitiveResultLMUL,
+                          "provider_primitive_result_lmul");
   TCRV_READ_RECORD_STRING(providerPrimitiveWideningProductRelation,
                           "provider_primitive_widening_product_relation");
   TCRV_READ_RECORD_STRING(
       providerPrimitiveProductReductionChainRelation,
       "provider_primitive_product_reduction_chain_relation");
+  TCRV_READ_RECORD_STRING(providerPrimitiveWideningProductIntrinsic,
+                          "provider_primitive_widening_product_intrinsic");
+  TCRV_READ_RECORD_STRING(providerPrimitiveReductionIntrinsic,
+                          "provider_primitive_reduction_intrinsic");
+  TCRV_READ_RECORD_STRING(providerPrimitiveScalarSeedSplatIntrinsic,
+                          "provider_primitive_scalar_seed_splat_intrinsic");
+  TCRV_READ_RECORD_STRING(providerPrimitiveAccumulatorLayout,
+                          "provider_primitive_accumulator_layout");
+  TCRV_READ_RECORD_STRING(providerPrimitiveResultLayout,
+                          "provider_primitive_result_layout");
+  TCRV_READ_RECORD_STRING(providerPrimitiveReductionStoreVL,
+                          "provider_primitive_reduction_store_vl");
   TCRV_READ_RECORD_STRING(providerRemediationHandoffContract,
                           "provider_remediation_handoff_contract");
   TCRV_READ_RECORD_STRING(providerRemediationDiagnosis,
@@ -1371,10 +1559,37 @@ buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
       outcome.providerScheduleDecisionReason;
   input.providerPrimitiveChainContract = selection.primitiveChainContractID;
   input.providerPrimitiveChainKind = selection.primitiveChainKind;
+  input.providerPrimitiveContract = selection.primitiveContractID;
+  input.providerPrimitiveKind = selection.primitiveKind;
+  input.providerPrimitiveSourceDType = selection.sourceElementTypeName;
+  input.providerPrimitiveSourceSignedness = selection.sourceSignedness;
+  input.providerPrimitiveSourceSEW = selection.sourceSEW;
+  input.providerPrimitiveSourceLMUL = selection.sourceLMUL;
+  input.providerPrimitiveProductDType = selection.productElementTypeName;
+  input.providerPrimitiveProductSEW = selection.productSEW;
+  input.providerPrimitiveProductLMUL = selection.productLMUL;
+  input.providerPrimitiveAccumulatorDType =
+      selection.accumulatorElementTypeName;
+  input.providerPrimitiveAccumulatorSEW = selection.accumulatorSEW;
+  input.providerPrimitiveAccumulatorLMUL = selection.accumulatorLMUL;
+  input.providerPrimitiveResultDType = selection.resultElementTypeName;
+  input.providerPrimitiveResultSEW = selection.resultSEW;
+  input.providerPrimitiveResultLMUL = selection.resultLMUL;
   input.providerPrimitiveWideningProductRelation =
       selection.primitiveWideningProductRelation;
   input.providerPrimitiveProductReductionChainRelation =
       selection.primitiveProductReductionChainRelation;
+  input.providerPrimitiveWideningProductIntrinsic =
+      selection.primitiveWideningProductIntrinsic;
+  input.providerPrimitiveReductionIntrinsic =
+      selection.primitiveReductionIntrinsic;
+  input.providerPrimitiveScalarSeedSplatIntrinsic =
+      selection.primitiveScalarSeedSplatIntrinsic;
+  input.providerPrimitiveAccumulatorLayout =
+      selection.primitiveAccumulatorLayout;
+  input.providerPrimitiveResultLayout = selection.primitiveResultLayout;
+  input.providerPrimitiveReductionStoreVL =
+      selection.primitiveReductionStoreVL;
 
   input.providerRemediationHandoffContract =
       selection.remediationHandoffContract;

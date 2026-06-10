@@ -168,10 +168,51 @@ llvm::json::Object makeSameTargetMeasurementRecordEvidenceInput(
       record.providerPrimitiveChainContract;
   evidenceInput["provider_primitive_chain_kind"] =
       record.providerPrimitiveChainKind;
+  evidenceInput["provider_primitive_contract"] =
+      record.providerPrimitiveContract;
+  evidenceInput["provider_primitive_kind"] = record.providerPrimitiveKind;
+  evidenceInput["provider_primitive_source_dtype"] =
+      record.providerPrimitiveSourceDType;
+  evidenceInput["provider_primitive_source_signedness"] =
+      record.providerPrimitiveSourceSignedness;
+  evidenceInput["provider_primitive_source_sew"] =
+      record.providerPrimitiveSourceSEW;
+  evidenceInput["provider_primitive_source_lmul"] =
+      record.providerPrimitiveSourceLMUL;
+  evidenceInput["provider_primitive_product_dtype"] =
+      record.providerPrimitiveProductDType;
+  evidenceInput["provider_primitive_product_sew"] =
+      record.providerPrimitiveProductSEW;
+  evidenceInput["provider_primitive_product_lmul"] =
+      record.providerPrimitiveProductLMUL;
+  evidenceInput["provider_primitive_accumulator_dtype"] =
+      record.providerPrimitiveAccumulatorDType;
+  evidenceInput["provider_primitive_accumulator_sew"] =
+      record.providerPrimitiveAccumulatorSEW;
+  evidenceInput["provider_primitive_accumulator_lmul"] =
+      record.providerPrimitiveAccumulatorLMUL;
+  evidenceInput["provider_primitive_result_dtype"] =
+      record.providerPrimitiveResultDType;
+  evidenceInput["provider_primitive_result_sew"] =
+      record.providerPrimitiveResultSEW;
+  evidenceInput["provider_primitive_result_lmul"] =
+      record.providerPrimitiveResultLMUL;
   evidenceInput["provider_primitive_widening_product_relation"] =
       record.providerPrimitiveWideningProductRelation;
   evidenceInput["provider_primitive_product_reduction_chain_relation"] =
       record.providerPrimitiveProductReductionChainRelation;
+  evidenceInput["provider_primitive_widening_product_intrinsic"] =
+      record.providerPrimitiveWideningProductIntrinsic;
+  evidenceInput["provider_primitive_reduction_intrinsic"] =
+      record.providerPrimitiveReductionIntrinsic;
+  evidenceInput["provider_primitive_scalar_seed_splat_intrinsic"] =
+      record.providerPrimitiveScalarSeedSplatIntrinsic;
+  evidenceInput["provider_primitive_accumulator_layout"] =
+      record.providerPrimitiveAccumulatorLayout;
+  evidenceInput["provider_primitive_result_layout"] =
+      record.providerPrimitiveResultLayout;
+  evidenceInput["provider_primitive_reduction_store_vl"] =
+      record.providerPrimitiveReductionStoreVL;
   evidenceInput["provider_remediation_handoff_contract"] =
       record.providerRemediationHandoffContract;
   evidenceInput["provider_remediation_diagnosis"] =
@@ -10192,6 +10233,12 @@ module {
                   packedI4ResourceSelection.runtimeABIOrder &&
               parsedPackedI4Gate2Record->providerPrimitiveChainKind ==
                   packedI4ResourceSelection.primitiveChainKind &&
+              parsedPackedI4Gate2Record->providerPrimitiveProductDType ==
+                  packedI4ResourceSelection.productElementTypeName &&
+              parsedPackedI4Gate2Record->providerPrimitiveProductSEW ==
+                  packedI4ResourceSelection.productSEW &&
+              parsedPackedI4Gate2Record->providerPrimitiveReductionIntrinsic ==
+                  packedI4ResourceSelection.primitiveReductionIntrinsic &&
               parsedPackedI4Gate2Record->providerScheduleDecision ==
                   packedI4ResourceSelection.scheduleDecision,
           "packed-i4 Gate 3 generated artifact record JSON preserves "
@@ -10217,6 +10264,11 @@ module {
                   packedI4ResourceSelection.runtimeAVLSource &&
               parsedPackedI4Gate2PolicyInput->providerResourceSelectedCandidate ==
                   packedI4ResourceSelection.selectedCandidateID &&
+              parsedPackedI4Gate2PolicyInput->providerPrimitiveContract ==
+                  packedI4ResourceSelection.primitiveContractID &&
+              parsedPackedI4Gate2PolicyInput
+                      ->providerPrimitiveWideningProductIntrinsic ==
+                  packedI4ResourceSelection.primitiveWideningProductIntrinsic &&
               parsedPackedI4Gate2PolicyInput->targetCapabilityLegalityMirror ==
                   packedI4ResourceSelection.targetCapabilityLegalityMirror,
           "packed-i4 Gate 3 generated artifact evidence object feeds the "
@@ -10252,6 +10304,22 @@ module {
                   .takeError(),
           {"same-target measurement record string field",
            "provider_resource_planning_contract"}))
+    return result;
+
+  llvm::json::Object missingPrimitiveIntrinsicGate3Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  missingPrimitiveIntrinsicGate3Evidence.erase(
+      "provider_primitive_reduction_intrinsic");
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
+                  missingPrimitiveIntrinsicGate3Evidence,
+                  "selected-boundary packed-i4 Gate 3 missing primitive "
+                  "intrinsic")
+                  .takeError(),
+          {"same-target measurement record string field",
+           "provider_primitive_reduction_intrinsic"}))
     return result;
 
   llvm::json::Object staleTargetGate2Evidence =
@@ -10311,6 +10379,24 @@ module {
                   .takeError(),
           {"provider primitive chain kind", "artifact-name-derived-primitive",
            tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePrimitiveChainKind}))
+    return result;
+
+  llvm::json::Object stalePrimitiveIntrinsicGate3Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  stalePrimitiveIntrinsicGate3Evidence["provider_primitive_reduction_intrinsic"] =
+      "artifact-name-derived-vwredsum";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+                  packedI4ResourceSelection, stalePrimitiveIntrinsicGate3Evidence,
+                  "selected-boundary packed-i4 Gate 3 stale primitive "
+                  "intrinsic")
+                  .takeError(),
+          {"provider primitive reduction intrinsic",
+           "artifact-name-derived-vwredsum",
+           tianchenrv::plugin::rvv::
+               kRVVLowPrecisionResourcePrimitiveReductionIntrinsic}))
     return result;
 
   auto acceptedPackedI4Gate4OutcomeOr =

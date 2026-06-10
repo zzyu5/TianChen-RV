@@ -13178,6 +13178,15 @@ bool expectRVVTargetArtifactExporterShape(
   if (acceptedPackedI4Gate4PolicyInput->providerPrimitiveChainKind !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .primitiveChainKind ||
+      acceptedPackedI4Gate4PolicyInput->providerPrimitiveContract !=
+          packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .primitiveContractID ||
+      acceptedPackedI4Gate4PolicyInput->providerPrimitiveReductionIntrinsic !=
+          packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .primitiveReductionIntrinsic ||
+      acceptedPackedI4Gate4PolicyInput->providerPrimitiveProductSEW !=
+          packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .productSEW ||
       acceptedPackedI4Gate4PolicyInput->providerResourcePlanningContract !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .planningContract ||
@@ -13461,6 +13470,26 @@ bool expectRVVTargetArtifactExporterShape(
           {"provider planning contract",
            "metadata-derived-resource-planning-contract",
            tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePlanningContract}))
+    return false;
+
+  auto stalePrimitiveIntrinsicPackedI4MeasurementRecord =
+      acceptedPackedI4Gate4MeasurementRecord;
+  stalePrimitiveIntrinsicPackedI4MeasurementRecord
+      .providerPrimitiveReductionIntrinsic = "metadata-derived-vwredsum";
+  auto stalePrimitiveIntrinsicPackedI4PolicyInput =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
+              selectedDispatchPackedI4Description.lowPrecisionResourceSelection,
+              stalePrimitiveIntrinsicPackedI4MeasurementRecord,
+              "packed-i4 target artifact Gate 3 policy input rejects stale "
+              "primitive intrinsic");
+  if (!expectErrorContains(
+          stalePrimitiveIntrinsicPackedI4PolicyInput.takeError(),
+          "packed-i4 target artifact rejects stale policy input primitive "
+          "intrinsic",
+          {"provider primitive reduction intrinsic", "metadata-derived-vwredsum",
+           tianchenrv::plugin::rvv::
+               kRVVLowPrecisionResourcePrimitiveReductionIntrinsic}))
     return false;
 
   auto measuredWinTargetSelection =

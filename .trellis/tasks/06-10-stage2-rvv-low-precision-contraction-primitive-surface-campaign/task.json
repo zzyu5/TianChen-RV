@@ -2,7 +2,7 @@
   "id": "stage2-rvv-low-precision-contraction-primitive-surface-campaign",
   "name": "stage2-rvv-low-precision-contraction-primitive-surface-campaign",
   "title": "Stage2 RVV low-precision contraction primitive-surface campaign",
-  "description": "Macro campaign for RVV Stage 2 low-precision contraction primitive facts. Gates 1-2 are complete for target provider-facts validation and selected-body realization consumption of low-precision primitive facts; Gates 3-4 remain open.",
+  "description": "Macro campaign for RVV Stage 2 low-precision contraction primitive facts. Gates 1-3 are complete for target provider-facts validation, selected-body realization consumption, and route/provider/artifact/measurement record propagation of low-precision primitive facts; Gate 4 remains open.",
   "status": "in_progress",
   "dev_type": null,
   "scope": null,

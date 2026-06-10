@@ -9,15 +9,16 @@ facts, selected-body realization facts, route/provider legality, target
 validation, and later same-target policy consumption flow through production
 RVV-owned compiler surfaces.
 
-The current round implements Gate 2 only. It must harden RVV plugin-local
-selected-body realization so a representative low-precision
-product-reduction/dequant path consumes the Gate 1 primitive facts before route
-construction. The realization boundary must preserve compute semantics, dtype
-semantics, ABI roles, runtime AVL/VL, variant origin, dispatch, and fallback
-behavior while rejecting missing or stale primitive/resource facts before Common
-EmitC, target artifact metadata, q8/q4 labels, packed-i4 labels, descriptor
-residue, generated C strings, route ids, or artifact names can stand in for
-typed body/config/provider facts.
+The current round implements Gate 3 only. It must carry the low-precision
+primitive/resource facts already consumed by selected-body realization through
+route/provider planning, target artifact export mirrors, generated artifact
+records, and source-backed same-target measurement records. The export and
+measurement boundaries must preserve compute semantics, dtype semantics, ABI
+roles, runtime AVL/VL, variant origin, dispatch, and fallback behavior while
+rejecting missing or stale primitive/resource/config/ABI/provenance facts before
+Common EmitC, artifact names, q8/q4 labels, packed-i4 labels, descriptor
+residue, generated C strings, route ids, script fields, or measurement records
+can stand in for typed body/config/provider facts.
 
 ## What I Already Know
 
@@ -56,20 +57,22 @@ typed body/config/provider facts.
   human steering redirects it.
 - Complete one coherent milestone slice per worker round, commit it, and leave
   this task active while remaining gates are incomplete.
-- Gate 2 must change or harden production compiler/validation code. PRD-only,
+- Gate 3 must change or harden production compiler/validation code. PRD-only,
   journal-only, generated-bundle dry-run-only, broad smoke-only, or evidence
   packaging-only work does not satisfy the slice.
 - Primitive authority must come from typed `tcrv_rvv` body/config/provider
   facts. It must not come from q8/q4 labels, llama.cpp names, packed-i4
   artifact labels, descriptor residue, generated C strings, route ids,
   artifact names, Common EmitC, status fields, or metadata mirrors.
-- The Gate 2 surface must prove that selected-body realization consumes the
-  smallest coherent production subset of low-precision contraction facts that
-  source inspection proves is missing or weak. Acceptable minimum scope is the
-  signed i8 product-reduction/dequant path with source/product/accumulator/
-  reduction/final element facts, SEW/LMUL, signedness, primitive chain facts,
-  selected resource decision, runtime AVL/VL, and provider-visible realization
-  schedule facts.
+- The Gate 3 surface must prove that route/provider/export and same-target
+  measurement records carry the smallest coherent production subset of
+  low-precision contraction facts that source inspection proves is missing or
+  weak. Acceptable minimum scope is the packed-i4 product-reduction/dequant and
+  dequant-clamp measurement/evidence path with source/product/accumulator/final
+  element facts, SEW/LMUL, signedness, primitive chain facts, primitive
+  intrinsic/layout facts, selected resource decision, runtime AVL/VL, ABI order,
+  route-family plan, provider-supported mirror, target capability mirrors, and
+  provider-visible realization/schedule facts.
 - Common EmitC must remain neutral. It may consume provider-built route payloads
   that already exist, but it must not invent RVV dtype, SEW/LMUL, widening, or
   contraction semantics.
@@ -84,32 +87,38 @@ typed body/config/provider facts.
 - [x] Gate 2: RVV plugin-local selected-body realization consumes those facts
   for a representative low-precision contraction/dequant path without changing
   compute semantics.
-- [ ] Gate 3: route/provider/artifact export carries those facts into generated
+- [x] Gate 3: route/provider/artifact export carries those facts into generated
   artifacts and source-backed same-target measurement records.
 - [ ] Gate 4: selected-dispatch/performance policy consumes those measurements
   fail-closed, preserving correctness fallback and denying stale/no-win
   performance claims.
 
-## Current Slice: Gate 2
+## Completed Slice: Gate 3
 
-- [x] Inspect the RVV contraction selected-body realization owner and
-  provider-facing low-precision resource selection path for the representative
-  product-reduction/dequant body.
-- [x] Harden selected-body realization so the selected resource candidate's
-  primitive chain fields are checked directly against provider-owned
-  `RVVLowPrecisionWideningReductionPrimitiveFacts` before realized `with_vl`,
-  region-marker, handoff, or provider-visible resource facts are accepted.
-- [x] Preserve the existing positive realization path: pre-realized
-  product-reduction/dequant selected bodies become realized typed
-  setvl/with_vl/load/widening_product/standalone_reduce/handoff/dequant/store
-  structure with provider-visible resource and primitive facts.
-- [x] Add focused negative C++ coverage for missing or stale primitive/resource
-  facts failing closed at selected-body realization before route or artifact
-  authority.
-- [x] Run focused C++ tests, directly touched tests, whitespace checks, bounded
-  old-authority scans, and Trellis validation.
-- [x] Commit the Gate 2 slice and keep `.trellis/.current-task` active because
-  Gates 3-4 remain incomplete.
+- Extended `RVVLowPrecisionSameTargetMeasurementRecord` and
+  `RVVLowPrecisionSameTargetMeasurementPolicyInput` so source-backed
+  measurement records carry provider primitive contract/kind,
+  source/product/accumulator/result dtype and SEW/LMUL facts, primitive
+  widening/reduction intrinsics, scalar seed splat, accumulator/result layouts,
+  and reduction store-VL in addition to the existing resource, runtime ABI,
+  schedule, target capability, and primitive-chain facts.
+- Hardened measurement-record parsing and policy-input construction so missing
+  or stale primitive record fields fail closed before selected-dispatch or
+  performance policy can consume the measurement.
+- Updated the same-target measurement script so generated
+  `maturity_contract_evidence_input` and `same_target_measurement_record`
+  include those provider-owned primitive facts as exact mirrors from validated
+  low-precision resource/artifact metadata.
+- Updated the checked-in dequant-clamp Gate 3 evidence JSON to the expanded
+  measurement-record schema, preserving the existing no-win/regression
+  evidence values while adding provider primitive provenance mirrors.
+- Added focused plugin and target artifact C++ coverage for positive record
+  propagation plus missing/stale primitive intrinsic fail-closed cases.
+- Verified the slice with focused plugin/target C++ tests, the measurement
+  script self-test, JSON validation, whitespace checks, Trellis validation, and
+  a bounded old-authority scan. No new `ssh rvv` evidence was claimed because
+  this slice changes measurement/evidence record provenance, not runtime
+  correctness or performance behavior.
 
 ## Completed Slice: Gate 1
 
@@ -148,18 +157,15 @@ typed body/config/provider facts.
 
 ## Remaining Macro Gates
 
-- Gate 3: route/provider/artifact export must carry the facts into generated
-  artifacts and source-backed same-target measurement records.
 - Gate 4: selected-dispatch/performance policy must consume those measurements
   fail-closed while preserving correctness fallback.
 
 ## Next Continuation Point
 
-Continue Gate 3 in this same task: inspect route/provider/artifact export for
-the representative low-precision product-reduction/dequant path and make the
-facts consumed by selected-body realization carry into generated artifacts and
-source-backed same-target measurement records with fail-closed stale mirror
-diagnostics. Do not switch to performance policy until Gate 3 is complete.
+Continue Gate 4 in this same task: make selected-dispatch/performance policy
+consume the expanded source-backed same-target measurement records fail-closed,
+preserving correctness fallback and denying stale/no-win performance claims. Do
+not archive the macro task until Gate 4 is complete.
 
 ## Out Of Scope
 

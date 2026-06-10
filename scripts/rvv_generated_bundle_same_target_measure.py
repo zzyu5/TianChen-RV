@@ -97,8 +97,29 @@ PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS = (
     "provider_schedule_decision_reason",
     "provider_primitive_chain_contract",
     "provider_primitive_chain_kind",
+    "provider_primitive_contract",
+    "provider_primitive_kind",
+    "provider_primitive_source_dtype",
+    "provider_primitive_source_signedness",
+    "provider_primitive_source_sew",
+    "provider_primitive_source_lmul",
+    "provider_primitive_product_dtype",
+    "provider_primitive_product_sew",
+    "provider_primitive_product_lmul",
+    "provider_primitive_accumulator_dtype",
+    "provider_primitive_accumulator_sew",
+    "provider_primitive_accumulator_lmul",
+    "provider_primitive_result_dtype",
+    "provider_primitive_result_sew",
+    "provider_primitive_result_lmul",
     "provider_primitive_widening_product_relation",
     "provider_primitive_product_reduction_chain_relation",
+    "provider_primitive_widening_product_intrinsic",
+    "provider_primitive_reduction_intrinsic",
+    "provider_primitive_scalar_seed_splat_intrinsic",
+    "provider_primitive_accumulator_layout",
+    "provider_primitive_result_layout",
+    "provider_primitive_reduction_store_vl",
     "provider_remediation_handoff_contract",
     "provider_remediation_diagnosis",
     "provider_remediation_measurement_evidence",
@@ -1992,11 +2013,50 @@ def packed_i4_maturity_contract_evidence_input(
         "provider_runtime_abi_order": fields["runtime_abi_order"],
         "provider_primitive_chain_contract": fields["primitive_chain_contract"],
         "provider_primitive_chain_kind": fields["primitive_chain_kind"],
+        "provider_primitive_contract": fields["primitive_contract"],
+        "provider_primitive_kind": fields["primitive_kind"],
+        "provider_primitive_source_dtype": fields["source_dtype"],
+        "provider_primitive_source_signedness": fields["source_signedness"],
+        "provider_primitive_source_sew": packed_i4_resource_int(
+            fields, "source_sew"
+        ),
+        "provider_primitive_source_lmul": fields["source_lmul"],
+        "provider_primitive_product_dtype": fields["product_dtype"],
+        "provider_primitive_product_sew": packed_i4_resource_int(
+            fields, "product_sew"
+        ),
+        "provider_primitive_product_lmul": fields["product_lmul"],
+        "provider_primitive_accumulator_dtype": fields["accumulator_dtype"],
+        "provider_primitive_accumulator_sew": packed_i4_resource_int(
+            fields, "accumulator_sew"
+        ),
+        "provider_primitive_accumulator_lmul": fields["accumulator_lmul"],
+        "provider_primitive_result_dtype": fields["result_dtype"],
+        "provider_primitive_result_sew": packed_i4_resource_int(
+            fields, "result_sew"
+        ),
+        "provider_primitive_result_lmul": fields["result_lmul"],
         "provider_primitive_widening_product_relation": fields[
             "primitive_widening_product_relation"
         ],
         "provider_primitive_product_reduction_chain_relation": fields[
             "primitive_product_reduction_chain_relation"
+        ],
+        "provider_primitive_widening_product_intrinsic": fields[
+            "primitive_widening_product_intrinsic"
+        ],
+        "provider_primitive_reduction_intrinsic": fields[
+            "primitive_reduction_intrinsic"
+        ],
+        "provider_primitive_scalar_seed_splat_intrinsic": fields[
+            "primitive_scalar_seed_splat_intrinsic"
+        ],
+        "provider_primitive_accumulator_layout": fields[
+            "primitive_accumulator_layout"
+        ],
+        "provider_primitive_result_layout": fields["primitive_result_layout"],
+        "provider_primitive_reduction_store_vl": fields[
+            "primitive_reduction_store_vl"
         ],
         "provider_remediation_handoff_contract": fields[
             "remediation_handoff_contract"
@@ -2156,11 +2216,50 @@ def validate_packed_i4_maturity_contract_evidence_input(
         "provider_runtime_abi_order": fields["runtime_abi_order"],
         "provider_primitive_chain_contract": fields["primitive_chain_contract"],
         "provider_primitive_chain_kind": fields["primitive_chain_kind"],
+        "provider_primitive_contract": fields["primitive_contract"],
+        "provider_primitive_kind": fields["primitive_kind"],
+        "provider_primitive_source_dtype": fields["source_dtype"],
+        "provider_primitive_source_signedness": fields["source_signedness"],
+        "provider_primitive_source_sew": packed_i4_resource_int(
+            fields, "source_sew"
+        ),
+        "provider_primitive_source_lmul": fields["source_lmul"],
+        "provider_primitive_product_dtype": fields["product_dtype"],
+        "provider_primitive_product_sew": packed_i4_resource_int(
+            fields, "product_sew"
+        ),
+        "provider_primitive_product_lmul": fields["product_lmul"],
+        "provider_primitive_accumulator_dtype": fields["accumulator_dtype"],
+        "provider_primitive_accumulator_sew": packed_i4_resource_int(
+            fields, "accumulator_sew"
+        ),
+        "provider_primitive_accumulator_lmul": fields["accumulator_lmul"],
+        "provider_primitive_result_dtype": fields["result_dtype"],
+        "provider_primitive_result_sew": packed_i4_resource_int(
+            fields, "result_sew"
+        ),
+        "provider_primitive_result_lmul": fields["result_lmul"],
         "provider_primitive_widening_product_relation": fields[
             "primitive_widening_product_relation"
         ],
         "provider_primitive_product_reduction_chain_relation": fields[
             "primitive_product_reduction_chain_relation"
+        ],
+        "provider_primitive_widening_product_intrinsic": fields[
+            "primitive_widening_product_intrinsic"
+        ],
+        "provider_primitive_reduction_intrinsic": fields[
+            "primitive_reduction_intrinsic"
+        ],
+        "provider_primitive_scalar_seed_splat_intrinsic": fields[
+            "primitive_scalar_seed_splat_intrinsic"
+        ],
+        "provider_primitive_accumulator_layout": fields[
+            "primitive_accumulator_layout"
+        ],
+        "provider_primitive_result_layout": fields["primitive_result_layout"],
+        "provider_primitive_reduction_store_vl": fields[
+            "primitive_reduction_store_vl"
         ],
         "provider_remediation_handoff_contract": fields[
             "remediation_handoff_contract"
@@ -2319,7 +2418,19 @@ def packed_i4_provider_feedback_tie_back(
         "provider_supported_mirror",
         "runtime_avl_source",
         "runtime_abi_order",
+        "source_dtype",
         "source_signedness",
+        "source_sew",
+        "source_lmul",
+        "product_dtype",
+        "product_sew",
+        "product_lmul",
+        "accumulator_dtype",
+        "accumulator_sew",
+        "accumulator_lmul",
+        "result_dtype",
+        "result_sew",
+        "result_lmul",
         "storage_element_width",
         "effective_element_width",
         "vsetvl_region_count",
@@ -3529,6 +3640,11 @@ def run_self_test() -> int:
             "provider_primitive_chain_kind",
             "stale-primitive-chain-kind",
             "primitive_chain_kind",
+        ),
+        (
+            "provider_primitive_reduction_intrinsic",
+            "__riscv_vwredsum_vs_i32m1_i32m1",
+            "primitive_reduction_intrinsic",
         ),
         (
             "provider_remediation_handoff_contract",
