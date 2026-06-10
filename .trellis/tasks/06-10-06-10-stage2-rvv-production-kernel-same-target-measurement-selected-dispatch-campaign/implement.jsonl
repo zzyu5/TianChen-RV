@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV Stage 2 scope, and measured same-target evidence boundary."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, low-precision primitive/resource ownership, and ssh rvv evidence rules."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built route and Common EmitC neutrality while measurement records feed target/policy validation."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Production-kernel campaign priority and measured comparison path requirements."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/script checks and runtime-evidence boundary for Gate 1."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability/target/profile facts must constrain validation without defining RVV dtype or route authority."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep RVV measurement and performance policy local to plugin/target seams, not common orchestration."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Avoid introducing high-level compute or source-front-door semantics while touching dispatch policy."}

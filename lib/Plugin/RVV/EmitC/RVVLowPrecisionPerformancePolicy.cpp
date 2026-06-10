@@ -470,6 +470,75 @@ materializeRVVLowPrecisionMeasurementOutcomeFromPolicyInput(
   return outcome;
 }
 
+RVVLowPrecisionSameTargetMeasurementPolicyInput
+materializeRVVLowPrecisionPolicyInputFromMeasurementRecord(
+    const RVVLowPrecisionSameTargetMeasurementRecord &record) {
+  RVVLowPrecisionSameTargetMeasurementPolicyInput input;
+  input.contract = record.contract;
+  input.authority = record.authority;
+  input.measurementEvidenceID = record.measurementEvidenceID;
+  input.measurementClassification = record.measurementClassification;
+  input.measurementOutcomeFamily = record.measurementOutcomeFamily;
+  input.measurementBestSpeedupRange = record.measurementBestSpeedupRange;
+  input.measurementSummaryRecordCount =
+      record.measurementSummaryRecordCount;
+  input.measurementRecordCount = record.measurementRecordCount;
+  input.correctnessRecordCount = record.correctnessRecordCount;
+  input.sameTargetMeasurement = record.sameTargetMeasurement;
+  input.sshEvidence = record.sshEvidence;
+  input.targetProfile = record.targetProfile;
+  input.providerResourceSelectedCandidate =
+      record.providerResourceSelectedCandidate;
+  input.providerResourceRouteFamilyPlan =
+      record.providerResourceRouteFamilyPlan;
+  input.providerSupportedMirror = record.providerSupportedMirror;
+  input.providerRuntimeABIOrder = record.providerRuntimeABIOrder;
+  input.providerScheduleDecisionContract =
+      record.providerScheduleDecisionContract;
+  input.providerScheduleDecision = record.providerScheduleDecision;
+  input.providerScheduleDecisionReason =
+      record.providerScheduleDecisionReason;
+  input.providerPrimitiveChainContract =
+      record.providerPrimitiveChainContract;
+  input.providerPrimitiveChainKind = record.providerPrimitiveChainKind;
+  input.providerPrimitiveWideningProductRelation =
+      record.providerPrimitiveWideningProductRelation;
+  input.providerPrimitiveProductReductionChainRelation =
+      record.providerPrimitiveProductReductionChainRelation;
+  input.providerRemediationHandoffContract =
+      record.providerRemediationHandoffContract;
+  input.providerRemediationDiagnosis =
+      record.providerRemediationDiagnosis;
+  input.providerRemediationMeasurementEvidence =
+      record.providerRemediationMeasurementEvidence;
+  input.providerRemediationDecision = record.providerRemediationDecision;
+  input.providerRemediationAction = record.providerRemediationAction;
+  input.providerRemediationDispatchPreference =
+      record.providerRemediationDispatchPreference;
+  input.providerRemediationBlocker = record.providerRemediationBlocker;
+  input.targetCapabilityProviderMirror =
+      record.targetCapabilityProviderMirror;
+  input.targetCapabilityLegalityMirror =
+      record.targetCapabilityLegalityMirror;
+  input.providerMaturity = record.providerMaturity;
+  input.providerMaturityEvidence = record.providerMaturityEvidence;
+  input.providerMaturityOutcome = record.providerMaturityOutcome;
+  input.providerPerformanceSelectionEligible =
+      record.providerPerformanceSelectionEligible;
+  input.providerDispatchPreference = record.providerDispatchPreference;
+  input.providerPerformanceAction = record.providerPerformanceAction;
+  input.performancePreferenceDenied =
+      record.performancePreferenceDenied;
+  input.performancePreferenceDenialReason =
+      record.performancePreferenceDenialReason;
+  input.performanceWinClaimAllowed = record.performanceWinClaimAllowed;
+  input.correctnessExecutionAllowed = record.correctnessExecutionAllowed;
+  input.providerContractUpdateRequired =
+      record.providerContractUpdateRequired;
+  input.routeSupportEffect = record.routeSupportEffect;
+  return input;
+}
+
 llvm::Error verifyPackedI4MeasurementOutcomeCommon(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionPerformanceMeasurementOutcome &outcome,
@@ -844,51 +913,72 @@ llvm::Error verifyRVVLowPrecisionSelectedDispatchBoundary(
 
 } // namespace
 
-RVVLowPrecisionPerformanceMeasurementOutcome
-getAcceptedRVVPackedI4Gate4MeasurementOutcome() {
-  RVVLowPrecisionPerformanceMeasurementOutcome outcome;
-  outcome.contract = kPackedI4MeasurementInputContract.str();
-  outcome.measurementEvidenceID =
+RVVLowPrecisionSameTargetMeasurementRecord
+buildRVVPackedI4Gate4SameTargetMeasurementRecord(
+    const RVVLowPrecisionContractionResourceSelection &selection) {
+  RVVLowPrecisionSameTargetMeasurementRecord record;
+  record.contract = kPackedI4MeasurementInputContract.str();
+  record.authority = kPackedI4MeasurementInputAuthority.str();
+  record.measurementEvidenceID =
       kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID.str();
-  outcome.measurementClassification =
+  record.measurementClassification =
       kPackedI4Gate4MeasurementClassification.str();
-  outcome.measurementOutcomeFamily =
+  record.measurementOutcomeFamily =
       kPackedI4Gate4MeasurementOutcomeFamily.str();
-  outcome.measurementBestSpeedupRange =
+  record.measurementBestSpeedupRange =
       kPackedI4Gate4MeasurementBestSpeedupRange.str();
-  outcome.measurementSummaryRecordCount =
+  record.measurementSummaryRecordCount =
       kPackedI4Gate4MeasurementSummaryRecordCount;
-  outcome.measurementRecordCount = kPackedI4Gate4MeasurementRecordCount;
-  outcome.correctnessRecordCount = kPackedI4Gate4CorrectnessRecordCount;
-  outcome.sameTargetMeasurement = true;
-  outcome.sshEvidence = true;
-  outcome.targetProfile = kPackedI4Gate4TargetProfile.str();
-  outcome.providerMaturity =
-      kRVVLowPrecisionResourcePackedI4PerformanceMaturity.str();
-  outcome.providerMaturityEvidence =
-      kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence.str();
-  outcome.providerMaturityOutcome =
-      kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome.str();
-  outcome.providerPerformanceSelectionEligible =
-      kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible.str();
-  outcome.providerDispatchPreference =
-      kRVVLowPrecisionResourcePackedI4DispatchPreference.str();
-  outcome.providerPerformanceAction =
-      kRVVLowPrecisionResourcePackedI4PerformanceAction.str();
-  outcome.providerScheduleDecisionContract =
-      kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract.str();
-  outcome.providerScheduleDecision =
-      kRVVLowPrecisionResourcePackedI4ScheduleDecision.str();
-  outcome.providerScheduleDecisionReason =
-      kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason.str();
-  outcome.performancePreferenceDenied = true;
-  outcome.performancePreferenceDenialReason =
+  record.measurementRecordCount = kPackedI4Gate4MeasurementRecordCount;
+  record.correctnessRecordCount = kPackedI4Gate4CorrectnessRecordCount;
+  record.sameTargetMeasurement = true;
+  record.sshEvidence = true;
+  record.targetProfile = kPackedI4Gate4TargetProfile.str();
+  record.providerResourceSelectedCandidate = selection.selectedCandidateID;
+  record.providerResourceRouteFamilyPlan = selection.routeFamilyPlanID;
+  record.providerSupportedMirror = selection.providerSupportedMirror;
+  record.providerRuntimeABIOrder = selection.runtimeABIOrder;
+  record.providerScheduleDecisionContract =
+      selection.scheduleDecisionContract;
+  record.providerScheduleDecision = selection.scheduleDecision;
+  record.providerScheduleDecisionReason =
+      selection.scheduleDecisionReason;
+  record.providerPrimitiveChainContract =
+      selection.primitiveChainContractID;
+  record.providerPrimitiveChainKind = selection.primitiveChainKind;
+  record.providerPrimitiveWideningProductRelation =
+      selection.primitiveWideningProductRelation;
+  record.providerPrimitiveProductReductionChainRelation =
+      selection.primitiveProductReductionChainRelation;
+  record.providerRemediationHandoffContract =
+      selection.remediationHandoffContract;
+  record.providerRemediationDiagnosis = selection.remediationDiagnosis;
+  record.providerRemediationMeasurementEvidence =
+      selection.remediationMeasurementEvidenceID;
+  record.providerRemediationDecision = selection.remediationDecision;
+  record.providerRemediationAction = selection.remediationAction;
+  record.providerRemediationDispatchPreference =
+      selection.remediationDispatchPreference;
+  record.providerRemediationBlocker = selection.remediationBlocker;
+  record.targetCapabilityProviderMirror =
+      selection.targetCapabilityProviderMirror;
+  record.targetCapabilityLegalityMirror =
+      selection.targetCapabilityLegalityMirror;
+  record.providerMaturity = selection.performanceMaturity;
+  record.providerMaturityEvidence = selection.performanceMaturityEvidence;
+  record.providerMaturityOutcome = selection.performanceMaturityOutcome;
+  record.providerPerformanceSelectionEligible =
+      selection.performanceSelectionEligible;
+  record.providerDispatchPreference = selection.dispatchPreference;
+  record.providerPerformanceAction = selection.performanceAction;
+  record.performancePreferenceDenied = true;
+  record.performancePreferenceDenialReason =
       kPackedI4PerformancePreferenceDenialReason.str();
-  outcome.performanceWinClaimAllowed = false;
-  outcome.correctnessExecutionAllowed = true;
-  outcome.providerContractUpdateRequired = false;
-  outcome.routeSupportEffect = kPackedI4RouteSupportEffect.str();
-  return outcome;
+  record.performanceWinClaimAllowed = false;
+  record.correctnessExecutionAllowed = true;
+  record.providerContractUpdateRequired = false;
+  record.routeSupportEffect = kPackedI4RouteSupportEffect.str();
+  return record;
 }
 
 RVVLowPrecisionSameTargetMeasurementPolicyInput
@@ -958,6 +1048,39 @@ buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
       outcome.providerContractUpdateRequired;
   input.routeSupportEffect = outcome.routeSupportEffect;
   return input;
+}
+
+llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput>
+buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    llvm::StringRef context) {
+  RVVLowPrecisionSameTargetMeasurementPolicyInput input =
+      materializeRVVLowPrecisionPolicyInputFromMeasurementRecord(record);
+  if (selection.hasSelection &&
+      isRVVLowPrecisionResourcePackedI4CandidateID(
+          selection.selectedCandidateID) &&
+      llvm::StringRef(selection.selectedCandidateID) !=
+          kRVVLowPrecisionResourceDequantPackedI4Candidate)
+    return input;
+  if (llvm::Error error =
+          verifyPackedI4SameTargetMeasurementPolicyInput(selection, input,
+                                                         context))
+    return std::move(error);
+  return input;
+}
+
+llvm::Expected<RVVLowPrecisionPerformanceMeasurementOutcome>
+buildRVVLowPrecisionPerformanceMeasurementOutcomeFromSameTargetRecord(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput> input =
+      buildRVVLowPrecisionSameTargetMeasurementPolicyInput(selection, record,
+                                                           context);
+  if (!input)
+    return input.takeError();
+  return materializeRVVLowPrecisionMeasurementOutcomeFromPolicyInput(*input);
 }
 
 llvm::Expected<RVVLowPrecisionPerformanceMeasurementOutcome>
@@ -1179,6 +1302,39 @@ diagnoseRVVLowPrecisionPerformancePolicyHandoff(
           .str();
   handoff.staleMeasurement = true;
   handoff.failureReason = llvm::toString(outcome.takeError());
+  return handoff;
+}
+
+RVVLowPrecisionPerformancePolicyHandoff
+diagnoseRVVLowPrecisionPerformancePolicyHandoff(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput> input =
+      buildRVVLowPrecisionSameTargetMeasurementPolicyInput(selection, record,
+                                                           context);
+  if (input)
+    return diagnoseRVVLowPrecisionPerformancePolicyHandoff(selection, *input,
+                                                           context);
+
+  RVVLowPrecisionPerformancePolicyHandoff handoff;
+  handoff.handoffContract =
+      kRVVLowPrecisionResourcePackedI4RemediationHandoffContract.str();
+  handoff.selectedCandidateID = selection.selectedCandidateID;
+  handoff.expectedSelectedCandidateID =
+      kRVVLowPrecisionResourceDequantPackedI4Candidate.str();
+  handoff.measurementEvidenceID = record.measurementEvidenceID;
+  handoff.measurementClassification = record.measurementClassification;
+  handoff.measurementOutcomeFamily = record.measurementOutcomeFamily;
+  handoff.dispatchPreference = selection.dispatchPreference;
+  handoff.performancePreferenceDenialReason =
+      record.performancePreferenceDenialReason;
+  handoff.diagnosisKind =
+      stringifyRVVLowPrecisionPerformanceMeasurementDiagnosisKind(
+          RVVLowPrecisionPerformanceMeasurementDiagnosisKind::StaleMeasurement)
+          .str();
+  handoff.staleMeasurement = true;
+  handoff.failureReason = llvm::toString(input.takeError());
   return handoff;
 }
 

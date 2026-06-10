@@ -13138,25 +13138,49 @@ bool expectRVVTargetArtifactExporterShape(
            "provider-owned artifact validation facts\n";
     return false;
   }
-  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
-      acceptedPackedI4Gate4Outcome =
+  tianchenrv::plugin::rvv::RVVLowPrecisionSameTargetMeasurementRecord
+      acceptedPackedI4Gate4MeasurementRecord =
           tianchenrv::plugin::rvv::
-              getAcceptedRVVPackedI4Gate4MeasurementOutcome();
+              buildRVVPackedI4Gate4SameTargetMeasurementRecord(
+                  packedI4ProductDequantDescription
+                      .lowPrecisionResourceSelection);
+  auto acceptedPackedI4Gate4Outcome =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionPerformanceMeasurementOutcomeFromSameTargetRecord(
+              packedI4ProductDequantDescription.lowPrecisionResourceSelection,
+              acceptedPackedI4Gate4MeasurementRecord,
+              "packed-i4 target artifact Gate 1 source-backed measurement "
+              "record outcome");
+  if (!acceptedPackedI4Gate4Outcome) {
+    llvm::errs() << "packed-i4 target artifact Gate 1 measurement record did "
+                    "not build an accepted outcome: "
+                 << llvm::toString(acceptedPackedI4Gate4Outcome.takeError())
+                 << "\n";
+    return false;
+  }
   auto acceptedPackedI4Gate4PolicyInput =
       tianchenrv::plugin::rvv::
           buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
               packedI4ProductDequantDescription.lowPrecisionResourceSelection,
-              acceptedPackedI4Gate4Outcome);
-  if (acceptedPackedI4Gate4PolicyInput.providerPrimitiveChainKind !=
+              acceptedPackedI4Gate4MeasurementRecord,
+              "packed-i4 target artifact Gate 1 source-backed policy input");
+  if (!acceptedPackedI4Gate4PolicyInput) {
+    llvm::errs() << "packed-i4 target artifact Gate 1 measurement record did "
+                    "not build policy input: "
+                 << llvm::toString(acceptedPackedI4Gate4PolicyInput.takeError())
+                 << "\n";
+    return false;
+  }
+  if (acceptedPackedI4Gate4PolicyInput->providerPrimitiveChainKind !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .primitiveChainKind ||
-      acceptedPackedI4Gate4PolicyInput.providerScheduleDecision !=
+      acceptedPackedI4Gate4PolicyInput->providerScheduleDecision !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .scheduleDecision ||
-      acceptedPackedI4Gate4PolicyInput.targetCapabilityProviderMirror !=
+      acceptedPackedI4Gate4PolicyInput->targetCapabilityProviderMirror !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .targetCapabilityProviderMirror ||
-      acceptedPackedI4Gate4PolicyInput.targetCapabilityLegalityMirror !=
+      acceptedPackedI4Gate4PolicyInput->targetCapabilityLegalityMirror !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .targetCapabilityLegalityMirror) {
     llvm::errs() << "packed-i4 target artifact Gate 4 policy input did not "
@@ -13167,7 +13191,7 @@ bool expectRVVTargetArtifactExporterShape(
       tianchenrv::plugin::rvv::
           evaluateRVVLowPrecisionPerformancePolicy(
               packedI4ProductDequantDescription.lowPrecisionResourceSelection,
-              acceptedPackedI4Gate4PolicyInput,
+              *acceptedPackedI4Gate4PolicyInput,
               "packed-i4 target artifact Gate 4 dispatch/performance policy "
               "input");
   if (!packedI4Policy) {
@@ -13283,12 +13307,21 @@ bool expectRVVTargetArtifactExporterShape(
       tianchenrv::plugin::rvv::
           buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
               selectedDispatchPackedI4Description.lowPrecisionResourceSelection,
-              acceptedPackedI4Gate4Outcome);
+              acceptedPackedI4Gate4MeasurementRecord,
+              "selected-dispatch packed-i4 target artifact Gate 1 "
+              "source-backed policy input");
+  if (!selectedDispatchPackedI4PolicyInput) {
+    llvm::errs() << "selected-dispatch packed-i4 target artifact policy input "
+                    "failed: "
+                 << llvm::toString(selectedDispatchPackedI4PolicyInput.takeError())
+                 << "\n";
+    return false;
+  }
   auto selectedDispatchPackedI4Policy =
       tianchenrv::plugin::rvv::
           evaluateRVVLowPrecisionPerformancePolicy(
               selectedDispatchPackedI4Description.lowPrecisionResourceSelection,
-              selectedDispatchPackedI4PolicyInput,
+              *selectedDispatchPackedI4PolicyInput,
               packedI4TargetDispatchBoundary,
               "packed-i4 target artifact Gate 3 selected-dispatch policy "
               "input");
@@ -13375,21 +13408,22 @@ bool expectRVVTargetArtifactExporterShape(
            "fallback facts"}))
     return false;
 
-  auto staleRuntimeABIPackedI4PolicyInput =
-      selectedDispatchPackedI4PolicyInput;
-  staleRuntimeABIPackedI4PolicyInput.providerRuntimeABIOrder =
+  auto staleRuntimeABIPackedI4MeasurementRecord =
+      acceptedPackedI4Gate4MeasurementRecord;
+  staleRuntimeABIPackedI4MeasurementRecord.providerRuntimeABIOrder =
       "lhs,rhs,out,n";
-  if (!expectErrorContains(
-          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
-              selectedDispatchPackedI4Description
-                  .lowPrecisionResourceSelection,
-              staleRuntimeABIPackedI4PolicyInput,
-              packedI4TargetDispatchBoundary,
+  auto staleRuntimeABIPackedI4PolicyInput =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
+              selectedDispatchPackedI4Description.lowPrecisionResourceSelection,
+              staleRuntimeABIPackedI4MeasurementRecord,
               "packed-i4 target artifact Gate 3 policy input rejects stale "
-              "runtime ABI tie-back"),
+              "runtime ABI tie-back");
+  if (!expectErrorContains(
+          staleRuntimeABIPackedI4PolicyInput.takeError(),
           "packed-i4 target artifact rejects stale policy input runtime ABI",
-          {"policy handoff diagnosis", "stale-measurement",
-           "provider runtime ABI order", "lhs,rhs,out,n"}))
+          {"provider runtime ABI order", "lhs,rhs,out,n",
+           "lhs,rhs,acc,scale,out,n"}))
     return false;
 
   auto measuredWinTargetSelection =
@@ -13419,38 +13453,48 @@ bool expectRVVTargetArtifactExporterShape(
   measuredWinTargetSelection.performanceMaturityOutcome = "win";
   measuredWinTargetSelection.performanceSelectionEligible = "true";
   measuredWinTargetSelection.dispatchPreference = "performance-preferred";
-  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
-      measuredWinTargetOutcome = acceptedPackedI4Gate4Outcome;
-  measuredWinTargetOutcome.measurementEvidenceID =
+  tianchenrv::plugin::rvv::RVVLowPrecisionSameTargetMeasurementRecord
+      measuredWinTargetMeasurementRecord =
+          tianchenrv::plugin::rvv::
+              buildRVVPackedI4Gate4SameTargetMeasurementRecord(
+                  measuredWinTargetSelection);
+  measuredWinTargetMeasurementRecord.measurementEvidenceID =
       measuredWinTargetSelection.remediationMeasurementEvidenceID;
-  measuredWinTargetOutcome.measurementClassification = "win";
-  measuredWinTargetOutcome.measurementOutcomeFamily = "win";
-  measuredWinTargetOutcome.measurementBestSpeedupRange =
+  measuredWinTargetMeasurementRecord.measurementClassification = "win";
+  measuredWinTargetMeasurementRecord.measurementOutcomeFamily = "win";
+  measuredWinTargetMeasurementRecord.measurementBestSpeedupRange =
       measuredWinTargetSelection.performanceBestSpeedupRange;
-  measuredWinTargetOutcome.providerMaturity =
-      measuredWinTargetSelection.performanceMaturity;
-  measuredWinTargetOutcome.providerMaturityEvidence =
-      measuredWinTargetSelection.performanceMaturityEvidence;
-  measuredWinTargetOutcome.providerMaturityOutcome =
-      measuredWinTargetSelection.performanceMaturityOutcome;
-  measuredWinTargetOutcome.providerPerformanceSelectionEligible =
-      measuredWinTargetSelection.performanceSelectionEligible;
-  measuredWinTargetOutcome.providerDispatchPreference =
-      measuredWinTargetSelection.dispatchPreference;
-  measuredWinTargetOutcome.providerPerformanceAction =
-      measuredWinTargetSelection.performanceAction;
-  measuredWinTargetOutcome.performancePreferenceDenied = false;
-  measuredWinTargetOutcome.performancePreferenceDenialReason = "";
-  measuredWinTargetOutcome.performanceWinClaimAllowed = true;
-  measuredWinTargetOutcome.providerContractUpdateRequired = false;
+  measuredWinTargetMeasurementRecord.performancePreferenceDenied = false;
+  measuredWinTargetMeasurementRecord.performancePreferenceDenialReason = "";
+  measuredWinTargetMeasurementRecord.performanceWinClaimAllowed = true;
+  measuredWinTargetMeasurementRecord.providerContractUpdateRequired = false;
+  auto measuredWinTargetOutcome =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionPerformanceMeasurementOutcomeFromSameTargetRecord(
+              measuredWinTargetSelection, measuredWinTargetMeasurementRecord,
+              "packed-i4 target artifact measured-win source-backed record");
+  if (!measuredWinTargetOutcome) {
+    llvm::errs() << "packed-i4 target artifact measured-win record failed: "
+                 << llvm::toString(measuredWinTargetOutcome.takeError()) << "\n";
+    return false;
+  }
   auto measuredWinTargetPolicyInput =
       tianchenrv::plugin::rvv::
           buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
-              measuredWinTargetSelection, measuredWinTargetOutcome);
+              measuredWinTargetSelection, measuredWinTargetMeasurementRecord,
+              "packed-i4 target artifact measured-win source-backed policy "
+              "input");
+  if (!measuredWinTargetPolicyInput) {
+    llvm::errs() << "packed-i4 target artifact measured-win policy input "
+                    "failed: "
+                 << llvm::toString(measuredWinTargetPolicyInput.takeError())
+                 << "\n";
+    return false;
+  }
   auto measuredWinTargetPolicy =
       tianchenrv::plugin::rvv::
           evaluateRVVLowPrecisionPerformancePolicy(
-              measuredWinTargetSelection, measuredWinTargetPolicyInput,
+              measuredWinTargetSelection, *measuredWinTargetPolicyInput,
               "packed-i4 target artifact Gate 4 measured-win "
               "dispatch/performance policy input");
   if (!measuredWinTargetPolicy ||
@@ -13474,33 +13518,46 @@ bool expectRVVTargetArtifactExporterShape(
                       "select the performance-preferred dispatch path\n";
     return false;
   }
-  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
-      stalePackedI4TargetProfileOutcome = acceptedPackedI4Gate4Outcome;
-  stalePackedI4TargetProfileOutcome.targetProfile = "local-x86";
+  auto stalePackedI4TargetProfileRecord =
+      acceptedPackedI4Gate4MeasurementRecord;
+  stalePackedI4TargetProfileRecord.targetProfile = "local-x86";
+  auto stalePackedI4TargetProfileInput =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
+              packedI4ProductDequantDescription.lowPrecisionResourceSelection,
+              stalePackedI4TargetProfileRecord,
+              "packed-i4 target artifact Gate 4 dispatch/performance policy "
+              "rejects stale target profile");
   if (!expectErrorContains(
-          tianchenrv::plugin::rvv::
-              verifyRVVLowPrecisionPerformancePolicy(
-                  packedI4ProductDequantDescription
-                      .lowPrecisionResourceSelection,
-                  stalePackedI4TargetProfileOutcome,
-                  "packed-i4 target artifact Gate 4 dispatch/performance "
-                  "policy rejects stale target profile"),
+          stalePackedI4TargetProfileInput.takeError(),
           "packed-i4 target artifact Gate 4 policy rejects stale target "
           "profile",
-          {"dispatch/performance policy", "target profile", "ssh rvv",
-           "local-x86"}))
+          {"target profile", "ssh rvv", "local-x86"}))
     return false;
 
-  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
-      stalePackedI4SpeedupOutcome = acceptedPackedI4Gate4Outcome;
-  stalePackedI4SpeedupOutcome.measurementBestSpeedupRange =
+  auto stalePackedI4SpeedupRecord = acceptedPackedI4Gate4MeasurementRecord;
+  stalePackedI4SpeedupRecord.measurementBestSpeedupRange =
       "0.689938..0.705891";
+  auto stalePackedI4SpeedupOutcome =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionPerformanceMeasurementOutcomeFromSameTargetRecord(
+              packedI4ProductDequantDescription.lowPrecisionResourceSelection,
+              stalePackedI4SpeedupRecord,
+              "packed-i4 target artifact Gate 4 dispatch/performance policy "
+              "rejects stale speedup evidence");
+  if (!stalePackedI4SpeedupOutcome) {
+    llvm::errs() << "packed-i4 target artifact stale speedup record failed "
+                    "before outcome policy verification: "
+                 << llvm::toString(stalePackedI4SpeedupOutcome.takeError())
+                 << "\n";
+    return false;
+  }
   if (!expectErrorContains(
           tianchenrv::plugin::rvv::
               verifyRVVLowPrecisionPerformancePolicy(
                   packedI4ProductDequantDescription
                       .lowPrecisionResourceSelection,
-                  stalePackedI4SpeedupOutcome,
+                  *stalePackedI4SpeedupOutcome,
                   "packed-i4 target artifact Gate 4 dispatch/performance "
                   "policy rejects stale speedup evidence"),
           "packed-i4 target artifact Gate 4 policy rejects stale speedup "

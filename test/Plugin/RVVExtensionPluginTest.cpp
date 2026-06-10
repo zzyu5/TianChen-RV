@@ -9944,10 +9944,23 @@ module {
            "performance-preferred"}))
     return result;
 
-  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
-      acceptedPackedI4Gate4Outcome =
+  tianchenrv::plugin::rvv::RVVLowPrecisionSameTargetMeasurementRecord
+      acceptedPackedI4Gate4MeasurementRecord =
           tianchenrv::plugin::rvv::
-              getAcceptedRVVPackedI4Gate4MeasurementOutcome();
+              buildRVVPackedI4Gate4SameTargetMeasurementRecord(
+                  packedI4ResourceSelection);
+  auto acceptedPackedI4Gate4OutcomeOr =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionPerformanceMeasurementOutcomeFromSameTargetRecord(
+              packedI4ResourceSelection,
+              acceptedPackedI4Gate4MeasurementRecord,
+              "selected-boundary packed-i4 Gate 1 source-backed measurement "
+              "record");
+  if (!acceptedPackedI4Gate4OutcomeOr)
+    return fail("packed-i4 Gate 1 source-backed measurement record: " +
+                llvm::toString(acceptedPackedI4Gate4OutcomeOr.takeError()));
+  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
+      acceptedPackedI4Gate4Outcome = *acceptedPackedI4Gate4OutcomeOr;
   auto packedI4PerformancePolicy =
       tianchenrv::plugin::rvv::
           evaluateRVVLowPrecisionPerformancePolicy(
@@ -10070,10 +10083,17 @@ module {
           "measurement facts plus explicit conservative fallback facts"))
     return result;
 
-  auto acceptedPackedI4PolicyInput =
+  auto acceptedPackedI4PolicyInputOr =
       tianchenrv::plugin::rvv::
           buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
-              packedI4ResourceSelection, acceptedPackedI4Gate4Outcome);
+              packedI4ResourceSelection,
+              acceptedPackedI4Gate4MeasurementRecord,
+              "selected-boundary packed-i4 Gate 1 source-backed policy input");
+  if (!acceptedPackedI4PolicyInputOr)
+    return fail("packed-i4 Gate 1 source-backed policy input: " +
+                llvm::toString(acceptedPackedI4PolicyInputOr.takeError()));
+  tianchenrv::plugin::rvv::RVVLowPrecisionSameTargetMeasurementPolicyInput
+      acceptedPackedI4PolicyInput = *acceptedPackedI4PolicyInputOr;
   if (int result = expect(
           acceptedPackedI4PolicyInput.providerScheduleDecisionContract ==
                   tianchenrv::plugin::rvv::
@@ -10300,34 +10320,42 @@ module {
   measuredWinPackedI4Selection.performanceSelectionEligible = "true";
   measuredWinPackedI4Selection.dispatchPreference = "performance-preferred";
 
-  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
-      measuredWinPackedI4Outcome = acceptedPackedI4Gate4Outcome;
-  measuredWinPackedI4Outcome.measurementEvidenceID =
+  tianchenrv::plugin::rvv::RVVLowPrecisionSameTargetMeasurementRecord
+      measuredWinPackedI4Record =
+          tianchenrv::plugin::rvv::
+              buildRVVPackedI4Gate4SameTargetMeasurementRecord(
+                  measuredWinPackedI4Selection);
+  measuredWinPackedI4Record.measurementEvidenceID =
       measuredWinPackedI4Selection.remediationMeasurementEvidenceID;
-  measuredWinPackedI4Outcome.measurementClassification = "win";
-  measuredWinPackedI4Outcome.measurementOutcomeFamily = "win";
-  measuredWinPackedI4Outcome.measurementBestSpeedupRange =
+  measuredWinPackedI4Record.measurementClassification = "win";
+  measuredWinPackedI4Record.measurementOutcomeFamily = "win";
+  measuredWinPackedI4Record.measurementBestSpeedupRange =
       measuredWinPackedI4Selection.performanceBestSpeedupRange;
-  measuredWinPackedI4Outcome.providerMaturity =
-      measuredWinPackedI4Selection.performanceMaturity;
-  measuredWinPackedI4Outcome.providerMaturityEvidence =
-      measuredWinPackedI4Selection.performanceMaturityEvidence;
-  measuredWinPackedI4Outcome.providerMaturityOutcome =
-      measuredWinPackedI4Selection.performanceMaturityOutcome;
-  measuredWinPackedI4Outcome.providerPerformanceSelectionEligible =
-      measuredWinPackedI4Selection.performanceSelectionEligible;
-  measuredWinPackedI4Outcome.providerDispatchPreference =
-      measuredWinPackedI4Selection.dispatchPreference;
-  measuredWinPackedI4Outcome.providerPerformanceAction =
-      measuredWinPackedI4Selection.performanceAction;
-  measuredWinPackedI4Outcome.performancePreferenceDenied = false;
-  measuredWinPackedI4Outcome.performancePreferenceDenialReason = "";
-  measuredWinPackedI4Outcome.performanceWinClaimAllowed = true;
-  measuredWinPackedI4Outcome.providerContractUpdateRequired = false;
-  auto measuredWinPackedI4PolicyInput =
+  measuredWinPackedI4Record.performancePreferenceDenied = false;
+  measuredWinPackedI4Record.performancePreferenceDenialReason = "";
+  measuredWinPackedI4Record.performanceWinClaimAllowed = true;
+  measuredWinPackedI4Record.providerContractUpdateRequired = false;
+  auto measuredWinPackedI4OutcomeOr =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionPerformanceMeasurementOutcomeFromSameTargetRecord(
+              measuredWinPackedI4Selection, measuredWinPackedI4Record,
+              "selected-boundary packed-i4 measured-win source-backed record");
+  if (!measuredWinPackedI4OutcomeOr)
+    return fail("packed-i4 measured-win source-backed record: " +
+                llvm::toString(measuredWinPackedI4OutcomeOr.takeError()));
+  tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome
+      measuredWinPackedI4Outcome = *measuredWinPackedI4OutcomeOr;
+  auto measuredWinPackedI4PolicyInputOr =
       tianchenrv::plugin::rvv::
           buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
-              measuredWinPackedI4Selection, measuredWinPackedI4Outcome);
+              measuredWinPackedI4Selection, measuredWinPackedI4Record,
+              "selected-boundary packed-i4 measured-win source-backed policy "
+              "input");
+  if (!measuredWinPackedI4PolicyInputOr)
+    return fail("packed-i4 measured-win source-backed policy input: " +
+                llvm::toString(measuredWinPackedI4PolicyInputOr.takeError()));
+  tianchenrv::plugin::rvv::RVVLowPrecisionSameTargetMeasurementPolicyInput
+      measuredWinPackedI4PolicyInput = *measuredWinPackedI4PolicyInputOr;
 
   auto measuredWinPolicy =
       tianchenrv::plugin::rvv::

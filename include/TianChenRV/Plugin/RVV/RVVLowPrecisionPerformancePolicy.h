@@ -43,6 +43,59 @@ struct RVVLowPrecisionPerformanceMeasurementOutcome {
   std::string routeSupportEffect;
 };
 
+struct RVVLowPrecisionSameTargetMeasurementRecord {
+  std::string contract;
+  std::string authority;
+  std::string measurementEvidenceID;
+  std::string measurementClassification;
+  std::string measurementOutcomeFamily;
+  std::string measurementBestSpeedupRange;
+  std::int64_t measurementSummaryRecordCount = 0;
+  std::int64_t measurementRecordCount = 0;
+  std::int64_t correctnessRecordCount = 0;
+
+  bool sameTargetMeasurement = false;
+  bool sshEvidence = false;
+  std::string targetProfile;
+
+  std::string providerResourceSelectedCandidate;
+  std::string providerResourceRouteFamilyPlan;
+  std::string providerSupportedMirror;
+  std::string providerRuntimeABIOrder;
+  std::string providerScheduleDecisionContract;
+  std::string providerScheduleDecision;
+  std::string providerScheduleDecisionReason;
+  std::string providerPrimitiveChainContract;
+  std::string providerPrimitiveChainKind;
+  std::string providerPrimitiveWideningProductRelation;
+  std::string providerPrimitiveProductReductionChainRelation;
+
+  std::string providerRemediationHandoffContract;
+  std::string providerRemediationDiagnosis;
+  std::string providerRemediationMeasurementEvidence;
+  std::string providerRemediationDecision;
+  std::string providerRemediationAction;
+  std::string providerRemediationDispatchPreference;
+  std::string providerRemediationBlocker;
+
+  std::string targetCapabilityProviderMirror;
+  std::string targetCapabilityLegalityMirror;
+
+  std::string providerMaturity;
+  std::string providerMaturityEvidence;
+  std::string providerMaturityOutcome;
+  std::string providerPerformanceSelectionEligible;
+  std::string providerDispatchPreference;
+  std::string providerPerformanceAction;
+
+  bool performancePreferenceDenied = false;
+  std::string performancePreferenceDenialReason;
+  bool performanceWinClaimAllowed = false;
+  bool correctnessExecutionAllowed = false;
+  bool providerContractUpdateRequired = false;
+  std::string routeSupportEffect;
+};
+
 struct RVVLowPrecisionSameTargetMeasurementPolicyInput {
   std::string contract;
   std::string authority;
@@ -144,13 +197,26 @@ struct RVVLowPrecisionPerformancePolicyDecision {
   std::string fallbackReason;
 };
 
-RVVLowPrecisionPerformanceMeasurementOutcome
-getAcceptedRVVPackedI4Gate4MeasurementOutcome();
+RVVLowPrecisionSameTargetMeasurementRecord
+buildRVVPackedI4Gate4SameTargetMeasurementRecord(
+    const RVVLowPrecisionContractionResourceSelection &selection);
+
+llvm::Expected<RVVLowPrecisionPerformanceMeasurementOutcome>
+buildRVVLowPrecisionPerformanceMeasurementOutcomeFromSameTargetRecord(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    llvm::StringRef context);
 
 RVVLowPrecisionSameTargetMeasurementPolicyInput
 buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionPerformanceMeasurementOutcome &outcome);
+
+llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput>
+buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    llvm::StringRef context);
 
 llvm::Expected<RVVLowPrecisionPerformanceMeasurementOutcome>
 consumeRVVLowPrecisionSameTargetMeasurementPolicyInput(
@@ -171,6 +237,12 @@ RVVLowPrecisionPerformancePolicyHandoff
 diagnoseRVVLowPrecisionPerformancePolicyHandoff(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    llvm::StringRef context);
+
+RVVLowPrecisionPerformancePolicyHandoff
+diagnoseRVVLowPrecisionPerformancePolicyHandoff(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
     llvm::StringRef context);
 
 llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>

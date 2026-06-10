@@ -1158,3 +1158,61 @@ same-target policy input interface.
 [ARCHIVED MACRO TASK] Gates 1-4 are complete. The task PRD and task metadata
 were updated for completion, and the task is ready to move to the June 2026
 archive.
+
+
+## Session 591: Stage2 RVV production-kernel measurement Gate 1
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV production-kernel same-target measurement and selected-dispatch campaign
+**Branch**: `main`
+
+### Summary
+
+Opened the new macro campaign for production-kernel same-target measurement and
+selected-dispatch policy. Completed Gate 1 by replacing the fixed accepted
+outcome helper as the production source for packed-i4 same-target policy input
+with an explicit source-backed measurement-record boundary.
+
+### Main Changes
+
+- Added `RVVLowPrecisionSameTargetMeasurementRecord` and record-to-outcome /
+  record-to-policy-input builders in the RVV low-precision performance policy
+  API.
+- Updated RVV provider validation, resource-remediation handoff checks,
+  resource-selection policy checks, and RVV target artifact validation to build
+  `RVVLowPrecisionSameTargetMeasurementPolicyInput` from measurement records
+  instead of directly calling `getAcceptedRVVPackedI4Gate4MeasurementOutcome()`.
+- Preserved stale sibling-route diagnosis by routing sibling records through
+  the policy handoff classifier, while still fail-closing stale target/runtime
+  ABI/provider tie-backs at the record/input boundary.
+- Updated RVV plugin and target artifact tests so accepted and measured-win
+  outcomes are materialized from records, and target-side negative cases mutate
+  record fields for wrong target/runtime ABI evidence.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`.
+- `git diff --check`.
+- `git diff --cached --check`.
+- Bounded touched-file authority scan for removed fixed outcome helper and
+  legacy RVV route authority. It found no `getAccepted...Outcome` residue and
+  only pre-existing fail-closed/source-front-door test strings in touched test
+  files.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] Gate 1 implements the existing Stage 2 requirement that
+same-target measurement evidence remains input-only and that provider-owned
+primitive/resource facts remain authoritative. No new durable spec rule was
+introduced.
+
+### Status
+
+[OPEN MACRO TASK] Gate 1 is complete and committed as this round's coherent
+slice. Gates 2-4 remain open; the next continuation point is Gate 2 same-target
+`ssh rvv` measurement evidence for a representative low-precision contraction
+generated artifact.

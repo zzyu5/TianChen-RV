@@ -1157,17 +1157,24 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
           plan.lowPrecisionResourceSelection.selectedCandidateID) &&
       analysis.description.lowPrecisionSelectedDispatchPolicyBoundary
           .hasFacts()) {
-    RVVLowPrecisionPerformanceMeasurementOutcome acceptedOutcome =
-        getAcceptedRVVPackedI4Gate4MeasurementOutcome();
-    RVVLowPrecisionSameTargetMeasurementPolicyInput policyInput =
+    std::string policyContext =
+        (llvm::Twine(context) +
+         " selected-dispatch low-precision policy boundary")
+            .str();
+    RVVLowPrecisionSameTargetMeasurementRecord measurementRecord =
+        buildRVVPackedI4Gate4SameTargetMeasurementRecord(
+            plan.lowPrecisionResourceSelection);
+    llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput>
+        policyInput =
         buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
-            plan.lowPrecisionResourceSelection, acceptedOutcome);
+            plan.lowPrecisionResourceSelection, measurementRecord,
+            policyContext);
+    if (!policyInput)
+      return policyInput.takeError();
     if (llvm::Error error = verifyRVVLowPrecisionPerformancePolicy(
-            plan.lowPrecisionResourceSelection, policyInput,
+            plan.lowPrecisionResourceSelection, *policyInput,
             analysis.description.lowPrecisionSelectedDispatchPolicyBoundary,
-            (llvm::Twine(context) +
-             " selected-dispatch low-precision policy boundary")
-                .str()))
+            policyContext))
       return error;
   }
 
@@ -4699,9 +4706,11 @@ void populateRVVLowPrecisionContractionResourceRemediationHandoff(
           selection.selectedCandidateID))
     return;
 
+  RVVLowPrecisionSameTargetMeasurementRecord measurementRecord =
+      buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
   RVVLowPrecisionPerformancePolicyHandoff handoff =
       diagnoseRVVLowPrecisionPerformancePolicyHandoff(
-          selection, getAcceptedRVVPackedI4Gate4MeasurementOutcome(),
+          selection, measurementRecord,
           "low-precision resource remediation planning");
   selection.remediationHandoffContract = handoff.handoffContract;
   selection.remediationDiagnosis = handoff.diagnosisKind;
@@ -6367,14 +6376,17 @@ llvm::Error verifyRVVLowPrecisionContractionResourceRemediationHandoff(
           selection.selectedCandidateID))
     return llvm::Error::success();
 
-  RVVLowPrecisionPerformanceMeasurementOutcome acceptedOutcome =
-      getAcceptedRVVPackedI4Gate4MeasurementOutcome();
-  RVVLowPrecisionSameTargetMeasurementPolicyInput policyInput =
-      buildRVVLowPrecisionSameTargetMeasurementPolicyInput(selection,
-                                                           acceptedOutcome);
+  RVVLowPrecisionSameTargetMeasurementRecord measurementRecord =
+      buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
+  llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput> policyInput =
+      buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
+          selection, measurementRecord,
+          (llvm::Twine(context) + " resource-remediation handoff").str());
+  if (!policyInput)
+    return policyInput.takeError();
   llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
       evaluateRVVLowPrecisionPerformancePolicy(
-          selection, policyInput,
+          selection, *policyInput,
           (llvm::Twine(context) + " resource-remediation handoff").str());
   if (!decision)
     return decision.takeError();
@@ -6392,7 +6404,7 @@ llvm::Error verifyRVVLowPrecisionContractionResourceRemediationHandoff(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "remediation measurement evidence",
           selection.remediationMeasurementEvidenceID,
-          acceptedOutcome.measurementEvidenceID))
+          measurementRecord.measurementEvidenceID))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "remediation decision",
@@ -6960,16 +6972,21 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
             selection.dispatchPreference,
             kRVVLowPrecisionResourcePackedI4DispatchPreference))
       return error;
-    RVVLowPrecisionPerformanceMeasurementOutcome acceptedOutcome =
-        getAcceptedRVVPackedI4Gate4MeasurementOutcome();
-    RVVLowPrecisionSameTargetMeasurementPolicyInput policyInput =
+    std::string policyContext =
+        (llvm::Twine(context) +
+         " packed-i4 dispatch/performance policy")
+            .str();
+    RVVLowPrecisionSameTargetMeasurementRecord measurementRecord =
+        buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
+    llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput>
+        policyInput =
         buildRVVLowPrecisionSameTargetMeasurementPolicyInput(selection,
-                                                             acceptedOutcome);
+                                                             measurementRecord,
+                                                             policyContext);
+    if (!policyInput)
+      return policyInput.takeError();
     if (llvm::Error error = verifyRVVLowPrecisionPerformancePolicy(
-            selection, policyInput,
-            (llvm::Twine(context) +
-             " packed-i4 dispatch/performance policy")
-                .str()))
+            selection, *policyInput, policyContext))
       return error;
     if (llvm::Error error =
             verifyRVVLowPrecisionContractionResourceRemediationHandoff(
