@@ -7112,18 +7112,18 @@ Packed-i4 per-op evidence and root summaries may carry:
     "measurement_evidence_id": "run/op/same_target_measurement_evidence.json",
     "measurement_classification": "win | no-win | regression | not-measured",
     "measurement_outcome_family": "win | no-win | not-measured",
-    "measurement_best_speedup_range": "0.897163..1.018998",
+    "measurement_best_speedup_range": "0.895307..1.027027",
     "measurement_summary_record_count": 12,
     "measurement_record_count": 60,
     "provider_maturity": "executable-not-performance-mature",
-    "provider_maturity_evidence": "same-target-packed-i4-local-repair-frontier-no-win-gate4.v1",
-    "provider_maturity_outcome": "regression",
+    "provider_maturity_evidence": "same-target-packed-i4-campaign-no-further-repair-no-win-gate4.v1",
+    "provider_maturity_outcome": "no-win",
     "provider_performance_selection_eligible": "false",
     "provider_dispatch_preference": "not-performance-preferred",
     "provider_performance_action": "no-win-repair-required-before-performance-claim",
     "provider_schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
-    "provider_schedule_decision": "select-packed-i4-high-nibble-vwmacc-single-reduce-u1-two-region-budget-5of32.v1",
-    "provider_schedule_decision_reason": "accepted-remediation-schedule-high-nibble-vwmacc-single-vwredsum-budget-5of32",
+    "provider_schedule_decision": "select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1",
+    "provider_schedule_decision_reason": "accepted-beyond-local-scalar-epilogue-high-nibble-vwmacc-single-vwredsum-budget-5of32",
     "source_record_contract": "rvv-low-precision-source-backed-artifact-measurement-record.v1",
     "source_selected_variant": "rvv_lp_pack_i4_widening_product_reduce_dequantize_f32",
     "source_selected_input": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir",
@@ -7474,10 +7474,10 @@ performance-preferred
 
   ```text
   measurementEvidenceID =
-    gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
-  measurementClassification = regression
+    gate4-packed-i4-scalar-epilogue-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
+  measurementClassification = no-win
   measurementOutcomeFamily = no-win
-  measurementBestSpeedupRange = 0.897163..1.018998
+  measurementBestSpeedupRange = 0.895307..1.027027
   measurementSummaryRecordCount = 12
   measurementRecordCount = 60
   correctnessRecordCount = 12
@@ -7494,13 +7494,13 @@ performance-preferred
   providerScheduleDecisionContract =
     rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1
   providerScheduleDecision =
-    select-packed-i4-high-nibble-vwmacc-single-reduce-u1-two-region-budget-5of32.v1
+    select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1
   providerScheduleDecisionReason =
-    accepted-remediation-schedule-high-nibble-vwmacc-single-vwredsum-budget-5of32
+    accepted-beyond-local-scalar-epilogue-high-nibble-vwmacc-single-vwredsum-budget-5of32
   providerPerformanceAdmissionClosure =
-    no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1
+    no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1
   providerPerformanceAdmissionReopenRequirement =
-    provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1
+    new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1
   ```
 
 - The strict Gate 4 no-win/regression verifier must derive the accepted
@@ -7513,10 +7513,10 @@ performance-preferred
 
   ```text
   measurementEvidenceID =
-    gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
-  measurementClassification = regression
+    gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
+  measurementClassification = no-win
   measurementOutcomeFamily = no-win
-  measurementBestSpeedupRange = 0.864516..1.043210
+  measurementBestSpeedupRange = 0.874735..1.061579
   measurementSummaryRecordCount = 24
   measurementRecordCount = 120
   correctnessRecordCount = 24
@@ -7524,9 +7524,9 @@ performance-preferred
   performancePreferenceDenialReason =
     same-target-measurement-no-win-or-regression
   providerPerformanceAdmissionClosure =
-    no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1
+    no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1
   providerPerformanceAdmissionReopenRequirement =
-    provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1
+    new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1
   ```
 
 - A measured win may select `performance-preferred` only when all of these
@@ -7544,31 +7544,31 @@ performance-preferred
 - Current no-win/regression evidence may be accepted only when the provider
   resource selection, route metadata, target artifact validation, same-target
   evidence input, and policy record all carry the same
-  `no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1`
+  `no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1`
   closure and the
-  `provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1`
+  `new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1`
   reopen requirement. These fields are provider-owned admission facts, not
   artifact metadata, script status, route ids, or report text.
-- After that local-repair frontier is closed, current no-win/regression
-  evidence must also carry the provider-owned beyond-local repair admission
-  tuple:
-  `rvv-low-precision-packed-i4-beyond-local-repair-admission.v1`,
-  `deny-performance-preferred-no-provider-repair-beyond-local-frontier`,
-  `packed-i4-no-provider-beyond-local-repair-facts`, and
-  `new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1`.
+- After the scalar-epilogue beyond-local repair has also measured no-win,
+  current no-win/regression evidence must carry the provider-owned
+  campaign-level no-further-repair admission tuple:
+  `rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1`,
+  `deny-performance-preferred-campaign-no-further-provider-repair`,
+  `packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win`,
+  and
+  `new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1`.
   Selected-body realization, route metadata, statement planning, target
   artifact mirrors, same-target evidence roots, generated-bundle pressure
   profiles, and `RVVLowPrecisionPerformancePolicy` must consume the same tuple.
   It records a production-consumed no-further-repair admission blocker, not a
   documentation/report-only status and not a performance-preferred route.
-- The current closure is the packed-i4 local-repair frontier after the
-  low-shifted-product rescale and high-nibble vwmacc local statement repairs
-  have both been consumed and measured as no-win on the same target. It is a
-  broader blocker than the high-nibble vwmacc subgate: another
-  performance-preferred claim must update provider schedule/resource facts
-  beyond the local statement frontier, target mirrors, source-backed
-  measurement evidence, resource-cost admission, closure, and policy facts as
-  one contract.
+- The current closure is the packed-i4 campaign no-further-repair boundary
+  after the low-shifted-product rescale, high-nibble vwmacc, beyond-local
+  admission blocker, and scalar-epilogue repair have all been consumed and
+  measured as no-win on the same target. Another performance-preferred claim
+  must update typed/provider schedule/resource facts, target mirrors,
+  source-backed measurement evidence, resource-cost admission, campaign
+  closure/reopen facts, and policy facts as one contract.
 - Measurement scripts may report evidence inputs and alignment; they must not
   edit provider maturity fields or directly authorize dispatch.
 - Common EmitC may carry provider-built route payloads only; it must not choose

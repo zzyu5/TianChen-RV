@@ -92,13 +92,15 @@ provenance before route, target, or policy surfaces can claim maturity.
   authority.
 - [x] Gate 3: widening reduction/accumulation facts are represented and
   consumed for contraction-style kernels.
-- [ ] Gate 4: Gearbox/resource-aware selected-body realization and measured
+- [x] Gate 4: Gearbox/resource-aware selected-body realization and measured
   same-target comparison consume these primitive facts with source-backed
-  evidence. Current slice wires primitive source and widening-product facts
-  through Gearbox/resource admission, realization handoff, route/target
-  metadata, and same-target measurement records; remaining Gate 4 work is
-  measured same-target production-kernel comparison maturity and any further
-  resource-schedule improvement needed before performance-preferred dispatch.
+  evidence. The packed-i4 dequant/dequant-clamp route now carries the
+  campaign-level no-further-repair admission closure through provider facts,
+  realization handoff, route/target mirrors, evidence roots, production
+  pressure policy, and selected-dispatch validation. Route support and
+  correctness fallback remain allowed; performance-preferred dispatch remains
+  denied until a future typed/provider repair plus source-backed measured win
+  updates the same admission facts.
 
 ## Current Round Slice: Gate 4 Primitive-Fact Provenance
 
@@ -852,11 +854,14 @@ Acceptance:
 
 Completed Gate 4 beyond-local repair/admission boundary slice:
 
-- Added provider-owned packed-i4 beyond-local repair/admission facts:
-  `rvv-low-precision-packed-i4-beyond-local-repair-admission.v1`,
-  `deny-performance-preferred-no-provider-repair-beyond-local-frontier`,
-  `packed-i4-no-provider-beyond-local-repair-facts`, and
-  `new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1`.
+- Added provider-owned packed-i4 beyond-local repair/admission facts. The
+  positive tuple is now superseded by the campaign-level closure names in the
+  current source:
+  `rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1`,
+  `deny-performance-preferred-campaign-no-further-provider-repair`,
+  `packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win`,
+  and
+  `new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1`.
 - Threaded the tuple through typed low-precision resource attrs, Gearbox
   selected-body realization, `gearbox_cross_region_handoff`, route-family and
   statement-plan validation, route metadata, target artifact/header mirrors,
@@ -964,6 +969,78 @@ Remaining Gate 4 continuation point after this slice:
   provider facts, target mirrors, evidence roots, and policy. Metadata,
   artifact names, route ids, generated-bundle status, reports, or q8/q4 labels
   still cannot reopen performance-preferred dispatch.
+
+Current Gate 4 campaign-level no-further-repair admission closure slice:
+
+- This round does not change generated RVV runtime behavior. The current
+  packed-i4 production route remains the provider-owned high-nibble vwmacc
+  product loop plus scalar dequant/dequant-clamp epilogue, with loop-body steps
+  `11`, peak live vector groups `5/32`, and source-backed same-target evidence
+  for dequant and dequant-clamp still classified as `no-win`.
+- The slice closes the current Gate 4 admission boundary at campaign level:
+  after the low-shifted-product rescale, high-nibble vwmacc, beyond-local
+  admission blocker, and scalar-epilogue beyond-local repair all failed to
+  produce a measured win, performance-preferred packed-i4 dispatch remains
+  closed unless a future typed/provider-owned repair introduces new facts and
+  source-backed measured-win evidence.
+- The closure must be consumed through the same production fields already used
+  by the provider/resource path: resource selection, selected-body realization,
+  `gearbox_cross_region_handoff`, route metadata, target artifact/header
+  mirrors, same-target measurement records/evidence roots, production-pressure
+  profiles, and `RVVLowPrecisionPerformancePolicy`.
+- Correctness fallback remains supported for the legal route. The new boundary
+  only prevents metadata, artifact paths, route ids, q8/q4 labels,
+  generated-bundle status, report text, stale evidence, or stale target mirrors
+  from reopening performance-preferred dispatch.
+
+Acceptance:
+
+- [x] Packed-i4 provider/resource facts record the campaign-level
+  no-further-repair admission decision, blocker, closure, and reopen
+  requirement tied to the current scalar-epilogue source-backed no-win
+  evidence.
+- [x] Selected-body realization, route-family validation, statement-plan
+  consistency checks, target artifact validation, and target support bundle
+  headers preserve or require the campaign-level admission facts.
+- [x] Same-target records/evidence-root ingestion, production-pressure profile
+  construction, and `RVVLowPrecisionPerformancePolicy` consume the new
+  campaign-level facts and reject stale scalar-epilogue-only or
+  metadata-derived facts before performance preference can be accepted.
+- [x] Focused C++/FileCheck/script coverage proves accepted correctness
+  fallback, stale campaign admission rejection, stale evidence-root rejection,
+  stale target mirror rejection, and stale performance-preferred selected
+  dispatch rejection.
+- [x] No fresh `ssh rvv` timing is required because this slice changes
+  admission/policy facts only, not generated runtime statements, resource model
+  counts, or performance claims.
+- [x] Bounded scans show no new legacy RVV route authority, q8/q4 route naming,
+  source-front-door positive route, descriptor-driven compute, or Common EmitC
+  semantic inference.
+
+Completed Gate 4 campaign-level no-further-repair admission closure slice:
+
+- Promoted the current packed-i4 no-win boundary from scalar-epilogue-only
+  wording to the provider-owned campaign-level tuple:
+  `rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1`,
+  `deny-performance-preferred-campaign-no-further-provider-repair`,
+  `packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win`,
+  `no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1`, and
+  `new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1`.
+- Synchronized the tuple through `RVVGearboxSchedule` provider constants,
+  generated-bundle metadata, selected-body MLIR mirrors, target artifact
+  support headers, source-backed same-target evidence roots, production
+  pressure policy inputs, and focused C++/FileCheck/script expectations.
+- Added stale campaign-admission coverage: evidence-root validation rejects
+  scalar-epilogue-only provider admission facts, and selected-dispatch policy
+  validation rejects stale scalar-epilogue-only campaign closure before any
+  performance-preferred policy can be accepted.
+- Recomputed only the generated header SHA mirrors that changed because the
+  target support header text changed. Object hashes, timing records, schedule
+  resource counts, and generated runtime statements were not changed.
+- Gate 4 is now closed under the no-further-repair admission path. A future
+  performance-preferred route must reopen the boundary with new typed/provider
+  repair facts plus source-backed measured-win evidence for the same target
+  and updated provider, target, evidence-root, and policy facts.
 
 ## Non-Goals
 
@@ -1212,6 +1289,36 @@ Current Gate 4 high-nibble vwmacc schedule/resource verification:
   `0.864516..1.043210`, 24 summaries, 120 measurements, and 24 correctness
   records.
 
+Current Gate 4 campaign-level no-further-repair closure verification:
+
+- `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test` passed. The target artifact test
+  target still emits its existing switch-coverage warnings.
+- `build/bin/tianchenrv-rvv-extension-plugin-test` initially failed because
+  the new stale evidence-root negative test expected a later policy-handoff
+  diagnostic while the verifier correctly rejected
+  `measurement_harness.provider_beyond_local_repair_admission_decision` at
+  same-target evidence validation. The expectation was narrowed to the actual
+  verifier layer, the test target was rebuilt, and the test passed.
+- `build/bin/tianchenrv-target-artifact-export-test` passed.
+- `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py
+  scripts/rvv_generated_bundle_same_target_measure.py` passed.
+- `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test` passed.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+  passed.
+- Focused lit passed 5/5 from `build/test`:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter
+  'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-
+  packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-
+  dequant-clamp-f32-packed-i4|rvv-generated-bundle-same-target-measure-gate4-
+  dry-run|rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-
+  dequantize-f32-packed-i4-dry-run|rvv-generated-bundle-abi-e2e-pre-realized-
+  widening-product-reduce-dequant-clamp-f32-packed-i4-dry-run'`.
+- No fresh `ssh rvv` timing was required in this final closure slice because
+  it changed admission/policy facts and target/evidence mirrors only; generated
+  runtime statements, resource counts, and performance claims did not change.
+
 ## Spec Update Decision
 
 - Updated `.trellis/spec/extension-plugins/rvv-plugin.md` to record the
@@ -1247,14 +1354,24 @@ Current Gate 4 high-nibble vwmacc schedule/resource verification:
   rescaled low product, lowers the provider cost model to 11 loop-body steps
   and 5-of-32 live vector groups, and keeps no-win policy denial on fresh
   source-backed same-target evidence.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the
+  campaign-level packed-i4 no-further-repair admission closure: the accepted
+  scalar-epilogue route remains correctness fallback on source-backed no-win
+  evidence, while stale scalar-epilogue-only admission facts, stale evidence
+  roots, stale target mirrors, metadata, artifact names, route ids,
+  generated-bundle status, reports, and q8/q4 labels cannot reopen
+  performance-preferred dispatch.
 
 ## Continuation Point
 
-Keep this macro task active. Gates 1-3 are complete. The next unfinished
-milestone is Gate 4: choose the next provider-owned packed-i4 schedule/resource
-bottleneck beyond the current high-nibble vwmacc
-`high-nibble-vwmacc-loop-11-peak-live-5of32-two-region-vsetvl.v1` contract, or
-record a precise production-consumed blocker if no measured-win repair is
-available. Do not claim performance-preferred dispatch until a source-backed
-same-target measured win agrees with provider maturity, target mirrors,
-measurement roots, resource-cost admission, and policy facts.
+Macro campaign gates 1-4 are complete under the campaign-level
+no-further-repair admission path. The task can be archived after focused
+checks pass and a coherent slice commit is created.
+
+Future work may reopen packed-i4 performance preference only with a new
+typed/provider-owned schedule or resource repair plus source-backed same-target
+measured-win evidence for dequant and dequant-clamp, and only after provider
+maturity, target mirrors, measurement roots, resource-cost admission, campaign
+closure/reopen facts, and policy inputs are updated together. Metadata,
+artifact names, route ids, generated-bundle status, report text, or q8/q4
+labels remain non-authoritative.

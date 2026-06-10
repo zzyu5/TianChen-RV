@@ -660,34 +660,34 @@ artifact[0]:
     value: "11"
   artifact_metadata[200]:
     key: "tcrv_rvv.low_precision_resource.resource_cost_blocker"
-    value: "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win"
+    value: "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win"
   artifact_metadata[201]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_decision"
-    value: "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker"
+    value: "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker"
   artifact_metadata[202]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_closure"
-    value: "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1"
+    value: "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1"
   artifact_metadata[203]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement"
-    value: "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+    value: "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
   artifact_metadata[204]:
     key: "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract"
-    value: "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1"
+    value: "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1"
   artifact_metadata[205]:
     key: "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision"
-    value: "deny-performance-preferred-provider-scalar-epilogue-measured-no-win"
+    value: "deny-performance-preferred-campaign-no-further-provider-repair"
   artifact_metadata[206]:
     key: "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker"
-    value: "packed-i4-beyond-local-scalar-epilogue-measured-no-win"
+    value: "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win"
   artifact_metadata[207]:
     key: "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement"
-    value: "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+    value: "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
   artifact_metadata[208]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity"
     value: "executable-not-performance-mature"
   artifact_metadata[209]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity_evidence"
-    value: "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-gate4.v1"
+    value: "same-target-packed-i4-campaign-no-further-repair-no-win-gate4.v1"
   artifact_metadata[210]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity_outcome"
     value: "no-win"
@@ -1370,34 +1370,34 @@ artifact[1]:
     value: "11"
   artifact_metadata[200]:
     key: "tcrv_rvv.low_precision_resource.resource_cost_blocker"
-    value: "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win"
+    value: "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win"
   artifact_metadata[201]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_decision"
-    value: "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker"
+    value: "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker"
   artifact_metadata[202]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_closure"
-    value: "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1"
+    value: "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1"
   artifact_metadata[203]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement"
-    value: "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+    value: "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
   artifact_metadata[204]:
     key: "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract"
-    value: "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1"
+    value: "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1"
   artifact_metadata[205]:
     key: "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision"
-    value: "deny-performance-preferred-provider-scalar-epilogue-measured-no-win"
+    value: "deny-performance-preferred-campaign-no-further-provider-repair"
   artifact_metadata[206]:
     key: "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker"
-    value: "packed-i4-beyond-local-scalar-epilogue-measured-no-win"
+    value: "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win"
   artifact_metadata[207]:
     key: "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement"
-    value: "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+    value: "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
   artifact_metadata[208]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity"
     value: "executable-not-performance-mature"
   artifact_metadata[209]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity_evidence"
-    value: "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-gate4.v1"
+    value: "same-target-packed-i4-campaign-no-further-repair-no-win-gate4.v1"
   artifact_metadata[210]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity_outcome"
     value: "no-win"

@@ -752,7 +752,7 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY = (
     "executable-not-performance-mature"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_EVIDENCE = (
-    "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-gate4.v1"
+    "same-target-packed-i4-campaign-no-further-repair-no-win-gate4.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_OUTCOME = (
     "no-win"
@@ -836,29 +836,29 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_LOOP_BODY_STEPS =
     "11"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_BLOCKER = (
-    "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win"
+    "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_DECISION = (
-    "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker"
+    "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_CLOSURE = (
-    "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1"
+    "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_REOPEN_REQUIREMENT = (
-    "new-typed-provider-beyond-local-repair-plus-source-backed-"
+    "new-typed-provider-campaign-repair-plus-source-backed-"
     "measured-win-and-updated-admission-facts.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_CONTRACT = (
-    "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1"
+    "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_DECISION = (
-    "deny-performance-preferred-provider-scalar-epilogue-measured-no-win"
+    "deny-performance-preferred-campaign-no-further-provider-repair"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_BLOCKER = (
-    "packed-i4-beyond-local-scalar-epilogue-measured-no-win"
+    "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_REOPEN_REQUIREMENT = (
-    "new-typed-provider-beyond-local-repair-plus-source-backed-"
+    "new-typed-provider-campaign-repair-plus-source-backed-"
     "measured-win-and-updated-admission-facts.v1"
 )
 LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER = (

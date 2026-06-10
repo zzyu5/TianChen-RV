@@ -609,29 +609,29 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4CostContract(
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4CostModel(
     "high-nibble-vwmacc-loop-11-peak-live-5of32-scalar-epilogue-two-region-vsetvl.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4CostBlocker(
-    "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win");
+    "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision(
-        "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker");
+        "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure(
-        "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1");
+        "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement(
-        "new-typed-provider-beyond-local-repair-plus-source-backed-"
+        "new-typed-provider-campaign-repair-plus-source-backed-"
         "measured-win-and-updated-admission-facts.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract(
-        "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1");
+        "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision(
-        "deny-performance-preferred-provider-scalar-epilogue-measured-no-win");
+        "deny-performance-preferred-campaign-no-further-provider-repair");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker(
-        "packed-i4-beyond-local-scalar-epilogue-measured-no-win");
+        "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement(
-        "new-typed-provider-beyond-local-repair-plus-source-backed-"
+        "new-typed-provider-campaign-repair-plus-source-backed-"
         "measured-win-and-updated-admission-facts.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision(
@@ -656,7 +656,7 @@ constexpr llvm::StringLiteral
         "executable-not-performance-mature");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence(
-        "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-gate4.v1");
+        "same-target-packed-i4-campaign-no-further-repair-no-win-gate4.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome("no-win");
 constexpr llvm::StringLiteral

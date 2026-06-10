@@ -5,7 +5,7 @@
       "extern_c_guard": true,
       "path": "artifacts/gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
       "prototype": "void tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);",
-      "sha256": "ffd2915d26c21bd55522f02729be16f6549730ed007d925143496e39d8f04c59",
+      "sha256": "492a274513577dbf0b464cc7a83cb4430011640179fa665453f20984d2a74faf",
       "size": 23512
     },
     "header_file": "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
@@ -819,35 +819,35 @@
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.resource_cost_blocker",
-                "value": "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win"
+                "value": "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_admission_decision",
-                "value": "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker"
+                "value": "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_admission_closure",
-                "value": "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1"
+                "value": "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement",
-                "value": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+                "value": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract",
-                "value": "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1"
+                "value": "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision",
-                "value": "deny-performance-preferred-provider-scalar-epilogue-measured-no-win"
+                "value": "deny-performance-preferred-campaign-no-further-provider-repair"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker",
-                "value": "packed-i4-beyond-local-scalar-epilogue-measured-no-win"
+                "value": "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement",
-                "value": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+                "value": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_maturity",
@@ -855,7 +855,7 @@
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
-                "value": "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-gate4.v1"
+                "value": "same-target-packed-i4-campaign-no-further-repair-no-win-gate4.v1"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
@@ -1762,35 +1762,35 @@
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.resource_cost_blocker",
-                "value": "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win"
+                "value": "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_admission_decision",
-                "value": "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker"
+                "value": "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_admission_closure",
-                "value": "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1"
+                "value": "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement",
-                "value": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+                "value": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract",
-                "value": "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1"
+                "value": "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision",
-                "value": "deny-performance-preferred-provider-scalar-epilogue-measured-no-win"
+                "value": "deny-performance-preferred-campaign-no-further-provider-repair"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker",
-                "value": "packed-i4-beyond-local-scalar-epilogue-measured-no-win"
+                "value": "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement",
-                "value": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+                "value": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_maturity",
@@ -1798,7 +1798,7 @@
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
-                "value": "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-gate4.v1"
+                "value": "same-target-packed-i4-campaign-no-further-repair-no-win-gate4.v1"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
@@ -2455,20 +2455,20 @@
       "accumulator_element_type": "i32",
       "accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
       "gearbox_cross_region_handoff": {
-        "beyond_local_repair_admission_blocker": "packed-i4-beyond-local-scalar-epilogue-measured-no-win",
-        "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1",
-        "beyond_local_repair_admission_decision": "deny-performance-preferred-provider-scalar-epilogue-measured-no-win",
-        "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+        "beyond_local_repair_admission_blocker": "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win",
+        "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1",
+        "beyond_local_repair_admission_decision": "deny-performance-preferred-campaign-no-further-provider-repair",
+        "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "consumer_scope": "gearbox-scope:dequant-store",
         "contract": "gearbox-product-reduce-to-dequant-cross-region-handoff.v1",
         "from_phase": "load-product-reduce",
         "op": "tcrv_rvv.gearbox_cross_region_handoff",
-        "performance_admission_closure": "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1",
-        "performance_admission_decision": "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker",
-        "performance_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+        "performance_admission_closure": "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1",
+        "performance_admission_decision": "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker",
+        "performance_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "producer_scope": "gearbox-scope:product-reduction",
         "region_count": 2,
-        "resource_cost_blocker": "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win",
+        "resource_cost_blocker": "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win",
         "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
         "resource_cost_loop_body_steps": 11,
         "resource_cost_model": "high-nibble-vwmacc-loop-11-peak-live-5of32-scalar-epilogue-two-region-vsetvl.v1",
@@ -2477,10 +2477,10 @@
         "to_phase": "dequant-store"
       },
       "low_precision_resource": {
-        "beyond_local_repair_admission_blocker": "packed-i4-beyond-local-scalar-epilogue-measured-no-win",
-        "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1",
-        "beyond_local_repair_admission_decision": "deny-performance-preferred-provider-scalar-epilogue-measured-no-win",
-        "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+        "beyond_local_repair_admission_blocker": "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win",
+        "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1",
+        "beyond_local_repair_admission_decision": "deny-performance-preferred-campaign-no-further-provider-repair",
+        "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "candidate_set": "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]",
         "effective_element_width": "4",
         "legality_scope": "typed-low-precision-product-reduction-dequant-resource-legality.v1",
@@ -2488,10 +2488,10 @@
         "operand_form": "packed-i4-nibbles",
         "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
         "peak_live_vector_groups": 5,
-        "performance_admission_closure": "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1",
-        "performance_admission_decision": "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker",
-        "performance_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
-        "resource_cost_blocker": "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win",
+        "performance_admission_closure": "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1",
+        "performance_admission_decision": "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker",
+        "performance_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+        "resource_cost_blocker": "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win",
         "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
         "resource_cost_loop_body_steps": 11,
         "resource_cost_model": "high-nibble-vwmacc-loop-11-peak-live-5of32-scalar-epilogue-two-region-vsetvl.v1",
@@ -2759,10 +2759,10 @@
       "artifact_metadata_role": "mirror-only-after-provider-route",
       "authority": "RVV provider-owned low-precision realization schedule facts",
       "expected_fields": {
-        "beyond_local_repair_admission_blocker": "packed-i4-beyond-local-scalar-epilogue-measured-no-win",
-        "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1",
-        "beyond_local_repair_admission_decision": "deny-performance-preferred-provider-scalar-epilogue-measured-no-win",
-        "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+        "beyond_local_repair_admission_blocker": "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win",
+        "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1",
+        "beyond_local_repair_admission_decision": "deny-performance-preferred-campaign-no-further-provider-repair",
+        "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "candidate_set": "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]",
         "dequant_phase": "dequant-store",
         "dequant_region_index": "2",
@@ -2770,9 +2770,9 @@
         "operand_form": "packed-i4-nibbles",
         "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
         "peak_live_vector_groups": "5",
-        "performance_admission_closure": "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1",
-        "performance_admission_decision": "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker",
-        "performance_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+        "performance_admission_closure": "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1",
+        "performance_admission_decision": "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker",
+        "performance_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "primitive_accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
         "primitive_chain_contract": "rvv-low-precision-widening-reduction-primitive-facts.v1",
         "primitive_chain_kind": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1",
@@ -2790,7 +2790,7 @@
         "realized_peak_live_vector_groups": "5",
         "realized_unroll_factor": "1",
         "realized_vsetvl_region_count": "2",
-        "resource_cost_blocker": "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win",
+        "resource_cost_blocker": "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win",
         "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
         "resource_cost_loop_body_steps": "11",
         "resource_cost_model": "high-nibble-vwmacc-loop-11-peak-live-5of32-scalar-epilogue-two-region-vsetvl.v1",
@@ -2848,14 +2848,14 @@
       "object_header_agreement_checked": true,
       "packed_i4_resource_remediation_evidence": {
         "expected_fields": {
-          "beyond_local_repair_admission_blocker": "packed-i4-beyond-local-scalar-epilogue-measured-no-win",
-          "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1",
-          "beyond_local_repair_admission_decision": "deny-performance-preferred-provider-scalar-epilogue-measured-no-win",
-          "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+          "beyond_local_repair_admission_blocker": "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win",
+          "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1",
+          "beyond_local_repair_admission_decision": "deny-performance-preferred-campaign-no-further-provider-repair",
+          "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
           "performance_action": "no-win-repair-required-before-performance-claim",
-          "performance_admission_closure": "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1",
-          "performance_admission_decision": "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker",
-          "performance_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+          "performance_admission_closure": "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1",
+          "performance_admission_decision": "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker",
+          "performance_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
           "performance_feedback": "same-target-packed-i4-no-win.v1",
           "remediation_action": "no-win-repair-required-before-performance-claim",
           "remediation_blocker": "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-or-regression",
@@ -2873,7 +2873,7 @@
           "remediation_unpack_plan": "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1",
           "remediation_vector_budget": "packed-i4-remediation-budget-5of32-vector-groups",
           "remediation_vl_plan": "two-region-runtime-avl-product-reduce-then-scalar-epilogue-store.v1",
-          "resource_cost_blocker": "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win",
+          "resource_cost_blocker": "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win",
           "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
           "resource_cost_loop_body_steps": "11",
           "resource_cost_model": "high-nibble-vwmacc-loop-11-peak-live-5of32-scalar-epilogue-two-region-vsetvl.v1",
@@ -2882,14 +2882,14 @@
           "schedule_decision_reason": "accepted-beyond-local-scalar-epilogue-high-nibble-vwmacc-single-vwredsum-budget-5of32"
         },
         "fields": {
-          "beyond_local_repair_admission_blocker": "packed-i4-beyond-local-scalar-epilogue-measured-no-win",
-          "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1",
-          "beyond_local_repair_admission_decision": "deny-performance-preferred-provider-scalar-epilogue-measured-no-win",
-          "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+          "beyond_local_repair_admission_blocker": "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win",
+          "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1",
+          "beyond_local_repair_admission_decision": "deny-performance-preferred-campaign-no-further-provider-repair",
+          "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
           "performance_action": "no-win-repair-required-before-performance-claim",
-          "performance_admission_closure": "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1",
-          "performance_admission_decision": "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker",
-          "performance_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+          "performance_admission_closure": "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1",
+          "performance_admission_decision": "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker",
+          "performance_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
           "performance_feedback": "same-target-packed-i4-no-win.v1",
           "remediation_action": "no-win-repair-required-before-performance-claim",
           "remediation_blocker": "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-or-regression",
@@ -2907,7 +2907,7 @@
           "remediation_unpack_plan": "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1",
           "remediation_vector_budget": "packed-i4-remediation-budget-5of32-vector-groups",
           "remediation_vl_plan": "two-region-runtime-avl-product-reduce-then-scalar-epilogue-store.v1",
-          "resource_cost_blocker": "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win",
+          "resource_cost_blocker": "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win",
           "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
           "resource_cost_loop_body_steps": "11",
           "resource_cost_model": "high-nibble-vwmacc-loop-11-peak-live-5of32-scalar-epilogue-two-region-vsetvl.v1",
@@ -2924,20 +2924,20 @@
       "accumulator_element_type": "i32",
       "accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
       "gearbox_cross_region_handoff": {
-        "beyond_local_repair_admission_blocker": "packed-i4-beyond-local-scalar-epilogue-measured-no-win",
-        "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1",
-        "beyond_local_repair_admission_decision": "deny-performance-preferred-provider-scalar-epilogue-measured-no-win",
-        "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+        "beyond_local_repair_admission_blocker": "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win",
+        "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1",
+        "beyond_local_repair_admission_decision": "deny-performance-preferred-campaign-no-further-provider-repair",
+        "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "consumer_scope": "gearbox-scope:dequant-store",
         "contract": "gearbox-product-reduce-to-dequant-cross-region-handoff.v1",
         "from_phase": "load-product-reduce",
         "op": "tcrv_rvv.gearbox_cross_region_handoff",
-        "performance_admission_closure": "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1",
-        "performance_admission_decision": "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker",
-        "performance_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+        "performance_admission_closure": "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1",
+        "performance_admission_decision": "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker",
+        "performance_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "producer_scope": "gearbox-scope:product-reduction",
         "region_count": 2,
-        "resource_cost_blocker": "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win",
+        "resource_cost_blocker": "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win",
         "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
         "resource_cost_loop_body_steps": 11,
         "resource_cost_model": "high-nibble-vwmacc-loop-11-peak-live-5of32-scalar-epilogue-two-region-vsetvl.v1",
@@ -2946,10 +2946,10 @@
         "to_phase": "dequant-store"
       },
       "low_precision_resource": {
-        "beyond_local_repair_admission_blocker": "packed-i4-beyond-local-scalar-epilogue-measured-no-win",
-        "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1",
-        "beyond_local_repair_admission_decision": "deny-performance-preferred-provider-scalar-epilogue-measured-no-win",
-        "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+        "beyond_local_repair_admission_blocker": "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win",
+        "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1",
+        "beyond_local_repair_admission_decision": "deny-performance-preferred-campaign-no-further-provider-repair",
+        "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "candidate_set": "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]",
         "effective_element_width": "4",
         "legality_scope": "typed-low-precision-product-reduction-dequant-resource-legality.v1",
@@ -2957,10 +2957,10 @@
         "operand_form": "packed-i4-nibbles",
         "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
         "peak_live_vector_groups": 5,
-        "performance_admission_closure": "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1",
-        "performance_admission_decision": "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker",
-        "performance_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
-        "resource_cost_blocker": "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win",
+        "performance_admission_closure": "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1",
+        "performance_admission_decision": "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker",
+        "performance_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+        "resource_cost_blocker": "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win",
         "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
         "resource_cost_loop_body_steps": 11,
         "resource_cost_model": "high-nibble-vwmacc-loop-11-peak-live-5of32-scalar-epilogue-two-region-vsetvl.v1",
@@ -3062,31 +3062,31 @@
       "low_precision_resource": {
         "accumulator_count": "1",
         "accumulator_dtype": "i32",
-        "beyond_local_repair_admission_blocker": "packed-i4-beyond-local-scalar-epilogue-measured-no-win",
-        "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1",
-        "beyond_local_repair_admission_decision": "deny-performance-preferred-provider-scalar-epilogue-measured-no-win",
-        "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+        "beyond_local_repair_admission_blocker": "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win",
+        "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1",
+        "beyond_local_repair_admission_decision": "deny-performance-preferred-campaign-no-further-provider-repair",
+        "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "candidate_set": "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]",
         "dequant_phase": "dequant-store",
         "dequant_region_index": "2",
         "dispatch_preference": "not-performance-preferred",
         "effective_element_width": "4",
-        "expected_beyond_local_repair_admission_blocker": "packed-i4-beyond-local-scalar-epilogue-measured-no-win",
-        "expected_beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1",
-        "expected_beyond_local_repair_admission_decision": "deny-performance-preferred-provider-scalar-epilogue-measured-no-win",
-        "expected_beyond_local_repair_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+        "expected_beyond_local_repair_admission_blocker": "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win",
+        "expected_beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1",
+        "expected_beyond_local_repair_admission_decision": "deny-performance-preferred-campaign-no-further-provider-repair",
+        "expected_beyond_local_repair_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "expected_dispatch_preference": "not-performance-preferred",
         "expected_memory_form": "unit-stride-widening-product-reduce-dequant-clamp-f32",
         "expected_operand_form": "packed-i4-nibbles",
         "expected_performance_action": "no-win-repair-required-before-performance-claim",
-        "expected_performance_admission_closure": "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1",
-        "expected_performance_admission_decision": "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker",
-        "expected_performance_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+        "expected_performance_admission_closure": "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1",
+        "expected_performance_admission_decision": "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker",
+        "expected_performance_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "expected_performance_baseline": "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1",
         "expected_performance_best_speedup_range": "0.896848..1.020953",
         "expected_performance_feedback": "same-target-packed-i4-no-win.v1",
         "expected_performance_maturity": "executable-not-performance-mature",
-        "expected_performance_maturity_evidence": "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-gate4.v1",
+        "expected_performance_maturity_evidence": "same-target-packed-i4-campaign-no-further-repair-no-win-gate4.v1",
         "expected_performance_maturity_outcome": "no-win",
         "expected_performance_selection_eligible": "false",
         "expected_primitive_accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
@@ -3112,7 +3112,7 @@
         "expected_remediation_plan_contract": "rvv-low-precision-packed-i4-resource-remediation-plan.v1",
         "expected_remediation_statement_strategy": "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue",
         "expected_remediation_vector_budget": "packed-i4-remediation-budget-5of32-vector-groups",
-        "expected_resource_cost_blocker": "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win",
+        "expected_resource_cost_blocker": "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win",
         "expected_resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
         "expected_resource_cost_loop_body_steps": "11",
         "expected_resource_cost_model": "high-nibble-vwmacc-loop-11-peak-live-5of32-scalar-epilogue-two-region-vsetvl.v1",
@@ -3125,14 +3125,14 @@
         "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
         "peak_live_vector_groups": "5",
         "performance_action": "no-win-repair-required-before-performance-claim",
-        "performance_admission_closure": "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1",
-        "performance_admission_decision": "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker",
-        "performance_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+        "performance_admission_closure": "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1",
+        "performance_admission_decision": "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker",
+        "performance_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "performance_baseline": "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1",
         "performance_best_speedup_range": "0.896848..1.020953",
         "performance_feedback": "same-target-packed-i4-no-win.v1",
         "performance_maturity": "executable-not-performance-mature",
-        "performance_maturity_evidence": "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-gate4.v1",
+        "performance_maturity_evidence": "same-target-packed-i4-campaign-no-further-repair-no-win-gate4.v1",
         "performance_maturity_outcome": "no-win",
         "performance_selection_eligible": "false",
         "primitive_accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
@@ -3167,7 +3167,7 @@
         "remediation_plan_contract": "rvv-low-precision-packed-i4-resource-remediation-plan.v1",
         "remediation_statement_strategy": "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue",
         "remediation_vector_budget": "packed-i4-remediation-budget-5of32-vector-groups",
-        "resource_cost_blocker": "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win",
+        "resource_cost_blocker": "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win",
         "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
         "resource_cost_loop_body_steps": "11",
         "resource_cost_model": "high-nibble-vwmacc-loop-11-peak-live-5of32-scalar-epilogue-two-region-vsetvl.v1",
@@ -3242,10 +3242,10 @@
       "tcrv_rvv.low_precision_resource.accumulator_emul": "m1",
       "tcrv_rvv.low_precision_resource.accumulator_lmul": "m1",
       "tcrv_rvv.low_precision_resource.accumulator_sew": "32",
-      "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker": "packed-i4-beyond-local-scalar-epilogue-measured-no-win",
-      "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1",
-      "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision": "deny-performance-preferred-provider-scalar-epilogue-measured-no-win",
-      "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+      "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker": "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win",
+      "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-campaign-no-further-repair-admission.v1",
+      "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision": "deny-performance-preferred-campaign-no-further-provider-repair",
+      "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
       "tcrv_rvv.low_precision_resource.candidate_set": "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]",
       "tcrv_rvv.low_precision_resource.dequant_phase": "dequant-store",
       "tcrv_rvv.low_precision_resource.dequant_region_index": "2",
@@ -3259,14 +3259,14 @@
       "tcrv_rvv.low_precision_resource.packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
       "tcrv_rvv.low_precision_resource.peak_live_vector_groups": "5",
       "tcrv_rvv.low_precision_resource.performance_action": "no-win-repair-required-before-performance-claim",
-      "tcrv_rvv.low_precision_resource.performance_admission_closure": "no-win-packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32.v1",
-      "tcrv_rvv.low_precision_resource.performance_admission_decision": "deny-performance-preferred-with-beyond-local-scalar-epilogue-no-win-blocker",
-      "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
+      "tcrv_rvv.low_precision_resource.performance_admission_closure": "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1",
+      "tcrv_rvv.low_precision_resource.performance_admission_decision": "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker",
+      "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement": "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
       "tcrv_rvv.low_precision_resource.performance_baseline": "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1",
       "tcrv_rvv.low_precision_resource.performance_best_speedup_range": "0.896848..1.020953",
       "tcrv_rvv.low_precision_resource.performance_feedback": "same-target-packed-i4-no-win.v1",
       "tcrv_rvv.low_precision_resource.performance_maturity": "executable-not-performance-mature",
-      "tcrv_rvv.low_precision_resource.performance_maturity_evidence": "same-target-packed-i4-beyond-local-scalar-epilogue-no-win-gate4.v1",
+      "tcrv_rvv.low_precision_resource.performance_maturity_evidence": "same-target-packed-i4-campaign-no-further-repair-no-win-gate4.v1",
       "tcrv_rvv.low_precision_resource.performance_maturity_outcome": "no-win",
       "tcrv_rvv.low_precision_resource.performance_selection_eligible": "false",
       "tcrv_rvv.low_precision_resource.primitive_accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
@@ -3319,7 +3319,7 @@
       "tcrv_rvv.low_precision_resource.remediation_unpack_plan": "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1",
       "tcrv_rvv.low_precision_resource.remediation_vector_budget": "packed-i4-remediation-budget-5of32-vector-groups",
       "tcrv_rvv.low_precision_resource.remediation_vl_plan": "two-region-runtime-avl-product-reduce-then-scalar-epilogue-store.v1",
-      "tcrv_rvv.low_precision_resource.resource_cost_blocker": "packed-i4-beyond-local-scalar-epilogue-loop-11-budget-5of32-no-win",
+      "tcrv_rvv.low_precision_resource.resource_cost_blocker": "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win",
       "tcrv_rvv.low_precision_resource.resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
       "tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps": "11",
       "tcrv_rvv.low_precision_resource.resource_cost_model": "high-nibble-vwmacc-loop-11-peak-live-5of32-scalar-epilogue-two-region-vsetvl.v1",

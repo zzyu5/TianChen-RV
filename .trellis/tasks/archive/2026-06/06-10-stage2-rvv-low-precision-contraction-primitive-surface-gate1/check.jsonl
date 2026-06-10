@@ -113,3 +113,13 @@
 {"check": "focused lit packed-i4 Gate 4 beyond-local admission fixtures and script dry-runs", "result": "passed 5/5 after repairing tcrv-opt rebuild and handoff FileCheck ordering"}
 {"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1", "result": "passed"}
 {"check": "git diff --check", "result": "passed"}
+{"check": "cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test", "result": "passed for Gate 4 campaign-level no-further-repair closure; target artifact test target still emits existing switch-coverage warnings"}
+{"check": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "initially failed on stale evidence-root expectation text for campaign admission negative test; fixed expected verifier tokens, rebuilt, then passed"}
+{"check": "build/bin/tianchenrv-target-artifact-export-test", "result": "passed"}
+{"check": "python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py scripts/rvv_generated_bundle_same_target_measure.py", "result": "passed"}
+{"check": "python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test", "result": "passed"}
+{"check": "python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test", "result": "passed"}
+{"check": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter packed-i4 Gate 4 campaign closure target and script dry-run tests", "result": "passed 5/5 from build/test"}
+{"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1", "result": "passed after Gate 4 campaign closure PRD/task metadata update"}
+{"check": "git diff --check", "result": "passed after Gate 4 campaign closure PRD/task metadata update"}
+{"check": "bounded added-diff old-authority scan", "result": "passed: no added positive RVVI32M1, rvv-i32m1, tcrv_rvv.i32_, !tcrv_rvv.i32m, source-front-door, descriptor-driven, direct C exporter, q8/q4, or llama route-authority markers"}
