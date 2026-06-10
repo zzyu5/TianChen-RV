@@ -12217,6 +12217,37 @@ module {
               "verification"),
           "packed-i4 Gate 3 same-target record verification"))
     return result;
+  auto recordDerivedNoWinPolicyOutputBoundary =
+      clearSelectedDispatchPolicyOutput(packedI4SelectedDispatchBoundary);
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::
+              populateRVVLowPrecisionSelectedDispatchPolicyOutput(
+                  packedI4ResourceSelection,
+                  acceptedPackedI4Gate4MeasurementRecord,
+                  recordDerivedNoWinPolicyOutputBoundary,
+                  "selected-dispatch packed-i4 Gate 3 record-derived no-win "
+                  "policy-output"),
+          "packed-i4 Gate 3 explicit no-win record populates "
+          "selected-dispatch policy-output"))
+    return result;
+  if (int result = expect(
+          recordDerivedNoWinPolicyOutputBoundary
+              .hasSelectedDispatchPolicyOutput &&
+              recordDerivedNoWinPolicyOutputBoundary
+                      .selectedDispatchPolicyPath ==
+                  "correctness-fallback" &&
+              recordDerivedNoWinPolicyOutputBoundary
+                      .selectedDispatchPreference ==
+                  "not-performance-preferred" &&
+              recordDerivedNoWinPolicyOutputBoundary
+                  .selectedDispatchCorrectnessFallbackPathSelected &&
+              !recordDerivedNoWinPolicyOutputBoundary
+                   .selectedDispatchPerformancePreferredPathSelected &&
+              !recordDerivedNoWinPolicyOutputBoundary
+                   .selectedDispatchPerformanceWinClaimAllowed,
+          "packed-i4 Gate 3 explicit no-win record drives conservative "
+          "selected-dispatch policy-output mirrors"))
+    return result;
 
   auto stalePackedI4SchedulePolicyInput = acceptedPackedI4PolicyInput;
   stalePackedI4SchedulePolicyInput.providerScheduleDecision =
@@ -12362,6 +12393,18 @@ module {
               packedI4SelectedDispatchBoundary,
               "selected-dispatch packed-i4 Gate 3 record rejects "
               "cross-target evidence"),
+          {"policy handoff diagnosis", "stale-measurement", "target profile",
+           "ssh rvv", "local-x86"}))
+    return result;
+  auto staleRecordPolicyOutputBoundary =
+      clearSelectedDispatchPolicyOutput(packedI4SelectedDispatchBoundary);
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              populateRVVLowPrecisionSelectedDispatchPolicyOutput(
+                  packedI4ResourceSelection, staleTargetPackedI4Record,
+                  staleRecordPolicyOutputBoundary,
+                  "selected-dispatch packed-i4 Gate 3 record-derived "
+                  "policy-output rejects cross-target evidence"),
           {"policy handoff diagnosis", "stale-measurement", "target profile",
            "ssh rvv", "local-x86"}))
     return result;
@@ -12714,6 +12757,39 @@ module {
                   .acceptedForDispatchPolicy,
           "packed-i4 Gate 3 bounded same-target measured-win record selects "
           "performance-preferred only after provider facts match"))
+    return result;
+  auto recordDerivedMeasuredWinPolicyOutputBoundary =
+      clearSelectedDispatchPolicyOutput(measuredWinSelectedDispatchBoundary);
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::
+              populateRVVLowPrecisionSelectedDispatchPolicyOutput(
+                  measuredWinPackedI4Selection, measuredWinPackedI4Record,
+                  recordDerivedMeasuredWinPolicyOutputBoundary,
+                  "selected-boundary packed-i4 Gate 3 measured-win "
+                  "record-derived policy-output"),
+          "packed-i4 Gate 3 explicit measured-win record populates "
+          "selected-dispatch policy-output"))
+    return result;
+  if (int result = expect(
+          recordDerivedMeasuredWinPolicyOutputBoundary
+              .hasSelectedDispatchPolicyOutput &&
+              recordDerivedMeasuredWinPolicyOutputBoundary
+                      .selectedDispatchPolicyPath ==
+                  "performance-preferred" &&
+              recordDerivedMeasuredWinPolicyOutputBoundary
+                      .selectedDispatchPreference ==
+                  "performance-preferred" &&
+              recordDerivedMeasuredWinPolicyOutputBoundary
+                  .selectedDispatchPerformanceSelectionAllowed &&
+              recordDerivedMeasuredWinPolicyOutputBoundary
+                  .selectedDispatchPerformanceWinClaimAllowed &&
+              recordDerivedMeasuredWinPolicyOutputBoundary
+                  .selectedDispatchPerformancePreferredPathSelected &&
+              !recordDerivedMeasuredWinPolicyOutputBoundary
+                   .selectedDispatchCorrectnessFallbackPathSelected,
+          "packed-i4 Gate 3 explicit measured-win record drives "
+          "performance-preferred selected-dispatch policy-output mirrors only "
+          "after provider facts agree"))
     return result;
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(

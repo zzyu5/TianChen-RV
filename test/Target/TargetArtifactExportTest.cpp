@@ -13422,13 +13422,31 @@ bool expectRVVTargetArtifactExporterShape(
               populateRVVLowPrecisionSelectedDispatchPolicyOutput(
                   packedI4ProductDequantDescription
                       .lowPrecisionResourceSelection,
+                  acceptedPackedI4Gate4MeasurementRecord,
                   packedI4TargetDispatchBoundary,
                   "packed-i4 target artifact selected-dispatch "
-                  "policy-output facts")) {
+                  "record-derived policy-output facts")) {
     llvm::errs() << "packed-i4 target artifact policy-output facts failed: "
                  << llvm::toString(std::move(error)) << "\n";
     return false;
   }
+  auto staleTargetPolicyOutputRecord = acceptedPackedI4Gate4MeasurementRecord;
+  staleTargetPolicyOutputRecord.targetProfile = "local-x86";
+  auto staleTargetPolicyOutputBoundary = packedI4TargetDispatchBoundary;
+  if (!expectErrorContains(
+          tianchenrv::plugin::rvv::
+              populateRVVLowPrecisionSelectedDispatchPolicyOutput(
+                  packedI4ProductDequantDescription
+                      .lowPrecisionResourceSelection,
+                  staleTargetPolicyOutputRecord,
+                  staleTargetPolicyOutputBoundary,
+                  "packed-i4 target artifact selected-dispatch "
+                  "record-derived policy-output rejects stale target"),
+          "packed-i4 target artifact rejects stale record-derived "
+          "selected-dispatch policy output",
+          {"policy handoff diagnosis", "stale-measurement", "target profile",
+           "ssh rvv", "local-x86"}))
+    return false;
 
   TargetArtifactCandidate selectedDispatchPackedI4Candidate =
       packedI4ProductDequantFixture.candidate;

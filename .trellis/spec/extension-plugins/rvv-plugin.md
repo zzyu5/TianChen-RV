@@ -7442,6 +7442,12 @@ llvm::Error verifyRVVLowPrecisionPerformancePolicy(
     const RVVLowPrecisionSameTargetMeasurementRecord &record,
     const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
     llvm::StringRef context);
+
+llvm::Error populateRVVLowPrecisionSelectedDispatchPolicyOutput(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context);
 ```
 
 Accepted dispatch policy paths are:
@@ -7503,6 +7509,15 @@ performance-preferred
   low-precision resource mirror; it must agree with the selected-dispatch
   policy decision, but it is not a standalone selected-dispatch policy-output
   key.
+- When source-backed same-target measurement evidence is available, the
+  selected-dispatch policy-output population path must use the
+  `RVVLowPrecisionSameTargetMeasurementRecord` overload. The overload first
+  validates the record against provider resource/admission/maturity, target
+  capability, runtime ABI, source/generated artifact identity, and
+  selected-dispatch case/fallback facts, then writes the policy-output mirrors
+  from the accepted `RVVLowPrecisionPerformancePolicyDecision`. The older
+  selection-only helper may construct the current accepted no-win record for
+  the default packed-i4 path, but it is not the measured-record admission seam.
 - The current accepted Gate 4 packed-i4 regression/no-win outcome must set:
 
   ```text
@@ -7709,6 +7724,11 @@ performance-preferred
   decision is produced through the direct
   `RVVLowPrecisionSameTargetMeasurementRecord` + selected-dispatch boundary
   overload, not only through a prebuilt policy input.
+- C++ provider/policy tests must assert explicit no-win and measured-win
+  records can populate selected-dispatch policy-output facts through
+  `populateRVVLowPrecisionSelectedDispatchPolicyOutput(selection, record,
+  boundary, context)`, and stale target/runtime/provider facts fail before any
+  target/header mirror is accepted.
 - Gate 4 final-audit coverage must also feed a record parsed from the generated
   evidence JSON object through that same selected-dispatch record overload; a
   helper-built representative record alone is not enough to prove the

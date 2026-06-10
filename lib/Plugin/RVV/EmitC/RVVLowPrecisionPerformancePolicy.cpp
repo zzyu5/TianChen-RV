@@ -4386,6 +4386,19 @@ llvm::Error populateRVVLowPrecisionSelectedDispatchPolicyOutput(
 
   RVVLowPrecisionSameTargetMeasurementRecord record =
       buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
+  return populateRVVLowPrecisionSelectedDispatchPolicyOutput(
+      selection, record, dispatchBoundary, context);
+}
+
+llvm::Error populateRVVLowPrecisionSelectedDispatchPolicyOutput(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  if (!isRVVLowPrecisionResourcePackedI4CandidateID(
+          selection.selectedCandidateID))
+    return llvm::Error::success();
+
   llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
       evaluateRVVLowPrecisionPerformancePolicy(selection, record,
                                                dispatchBoundary, context);

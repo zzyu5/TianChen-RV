@@ -1741,3 +1741,70 @@ change generated runtime behavior or make a new correctness/performance claim.
 Gate 3 is next: same-target measured-win or no-win records must update
 admission/reopen facts through provider-owned contracts and target mirrors
 before any performance-preferred selected dispatch can be admitted.
+
+## Session 593: Stage2 RVV Gate 3 measured-record selected-dispatch admission
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV production-kernel selected-dispatch performance-admission campaign
+**Branch**: `main`
+
+### Summary
+
+Completed the Gate 3 slice for the active macro task: explicit same-target
+measurement records can now populate provider-owned selected-dispatch
+policy-output facts for the packed-i4 pressure path. The existing no-win helper
+still supplies the current accepted conservative record, but it now delegates
+through the record-aware provider API.
+
+### Main Changes
+
+- Added
+  `populateRVVLowPrecisionSelectedDispatchPolicyOutput(selection, record,
+  boundary, context)` so no-win or measured-win records drive selected-dispatch
+  policy-output facts after provider/resource/admission/dispatch validation.
+- Kept the selection-only helper as the current no-win default by delegating to
+  the record-aware overload.
+- Added plugin coverage for explicit no-win record policy-output, explicit
+  measured-win record policy-output, and stale target record rejection.
+- Updated target artifact coverage so selected-dispatch policy-output mirrors
+  are populated from an explicit no-win record and stale target records fail
+  before target mirrors can be accepted.
+- Updated the RVV plugin spec and active PRD with the record-aware
+  selected-dispatch policy-output contract.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter
+  'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|selected-dispatch'`
+  from `build/test` passed 2/2
+- [OK] `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-11-stage2-rvv-production-selected-dispatch-admission`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded old-authority scan over added diff lines found no new legacy RVV
+  authority strings.
+
+### Status
+
+[OPEN MACRO TASK] Gate 3 slice complete. Gate 4 remains open. No fresh `ssh rvv`
+run was required because this slice changes policy/admission API, provider and
+target mirror tests, task docs, and spec text only; it does not change generated
+RVV runtime behavior or make a fresh correctness/performance claim.
+
+### Continuation
+
+Gate 4 remains next: focused executable or measurement evidence should
+demonstrate the selected-dispatch performance-admission behavior end to end
+only when the production path makes runtime, correctness, or performance
+claims.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` records the
+record-aware selected-dispatch policy-output population API and required
+positive/stale record coverage.
