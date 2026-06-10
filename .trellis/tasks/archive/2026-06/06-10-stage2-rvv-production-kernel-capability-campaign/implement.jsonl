@@ -10,4 +10,4 @@
 {"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused positive and fail-closed C++ coverage for Gate 2 record construction and policy-boundary compatibility"}
 {"file": "test/Scripts/rvv-generated-bundle-same-target-measure-gate4-dry-run.test", "reason": "Dry-run evidence coverage for source-backed record fields in packed-i4 measurement output"}
 {"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Code-spec update for the new cross-layer source-backed record/API contract"}
-{"file": ".trellis/tasks/06-10-stage2-rvv-production-kernel-capability-campaign/prd.md", "reason": "Gate 2 slice acceptance, verification, spec decision, and Gate 3 continuation point"}
+{"file": ".trellis/tasks/archive/2026-06/06-10-stage2-rvv-production-kernel-capability-campaign/prd.md", "reason": "Completed production-kernel capability macro campaign gates, verification, spec decision, and archive state"}

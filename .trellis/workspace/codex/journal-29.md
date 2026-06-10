@@ -57,6 +57,74 @@ or fallback behavior.
 
 Final coherent commit is created after this journal entry.
 
+## Session 580: Stage2 RVV production-kernel capability Gate 4 closeout
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV production-kernel capability campaign
+**Branch**: `main`
+
+### Summary
+
+Completed Gate 4 of the active production-kernel capability macro task. Gates
+1-3 had already made the production pressure-profile API, source-backed
+measurement-record parser, and selected-dispatch record resolver real. This
+round closed the campaign by adding focused C++ coverage that proves a record
+parsed from the checked-in generated dequant-clamp evidence JSON materializes
+`RVVLowPrecisionProductionPressureProfile` through the same production APIs.
+
+### Main Changes
+
+- Added a Gate 4 closeout assertion in
+  `test/Plugin/RVVExtensionPluginTest.cpp` after the parsed dequant-clamp
+  selected-dispatch policy path. The test now directly builds
+  `RVVLowPrecisionProductionPressureProfile` from the parsed evidence record
+  and asserts selected variant, generated function, measurement evidence id,
+  provider runtime ABI, selected-dispatch fallback mirror, and
+  correctness-fallback policy facts.
+- Updated the macro PRD to mark Gate 4 complete, explain why no production
+  policy source change was needed in this round, record completed/verified
+  Gate 4 evidence, and mark the macro task ready to finish/archive.
+- Revalidated the packed-i4 dequant and dequant-clamp dry-run evidence bridge
+  with explicit `/usr/bin/llvm-readobj-20` because unversioned `llvm-readobj`
+  is not on the current PATH.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_same_target_measure.py`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] Packed-i4 dequant dry-run with explicit `/usr/bin/llvm-readobj-20`
+- [OK] Packed-i4 dequant-clamp dry-run with explicit `/usr/bin/llvm-readobj-20`
+- [OK] Structured JSON checks over the generated dry-run records and existing
+  real `ssh rvv` dequant-clamp evidence record
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-production-kernel-capability-campaign`
+- [OK] Post-archive `python3 ./.trellis/scripts/task.py validate .trellis/tasks/archive/2026-06/06-10-stage2-rvv-production-kernel-capability-campaign`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Bounded added-diff scan over source/test changes returned no legacy RVV
+  route-authority matches. PRD marker names are negative reporting text only.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] The RVV plugin and testing specs already require Gate 4 final
+audit coverage to parse generated evidence JSON into
+`RVVLowPrecisionSameTargetMeasurementRecord`, feed that record through the
+selected-dispatch overload, and prove the same source-backed facts reach the
+production pressure-profile boundary. This round implements and verifies that
+existing contract without changing API signatures or record schemas.
+
+### Status
+
+[COMPLETE MACRO TASK] Gates 1-4 are complete. The task is ready to finish and
+archive.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 579: Stage2 RVV production-kernel capability Gate 2
 
 **Date**: 2026-06-10

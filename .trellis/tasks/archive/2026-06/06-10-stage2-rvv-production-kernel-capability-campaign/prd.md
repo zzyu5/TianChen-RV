@@ -70,46 +70,56 @@ authority.
 - [x] Gate 3: selected-dispatch/performance policy consumes those records for
   correctness fallback versus measured-win preference with stale/no-win/
   regression rejection.
-- [ ] Gate 4: campaign closeout proves the full selected boundary ->
+- [x] Gate 4: campaign closeout proves the full selected boundary ->
   plugin-owned realization/provider -> artifact/runtime measurement ->
   selected-dispatch policy path and archives only after all gates are complete.
 
-## Current Round Slice: Gate 3
+## Current Round Slice: Gate 4
 
-Implement Gate 3 only. The bounded slice should make the selected-dispatch /
-performance policy seam consume the source-backed pressure-profile records
-emitted by Gate 2, with decisions derived from selected-boundary,
-provider-owned low-precision primitive/resource, generated artifact,
-same-target measurement, and dispatch-boundary facts.
+Complete the macro campaign closeout. The bounded slice proves the full
+selected-boundary -> RVV plugin-owned realization/provider -> source-backed
+generated artifact / same-target measurement record -> production
+pressure-profile -> selected-dispatch policy path through the production C++
+APIs and existing generated evidence records.
 
-The policy may use the packed-i4 widening product-reduce dequant/dequant-clamp
-records as representative pressure inputs. It must treat q8/q4-style labels,
-artifact paths, route ids, benchmark names, raw stdout, and metadata-only
-records as mirrors or invalid pressure facts, never as route, dtype, schedule,
-measurement, dispatch, or performance authority.
+No production policy source change was required in this round: Gates 1-3 already
+added the production pressure-profile API, source-backed record parser, and
+selected-dispatch resolver consumption. Gate 4 therefore adds the smallest
+focused closeout test needed to assert that a parsed dequant-clamp
+`same_target_measurement_record` materializes an
+`RVVLowPrecisionProductionPressureProfile` carrying selected boundary,
+generated artifact, measurement, provider/resource/schedule, and
+selected-dispatch fallback facts in one boundary.
 
 Acceptance criteria:
 
-- [x] Production C++ policy code consumes source-backed
-  `RVVLowPrecisionSameTargetMeasurementRecord` / pressure-profile records
-  through the selected-dispatch boundary before producing a dispatch /
-  performance decision.
-- [x] Positive focused coverage proves the current accepted no-win/regression
-  source-backed record selects `correctness-fallback`, preserves route support
-  and correctness execution, and denies performance preference / win claims.
-- [x] Positive focused coverage proves a measured-win record selects
+- [x] Parsed generated evidence JSON feeds
+  `buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput`.
+- [x] The parsed record reaches the selected-dispatch
+  `evaluateRVVLowPrecisionPerformancePolicy(selection, record,
+  dispatchBoundary, context)` overload and selects `correctness-fallback` for
+  the accepted dequant-clamp regression/no-win evidence.
+- [x] The same parsed record materializes
+  `RVVLowPrecisionProductionPressureProfile` with selected variant/generated
+  function, generated artifact identity, measurement evidence id, provider
+  runtime ABI/schedule facts, selected dispatch case/fallback mirrors, and
+  correctness fallback decision in one closeout boundary.
+- [x] Existing focused negative coverage rejects stale schedule decisions,
+  correctness-disabled records, stale/missing provenance, sibling-route
+  measurements, stale selected-dispatch facts, stale target/runtime ABI/
+  primitive facts, and measurement-only win promotion.
+- [x] Existing focused positive coverage proves measured-win records select
   `performance-preferred` only when provider maturity, eligibility, dispatch,
   remediation, schedule, primitive/resource, measurement, and selected-dispatch
   facts all agree.
-- [x] Negative focused coverage rejects or safely resolves stale/missing
-  provenance, label-only q8/q4 pressure, sibling-route measurements, stale
-  selected-dispatch facts, correctness-disabled records, stale schedule /
-  primitive / target facts, and measurement-only win promotion.
-- [x] Relevant focused checks pass, including C++ plugin tests, script/lit checks
-  only if touched, `git diff --check`, `git diff --cached --check`, and a
-  bounded old-authority scan over touched files or added diff lines.
-- [x] The task remains active after the Gate 3 slice unless Gate 4 is also
-  genuinely complete.
+- [x] Dry-run/source-backed measurement workflow still emits record-shaped
+  source-backed fields for packed-i4 dequant and dequant-clamp; existing real
+  `ssh rvv` dequant-clamp evidence remains JSON-valid and source-backed.
+- [x] Relevant focused checks pass, including C++ plugin tests, target artifact
+  tests, script self-test, dry-run measurement workflow with explicit
+  `/usr/bin/llvm-readobj-20`, Trellis validation, `git diff --check`,
+  `git diff --cached --check`, and bounded old-authority scan.
+- [x] With Gate 4 complete, the macro task can be finished and archived.
 
 ## Completed Slice: Gate 1
 
@@ -175,6 +185,24 @@ Acceptance criteria:
   target/runtime ABI/planning/vsetvl/primitive/schedule/correctness/win
   promotion cases fail closed.
 
+## Completed Slice: Gate 4
+
+- Added focused C++ closeout coverage proving a record parsed from the
+  checked-in generated dequant-clamp evidence JSON can materialize
+  `RVVLowPrecisionProductionPressureProfile` through production APIs.
+- The closeout assertion ties the selected dequant-clamp boundary, generated
+  function, source-backed measurement evidence id, provider runtime ABI,
+  resource-aware schedule decision, selected dispatch case/fallback mirrors,
+  and correctness-fallback policy decision into one boundary object.
+- Revalidated the existing selected-dispatch record overload for parsed
+  dequant and dequant-clamp evidence, current no-win/regression fallback,
+  stale schedule/correctness-disabled rejection, measured-win positive path,
+  and measurement-only win rejection.
+- Revalidated the same-target dry-run measurement workflow for packed-i4
+  dequant and dequant-clamp using explicit `/usr/bin/llvm-readobj-20`, and
+  confirmed existing real `ssh rvv` dequant-clamp evidence remains JSON-valid
+  and source-backed.
+
 ## Verification
 
 - [x] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
@@ -205,6 +233,29 @@ Acceptance criteria:
   `!tcrv_rvv.i32m*`, `__riscv_*_i32m1`, source-front-door, or
   descriptor-driven route-authority matches. The broader scan only found PRD
   non-authority wording and the new metadata-only negative test marker.
+- [x] Gate 4: `cmake --build build --target
+  tianchenrv-rvv-extension-plugin-test`
+- [x] Gate 4: `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [x] Gate 4: `cmake --build build --target
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`
+- [x] Gate 4: `build/bin/tianchenrv-target-artifact-export-test`
+- [x] Gate 4: `python3 -m py_compile
+  scripts/rvv_generated_bundle_same_target_measure.py`
+- [x] Gate 4: `python3 scripts/rvv_generated_bundle_same_target_measure.py
+  --self-test`
+- [x] Gate 4: packed-i4 dequant dry-run with explicit
+  `/usr/bin/llvm-readobj-20`.
+- [x] Gate 4: packed-i4 dequant-clamp dry-run with explicit
+  `/usr/bin/llvm-readobj-20`.
+- [x] Gate 4: structured JSON checks over generated dry-run records and the
+  existing real `ssh rvv` dequant-clamp record.
+- [x] Gate 4: final `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/archive/2026-06/06-10-stage2-rvv-production-kernel-capability-campaign`
+- [x] Gate 4: final `git diff --check`
+- [x] Gate 4: final `git diff --cached --check`
+- [x] Gate 4: bounded added-diff scan over source/test changes returned no
+  legacy RVV route-authority matches. The PRD's own forbidden-marker wording is
+  non-authority reporting text only.
 
 ## Spec Update Decision
 
@@ -221,14 +272,17 @@ boundary, preserve correctness fallback for stale evidence, and deny
 performance preference for marker-only or mismatched pressure facts. This slice
 implements that existing contract in production policy code and tests.
 
+Gate 4 did not require a spec update. The RVV plugin and testing specs already
+define the Gate 4 final-audit requirement: feed a record parsed from generated
+evidence JSON through the selected-dispatch record overload and prove the same
+source-backed record reaches the production pressure-profile boundary. This
+round implements and verifies that existing contract without changing the API
+or cross-layer payload schema.
+
 ## Status
 
-Open macro task. Gates 1, 2, and 3 are complete. Gate 4 remains open. The next
-continuation point is Gate 4: campaign closeout must prove the full selected
-boundary -> plugin-owned realization/provider -> artifact/runtime measurement
--> selected-dispatch policy path, including a parsed generated evidence record
-through the selected-dispatch record overload, before the macro task can be
-finished or archived.
+Macro task complete. Gates 1, 2, 3, and 4 are complete. After final checks,
+finish and archive this Trellis task.
 
 ## Out of Scope
 
@@ -239,7 +293,7 @@ finished or archived.
   inference.
 - Broad benchmark dashboards, global tuning databases, or performance profile
   systems.
-- Archiving this macro task after only Gates 1-2.
+- Archiving any future macro task before all named campaign gates are complete.
 
 ## Technical Notes
 
@@ -252,5 +306,5 @@ finished or archived.
   and selected-dispatch bundle-boundary contracts.
 - Read archived primitive-surface campaign PRD at
   `.trellis/tasks/archive/2026-06/06-10-stage2-rvv-low-precision-contraction-primitive-surface-campaign/prd.md`.
-- Initial repository state: `main`, clean worktree, latest commit
-  `d35f9f42 rvv: add production pressure profile boundary`.
+- Gate 4 initial repository state: `main`, clean worktree, latest commit
+  `76ec908f rvv: consume pressure records in dispatch resolver`.

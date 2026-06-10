@@ -11142,6 +11142,48 @@ module {
           "packed-i4 dequant-clamp Gate 4 policy consumes source-backed "
           "same-target evidence and denies performance-preferred dispatch"))
     return result;
+  auto parsedPackedI4DequantClampPressureProfile =
+      tianchenrv::plugin::rvv::buildRVVLowPrecisionProductionPressureProfile(
+          dequantClampPackedI4ResourceSelection,
+          *parsedPackedI4DequantClampRecord,
+          dequantClampSelectedDispatchBoundary,
+          "selected-dispatch packed-i4 dequant-clamp Gate 4 pressure-profile "
+          "closeout");
+  if (!parsedPackedI4DequantClampPressureProfile)
+    return fail("packed-i4 dequant-clamp Gate 4 pressure-profile closeout: " +
+                llvm::toString(
+                    parsedPackedI4DequantClampPressureProfile.takeError()));
+  if (int result = expect(
+          parsedPackedI4DequantClampPressureProfile->sourceSelectedVariant ==
+                  "pre_realized_body_rvv_product_reduce_dequant_clamp" &&
+              parsedPackedI4DequantClampPressureProfile
+                      ->sourceGeneratedFunction ==
+                  "tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_"
+                  "kernel_pre_realized_body_rvv_product_reduce_dequant_clamp" &&
+              parsedPackedI4DequantClampPressureProfile
+                      ->measurementEvidenceID ==
+                  dequantClampPackedI4ResourceSelection
+                      .remediationMeasurementEvidenceID &&
+              parsedPackedI4DequantClampPressureProfile->runtimeABIOrder ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourceDequantClampRuntimeABIOrder &&
+              parsedPackedI4DequantClampPressureProfile
+                      ->selectedCaseVariant ==
+                  dequantClampSelectedDispatchBoundary.selectedCaseVariant &&
+              parsedPackedI4DequantClampPressureProfile
+                      ->selectedDispatchFallbackMirror ==
+                  dequantClampSelectedDispatchBoundary
+                      .selectedDispatchFallbackMirror &&
+              parsedPackedI4DequantClampPressureProfile
+                  ->correctnessFallbackPathSelected &&
+              !parsedPackedI4DequantClampPressureProfile
+                   ->performancePreferredPathSelected &&
+              parsedPackedI4DequantClampPressureProfile->dispatchPolicyPath ==
+                  "correctness-fallback",
+          "packed-i4 dequant-clamp Gate 4 pressure profile ties parsed "
+          "artifact evidence, provider facts, measurement, and selected "
+          "dispatch fallback into one closeout boundary"))
+    return result;
 
   auto staleScheduleDequantClampRecord = *parsedPackedI4DequantClampRecord;
   staleScheduleDequantClampRecord.providerScheduleDecision =
