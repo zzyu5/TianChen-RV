@@ -51,6 +51,8 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourceSelectedCandidateAttrName(
     "tcrv_rvv.low_precision_resource.selected_candidate");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceSelectionReasonAttrName(
     "tcrv_rvv.low_precision_resource.selection_reason");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePlanningContractAttrName(
+    "tcrv_rvv.low_precision_resource.planning_contract");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceLegalityScopeAttrName(
     "tcrv_rvv.low_precision_resource.legality_scope");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceSourceDTypeAttrName(
@@ -418,6 +420,8 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceDequantClampPackedI4SelectionReason(
         "static-bounded-product-reduction-dequant-clamp-signed-i4n2-in-"
         "i8mf4-i16mf2-i32m1-f32m1-u1-unpack-required-runtime-avl");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePlanningContract(
+    "rvv-low-precision-production-resource-planning-contract.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceLegalityScope(
     "typed-low-precision-product-reduction-dequant-resource-legality.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductEMUL("mf2");
@@ -612,6 +616,7 @@ struct RVVLowPrecisionContractionResourceCandidate {
   llvm::StringRef candidateSetID;
   llvm::StringRef candidateID;
   llvm::StringRef selectionReason;
+  llvm::StringRef planningContract;
   llvm::StringRef legalityScope;
 
   llvm::StringRef sourceElementTypeName;
@@ -956,6 +961,7 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
       getRVVLowPrecisionResourceSelectedCandidateID(operation);
   candidate.selectionReason =
       getRVVLowPrecisionResourceSelectionReason(operation);
+  candidate.planningContract = kRVVLowPrecisionResourcePlanningContract;
   candidate.legalityScope = kRVVLowPrecisionResourceLegalityScope;
   candidate.sourceElementTypeName = "i8";
   candidate.sourceSEW = sourceSEW;
@@ -1272,6 +1278,7 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
   return name == kRVVLowPrecisionResourceCandidateSetAttrName ||
          name == kRVVLowPrecisionResourceSelectedCandidateAttrName ||
          name == kRVVLowPrecisionResourceSelectionReasonAttrName ||
+         name == kRVVLowPrecisionResourcePlanningContractAttrName ||
          name == kRVVLowPrecisionResourceLegalityScopeAttrName ||
          name == kRVVLowPrecisionResourceSourceDTypeAttrName ||
          name == kRVVLowPrecisionResourceSourceSEWAttrName ||

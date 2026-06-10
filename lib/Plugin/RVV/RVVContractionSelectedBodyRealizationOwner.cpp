@@ -301,6 +301,17 @@ materializeLowPrecisionResourceRealizationAttrs(
           source, kRVVLowPrecisionResourceSelectionReasonAttrName,
           selected->selectionReason))
     return std::move(error);
+  if (auto planningContract =
+          source->getAttrOfType<mlir::StringAttr>(
+              kRVVLowPrecisionResourcePlanningContractAttrName)) {
+    if (planningContract.getValue() != selected->planningContract)
+      return makeRVVPluginError(
+          llvm::Twine("pre-realized RVV contraction selected-body "
+                      "realization cannot consume stale low-precision "
+                      "resource planning contract: expected '") +
+          selected->planningContract + "' but found '" +
+          planningContract.getValue() + "'");
+  }
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceLegalityScopeAttrName,
           selected->legalityScope))
@@ -599,6 +610,9 @@ materializeLowPrecisionResourceRealizationAttrs(
   destination->setAttr(
       kRVVLowPrecisionResourceRealizationDecisionAttrName,
       builder.getStringAttr(realizationDecision));
+  destination->setAttr(
+      kRVVLowPrecisionResourcePlanningContractAttrName,
+      builder.getStringAttr(selected->planningContract));
   destination->setAttr(kRVVGearboxProducerScopeAttrName,
                        builder.getStringAttr(selected->producerScope));
   destination->setAttr(kRVVGearboxConsumerScopeAttrName,

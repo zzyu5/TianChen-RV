@@ -144,6 +144,7 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::string candidateSetID;
   std::string selectedCandidateID;
   std::string selectionReason;
+  std::string planningContract;
   std::string legalityScope;
 
   std::string sourceElementTypeName;

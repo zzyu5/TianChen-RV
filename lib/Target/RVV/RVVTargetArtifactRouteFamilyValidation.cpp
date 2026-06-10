@@ -4011,6 +4011,11 @@ llvm::Error validateRVVLowPrecisionProductReductionRealizationProviderFacts(
         " rejects stale low-precision product-reduction resource rejection "
         "reason '" +
         selection.rejectionReason + "' before artifact export");
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "planning contract",
+          selection.planningContract,
+          plugin::rvv::kRVVLowPrecisionResourcePlanningContract))
+    return error;
 
   const llvm::StringRef expectedRealizationDecision =
       plugin::rvv::getRVVLowPrecisionContractionResourceRealizationDecision(
@@ -5669,6 +5674,10 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
   if (llvm::Error error = requireResourceMirror(
           "tcrv_rvv.low_precision_resource.selection_reason",
           selection.selectionReason, "selection reason"))
+    return error;
+  if (llvm::Error error = requireResourceMirror(
+          "tcrv_rvv.low_precision_resource.planning_contract",
+          selection.planningContract, "planning contract"))
     return error;
   if (llvm::Error error = requireResourceMirror(
           "tcrv_rvv.low_precision_resource.legality_scope",

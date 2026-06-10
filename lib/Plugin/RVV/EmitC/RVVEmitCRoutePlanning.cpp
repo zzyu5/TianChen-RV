@@ -43241,6 +43241,8 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         selection.selectedCandidateID});
     metadata.push_back({"tcrv_rvv.low_precision_resource.selection_reason",
                         selection.selectionReason});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.planning_contract",
+                        selection.planningContract});
     metadata.push_back({"tcrv_rvv.low_precision_resource.legality_scope",
                         selection.legalityScope});
     metadata.push_back({"tcrv_rvv.low_precision_resource.source_dtype",

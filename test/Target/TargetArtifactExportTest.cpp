@@ -13024,6 +13024,10 @@ bool expectRVVTargetArtifactExporterShape(
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourceDequantPackedI4Candidate ||
       packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .planningContract !=
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePlanningContract ||
+      packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .operandForm !=
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourceOperandFormPackedI4Nibbles ||
@@ -14043,6 +14047,20 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-derived-packed-operands"}))
     return false;
 
+  RVVRouteDescription stalePackedI4PlanningContract =
+      packedI4ProductDequantDescription;
+  stalePackedI4PlanningContract.lowPrecisionResourceSelection.planningContract =
+      "artifact-derived-resource-planning-contract";
+  if (!expectWideningDotProviderFailure(
+          packedI4ProductDequantFixture.candidate,
+          packedI4ProductDequantRoute, stalePackedI4PlanningContract,
+          "packed-i4 product-reduction registry rejects stale "
+          "resource-planning contract",
+          {"planning contract",
+           "rvv-low-precision-production-resource-planning-contract.v1",
+           "artifact-derived-resource-planning-contract"}))
+    return false;
+
   RVVRouteDescription missingPackedI4ResourceRealization =
       packedI4ProductDequantDescription;
   missingPackedI4ResourceRealization.lowPrecisionResourceSelection =
@@ -14139,6 +14157,26 @@ bool expectRVVTargetArtifactExporterShape(
           {"low-precision provider-supported mirror",
            "provider_supported_mirror:rvv-contraction-family-plan-validated",
            "metadata-supported"}))
+    return false;
+
+  TargetArtifactCandidate stalePackedI4PlanningContractMirror =
+      packedI4ProductDequantFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          stalePackedI4PlanningContractMirror,
+          "tcrv_rvv.low_precision_resource.planning_contract",
+          "artifact-derived-resource-planning-contract")) {
+    llvm::errs() << "packed-i4 test fixture did not contain resource-planning "
+                    "contract metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          stalePackedI4PlanningContractMirror,
+          packedI4ProductDequantRoute, packedI4ProductDequantDescription,
+          "packed-i4 product-reduction registry rejects stale "
+          "resource-planning contract metadata",
+          {"planning contract",
+           "rvv-low-precision-production-resource-planning-contract.v1",
+           "artifact-derived-resource-planning-contract"}))
     return false;
 
   TargetArtifactCandidate stalePackedI4RealizationDecisionMirror =

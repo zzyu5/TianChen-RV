@@ -4609,6 +4609,7 @@ void populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
   selection.candidateSetID = candidate.candidateSetID.str();
   selection.selectedCandidateID = candidate.candidateID.str();
   selection.selectionReason = candidate.selectionReason.str();
+  selection.planningContract = candidate.planningContract.str();
   selection.legalityScope = candidate.legalityScope.str();
   selection.sourceElementTypeName = candidate.sourceElementTypeName.str();
   selection.sourceSEW = candidate.sourceSEW;
@@ -4811,6 +4812,8 @@ deriveRVVLowPrecisionContractionResourceSelection(
       getExpectedRVVLowPrecisionResourceCandidate(plan).str();
   selection.selectionReason =
       getExpectedRVVLowPrecisionResourceSelectionReason(plan).str();
+  selection.planningContract =
+      kRVVLowPrecisionResourcePlanningContract.str();
   selection.legalityScope =
       getExpectedRVVLowPrecisionResourceLegalityScope(plan.operation).str();
 
@@ -5593,6 +5596,11 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
   if (llvm::Expected<std::string> value =
           readString(kRVVLowPrecisionResourceSelectionReasonAttrName))
     selection.selectionReason = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourcePlanningContractAttrName))
+    selection.planningContract = *value;
   else
     return value.takeError();
   if (llvm::Expected<std::string> value =
@@ -6484,6 +6492,7 @@ bool isRVVLowPrecisionResourceSelectionEqual(
          lhs.candidateSetID == rhs.candidateSetID &&
          lhs.selectedCandidateID == rhs.selectedCandidateID &&
          lhs.selectionReason == rhs.selectionReason &&
+         lhs.planningContract == rhs.planningContract &&
          lhs.legalityScope == rhs.legalityScope &&
          lhs.sourceElementTypeName == rhs.sourceElementTypeName &&
          lhs.sourceSEW == rhs.sourceSEW && lhs.sourceLMUL == rhs.sourceLMUL &&
@@ -6698,6 +6707,10 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
             getExpectedRVVLowPrecisionResourceSelectionReason(plan)))
       return error;
   }
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "planning contract", selection.planningContract,
+          kRVVLowPrecisionResourcePlanningContract))
+    return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "legality scope", selection.legalityScope,
           getExpectedRVVLowPrecisionResourceLegalityScope(plan.operation)))
@@ -7078,6 +7091,10 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
                       : kRVVLowPrecisionResourceDequantSelectionReason))
       return error;
   }
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "planning contract", selection.planningContract,
+          kRVVLowPrecisionResourcePlanningContract))
+    return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "legality scope", selection.legalityScope,
           getExpectedRVVLowPrecisionResourceLegalityScope(

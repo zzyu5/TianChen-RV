@@ -553,6 +553,10 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
           selected->selectionReason)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourcePlanningContractAttrName,
+          selected->planningContract)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceLegalityScopeAttrName,
           selected->legalityScope)))
     return mlir::failure();

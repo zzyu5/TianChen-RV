@@ -9192,6 +9192,9 @@ module {
                   "rvv-low-precision-direct-contraction-resource-candidate.v1["
                   "product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-"
                   "f32m1,u2-grouped]" &&
+              productDequantResourceSelection.planningContract ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePlanningContract &&
               productDequantResourceSelection.sourceElementTypeName == "i8" &&
               productDequantResourceSelection.sourceSEW == 8 &&
               productDequantResourceSelection.sourceLMUL == "mf4" &&
@@ -9319,6 +9322,20 @@ module {
               staleProductDequantResourcePlan),
           {"low-precision direct-contraction resource selection",
            "product EMUL", "mf2"}))
+    return result;
+
+  RVVSelectedBodyContractionRouteFamilyPlan
+      staleProductDequantPlanningContractPlan =
+          *productDequantAnalysis->contractionRouteFamilyPlan;
+  staleProductDequantPlanningContractPlan.lowPrecisionResourceSelection
+      .planningContract = "metadata-derived-resource-planning-contract";
+  if (int result = expectErrorContains(
+          validateRVVSelectedBodyContractionRouteFamilyPlan(
+              staleProductDequantPlanningContractPlan),
+          {"low-precision direct-contraction resource selection",
+           "planning contract",
+           "rvv-low-precision-production-resource-planning-contract.v1",
+           "metadata-derived-resource-planning-contract"}))
     return result;
 
   RVVSelectedBodyContractionRouteFamilyPlan
@@ -9721,6 +9738,9 @@ module {
                   "rvv-low-precision-direct-contraction-resource-candidate.v1["
                   "product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-"
                   "i16mf2-i32m1-f32m1,u1-unpack-required]" &&
+              packedI4ResourceSelection.planningContract ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePlanningContract &&
               packedI4ResourceSelection.sourceElementTypeName == "i8" &&
               packedI4ResourceSelection.sourceSEW == 8 &&
               packedI4ResourceSelection.sourceLMUL == "mf4" &&

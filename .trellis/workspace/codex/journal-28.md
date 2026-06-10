@@ -749,6 +749,63 @@ Completed the active packed-i4 performance remediation macro task by threading G
 - None - task complete
 
 
+## Session 576: Stage2 RVV Gearbox resource-planning Gate 1
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV production-kernel Gearbox resource-aware selected-body realization campaign
+**Branch**: `main`
+
+### Summary
+
+Completed Gate 1 of the new open macro campaign: introduced a named RVV-owned
+low-precision production resource-planning contract and connected it through
+Gearbox resource facts, selected-body realization, provider validation, route
+metadata mirrors, and target artifact validation. Gates 2-4 remain open.
+
+### Main Changes
+
+- Added `tcrv_rvv.low_precision_resource.planning_contract =
+  "rvv-low-precision-production-resource-planning-contract.v1"` as the explicit
+  Gate 1 handoff.
+- Populated the contract from the selected low-precision resource candidate and
+  copied it into realized product-reduction/dequant selected-body facts.
+- Made provider route-family validation and target artifact validation reject
+  stale or missing contract facts before route/artifact acceptance.
+- Updated RVV plugin spec and focused plugin/target/FileCheck coverage.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- Positive FileCheck for
+  `test/Transforms/RVV/rvv-gearbox-widening-product-reduce-dequantize-f32.mlir`.
+- Negative FileCheck for stale pre-realized planning contract diagnostics.
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-10-stage2-rvv-production-kernel-gearbox-resource-realization-campaign`.
+- `git diff --check` and `git diff --cached --check`.
+- Bounded added-line scan found no new source/test old RVV route authority,
+  descriptor/source-front-door authority, or q8/q4/llama route authority.
+
+### Spec Update Decision
+
+[SPEC UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` now records the
+production resource-planning contract id, attr name, provider/target validation
+behavior, failure matrix, and test obligations.
+
+### Status
+
+[OPEN MACRO] Gate 1 is complete. Keep the Trellis task active for Gates 2-4.
+
+### Next Steps
+
+- Gate 2: make selected-body realization use the resource plan as the
+  implementation driver for a representative low-precision/contraction body
+  while preserving semantics, runtime AVL/VL, ABI roles, variant origin,
+  dispatch, and fallback behavior.
+
+
 ## Session 585: Stage2 RVV low-precision primitive-surface Gate 1
 
 **Date**: 2026-06-10

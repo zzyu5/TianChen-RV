@@ -5724,6 +5724,7 @@ provider-local contract equivalent to:
 
 ```c++
 struct RVVLowPrecisionContractionResourceCandidate {
+  planning contract id;
   element/source/result dtype facts;
   product and accumulator dtype facts;
   SEW, LMUL, product EMUL, accumulator EMUL;
@@ -5738,6 +5739,7 @@ struct RVVLowPrecisionContractionResourceCandidate {
 };
 
 struct RVVLowPrecisionContractionResourceSelection {
+  planning contract id;
   selected candidate id;
   selected resource candidate;
   selected-body realization or provider-consumed owner plan;
@@ -5748,6 +5750,21 @@ struct RVVLowPrecisionContractionResourceSelection {
 
 Exact C++ names may differ, but these fields must have a structural home before
 the route provider claims resource-aware tuning.
+
+The current production resource-planning boundary uses:
+
+```text
+tcrv_rvv.low_precision_resource.planning_contract =
+  "rvv-low-precision-production-resource-planning-contract.v1"
+```
+
+`RVVLowPrecisionContractionResourceCandidate` and
+`RVVLowPrecisionContractionResourceSelection` must carry this id when a bounded
+low-precision product-reduction resource candidate is selected. Gearbox schedule
+materialization, selected-body realization, provider route-family validation,
+and target artifact validation consume the same id as a fail-closed handoff
+check. It is not route authority and is not derived from artifact metadata,
+route ids, q8/q4 names, helper names, or Common EmitC.
 
 ### 3. Contracts
 
@@ -5766,6 +5783,13 @@ the route provider claims resource-aware tuning.
 - A selected candidate must be consumed by selected-body realization, provider
   planning, or target artifact validation before route construction. Mirroring a
   candidate in artifact metadata is insufficient.
+- The low-precision resource-planning contract id must be attached by the
+  RVV-owned Gearbox/resource candidate path and copied into realized
+  product-reduction/dequant or product-reduction/dequant-clamp `with_vl` facts.
+  Provider route-family validation must require the same id before
+  `TCRVEmitCLowerableRoute` construction. Target artifact validation may compare
+  metadata mirrors against provider-owned facts, but metadata does not invent or
+  repair the planning contract.
 - When the selected low-precision Gearbox candidate affects `vsetvl` placement
   or region count, selected-body realization must materialize provider-verifiable
   realized body structure for that placement. The provider must compare the
@@ -5921,6 +5945,13 @@ the route provider claims resource-aware tuning.
   after reserved mask/v0 usage -> reject or choose a smaller unroll/LMUL.
 - Candidate selection exists only as artifact metadata, test name, route token,
   benchmark name, or emitted C spelling -> fail closed as non-authoritative.
+- The selected resource candidate or realized product-reduction body carries a
+  missing or stale `tcrv_rvv.low_precision_resource.planning_contract` value ->
+  fail closed in RVV Gearbox/selected-body/provider validation before Common
+  EmitC materializes a route.
+- Target artifact export sees a stale planning-contract metadata mirror ->
+  fail closed by comparing the mirror to provider-owned resource facts; do not
+  use the mirror to repair the provider selection.
 - A performance comparison omits baseline identity, target profile, compile
   flags, input sizes, correctness check, timing method, or raw `ssh rvv` evidence
   -> it is not performance evidence.
@@ -5986,6 +6017,11 @@ the route provider claims resource-aware tuning.
   `TCRVEmitCLowerableRoute` is eligible ->
   target artifact export accepts only the exact rebuilt provider payload and
   mirrors -> generated-bundle/runtime evidence remains a separate gate.
+- Good: a product-reduction/dequant selected body reaches provider validation
+  with `rvv-low-precision-production-resource-planning-contract.v1` copied from
+  the selected RVV resource candidate into the realized body and route
+  selection; provider and target validators compare the same provider-owned
+  contract before route or artifact acceptance.
 - Base: existing MAcc, widening dot-reduce, dequant, and Gearbox MVP routes keep
   their current route-support contracts without claiming performance parity.
 - Bad: q8_0_q8_0 appears in a test or artifact name -> route provider emits a
@@ -5994,6 +6030,11 @@ the route provider claims resource-aware tuning.
 - Bad: packed-i4 selected candidate -> provider accepts mirrors -> statement
   planner silently reuses `unpacked-byte-elements` widening-product statements
   or target artifact export claims executability before Gate 4 validation.
+- Bad: artifact metadata names
+  `rvv-low-precision-production-resource-planning-contract.v1`, but the selected
+  RVV resource selection is missing or carries a different planning contract;
+  provider/target acceptance must fail instead of treating metadata as a source
+  of truth.
 
 ### 6. Tests Required
 
@@ -6004,6 +6045,9 @@ the route provider claims resource-aware tuning.
   stale candidate mirrors, and invalid ABI/runtime AVL facts.
 - Provider/target artifact validation proving selected candidate facts are
   consumed before artifact acceptance and stale metadata-only candidates fail.
+- Focused C++ or lit tests proving the planning contract is produced by the
+  Gearbox/selected-body resource path, consumed by provider validation, and
+  rejected when stale or missing before route construction or artifact export.
 - Focused C++ statement-plan coverage for the positive packed-i4 low/high nibble
   sign-extension sequence, low/high widening products, product-pair add, single
   widening reduction, and provider-built lowerable route eligibility without

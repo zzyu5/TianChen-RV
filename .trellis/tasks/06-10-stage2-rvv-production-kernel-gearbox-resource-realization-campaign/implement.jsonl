@@ -1,0 +1,22 @@
+{"file": ".trellis/spec/index.md", "reason": "Global TianChen-RV architecture, RVV Stage 2 scope, resource-aware selected-body realization, and evidence boundaries."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, low-precision primitive/resource ownership, selected-body realization, and fail-closed provider/target contracts."}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Provider-built route and Common EmitC neutrality while adding resource-planning validation."}
+{"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Resource-aware realization and later selected-dispatch/performance policy boundaries."}
+{"file": ".trellis/spec/testing/index.md", "reason": "Focused C++/lit checks and runtime-evidence boundary for Gate 1."}
+{"file": ".trellis/spec/guides/capability-first-design-guide.md", "reason": "Capability/profile facts constrain resource validation without becoming route or dtype authority."}
+{"file": ".trellis/spec/guides/plugin-locality-review-guide.md", "reason": "Keep resource planning, Gearbox schedules, and RVV provider validation local to the RVV plugin/target seams."}
+{"file": ".trellis/spec/guides/compute-boundary-review-guide.md", "reason": "Avoid high-level compute or source-front-door semantics while touching selected-body/resource realization."}
+{"file": ".trellis/tasks/archive/2026-06/06-10-stage2-rvv-low-precision-contraction-primitive-surface-campaign/prd.md", "reason": "Predecessor primitive/resource/schedule campaign gates and production consumer map."}
+{"file": ".trellis/tasks/archive/2026-06/06-10-06-10-stage2-rvv-production-kernel-same-target-measurement-selected-dispatch-campaign/prd.md", "reason": "Predecessor measurement/selected-dispatch campaign closure and policy boundary."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h", "reason": "Added the low-precision production resource-planning contract attr/name and candidate field."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Carried the planning contract through RVVLowPrecisionContractionResourceSelection."}
+{"file": "lib/Plugin/RVV/RVVGearboxSchedules.cpp", "reason": "Materialized the planning contract from the selected Gearbox/resource candidate."}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Copied planning contract into realized product-reduction selected bodies and rejected stale pre-realized facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Consumed and validated the planning contract in provider route-family resource selection before route construction."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Mirrored the provider-owned planning contract into route metadata for downstream validation only."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Validated provider-owned planning contract facts and stale target metadata mirrors before artifact acceptance."}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Allowed the planning-contract metadata mirror in the target support bundle."}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Added positive and stale provider planning-contract coverage."}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added provider and target metadata planning-contract coverage."}
+{"file": "test/Transforms/RVV/rvv-gearbox-widening-product-reduce-dequantize-f32.mlir", "reason": "Added FileCheck positive/stale selected-body planning-contract coverage."}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Captured the executable Gate 1 planning-contract boundary, failure matrix, and test obligations."}
