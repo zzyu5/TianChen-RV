@@ -7112,7 +7112,7 @@ Packed-i4 per-op evidence and root summaries may carry:
     "measurement_evidence_id": "run/op/same_target_measurement_evidence.json",
     "measurement_classification": "win | no-win | regression | not-measured",
     "measurement_outcome_family": "win | no-win | not-measured",
-    "measurement_best_speedup_range": "0.896848..1.020953",
+    "measurement_best_speedup_range": "0.897163..1.018998",
     "measurement_summary_record_count": 12,
     "measurement_record_count": 60,
     "provider_maturity": "executable-not-performance-mature",
@@ -7477,7 +7477,7 @@ performance-preferred
     gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
   measurementClassification = regression
   measurementOutcomeFamily = no-win
-  measurementBestSpeedupRange = 0.896848..1.020953
+  measurementBestSpeedupRange = 0.897163..1.018998
   measurementSummaryRecordCount = 12
   measurementRecordCount = 60
   correctnessRecordCount = 12
@@ -7497,6 +7497,10 @@ performance-preferred
     select-packed-i4-high-nibble-vwmacc-single-reduce-u1-two-region-budget-5of32.v1
   providerScheduleDecisionReason =
     accepted-remediation-schedule-high-nibble-vwmacc-single-vwredsum-budget-5of32
+  providerPerformanceAdmissionClosure =
+    no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1
+  providerPerformanceAdmissionReopenRequirement =
+    provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1
   ```
 
 - The strict Gate 4 no-win/regression verifier must derive the accepted
@@ -7512,13 +7516,17 @@ performance-preferred
     gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
   measurementClassification = regression
   measurementOutcomeFamily = no-win
-  measurementBestSpeedupRange = 0.867416..1.043671
+  measurementBestSpeedupRange = 0.864516..1.043210
   measurementSummaryRecordCount = 24
   measurementRecordCount = 120
   correctnessRecordCount = 24
   dispatchPolicyPath = correctness-fallback
   performancePreferenceDenialReason =
     same-target-measurement-no-win-or-regression
+  providerPerformanceAdmissionClosure =
+    no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1
+  providerPerformanceAdmissionReopenRequirement =
+    provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1
   ```
 
 - A measured win may select `performance-preferred` only when all of these
@@ -7530,7 +7538,17 @@ performance-preferred
   `admit-performance-preferred-with-resource-cost-measured-win`, remediation
   diagnosis `performance-preferred-measured-win`, target profile, measurement
   counts, provider schedule-decision tie-back fields, provider
-  resource/primitive/remediation tie-back fields, and win-claim allowance.
+  resource/primitive/remediation tie-back fields, provider performance
+  admission closure `performance-preferred-measured-win-admission-open.v1`,
+  provider reopen requirement `none`, and win-claim allowance.
+- Current no-win/regression evidence may be accepted only when the provider
+  resource selection, route metadata, target artifact validation, same-target
+  evidence input, and policy record all carry the same
+  `no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1`
+  closure and the
+  `provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1`
+  reopen requirement. These fields are provider-owned admission facts, not
+  artifact metadata, script status, route ids, or report text.
 - Measurement scripts may report evidence inputs and alignment; they must not
   edit provider maturity fields or directly authorize dispatch.
 - Common EmitC may carry provider-built route payloads only; it must not choose
@@ -7578,6 +7596,15 @@ performance-preferred
   deny-performance-preferred-with-resource-cost-no-win-blocker` -> fail closed
   before performance preference; the resource-cost admission decision must be
   updated by the RVV provider, not by measurement JSON or artifact metadata.
+- Current no-win/regression evidence missing the provider no-safe-local-repair
+  closure, carrying a sibling-route closure, or omitting the provider reopen
+  requirement -> fail closed before target validation or policy evaluation can
+  accept the measurement record.
+- Future measured-win evidence with stale no-safe-local-repair closure or stale
+  reopen requirement -> fail closed before performance preference; the provider
+  must first update the schedule/resource facts, admission decision, closure,
+  reopen requirement, target mirrors, and same-target source-backed evidence as
+  one contract.
 - Measurement classification `win` without a provider maturity/selection update
   -> fail closed as measurement-only win promotion.
 - Provider says `performance-preferred` but target artifact mirrors still carry

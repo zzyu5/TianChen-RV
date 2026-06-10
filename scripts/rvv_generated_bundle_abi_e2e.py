@@ -841,6 +841,13 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_BLOCKER = (
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_DECISION = (
     "deny-performance-preferred-with-resource-cost-no-win-blocker"
 )
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_CLOSURE = (
+    "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_REOPEN_REQUIREMENT = (
+    "provider-schedule-resource-repair-plus-source-backed-measured-win-and-"
+    "updated-admission-facts.v1"
+)
 LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER = (
     "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
 )
@@ -8512,6 +8519,8 @@ LOW_PRECISION_RESOURCE_METADATA_KEYS = (
     "tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps",
     "tcrv_rvv.low_precision_resource.resource_cost_blocker",
     "tcrv_rvv.low_precision_resource.performance_admission_decision",
+    "tcrv_rvv.low_precision_resource.performance_admission_closure",
+    "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement",
     "tcrv_rvv.low_precision_resource.realization_admission_contract",
     "tcrv_rvv.low_precision_resource.realization_admission_decision",
     "tcrv_rvv.low_precision_resource.realization_admission_evidence",
@@ -9480,6 +9489,12 @@ def product_dequant_low_precision_resource_profile(
             "performance_admission_decision": (
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_DECISION
             ),
+            "performance_admission_closure": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_CLOSURE
+            ),
+            "performance_admission_reopen_requirement": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_REOPEN_REQUIREMENT
+            ),
             "primitive_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT,
             "primitive_kind": (
                 LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_CLAMP_KIND
@@ -9613,6 +9628,12 @@ def product_dequant_low_precision_resource_profile(
             ),
             "performance_admission_decision": (
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_DECISION
+            ),
+            "performance_admission_closure": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_CLOSURE
+            ),
+            "performance_admission_reopen_requirement": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_REOPEN_REQUIREMENT
             ),
             "realization_admission_contract": (
                 LOW_PRECISION_RESOURCE_REALIZATION_ADMISSION_CONTRACT
@@ -9870,6 +9891,12 @@ def expected_low_precision_resource_metadata(
                 "resource_cost_blocker": profile["resource_cost_blocker"],
                 "performance_admission_decision": profile[
                     "performance_admission_decision"
+                ],
+                "performance_admission_closure": profile[
+                    "performance_admission_closure"
+                ],
+                "performance_admission_reopen_requirement": profile[
+                    "performance_admission_reopen_requirement"
                 ],
                 "realization_admission_contract": profile[
                     "realization_admission_contract"
@@ -12430,6 +12457,14 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                     "tcrv_rvv.low_precision_resource.performance_admission_decision": (
                         resource_profile["performance_admission_decision"]
                     ),
+                    "tcrv_rvv.low_precision_resource.performance_admission_closure": (
+                        resource_profile["performance_admission_closure"]
+                    ),
+                    "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement": (
+                        resource_profile[
+                            "performance_admission_reopen_requirement"
+                        ]
+                    ),
                 }
             )
     if expectation.is_widening_dot_reduce_add:
@@ -12814,6 +12849,8 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
             "tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps",
             "tcrv_rvv.low_precision_resource.resource_cost_blocker",
             "tcrv_rvv.low_precision_resource.performance_admission_decision",
+            "tcrv_rvv.low_precision_resource.performance_admission_closure",
+            "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement",
         ):
             comment_key = "tianchenrv.rvv." + key.removeprefix("tcrv_rvv.")
             require_contains(
@@ -17698,6 +17735,16 @@ def verify_materialized_selected_body(
                     f'tcrv_rvv.low_precision_resource.performance_admission_decision = "{resource_profile["performance_admission_decision"]}"',
                     "materialized selected-body MLIR packed-i4 performance admission decision",
                 )
+                require_contains(
+                    text,
+                    f'tcrv_rvv.low_precision_resource.performance_admission_closure = "{resource_profile["performance_admission_closure"]}"',
+                    "materialized selected-body MLIR packed-i4 performance admission closure",
+                )
+                require_contains(
+                    text,
+                    f'tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement = "{resource_profile["performance_admission_reopen_requirement"]}"',
+                    "materialized selected-body MLIR packed-i4 performance admission reopen requirement",
+                )
             widening_product_reduction_boundary["selected_source_abi"][
                 "scale"
             ] = "dequant-scale-value"
@@ -17773,6 +17820,12 @@ def verify_materialized_selected_body(
                     ],
                     "performance_admission_decision": resource_profile[
                         "performance_admission_decision"
+                    ],
+                    "performance_admission_closure": resource_profile[
+                        "performance_admission_closure"
+                    ],
+                    "performance_admission_reopen_requirement": resource_profile[
+                        "performance_admission_reopen_requirement"
                     ],
                 }
                 widening_product_reduction_boundary[
@@ -34646,6 +34699,18 @@ def widening_product_reduction_boundary_summary(
                     "expected_performance_admission_decision": resource_profile[
                         "performance_admission_decision"
                     ],
+                    "performance_admission_closure": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.performance_admission_closure"
+                    ),
+                    "expected_performance_admission_closure": resource_profile[
+                        "performance_admission_closure"
+                    ],
+                    "performance_admission_reopen_requirement": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement"
+                    ),
+                    "expected_performance_admission_reopen_requirement": resource_profile[
+                        "performance_admission_reopen_requirement"
+                    ],
                     "remediation_handoff_contract": route_metadata.get(
                         "tcrv_rvv.low_precision_resource.remediation_handoff_contract"
                     ),
@@ -35176,6 +35241,12 @@ def widening_product_reduction_boundary_summary(
                     "performance_admission_decision": resource_profile[
                         "performance_admission_decision"
                     ],
+                    "performance_admission_closure": resource_profile[
+                        "performance_admission_closure"
+                    ],
+                    "performance_admission_reopen_requirement": resource_profile[
+                        "performance_admission_reopen_requirement"
+                    ],
                 }
             )
             generated_artifact_resource_schedule_evidence[
@@ -35268,6 +35339,12 @@ def widening_product_reduction_boundary_summary(
                     "performance_admission_decision": route_metadata.get(
                         "tcrv_rvv.low_precision_resource.performance_admission_decision"
                     ),
+                    "performance_admission_closure": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.performance_admission_closure"
+                    ),
+                    "performance_admission_reopen_requirement": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement"
+                    ),
                 },
                 "expected_fields": {
                     "performance_feedback": resource_profile[
@@ -35343,6 +35420,12 @@ def widening_product_reduction_boundary_summary(
                     ],
                     "performance_admission_decision": resource_profile[
                         "performance_admission_decision"
+                    ],
+                    "performance_admission_closure": resource_profile[
+                        "performance_admission_closure"
+                    ],
+                    "performance_admission_reopen_requirement": resource_profile[
+                        "performance_admission_reopen_requirement"
                     ],
                 },
             }

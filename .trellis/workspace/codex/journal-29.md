@@ -1394,3 +1394,56 @@ production-consumed blocker if no measured-win repair is available.
 high-nibble vwmacc schedule/resource contract, 11-step/5-of-32 cost model,
 fresh no-win timing ranges, and the continued correctness-fallback policy
 boundary.
+
+## Session 589: Gate 4 measured admission closure
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV low-precision contraction primitive surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active Gate 4 macro task without opening a neighboring task.
+The packed-i4 high-nibble vwmacc path now carries a production-owned
+no-safe-local-repair admission closure and reopen requirement from Gearbox
+resource facts through selected-body realization, route metadata, target
+validation, generated-bundle mirrors, same-target evidence roots, and
+`RVVLowPrecisionPerformancePolicy`.
+
+### Main Changes
+
+- Added `performance_admission_closure =
+  no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1`.
+- Added `performance_admission_reopen_requirement =
+  provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1`.
+- Required target validation and policy ingestion to reject stale or missing
+  closure/reopen facts before accepting performance preference.
+- Preserved correctness fallback while keeping `performance-preferred` denied
+  by `deny-performance-preferred-with-resource-cost-no-win-blocker`.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test` after updating the
+  fresh source-backed object SHA expectation
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py
+  --self-test`
+- [OK] focused lit from `build/test` for the two packed-i4 target fixtures,
+  ABI e2e dry-run tests, and same-target dry-run test
+- [OK] fresh `ssh rvv` measurement:
+  dequant `0.897163..1.018998`, no-win, 12 summaries / 60 measurements /
+  12 correctness records
+- [OK] fresh `ssh rvv` measurement:
+  dequant-clamp `0.864516..1.043210`, no-win, 24 summaries /
+  120 measurements / 24 correctness records
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-3 remain complete. This slice closes the current
+high-nibble vwmacc measured admission/denial subgate as a production-consumed
+no-safe-local-repair/no-win boundary, but Gate 4 remains open for a future
+provider-owned schedule/resource repair or a broader production blocker.

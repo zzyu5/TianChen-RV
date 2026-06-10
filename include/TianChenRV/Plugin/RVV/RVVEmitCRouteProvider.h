@@ -182,6 +182,8 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::int64_t resourceCostLoopBodySteps = 0;
   std::string resourceCostBlocker;
   std::string performanceAdmissionDecision;
+  std::string performanceAdmissionClosure;
+  std::string performanceAdmissionReopenRequirement;
 
   std::string runtimeAVLSource;
   std::string producerScope;

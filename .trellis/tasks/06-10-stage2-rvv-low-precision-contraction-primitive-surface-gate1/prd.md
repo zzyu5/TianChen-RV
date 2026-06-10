@@ -655,9 +655,9 @@ Completed in this slice:
   high-product or product-pair-add schedule evidence fails closed.
 - Fresh `ssh rvv` same-target timing was collected after the runtime schedule
   change. Dequant produced classification `no-win`,
-  best speedup range `0.896848..1.020953`, 12 summary records, 60 timing
+  best speedup range `0.897163..1.018998`, 12 summary records, 60 timing
   records, and 12 correctness records. Dequant-clamp produced classification
-  `no-win`, best speedup range `0.867416..1.043671`, 24 summary records, 120
+  `no-win`, best speedup range `0.864516..1.043210`, 24 summary records, 120
   timing records, and 24 correctness records.
 - The policy outcome remains `correctness-fallback` /
   `not-performance-preferred`; `performance-preferred` remains blocked by
@@ -668,6 +668,89 @@ Completed in this slice:
   packed-i4 schedule/resource bottleneck beyond the high-nibble vwmacc
   11-step/5-of-32 contract, or an explicitly consumed production blocker if no
   safe local repair is available.
+
+Current Gate 4 measured no-safe-repair admission-closure slice:
+
+- This round closes the current high-nibble vwmacc measured-admission subgate
+  without launching another speculative schedule seam. The current provider-
+  owned packed-i4 schedule is the best known local production schedule:
+  `high-nibble-vwmacc-loop-11-peak-live-5of32-two-region-vsetvl.v1`, loop-body
+  steps `11`, peak live vector groups `5/32`, and source-backed same-target
+  evidence for both dequant and dequant-clamp still classifies the path as
+  `no-win`.
+- The implementation must make that denial decisive in production facts, not
+  only in reports: provider/resource selection, selected-body handoff, route
+  metadata, target support/header mirrors, target artifact validation,
+  same-target record parsing, evidence-root ingestion, production pressure
+  profile construction, and `RVVLowPrecisionPerformancePolicy` must consume a
+  no-safe-local-repair admission closure and an explicit reopen requirement.
+- The closure means route support and correctness execution stay available
+  through correctness fallback, but `performance-preferred` remains blocked
+  until a later provider-owned schedule/resource repair produces source-backed
+  same-target measured-win evidence and updates provider maturity, target
+  mirrors, resource-cost admission, admission closure, and policy facts
+  together.
+- No fresh `ssh rvv` timing is required for this slice because the generated
+  RVV runtime schedule is unchanged. If implementation changes schedule,
+  resource model, emitted RVV statements, or any performance claim, fresh
+  same-target dequant and dequant-clamp timing becomes required before policy
+  acceptance.
+
+Acceptance:
+
+- [x] Packed-i4 provider/resource facts include a provider-owned no-safe-local-
+  repair admission closure and reopen requirement tied to the high-nibble
+  vwmacc 11-step/5-of-32 schedule, current no-win measurement roots, and
+  measured-win-only promotion rule.
+- [x] Selected-body realization, route fact derivation, statement planning
+  consistency checks, target artifact validation, and target support bundle
+  mirrors require or preserve the closure facts for packed-i4 dequant and
+  dequant-clamp.
+- [x] Same-target measurement records/evidence roots, production pressure
+  profiles, and `RVVLowPrecisionPerformancePolicy` consume the closure facts;
+  stale or missing closure/reopen facts reject performance preference while
+  preserving correctness fallback for the legal route.
+- [x] Focused C++/FileCheck/script coverage proves accepted no-safe-repair
+  closure and stale closure rejection without relying on report-only or
+  generated-bundle-only evidence.
+- [x] Because runtime schedule is unchanged, no fresh `ssh rvv` timing was
+  required by schedule semantics; this round still reran dequant and
+  dequant-clamp same-target timing to keep the source-backed policy evidence
+  roots aligned with the new admission-closure contract.
+- [x] Bounded scans show no new legacy RVV route authority, q8/q4 route naming,
+  source-front-door positive route, descriptor-driven compute, or Common EmitC
+  semantic inference.
+
+Completed in this slice:
+
+- Added provider-owned `performance_admission_closure` and
+  `performance_admission_reopen_requirement` facts for the packed-i4
+  high-nibble vwmacc path. The current no-win closure is
+  `no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1`;
+  reopening performance-preferred requires
+  `provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1`.
+- Threaded those facts through Gearbox schedule/resource selection,
+  selected-body realization handoff, route selection, route metadata, statement
+  consistency checks, target artifact validation, target support bundle
+  headers, generated-bundle indexes, same-target measurement records,
+  evidence-root policy ingestion, production pressure profiles, and
+  `RVVLowPrecisionPerformancePolicy`.
+- Refreshed source-backed `ssh rvv` evidence roots after the contract change.
+  Dequant remains `no-win` with range `0.897163..1.018998`, 12 summaries, 60
+  measurements, and 12 correctness records. Dequant-clamp remains `no-win`
+  with range `0.864516..1.043210`, 24 summaries, 120 measurements, and 24
+  correctness records.
+- `performance-preferred` is still denied by
+  `deny-performance-preferred-with-resource-cost-no-win-blocker`; route support
+  and correctness execution remain available through correctness fallback.
+
+Remaining Gate 4 continuation point:
+
+- The current high-nibble vwmacc 11-step/5-of-32 schedule/resource path now has
+  a production-consumed no-safe-local-repair/no-win admission closure. Gate 4
+  remains open for either a new provider-owned schedule/resource repair with
+  source-backed measured-win evidence, or a broader production-owned blocker
+  that proves no safe local packed-i4 repair is available.
 
 ## Non-Goals
 
@@ -911,9 +994,9 @@ Current Gate 4 high-nibble vwmacc schedule/resource verification:
   `artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh` and
   `artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh`. Dequant
   reports classification `no-win`, best speedup range
-  `0.896848..1.020953`, 12 summaries, 60 measurements, and 12 correctness
+  `0.897163..1.018998`, 12 summaries, 60 measurements, and 12 correctness
   records. Dequant-clamp reports classification `no-win`, best speedup range
-  `0.867416..1.043671`, 24 summaries, 120 measurements, and 24 correctness
+  `0.864516..1.043210`, 24 summaries, 120 measurements, and 24 correctness
   records.
 
 ## Spec Update Decision

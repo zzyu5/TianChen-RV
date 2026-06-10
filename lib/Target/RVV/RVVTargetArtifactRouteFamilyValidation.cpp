@@ -4028,6 +4028,19 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
               kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 performance admission closure",
+          selection.performanceAdmissionClosure,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 performance admission reopen requirement",
+          selection.performanceAdmissionReopenRequirement,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 performance maturity",
           selection.performanceMaturity,
           plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceMaturity))
@@ -6329,6 +6342,17 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
             "tcrv_rvv.low_precision_resource.performance_admission_decision",
             selection.performanceAdmissionDecision,
             "performance admission decision"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.performance_admission_closure",
+            selection.performanceAdmissionClosure,
+            "performance admission closure"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource."
+            "performance_admission_reopen_requirement",
+            selection.performanceAdmissionReopenRequirement,
+            "performance admission reopen requirement"))
       return error;
     if (llvm::Error error = requireResourceMirror(
             "tcrv_rvv.low_precision_resource.performance_maturity",

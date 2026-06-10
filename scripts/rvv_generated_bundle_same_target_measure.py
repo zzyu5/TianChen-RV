@@ -132,6 +132,8 @@ PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS = (
     "provider_resource_cost_loop_body_steps",
     "provider_resource_cost_blocker",
     "provider_performance_admission_decision",
+    "provider_performance_admission_closure",
+    "provider_performance_admission_reopen_requirement",
     "provider_realization_admission_contract",
     "provider_realization_admission_decision",
     "provider_realization_admission_evidence",
@@ -2242,6 +2244,12 @@ def packed_i4_maturity_contract_evidence_input(
         "provider_performance_admission_decision": fields[
             "performance_admission_decision"
         ],
+        "provider_performance_admission_closure": fields[
+            "performance_admission_closure"
+        ],
+        "provider_performance_admission_reopen_requirement": fields[
+            "performance_admission_reopen_requirement"
+        ],
         "provider_realization_admission_contract": fields[
             "realization_admission_contract"
         ],
@@ -2525,6 +2533,12 @@ def validate_packed_i4_maturity_contract_evidence_input(
         "provider_performance_admission_decision": fields[
             "performance_admission_decision"
         ],
+        "provider_performance_admission_closure": fields[
+            "performance_admission_closure"
+        ],
+        "provider_performance_admission_reopen_requirement": fields[
+            "performance_admission_reopen_requirement"
+        ],
         "provider_realization_admission_contract": fields[
             "realization_admission_contract"
         ],
@@ -2743,6 +2757,8 @@ def packed_i4_provider_feedback_tie_back(
         "resource_cost_loop_body_steps",
         "resource_cost_blocker",
         "performance_admission_decision",
+        "performance_admission_closure",
+        "performance_admission_reopen_requirement",
         "realization_admission_contract",
         "realization_admission_decision",
         "realization_admission_evidence",
@@ -3109,6 +3125,12 @@ def op_measurement_summary(
             "provider_performance_admission_decision": fields.get(
                 "performance_admission_decision", ""
             ),
+            "provider_performance_admission_closure": fields.get(
+                "performance_admission_closure", ""
+            ),
+            "provider_performance_admission_reopen_requirement": fields.get(
+                "performance_admission_reopen_requirement", ""
+            ),
             "provider_realization_admission_schedule_decision_contract": fields.get(
                 "realization_admission_schedule_decision_contract", ""
             ),
@@ -3333,6 +3355,12 @@ def run_one_measurement(
                 ],
                 "provider_performance_admission_decision": fields[
                     "performance_admission_decision"
+                ],
+                "provider_performance_admission_closure": fields[
+                    "performance_admission_closure"
+                ],
+                "provider_performance_admission_reopen_requirement": fields[
+                    "performance_admission_reopen_requirement"
                 ],
                 "provider_realization_admission_schedule_decision_contract": fields[
                     "realization_admission_schedule_decision_contract"
@@ -4059,6 +4087,16 @@ def run_self_test() -> int:
             "provider_performance_admission_decision",
             "metadata-derived-performance-admission",
             "performance_admission_decision",
+        ),
+        (
+            "provider_performance_admission_closure",
+            "metadata-derived-performance-admission-closure",
+            "performance_admission_closure",
+        ),
+        (
+            "provider_performance_admission_reopen_requirement",
+            "metadata-derived-performance-admission-reopen-requirement",
+            "performance_admission_reopen_requirement",
         ),
         (
             "provider_runtime_avl_source",

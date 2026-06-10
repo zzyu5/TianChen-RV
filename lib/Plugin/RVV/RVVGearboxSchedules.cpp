@@ -849,6 +849,16 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
             kRVVLowPrecisionResourcePerformanceAdmissionDecisionAttrName,
             selected->performanceAdmissionDecision)))
       return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourcePerformanceAdmissionClosureAttrName,
+            selected->performanceAdmissionClosure)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourcePerformanceAdmissionReopenRequirementAttrName,
+            selected->performanceAdmissionReopenRequirement)))
+      return mlir::failure();
   }
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceRuntimeAVLSourceAttrName,

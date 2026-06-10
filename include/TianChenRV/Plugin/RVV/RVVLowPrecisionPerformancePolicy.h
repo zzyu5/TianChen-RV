@@ -44,6 +44,8 @@ struct RVVLowPrecisionPerformanceMeasurementOutcome {
   std::int64_t providerResourceCostLoopBodySteps = 0;
   std::string providerResourceCostBlocker;
   std::string providerPerformanceAdmissionDecision;
+  std::string providerPerformanceAdmissionClosure;
+  std::string providerPerformanceAdmissionReopenRequirement;
   std::string providerRealizationAdmissionContract;
   std::string providerRealizationAdmissionDecision;
   std::string providerRealizationAdmissionEvidence;
@@ -111,6 +113,8 @@ struct RVVLowPrecisionSameTargetMeasurementRecord {
   std::int64_t providerResourceCostLoopBodySteps = 0;
   std::string providerResourceCostBlocker;
   std::string providerPerformanceAdmissionDecision;
+  std::string providerPerformanceAdmissionClosure;
+  std::string providerPerformanceAdmissionReopenRequirement;
   std::string providerRealizationAdmissionContract;
   std::string providerRealizationAdmissionDecision;
   std::string providerRealizationAdmissionEvidence;
@@ -225,6 +229,8 @@ struct RVVLowPrecisionSameTargetMeasurementPolicyInput {
   std::int64_t providerResourceCostLoopBodySteps = 0;
   std::string providerResourceCostBlocker;
   std::string providerPerformanceAdmissionDecision;
+  std::string providerPerformanceAdmissionClosure;
+  std::string providerPerformanceAdmissionReopenRequirement;
   std::string providerRealizationAdmissionContract;
   std::string providerRealizationAdmissionDecision;
   std::string providerRealizationAdmissionEvidence;
@@ -409,6 +415,8 @@ struct RVVLowPrecisionProductionPressureProfile {
   std::int64_t resourceCostLoopBodySteps = 0;
   std::string resourceCostBlocker;
   std::string performanceAdmissionDecision;
+  std::string performanceAdmissionClosure;
+  std::string performanceAdmissionReopenRequirement;
   std::string realizationAdmissionContract;
   std::string realizationAdmissionDecision;
   std::string realizationAdmissionEvidence;

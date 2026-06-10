@@ -5,8 +5,8 @@
       "extern_c_guard": true,
       "path": "artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
       "prototype": "void tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float *out, size_t n);",
-      "sha256": "25879bcc0ce13881aaaaafbb003e9beac548f217efcf9ea88209a6e9ace42122",
-      "size": 21116
+      "sha256": "5b01e69c4decd78b4d7d8e6336b205f724ede940d126d705cf1e330c98913c2e",
+      "size": 21445
     },
     "header_file": "artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h",
     "index": {
@@ -675,7 +675,7 @@
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
-                "value": "0.884211..1.025561"
+                "value": "0.896848..1.020953"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_action",
@@ -776,6 +776,14 @@
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_admission_decision",
                 "value": "deny-performance-preferred-with-resource-cost-no-win-blocker"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_admission_closure",
+                "value": "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement",
+                "value": "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_maturity",
@@ -1534,7 +1542,7 @@
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
-                "value": "0.884211..1.025561"
+                "value": "0.896848..1.020953"
               },
               {
                 "key": "tcrv_rvv.low_precision_resource.performance_action",
@@ -1637,6 +1645,14 @@
                 "value": "deny-performance-preferred-with-resource-cost-no-win-blocker"
               },
               {
+                "key": "tcrv_rvv.low_precision_resource.performance_admission_closure",
+                "value": "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1"
+              },
+              {
+                "key": "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement",
+                "value": "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+              },
+              {
                 "key": "tcrv_rvv.low_precision_resource.performance_maturity",
                 "value": "executable-not-performance-mature"
               },
@@ -1736,20 +1752,20 @@
         "version": "1"
       },
       "path": "artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/generated_bundle/tianchenrv-target-artifact-bundle.index",
-      "sha256": "0bb625156c14dbe4fe822a9a44cf10286d9c559202c99cd2e920b5778b35a4ce",
-      "size": 58357
+      "sha256": "b83cd13d853ba1679e7c1cd49ddbbeac9580dc18648986d0f1d55b82220c63f0",
+      "size": 59163
     },
     "object": {
       "path": "artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
       "readobj": {
         "command": "/usr/lib/llvm-20/bin/llvm-readobj -h artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
         "exit_code": 0,
-        "finished_at": "2026-06-10T18:48:58Z",
-        "started_at": "2026-06-10T18:48:58Z",
+        "finished_at": "2026-06-10T19:47:44Z",
+        "started_at": "2026-06-10T19:47:43Z",
         "stderr": "",
         "stdout": "\nFile: artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o\nFormat: elf64-littleriscv\nArch: riscv64\nAddressSize: 64bit\nLoadName: <Not found>\nElfHeader {\n  Ident {\n    Magic: (7F 45 4C 46)\n    Class: 64-bit (0x2)\n    DataEncoding: LittleEndian (0x1)\n    FileVersion: 1\n    OS/ABI: SystemV (0x0)\n    ABIVersion: 0\n    Unused: (00 00 00 00 00 00 00)\n  }\n  Type: Relocatable (0x1)\n  Machine: EM_RISCV (0xF3)\n  Version: 1\n  Entry: 0x0\n  ProgramHeaderOffset: 0x0\n  SectionHeaderOffset: 0x3B8\n  Flags [ (0x5)\n    EF_RISCV_FLOAT_ABI_DOUBLE (0x4)\n    EF_RISCV_RVC (0x1)\n  ]\n  HeaderSize: 64\n  ProgramHeaderEntrySize: 0\n  ProgramHeaderCount: 0\n  SectionHeaderEntrySize: 64\n  SectionHeaderCount: 9\n  StringTableSectionIndex: 1\n}\n"
       },
-      "sha256": "c57515e65a6df88b1c6d889c4fc6b0ecca75719d7785406e57705c04bd25e71c",
+      "sha256": "e2c2408cd4ac953442b31685c2a2fcf246076650cf2d9ee8d707c0100fae5f0a",
       "size": 1528,
       "symbols": {
         "command": "/usr/lib/llvm-20/bin/llvm-readobj --symbols artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/generated_bundle/artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o",
@@ -1759,8 +1775,8 @@
     },
     "object_file": "artifact-0-riscv-elf-relocatable-object-rvv-generic-typed-body-emitc-route-family.o"
   },
-  "completed_at": "2026-06-10T18:48:58Z",
-  "created_at": "2026-06-10T18:48:58Z",
+  "completed_at": "2026-06-10T19:47:44Z",
+  "created_at": "2026-06-10T19:47:43Z",
   "dequant_scale_contract": {
     "f32_abs_tolerance": 1e-05,
     "finite": true,
@@ -2123,24 +2139,24 @@
     "tcrv_opt": {
       "command": "build/bin/tcrv-opt test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans -o artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/materialized_selected_body.mlir",
       "exit_code": 0,
-      "finished_at": "2026-06-10T18:48:58Z",
-      "started_at": "2026-06-10T18:48:58Z",
+      "finished_at": "2026-06-10T19:47:43Z",
+      "started_at": "2026-06-10T19:47:43Z",
       "stderr": "",
       "stdout": ""
     },
     "tcrv_rvv_emitc_cpp": {
       "command": "build/bin/tcrv-translate --tcrv-rvv-emitc-to-cpp artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/materialized_selected_body.mlir -o artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/materialized_rvv_emitc.cpp",
       "exit_code": 0,
-      "finished_at": "2026-06-10T18:48:58Z",
-      "started_at": "2026-06-10T18:48:58Z",
+      "finished_at": "2026-06-10T19:47:43Z",
+      "started_at": "2026-06-10T19:47:43Z",
       "stderr": "",
       "stdout": ""
     },
     "tcrv_translate": {
       "command": "build/bin/tcrv-translate --tcrv-export-target-artifact-bundle --tcrv-target-artifact-bundle-output-dir=artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/generated_bundle artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/materialized_selected_body.mlir",
       "exit_code": 0,
-      "finished_at": "2026-06-10T18:48:58Z",
-      "started_at": "2026-06-10T18:48:58Z",
+      "finished_at": "2026-06-10T19:47:43Z",
+      "started_at": "2026-06-10T19:47:43Z",
       "stderr": "",
       "stdout": "tianchenrv.target_artifact_bundle_export: complete\nindex_file: \"tianchenrv-target-artifact-bundle.index\"\n"
     }
@@ -2199,7 +2215,7 @@
     },
     "runtime_scalar_computed_mask_memory_boundary": {},
     "selected_variant": "pre_realized_body_rvv_product_reduce_dequantize",
-    "sha256": "d1f42f27ad0d2b0eca8592869933ea0789d15eba753b0696418905532b008a9b",
+    "sha256": "cbad39421d393d94920c4633d0a9be6ca3ed51ffbf05b3605f824d3b500047b8",
     "source_front_door_family_contract": {},
     "typed_compute_op": "tcrv_rvv.widening_product+tcrv_rvv.standalone_reduce+tcrv_rvv.gearbox_cross_region_handoff+tcrv_rvv.dequantize",
     "vector_reduction_boundary": {},
@@ -2212,7 +2228,9 @@
         "contract": "gearbox-product-reduce-to-dequant-cross-region-handoff.v1",
         "from_phase": "load-product-reduce",
         "op": "tcrv_rvv.gearbox_cross_region_handoff",
+        "performance_admission_closure": "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1",
         "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker",
+        "performance_admission_reopen_requirement": "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "producer_scope": "gearbox-scope:product-reduction",
         "region_count": 2,
         "resource_cost_blocker": "packed-i4-high-nibble-vwmacc-loop-11-budget-5of32-no-win",
@@ -2231,7 +2249,9 @@
         "operand_form": "packed-i4-nibbles",
         "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
         "peak_live_vector_groups": 5,
+        "performance_admission_closure": "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1",
         "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker",
+        "performance_admission_reopen_requirement": "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "resource_cost_blocker": "packed-i4-high-nibble-vwmacc-loop-11-budget-5of32-no-win",
         "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
         "resource_cost_loop_body_steps": 11,
@@ -2376,7 +2396,7 @@
     "copy": "artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/pre_realized_selected_body_input.mlir",
     "mode": "pre-realized-selected-body",
     "path": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir",
-    "sha256": "aacd6b9522c2cee09640ebc15d9ba95ae4aa951a7450b99c5356daed81c5afe5",
+    "sha256": "bd62fce4033921bce29c734e7f977eb59361b5de0b2eea59817d0c1167d8df9a",
     "source_seed": false
   },
   "source_seed": false,
@@ -2488,7 +2508,9 @@
         "operand_form": "packed-i4-nibbles",
         "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
         "peak_live_vector_groups": "5",
+        "performance_admission_closure": "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1",
         "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker",
+        "performance_admission_reopen_requirement": "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "primitive_accumulator_layout": "scalar-i32-seed-lane0-from-accumulator-input",
         "primitive_chain_contract": "rvv-low-precision-widening-reduction-primitive-facts.v1",
         "primitive_chain_kind": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1",
@@ -2565,7 +2587,9 @@
       "packed_i4_resource_remediation_evidence": {
         "expected_fields": {
           "performance_action": "no-win-repair-required-before-performance-claim",
+          "performance_admission_closure": "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1",
           "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker",
+          "performance_admission_reopen_requirement": "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
           "performance_feedback": "same-target-packed-i4-no-win.v1",
           "remediation_action": "no-win-repair-required-before-performance-claim",
           "remediation_blocker": "same-target-packed-i4-high-nibble-vwmacc-no-win-or-regression",
@@ -2593,7 +2617,9 @@
         },
         "fields": {
           "performance_action": "no-win-repair-required-before-performance-claim",
+          "performance_admission_closure": "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1",
           "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker",
+          "performance_admission_reopen_requirement": "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
           "performance_feedback": "same-target-packed-i4-no-win.v1",
           "remediation_action": "no-win-repair-required-before-performance-claim",
           "remediation_blocker": "same-target-packed-i4-high-nibble-vwmacc-no-win-or-regression",
@@ -2632,7 +2658,9 @@
         "contract": "gearbox-product-reduce-to-dequant-cross-region-handoff.v1",
         "from_phase": "load-product-reduce",
         "op": "tcrv_rvv.gearbox_cross_region_handoff",
+        "performance_admission_closure": "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1",
         "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker",
+        "performance_admission_reopen_requirement": "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "producer_scope": "gearbox-scope:product-reduction",
         "region_count": 2,
         "resource_cost_blocker": "packed-i4-high-nibble-vwmacc-loop-11-budget-5of32-no-win",
@@ -2651,7 +2679,9 @@
         "operand_form": "packed-i4-nibbles",
         "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
         "peak_live_vector_groups": 5,
+        "performance_admission_closure": "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1",
         "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker",
+        "performance_admission_reopen_requirement": "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "resource_cost_blocker": "packed-i4-high-nibble-vwmacc-loop-11-budget-5of32-no-win",
         "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
         "resource_cost_loop_body_steps": 11,
@@ -2752,9 +2782,11 @@
         "expected_memory_form": "unit-stride-widening-product-reduce-dequantize-f32",
         "expected_operand_form": "packed-i4-nibbles",
         "expected_performance_action": "no-win-repair-required-before-performance-claim",
+        "expected_performance_admission_closure": "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1",
         "expected_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker",
+        "expected_performance_admission_reopen_requirement": "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "expected_performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1",
-        "expected_performance_best_speedup_range": "0.884211..1.025561",
+        "expected_performance_best_speedup_range": "0.896848..1.020953",
         "expected_performance_feedback": "same-target-packed-i4-no-win.v1",
         "expected_performance_maturity": "executable-not-performance-mature",
         "expected_performance_maturity_evidence": "same-target-packed-i4-high-nibble-vwmacc-no-win-gate4.v1",
@@ -2796,9 +2828,11 @@
         "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
         "peak_live_vector_groups": "5",
         "performance_action": "no-win-repair-required-before-performance-claim",
+        "performance_admission_closure": "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1",
         "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker",
+        "performance_admission_reopen_requirement": "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
         "performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1",
-        "performance_best_speedup_range": "0.884211..1.025561",
+        "performance_best_speedup_range": "0.896848..1.020953",
         "performance_feedback": "same-target-packed-i4-no-win.v1",
         "performance_maturity": "executable-not-performance-mature",
         "performance_maturity_evidence": "same-target-packed-i4-high-nibble-vwmacc-no-win-gate4.v1",
@@ -2924,9 +2958,11 @@
       "tcrv_rvv.low_precision_resource.packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
       "tcrv_rvv.low_precision_resource.peak_live_vector_groups": "5",
       "tcrv_rvv.low_precision_resource.performance_action": "no-win-repair-required-before-performance-claim",
+      "tcrv_rvv.low_precision_resource.performance_admission_closure": "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1",
       "tcrv_rvv.low_precision_resource.performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker",
+      "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement": "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1",
       "tcrv_rvv.low_precision_resource.performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1",
-      "tcrv_rvv.low_precision_resource.performance_best_speedup_range": "0.884211..1.025561",
+      "tcrv_rvv.low_precision_resource.performance_best_speedup_range": "0.896848..1.020953",
       "tcrv_rvv.low_precision_resource.performance_feedback": "same-target-packed-i4-no-win.v1",
       "tcrv_rvv.low_precision_resource.performance_maturity": "executable-not-performance-mature",
       "tcrv_rvv.low_precision_resource.performance_maturity_evidence": "same-target-packed-i4-high-nibble-vwmacc-no-win-gate4.v1",

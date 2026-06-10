@@ -542,7 +542,7 @@ artifact[0]:
     value: "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
   artifact_metadata[164]:
     key: "tcrv_rvv.low_precision_resource.performance_best_speedup_range"
-    value: "0.884211..1.025561"
+    value: "0.896848..1.020953"
   artifact_metadata[165]:
     key: "tcrv_rvv.low_precision_resource.performance_action"
     value: "no-win-repair-required-before-performance-claim"
@@ -619,30 +619,36 @@ artifact[0]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_decision"
     value: "deny-performance-preferred-with-resource-cost-no-win-blocker"
   artifact_metadata[190]:
+    key: "tcrv_rvv.low_precision_resource.performance_admission_closure"
+    value: "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1"
+  artifact_metadata[191]:
+    key: "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement"
+    value: "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+  artifact_metadata[192]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity"
     value: "executable-not-performance-mature"
-  artifact_metadata[191]:
+  artifact_metadata[193]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity_evidence"
     value: "same-target-packed-i4-high-nibble-vwmacc-no-win-gate4.v1"
-  artifact_metadata[192]:
+  artifact_metadata[194]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity_outcome"
     value: "no-win"
-  artifact_metadata[193]:
+  artifact_metadata[195]:
     key: "tcrv_rvv.low_precision_resource.performance_selection_eligible"
     value: "false"
-  artifact_metadata[194]:
+  artifact_metadata[196]:
     key: "tcrv_rvv.low_precision_resource.dispatch_preference"
     value: "not-performance-preferred"
-  artifact_metadata[195]:
+  artifact_metadata[197]:
     key: "tcrv_rvv.low_precision_resource.target_capability_provider_mirror"
     value: "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
-  artifact_metadata[196]:
+  artifact_metadata[198]:
     key: "tcrv_rvv.low_precision_resource.target_capability_legality_mirror"
     value: "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
-  artifact_metadata[197]:
+  artifact_metadata[199]:
     key: "tcrv_rvv.low_precision_resource.legality"
     value: "legal"
-  artifact_metadata[198]:
+  artifact_metadata[200]:
     key: "tcrv_rvv.low_precision_resource.rejection_reason"
     value: "none"
   handoff_kind: "materialized-emitc-cpp-rvv-intrinsic-object"
@@ -1188,7 +1194,7 @@ artifact[1]:
     value: "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
   artifact_metadata[164]:
     key: "tcrv_rvv.low_precision_resource.performance_best_speedup_range"
-    value: "0.884211..1.025561"
+    value: "0.896848..1.020953"
   artifact_metadata[165]:
     key: "tcrv_rvv.low_precision_resource.performance_action"
     value: "no-win-repair-required-before-performance-claim"
@@ -1265,30 +1271,36 @@ artifact[1]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_decision"
     value: "deny-performance-preferred-with-resource-cost-no-win-blocker"
   artifact_metadata[190]:
+    key: "tcrv_rvv.low_precision_resource.performance_admission_closure"
+    value: "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1"
+  artifact_metadata[191]:
+    key: "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement"
+    value: "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+  artifact_metadata[192]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity"
     value: "executable-not-performance-mature"
-  artifact_metadata[191]:
+  artifact_metadata[193]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity_evidence"
     value: "same-target-packed-i4-high-nibble-vwmacc-no-win-gate4.v1"
-  artifact_metadata[192]:
+  artifact_metadata[194]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity_outcome"
     value: "no-win"
-  artifact_metadata[193]:
+  artifact_metadata[195]:
     key: "tcrv_rvv.low_precision_resource.performance_selection_eligible"
     value: "false"
-  artifact_metadata[194]:
+  artifact_metadata[196]:
     key: "tcrv_rvv.low_precision_resource.dispatch_preference"
     value: "not-performance-preferred"
-  artifact_metadata[195]:
+  artifact_metadata[197]:
     key: "tcrv_rvv.low_precision_resource.target_capability_provider_mirror"
     value: "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"
-  artifact_metadata[196]:
+  artifact_metadata[198]:
     key: "tcrv_rvv.low_precision_resource.target_capability_legality_mirror"
     value: "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
-  artifact_metadata[197]:
+  artifact_metadata[199]:
     key: "tcrv_rvv.low_precision_resource.legality"
     value: "legal"
-  artifact_metadata[198]:
+  artifact_metadata[200]:
     key: "tcrv_rvv.low_precision_resource.rejection_reason"
     value: "none"
   handoff_kind: "materialized-emitc-cpp-rvv-intrinsic-object"

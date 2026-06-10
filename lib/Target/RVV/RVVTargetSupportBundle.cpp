@@ -1126,6 +1126,13 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       {"low_precision_resource.performance_admission_decision",
        "tcrv_rvv.low_precision_resource.performance_admission_decision", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.performance_admission_closure",
+       "tcrv_rvv.low_precision_resource.performance_admission_closure", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.performance_admission_reopen_requirement",
+       "tcrv_rvv.low_precision_resource."
+       "performance_admission_reopen_requirement",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.performance_maturity",
        "tcrv_rvv.low_precision_resource.performance_maturity", "",
        /*allowDynamicValue=*/true, /*optional=*/true},

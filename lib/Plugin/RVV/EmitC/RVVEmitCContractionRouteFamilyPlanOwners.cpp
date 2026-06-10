@@ -4891,6 +4891,10 @@ void populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
   selection.resourceCostBlocker = candidate.resourceCostBlocker.str();
   selection.performanceAdmissionDecision =
       candidate.performanceAdmissionDecision.str();
+  selection.performanceAdmissionClosure =
+      candidate.performanceAdmissionClosure.str();
+  selection.performanceAdmissionReopenRequirement =
+      candidate.performanceAdmissionReopenRequirement.str();
   selection.runtimeAVLSource = candidate.runtimeAVLSource.str();
   selection.producerScope = candidate.producerScope.str();
   selection.consumerScope = candidate.consumerScope.str();
@@ -5056,6 +5060,11 @@ void populateRVVLowPrecisionContractionResourceRealizationSchedule(
         kRVVLowPrecisionResourcePackedI4CostBlocker.str();
     selection.performanceAdmissionDecision =
         kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision.str();
+    selection.performanceAdmissionClosure =
+        kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure.str();
+    selection.performanceAdmissionReopenRequirement =
+        kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement
+            .str();
     selection.realizationAdmissionScheduleDecisionContract =
         selection.scheduleDecisionContract;
     selection.realizationAdmissionScheduleDecision = selection.scheduleDecision;
@@ -5857,6 +5866,15 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
           "performance_admission_decision", "performance admission decision",
           selection.performanceAdmissionDecision))
     return error;
+  if (llvm::Error error = requireHandoffPackedI4StringFact(
+          "performance_admission_closure", "performance admission closure",
+          selection.performanceAdmissionClosure))
+    return error;
+  if (llvm::Error error = requireHandoffPackedI4StringFact(
+          "performance_admission_reopen_requirement",
+          "performance admission reopen requirement",
+          selection.performanceAdmissionReopenRequirement))
+    return error;
   if (llvm::Error error = requireHandoffResourceIntegerFact(
           "product_region_index", handoff.getProductRegionIndex(),
           selection.productRegionIndex))
@@ -6508,6 +6526,16 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
       selection.performanceAdmissionDecision = *value;
     else
       return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourcePerformanceAdmissionClosureAttrName))
+      selection.performanceAdmissionClosure = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourcePerformanceAdmissionReopenRequirementAttrName))
+      selection.performanceAdmissionReopenRequirement = *value;
+    else
+      return value.takeError();
     if (std::optional<std::string> value = readOptionalString(
             kRVVLowPrecisionResourceRealizationAdmissionContractAttrName))
       selection.realizationAdmissionContract = *value;
@@ -7096,6 +7124,16 @@ llvm::Error verifyRVVLowPrecisionContractionResourceRemediationHandoff(
           selection.performanceAdmissionDecision,
           kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision))
     return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "performance admission closure",
+          selection.performanceAdmissionClosure,
+          kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "performance admission reopen requirement",
+          selection.performanceAdmissionReopenRequirement,
+          kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement))
+    return error;
   return requireRVVLowPrecisionResourceStringField(
       context, selection, "schedule decision reason",
       selection.scheduleDecisionReason,
@@ -7201,6 +7239,9 @@ bool isRVVLowPrecisionResourceSelectionEqual(
          lhs.resourceCostBlocker == rhs.resourceCostBlocker &&
          lhs.performanceAdmissionDecision ==
              rhs.performanceAdmissionDecision &&
+         lhs.performanceAdmissionClosure == rhs.performanceAdmissionClosure &&
+         lhs.performanceAdmissionReopenRequirement ==
+             rhs.performanceAdmissionReopenRequirement &&
          lhs.performanceMaturity == rhs.performanceMaturity &&
          lhs.performanceMaturityEvidence == rhs.performanceMaturityEvidence &&
          lhs.performanceMaturityOutcome == rhs.performanceMaturityOutcome &&
@@ -7696,6 +7737,16 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
             context, selection, "performance admission decision",
             selection.performanceAdmissionDecision,
             kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "performance admission closure",
+            selection.performanceAdmissionClosure,
+            kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "performance admission reopen requirement",
+            selection.performanceAdmissionReopenRequirement,
+            kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement))
       return error;
     if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
             context, selection, "performance maturity",

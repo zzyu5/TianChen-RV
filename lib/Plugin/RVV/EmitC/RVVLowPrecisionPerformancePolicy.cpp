@@ -24,10 +24,10 @@ constexpr llvm::StringLiteral kPackedI4Gate4MeasurementClassification(
     "no-win");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementOutcomeFamily("no-win");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementBestSpeedupRange(
-    "0.896848..1.020953");
+    "0.897163..1.018998");
 constexpr llvm::StringLiteral
     kPackedI4DequantClampGate4MeasurementBestSpeedupRange(
-        "0.867416..1.043671");
+        "0.864516..1.043210");
 constexpr llvm::StringLiteral kPackedI4Gate4TargetProfile("ssh rvv");
 constexpr llvm::StringLiteral kPackedI4PerformancePreferenceDenialReason(
     "same-target-measurement-no-win-or-regression");
@@ -1129,6 +1129,30 @@ llvm::Error verifyPackedI4SelectionFacts(
         "' or '" +
         kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision +
         "' but found '" + selection.performanceAdmissionDecision + "'");
+  if (selection.performanceAdmissionClosure !=
+          kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure &&
+      selection.performanceAdmissionClosure !=
+          kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionClosure)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider performance admission closure to be a consumed "
+        "no-safe-repair or measured-win closure: expected '" +
+        kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure + "' or '" +
+        kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionClosure +
+        "' but found '" + selection.performanceAdmissionClosure + "'");
+  if (selection.performanceAdmissionReopenRequirement !=
+          kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement &&
+      selection.performanceAdmissionReopenRequirement !=
+          kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionReopenRequirement)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider performance admission reopen requirement to be a "
+        "consumed no-safe-repair or measured-win requirement: expected '" +
+        kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement +
+        "' or '" +
+        kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionReopenRequirement +
+        "' but found '" +
+        selection.performanceAdmissionReopenRequirement + "'");
   if (llvm::Error error = requireNonEmptyPolicyString(
           context, "target capability provider mirror",
           selection.targetCapabilityProviderMirror))
@@ -1262,6 +1286,16 @@ llvm::Error verifyPackedI4SameTargetMeasurementPolicyInput(
           context, "provider performance admission decision",
           input.providerPerformanceAdmissionDecision,
           selection.performanceAdmissionDecision))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider performance admission closure",
+          input.providerPerformanceAdmissionClosure,
+          selection.performanceAdmissionClosure))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider performance admission reopen requirement",
+          input.providerPerformanceAdmissionReopenRequirement,
+          selection.performanceAdmissionReopenRequirement))
     return error;
   if (llvm::Error error = requireSameTargetPolicyInputTieBack(
           context, "provider realization admission contract",
@@ -1570,6 +1604,10 @@ materializeRVVLowPrecisionMeasurementOutcomeFromPolicyInput(
   outcome.providerResourceCostBlocker = input.providerResourceCostBlocker;
   outcome.providerPerformanceAdmissionDecision =
       input.providerPerformanceAdmissionDecision;
+  outcome.providerPerformanceAdmissionClosure =
+      input.providerPerformanceAdmissionClosure;
+  outcome.providerPerformanceAdmissionReopenRequirement =
+      input.providerPerformanceAdmissionReopenRequirement;
   outcome.providerRealizationAdmissionContract =
       input.providerRealizationAdmissionContract;
   outcome.providerRealizationAdmissionDecision =
@@ -1663,6 +1701,10 @@ materializeRVVLowPrecisionPolicyInputFromMeasurementRecord(
   input.providerResourceCostBlocker = record.providerResourceCostBlocker;
   input.providerPerformanceAdmissionDecision =
       record.providerPerformanceAdmissionDecision;
+  input.providerPerformanceAdmissionClosure =
+      record.providerPerformanceAdmissionClosure;
+  input.providerPerformanceAdmissionReopenRequirement =
+      record.providerPerformanceAdmissionReopenRequirement;
   input.providerRealizationAdmissionContract =
       record.providerRealizationAdmissionContract;
   input.providerRealizationAdmissionDecision =
@@ -1866,6 +1908,16 @@ llvm::Error verifyPackedI4MeasurementOutcomeCommon(
           context, "provider performance admission decision tie-back",
           outcome.providerPerformanceAdmissionDecision,
           selection.performanceAdmissionDecision))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider performance admission closure tie-back",
+          outcome.providerPerformanceAdmissionClosure,
+          selection.performanceAdmissionClosure))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider performance admission reopen requirement tie-back",
+          outcome.providerPerformanceAdmissionReopenRequirement,
+          selection.performanceAdmissionReopenRequirement))
     return error;
   if (llvm::Error error = requirePolicyString(
           context, "provider realization admission contract tie-back",
@@ -2099,6 +2151,16 @@ llvm::Error verifyPackedI4PerformancePreferredOutcome(
           selection.performanceAdmissionDecision,
           kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision))
     return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 performance admission closure",
+          selection.performanceAdmissionClosure,
+          kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionClosure))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 performance admission reopen requirement",
+          selection.performanceAdmissionReopenRequirement,
+          kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionReopenRequirement))
+    return error;
   if (llvm::Error error = requirePolicyBool(
           context, "performance preference denial",
           outcome.performancePreferenceDenied, false))
@@ -2125,7 +2187,9 @@ bool attemptsPerformancePreferredPackedI4Outcome(
          selection.performanceSelectionEligible == "true" ||
          selection.dispatchPreference == "performance-preferred" ||
          selection.performanceAdmissionDecision ==
-             kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision;
+             kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision ||
+         selection.performanceAdmissionClosure ==
+             kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionClosure;
 }
 
 llvm::Error verifyPackedI4PolicyOutcomeConsistency(
@@ -2163,6 +2227,20 @@ llvm::Error verifyPackedI4PolicyOutcomeConsistency(
         " requires provider performance admission decision '" +
         kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision +
         "' for the accepted Gate 4 regression/no-win measurement");
+  if (llvm::StringRef(selection.performanceAdmissionClosure) !=
+      kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider performance admission closure '" +
+        kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure +
+        "' for the accepted Gate 4 no-safe-repair no-win measurement");
+  if (llvm::StringRef(selection.performanceAdmissionReopenRequirement) !=
+      kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider performance admission reopen requirement '" +
+        kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement +
+        "' before any future Gate 4 performance-preferred claim is reopened");
   return llvm::Error::success();
 }
 
@@ -2385,6 +2463,10 @@ materializeRVVLowPrecisionProductionPressureProfile(
   profile.resourceCostBlocker = input.providerResourceCostBlocker;
   profile.performanceAdmissionDecision =
       input.providerPerformanceAdmissionDecision;
+  profile.performanceAdmissionClosure =
+      input.providerPerformanceAdmissionClosure;
+  profile.performanceAdmissionReopenRequirement =
+      input.providerPerformanceAdmissionReopenRequirement;
   profile.realizationAdmissionContract =
       input.providerRealizationAdmissionContract;
   profile.realizationAdmissionDecision =
@@ -2508,6 +2590,9 @@ llvm::Error rejectProductionPressureProfileMarkerOnlyFacts(
       {"resource cost blocker", profile.resourceCostBlocker},
       {"performance admission decision",
        profile.performanceAdmissionDecision},
+      {"performance admission closure", profile.performanceAdmissionClosure},
+      {"performance admission reopen requirement",
+       profile.performanceAdmissionReopenRequirement},
       {"realization admission contract",
        profile.realizationAdmissionContract},
       {"realization admission decision",
@@ -2641,6 +2726,16 @@ llvm::Error verifyProductionPressureProfileAgainstCandidate(
           context, "packed-i4 performance admission decision",
           candidate.performanceAdmissionDecision,
           kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 performance admission closure",
+          candidate.performanceAdmissionClosure,
+          kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 performance admission reopen requirement",
+          candidate.performanceAdmissionReopenRequirement,
+          kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement))
     return error;
   if (llvm::Error error =
           requirePolicyString(context, "pressure profile contract",
@@ -3124,6 +3219,9 @@ llvm::Error verifyProductionPressureProfileAgainstSelection(
   candidate.resourceCostBlocker = selection.resourceCostBlocker;
   candidate.performanceAdmissionDecision =
       selection.performanceAdmissionDecision;
+  candidate.performanceAdmissionClosure = selection.performanceAdmissionClosure;
+  candidate.performanceAdmissionReopenRequirement =
+      selection.performanceAdmissionReopenRequirement;
   candidate.isLegal = selection.isLegal;
   candidate.rejectionReason = selection.rejectionReason;
   if (llvm::Error error =
@@ -3259,6 +3357,10 @@ buildRVVPackedI4Gate4SameTargetMeasurementRecord(
   record.providerResourceCostBlocker = selection.resourceCostBlocker;
   record.providerPerformanceAdmissionDecision =
       selection.performanceAdmissionDecision;
+  record.providerPerformanceAdmissionClosure =
+      selection.performanceAdmissionClosure;
+  record.providerPerformanceAdmissionReopenRequirement =
+      selection.performanceAdmissionReopenRequirement;
   record.providerRealizationAdmissionContract =
       selection.realizationAdmissionContract;
   record.providerRealizationAdmissionDecision =
@@ -3468,6 +3570,11 @@ buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
                           "provider_resource_cost_blocker");
   TCRV_READ_RECORD_STRING(providerPerformanceAdmissionDecision,
                           "provider_performance_admission_decision");
+  TCRV_READ_RECORD_STRING(providerPerformanceAdmissionClosure,
+                          "provider_performance_admission_closure");
+  TCRV_READ_RECORD_STRING(
+      providerPerformanceAdmissionReopenRequirement,
+      "provider_performance_admission_reopen_requirement");
   TCRV_READ_RECORD_STRING(providerRealizationAdmissionContract,
                           "provider_realization_admission_contract");
   TCRV_READ_RECORD_STRING(providerRealizationAdmissionDecision,
@@ -3654,6 +3761,10 @@ buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
   input.providerResourceCostBlocker = selection.resourceCostBlocker;
   input.providerPerformanceAdmissionDecision =
       selection.performanceAdmissionDecision;
+  input.providerPerformanceAdmissionClosure =
+      selection.performanceAdmissionClosure;
+  input.providerPerformanceAdmissionReopenRequirement =
+      selection.performanceAdmissionReopenRequirement;
   input.providerRealizationAdmissionContract =
       selection.realizationAdmissionContract;
   input.providerRealizationAdmissionDecision =

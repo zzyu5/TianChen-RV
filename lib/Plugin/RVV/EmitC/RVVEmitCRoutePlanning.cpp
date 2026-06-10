@@ -43616,6 +43616,13 @@ getRVVSelectedBodyConfigArtifactMetadata(
       metadata.push_back(
           {"tcrv_rvv.low_precision_resource.performance_admission_decision",
            selection.performanceAdmissionDecision});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.performance_admission_closure",
+           selection.performanceAdmissionClosure});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource."
+           "performance_admission_reopen_requirement",
+           selection.performanceAdmissionReopenRequirement});
       metadata.push_back({"tcrv_rvv.low_precision_resource.performance_maturity",
                           selection.performanceMaturity});
       metadata.push_back(

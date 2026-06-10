@@ -101,3 +101,30 @@
 {"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Recorded the high-nibble vwmacc schedule/resource contract, no-win timing, and policy denial boundary"}
 {"file": ".trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1/prd.md", "reason": "Marked the Gate 4 high-nibble vwmacc schedule/resource slice complete and kept the macro task active"}
 {"file": ".trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1/task.json", "reason": "Updated active macro task notes with the current high-nibble vwmacc 11-step/5-of-32 no-win continuation point"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h", "reason": "Added provider-owned packed-i4 performance admission closure and reopen requirement constants for the high-nibble vwmacc no-win boundary"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Carried packed-i4 admission closure and reopen facts in low-precision resource selections"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h", "reason": "Extended same-target records, policy inputs, outcomes, and pressure profiles with admission closure and reopen facts"}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Exposed optional Gearbox handoff attributes for performance admission closure and reopen requirement"}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Allowed and verified packed-i4 Gearbox handoff admission closure and reopen attributes"}
+{"file": "lib/Plugin/RVV/RVVGearboxSchedules.cpp", "reason": "Materialized and required admission closure and reopen facts in packed-i4 schedule/resource handoffs"}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Preserved admission closure and reopen facts during selected-body realization"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Parsed and validated admission closure/reopen facts before packed-i4 route construction"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Mirrored provider admission closure/reopen facts into route metadata"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "Required provider and family-plan admission closure/reopen facts to agree before packed-i4 statement planning"}
+{"file": "lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp", "reason": "Consumed provider admission closure/reopen facts in evidence-root ingestion, policy verification, no-win denial, and measured-win reopen validation"}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Required target artifact mirrors to match provider admission closure and reopen facts"}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Exported admission closure and reopen facts in target support bundle headers"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Threaded admission closure/reopen facts through generated-bundle resource metadata and self-tests"}
+{"file": "scripts/rvv_generated_bundle_same_target_measure.py", "reason": "Recorded admission closure/reopen facts in same-target measurement records, maturity inputs, provider tie-backs, and stale self-tests"}
+{"file": "artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json", "reason": "Refreshed source-backed ssh rvv dequant no-win evidence with admission closure/reopen contract"}
+{"file": "artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json", "reason": "Refreshed source-backed ssh rvv dequant-clamp no-win evidence with admission closure/reopen contract"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Covered accepted and stale admission closure/reopen facts through provider policy, evidence-root, and measured-win paths"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Covered target artifact admission closure/reopen mirrors and stale no-win boundary validation"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir", "reason": "Added FileCheck coverage for realized, plan, header, and stale admission-closure validation"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir", "reason": "Added FileCheck coverage for clamp admission closure/reopen mirrors"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequantize-f32-packed-i4-dry-run.test", "reason": "Asserted generated-bundle metadata and headers expose admission closure/reopen mirrors"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequant-clamp-f32-packed-i4-dry-run.test", "reason": "Asserted clamp generated-bundle metadata and headers expose admission closure/reopen mirrors"}
+{"file": "test/Scripts/rvv-generated-bundle-same-target-measure-gate4-dry-run.test", "reason": "Asserted same-target dry-run records provider admission closure/reopen facts"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Recorded the Gate 4 no-safe-local-repair admission closure/reopen contract and measured-win reopen rule"}
+{"file": ".trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1/prd.md", "reason": "Marked the measured no-safe-repair admission-closure slice complete and kept the macro task active"}
+{"file": ".trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1/task.json", "reason": "Updated active macro task notes with current no-win ranges, closure/reopen facts, and continuation point"}

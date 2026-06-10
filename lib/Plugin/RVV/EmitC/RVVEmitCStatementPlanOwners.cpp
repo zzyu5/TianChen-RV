@@ -1192,6 +1192,16 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
                         familySelection.performanceAdmissionDecision))
     return error;
   if (llvm::Error error =
+          requireString("performance admission closure",
+                        providerSelection.performanceAdmissionClosure,
+                        familySelection.performanceAdmissionClosure))
+    return error;
+  if (llvm::Error error = requireString(
+          "performance admission reopen requirement",
+          providerSelection.performanceAdmissionReopenRequirement,
+          familySelection.performanceAdmissionReopenRequirement))
+    return error;
+  if (llvm::Error error =
           requireString("performance maturity",
                         providerSelection.performanceMaturity,
                         familySelection.performanceMaturity))
@@ -1483,6 +1493,16 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
             "performance admission decision",
             familySelection.performanceAdmissionDecision,
             kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "performance admission closure",
+            familySelection.performanceAdmissionClosure,
+            kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "performance admission reopen requirement",
+            familySelection.performanceAdmissionReopenRequirement,
+            kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement))
       return error;
     if (llvm::Error error = requireExpectedString(
             "performance maturity", familySelection.performanceMaturity,

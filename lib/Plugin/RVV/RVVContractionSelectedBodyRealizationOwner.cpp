@@ -1092,6 +1092,13 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
     state.addAttribute(
         "performance_admission_decision",
         builder.getStringAttr(selectedCandidate.performanceAdmissionDecision));
+    state.addAttribute(
+        "performance_admission_closure",
+        builder.getStringAttr(selectedCandidate.performanceAdmissionClosure));
+    state.addAttribute(
+        "performance_admission_reopen_requirement",
+        builder.getStringAttr(
+            selectedCandidate.performanceAdmissionReopenRequirement));
   }
   state.addAttribute(
       "product_region_index",

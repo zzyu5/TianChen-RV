@@ -130,6 +130,13 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourceCostBlockerAttrName(
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePerformanceAdmissionDecisionAttrName(
         "tcrv_rvv.low_precision_resource.performance_admission_decision");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePerformanceAdmissionClosureAttrName(
+        "tcrv_rvv.low_precision_resource.performance_admission_closure");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePerformanceAdmissionReopenRequirementAttrName(
+        "tcrv_rvv.low_precision_resource."
+        "performance_admission_reopen_requirement");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRuntimeAVLSourceAttrName(
     "tcrv_rvv.low_precision_resource.runtime_avl_source");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRuntimeABIOrderAttrName(
@@ -591,8 +598,22 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision(
         "deny-performance-preferred-with-resource-cost-no-win-blocker");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure(
+        "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32."
+        "v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement(
+        "provider-schedule-resource-repair-plus-source-backed-measured-win-and-"
+        "updated-admission-facts.v1");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision(
         "admit-performance-preferred-with-resource-cost-measured-win");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionClosure(
+        "performance-preferred-measured-win-admission-open.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionReopenRequirement(
+        "none");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturity(
         "executable-not-performance-mature");
@@ -736,6 +757,8 @@ struct RVVLowPrecisionContractionResourceCandidate {
   std::int64_t resourceCostLoopBodySteps = 0;
   llvm::StringRef resourceCostBlocker;
   llvm::StringRef performanceAdmissionDecision;
+  llvm::StringRef performanceAdmissionClosure;
+  llvm::StringRef performanceAdmissionReopenRequirement;
 
   llvm::StringRef runtimeAVLSource;
   llvm::StringRef producerScope;
@@ -971,6 +994,10 @@ inline bool isRVVLowPrecisionResourceAcceptedPackedI4ScheduleDecision(
              kRVVLowPrecisionResourcePackedI4CostBlocker &&
          candidate.performanceAdmissionDecision ==
              kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision &&
+         candidate.performanceAdmissionClosure ==
+             kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure &&
+         candidate.performanceAdmissionReopenRequirement ==
+             kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement &&
          candidate.peakLiveVectorGroups <= candidate.vectorRegisterBudget;
 }
 
@@ -1235,6 +1262,10 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
       kRVVLowPrecisionResourcePackedI4CostBlocker;
   packedI4Candidate.performanceAdmissionDecision =
       kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision;
+  packedI4Candidate.performanceAdmissionClosure =
+      kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure;
+  packedI4Candidate.performanceAdmissionReopenRequirement =
+      kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement;
   packedI4Candidate.remediationPlanContract =
       kRVVLowPrecisionResourcePackedI4RemediationPlanContract;
   packedI4Candidate.remediationPlan =
@@ -1453,6 +1484,10 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name == kRVVLowPrecisionResourceCostBlockerAttrName ||
          name ==
              kRVVLowPrecisionResourcePerformanceAdmissionDecisionAttrName ||
+         name ==
+             kRVVLowPrecisionResourcePerformanceAdmissionClosureAttrName ||
+         name ==
+             kRVVLowPrecisionResourcePerformanceAdmissionReopenRequirementAttrName ||
          name == kRVVLowPrecisionResourceRuntimeAVLSourceAttrName ||
          name == kRVVLowPrecisionResourceRuntimeABIOrderAttrName ||
          name == kRVVLowPrecisionResourceLegalityAttrName ||

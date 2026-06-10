@@ -139,6 +139,10 @@ constexpr llvm::StringLiteral kResourceCostBlockerAttrName(
     "resource_cost_blocker");
 constexpr llvm::StringLiteral kPerformanceAdmissionDecisionAttrName(
     "performance_admission_decision");
+constexpr llvm::StringLiteral kPerformanceAdmissionClosureAttrName(
+    "performance_admission_closure");
+constexpr llvm::StringLiteral kPerformanceAdmissionReopenRequirementAttrName(
+    "performance_admission_reopen_requirement");
 constexpr llvm::StringLiteral kProductRegionIndexAttrName(
     "product_region_index");
 constexpr llvm::StringLiteral kDequantRegionIndexAttrName(
@@ -329,6 +333,8 @@ bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
          name == kResourceCostLoopBodyStepsAttrName ||
          name == kResourceCostBlockerAttrName ||
          name == kPerformanceAdmissionDecisionAttrName ||
+         name == kPerformanceAdmissionClosureAttrName ||
+         name == kPerformanceAdmissionReopenRequirementAttrName ||
          name == kProductRegionIndexAttrName ||
          name == kDequantRegionIndexAttrName ||
          name == kRemediationPlanContractAttrName ||

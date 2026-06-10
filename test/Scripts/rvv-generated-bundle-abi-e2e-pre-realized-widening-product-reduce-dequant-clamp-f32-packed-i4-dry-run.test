@@ -31,6 +31,9 @@
 # WPRDC-DAG: "primitive_chain_kind": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1"
 # WPRDC-DAG: "realization_decision": "consume-low-precision-packed-i4-high-nibble-vwmacc-single-reduce-budget-5of32.v1"
 # WPRDC-DAG: "performance_baseline": "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"
+# WPRDC-DAG: "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
+# WPRDC-DAG: "performance_admission_closure": "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1"
+# WPRDC-DAG: "performance_admission_reopen_requirement": "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
 # WPRDC-DAG: "remediation_measurement_evidence": "gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
 # WPRDC-DAG: "packed_i4_reference_oracle"
 # WPRDC-DAG: "runtime_n_unit": "packed input bytes"
@@ -41,6 +44,9 @@
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.operand_form: packed-i4-nibbles
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_baseline: scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_admission_decision: deny-performance-preferred-with-resource-cost-no-win-blocker
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_admission_closure: no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_admission_reopen_requirement: provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_measurement_evidence: gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
 # HEADER: void tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);
 

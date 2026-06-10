@@ -404,6 +404,8 @@ def GearboxCrossRegionHandoffOp
     OptionalAttr<I64Attr>:$resource_cost_loop_body_steps,
     OptionalAttr<StrAttr>:$resource_cost_blocker,
     OptionalAttr<StrAttr>:$performance_admission_decision,
+    OptionalAttr<StrAttr>:$performance_admission_closure,
+    OptionalAttr<StrAttr>:$performance_admission_reopen_requirement,
     I64Attr:$product_region_index,
     I64Attr:$dequant_region_index,
     OptionalAttr<StrAttr>:$remediation_plan_contract,

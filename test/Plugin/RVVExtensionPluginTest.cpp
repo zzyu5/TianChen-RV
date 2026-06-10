@@ -199,6 +199,10 @@ llvm::json::Object makeSameTargetMeasurementRecordEvidenceInput(
       record.providerResourceCostBlocker;
   evidenceInput["provider_performance_admission_decision"] =
       record.providerPerformanceAdmissionDecision;
+  evidenceInput["provider_performance_admission_closure"] =
+      record.providerPerformanceAdmissionClosure;
+  evidenceInput["provider_performance_admission_reopen_requirement"] =
+      record.providerPerformanceAdmissionReopenRequirement;
   evidenceInput["provider_realization_admission_contract"] =
       record.providerRealizationAdmissionContract;
   evidenceInput["provider_realization_admission_decision"] =
@@ -8550,7 +8554,7 @@ module {
   constexpr llvm::StringLiteral primitivePackedI4ResourceInsertionPoint =
       "tcrv_rvv.low_precision_resource.peak_live_vector_groups = 5 : i64";
   constexpr llvm::StringLiteral primitiveResourceFacts = R"mlir(, tcrv_rvv.low_precision_resource.primitive_accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", tcrv_rvv.low_precision_resource.primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1", tcrv_rvv.low_precision_resource.primitive_chain_kind = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1", tcrv_rvv.low_precision_resource.primitive_contract = "rvv-low-precision-widening-primitive-facts.v1", tcrv_rvv.low_precision_resource.primitive_kind = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant.v1", tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1", tcrv_rvv.low_precision_resource.primitive_reduction_store_vl = "1", tcrv_rvv.low_precision_resource.primitive_result_layout = "store-standalone-reduction-lane0-to-output-scalar", tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic = "__riscv_vmv_v_x_i32m1", tcrv_rvv.low_precision_resource.primitive_source_extension = "sign-extend-i8-to-i16-product", tcrv_rvv.low_precision_resource.primitive_source_load = "unit-stride-byte-load", tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic = "__riscv_vwmul_vv_i16mf2", tcrv_rvv.low_precision_resource.primitive_widening_product_relation = "signed-i8mf4xi8mf4-to-i16mf2", tcrv_rvv.low_precision_resource.widening_product_extension_policy = "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2", tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles = "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4")mlir";
-  constexpr llvm::StringLiteral packedI4ResourceCostFacts = R"mlir(, tcrv_rvv.low_precision_resource.resource_cost_contract = "rvv-low-precision-packed-i4-resource-cost-contract.v1", tcrv_rvv.low_precision_resource.resource_cost_model = "high-nibble-vwmacc-loop-11-peak-live-5of32-two-region-vsetvl.v1", tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps = 11 : i64, tcrv_rvv.low_precision_resource.resource_cost_blocker = "packed-i4-high-nibble-vwmacc-loop-11-budget-5of32-no-win", tcrv_rvv.low_precision_resource.performance_admission_decision = "deny-performance-preferred-with-resource-cost-no-win-blocker")mlir";
+  constexpr llvm::StringLiteral packedI4ResourceCostFacts = R"mlir(, tcrv_rvv.low_precision_resource.resource_cost_contract = "rvv-low-precision-packed-i4-resource-cost-contract.v1", tcrv_rvv.low_precision_resource.resource_cost_model = "high-nibble-vwmacc-loop-11-peak-live-5of32-two-region-vsetvl.v1", tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps = 11 : i64, tcrv_rvv.low_precision_resource.resource_cost_blocker = "packed-i4-high-nibble-vwmacc-loop-11-budget-5of32-no-win", tcrv_rvv.low_precision_resource.performance_admission_decision = "deny-performance-preferred-with-resource-cost-no-win-blocker", tcrv_rvv.low_precision_resource.performance_admission_closure = "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1", tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement = "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1")mlir";
   std::string sourceWithPrimitiveResourceFacts(source.str());
   unsigned insertedPrimitiveResourceFacts = 0;
   auto insertPrimitiveFactsAfter = [&](llvm::StringRef insertionPoint) {
@@ -10157,6 +10161,12 @@ module {
               packedI4ResourceSelection.performanceAdmissionDecision ==
                   tianchenrv::plugin::rvv::
                       kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision &&
+              packedI4ResourceSelection.performanceAdmissionClosure ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure &&
+              packedI4ResourceSelection.performanceAdmissionReopenRequirement ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement &&
               packedI4ResourceSelection.performanceMaturity ==
                   "executable-not-performance-mature" &&
               packedI4ResourceSelection.performanceMaturityEvidence ==
@@ -11155,7 +11165,7 @@ module {
           parsedPackedI4DequantRootRecord->measurementEvidenceID ==
                   acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
               parsedPackedI4DequantRootRecord->measurementBestSpeedupRange ==
-                  "0.896848..1.020953" &&
+                  "0.897163..1.018998" &&
               parsedPackedI4DequantRootRecord->measurementSummaryRecordCount ==
                   12 &&
               parsedPackedI4DequantRootRecord->measurementRecordCount == 60 &&
@@ -11195,7 +11205,7 @@ module {
                   acceptedPackedI4Gate4MeasurementRecord.sourceSelectedInput &&
               parsedPackedI4DequantRootPolicyInput
                       ->generatedArtifactObjectSHA256 ==
-                  "c57515e65a6df88b1c6d889c4fc6b0ecca75719d7785406e57705c04bd25e71c",
+                  "e2c2408cd4ac953442b31685c2a2fcf246076650cf2d9ee8d707c0100fae5f0a",
           "packed-i4 dequant Gate 4 evidence root feeds policy input with "
           "source artifact identity and provider schedule facts"))
     return result;
@@ -11777,7 +11787,7 @@ module {
                       .remediationMeasurementEvidenceID &&
               parsedPackedI4DequantClampRecord
                       ->measurementBestSpeedupRange ==
-                  "0.867416..1.043671" &&
+                  "0.864516..1.043210" &&
               parsedPackedI4DequantClampRecord
                       ->measurementSummaryRecordCount == 24 &&
               parsedPackedI4DequantClampRecord->measurementRecordCount == 120 &&
@@ -12384,6 +12394,14 @@ module {
       tianchenrv::plugin::rvv::
           kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision
               .str();
+  measuredWinPackedI4Selection.performanceAdmissionClosure =
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionClosure
+              .str();
+  measuredWinPackedI4Selection.performanceAdmissionReopenRequirement =
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionReopenRequirement
+              .str();
   measuredWinPackedI4Selection.realizationAdmissionContract.clear();
   measuredWinPackedI4Selection.realizationAdmissionDecision.clear();
   measuredWinPackedI4Selection.realizationAdmissionEvidence.clear();
@@ -12614,7 +12632,7 @@ module {
                   "selected-boundary packed-i4 Gate 4 dispatch/performance "
                   "policy rejects stale speedup evidence"),
           {"dispatch/performance policy", "measurement best-speedup range",
-           "0.896848..1.020953", "0.689938..0.705891"}))
+           "0.897163..1.018998", "0.689938..0.705891"}))
     return result;
 
   tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome

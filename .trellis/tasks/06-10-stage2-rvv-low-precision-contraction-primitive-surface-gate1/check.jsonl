@@ -73,3 +73,15 @@
 {"check": "fresh ssh rvv measurement: gate4-packed-i4-high-nibble-vwmacc-dequant-ssh", "result": "passed correctness; classification=no-win best_speedup_range=0.896848..1.020953 summaries=12 measurements=60 correctness=12"}
 {"check": "fresh ssh rvv measurement: gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh", "result": "passed correctness; classification=no-win best_speedup_range=0.867416..1.043671 summaries=24 measurements=120 correctness=24"}
 {"check": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter packed-i4 high-nibble vwmacc Gate 4 target and script dry-run tests", "result": "passed: 5 focused tests from build/test"}
+{"check": "cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test", "result": "passed after measured admission-closure policy/target updates; target artifact test target still emits existing switch-coverage warnings"}
+{"check": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "initially failed on stale generated artifact object SHA after fresh ssh evidence; fixed expected source-backed artifact identity, then passed"}
+{"check": "build/bin/tianchenrv-target-artifact-export-test", "result": "passed"}
+{"check": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter packed-i4 high-nibble vwmacc Gate 4 target and script dry-run tests", "result": "passed: 5 focused tests from build/test"}
+{"check": "python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py scripts/rvv_generated_bundle_same_target_measure.py", "result": "passed"}
+{"check": "python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test", "result": "passed"}
+{"check": "python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test", "result": "passed"}
+{"check": "fresh ssh rvv measurement: gate4-packed-i4-high-nibble-vwmacc-dequant-ssh", "result": "passed correctness; classification=no-win best_speedup_range=0.897163..1.018998 summaries=12 measurements=60 correctness=12"}
+{"check": "fresh ssh rvv measurement: gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh", "result": "passed correctness; classification=no-win best_speedup_range=0.864516..1.043210 summaries=24 measurements=120 correctness=24"}
+{"check": "git diff --check", "result": "passed after normalizing generated artifact EOF blank lines"}
+{"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1", "result": "passed"}
+{"check": "bounded added-diff old-authority scan", "result": "passed: q8/q4/source-front-door/descriptor matches only PRD self-check wording; __riscv_*_i32m1 matches are existing low-precision reduction/seed intrinsic facts, not route authority"}
