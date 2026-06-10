@@ -1119,6 +1119,41 @@ diagnoseRVVLowPrecisionPerformancePolicyHandoff(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
     llvm::StringRef context) {
+  if (selection.hasSelection &&
+      isRVVLowPrecisionResourcePackedI4CandidateID(
+          selection.selectedCandidateID) &&
+      llvm::StringRef(selection.selectedCandidateID) !=
+          kRVVLowPrecisionResourceDequantPackedI4Candidate) {
+    RVVLowPrecisionPerformancePolicyHandoff handoff;
+    handoff.handoffContract =
+        kRVVLowPrecisionResourcePackedI4RemediationHandoffContract.str();
+    handoff.selectedCandidateID = selection.selectedCandidateID;
+    handoff.expectedSelectedCandidateID =
+        kRVVLowPrecisionResourceDequantPackedI4Candidate.str();
+    handoff.measurementEvidenceID = input.measurementEvidenceID;
+    handoff.measurementClassification = input.measurementClassification;
+    handoff.measurementOutcomeFamily = input.measurementOutcomeFamily;
+    handoff.dispatchPreference = selection.dispatchPreference;
+    handoff.performancePreferenceDenialReason =
+        input.performancePreferenceDenialReason;
+    handoff.diagnosisKind =
+        stringifyRVVLowPrecisionPerformanceMeasurementDiagnosisKind(
+            RVVLowPrecisionPerformanceMeasurementDiagnosisKind::
+                StaleSiblingRouteMeasurement)
+            .str();
+    handoff.staleMeasurement = true;
+    handoff.staleSiblingRouteMeasurement = true;
+    handoff.failureReason =
+        (llvm::Twine(context) +
+         " diagnosed stale sibling-route measurement: accepted Gate 4 "
+         "packed-i4 selected candidate '" +
+         kRVVLowPrecisionResourceDequantPackedI4Candidate +
+         "' cannot authorize sibling candidate '" + selection.selectedCandidateID +
+         "'")
+            .str();
+    return handoff;
+  }
+
   llvm::Expected<RVVLowPrecisionPerformanceMeasurementOutcome> outcome =
       consumeRVVLowPrecisionSameTargetMeasurementPolicyInput(selection, input,
                                                              context);

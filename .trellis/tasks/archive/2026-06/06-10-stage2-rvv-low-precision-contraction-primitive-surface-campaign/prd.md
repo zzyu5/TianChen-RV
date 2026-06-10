@@ -67,7 +67,7 @@ authority.
 - [x] Gate 3: generated artifact correctness plus same-target `ssh rvv`
   correctness evidence for the representative Gate 1/Gate 2 low-precision
   production path when runtime/correctness behavior is claimed.
-- [ ] Gate 4: selected-dispatch/performance policy consumes measurement and
+- [x] Gate 4: selected-dispatch/performance policy consumes measurement and
   schedule facts without promoting measurement-only wins.
 
 ## Completed Slice Checklist: 2026-06-10 Gate 3 Generated Artifact Correctness
@@ -161,6 +161,106 @@ authority.
 - No performance-preferred dispatch or performance-win claim is made in this
   slice. Gate 4 remains open for selected-dispatch/performance policy
   consumption of measurement and schedule facts.
+
+## Completed Slice Checklist: 2026-06-10 Gate 4 Selected-Dispatch/Performance Policy
+
+- [x] Keep this slice inside the active macro task and do not create a
+  neighboring generated-bundle, q8/q4-named, or evidence-only task.
+- [x] Inspect the existing production policy API:
+  `RVVLowPrecisionPerformanceMeasurementOutcome`,
+  `RVVLowPrecisionSameTargetMeasurementPolicyInput`,
+  `RVVLowPrecisionPerformancePolicyDecision`,
+  `evaluateRVVLowPrecisionPerformancePolicy`,
+  `resolveRVVLowPrecisionDispatchPerformancePolicy`, and
+  `verifyRVVLowPrecisionPerformancePolicy`.
+- [x] Thread the target artifact validation path through
+  `RVVLowPrecisionSameTargetMeasurementPolicyInput` so Gate 4 policy
+  consumption uses the full same-target policy input tie-back rather than only
+  a measurement-outcome constant.
+- [x] Preserve the targeted stale sibling-route measurement diagnostic after
+  the input overload started enforcing full provider fact gates before policy
+  evaluation.
+- [x] Add target-side C++ coverage proving the Gate 4 policy input carries the
+  provider primitive-chain kind, Gate 2 schedule decision, and target
+  capability mirrors before target artifact policy evaluation.
+- [x] Re-run focused provider/target C++ tests, same-target measurement script
+  self-test, and a bounded packed-i4 dry-run measurement fixture that emits the
+  mirror-only performance maturity evidence input.
+- [x] Run diff whitespace checks and leave no generated artifact files tracked.
+- [x] Archive the macro task because Gates 1-4 are now complete.
+
+## Acceptance Criteria For Gate 4 Slice
+
+- [x] Production selected-dispatch/performance policy consumption uses
+  structured provider/resource/primitive/schedule/target/measurement inputs,
+  not q8/q4 labels, artifact names, route ids, raw stdout, or report metadata.
+- [x] Target artifact validation now builds and verifies
+  `RVVLowPrecisionSameTargetMeasurementPolicyInput` for provider-selected
+  packed-i4 low-precision product-reduction policy candidates, including the
+  selected-dispatch boundary when present.
+- [x] Same-target measurement evidence remains input-only: no script, target
+  artifact, or Common EmitC path rewrites provider maturity fields or directly
+  authorizes performance dispatch.
+- [x] Current no-win/regression policy continues to preserve executable route
+  support and correctness execution while selecting the conservative
+  `correctness-fallback` path and denying performance preference.
+- [x] A measured win remains accepted only when provider maturity,
+  performance-selection eligibility, dispatch preference, remediation facts,
+  measurement tie-back, and selected-dispatch boundary facts all agree.
+- [x] Stale sibling-route measurement, stale schedule/resource/provider
+  tie-back, missing measurement identity, cross-target evidence, metadata-only
+  provider support, route-id-only claims, and measurement-only win promotion
+  fail closed with targeted diagnostics.
+- [x] No Common EmitC code infers low-precision dtype, primitive, resource,
+  schedule, measurement, dispatch, or performance semantics.
+- [x] No new runtime/performance claim is made in this slice, so no new live
+  `ssh rvv` performance run is required beyond the already-recorded Gate 3
+  correctness evidence and this Gate 4 dry-run policy-input fixture.
+
+## Completed Slice: 2026-06-10 Gate 4
+
+- Closed Gate 4 by making target artifact validation consume the full
+  same-target measurement policy input for packed-i4 low-precision
+  product-reduction candidates. The target path now constructs
+  `RVVLowPrecisionSameTargetMeasurementPolicyInput` from the provider-owned
+  resource selection and accepted same-target outcome before calling
+  `verifyRVVLowPrecisionPerformancePolicy`.
+- The policy input carries the selected candidate, route-family plan,
+  provider-supported mirror, runtime ABI order, Gate 2 schedule decision,
+  primitive-chain contract/kind/relation facts, remediation handoff, target
+  capability mirrors, provider maturity fields, and measurement outcome. This
+  keeps Gate 4 policy consumption tied to production compiler facts rather than
+  artifact labels or report text.
+- Preserved the `stale-sibling-route-measurement` diagnosis for a sibling
+  packed-i4 candidate after the input overload began checking the full
+  same-target policy input. The failure remains targeted instead of degrading
+  into a generic stale-measurement report.
+- Added target C++ coverage that asserts the Gate 4 target policy input carries
+  provider primitive-chain, schedule-decision, and target capability facts
+  before policy evaluation.
+- Focused checks passed:
+  `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`,
+  `build/bin/tianchenrv-rvv-extension-plugin-test`,
+  `build/bin/tianchenrv-target-artifact-export-test`,
+  `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`,
+  and a packed-i4 dry-run same-target measurement fixture under
+  `artifacts/tmp/gate4-policy-input-dry-run/gate4-policy-input-dry-run/`.
+- Dry-run evidence input reports contract
+  `packed-i4-same-target-performance-maturity-evidence-input.v1`,
+  classification `not-measured`, outcome family `not-measured`, provider
+  schedule decision
+  `select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1`,
+  primitive-chain kind
+  `signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1`,
+  provider selection eligibility `false`, dispatch preference
+  `not-performance-preferred`, performance win claim `false`, performance
+  preference denied `true`, correctness execution allowed `true`, and route
+  support preserved.
+- No performance-preferred dispatch or performance-win claim is made in this
+  slice. The current policy consumes measurement and provider facts to deny
+  performance preference and preserve conservative correctness fallback.
+- Gates 1-4 are now complete, so the macro task can be archived.
 
 ## Completed Slice Checklist: Gate 2b Representative Resource Consumption
 
@@ -432,11 +532,8 @@ authority.
 
 ## Continuation Point
 
-Gate 3 is closed by generated artifact correctness and same-target `ssh rvv`
-evidence for the representative pre-realized
-`widening_product_reduce_dequant_clamp_f32` path. Keep this macro task active
-and continue with Gate 4: selected-dispatch/performance policy must consume
-measurement and schedule facts without promoting measurement-only wins,
-especially for low-precision resource candidates whose executable correctness
-is proven but whose performance preference still requires measured policy
-evidence.
+All macro campaign gates are complete. Gate 4 closed by production
+selected-dispatch/performance policy consumption of structured
+provider/resource/primitive/schedule/target/measurement inputs while preserving
+correctness fallback and denying measurement-only performance wins. The task is
+ready to archive.

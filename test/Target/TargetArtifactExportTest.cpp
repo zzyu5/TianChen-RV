@@ -13142,12 +13142,34 @@ bool expectRVVTargetArtifactExporterShape(
       acceptedPackedI4Gate4Outcome =
           tianchenrv::plugin::rvv::
               getAcceptedRVVPackedI4Gate4MeasurementOutcome();
+  auto acceptedPackedI4Gate4PolicyInput =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
+              packedI4ProductDequantDescription.lowPrecisionResourceSelection,
+              acceptedPackedI4Gate4Outcome);
+  if (acceptedPackedI4Gate4PolicyInput.providerPrimitiveChainKind !=
+          packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .primitiveChainKind ||
+      acceptedPackedI4Gate4PolicyInput.providerScheduleDecision !=
+          packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .scheduleDecision ||
+      acceptedPackedI4Gate4PolicyInput.targetCapabilityProviderMirror !=
+          packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .targetCapabilityProviderMirror ||
+      acceptedPackedI4Gate4PolicyInput.targetCapabilityLegalityMirror !=
+          packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .targetCapabilityLegalityMirror) {
+    llvm::errs() << "packed-i4 target artifact Gate 4 policy input did not "
+                    "carry provider primitive, schedule, and target facts\n";
+    return false;
+  }
   auto packedI4Policy =
       tianchenrv::plugin::rvv::
           evaluateRVVLowPrecisionPerformancePolicy(
               packedI4ProductDequantDescription.lowPrecisionResourceSelection,
-              acceptedPackedI4Gate4Outcome,
-              "packed-i4 target artifact Gate 4 dispatch/performance policy");
+              acceptedPackedI4Gate4PolicyInput,
+              "packed-i4 target artifact Gate 4 dispatch/performance policy "
+              "input");
   if (!packedI4Policy) {
     llvm::errs() << "packed-i4 target artifact policy did not accept the "
                     "Gate 4 regression/no-win outcome: "

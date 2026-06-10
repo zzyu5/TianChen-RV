@@ -1086,3 +1086,75 @@ same-target correctness evidence for the macro campaign.
 Gate 4 is still open: selected-dispatch/performance policy must consume
 measurement and schedule facts without promoting measurement-only wins or
 claiming performance preference from executable correctness alone.
+
+
+## Session 590: Stage2 RVV low-precision primitive-surface Gate 4
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Closed Gate 4 for the active macro task by tightening the production target
+artifact validation path to consume the structured same-target measurement
+policy input for packed-i4 low-precision product-reduction candidates. The
+policy still preserves executable route support and correctness execution while
+denying performance preference for the current no-win/regression maturity
+contract.
+
+### Main Changes
+
+- Updated `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp` so both
+  packed-i4 target artifact performance-policy validation points construct
+  `RVVLowPrecisionSameTargetMeasurementPolicyInput` from the provider-owned
+  resource selection and accepted same-target measurement outcome before
+  invoking `verifyRVVLowPrecisionPerformancePolicy`.
+- Updated `lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp` so the
+  policy-input overload preserves the targeted
+  `stale-sibling-route-measurement` diagnosis before running the full input
+  provider-fact gate.
+- Updated `test/Target/TargetArtifactExportTest.cpp` to assert the Gate 4
+  target policy input carries provider primitive-chain, Gate 2 schedule, and
+  target capability facts before target policy evaluation.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`.
+- Packed-i4 dry-run same-target measurement fixture:
+  `python3 scripts/rvv_generated_bundle_same_target_measure.py --dry-run
+  --artifact-root artifacts/tmp/gate4-policy-input-dry-run --run-id
+  gate4-policy-input-dry-run --overwrite --op-kind
+  widening_product_reduce_dequantize_f32 --input
+  test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir
+  --measure-count 257 --measure-count 4096 --measure-count 65536
+  --warmup-count 2 --repeat-count 5 --measure-iterations 8 --tcrv-opt
+  build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate --llvm-readobj
+  /usr/bin/llvm-readobj-20`.
+- Dry-run evidence input reported contract
+  `packed-i4-same-target-performance-maturity-evidence-input.v1`,
+  `measurement_classification=not-measured`,
+  `provider_schedule_decision=select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1`,
+  `provider_primitive_chain_kind=signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1`,
+  `provider_performance_selection_eligible=false`,
+  `provider_dispatch_preference=not-performance-preferred`,
+  `performance_win_claim_allowed=false`,
+  `performance_preference_denied=true`, and
+  `correctness_execution_allowed=true`.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] This slice implements the existing RVV plugin Gate 4
+dispatch/performance policy contract. It did not introduce a new durable rule;
+it changed the target validation consumer to use the already-specified
+same-target policy input interface.
+
+### Status
+
+[ARCHIVED MACRO TASK] Gates 1-4 are complete. The task PRD and task metadata
+were updated for completion, and the task is ready to move to the June 2026
+archive.

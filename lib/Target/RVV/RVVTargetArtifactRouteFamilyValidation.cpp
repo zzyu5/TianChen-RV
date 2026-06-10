@@ -4157,15 +4157,19 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
     if (llvm::Error error =
             validateRVVPackedI4LowPrecisionResourceProviderFacts(contract))
       return error;
-  if (usesPackedI4LowPrecisionProductReduction)
-    if (llvm::Error error =
-            plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
-                contract.lowPrecisionResourceSelection,
-                plugin::rvv::getAcceptedRVVPackedI4Gate4MeasurementOutcome(),
-                (llvm::Twine(contract.consumerLabel) +
-                 " dispatch/performance policy")
-                    .str()))
+  if (usesPackedI4LowPrecisionProductReduction) {
+    plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome acceptedOutcome =
+        plugin::rvv::getAcceptedRVVPackedI4Gate4MeasurementOutcome();
+    plugin::rvv::RVVLowPrecisionSameTargetMeasurementPolicyInput policyInput =
+        plugin::rvv::buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
+            contract.lowPrecisionResourceSelection, acceptedOutcome);
+    if (llvm::Error error = plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+            contract.lowPrecisionResourceSelection, policyInput,
+            (llvm::Twine(contract.consumerLabel) +
+             " dispatch/performance policy")
+                .str()))
       return error;
+  }
   if (description.memoryForm != contract.memoryForm)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
@@ -6420,23 +6424,30 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
     return error;
   if (isProductReductionDequantization &&
       plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
-          contract->lowPrecisionResourceSelection.selectedCandidateID))
-    if (llvm::Error error = [&]() -> llvm::Error {
-          std::string context =
-              (llvm::Twine(contract->consumerLabel) +
-               " target artifact dispatch/performance policy")
-                  .str();
-          if (contract->lowPrecisionSelectedDispatchPolicyBoundary.hasFacts())
-            return plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
-                contract->lowPrecisionResourceSelection,
-                plugin::rvv::getAcceptedRVVPackedI4Gate4MeasurementOutcome(),
-                contract->lowPrecisionSelectedDispatchPolicyBoundary, context);
-          return plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
-              contract->lowPrecisionResourceSelection,
-              plugin::rvv::getAcceptedRVVPackedI4Gate4MeasurementOutcome(),
-              context);
-        }())
+          contract->lowPrecisionResourceSelection.selectedCandidateID)) {
+    std::string context =
+        (llvm::Twine(contract->consumerLabel) +
+         " target artifact dispatch/performance policy")
+            .str();
+    plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome acceptedOutcome =
+        plugin::rvv::getAcceptedRVVPackedI4Gate4MeasurementOutcome();
+    plugin::rvv::RVVLowPrecisionSameTargetMeasurementPolicyInput policyInput =
+        plugin::rvv::buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
+            contract->lowPrecisionResourceSelection, acceptedOutcome);
+    if (contract->lowPrecisionSelectedDispatchPolicyBoundary.hasFacts()) {
+      if (llvm::Error error =
+              plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+                  contract->lowPrecisionResourceSelection, policyInput,
+                  contract->lowPrecisionSelectedDispatchPolicyBoundary,
+                  context))
+        return error;
+    } else if (llvm::Error error =
+                   plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+                       contract->lowPrecisionResourceSelection, policyInput,
+                       context)) {
       return error;
+    }
+  }
   if (isProductReductionChain) {
     if (llvm::Error error =
             validateRVVLowPrecisionWideningReductionPrimitiveCandidateMirrors(
