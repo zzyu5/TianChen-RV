@@ -11,12 +11,20 @@
 # RUN: FileCheck %s --check-prefix=PACKED-ROOT < %t.packed.artifacts/gate4-packed-i4-same-target-measure/evidence.json
 # RUN: FileCheck %s --check-prefix=PACKED-WPRD < %t.packed.artifacts/gate4-packed-i4-same-target-measure/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
 # RUN: FileCheck %s --check-prefix=PACKED-HARNESS --implicit-check-not="descriptor" --implicit-check-not="source-front-door" --implicit-check-not="direct-C" --implicit-check-not="q8" --implicit-check-not="q4" < %t.packed.artifacts/gate4-packed-i4-same-target-measure/widening_product_reduce_dequantize_f32/rvv_generated_bundle_same_target_measure_widening_product_reduce_dequantize_f32.c
+# RUN: rm -rf %t.packed.clamp.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root %t.packed.clamp.artifacts --run-id gate3-packed-i4-dequant-clamp-measure --overwrite --op-kind widening_product_reduce_dequant_clamp_f32 --input %S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir --measure-count 257 --measure-count 4096 --measure-count 65536 --warmup-count 2 --repeat-count 5 --measure-iterations 8 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=PACKED-CLAMP-STDOUT
+# RUN: FileCheck %s --check-prefix=PACKED-CLAMP-ROOT < %t.packed.clamp.artifacts/gate3-packed-i4-dequant-clamp-measure/evidence.json
+# RUN: FileCheck %s --check-prefix=PACKED-CLAMP-WPRDC < %t.packed.clamp.artifacts/gate3-packed-i4-dequant-clamp-measure/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
+# RUN: FileCheck %s --check-prefix=PACKED-CLAMP-HARNESS --implicit-check-not="descriptor" --implicit-check-not="source-front-door" --implicit-check-not="direct-C" --implicit-check-not="q8" --implicit-check-not="q4" < %t.packed.clamp.artifacts/gate3-packed-i4-dequant-clamp-measure/widening_product_reduce_dequant_clamp_f32/rvv_generated_bundle_same_target_measure_widening_product_reduce_dequant_clamp_f32.c
 
 # STDOUT: rvv_generated_bundle_same_target_measure: dry_run_success
 # STDOUT: artifact_dir:
 
 # PACKED-STDOUT: rvv_generated_bundle_same_target_measure: dry_run_success
 # PACKED-STDOUT: artifact_dir:
+
+# PACKED-CLAMP-STDOUT: rvv_generated_bundle_same_target_measure: dry_run_success
+# PACKED-CLAMP-STDOUT: artifact_dir:
 
 # ROOT-DAG: "same_target_measurement": true
 # ROOT-DAG: "status": "dry_run_success"
@@ -51,6 +59,16 @@
 # PACKED-ROOT-DAG: "contract": "packed-i4-same-target-performance-maturity-evidence-input.v1"
 # PACKED-ROOT-DAG: "provider_performance_selection_eligible": "false"
 # PACKED-ROOT-DAG: "performance_win_claim_allowed": false
+
+# PACKED-CLAMP-ROOT-DAG: "same_target_measurement": true
+# PACKED-CLAMP-ROOT-DAG: "status": "dry_run_success"
+# PACKED-CLAMP-ROOT-DAG: "ssh_evidence": false
+# PACKED-CLAMP-ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# PACKED-CLAMP-ROOT-DAG: "widening_product_reduce_dequant_clamp_f32": "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"
+# PACKED-CLAMP-ROOT-DAG: "performance_maturity_contract_inputs"
+# PACKED-CLAMP-ROOT-DAG: "same_target_measurement_records"
+# PACKED-CLAMP-ROOT-DAG: "provider_runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
+# PACKED-CLAMP-ROOT-DAG: "performance_win_claim_allowed": false
 
 # WPRD-DAG: "baseline_identity": "scalar-c-reference/product-reduction-dequant-v1"
 # WPRD-DAG: "status": "dry_run_success"
@@ -165,6 +183,29 @@
 # PACKED-WPRD-DAG: "object_sha256":
 # PACKED-WPRD-DAG: "header_sha256":
 
+# PACKED-CLAMP-WPRDC-DAG: "baseline_identity": "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"
+# PACKED-CLAMP-WPRDC-DAG: "status": "dry_run_success"
+# PACKED-CLAMP-WPRDC-DAG: "ssh_evidence": false
+# PACKED-CLAMP-WPRDC-DAG: "classification": "not-measured"
+# PACKED-CLAMP-WPRDC-DAG: "provider_feedback_tie_back"
+# PACKED-CLAMP-WPRDC-DAG: "selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
+# PACKED-CLAMP-WPRDC-DAG: "performance_baseline": "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"
+# PACKED-CLAMP-WPRDC-DAG: "remediation_measurement_evidence": "gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
+# PACKED-CLAMP-WPRDC-DAG: "provider_resource_planning_contract": "rvv-low-precision-production-resource-planning-contract.v1"
+# PACKED-CLAMP-WPRDC-DAG: "provider_resource_operand_form": "packed-i4-nibbles"
+# PACKED-CLAMP-WPRDC-DAG: "provider_resource_storage_element_width": 8
+# PACKED-CLAMP-WPRDC-DAG: "provider_resource_effective_element_width": 4
+# PACKED-CLAMP-WPRDC-DAG: "provider_runtime_avl_source": "runtime_abi:n"
+# PACKED-CLAMP-WPRDC-DAG: "provider_runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
+# PACKED-CLAMP-WPRDC-DAG: "provider_schedule_decision": "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"
+# PACKED-CLAMP-WPRDC-DAG: "measurement_evidence_id": "gate3-packed-i4-dequant-clamp-measure/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
+# PACKED-CLAMP-WPRDC-DAG: "performance_preference_denial_reason": "same-target-measurement-not-run"
+# PACKED-CLAMP-WPRDC-DAG: "performance_win_claim_allowed": false
+# PACKED-CLAMP-WPRDC-DAG: "packed_i4_resource_metadata_selected": true
+# PACKED-CLAMP-WPRDC-DAG: "packed_i4_reference_oracle": true
+# PACKED-CLAMP-WPRDC-DAG: "pre_realized_body_consumed": true
+# PACKED-CLAMP-WPRDC-DAG: "selected_variant": "pre_realized_body_rvv_product_reduce_dequant_clamp"
+
 # WPRDC-DAG: "baseline_identity": "scalar-c-reference/product-reduction-dequant-clamp-v1"
 # WPRDC-DAG: "status": "dry_run_success"
 # WPRDC-DAG: "ssh_evidence": false
@@ -208,6 +249,25 @@
 # PACKED-HARNESS-DAG: #define MEASURE_WARMUPS 2
 # PACKED-HARNESS-DAG: #define MEASURE_REPEATS 5
 # PACKED-HARNESS-DAG: #define MEASURE_ITERATIONS 8
+
+# PACKED-CLAMP-HARNESS-DAG: baseline_product_reduction_dequant_clamp_packed_i4_v1
+# PACKED-CLAMP-HARNESS-DAG: sign_extend_i4
+# PACKED-CLAMP-HARNESS-DAG: pack_signed_i4_pair
+# PACKED-CLAMP-HARNESS-DAG: low_product + high_product
+# PACKED-CLAMP-HARNESS-DAG: struct BoundPair
+# PACKED-CLAMP-HARNESS-DAG: tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp
+# PACKED-CLAMP-HARNESS-DAG: CORRECTNESS_GUARD_BEFORE_TIMING op=widening_product_reduce_dequant_clamp_f32
+# PACKED-CLAMP-HARNESS-DAG: MEASURE_CONFIG op=widening_product_reduce_dequant_clamp_f32
+# PACKED-CLAMP-HARNESS-DAG: baseline=scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1
+# PACKED-CLAMP-HARNESS-DAG: bound_pairs=
+# PACKED-CLAMP-HARNESS-DAG: packed_i4_reference_oracle=true runtime_n_unit=packed_bytes
+# PACKED-CLAMP-HARNESS-DAG: MEASURE op=widening_product_reduce_dequant_clamp_f32
+# PACKED-CLAMP-HARNESS-DAG: SUMMARY op=widening_product_reduce_dequant_clamp_f32
+# PACKED-CLAMP-HARNESS-DAG: PASS op=widening_product_reduce_dequant_clamp_f32 measurement
+# PACKED-CLAMP-HARNESS-DAG: const size_t counts[] = {257, 4096, 65536};
+# PACKED-CLAMP-HARNESS-DAG: #define MEASURE_WARMUPS 2
+# PACKED-CLAMP-HARNESS-DAG: #define MEASURE_REPEATS 5
+# PACKED-CLAMP-HARNESS-DAG: #define MEASURE_ITERATIONS 8
 
 # HARNESS-DC-DAG: baseline_product_reduction_dequant_clamp_v1
 # HARNESS-DC-DAG: struct BoundPair

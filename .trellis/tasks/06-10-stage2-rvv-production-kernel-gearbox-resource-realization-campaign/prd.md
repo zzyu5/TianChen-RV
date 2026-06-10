@@ -13,12 +13,15 @@ later dispatch policy flow through one RVV-owned fail-closed boundary.
 Gate 1 and Gate 2 are complete. Gate 2 connected the representative
 product-reduction dequant path and the additional
 `widening_product_reduce_dequant_clamp_f32` production representative through
-structural handoff and marker planning-contract consumers. The current round is
-Gate 3: generated artifact and same-target measurement evidence for the first
-resource-aware production-kernel representative, with the measurement record
-explicitly tied back to RVV-owned planning-contract, resource-selection,
-runtime AVL/VL, ABI, correctness, and target-provenance facts before any Gate 4
-performance-policy consumption.
+structural handoff and marker planning-contract consumers. Gate 3 already has
+source-backed generated artifact and same-target measurement-record evidence
+for the first packed-i4 `widening_product_reduce_dequantize_f32`
+representative. The current round continues Gate 3 for the packed-i4
+`widening_product_reduce_dequant_clamp_f32` representative, with the generated
+artifact and same-target measurement record explicitly tied back to RVV-owned
+planning-contract, resource-selection, clamp/select, runtime AVL/VL, ABI,
+correctness, and target-provenance facts before any Gate 4 performance-policy
+consumption.
 
 ## What I Already Know
 
@@ -192,6 +195,30 @@ performance-policy consumption.
   existing policy-input boundary, but it must not claim performance preference
   or rewrite provider maturity facts from measurement output alone.
 
+## Current Slice: Gate 3 Dequant-Clamp Same-Target Artifact Measurement Record
+
+- [x] Keep the same macro task active and target the packed-i4
+  `widening_product_reduce_dequant_clamp_f32` representative.
+- [x] Make the generated artifact / same-target measurement evidence record
+  explicitly carry and validate the Gate 1/2 planning contract, packed
+  resource operand form, source signedness, storage/effective element widths,
+  packing layout, unpack intent, vsetvl region count, runtime AVL source,
+  runtime ABI order including `lower_bound` and `upper_bound`, clamp/select
+  coverage, correctness flags, and target capability/profile provenance.
+- [x] Ensure those record fields are sourced from provider-owned resource facts
+  and validated generated object/header mirrors, not route ids, artifact names,
+  fixture names, q4/q8 labels, Common EmitC, or raw stdout alone.
+- [x] Add focused fail-closed coverage for stale or missing planning/resource/
+  runtime/target/measurement facts and for stale dequant-clamp sibling-route
+  facts before selected-dispatch/performance policy can consume the record.
+- [x] Produce real `ssh rvv` same-target measurement evidence for multiple
+  runtime `n` counts. Correctness execution may be reported when guards pass;
+  performance-win claims must remain gated by the measured classification and
+  provider eligibility.
+- [x] Preserve Gate 4 as future policy consumption. This slice may feed the
+  existing policy-input boundary, but it must not claim performance preference
+  or rewrite provider maturity facts from measurement output alone.
+
 ## Completed Gate 3 Sub-Slice
 
 - Extended `RVVLowPrecisionSameTargetMeasurementRecord` and the corresponding
@@ -212,6 +239,29 @@ performance-policy consumption.
   correctness guards passed for 12 cases over counts 257, 4096, and 65536;
   parsed timing produced 12 summaries; classification was `regression`;
   performance selection stayed false and performance-win claims stayed denied.
+
+## Completed Gate 3 Dequant-Clamp Sub-Slice
+
+- Added candidate-sensitive packed-i4 performance baseline and remediation
+  evidence identities for `widening_product_reduce_dequant_clamp_f32`, so
+  provider/resource policy validation rejects stale dequant sibling facts
+  instead of accepting metadata that belongs to another representative.
+- Extended generated-bundle ABI and same-target measurement tooling so the
+  packed-i4 dequant-clamp representative carries provider-owned planning
+  contract, operand form, source signedness, storage/effective element widths,
+  packing layout, unpack intent, vsetvl region count, runtime AVL source,
+  clamp ABI order, target profile, same-target measurement, correctness, and
+  performance-claim facts through artifact/header/harness/evidence records.
+- Added focused target and script coverage for the source-backed generated
+  artifact, dry-run measurement record, clamp-specific ABI harness, and stale
+  or missing provider/resource/provenance facts.
+- Collected real `ssh rvv` same-target evidence for
+  `artifacts/gate3-packed-i4-dequant-clamp-ssh`:
+  correctness guards passed for 24 records over counts 257, 4096, and 65536;
+  parsed timing produced 24 measurement records and 24 summaries;
+  classification was `regression`; best speedup range was
+  `0.693878..0.964286`; correctness execution stayed allowed and
+  performance-win claims stayed denied.
 
 ## Acceptance Criteria For Gate 1
 
@@ -293,12 +343,13 @@ performance-policy consumption.
   product-reduction dequant handoff and marker consumers are complete, and the
   additional dequant-clamp representative is covered by focused structural
   evidence using the same generalized production path.
-- Gate 3 remains: generated artifact and same-target measurement evidence for
-  any remaining resource-aware representative that human steering requires
-  before policy consumption. The first packed-i4
-  `widening_product_reduce_dequantize_f32` representative now has source-backed
-  artifact/measurement-record binding and one real `ssh rvv` regression
-  measurement.
+- Gate 3 current requested representative scope is complete: both the first
+  packed-i4 `widening_product_reduce_dequantize_f32` representative and the
+  selected packed-i4 `widening_product_reduce_dequant_clamp_f32` representative
+  now have source-backed artifact/measurement-record binding and real
+  `ssh rvv` regression/no-win evidence tied back to provider resource facts.
+  Gate 3 should only reopen for an additional representative if human steering
+  expands the campaign surface.
 - Gate 4 remains: selected-dispatch/performance policy consumes resource and
   measurement facts with correctness fallback and fail-closed provenance.
 
@@ -312,8 +363,8 @@ performance-policy consumption.
   databases, or report-only closeout.
 - Common EmitC invention of RVV dtype, primitive, resource, schedule,
   measurement, dispatch, or performance semantics.
-- New generated-bundle or `ssh rvv` evidence unless Gate 1 code claims new
-  executable correctness, runtime, or performance behavior.
+- New generated-bundle or `ssh rvv` evidence outside the active Gate 3
+  representative evidence requested by human steering.
 - Selected-dispatch/performance policy changes that do not directly consume
   the new resource plan.
 
@@ -358,11 +409,19 @@ performance-policy consumption.
   updated only
   `test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32.mlir`
   for focused structural evidence.
+- Gate 3 dequant-clamp same-target measurement sub-slice touched
+  `include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h`,
+  `lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp`,
+  RVV provider/target validation users of packed-i4 evidence identities,
+  `scripts/rvv_generated_bundle_abi_e2e.py`,
+  `scripts/rvv_generated_bundle_same_target_measure.py`,
+  focused C++ tests, focused script/target lit tests, and
+  `artifacts/gate3-packed-i4-dequant-clamp-ssh`.
 
 ## Continuation Point
 
-After this Gate 2 additional representative sub-slice, continue the same macro
-task at Gate 3: generated artifact and same-target measurement evidence for the
-realized resource-aware path when executable correctness or performance is
-claimed. Do not archive the macro task yet because Gate 3 and Gate 4 remain
-open.
+After this Gate 3 dequant-clamp sub-slice, continue the same macro task at Gate
+4: selected-dispatch/performance policy consumption of the provider-owned
+resource and same-target measurement facts with correctness fallback and
+fail-closed provenance. Do not archive the macro task yet because Gate 4
+remains open.

@@ -4756,7 +4756,9 @@ void populateRVVLowPrecisionContractionResourceRealizationSchedule(
     selection.performanceFeedback =
         kRVVLowPrecisionResourcePackedI4PerformanceFeedback.str();
     selection.performanceBaseline =
-        kRVVLowPrecisionResourcePackedI4PerformanceBaseline.str();
+        getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
+            selection.selectedCandidateID)
+            .str();
     selection.performanceBestSpeedupRange =
         kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange.str();
     selection.performanceAction =
@@ -6931,7 +6933,8 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
     if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
             context, selection, "performance baseline",
             selection.performanceBaseline,
-            kRVVLowPrecisionResourcePackedI4PerformanceBaseline))
+            getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
+                selection.selectedCandidateID)))
       return error;
     if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
             context, selection, "performance best-speedup range",

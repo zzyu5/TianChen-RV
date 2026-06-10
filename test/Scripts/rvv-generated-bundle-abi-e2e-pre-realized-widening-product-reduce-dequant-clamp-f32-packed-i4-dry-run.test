@@ -1,0 +1,53 @@
+# REQUIRES: tianchenrv-local-rvv-object-clang
+# RUN: rm -rf %t.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_abi_e2e.py --dry-run --pre-realized-selected-body --artifact-root %t.artifacts --run-id pre-realized-widening-product-reduce-dequant-clamp-f32-packed-i4 --overwrite --op-kind widening_product_reduce_dequant_clamp_f32 --input %S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir --runtime-count 0 --runtime-count 1 --runtime-count 16 --runtime-count 17 --runtime-count 257 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=STDOUT
+# RUN: FileCheck %s --check-prefix=ROOT < %t.artifacts/pre-realized-widening-product-reduce-dequant-clamp-f32-packed-i4/evidence.json
+# RUN: FileCheck %s --check-prefix=WPRDC --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" --implicit-check-not="tcrv_rvv.i32_" < %t.artifacts/pre-realized-widening-product-reduce-dequant-clamp-f32-packed-i4/widening_product_reduce_dequant_clamp_f32/evidence.json
+# RUN: FileCheck %s --check-prefix=HEADER --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="source-front-door" < %t.artifacts/pre-realized-widening-product-reduce-dequant-clamp-f32-packed-i4/widening_product_reduce_dequant_clamp_f32/generated_bundle/artifact-1-runtime-callable-c-header-rvv-generic-typed-body-emitc-route-family.header.h
+# RUN: FileCheck %s --check-prefix=HARNESS --implicit-check-not="descriptor" --implicit-check-not="direct-C" --implicit-check-not="source-export" --implicit-check-not="q8" --implicit-check-not="q4" < %t.artifacts/pre-realized-widening-product-reduce-dequant-clamp-f32-packed-i4/widening_product_reduce_dequant_clamp_f32/rvv_generated_bundle_abi_widening_product_reduce_dequant_clamp_f32_harness.c
+
+# STDOUT: rvv_generated_bundle_abi_e2e: dry_run_success
+# STDOUT: artifact_dir:
+
+# ROOT-DAG: "input_mode": "pre-realized-selected-body"
+# ROOT-DAG: "pre_realized_selected_body": true
+# ROOT-DAG: "ssh_evidence": false
+# ROOT-DAG: "status": "dry_run_success"
+# ROOT-DAG: "widening_product_reduce_dequant_clamp_f32"
+
+# WPRDC-DAG: "path": "{{.*}}pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir"
+# WPRDC-DAG: "front_door": "pre-realized-selected-tcrv-exec-rvv-body"
+# WPRDC-DAG: "generated_artifact_resource_schedule_evidence"
+# WPRDC-DAG: "artifact_metadata_role": "mirror-only-after-provider-route"
+# WPRDC-DAG: "runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
+# WPRDC-DAG: "selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
+# WPRDC-DAG: "selection_reason": "static-bounded-product-reduction-dequant-clamp-signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1-u1-unpack-required-runtime-avl"
+# WPRDC-DAG: "operand_form": "packed-i4-nibbles"
+# WPRDC-DAG: "storage_element_width": "8"
+# WPRDC-DAG: "effective_element_width": "4"
+# WPRDC-DAG: "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles"
+# WPRDC-DAG: "unpack_intent": "sign-extend-i4-nibbles-before-widening-product"
+# WPRDC-DAG: "primitive_kind": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant-clamp.v1"
+# WPRDC-DAG: "primitive_chain_kind": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1"
+# WPRDC-DAG: "realization_decision": "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"
+# WPRDC-DAG: "performance_baseline": "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"
+# WPRDC-DAG: "remediation_measurement_evidence": "gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
+# WPRDC-DAG: "packed_i4_reference_oracle"
+# WPRDC-DAG: "runtime_n_unit": "packed input bytes"
+# WPRDC-DAG: "object_header_agreement_checked": true
+# WPRDC-DAG: "status": "dry_run_success"
+
+# HEADER-DAG: tianchenrv.rvv.runtime_abi_order: lhs,rhs,acc,scale,lower_bound,upper_bound,out,n
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.operand_form: packed-i4-nibbles
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_baseline: scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_measurement_evidence: gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
+# HEADER: void tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);
+
+# HARNESS-DAG: pack_signed_i4_pair
+# HARNESS-DAG: sign_extend_i4
+# HARNESS-DAG: clamp_f32
+# HARNESS-DAG: packed_i4_reference_oracle
+# HARNESS-DAG: bound_pairs
+# HARNESS-DAG: source_preserved accumulator_preserved tail_preserved
+# HARNESS-DAG: PASS op=widening_product_reduce_dequant_clamp_f32

@@ -1759,3 +1759,101 @@ selected-dispatch/performance policy remains future work. The exact next
 continuation point is either another Gate 3 representative such as
 dequant-clamp measurement record evidence, or Gate 4 policy consumption if this
 first representative is accepted as sufficient.
+
+## 2026-06-10 - Stage2 RVV Gearbox Gate 3 dequant-clamp same-target evidence
+
+### Summary
+
+Continued the active production-kernel Gearbox/resource-aware selected-body
+realization macro task at Gate 3 for the human-selected packed-i4
+`widening_product_reduce_dequant_clamp_f32` representative. This sub-slice
+makes the generated artifact and same-target measurement record source-backed
+by RVV-owned resource-planning facts, including clamp runtime ABI order and
+clamp-specific packed-i4 baseline/evidence identities, before any Gate 4
+selected-dispatch/performance policy consumption.
+
+The measured `ssh rvv` result is a regression/no-win, so correctness execution
+is allowed by the record guards but performance-win claims remain denied.
+
+### Main Changes
+
+- Added candidate-sensitive packed-i4 dequant versus dequant-clamp performance
+  baseline and remediation evidence identifiers.
+- Threaded those identifiers through provider route-family plan owners,
+  statement plan owners, selected-body realization, Gearbox schedule facts, and
+  target artifact validation.
+- Hardened C++ low-precision performance policy validation so stale packed-i4
+  sibling measurement records fail closed before policy handoff.
+- Extended `rvv_generated_bundle_abi_e2e.py` with a packed-i4 dequant-clamp
+  harness, provider metadata validation, clamp ABI order, and self-test
+  coverage.
+- Extended `rvv_generated_bundle_same_target_measure.py` with a packed-i4
+  dequant-clamp timing harness, source-backed record fields, and self-test
+  coverage.
+- Added focused script and target fixtures for generated artifact, header,
+  harness, measurement record, and stale/missing provenance diagnostics.
+
+### Evidence
+
+- `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py
+  scripts/rvv_generated_bundle_same_target_measure.py`.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`.
+- `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv --filter
+  rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequant-clamp-f32-packed-i4-dry-run
+  /home/kingdom/phdworks/TianchenRV/build/test`.
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv --filter
+  rvv-generated-bundle-same-target-measure-gate4-dry-run
+  /home/kingdom/phdworks/TianchenRV/build/test`.
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv --filter
+  pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4
+  /home/kingdom/phdworks/TianchenRV/build/test`.
+- Real `ssh rvv` same-target run:
+  `python3 scripts/rvv_generated_bundle_same_target_measure.py
+  --artifact-root artifacts --run-id gate3-packed-i4-dequant-clamp-ssh
+  --overwrite --op-kind widening_product_reduce_dequant_clamp_f32 --input
+  test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir
+  --measure-count 257 --measure-count 4096 --measure-count 65536
+  --warmup-count 1 --repeat-count 1 --measure-iterations 1 --ssh-target rvv
+  --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate
+  --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj`.
+- The real run produced 24 correctness records, 24 measurement records, 24
+  summaries, `classification = regression`, best speedup range
+  `0.693878..0.964286`, `correctness_execution_allowed = true`, and
+  `performance_win_claim_allowed = false`.
+
+### Self-Repair
+
+- Fixed the generated ABI harness branch ordering so packed-i4 dequant-clamp
+  uses the packed clamp oracle instead of the generic dequant-clamp harness.
+- Repaired the target FileCheck fixture after lit showed the realized marker
+  checks needed DAG matching and the actual fail-closed diagnostics reported
+  stale `performance_baseline provenance` and
+  `remediation_measurement_evidence provenance`.
+- Shifted stale sibling validation to the measurement-record/input policy path
+  because the outcome-only structure does not carry provider resource candidate
+  facts.
+- Removed extra blank lines at EOF from generated artifact evidence files after
+  `git diff --cached --check` reported them in
+  `materialized_rvv_emitc.cpp` and `materialized_selected_body.mlir`.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] The current RVV plugin and EmitC-route specs already require
+provider-owned resource facts, target/header provenance, same-target evidence,
+and conservative performance-claim gating before Gate 4 policy consumption.
+This slice adds the missing dequant-clamp representative evidence for that
+existing contract.
+
+### Status
+
+[OPEN MACRO TASK] Gate 1 and Gate 2 are complete. Gate 3 current requested
+representative scope is complete for both packed-i4 dequantize and
+dequant-clamp same-target records, with real `ssh rvv` regression/no-win
+evidence. Gate 4 selected-dispatch/performance policy consumption remains open.
+The next continuation point is Gate 4 unless human steering adds another Gate 3
+representative.

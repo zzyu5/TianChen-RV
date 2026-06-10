@@ -2,7 +2,7 @@
   "id": "stage2-rvv-production-kernel-gearbox-resource-realization-campaign",
   "name": "stage2-rvv-production-kernel-gearbox-resource-realization-campaign",
   "title": "Stage2 RVV production-kernel Gearbox resource-aware selected-body realization campaign",
-  "description": "Macro campaign for RVV plugin-local Gearbox/resource-aware selected-body realization; Gate 1 is complete and Gate 2 is advancing structural resource-plan consumers across handoff and marker realization surfaces.",
+  "description": "Macro campaign for RVV plugin-local Gearbox/resource-aware selected-body realization; Gates 1 and 2 are complete, Gate 3 current representative evidence is complete for packed-i4 dequantize and dequant-clamp, and Gate 4 selected-dispatch/performance policy consumption remains open.",
   "status": "in_progress",
   "dev_type": null,
   "scope": null,

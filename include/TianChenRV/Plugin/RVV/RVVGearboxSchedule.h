@@ -469,6 +469,9 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceBaseline(
         "scalar-c-reference/product-reduction-dequant-packed-i4-v1");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4DequantClampPerformanceBaseline(
+        "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange(
         "0.689815..0.705331");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4PerformanceAction(
@@ -483,6 +486,11 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID(
         "gate3-packed-i4-schedule-decision-ssh/"
         "widening_product_reduce_dequantize_f32/"
+        "same_target_measurement_evidence.json");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4DequantClampRemediationMeasurementEvidenceID(
+        "gate3-packed-i4-dequant-clamp-ssh/"
+        "widening_product_reduce_dequant_clamp_f32/"
         "same_target_measurement_evidence.json");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationDecision(
@@ -817,6 +825,26 @@ inline bool
 isRVVLowPrecisionResourcePackedI4CandidateID(llvm::StringRef candidateID) {
   return candidateID == kRVVLowPrecisionResourceDequantPackedI4Candidate ||
          candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate;
+}
+
+inline llvm::StringRef
+getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
+    llvm::StringRef candidateID) {
+  if (candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate)
+    return kRVVLowPrecisionResourcePackedI4DequantClampPerformanceBaseline;
+  if (candidateID == kRVVLowPrecisionResourceDequantPackedI4Candidate)
+    return kRVVLowPrecisionResourcePackedI4PerformanceBaseline;
+  return {};
+}
+
+inline llvm::StringRef
+getRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceIDForCandidate(
+    llvm::StringRef candidateID) {
+  if (candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate)
+    return kRVVLowPrecisionResourcePackedI4DequantClampRemediationMeasurementEvidenceID;
+  if (candidateID == kRVVLowPrecisionResourceDequantPackedI4Candidate)
+    return kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID;
+  return {};
 }
 
 inline bool isRVVLowPrecisionResourceAcceptedPackedI4ScheduleDecision(

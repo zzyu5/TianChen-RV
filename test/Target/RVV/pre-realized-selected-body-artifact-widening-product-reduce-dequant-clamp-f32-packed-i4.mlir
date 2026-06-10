@@ -1,0 +1,77 @@
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | FileCheck %s --check-prefix=REALIZED
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_baseline", value = "scalar-c-reference\/product-reduction-dequant-clamp-packed-i4-v1"/s//tcrv_rvv.low_precision_resource.performance_baseline", value = "scalar-c-reference\/product-reduction-dequant-packed-i4-v1"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-BASELINE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.remediation_measurement_evidence", value = "gate3-packed-i4-dequant-clamp-ssh\/widening_product_reduce_dequant_clamp_f32\/same_target_measurement_evidence.json"/s//tcrv_rvv.low_precision_resource.remediation_measurement_evidence", value = "gate3-packed-i4-schedule-decision-ssh\/widening_product_reduce_dequantize_f32\/same_target_measurement_evidence.json"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-MEASUREMENT
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-rvv-emitc-to-cpp | FileCheck %s --check-prefix=CPP
+
+// Focused Gate 3 packed-i4 clamp representative. The selected candidate is
+// authority only because it is present on the typed RVV body and consumed by
+// the RVV provider/resource planner; artifact names and measurement metadata
+// are mirrors that must match the provider facts.
+
+module {
+  tcrv.exec.kernel @pre_realized_body_product_reduce_dequant_clamp_kernel {
+    tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
+    tcrv.exec.capability @scalar_fallback {id = "scalar.fallback", kind = "fallback", status = "available"}
+    tcrv.exec.variant @pre_realized_body_rvv_product_reduce_dequant_clamp attributes {origin = "rvv-plugin", requires = [@rvv], tcrv_rvv.policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>} {
+      %lhs = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4:lhs", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %rhs = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int8_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4:rhs", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %acc = tcrv_rvv.runtime_abi_value {c_name = "acc", c_type = "const int32_t *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4:acc", role = "accumulator-input-buffer"} : !tcrv_rvv.runtime_abi_value
+      %scale = tcrv_rvv.runtime_abi_value {c_name = "scale", c_type = "float", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4:scale", role = "dequant-scale-value"} : !tcrv_rvv.runtime_abi_value
+      %lower = tcrv_rvv.runtime_abi_value {c_name = "lower_bound", c_type = "float", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4:lower", role = "lower-bound-scalar-value"} : f32
+      %upper = tcrv_rvv.runtime_abi_value {c_name = "upper_bound", c_type = "float", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4:upper", role = "upper-bound-scalar-value"} : f32
+      %out = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "float *", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4:out", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
+      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", purpose = "pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4:n", role = "runtime-element-count"} : index
+      tcrv_rvv.typed_widening_product_reduce_dequant_clamp_f32_pre_realized_body %lhs, %rhs, %acc, %scale, %lower, %upper, %out, %n {accumulator_carry_boundary = "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1", accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", accumulator_lmul = "m1", accumulator_role = "accumulator-input-buffer", accumulator_sew = 32 : i64, bound_order = "lower-bound-before-upper-bound", dequant_relation = "signed-i32m1-to-f32m1-scale-f32", dequant_store_boundary = "store-clamped-dequantized-f32-vector-to-output-buffer", lower_predicate_kind = "slt", memory_form = "unit-stride-widening-product-reduce-dequant-clamp-f32", op_kind = "widening_product_reduce_dequant_clamp_f32", tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, product_lmul = "mf2", product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", product_relation = "signed-i8mf4xi8mf4-to-i16mf2", product_sew = 16 : i64, result_layout = "store-standalone-reduction-lane0-to-output-scalar", result_lmul = "m1", result_sew = 32 : i64, scale_role = "dequant-scale-value", select_layout = "clamp-lower-then-upper", source_lmul = "mf4", source_sew = 8 : i64, upper_predicate_kind = "slt"} : (!tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, !tcrv_rvv.runtime_abi_value, f32, f32, !tcrv_rvv.runtime_abi_value, index) -> ()
+    }
+    tcrv.exec.variant @pre_realized_body_scalar_fallback attributes {fallback_role = "conservative", origin = "scalar-plugin", policy = "portable_scalar_fallback_first_slice", requires = [@scalar_fallback]} {
+    }
+    tcrv.exec.dispatch {
+      tcrv.exec.case @pre_realized_body_rvv_product_reduce_dequant_clamp {origin = "rvv-plugin", policy = "pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-case"}
+      tcrv.exec.fallback @pre_realized_body_scalar_fallback {fallback_role = "conservative", origin = "scalar-plugin", policy = "pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-fallback-envelope"}
+    }
+  }
+}
+
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.operand_form = "packed-i4-nibbles"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_baseline = "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.remediation_measurement_evidence = "gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
+// REALIZED: tcrv_rvv.gearbox_cross_region_handoff
+// REALIZED-DAG: resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
+// REALIZED-DAG: operand_form = "packed-i4-nibbles"
+// REALIZED-DAG: remediation_product_plan = "two-signed-i4-widening-products-plus-i16-pair-sum.v1"
+// REALIZED: tcrv_rvv.dequantize
+// REALIZED: tcrv_rvv.compare
+// REALIZED: tcrv_rvv.select
+
+// PLAN: {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.operand_form", value = "packed-i4-nibbles"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.performance_baseline", value = "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.remediation_measurement_evidence", value = "gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"}
+// PLAN-SAME: status = "supported"
+
+// HEADER: tianchenrv.rvv.runtime_abi_order: lhs,rhs,acc,scale,lower_bound,upper_bound,out,n
+// HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]
+// HEADER: tianchenrv.rvv.low_precision_resource.operand_form: packed-i4-nibbles
+// HEADER: tianchenrv.rvv.low_precision_resource.performance_baseline: scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1
+// HEADER: tianchenrv.rvv.low_precision_resource.remediation_measurement_evidence: gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
+// HEADER: void tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);
+
+// CPP: __riscv_vsll_vx_i8mf4
+// CPP: __riscv_vsra_vx_i8mf4
+// CPP: __riscv_vadd_vv_i16mf2
+// CPP: __riscv_vwredsum_vs_i16mf2_i32m1
+// CPP: __riscv_vfmv_v_f_f32m1
+// CPP: __riscv_vmflt_vv_f32m1_b32
+// CPP: __riscv_vmerge_vvm_f32m1
+
+// STALE-ARTIFACT-BASELINE: performance_baseline provenance
+// STALE-ARTIFACT-BASELINE-SAME: scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1
+// STALE-ARTIFACT-BASELINE-SAME: scalar-c-reference/product-reduction-dequant-packed-i4-v1
+
+// STALE-ARTIFACT-MEASUREMENT: remediation_measurement_evidence provenance
+// STALE-ARTIFACT-MEASUREMENT-SAME: gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
+// STALE-ARTIFACT-MEASUREMENT-SAME: gate3-packed-i4-schedule-decision-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json

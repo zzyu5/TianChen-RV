@@ -11084,7 +11084,7 @@ module {
           tianchenrv::plugin::rvv::
               verifyRVVLowPrecisionPerformancePolicy(
                   stalePackedI4SiblingSelection,
-                  acceptedPackedI4Gate4Outcome,
+                  acceptedPackedI4Gate4MeasurementRecord,
                   "selected-boundary packed-i4 Gate 1 policy handoff rejects "
                   "stale sibling-route measurement"),
           {"policy handoff diagnosis", "stale-sibling-route-measurement",

@@ -14496,12 +14496,11 @@ bool expectRVVTargetArtifactExporterShape(
           packedI4ProductDequantRoute, stalePackedI4MeasurementCandidate,
           "packed-i4 product-reduction registry rejects unmeasured "
           "performance-policy candidate",
-          {"policy handoff diagnosis", "stale-sibling-route-measurement",
-           "accepted Gate 4 packed-i4 selected candidate",
+          {"packed-i4 performance baseline",
            tianchenrv::plugin::rvv::
-               kRVVLowPrecisionResourceDequantPackedI4Candidate,
+               kRVVLowPrecisionResourcePackedI4PerformanceBaseline,
            tianchenrv::plugin::rvv::
-               kRVVLowPrecisionResourceDequantClampPackedI4Candidate}))
+               kRVVLowPrecisionResourcePackedI4DequantClampPerformanceBaseline}))
     return false;
 
   tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute

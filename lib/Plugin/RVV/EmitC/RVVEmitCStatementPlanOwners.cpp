@@ -1346,7 +1346,8 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
       return error;
     if (llvm::Error error = requireExpectedString(
             "performance baseline", familySelection.performanceBaseline,
-            kRVVLowPrecisionResourcePackedI4PerformanceBaseline))
+            getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
+                familySelection.selectedCandidateID)))
       return error;
     if (llvm::Error error = requireExpectedString(
             "performance best-speedup range",
@@ -1369,7 +1370,8 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
     if (llvm::Error error = requireExpectedString(
             "remediation measurement evidence",
             familySelection.remediationMeasurementEvidenceID,
-            kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID))
+            getRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceIDForCandidate(
+                familySelection.selectedCandidateID)))
       return error;
     if (llvm::Error error = requireExpectedString(
             "remediation decision", familySelection.remediationDecision,

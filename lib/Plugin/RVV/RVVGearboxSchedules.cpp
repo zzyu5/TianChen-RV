@@ -603,7 +603,8 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
       return mlir::failure();
     if (mlir::failed(requireStringAttr(
             op, builder, kRVVLowPrecisionResourcePerformanceBaselineAttrName,
-            kRVVLowPrecisionResourcePackedI4PerformanceBaseline)))
+            getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
+                selected->candidateID))))
       return mlir::failure();
     if (mlir::failed(requireStringAttr(
             op, builder,
@@ -626,7 +627,8 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
     if (mlir::failed(requireStringAttr(
             op, builder,
             kRVVLowPrecisionResourceRemediationMeasurementEvidenceAttrName,
-            kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID)))
+            getRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceIDForCandidate(
+                selected->candidateID))))
       return mlir::failure();
     if (mlir::failed(requireStringAttr(
             op, builder, kRVVLowPrecisionResourceRemediationDecisionAttrName,

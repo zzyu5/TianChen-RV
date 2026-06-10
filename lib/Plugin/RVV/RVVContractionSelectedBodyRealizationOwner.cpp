@@ -361,7 +361,8 @@ materializeLowPrecisionResourceRealizationAttrs(
       return std::move(error);
     if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
             source, kRVVLowPrecisionResourcePerformanceBaselineAttrName,
-            kRVVLowPrecisionResourcePackedI4PerformanceBaseline))
+            getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
+                selected->candidateID)))
       return std::move(error);
     if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
             source,
@@ -632,7 +633,9 @@ materializeLowPrecisionResourceRealizationAttrs(
         builder.getStringAttr(kRVVLowPrecisionResourcePackedI4PerformanceFeedback));
     destination->setAttr(
         kRVVLowPrecisionResourcePerformanceBaselineAttrName,
-        builder.getStringAttr(kRVVLowPrecisionResourcePackedI4PerformanceBaseline));
+        builder.getStringAttr(
+            getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
+                selected->candidateID)));
     destination->setAttr(
         kRVVLowPrecisionResourcePerformanceBestSpeedupRangeAttrName,
         builder.getStringAttr(

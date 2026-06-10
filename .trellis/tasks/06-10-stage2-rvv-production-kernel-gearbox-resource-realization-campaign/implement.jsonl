@@ -20,3 +20,17 @@
 {"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Added provider and target metadata planning-contract coverage."}
 {"file": "test/Transforms/RVV/rvv-gearbox-widening-product-reduce-dequantize-f32.mlir", "reason": "Added FileCheck positive/stale selected-body planning-contract coverage."}
 {"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Captured the executable Gate 1 planning-contract boundary, failure matrix, and test obligations."}
+{"file": "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h", "reason": "Added candidate-sensitive packed-i4 dequant versus dequant-clamp performance baseline and remediation measurement evidence helpers."}
+{"file": "lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp", "reason": "Validated Gate 3 packed-i4 dequant-clamp measurement records against provider-owned resource facts and rejected stale sibling records."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Used candidate-sensitive packed-i4 evidence identities while building provider-owned route-family planning facts."}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "Used candidate-sensitive packed-i4 evidence identities in statement-level provider metadata mirrors."}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Propagated candidate-sensitive packed-i4 evidence identities from RVV-owned selected-body realization facts."}
+{"file": "lib/Plugin/RVV/RVVGearboxSchedules.cpp", "reason": "Propagated candidate-sensitive packed-i4 evidence identities from Gearbox resource schedule facts."}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Validated dequant-clamp target artifact provenance against the candidate-sensitive provider resource facts."}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Added packed-i4 dequant-clamp provider metadata, clamp ABI order, harness oracle, and self-test coverage."}
+{"file": "scripts/rvv_generated_bundle_same_target_measure.py", "reason": "Added packed-i4 dequant-clamp same-target timing harness and source-backed measurement record fields."}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir", "reason": "Added focused Gate 3 packed-i4 dequant-clamp artifact and fail-closed provenance fixture."}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequant-clamp-f32-packed-i4-dry-run.test", "reason": "Added focused ABI dry-run coverage for packed-i4 dequant-clamp generated artifact and harness evidence."}
+{"file": "test/Scripts/rvv-generated-bundle-same-target-measure-gate4-dry-run.test", "reason": "Added dry-run same-target measurement coverage for the packed-i4 dequant-clamp representative."}
+{"file": "artifacts/gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json", "reason": "Recorded real ssh rvv same-target Gate 3 dequant-clamp measurement evidence with regression/no-win classification."}
+{"file": ".trellis/tasks/06-10-stage2-rvv-production-kernel-gearbox-resource-realization-campaign/prd.md", "reason": "Updated macro PRD with completed Gate 3 dequant-clamp slice, remaining Gate 4 status, and continuation point."}

@@ -3777,7 +3777,9 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 performance baseline",
           selection.performanceBaseline,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceBaseline))
+          plugin::rvv::
+              getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
+                  selection.selectedCandidateID)))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 performance best-speedup range",
@@ -3805,7 +3807,8 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
           contract.consumerLabel, "packed-i4 remediation measurement evidence",
           selection.remediationMeasurementEvidenceID,
           plugin::rvv::
-              kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID))
+              getRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceIDForCandidate(
+                  selection.selectedCandidateID)))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 remediation decision",

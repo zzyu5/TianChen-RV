@@ -110,6 +110,17 @@ llvm::Error requireNonEmptyPolicyString(llvm::StringRef context,
       llvm::Twine(context) + " requires non-empty " + label);
 }
 
+bool hasPackedI4SiblingRouteMeasurement(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    llvm::StringRef providerSelectedCandidate) {
+  return selection.hasSelection &&
+         isRVVLowPrecisionResourcePackedI4CandidateID(
+             selection.selectedCandidateID) &&
+         isRVVLowPrecisionResourcePackedI4CandidateID(
+             providerSelectedCandidate) &&
+         providerSelectedCandidate != selection.selectedCandidateID;
+}
+
 llvm::Expected<std::string>
 requireEvidenceInputString(const llvm::json::Object &evidenceInput,
                            llvm::StringRef context, llvm::StringRef key) {
@@ -175,11 +186,6 @@ llvm::Error verifyPackedI4SelectionFacts(
         llvm::Twine(context) +
         " accepts only provider-selected packed-i4 resource facts before "
         "applying the Gate 4 performance policy");
-  if (llvm::Error error = requirePolicyString(
-          context, "accepted Gate 4 packed-i4 selected candidate",
-          selection.selectedCandidateID,
-          kRVVLowPrecisionResourceDequantPackedI4Candidate))
-    return error;
   if (!selection.isLegal ||
       selection.rejectionReason != kRVVLowPrecisionResourceNoRejectionReason)
     return makeRVVLowPrecisionPerformancePolicyError(
@@ -192,7 +198,8 @@ llvm::Error verifyPackedI4SelectionFacts(
     return error;
   if (llvm::Error error = requirePolicyString(
           context, "packed-i4 selection reason", selection.selectionReason,
-          kRVVLowPrecisionResourceDequantPackedI4SelectionReason))
+          getRVVLowPrecisionResourceSelectionReasonForCandidate(
+              selection.selectedCandidateID)))
     return error;
   if (llvm::Error error = requirePolicyString(
           context, "packed-i4 planning contract", selection.planningContract,
@@ -747,7 +754,8 @@ llvm::Error verifyPackedI4MeasurementOutcome(
     return error;
   if (llvm::Error error = requirePolicyString(
           context, "measurement evidence id", outcome.measurementEvidenceID,
-          kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID))
+          getRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceIDForCandidate(
+              selection.selectedCandidateID)))
     return error;
   if (llvm::Error error = requirePolicyString(
           context, "measurement classification",
@@ -819,7 +827,8 @@ llvm::Error verifyPackedI4PerformancePreferredOutcome(
   if (llvm::Error error = requirePolicyString(
           context, "packed-i4 performance baseline",
           selection.performanceBaseline,
-          kRVVLowPrecisionResourcePackedI4PerformanceBaseline))
+          getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
+              selection.selectedCandidateID)))
     return error;
   if (llvm::Error error = requirePolicyString(
           context, "packed-i4 performance best-speedup range",
@@ -1020,7 +1029,9 @@ buildRVVPackedI4Gate4SameTargetMeasurementRecord(
   record.contract = kPackedI4MeasurementInputContract.str();
   record.authority = kPackedI4MeasurementInputAuthority.str();
   record.measurementEvidenceID =
-      kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID.str();
+      getRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceIDForCandidate(
+          selection.selectedCandidateID)
+          .str();
   record.measurementClassification =
       kPackedI4Gate4MeasurementClassification.str();
   record.measurementOutcomeFamily =
@@ -1321,11 +1332,8 @@ buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
     llvm::StringRef context) {
   RVVLowPrecisionSameTargetMeasurementPolicyInput input =
       materializeRVVLowPrecisionPolicyInputFromMeasurementRecord(record);
-  if (selection.hasSelection &&
-      isRVVLowPrecisionResourcePackedI4CandidateID(
-          selection.selectedCandidateID) &&
-      llvm::StringRef(selection.selectedCandidateID) !=
-          kRVVLowPrecisionResourceDequantPackedI4Candidate)
+  if (hasPackedI4SiblingRouteMeasurement(
+          selection, input.providerResourceSelectedCandidate))
     return input;
   if (llvm::Error error =
           verifyPackedI4SameTargetMeasurementPolicyInput(selection, input,
@@ -1399,8 +1407,7 @@ diagnoseRVVLowPrecisionPerformancePolicyHandoff(
   handoff.handoffContract =
       kRVVLowPrecisionResourcePackedI4RemediationHandoffContract.str();
   handoff.selectedCandidateID = selection.selectedCandidateID;
-  handoff.expectedSelectedCandidateID =
-      kRVVLowPrecisionResourceDequantPackedI4Candidate.str();
+  handoff.expectedSelectedCandidateID = selection.selectedCandidateID;
   handoff.measurementEvidenceID = outcome.measurementEvidenceID;
   handoff.measurementClassification = outcome.measurementClassification;
   handoff.measurementOutcomeFamily = outcome.measurementOutcomeFamily;
@@ -1427,23 +1434,6 @@ diagnoseRVVLowPrecisionPerformancePolicyHandoff(
             kind == RVVLowPrecisionPerformanceMeasurementDiagnosisKind::
                         PerformancePreferredMeasuredWin;
       };
-
-  if (selection.hasSelection &&
-      isRVVLowPrecisionResourcePackedI4CandidateID(
-          selection.selectedCandidateID) &&
-      llvm::StringRef(selection.selectedCandidateID) !=
-          kRVVLowPrecisionResourceDequantPackedI4Candidate) {
-    classifyFailure(
-        RVVLowPrecisionPerformanceMeasurementDiagnosisKind::
-            StaleSiblingRouteMeasurement,
-        llvm::Twine(context) +
-            " diagnosed stale sibling-route measurement: accepted Gate 4 "
-            "packed-i4 selected candidate '" +
-            kRVVLowPrecisionResourceDequantPackedI4Candidate +
-            "' cannot authorize sibling candidate '" +
-            selection.selectedCandidateID + "'");
-    return handoff;
-  }
 
   llvm::Error verificationError = verifyPackedI4SelectionFacts(
       selection, (llvm::Twine(context) + " policy handoff").str());
@@ -1519,17 +1509,13 @@ diagnoseRVVLowPrecisionPerformancePolicyHandoff(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
     llvm::StringRef context) {
-  if (selection.hasSelection &&
-      isRVVLowPrecisionResourcePackedI4CandidateID(
-          selection.selectedCandidateID) &&
-      llvm::StringRef(selection.selectedCandidateID) !=
-          kRVVLowPrecisionResourceDequantPackedI4Candidate) {
+  if (hasPackedI4SiblingRouteMeasurement(
+          selection, input.providerResourceSelectedCandidate)) {
     RVVLowPrecisionPerformancePolicyHandoff handoff;
     handoff.handoffContract =
         kRVVLowPrecisionResourcePackedI4RemediationHandoffContract.str();
     handoff.selectedCandidateID = selection.selectedCandidateID;
-    handoff.expectedSelectedCandidateID =
-        kRVVLowPrecisionResourceDequantPackedI4Candidate.str();
+    handoff.expectedSelectedCandidateID = selection.selectedCandidateID;
     handoff.measurementEvidenceID = input.measurementEvidenceID;
     handoff.measurementClassification = input.measurementClassification;
     handoff.measurementOutcomeFamily = input.measurementOutcomeFamily;
@@ -1545,9 +1531,9 @@ diagnoseRVVLowPrecisionPerformancePolicyHandoff(
     handoff.staleSiblingRouteMeasurement = true;
     handoff.failureReason =
         (llvm::Twine(context) +
-         " diagnosed stale sibling-route measurement: accepted Gate 4 "
-         "packed-i4 selected candidate '" +
-         kRVVLowPrecisionResourceDequantPackedI4Candidate +
+         " diagnosed stale sibling-route measurement: measurement provider "
+         "selected candidate '" +
+         input.providerResourceSelectedCandidate +
          "' cannot authorize sibling candidate '" + selection.selectedCandidateID +
          "'")
             .str();
@@ -1565,8 +1551,7 @@ diagnoseRVVLowPrecisionPerformancePolicyHandoff(
   handoff.handoffContract =
       kRVVLowPrecisionResourcePackedI4RemediationHandoffContract.str();
   handoff.selectedCandidateID = selection.selectedCandidateID;
-  handoff.expectedSelectedCandidateID =
-      kRVVLowPrecisionResourceDequantPackedI4Candidate.str();
+  handoff.expectedSelectedCandidateID = selection.selectedCandidateID;
   handoff.measurementEvidenceID = input.measurementEvidenceID;
   handoff.measurementClassification = input.measurementClassification;
   handoff.measurementOutcomeFamily = input.measurementOutcomeFamily;
@@ -1598,8 +1583,7 @@ diagnoseRVVLowPrecisionPerformancePolicyHandoff(
   handoff.handoffContract =
       kRVVLowPrecisionResourcePackedI4RemediationHandoffContract.str();
   handoff.selectedCandidateID = selection.selectedCandidateID;
-  handoff.expectedSelectedCandidateID =
-      kRVVLowPrecisionResourceDequantPackedI4Candidate.str();
+  handoff.expectedSelectedCandidateID = selection.selectedCandidateID;
   handoff.measurementEvidenceID = record.measurementEvidenceID;
   handoff.measurementClassification = record.measurementClassification;
   handoff.measurementOutcomeFamily = record.measurementOutcomeFamily;
