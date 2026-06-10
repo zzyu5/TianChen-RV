@@ -2020,6 +2020,11 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
     const std::string accumulatorVectorCType =
         isProductReductionDequantization ? std::string("vint32m1_t")
                                          : resultVectorCType.str();
+    const llvm::StringRef scalarAccumulatorCType =
+        !isProductReductionDequantization &&
+                description.lowPrecisionPrimitiveSourceSignedness == "unsigned"
+            ? llvm::StringRef("uint32_t")
+            : llvm::StringRef("int32_t");
     auto addProductReductionSlice =
         [&](conversion::emitc::TCRVEmitCForLoop &loop,
             llvm::StringRef lhsVecName, llvm::StringRef rhsVecName,
@@ -2085,7 +2090,8 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
       if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
               plan, slice.arithmeticOp, "compute",
               providerFacts.scalarSeedSplatLeaf,
-              {TCRVEmitCCallOpaqueOperand{loopSeedExpression, "int32_t"},
+              {TCRVEmitCCallOpaqueOperand{loopSeedExpression,
+                                          scalarAccumulatorCType.str()},
                TCRVEmitCCallOpaqueOperand{description.reductionStoreVL.str(),
                                           vlCType.str()}},
               description, context,

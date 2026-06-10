@@ -5127,9 +5127,13 @@ deriveRVVSelectedBodyConfigProfile(
       description.operation ==
       RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32;
   const bool isUnsignedWideningProductResult =
-      description.operation == RVVSelectedBodyOperationKind::WideningProduct &&
-      description.wideningProductRelation ==
-          "unsigned-u8mf4xu8mf4-to-u16mf2";
+      (description.operation == RVVSelectedBodyOperationKind::WideningProduct &&
+       description.wideningProductRelation ==
+           "unsigned-u8mf4xu8mf4-to-u16mf2") ||
+      (description.operation ==
+           RVVSelectedBodyOperationKind::WideningProductReduceAdd &&
+       description.wideningProductRelation ==
+           "unsigned-u8mf4xu8mf4-to-u16mf2");
   const bool isMaskedStorePolicy =
       description.operation ==
       RVVSelectedBodyOperationKind::MaskedUnitStore;
@@ -17149,7 +17153,8 @@ parseRVVSelectedBodyStandaloneReductionKind(llvm::StringRef kind) {
     return RVVSelectedBodyOperationKind::StandaloneReduceMin;
   if (kind == "max")
     return RVVSelectedBodyOperationKind::StandaloneReduceMax;
-  if (kind == "signed_widening_reduce_add")
+  if (kind == "signed_widening_reduce_add" ||
+      kind == "unsigned_widening_reduce_add")
     return RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
   return makeRVVEmitCRouteProviderError(
       llvm::Twine("unsupported generic tcrv_rvv.standalone_reduce kind '") +
@@ -17198,8 +17203,19 @@ llvm::Error recordRVVSelectedBodyStandaloneReduction(
             RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd)
       return makeRVVEmitCRouteProviderError(
           "bounded RVV EmitC route requires exactly one selected compute op "
-          "unless a signed tcrv_rvv.widening_product feeds a signed "
-          "tcrv_rvv.standalone_reduce widening add chain");
+          "unless a typed tcrv_rvv.widening_product feeds a matching "
+          "signed or unsigned tcrv_rvv.standalone_reduce widening add chain");
+    const bool isSignedProductReduction =
+        slice.wideningProductOp.getKind() == "signed_widening_product" &&
+        standaloneReduce.getKind() == "signed_widening_reduce_add";
+    const bool isUnsignedProductReduction =
+        slice.wideningProductOp.getKind() == "unsigned_widening_product" &&
+        standaloneReduce.getKind() == "unsigned_widening_reduce_add";
+    if (!isSignedProductReduction && !isUnsignedProductReduction)
+      return makeRVVEmitCRouteProviderError(
+          "low-precision product-reduction RVV route requires widening "
+          "product signedness to match standalone widening-reduction "
+          "signedness");
     if (standaloneReduce.getInput() != slice.wideningProductOp.getResult())
       return makeRVVEmitCRouteProviderError(
           "low-precision product-reduction RVV route requires "
@@ -35762,7 +35778,7 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
       return facts;
     }
 
-  case RVVSelectedBodyOperationKind::WideningProductReduceAdd:
+  case RVVSelectedBodyOperationKind::WideningProductReduceAdd: {
     if (llvm::Error error = requireFamilyPlan(
             analysis.contractionRouteFamilyPlan.has_value(), "contraction"))
       return std::move(error);
@@ -35772,16 +35788,25 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
             "contraction plan before binding math operands"))
       return std::move(error);
     facts.bindsWideningProductReductionChain = true;
+    const bool isUnsignedProductReductionChain =
+        analysis.description.wideningProductRelation ==
+        "unsigned-u8mf4xu8mf4-to-u16mf2";
+    const llvm::StringRef sourceWidthUse =
+        isUnsignedProductReductionChain ? "src-u8mf4" : "src-i8mf4";
+    const llvm::StringRef accumulatorWidthUse =
+        isUnsignedProductReductionChain ? "u32" : "i32";
+    const llvm::StringRef resultWidthUse =
+        isUnsignedProductReductionChain ? "res-u32m1" : "res-i32m1";
     if (llvm::Error error =
             bindOperand(facts.lhsABI, "lhs", "src-load",
-                        "widening_product_reduce_add lhs i8 source load operand"))
+                        "widening_product_reduce_add lhs byte source load operand"))
       return std::move(error);
     if (llvm::Error error =
             requireOperandUse("lhs", "wprod-lhs",
                               "widening_product_reduce_add lhs product operand"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("lhs", "src-i8mf4",
+            requireOperandUse("lhs", sourceWidthUse,
                               "widening_product_reduce_add lhs source width mirror"))
       return std::move(error);
     if (llvm::Error error = requireOperandUse(
@@ -35789,14 +35814,14 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
       return std::move(error);
     if (llvm::Error error =
             bindOperand(facts.rhsABI, "rhs", "src-load",
-                        "widening_product_reduce_add rhs i8 source load operand"))
+                        "widening_product_reduce_add rhs byte source load operand"))
       return std::move(error);
     if (llvm::Error error =
             requireOperandUse("rhs", "wprod-rhs",
                               "widening_product_reduce_add rhs product operand"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("rhs", "src-i8mf4",
+            requireOperandUse("rhs", sourceWidthUse,
                               "widening_product_reduce_add rhs source width mirror"))
       return std::move(error);
     if (llvm::Error error = requireOperandUse(
@@ -35811,7 +35836,7 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
                               "widening_product_reduce_add widening reduction operand"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("acc", "i32",
+            requireOperandUse("acc", accumulatorWidthUse,
                               "widening_product_reduce_add accumulator width mirror"))
       return std::move(error);
     if (llvm::Error error = requireOperandUse(
@@ -35826,7 +35851,7 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
                               "widening_product_reduce_add scalar result store"))
       return std::move(error);
     if (llvm::Error error =
-            requireOperandUse("out", "res-i32m1",
+            requireOperandUse("out", resultWidthUse,
                               "widening_product_reduce_add result width mirror"))
       return std::move(error);
     if (llvm::Error error = requireOperandUse(
@@ -35836,6 +35861,7 @@ getRVVSelectedBodyMathRouteOperandBindingFacts(
             bindRuntimeCount("loop", "hdr", "widening_product_reduce_add"))
       return std::move(error);
     return facts;
+  }
 
   case RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32:
     if (llvm::Error error = requireFamilyPlan(
@@ -39406,6 +39432,17 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
           llvm::Twine(context) +
           " unsigned widening-product route requires a supported unsigned "
           "integer element type for SEW " +
+          llvm::Twine(description.sew));
+  } else if (isProductReductionChainRoute &&
+             description.wideningProductRelation ==
+                 "unsigned-u8mf4xu8mf4-to-u16mf2") {
+    expectedElementTypeStorage =
+        getRVVSelectedBodyUnsignedIntegerElementTypeName(description.sew);
+    if (expectedElementTypeStorage.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " unsigned product-reduction route requires a supported unsigned "
+          "integer result element type for SEW " +
           llvm::Twine(description.sew));
   } else {
     llvm::Expected<llvm::StringRef> expectedElementType =

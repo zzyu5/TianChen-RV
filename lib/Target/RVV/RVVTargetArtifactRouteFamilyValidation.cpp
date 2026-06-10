@@ -4992,6 +4992,12 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
         "ABI order before validating route statements");
 
   const llvm::StringRef scalarI32CType = "int32_t";
+  const bool isUnsignedPlainProductReduction =
+      isProductReductionChain && !isProductReductionDequantization &&
+      contract.lowPrecisionWideningReductionPrimitiveFacts.sourceSignedness ==
+          "unsigned";
+  const llvm::StringRef scalarAccumulatorCType =
+      isUnsignedPlainProductReduction ? "uint32_t" : "int32_t";
   const llvm::StringRef packedI4ShiftAmount = "4";
   const llvm::StringRef packedI4ShiftAmountCType = "uint8_t";
   const llvm::StringRef packedI4ShiftLeftIntrinsic = "__riscv_vsll_vx_i8mf4";
@@ -5465,7 +5471,7 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[seedIndex], consumerLabel, "loop scalar seed splat",
             description.scalarSeedSplatIntrinsic,
-            {{expectedLoopSeed, scalarI32CType},
+            {{expectedLoopSeed, scalarAccumulatorCType},
              {description.reductionStoreVL, runtimeContract.vlCType}},
             "dot_acc_vec", accumulatorVectorCType))
       return error;

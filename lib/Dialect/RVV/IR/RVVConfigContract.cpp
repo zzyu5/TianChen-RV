@@ -796,6 +796,26 @@ getRVVSelectedBodyWideningProductReductionRuntimeABIParameters() {
   return parameters;
 }
 
+llvm::SmallVector<support::RuntimeABIParameter, 5>
+getRVVSelectedBodyUnsignedWideningProductReductionRuntimeABIParameters() {
+  llvm::SmallVector<support::RuntimeABIParameter, 5> parameters;
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "lhs", "const uint8_t *",
+      support::RuntimeABIParameterRole::LHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "rhs", "const uint8_t *",
+      support::RuntimeABIParameterRole::RHSInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "acc", "const uint32_t *",
+      support::RuntimeABIParameterRole::AccumulatorInputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      "out", "uint32_t *", support::RuntimeABIParameterRole::OutputBuffer));
+  parameters.push_back(support::makeTargetExportABIParameter(
+      kRVVSelectedBodyM1ConfigVLContract.runtimeAVLABIParameterName, "size_t",
+      support::RuntimeABIParameterRole::RuntimeElementCount));
+  return parameters;
+}
+
 llvm::SmallVector<support::RuntimeABIParameter, 6>
 getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters() {
   llvm::SmallVector<support::RuntimeABIParameter, 6> parameters;
@@ -1954,6 +1974,13 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
                                          wideningProductReductionExpected))
     return llvm::Error::success();
 
+  llvm::SmallVector<support::RuntimeABIParameter, 5>
+      unsignedWideningProductReductionExpected =
+          getRVVSelectedBodyUnsignedWideningProductReductionRuntimeABIParameters();
+  if (support::runtimeABIParametersEqual(
+          parameters, unsignedWideningProductReductionExpected))
+    return llvm::Error::success();
+
   llvm::SmallVector<support::RuntimeABIParameter, 6>
       wideningProductReductionDequantizationExpected =
           getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters();
@@ -2034,8 +2061,10 @@ llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
       "the bounded i32 multiply-add accumulator, i16 widening "
       "multiply-accumulate, or unit-stride dot-reduction route; lhs, rhs, "
       "out, n for the bounded signed int8_t or unsigned uint8_t "
-      "widening-product route; lhs, rhs, acc, scale, out, n for the bounded "
-      "low-precision product-reduction dequantization route; lhs, scale, "
+      "widening-product route; lhs, rhs, acc, out, n for the bounded signed "
+      "int8_t/int32_t or unsigned uint8_t/uint32_t widening product-reduction "
+      "route; lhs, rhs, acc, scale, out, n for the bounded low-precision "
+      "product-reduction dequantization route; lhs, scale, "
       "lower_bound, upper_bound, out, n "
       "for the bounded dequant-clamp f32 epilogue route; lhs, "
       "rhs_scalar, acc, out, n for the bounded scalar-broadcast "

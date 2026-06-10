@@ -1889,7 +1889,8 @@ bool isSupportedGenericReduceResultLayout(llvm::StringRef layout) {
 
 bool isSupportedGenericStandaloneReduceKind(llvm::StringRef kind) {
   return kind == "add" || kind == "min" || kind == "max" ||
-         kind == "signed_widening_reduce_add";
+         kind == "signed_widening_reduce_add" ||
+         kind == "unsigned_widening_reduce_add";
 }
 
 bool isSupportedGenericMaskedStandaloneReduceKind(llvm::StringRef kind) {
@@ -1987,7 +1988,9 @@ bool isSupportedGenericDequantizeRelation(llvm::StringRef relation) {
 bool isSupportedTypedWideningProductReductionChainRelation(
     llvm::StringRef relation) {
   return relation ==
-         "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32";
+             "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32" ||
+         relation ==
+             "unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32";
 }
 
 bool isSupportedTypedWideningProductReduceDequantizeAccumulatorCarryBoundary(
@@ -2116,13 +2119,15 @@ bool isSupportedBoundedRuntimeABIValueCType(
   case Role::SourceInputBuffer:
   case Role::TrueValueInputBuffer:
   case Role::FalseValueInputBuffer:
-  case Role::AccumulatorInputBuffer:
   case Role::DotLHSInputBuffer:
   case Role::DotRHSInputBuffer:
   case Role::SegmentField0InputBuffer:
   case Role::SegmentField1InputBuffer:
     return cType == "const int16_t *" || cType == "const int32_t *" ||
            cType == "const int64_t *";
+  case Role::AccumulatorInputBuffer:
+    return cType == "const int16_t *" || cType == "const int32_t *" ||
+           cType == "const uint32_t *" || cType == "const int64_t *";
   case Role::IndexInputBuffer:
     return cType == "const uint32_t *";
   case Role::MaskInputBuffer:
@@ -2137,7 +2142,8 @@ bool isSupportedBoundedRuntimeABIValueCType(
     return cType == "float";
   case Role::OutputBuffer:
     return cType == "uint16_t *" || cType == "int16_t *" ||
-           cType == "int32_t *" || cType == "int64_t *" ||
+           cType == "int32_t *" || cType == "uint32_t *" ||
+           cType == "int64_t *" ||
            cType == "float *";
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
@@ -2167,12 +2173,14 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::SourceInputBuffer:
   case Role::TrueValueInputBuffer:
   case Role::FalseValueInputBuffer:
-  case Role::AccumulatorInputBuffer:
   case Role::DotLHSInputBuffer:
   case Role::DotRHSInputBuffer:
   case Role::SegmentField0InputBuffer:
   case Role::SegmentField1InputBuffer:
     return "'const int16_t *', 'const int32_t *', or 'const int64_t *'";
+  case Role::AccumulatorInputBuffer:
+    return "'const int16_t *', 'const int32_t *', 'const uint32_t *', or "
+           "'const int64_t *'";
   case Role::IndexInputBuffer:
     return "'const uint32_t *'";
   case Role::MaskInputBuffer:
@@ -2186,8 +2194,8 @@ llvm::StringRef getBoundedRuntimeABIValueCTypeDescription(
   case Role::UpperBoundScalarValue:
     return "'float'";
   case Role::OutputBuffer:
-    return "'uint16_t *', 'int16_t *', 'int32_t *', 'int64_t *', or "
-           "'float *'";
+    return "'uint16_t *', 'int16_t *', 'int32_t *', 'uint32_t *', "
+           "'int64_t *', or 'float *'";
   case Role::SegmentField0OutputBuffer:
   case Role::SegmentField1OutputBuffer:
   case Role::SegmentInterleavedOutputBuffer:
@@ -2724,6 +2732,11 @@ bool isGenericRVVVectorI32M1(mlir::Type type) {
                                 getRVVLMULM1());
 }
 
+bool isGenericRVVVectorUnsignedI32M1(mlir::Type type) {
+  return isGenericRVVUnsignedIntegerVectorType(
+      type, getRVVFirstSliceSEWBits(), getRVVLMULM1());
+}
+
 bool isGenericRVVVectorI8MF4(mlir::Type type) {
   return isGenericRVVVectorType(type, getRVVSEW8Bits(), getRVVLMULMF4());
 }
@@ -3215,7 +3228,11 @@ bool isBoundedWideningStandaloneReduceSourceLoad(LoadOp load,
     return false;
   if (!isRVVSelectedBodyM1Config(sew.getInt(), lmul.getValue()))
     return false;
-  if (!isGenericRVVVectorI16MF2(load.getLoaded().getType()))
+  const bool isSignedSource =
+      isGenericRVVVectorI16MF2(load.getLoaded().getType());
+  const bool isUnsignedSource =
+      isGenericRVVVectorUnsignedI16MF2(load.getLoaded().getType());
+  if (!isSignedSource && !isUnsignedSource)
     return false;
 
   bool hasWideningStandaloneReduceUse = false;
@@ -3225,7 +3242,10 @@ bool isBoundedWideningStandaloneReduceSourceLoad(LoadOp load,
         reduce.getVl() != load.getVl() ||
         reduce.getInput() != load.getLoaded())
       return false;
-    if (reduce.getKind() != "signed_widening_reduce_add")
+    if (isSignedSource && reduce.getKind() != "signed_widening_reduce_add")
+      return false;
+    if (isUnsignedSource &&
+        reduce.getKind() != "unsigned_widening_reduce_add")
       return false;
     hasWideningStandaloneReduceUse = true;
   }
@@ -3282,12 +3302,23 @@ bool isBoundedWideningProductReductionChainProduct(WideningProductOp product,
     return false;
   if (product.getVl() != withVL.getVl())
     return false;
-  if (product.getKind() != "signed_widening_product" ||
-      product.getProductRelation() != "signed-i8mf4xi8mf4-to-i16mf2")
+  const bool isSignedProduct =
+      product.getKind() == "signed_widening_product" &&
+      product.getProductRelation() == "signed-i8mf4xi8mf4-to-i16mf2";
+  const bool isUnsignedProduct =
+      product.getKind() == "unsigned_widening_product" &&
+      product.getProductRelation() == "unsigned-u8mf4xu8mf4-to-u16mf2";
+  if (!isSignedProduct && !isUnsignedProduct)
     return false;
-  if (!isGenericRVVVectorI8MF4(product.getLhs().getType()) ||
-      !isGenericRVVVectorI8MF4(product.getRhs().getType()) ||
-      !isGenericRVVVectorI16MF2(product.getResult().getType()))
+  if (isSignedProduct &&
+      (!isGenericRVVVectorSignedI8MF4(product.getLhs().getType()) ||
+       !isGenericRVVVectorSignedI8MF4(product.getRhs().getType()) ||
+       !isGenericRVVVectorSignedI16MF2(product.getResult().getType())))
+    return false;
+  if (isUnsignedProduct &&
+      (!isGenericRVVVectorUnsignedI8MF4(product.getLhs().getType()) ||
+       !isGenericRVVVectorUnsignedI8MF4(product.getRhs().getType()) ||
+       !isGenericRVVVectorUnsignedI16MF2(product.getResult().getType())))
     return false;
 
   bool hasWideningReductionUse = false;
@@ -3297,14 +3328,21 @@ bool isBoundedWideningProductReductionChainProduct(WideningProductOp product,
         reduce.getInput() != product.getResult() ||
         reduce.getVl() != product.getVl())
       return false;
-    if (reduce.getKind() != "signed_widening_reduce_add")
+    if (isSignedProduct && reduce.getKind() != "signed_widening_reduce_add")
+      return false;
+    if (isUnsignedProduct &&
+        reduce.getKind() != "unsigned_widening_reduce_add")
       return false;
     if (reduce.getAccumulatorLayout() !=
             "scalar-i32-seed-lane0-from-accumulator-input" ||
         reduce.getResultLayout() !=
             "store-standalone-reduction-lane0-to-output-scalar")
       return false;
-    if (!isGenericRVVVectorI32M1(reduce.getResult().getType()))
+    if (isSignedProduct &&
+        !isGenericRVVVectorI32M1(reduce.getResult().getType()))
+      return false;
+    if (isUnsignedProduct &&
+        !isGenericRVVVectorUnsignedI32M1(reduce.getResult().getType()))
       return false;
     hasWideningReductionUse = true;
   }
@@ -3322,7 +3360,8 @@ bool isBoundedWideningProductReductionChainSourceLoad(LoadOp load,
     return false;
   if (!isRVVSelectedBodyM1Config(sew.getInt(), lmul.getValue()))
     return false;
-  if (!isGenericRVVVectorI8MF4(load.getLoaded().getType()))
+  if (!isGenericRVVVectorSignedI8MF4(load.getLoaded().getType()) &&
+      !isGenericRVVVectorUnsignedI8MF4(load.getLoaded().getType()))
     return false;
 
   bool hasProductReductionUse = false;
@@ -3351,7 +3390,8 @@ bool isBoundedWideningProductReductionChainSourceLoadCandidate(
     return false;
   if (!isRVVSelectedBodyM1Config(sew.getInt(), lmul.getValue()))
     return false;
-  return isGenericRVVVectorI8MF4(load.getLoaded().getType());
+  return isGenericRVVVectorSignedI8MF4(load.getLoaded().getType()) ||
+         isGenericRVVVectorUnsignedI8MF4(load.getLoaded().getType());
 }
 
 bool isBoundedWideningDotReduceSourceStridedLoad(StridedLoadOp load,
@@ -11899,7 +11939,8 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
   if (!isSupportedGenericStandaloneReduceKind(getKind()))
     return emitOpError()
            << "currently supports only kind \"add\", \"min\", \"max\", or "
-              "\"signed_widening_reduce_add\" for the bounded Stage 2 "
+              "\"signed_widening_reduce_add\"/"
+              "\"unsigned_widening_reduce_add\" for the bounded Stage 2 "
               "standalone reduction route";
   if (!isSupportedGenericStandaloneReduceAccumulatorLayout(
           getAccumulatorLayout()))
@@ -11927,12 +11968,20 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
           {tianchenrv::support::RuntimeABIParameterRole::
                AccumulatorInputBuffer})))
     return mlir::failure();
+  const bool isSignedWideningReduce =
+      getKind() == "signed_widening_reduce_add";
+  const bool isUnsignedWideningReduce =
+      getKind() == "unsigned_widening_reduce_add";
+  const bool isWideningReduce =
+      isSignedWideningReduce || isUnsignedWideningReduce;
   RuntimeABIValueOp seedBinding =
       getAccumulatorSeed().getDefiningOp<RuntimeABIValueOp>();
-  if (!seedBinding || seedBinding.getCType() != "const int32_t *")
+  const llvm::StringRef expectedSeedCType =
+      isUnsignedWideningReduce ? "const uint32_t *" : "const int32_t *";
+  if (!seedBinding || seedBinding.getCType() != expectedSeedCType)
     return emitOpError()
-           << "requires accumulator seed operand C type 'const int32_t *' for "
-              "the bounded standalone reduction route";
+           << "requires accumulator seed operand C type '" << expectedSeedCType
+           << "' for the bounded standalone reduction route";
   if (!llvm::isa<VLType>(getVl().getType()))
     return emitOpError() << "requires runtime VL operand to have "
                             "!tcrv_rvv.vl type";
@@ -11941,16 +11990,27 @@ mlir::LogicalResult StandaloneReduceOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyDataflowVLOperandMatchesWithVL(op, getVl())))
     return mlir::failure();
-  const bool isWideningReduce = getKind() == "signed_widening_reduce_add";
   if (isWideningReduce) {
-    if (!isGenericRVVVectorI16MF2(getInput().getType()))
+    if (isSignedWideningReduce &&
+        !isGenericRVVVectorI16MF2(getInput().getType()))
       return emitOpError()
-             << "requires widening standalone reduction source vector to "
-                "have type !tcrv_rvv.vector<i16, \"mf2\">";
-    if (!isGenericRVVVectorI32M1(getResult().getType()))
+             << "requires signed widening standalone reduction source vector "
+                "to have type !tcrv_rvv.vector<i16, \"mf2\">";
+    if (isUnsignedWideningReduce &&
+        !isGenericRVVVectorUnsignedI16MF2(getInput().getType()))
       return emitOpError()
-             << "requires widening standalone reduction result vector to "
-                "have type !tcrv_rvv.vector<i32, \"m1\">";
+             << "requires unsigned widening standalone reduction source "
+                "vector to have type !tcrv_rvv.vector<ui16, \"mf2\">";
+    if (isSignedWideningReduce &&
+        !isGenericRVVVectorI32M1(getResult().getType()))
+      return emitOpError()
+             << "requires signed widening standalone reduction result vector "
+                "to have type !tcrv_rvv.vector<i32, \"m1\">";
+    if (isUnsignedWideningReduce &&
+        !isGenericRVVVectorUnsignedI32M1(getResult().getType()))
+      return emitOpError()
+             << "requires unsigned widening standalone reduction result "
+                "vector to have type !tcrv_rvv.vector<ui32, \"m1\">";
   } else if (mlir::failed(
                  verifyGenericVectorTypeForWithVL(op, getInput(), "input"))) {
     return mlir::failure();

@@ -115,6 +115,67 @@ q8/q4 wrappers or metadata authority.
 
 Final coherent commit is created after this journal entry.
 
+## Session 583: Stage2 RVV low-precision contraction primitive Gate 3
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed Gate 3 only. Gates 1-2 already
+made typed i8/u8 source and widening-product facts provider-owned. This round
+made widening reduction/accumulation primitive facts production-consumed for
+signed i8 and unsigned u8 product-reduction chains, with route planning,
+route description validation, route construction, statement planning, and
+target artifact validation failing closed on stale or mismatched facts.
+
+### Main Changes
+
+- Extended typed RVV verification and runtime ABI contracts for unsigned
+  `u8mf4 -> u16mf2 -> u32m1` product-reduction chains.
+- Added description-aware RVV provider facts for signed and unsigned
+  low-precision widening reduction/accumulation primitive chains.
+- Routed unsigned product-reduction profile, operand binding, C type mapping,
+  target leaf, widening product intrinsic, widening reduction intrinsic, scalar
+  seed splat, accumulator/result layout, and store-VL facts through production
+  route planning and target artifact validation.
+- Added focused unsigned u8 selected-body artifact lit coverage with accepted
+  mirrors and stale source signedness, source extension, accumulator dtype,
+  reduction intrinsic, and C type mapping rejection.
+- Updated the RVV plugin spec with the signed/unsigned widening-reduction
+  primitive-fact contract.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8|explicit-selected-body-artifact-widening-product-reduce-add|explicit-selected-body-artifact-widening-product-unsigned-u8|explicit-selected-body-artifact-widening-product\.mlir'`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1`
+- [OK] `git diff --check`
+- [OK] Bounded added-diff scan returned only PRD/spec non-authority wording for
+  forbidden markers and no new positive legacy route-authority support.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` now records that
+bounded low-precision product-reduction support includes both signed i8 and
+unsigned u8 widening reduction primitive facts, and that provider planning,
+route validation, target mirrors, and target artifact validation must consume
+the signedness-specific accumulator/result/intrinsic/seed/layout facts.
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-3 are complete. Gate 4 remains open. The next
+continuation point is Gate 4: Gearbox/resource-aware selected-body realization
+plus measured same-target comparison must consume these provider-owned
+low-precision primitive facts with source-backed evidence.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 581: Stage2 RVV Gearbox Gate 4 closeout
 
 **Date**: 2026-06-10

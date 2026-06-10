@@ -439,12 +439,16 @@ typed ui8/u16 tcrv_rvv body
 
 Use this contract when a selected typed RVV body or provider-owned product
 reduction chain claims low-precision widening accumulation/reduction facts,
-including the bounded signed chain:
+including the bounded signed and unsigned chains:
 
 ```text
 i8mf4 lhs/rhs
   -> signed i8*i8 widening product to i16mf2
   -> signed widening reduction / vwredsum-style accumulation to i32m1
+
+u8mf4 lhs/rhs
+  -> unsigned u8*u8 widening product to u16mf2
+  -> unsigned widening reduction / vwredsumu-style accumulation to u32m1
 ```
 
 This is a Stage 2 primitive-fact contract. It is not a q8/q4 route, not a
@@ -494,18 +498,30 @@ from the selected typed body/config/runtime facts before route construction.
 
 ### 3. Contracts
 
-- Source and product facts must mirror the typed low-precision product surface:
-  source `i8/mf4`, source signedness `signed`, source load
-  `unit-stride-byte-load`, source extension
+- Source and product facts must mirror the typed low-precision product surface.
+  The bounded signed chain uses source `i8/mf4`, source signedness `signed`,
+  source load `unit-stride-byte-load`, source extension
   `sign-extend-i8-to-i16-product`, product `i16/mf2`, and relation
-  `signed-i8mf4xi8mf4-to-i16mf2` for the bounded signed chain.
+  `signed-i8mf4xi8mf4-to-i16mf2`. The bounded unsigned chain uses source
+  `u8/mf4`, source signedness `unsigned`, source load
+  `unit-stride-byte-load`, source extension
+  `zero-extend-u8-to-u16-product`, product `u16/mf2`, and relation
+  `unsigned-u8mf4xu8mf4-to-u16mf2`.
 - Accumulator and reduction-result facts must be explicit and distinct from
-  final epilogue result facts: the primitive reduction result is `i32/m1`, while
+  final epilogue result facts: the signed primitive reduction result is
+  `i32/m1`, the unsigned primitive reduction result is `u32/m1`, and
   dequantized epilogues may have a later `f32` final result.
 - The chain relation, widening product intrinsic, widening reduction intrinsic,
   scalar seed splat, accumulator layout, result layout, and reduction store VL
   are provider-owned facts. They must not be reconstructed from route ids,
   artifact names, test names, ABI strings, or Common EmitC helpers.
+- For the bounded signed chain, the provider-owned route facts must choose the
+  signed product/reduction chain relation, signed widening product intrinsic,
+  signed widening reduction intrinsic, signed scalar seed splat, and signed
+  accumulator/result vector C types. For the bounded unsigned chain, they must
+  choose the unsigned product/reduction chain relation, unsigned widening
+  product intrinsic, unsigned widening reduction intrinsic, unsigned scalar seed
+  splat, and unsigned accumulator/result vector C types.
 - Target artifact metadata may carry these fields only as exact mirrors. A
   stale mirror must fail target validation before candidate acceptance.
 - Common EmitC may materialize only the provider-built route payload. It must
@@ -517,8 +533,13 @@ from the selected typed body/config/runtime facts before route construction.
 - Product-reduction chain without primitive facts -> RVV provider error before
   `TCRVEmitCLowerableRoute` construction.
 - Primitive facts disagree with the selected typed body source signedness,
-  source load, source extension, source/product dtype, SEW, LMUL, or product
-  relation -> provider fail-closed diagnostic.
+  source load, source extension, source/product dtype, SEW, LMUL, product
+  relation, or signed-vs-unsigned chain relation -> provider fail-closed
+  diagnostic.
+- Unsigned product-reduction body carries signed accumulator/result dtype,
+  signed vector C type, signed `vwredsum` intrinsic, signed scalar seed splat,
+  or signed C type mapping -> provider or target fail-closed diagnostic before
+  candidate acceptance.
 - Primitive facts use stale accumulator/result dtype, SEW, LMUL, layout, seed
   splat, reduction intrinsic, or store VL -> provider fail-closed diagnostic.
 - Target candidate mirror disagrees with any primitive fact -> target
@@ -529,9 +550,13 @@ from the selected typed body/config/runtime facts before route construction.
 
 ### 5. Good/Base/Bad Cases
 
-- Good: typed `i8mf4` product-reduction body -> RVV provider derives product
-  and widening-reduction primitive facts -> route validation consumes them ->
-  target mirrors compare exactly.
+- Good: typed `i8mf4` product-reduction body -> RVV provider derives signed
+  product and widening-reduction primitive facts -> route validation consumes
+  them -> target mirrors compare exactly.
+- Good: typed `u8mf4` product-reduction body -> RVV provider derives unsigned
+  product and widening-reduction primitive facts, including unsigned
+  accumulator/result dtype and unsigned intrinsics -> route validation consumes
+  them -> target mirrors compare exactly.
 - Base: standalone signed or unsigned widening-product routes keep their own
   product facts without claiming a widening-reduction primitive chain.
 - Bad: artifact metadata says `vwredsum`, so the target accepts the candidate
@@ -544,13 +569,14 @@ from the selected typed body/config/runtime facts before route construction.
 - Provider/C++ coverage for positive product-reduction primitive facts:
   source signedness, source load, source extension,
   source/product/accumulator/result dtype, SEW/LMUL, relation, intrinsics,
-  seed splat, layouts, and store VL.
+  seed splat, layouts, and store VL for both the bounded signed i8 and unsigned
+  u8 product-reduction chains.
 - Provider negative coverage for stale or unsupported primitive facts before
   route construction.
 - Target artifact coverage proving exact mirror acceptance and stale source
   signedness, source load, source extension,
   source/product/accumulator/result dtype, SEW/LMUL, intrinsic, seed, layout,
-  or store-VL rejection.
+  C type mapping, or store-VL rejection.
 - Focused lit coverage for the selected product-reduction artifact path when
   metadata mirror diagnostics are user-visible.
 - Runtime `ssh rvv` evidence is required only when the task claims executable
@@ -569,7 +595,7 @@ Correct:
 
 ```text
 typed product-reduction tcrv_rvv body
-  -> RVV provider derives widening-reduction primitive facts
+  -> RVV provider derives signed or unsigned widening-reduction primitive facts
   -> route/provider validation consumes those facts
   -> target metadata mirrors those facts exactly or fails closed
 ```

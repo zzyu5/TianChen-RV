@@ -3326,7 +3326,8 @@ def StandaloneReduceOp : TCRVRVV_Op<"standalone_reduce",
     one typed !tcrv_rvv.vector token whose lane 0 is the scalar output boundary.
 
     For the current bounded Stage 2 slice, kind is limited to signed
-    add/min/max plus signed_widening_reduce_add. The non-widening forms
+    add/min/max plus signed_widening_reduce_add and
+    unsigned_widening_reduce_add. The non-widening forms
     represent acc_seed + sum(input), min(acc_seed, input), or
     max(acc_seed, input) over runtime n. The widening form represents a typed
     i16 source vector reduced into an i32 scalar accumulator/result boundary.

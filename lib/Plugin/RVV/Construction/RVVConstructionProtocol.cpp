@@ -5731,8 +5731,15 @@ llvm::Error verifyRVVSelectedBodyConstructionMetadataFacts(
           productReductionParameters =
               tcrv::rvv::
                   getRVVSelectedBodyWideningProductReductionRuntimeABIParameters();
-      acceptsTypedI64Parameters = support::runtimeABIParametersEqual(
-          facts.runtimeABIParameters, productReductionParameters);
+      llvm::SmallVector<support::RuntimeABIParameter, 5>
+          unsignedProductReductionParameters =
+              tcrv::rvv::
+                  getRVVSelectedBodyUnsignedWideningProductReductionRuntimeABIParameters();
+      acceptsTypedI64Parameters =
+          support::runtimeABIParametersEqual(facts.runtimeABIParameters,
+                                             productReductionParameters) ||
+          support::runtimeABIParametersEqual(facts.runtimeABIParameters,
+                                             unsignedProductReductionParameters);
     } else if (route->operationMnemonic ==
                "widening_product_reduce_dequantize_f32") {
       llvm::SmallVector<support::RuntimeABIParameter, 6>

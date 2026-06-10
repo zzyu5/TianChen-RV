@@ -2,3 +2,11 @@
 {"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body/provider/fail-closed contract check"}
 {"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality check"}
 {"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused compiler/API test requirements"}
+{"check": "cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test", "result": "passed"}
+{"check": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed"}
+{"check": "build/bin/tianchenrv-target-artifact-export-test", "result": "passed"}
+{"check": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8|explicit-selected-body-artifact-widening-product-reduce-add|explicit-selected-body-artifact-widening-product-unsigned-u8|explicit-selected-body-artifact-widening-product\\.mlir", "result": "passed", "cwd": "build/test"}
+{"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1", "result": "passed"}
+{"check": "git diff --check", "result": "passed"}
+{"check": "git diff --cached --check", "result": "passed"}
+{"check": "bounded staged added-diff old-authority scan", "result": "passed: only PRD/spec non-authority wording and stale-negative lit intrinsic replacement matched, no new positive legacy route authority"}

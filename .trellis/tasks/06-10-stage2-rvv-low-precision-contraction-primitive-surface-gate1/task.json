@@ -2,7 +2,7 @@
   "id": "stage2-rvv-low-precision-contraction-primitive-surface-gate1",
   "name": "stage2-rvv-low-precision-contraction-primitive-surface-gate1",
   "title": "Stage2 RVV low-precision contraction primitive surface campaign",
-  "description": "Macro campaign for RVV low-precision contraction primitives; Gates 1-2 are complete and the next continuation is Gate 3 widening reduction/accumulation facts.",
+  "description": "Macro campaign for RVV low-precision contraction primitives; Gates 1-3 are complete and the next continuation is Gate 4 Gearbox/resource-aware selected-body realization plus measured same-target comparison.",
   "status": "in_progress",
   "dev_type": null,
   "scope": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "Gates 1-2 are complete. Gate 2 added provider-owned standalone widening-product multiplicand-role and extension-policy facts for signed i8 and unsigned u8, consumed by route-family planning, route description validation, target metadata, and target artifact mirrors. Macro remains active; next continuation is Gate 3 widening reduction/accumulation facts.",
+  "notes": "Gates 1-3 are complete. Gate 3 added provider-owned signed i8 and unsigned u8 widening reduction/accumulation primitive facts for product-reduction chains, consumed by route-family planning, route description validation, route construction, statement planning, target metadata, and target artifact mirrors with fail-closed stale fact rejection. Macro remains active; next continuation is Gate 4 Gearbox/resource-aware selected-body realization plus measured same-target comparison."
   "meta": {}
 }

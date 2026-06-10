@@ -2853,6 +2853,11 @@ std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
 getRVVLowPrecisionWideningReductionPrimitiveFacts(
     RVVSelectedBodyOperationKind operation);
 
+std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
+getRVVLowPrecisionWideningReductionPrimitiveFacts(
+    RVVSelectedBodyOperationKind operation,
+    bool isUnsignedProductReduction);
+
 struct RVVWideningDotReduceRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;
@@ -2949,6 +2954,10 @@ struct RVVWideningDotReduceRouteFacts {
 
 std::optional<RVVWideningDotReduceRouteFacts>
 getRVVWideningDotReduceRouteFacts(RVVSelectedBodyOperationKind operation);
+
+std::optional<RVVWideningDotReduceRouteFacts>
+getRVVWideningDotReduceRouteFacts(
+    const RVVSelectedBodyEmitCRouteDescription &description);
 
 enum class RVVWideningDotReduceRouteValidationKind {
   Plain,

@@ -3,3 +3,16 @@
 {"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built route contract"}
 {"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Variant/selection constraints for Stage 2 RVV work"}
 {"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused tests and RVV evidence policy"}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVConfigContract.h", "reason": "Declared unsigned u8 product-reduction runtime ABI contract helper"}
+{"file": "lib/Dialect/RVV/IR/RVVConfigContract.cpp", "reason": "Accepted unsigned u8/u32 product-reduction runtime ABI parameters"}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Documented unsigned widening standalone reduce kind"}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Verified unsigned u8 widening product plus unsigned widening reduction typed chain"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Exposed description-aware widening reduction primitive facts"}
+{"file": "lib/Plugin/RVV/Construction/RVVConstructionProtocol.cpp", "reason": "Allowed construction protocol to consume unsigned product-reduction ABI facts"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Derived and validated signed/unsigned widening reduction primitive facts from selected typed body and route descriptions"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Propagated unsigned product-reduction profile and binding facts through route planning"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "Selected unsigned scalar accumulator C type for unsigned product-reduction statements"}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Validated signed/unsigned widening reduction seed/intrinsic facts in target artifact candidates"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Updated fail-closed target expectation for provider-derived unsigned ABI mismatch"}
+{"file": "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir", "reason": "Added accepted and stale-mirror lit coverage for unsigned u8 widening product-reduction"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Recorded signed/unsigned widening-reduction primitive-fact contract and fail-closed matrix"}
