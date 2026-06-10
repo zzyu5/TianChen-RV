@@ -1259,3 +1259,70 @@ available. Final coherent commit is created after this journal entry.
 [NO UPDATE] This slice implemented the existing Gate 4 policy boundary in
 production code and tests; no durable spec wording change was needed beyond the
 active macro PRD update.
+
+## Session 587: Gate 4 resource-cost admission decision consumption
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV low-precision contraction primitive surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active Gate 4 macro task with a policy/provider closure slice.
+The packed-i4 resource-cost admission field is now consumed as a decision, not
+only mirrored as metadata: current no-win/regression policy requires the deny
+admission, while any future measured-win `performance-preferred` path must
+carry an explicit provider-owned measured-win admission value.
+
+### Main Changes
+
+- Added provider admission value
+  `admit-performance-preferred-with-resource-cost-measured-win`.
+- Split packed-i4 policy validation so base selection facts accept only known
+  resource-cost admission decisions, no-win consistency requires
+  `deny-performance-preferred-with-resource-cost-no-win-blocker`, and
+  measured-win policy requires the new admit value.
+- Made direct `RVVLowPrecisionPerformanceMeasurementOutcome` policy evaluation
+  consume provider resource-cost and realization-admission tie-backs.
+- Updated plugin and target measured-win fixtures so performance-preferred
+  selection requires the explicit admission update; stale no-win admission now
+  fails strict policy verification.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test` after fixing the
+  target measured-win fixture admission value
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py
+  --self-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-
+  surface-gate1`
+- [OK] `git diff --check`
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-3 remain complete. Gate 4 remains open. This slice
+does not change generated RVV runtime scheduling, so no fresh `ssh rvv` timing
+was rerun; existing dequant `0.688202..0.705133` and dequant-clamp
+`0.677994..0.704931` regression/no-win evidence still denies performance
+preference.
+
+### Continuation
+
+Next owner should choose the next provider-owned packed-i4 schedule/resource
+bottleneck beyond the current 12-step low-shifted-product-rescale path, or
+record a production-consumed blocker if no measured-win repair is available.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` records that
+measured-win `performance-preferred` policy requires a provider-owned
+resource-cost admission update, while current no-win/regression policy must
+retain the deny admission and fail closed on metadata-only or measurement-only
+promotion.

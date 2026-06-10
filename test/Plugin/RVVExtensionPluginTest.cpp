@@ -12383,6 +12383,10 @@ module {
   measuredWinPackedI4Selection.performanceMaturityOutcome = "win";
   measuredWinPackedI4Selection.performanceSelectionEligible = "true";
   measuredWinPackedI4Selection.dispatchPreference = "performance-preferred";
+  measuredWinPackedI4Selection.performanceAdmissionDecision =
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision
+              .str();
   measuredWinPackedI4Selection.realizationAdmissionContract.clear();
   measuredWinPackedI4Selection.realizationAdmissionDecision.clear();
   measuredWinPackedI4Selection.realizationAdmissionEvidence.clear();
@@ -12540,6 +12544,28 @@ module {
               "selected-boundary packed-i4 Gate 3 measured-win record "
               "verification"),
           "packed-i4 measured-win selected-dispatch record verification"))
+    return result;
+
+  auto deniedAdmissionMeasuredWinSelection = measuredWinPackedI4Selection;
+  deniedAdmissionMeasuredWinSelection.performanceAdmissionDecision =
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision.str();
+  auto deniedAdmissionMeasuredWinRecord = measuredWinPackedI4Record;
+  deniedAdmissionMeasuredWinRecord.providerPerformanceAdmissionDecision =
+      deniedAdmissionMeasuredWinSelection.performanceAdmissionDecision;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              deniedAdmissionMeasuredWinSelection,
+              deniedAdmissionMeasuredWinRecord,
+              packedI4SelectedDispatchBoundary,
+              "selected-boundary packed-i4 Gate 4 measured-win record rejects "
+              "resource-cost denial admission"),
+          {"policy handoff diagnosis", "performance-preferred-measured-win",
+           "packed-i4 performance admission decision",
+           tianchenrv::plugin::rvv::
+               kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision,
+           tianchenrv::plugin::rvv::
+               kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision}))
     return result;
 
   tianchenrv::plugin::rvv::RVVLowPrecisionPerformanceMeasurementOutcome

@@ -13631,6 +13631,10 @@ bool expectRVVTargetArtifactExporterShape(
   measuredWinTargetSelection.performanceMaturityOutcome = "win";
   measuredWinTargetSelection.performanceSelectionEligible = "true";
   measuredWinTargetSelection.dispatchPreference = "performance-preferred";
+  measuredWinTargetSelection.performanceAdmissionDecision =
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision
+              .str();
   measuredWinTargetSelection.realizationAdmissionContract = "";
   measuredWinTargetSelection.realizationAdmissionDecision = "";
   measuredWinTargetSelection.realizationAdmissionEvidence = "";

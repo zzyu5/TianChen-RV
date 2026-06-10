@@ -1117,11 +1117,18 @@ llvm::Error verifyPackedI4SelectionFacts(
           selection.resourceCostBlocker,
           kRVVLowPrecisionResourcePackedI4CostBlocker))
     return error;
-  if (llvm::Error error = requirePolicyString(
-          context, "packed-i4 performance admission decision",
-          selection.performanceAdmissionDecision,
-          kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision))
-    return error;
+  if (selection.performanceAdmissionDecision !=
+          kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision &&
+      selection.performanceAdmissionDecision !=
+          kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider performance admission decision to be a consumed "
+        "resource-cost decision: expected '" +
+        kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision +
+        "' or '" +
+        kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision +
+        "' but found '" + selection.performanceAdmissionDecision + "'");
   if (llvm::Error error = requireNonEmptyPolicyString(
           context, "target capability provider mirror",
           selection.targetCapabilityProviderMirror))
@@ -1838,6 +1845,66 @@ llvm::Error verifyPackedI4MeasurementOutcomeCommon(
           outcome.providerScheduleDecisionReason,
           selection.scheduleDecisionReason))
     return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider resource cost contract tie-back",
+          outcome.providerResourceCostContract, selection.resourceCostContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider resource cost model tie-back",
+          outcome.providerResourceCostModel, selection.resourceCostModel))
+    return error;
+  if (llvm::Error error = requirePolicyInt(
+          context, "provider resource cost loop-body steps tie-back",
+          outcome.providerResourceCostLoopBodySteps,
+          selection.resourceCostLoopBodySteps))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider resource cost blocker tie-back",
+          outcome.providerResourceCostBlocker, selection.resourceCostBlocker))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider performance admission decision tie-back",
+          outcome.providerPerformanceAdmissionDecision,
+          selection.performanceAdmissionDecision))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider realization admission contract tie-back",
+          outcome.providerRealizationAdmissionContract,
+          selection.realizationAdmissionContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider realization admission decision tie-back",
+          outcome.providerRealizationAdmissionDecision,
+          selection.realizationAdmissionDecision))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider realization admission evidence tie-back",
+          outcome.providerRealizationAdmissionEvidence,
+          selection.realizationAdmissionEvidence))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider realization admission dispatch policy tie-back",
+          outcome.providerRealizationAdmissionDispatchPolicy,
+          selection.realizationAdmissionDispatchPolicy))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context,
+          "provider realization admission schedule decision contract tie-back",
+          outcome.providerRealizationAdmissionScheduleDecisionContract,
+          selection.realizationAdmissionScheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context,
+          "provider realization admission schedule decision tie-back",
+          outcome.providerRealizationAdmissionScheduleDecision,
+          selection.realizationAdmissionScheduleDecision))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context,
+          "provider realization admission schedule decision reason tie-back",
+          outcome.providerRealizationAdmissionScheduleDecisionReason,
+          selection.realizationAdmissionScheduleDecisionReason))
+    return error;
   if (llvm::Error error = requirePolicyBool(
           context, "correctness execution allowance",
           outcome.correctnessExecutionAllowed, true))
@@ -2027,6 +2094,11 @@ llvm::Error verifyPackedI4PerformancePreferredOutcome(
           context, "packed-i4 dispatch preference",
           selection.dispatchPreference, kPackedI4PerformancePreferredPolicyPath))
     return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 performance admission decision",
+          selection.performanceAdmissionDecision,
+          kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision))
+    return error;
   if (llvm::Error error = requirePolicyBool(
           context, "performance preference denial",
           outcome.performancePreferenceDenied, false))
@@ -2051,7 +2123,9 @@ bool attemptsPerformancePreferredPackedI4Outcome(
          !outcome.performancePreferenceDenied ||
          outcome.performanceWinClaimAllowed ||
          selection.performanceSelectionEligible == "true" ||
-         selection.dispatchPreference == "performance-preferred";
+         selection.dispatchPreference == "performance-preferred" ||
+         selection.performanceAdmissionDecision ==
+             kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision;
 }
 
 llvm::Error verifyPackedI4PolicyOutcomeConsistency(
@@ -2081,6 +2155,13 @@ llvm::Error verifyPackedI4PolicyOutcomeConsistency(
         llvm::Twine(context) +
         " requires dispatch preference 'not-performance-preferred' for the "
         "accepted Gate 4 regression/no-win measurement");
+  if (llvm::StringRef(selection.performanceAdmissionDecision) !=
+      kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider performance admission decision '" +
+        kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision +
+        "' for the accepted Gate 4 regression/no-win measurement");
   return llvm::Error::success();
 }
 

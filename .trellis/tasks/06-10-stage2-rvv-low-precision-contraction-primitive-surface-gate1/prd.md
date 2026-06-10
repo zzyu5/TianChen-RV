@@ -546,6 +546,54 @@ Completed Gate 4 resource-cost blocker/admission slice:
   low-shifted-product-rescale path, or a precise production-consumed blocker if
   no measured-win repair is found.
 
+Current Gate 4 resource-cost decision-consumption slice:
+
+- This round turns the packed-i4 resource-cost admission field into an explicit
+  dispatch/performance decision input. The current low-shifted-product-rescale
+  path still carries the no-win denial
+  `deny-performance-preferred-with-resource-cost-no-win-blocker`, but future
+  measured-win policy evaluation may select `performance-preferred` only if the
+  RVV provider also changes the resource-cost admission decision to
+  `admit-performance-preferred-with-resource-cost-measured-win`.
+- The slice is policy/provider-local and does not change generated RVV
+  statement scheduling or target runtime code. The existing dequant and
+  dequant-clamp same-target regression/no-win evidence roots remain the
+  current evidence inputs.
+
+Acceptance:
+
+- [x] Direct performance measurement outcome policy evaluation consumes
+  provider resource-cost and realization-admission tie-backs, not only
+  record/input/evidence-root paths.
+- [x] Current no-win/regression policy requires the resource-cost admission
+  decision to remain
+  `deny-performance-preferred-with-resource-cost-no-win-blocker`.
+- [x] A measured-win policy path fails closed if provider maturity and
+  measurement facts claim `performance-preferred` while the resource-cost
+  admission decision still carries the no-win denial.
+- [x] Focused C++ coverage proves the accepted measured-win fixture needs an
+  explicit provider-owned admission update and that stale no-win admission
+  blocks performance preference.
+- [x] No fresh `ssh rvv` timing is required because generated runtime schedule
+  is unchanged.
+
+Completed Gate 4 resource-cost decision-consumption slice:
+
+- Added a distinct provider-owned measured-win admission value:
+  `admit-performance-preferred-with-resource-cost-measured-win`.
+- `verifyPackedI4SelectionFacts` now treats performance admission as a
+  resource-cost decision enum, while no-win policy consistency requires the
+  existing deny value and measured-win policy requires the new admit value.
+- Direct `RVVLowPrecisionPerformanceMeasurementOutcome` evaluation now checks
+  resource-cost and realization-admission tie-backs, closing the gap where
+  only record/input/evidence-root paths consumed those facts.
+- Plugin and target artifact measured-win fixtures now update the provider
+  admission decision explicitly before `performance-preferred` can be selected.
+  A measured-win record that leaves the no-win denial in place fails strict
+  policy verification.
+- Gate 4 remains open because this is a policy/provider decision-consumption
+  closure, not a new schedule repair or measured runtime win.
+
 ## Non-Goals
 
 - No generated-bundle-only or `ssh rvv`-only closeout unless it validates
@@ -737,6 +785,30 @@ Current Gate 4 resource-cost blocker/admission verification:
   markers found only the PRD non-goal wording; no new positive legacy route
   authority was added.
 
+Current Gate 4 resource-cost decision-consumption verification:
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test` passed.
+- `build/bin/tianchenrv-rvv-extension-plugin-test` passed, including the
+  measured-win admission update and stale no-win resource-cost admission
+  rejection.
+- `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test` passed. The target artifact test
+  target still emits its existing switch-coverage warnings.
+- `build/bin/tianchenrv-target-artifact-export-test` initially failed because
+  its measured-win fixture still carried the no-win resource-cost admission
+  denial; after updating that target-side fixture to the new provider-owned
+  measured-win admission value, the test passed.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+  passed.
+- `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test` passed.
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-
+  gate1` passed.
+- `git diff --check` passed.
+- No fresh `ssh rvv` timing was rerun because this slice changes policy
+  admission consumption only, not generated RVV runtime scheduling.
+
 ## Spec Update Decision
 
 - Updated `.trellis/spec/extension-plugins/rvv-plugin.md` to record the
@@ -758,6 +830,14 @@ Current Gate 4 resource-cost blocker/admission verification:
   result classification, measurement harness schedule, packed oracle,
   maturity-input, and provider-feedback tie-backs must agree with the nested
   source-backed record before selected-dispatch policy evaluation.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the
+  resource-cost admission decision-consumption rule: no-win/regression policy
+  must keep
+  `deny-performance-preferred-with-resource-cost-no-win-blocker`, while a
+  measured-win performance-preferred path requires the provider-owned
+  `admit-performance-preferred-with-resource-cost-measured-win` decision and
+  fails closed if measurement or metadata attempts to promote performance
+  without that provider update.
 
 ## Continuation Point
 

@@ -7521,8 +7521,10 @@ performance-preferred
   win`, provider maturity outcome `win`, provider performance selection
   eligibility `true`, provider dispatch preference `performance-preferred`,
   provider performance action no longer carrying the no-win repair guard,
-  remediation diagnosis `performance-preferred-measured-win`, target profile,
-  measurement counts, provider schedule-decision tie-back fields, provider
+  provider resource-cost admission decision
+  `admit-performance-preferred-with-resource-cost-measured-win`, remediation
+  diagnosis `performance-preferred-measured-win`, target profile, measurement
+  counts, provider schedule-decision tie-back fields, provider
   resource/primitive/remediation tie-back fields, and win-claim allowance.
 - Measurement scripts may report evidence inputs and alignment; they must not
   edit provider maturity fields or directly authorize dispatch.
@@ -7566,6 +7568,11 @@ performance-preferred
 - Current regression/no-win evidence with provider
   `performance_selection_eligible = true` or `dispatch_preference =
   performance-preferred` -> fail closed before performance preference.
+- Current or future measured-win evidence with provider
+  `performance_admission_decision =
+  deny-performance-preferred-with-resource-cost-no-win-blocker` -> fail closed
+  before performance preference; the resource-cost admission decision must be
+  updated by the RVV provider, not by measurement JSON or artifact metadata.
 - Measurement classification `win` without a provider maturity/selection update
   -> fail closed as measurement-only win promotion.
 - Provider says `performance-preferred` but target artifact mirrors still carry

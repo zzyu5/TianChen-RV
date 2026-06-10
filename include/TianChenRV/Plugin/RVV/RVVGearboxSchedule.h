@@ -591,6 +591,9 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision(
         "deny-performance-preferred-with-resource-cost-no-win-blocker");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision(
+        "admit-performance-preferred-with-resource-cost-measured-win");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturity(
         "executable-not-performance-mature");
 constexpr llvm::StringLiteral
