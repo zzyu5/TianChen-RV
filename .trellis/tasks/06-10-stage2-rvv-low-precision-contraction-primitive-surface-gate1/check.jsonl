@@ -9,6 +9,8 @@
 {"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1", "result": "passed"}
 {"check": "git diff --check", "result": "passed"}
 {"check": "git diff --cached --check", "result": "passed"}
+{"check": "bounded staged old-authority scan", "result": "passed: matches are PRD/journal guardrail wording for q8/q4/source-front-door/descriptor/direct C exporter only; no production route authority added"}
+{"check": "git diff --cached --check", "result": "passed"}
 {"check": "bounded staged added-diff old-authority scan", "result": "passed: only PRD/spec non-authority wording and stale-negative lit intrinsic replacement matched, no new positive legacy route authority"}
 {"check": "cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test", "result": "passed"}
 {"check": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed"}
@@ -85,3 +87,12 @@
 {"check": "git diff --check", "result": "passed after normalizing generated artifact EOF blank lines"}
 {"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1", "result": "passed"}
 {"check": "bounded added-diff old-authority scan", "result": "passed: q8/q4/source-front-door/descriptor matches only PRD self-check wording; __riscv_*_i32m1 matches are existing low-precision reduction/seed intrinsic facts, not route authority"}
+{"check": "cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test", "result": "passed after rebuilding tcrv-opt/tcrv-translate with the typed low-precision resource attr whitelist update"}
+{"check": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed"}
+{"check": "build/bin/tianchenrv-target-artifact-export-test", "result": "passed"}
+{"check": "python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py scripts/rvv_generated_bundle_same_target_measure.py", "result": "passed"}
+{"check": "python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test", "result": "passed"}
+{"check": "python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test", "result": "passed"}
+{"check": "focused lit packed-i4 Gate 4 beyond-local admission fixtures and script dry-runs", "result": "passed 5/5 after repairing tcrv-opt rebuild and handoff FileCheck ordering"}
+{"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1", "result": "passed"}
+{"check": "git diff --check", "result": "passed"}

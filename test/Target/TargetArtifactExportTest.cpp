@@ -846,7 +846,7 @@ module {
     constexpr llvm::StringLiteral primitiveResourceInsertionPoint =
         "tcrv_rvv.low_precision_resource.peak_live_vector_groups = 5 : i64";
     constexpr llvm::StringLiteral primitiveResourceFacts = R"mlir(, tcrv_rvv.low_precision_resource.primitive_accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", tcrv_rvv.low_precision_resource.primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1", tcrv_rvv.low_precision_resource.primitive_chain_kind = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1", tcrv_rvv.low_precision_resource.primitive_contract = "rvv-low-precision-widening-primitive-facts.v1", tcrv_rvv.low_precision_resource.primitive_kind = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant.v1", tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1", tcrv_rvv.low_precision_resource.primitive_reduction_store_vl = "1", tcrv_rvv.low_precision_resource.primitive_result_layout = "store-standalone-reduction-lane0-to-output-scalar", tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic = "__riscv_vmv_v_x_i32m1", tcrv_rvv.low_precision_resource.primitive_source_extension = "sign-extend-i8-to-i16-product", tcrv_rvv.low_precision_resource.primitive_source_load = "unit-stride-byte-load", tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic = "__riscv_vwmul_vv_i16mf2", tcrv_rvv.low_precision_resource.primitive_widening_product_relation = "signed-i8mf4xi8mf4-to-i16mf2", tcrv_rvv.low_precision_resource.widening_product_extension_policy = "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2", tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles = "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4")mlir";
-    constexpr llvm::StringLiteral resourceCostFacts = R"mlir(, tcrv_rvv.low_precision_resource.resource_cost_contract = "rvv-low-precision-packed-i4-resource-cost-contract.v1", tcrv_rvv.low_precision_resource.resource_cost_model = "high-nibble-vwmacc-loop-11-peak-live-5of32-two-region-vsetvl.v1", tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps = 11 : i64, tcrv_rvv.low_precision_resource.resource_cost_blocker = "packed-i4-local-repair-frontier-loop-11-budget-5of32-no-win", tcrv_rvv.low_precision_resource.performance_admission_decision = "deny-performance-preferred-with-resource-cost-no-win-blocker", tcrv_rvv.low_precision_resource.performance_admission_closure = "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1", tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement = "provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1")mlir";
+    constexpr llvm::StringLiteral resourceCostFacts = R"mlir(, tcrv_rvv.low_precision_resource.resource_cost_contract = "rvv-low-precision-packed-i4-resource-cost-contract.v1", tcrv_rvv.low_precision_resource.resource_cost_model = "high-nibble-vwmacc-loop-11-peak-live-5of32-two-region-vsetvl.v1", tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps = 11 : i64, tcrv_rvv.low_precision_resource.resource_cost_blocker = "packed-i4-local-repair-frontier-loop-11-budget-5of32-no-win", tcrv_rvv.low_precision_resource.performance_admission_decision = "deny-performance-preferred-with-resource-cost-no-win-blocker", tcrv_rvv.low_precision_resource.performance_admission_closure = "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1", tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement = "provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1", tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract = "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1", tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision = "deny-performance-preferred-no-provider-repair-beyond-local-frontier", tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker = "packed-i4-no-provider-beyond-local-repair-facts", tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement = "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1")mlir";
     std::size_t position = source.find(primitiveResourceInsertionPoint.str());
     if (position == std::string::npos)
       return {};
@@ -13232,6 +13232,22 @@ bool expectRVVTargetArtifactExporterShape(
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible ||
       packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .beyondLocalRepairAdmissionContract !=
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract ||
+      packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .beyondLocalRepairAdmissionDecision !=
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision ||
+      packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .beyondLocalRepairAdmissionBlocker !=
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker ||
+      packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .beyondLocalRepairAdmissionReopenRequirement !=
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement ||
+      packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .dispatchPreference !=
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4DispatchPreference ||
@@ -13317,6 +13333,14 @@ bool expectRVVTargetArtifactExporterShape(
       acceptedPackedI4Gate4PolicyInput->providerScheduleDecision !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .scheduleDecision ||
+      acceptedPackedI4Gate4PolicyInput
+              ->providerBeyondLocalRepairAdmissionDecision !=
+          packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .beyondLocalRepairAdmissionDecision ||
+      acceptedPackedI4Gate4PolicyInput
+              ->providerBeyondLocalRepairAdmissionBlocker !=
+          packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .beyondLocalRepairAdmissionBlocker ||
       acceptedPackedI4Gate4PolicyInput->targetCapabilityProviderMirror !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .targetCapabilityProviderMirror ||
@@ -13645,6 +13669,22 @@ bool expectRVVTargetArtifactExporterShape(
   measuredWinTargetSelection.performanceAdmissionReopenRequirement =
       tianchenrv::plugin::rvv::
           kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionReopenRequirement
+              .str();
+  measuredWinTargetSelection.beyondLocalRepairAdmissionContract =
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract
+              .str();
+  measuredWinTargetSelection.beyondLocalRepairAdmissionDecision =
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionDecision
+              .str();
+  measuredWinTargetSelection.beyondLocalRepairAdmissionBlocker =
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionBlocker
+              .str();
+  measuredWinTargetSelection.beyondLocalRepairAdmissionReopenRequirement =
+      tianchenrv::plugin::rvv::
+          kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionReopenRequirement
               .str();
   measuredWinTargetSelection.realizationAdmissionContract = "";
   measuredWinTargetSelection.realizationAdmissionDecision = "";

@@ -759,6 +759,26 @@ llvm::Error verifyPackedI4SameTargetEvidenceRoot(
     return error;
   if (llvm::Error error = requireEvidenceRootStringField(
           **measurementHarness, context, "measurement_harness",
+          "provider_beyond_local_repair_admission_contract",
+          record.providerBeyondLocalRepairAdmissionContract))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
+          "provider_beyond_local_repair_admission_decision",
+          record.providerBeyondLocalRepairAdmissionDecision))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
+          "provider_beyond_local_repair_admission_blocker",
+          record.providerBeyondLocalRepairAdmissionBlocker))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
+          "provider_beyond_local_repair_admission_reopen_requirement",
+          record.providerBeyondLocalRepairAdmissionReopenRequirement))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
           "provider_realization_admission_schedule_decision_contract",
           record.providerRealizationAdmissionScheduleDecisionContract))
     return error;
@@ -815,6 +835,26 @@ llvm::Error verifyPackedI4SameTargetEvidenceRoot(
           **scheduleEvidence, context, "measurement_schedule_decision_evidence",
           "provider_performance_admission_decision",
           record.providerPerformanceAdmissionDecision))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_beyond_local_repair_admission_contract",
+          record.providerBeyondLocalRepairAdmissionContract))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_beyond_local_repair_admission_decision",
+          record.providerBeyondLocalRepairAdmissionDecision))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_beyond_local_repair_admission_blocker",
+          record.providerBeyondLocalRepairAdmissionBlocker))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_beyond_local_repair_admission_reopen_requirement",
+          record.providerBeyondLocalRepairAdmissionReopenRequirement))
     return error;
   if (llvm::Error error = requireEvidenceRootStringField(
           **scheduleEvidence, context, "measurement_schedule_decision_evidence",
@@ -1153,6 +1193,50 @@ llvm::Error verifyPackedI4SelectionFacts(
         kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionReopenRequirement +
         "' but found '" +
         selection.performanceAdmissionReopenRequirement + "'");
+  if (llvm::Error error = requirePolicyString(
+          context, "provider beyond-local repair admission contract",
+          selection.beyondLocalRepairAdmissionContract,
+          kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract))
+    return error;
+  if (selection.beyondLocalRepairAdmissionDecision !=
+          kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision &&
+      selection.beyondLocalRepairAdmissionDecision !=
+          kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionDecision)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider beyond-local repair admission decision to be a "
+        "consumed campaign-level decision: expected '" +
+        kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision +
+        "' or '" +
+        kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionDecision +
+        "' but found '" + selection.beyondLocalRepairAdmissionDecision + "'");
+  if (selection.beyondLocalRepairAdmissionBlocker !=
+          kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker &&
+      selection.beyondLocalRepairAdmissionBlocker !=
+          kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionBlocker)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider beyond-local repair admission blocker to be the "
+        "current no-further-repair blocker or measured-win none marker: "
+        "expected '" +
+        kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker +
+        "' or '" +
+        kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionBlocker +
+        "' but found '" + selection.beyondLocalRepairAdmissionBlocker + "'");
+  if (selection.beyondLocalRepairAdmissionReopenRequirement !=
+          kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement &&
+      selection.beyondLocalRepairAdmissionReopenRequirement !=
+          kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionReopenRequirement)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider beyond-local repair admission reopen requirement "
+        "to be the current typed/provider repair requirement or measured-win "
+        "none marker: expected '" +
+        kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement +
+        "' or '" +
+        kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionReopenRequirement +
+        "' but found '" +
+        selection.beyondLocalRepairAdmissionReopenRequirement + "'");
   if (llvm::Error error = requireNonEmptyPolicyString(
           context, "target capability provider mirror",
           selection.targetCapabilityProviderMirror))
@@ -1296,6 +1380,27 @@ llvm::Error verifyPackedI4SameTargetMeasurementPolicyInput(
           context, "provider performance admission reopen requirement",
           input.providerPerformanceAdmissionReopenRequirement,
           selection.performanceAdmissionReopenRequirement))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider beyond-local repair admission contract",
+          input.providerBeyondLocalRepairAdmissionContract,
+          selection.beyondLocalRepairAdmissionContract))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider beyond-local repair admission decision",
+          input.providerBeyondLocalRepairAdmissionDecision,
+          selection.beyondLocalRepairAdmissionDecision))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider beyond-local repair admission blocker",
+          input.providerBeyondLocalRepairAdmissionBlocker,
+          selection.beyondLocalRepairAdmissionBlocker))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context,
+          "provider beyond-local repair admission reopen requirement",
+          input.providerBeyondLocalRepairAdmissionReopenRequirement,
+          selection.beyondLocalRepairAdmissionReopenRequirement))
     return error;
   if (llvm::Error error = requireSameTargetPolicyInputTieBack(
           context, "provider realization admission contract",
@@ -1608,6 +1713,14 @@ materializeRVVLowPrecisionMeasurementOutcomeFromPolicyInput(
       input.providerPerformanceAdmissionClosure;
   outcome.providerPerformanceAdmissionReopenRequirement =
       input.providerPerformanceAdmissionReopenRequirement;
+  outcome.providerBeyondLocalRepairAdmissionContract =
+      input.providerBeyondLocalRepairAdmissionContract;
+  outcome.providerBeyondLocalRepairAdmissionDecision =
+      input.providerBeyondLocalRepairAdmissionDecision;
+  outcome.providerBeyondLocalRepairAdmissionBlocker =
+      input.providerBeyondLocalRepairAdmissionBlocker;
+  outcome.providerBeyondLocalRepairAdmissionReopenRequirement =
+      input.providerBeyondLocalRepairAdmissionReopenRequirement;
   outcome.providerRealizationAdmissionContract =
       input.providerRealizationAdmissionContract;
   outcome.providerRealizationAdmissionDecision =
@@ -1705,6 +1818,14 @@ materializeRVVLowPrecisionPolicyInputFromMeasurementRecord(
       record.providerPerformanceAdmissionClosure;
   input.providerPerformanceAdmissionReopenRequirement =
       record.providerPerformanceAdmissionReopenRequirement;
+  input.providerBeyondLocalRepairAdmissionContract =
+      record.providerBeyondLocalRepairAdmissionContract;
+  input.providerBeyondLocalRepairAdmissionDecision =
+      record.providerBeyondLocalRepairAdmissionDecision;
+  input.providerBeyondLocalRepairAdmissionBlocker =
+      record.providerBeyondLocalRepairAdmissionBlocker;
+  input.providerBeyondLocalRepairAdmissionReopenRequirement =
+      record.providerBeyondLocalRepairAdmissionReopenRequirement;
   input.providerRealizationAdmissionContract =
       record.providerRealizationAdmissionContract;
   input.providerRealizationAdmissionDecision =
@@ -1918,6 +2039,27 @@ llvm::Error verifyPackedI4MeasurementOutcomeCommon(
           context, "provider performance admission reopen requirement tie-back",
           outcome.providerPerformanceAdmissionReopenRequirement,
           selection.performanceAdmissionReopenRequirement))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider beyond-local repair admission contract tie-back",
+          outcome.providerBeyondLocalRepairAdmissionContract,
+          selection.beyondLocalRepairAdmissionContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider beyond-local repair admission decision tie-back",
+          outcome.providerBeyondLocalRepairAdmissionDecision,
+          selection.beyondLocalRepairAdmissionDecision))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "provider beyond-local repair admission blocker tie-back",
+          outcome.providerBeyondLocalRepairAdmissionBlocker,
+          selection.beyondLocalRepairAdmissionBlocker))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context,
+          "provider beyond-local repair admission reopen requirement tie-back",
+          outcome.providerBeyondLocalRepairAdmissionReopenRequirement,
+          selection.beyondLocalRepairAdmissionReopenRequirement))
     return error;
   if (llvm::Error error = requirePolicyString(
           context, "provider realization admission contract tie-back",
@@ -2161,6 +2303,26 @@ llvm::Error verifyPackedI4PerformancePreferredOutcome(
           selection.performanceAdmissionReopenRequirement,
           kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionReopenRequirement))
     return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 beyond-local repair admission contract",
+          selection.beyondLocalRepairAdmissionContract,
+          kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 beyond-local repair admission decision",
+          selection.beyondLocalRepairAdmissionDecision,
+          kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionDecision))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 beyond-local repair admission blocker",
+          selection.beyondLocalRepairAdmissionBlocker,
+          kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionBlocker))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 beyond-local repair admission reopen requirement",
+          selection.beyondLocalRepairAdmissionReopenRequirement,
+          kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionReopenRequirement))
+    return error;
   if (llvm::Error error = requirePolicyBool(
           context, "performance preference denial",
           outcome.performancePreferenceDenied, false))
@@ -2189,7 +2351,9 @@ bool attemptsPerformancePreferredPackedI4Outcome(
          selection.performanceAdmissionDecision ==
              kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision ||
          selection.performanceAdmissionClosure ==
-             kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionClosure;
+             kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionClosure ||
+         selection.beyondLocalRepairAdmissionDecision ==
+             kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionDecision;
 }
 
 llvm::Error verifyPackedI4PolicyOutcomeConsistency(
@@ -2241,6 +2405,34 @@ llvm::Error verifyPackedI4PolicyOutcomeConsistency(
         " requires provider performance admission reopen requirement '" +
         kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement +
         "' before any future Gate 4 performance-preferred claim is reopened");
+  if (llvm::StringRef(selection.beyondLocalRepairAdmissionContract) !=
+      kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider beyond-local repair admission contract '" +
+        kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract +
+        "' for the accepted Gate 4 no-further-repair boundary");
+  if (llvm::StringRef(selection.beyondLocalRepairAdmissionDecision) !=
+      kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider beyond-local repair admission decision '" +
+        kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision +
+        "' for the accepted Gate 4 no-further-repair boundary");
+  if (llvm::StringRef(selection.beyondLocalRepairAdmissionBlocker) !=
+      kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider beyond-local repair admission blocker '" +
+        kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker +
+        "' for the accepted Gate 4 no-further-repair boundary");
+  if (llvm::StringRef(selection.beyondLocalRepairAdmissionReopenRequirement) !=
+      kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires provider beyond-local repair admission reopen requirement '" +
+        kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement +
+        "' before any future Gate 4 beyond-local repair claim is reopened");
   return llvm::Error::success();
 }
 
@@ -2467,6 +2659,14 @@ materializeRVVLowPrecisionProductionPressureProfile(
       input.providerPerformanceAdmissionClosure;
   profile.performanceAdmissionReopenRequirement =
       input.providerPerformanceAdmissionReopenRequirement;
+  profile.beyondLocalRepairAdmissionContract =
+      input.providerBeyondLocalRepairAdmissionContract;
+  profile.beyondLocalRepairAdmissionDecision =
+      input.providerBeyondLocalRepairAdmissionDecision;
+  profile.beyondLocalRepairAdmissionBlocker =
+      input.providerBeyondLocalRepairAdmissionBlocker;
+  profile.beyondLocalRepairAdmissionReopenRequirement =
+      input.providerBeyondLocalRepairAdmissionReopenRequirement;
   profile.realizationAdmissionContract =
       input.providerRealizationAdmissionContract;
   profile.realizationAdmissionDecision =
@@ -2593,6 +2793,14 @@ llvm::Error rejectProductionPressureProfileMarkerOnlyFacts(
       {"performance admission closure", profile.performanceAdmissionClosure},
       {"performance admission reopen requirement",
        profile.performanceAdmissionReopenRequirement},
+      {"beyond-local repair admission contract",
+       profile.beyondLocalRepairAdmissionContract},
+      {"beyond-local repair admission decision",
+       profile.beyondLocalRepairAdmissionDecision},
+      {"beyond-local repair admission blocker",
+       profile.beyondLocalRepairAdmissionBlocker},
+      {"beyond-local repair admission reopen requirement",
+       profile.beyondLocalRepairAdmissionReopenRequirement},
       {"realization admission contract",
        profile.realizationAdmissionContract},
       {"realization admission decision",
@@ -2736,6 +2944,26 @@ llvm::Error verifyProductionPressureProfileAgainstCandidate(
           context, "packed-i4 performance admission reopen requirement",
           candidate.performanceAdmissionReopenRequirement,
           kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 beyond-local repair admission contract",
+          candidate.beyondLocalRepairAdmissionContract,
+          kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 beyond-local repair admission decision",
+          candidate.beyondLocalRepairAdmissionDecision,
+          kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 beyond-local repair admission blocker",
+          candidate.beyondLocalRepairAdmissionBlocker,
+          kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 beyond-local repair admission reopen requirement",
+          candidate.beyondLocalRepairAdmissionReopenRequirement,
+          kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement))
     return error;
   if (llvm::Error error =
           requirePolicyString(context, "pressure profile contract",
@@ -3222,6 +3450,14 @@ llvm::Error verifyProductionPressureProfileAgainstSelection(
   candidate.performanceAdmissionClosure = selection.performanceAdmissionClosure;
   candidate.performanceAdmissionReopenRequirement =
       selection.performanceAdmissionReopenRequirement;
+  candidate.beyondLocalRepairAdmissionContract =
+      selection.beyondLocalRepairAdmissionContract;
+  candidate.beyondLocalRepairAdmissionDecision =
+      selection.beyondLocalRepairAdmissionDecision;
+  candidate.beyondLocalRepairAdmissionBlocker =
+      selection.beyondLocalRepairAdmissionBlocker;
+  candidate.beyondLocalRepairAdmissionReopenRequirement =
+      selection.beyondLocalRepairAdmissionReopenRequirement;
   candidate.isLegal = selection.isLegal;
   candidate.rejectionReason = selection.rejectionReason;
   if (llvm::Error error =
@@ -3361,6 +3597,14 @@ buildRVVPackedI4Gate4SameTargetMeasurementRecord(
       selection.performanceAdmissionClosure;
   record.providerPerformanceAdmissionReopenRequirement =
       selection.performanceAdmissionReopenRequirement;
+  record.providerBeyondLocalRepairAdmissionContract =
+      selection.beyondLocalRepairAdmissionContract;
+  record.providerBeyondLocalRepairAdmissionDecision =
+      selection.beyondLocalRepairAdmissionDecision;
+  record.providerBeyondLocalRepairAdmissionBlocker =
+      selection.beyondLocalRepairAdmissionBlocker;
+  record.providerBeyondLocalRepairAdmissionReopenRequirement =
+      selection.beyondLocalRepairAdmissionReopenRequirement;
   record.providerRealizationAdmissionContract =
       selection.realizationAdmissionContract;
   record.providerRealizationAdmissionDecision =
@@ -3575,6 +3819,18 @@ buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
   TCRV_READ_RECORD_STRING(
       providerPerformanceAdmissionReopenRequirement,
       "provider_performance_admission_reopen_requirement");
+  TCRV_READ_RECORD_STRING(
+      providerBeyondLocalRepairAdmissionContract,
+      "provider_beyond_local_repair_admission_contract");
+  TCRV_READ_RECORD_STRING(
+      providerBeyondLocalRepairAdmissionDecision,
+      "provider_beyond_local_repair_admission_decision");
+  TCRV_READ_RECORD_STRING(
+      providerBeyondLocalRepairAdmissionBlocker,
+      "provider_beyond_local_repair_admission_blocker");
+  TCRV_READ_RECORD_STRING(
+      providerBeyondLocalRepairAdmissionReopenRequirement,
+      "provider_beyond_local_repair_admission_reopen_requirement");
   TCRV_READ_RECORD_STRING(providerRealizationAdmissionContract,
                           "provider_realization_admission_contract");
   TCRV_READ_RECORD_STRING(providerRealizationAdmissionDecision,
@@ -3765,6 +4021,14 @@ buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
       selection.performanceAdmissionClosure;
   input.providerPerformanceAdmissionReopenRequirement =
       selection.performanceAdmissionReopenRequirement;
+  input.providerBeyondLocalRepairAdmissionContract =
+      selection.beyondLocalRepairAdmissionContract;
+  input.providerBeyondLocalRepairAdmissionDecision =
+      selection.beyondLocalRepairAdmissionDecision;
+  input.providerBeyondLocalRepairAdmissionBlocker =
+      selection.beyondLocalRepairAdmissionBlocker;
+  input.providerBeyondLocalRepairAdmissionReopenRequirement =
+      selection.beyondLocalRepairAdmissionReopenRequirement;
   input.providerRealizationAdmissionContract =
       selection.realizationAdmissionContract;
   input.providerRealizationAdmissionDecision =

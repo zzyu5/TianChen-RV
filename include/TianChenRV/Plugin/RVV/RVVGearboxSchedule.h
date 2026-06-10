@@ -137,6 +137,22 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePerformanceAdmissionReopenRequirementAttrName(
         "tcrv_rvv.low_precision_resource."
         "performance_admission_reopen_requirement");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceBeyondLocalRepairAdmissionContractAttrName(
+        "tcrv_rvv.low_precision_resource."
+        "beyond_local_repair_admission_contract");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceBeyondLocalRepairAdmissionDecisionAttrName(
+        "tcrv_rvv.low_precision_resource."
+        "beyond_local_repair_admission_decision");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceBeyondLocalRepairAdmissionBlockerAttrName(
+        "tcrv_rvv.low_precision_resource."
+        "beyond_local_repair_admission_blocker");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceBeyondLocalRepairAdmissionReopenRequirementAttrName(
+        "tcrv_rvv.low_precision_resource."
+        "beyond_local_repair_admission_reopen_requirement");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRuntimeAVLSourceAttrName(
     "tcrv_rvv.low_precision_resource.runtime_avl_source");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRuntimeABIOrderAttrName(
@@ -606,6 +622,19 @@ constexpr llvm::StringLiteral
         "provider-repair-beyond-local-statement-frontier-plus-source-backed-"
         "measured-win-and-updated-admission-facts.v1");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract(
+        "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision(
+        "deny-performance-preferred-no-provider-repair-beyond-local-frontier");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker(
+        "packed-i4-no-provider-beyond-local-repair-facts");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement(
+        "new-typed-provider-beyond-local-repair-plus-source-backed-"
+        "measured-win-and-updated-admission-facts.v1");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision(
         "admit-performance-preferred-with-resource-cost-measured-win");
 constexpr llvm::StringLiteral
@@ -613,6 +642,15 @@ constexpr llvm::StringLiteral
         "performance-preferred-measured-win-admission-open.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionReopenRequirement(
+        "none");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionDecision(
+        "admit-performance-preferred-with-provider-beyond-local-measured-win");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionBlocker(
+        "none");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4MeasuredWinBeyondLocalRepairAdmissionReopenRequirement(
         "none");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturity(
@@ -759,6 +797,10 @@ struct RVVLowPrecisionContractionResourceCandidate {
   llvm::StringRef performanceAdmissionDecision;
   llvm::StringRef performanceAdmissionClosure;
   llvm::StringRef performanceAdmissionReopenRequirement;
+  llvm::StringRef beyondLocalRepairAdmissionContract;
+  llvm::StringRef beyondLocalRepairAdmissionDecision;
+  llvm::StringRef beyondLocalRepairAdmissionBlocker;
+  llvm::StringRef beyondLocalRepairAdmissionReopenRequirement;
 
   llvm::StringRef runtimeAVLSource;
   llvm::StringRef producerScope;
@@ -998,6 +1040,14 @@ inline bool isRVVLowPrecisionResourceAcceptedPackedI4ScheduleDecision(
              kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure &&
          candidate.performanceAdmissionReopenRequirement ==
              kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement &&
+         candidate.beyondLocalRepairAdmissionContract ==
+             kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract &&
+         candidate.beyondLocalRepairAdmissionDecision ==
+             kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision &&
+         candidate.beyondLocalRepairAdmissionBlocker ==
+             kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker &&
+         candidate.beyondLocalRepairAdmissionReopenRequirement ==
+             kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement &&
          candidate.peakLiveVectorGroups <= candidate.vectorRegisterBudget;
 }
 
@@ -1266,6 +1316,14 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
       kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure;
   packedI4Candidate.performanceAdmissionReopenRequirement =
       kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement;
+  packedI4Candidate.beyondLocalRepairAdmissionContract =
+      kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract;
+  packedI4Candidate.beyondLocalRepairAdmissionDecision =
+      kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision;
+  packedI4Candidate.beyondLocalRepairAdmissionBlocker =
+      kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker;
+  packedI4Candidate.beyondLocalRepairAdmissionReopenRequirement =
+      kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement;
   packedI4Candidate.remediationPlanContract =
       kRVVLowPrecisionResourcePackedI4RemediationPlanContract;
   packedI4Candidate.remediationPlan =
@@ -1488,6 +1546,14 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
              kRVVLowPrecisionResourcePerformanceAdmissionClosureAttrName ||
          name ==
              kRVVLowPrecisionResourcePerformanceAdmissionReopenRequirementAttrName ||
+         name ==
+             kRVVLowPrecisionResourceBeyondLocalRepairAdmissionContractAttrName ||
+         name ==
+             kRVVLowPrecisionResourceBeyondLocalRepairAdmissionDecisionAttrName ||
+         name ==
+             kRVVLowPrecisionResourceBeyondLocalRepairAdmissionBlockerAttrName ||
+         name ==
+             kRVVLowPrecisionResourceBeyondLocalRepairAdmissionReopenRequirementAttrName ||
          name == kRVVLowPrecisionResourceRuntimeAVLSourceAttrName ||
          name == kRVVLowPrecisionResourceRuntimeABIOrderAttrName ||
          name == kRVVLowPrecisionResourceLegalityAttrName ||

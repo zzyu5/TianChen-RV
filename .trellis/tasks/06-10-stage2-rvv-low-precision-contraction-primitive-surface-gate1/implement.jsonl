@@ -128,3 +128,30 @@
 {"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Recorded the Gate 4 no-safe-local-repair admission closure/reopen contract and measured-win reopen rule"}
 {"file": ".trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1/prd.md", "reason": "Marked the measured no-safe-repair admission-closure slice complete and kept the macro task active"}
 {"file": ".trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1/task.json", "reason": "Updated active macro task notes with current no-win ranges, closure/reopen facts, and continuation point"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h", "reason": "Added provider-owned packed-i4 beyond-local repair/admission attr names, constants, resource candidate fields, selection equality, and typed-resource attr whitelist entries"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h", "reason": "Carried beyond-local repair/admission fields on low-precision resource selections"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h", "reason": "Added beyond-local provider admission fields to measurement outcome, same-target record, policy input, and production pressure profile contracts"}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Added beyond-local repair/admission attrs to Gearbox cross-region handoff"}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Required packed-i4 handoff beyond-local repair/admission facts and preserved them as allowed selected-body resource facts"}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Materialized provider-owned beyond-local admission facts into Gearbox selected-body realization handoff"}
+{"file": "lib/Plugin/RVV/RVVGearboxSchedules.cpp", "reason": "Materialized and validated packed-i4 beyond-local admission facts in resource attrs and handoff-derived candidate checks"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Propagated and required beyond-local admission facts through route-family resource selection and realization schedule validation"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCStatementPlanOwners.cpp", "reason": "Required statement plans to preserve provider-selected beyond-local admission facts"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Mirrored beyond-local admission facts in route metadata"}
+{"file": "lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp", "reason": "Consumed beyond-local admission facts in records, evidence-root validation, production pressure profiles, measured-win admission, no-win fallback, and stale fact rejection"}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Required target artifact metadata to mirror provider-owned beyond-local admission facts"}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Exported beyond-local admission facts in target support bundle headers"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Generated and checked beyond-local admission metadata, header mirrors, MLIR materialization, and generated-bundle evidence summaries"}
+{"file": "scripts/rvv_generated_bundle_same_target_measure.py", "reason": "Required same-target records, harness evidence, and metadata-derived stale self-tests to carry beyond-local admission fields"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Covered accepted no-further-repair facts and stale measured-win beyond-local admission rejection"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Covered target artifact selection, policy input, and measured-win admission carrying beyond-local facts"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir", "reason": "Added FileCheck coverage for beyond-local handoff, route metadata, header mirrors, and stale target blocker rejection"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir", "reason": "Added FileCheck coverage for dequant-clamp beyond-local route and header mirrors"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequantize-f32-packed-i4-dry-run.test", "reason": "Asserted ABI dry-run evidence, index, and header include beyond-local admission facts"}
+{"file": "test/Scripts/rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequant-clamp-f32-packed-i4-dry-run.test", "reason": "Asserted clamp ABI dry-run evidence and header include beyond-local admission facts"}
+{"file": "test/Scripts/rvv-generated-bundle-same-target-measure-gate4-dry-run.test", "reason": "Asserted same-target dry-run records include provider beyond-local admission facts"}
+{"file": "artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json", "reason": "Synchronized existing source-backed dequant no-win evidence root with provider-owned beyond-local admission facts without changing timing"}
+{"file": "artifacts/gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json", "reason": "Synchronized existing source-backed dequant-clamp no-win evidence root with provider-owned beyond-local admission facts without changing timing"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Recorded the beyond-local no-further-repair admission blocker contract and measured-win reopen requirement"}
+{"file": ".trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1/prd.md", "reason": "Marked the beyond-local repair/admission slice complete while keeping Gate 4 macro task active"}
+{"file": ".trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1/task.json", "reason": "Updated active macro task notes with beyond-local admission blocker facts and continuation point"}

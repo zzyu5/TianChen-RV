@@ -1099,6 +1099,22 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
         "performance_admission_reopen_requirement",
         builder.getStringAttr(
             selectedCandidate.performanceAdmissionReopenRequirement));
+    state.addAttribute(
+        "beyond_local_repair_admission_contract",
+        builder.getStringAttr(
+            selectedCandidate.beyondLocalRepairAdmissionContract));
+    state.addAttribute(
+        "beyond_local_repair_admission_decision",
+        builder.getStringAttr(
+            selectedCandidate.beyondLocalRepairAdmissionDecision));
+    state.addAttribute(
+        "beyond_local_repair_admission_blocker",
+        builder.getStringAttr(
+            selectedCandidate.beyondLocalRepairAdmissionBlocker));
+    state.addAttribute(
+        "beyond_local_repair_admission_reopen_requirement",
+        builder.getStringAttr(
+            selectedCandidate.beyondLocalRepairAdmissionReopenRequirement));
   }
   state.addAttribute(
       "product_region_index",

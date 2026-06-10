@@ -797,6 +797,85 @@ Remaining Gate 4 continuation point:
   later campaign-level decision that no further production repair should be
   admitted without new typed/provider facts.
 
+Current Gate 4 beyond-local repair/admission boundary slice:
+
+- This round audits the current packed-i4 product-reduction-dequant/dequant-
+  clamp provider surface beyond the local statement frontier. The last local
+  statement repairs already consumed low-shifted product rescale and high-
+  nibble vwmacc into selected-body realization, route facts, target mirrors,
+  generated-bundle evidence, same-target measurement roots, resource-cost
+  admission, and policy. The remaining safe production move is therefore not a
+  metadata-only closeout and not another speculative statement-order tweak: it
+  must either introduce a new provider-owned beyond-local schedule/resource
+  repair and rerun fresh same-target timing, or encode a production-consumed
+  campaign-level no-further-repair blocker that keeps performance-preferred
+  dispatch closed until new typed/provider facts appear.
+- The current slice takes the no-further-repair path unless source inspection
+  reveals a bounded provider-owned schedule/resource repair beyond the local
+  statement frontier. The blocker must be a provider-owned low-precision
+  resource/admission fact consumed by Gearbox selected-body realization,
+  route-family selection, statement-plan validation, route metadata, target
+  artifact/header mirrors, same-target evidence-root ingestion, production
+  pressure profiles, and `RVVLowPrecisionPerformancePolicy`. It must not be
+  inferred from q8/q4 labels, artifact paths, reports, route ids, script
+  statuses, or Common EmitC.
+- No fresh `ssh rvv` timing is required if this slice changes only admission
+  and policy consumption facts and does not alter generated RVV statements,
+  resource model counts, or performance claims. Fresh dequant and dequant-clamp
+  same-target timing is required before accepting any generated runtime change
+  or performance-preferred claim.
+
+Acceptance:
+
+- [x] Provider-owned packed-i4 resource facts include a beyond-local
+  repair/admission contract, decision, blocker, and reopen requirement that
+  explicitly records the no-further-repair boundary after the local statement
+  frontier.
+- [x] Selected-body realization, `gearbox_cross_region_handoff`, route-family
+  selection, statement-plan validation, route metadata, target artifact
+  validation, and target support bundle headers require or preserve those
+  facts for packed-i4 dequant and dequant-clamp.
+- [x] Same-target measurement records/evidence roots, production pressure
+  profiles, and `RVVLowPrecisionPerformancePolicy` consume the beyond-local
+  facts; stale or missing facts reject performance preference while preserving
+  correctness fallback for the legal route.
+- [x] Focused plugin, target, script, and FileCheck coverage proves accepted
+  beyond-local admission facts and stale beyond-local fact rejection without
+  relying on report-only or generated-bundle-only evidence.
+- [x] Because runtime schedule/resource behavior is unchanged in the
+  no-further-repair path, no fresh `ssh rvv` timing is required; if any runtime
+  generation changes, fresh dequant and dequant-clamp timing must be collected
+  before policy claims.
+- [x] Bounded scans show no new legacy RVV route authority, q8/q4 route
+  naming, source-front-door positive route, descriptor-driven compute, or
+  Common EmitC semantic inference.
+
+Completed Gate 4 beyond-local repair/admission boundary slice:
+
+- Added provider-owned packed-i4 beyond-local repair/admission facts:
+  `rvv-low-precision-packed-i4-beyond-local-repair-admission.v1`,
+  `deny-performance-preferred-no-provider-repair-beyond-local-frontier`,
+  `packed-i4-no-provider-beyond-local-repair-facts`, and
+  `new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1`.
+- Threaded the tuple through typed low-precision resource attrs, Gearbox
+  selected-body realization, `gearbox_cross_region_handoff`, route-family and
+  statement-plan validation, route metadata, target artifact/header mirrors,
+  generated-bundle scripts, same-target evidence roots, production pressure
+  profiles, and `RVVLowPrecisionPerformancePolicy`.
+- Added fail-closed coverage for stale or metadata-derived beyond-local
+  blocker/admission facts in focused plugin, target, lit, and script tests.
+- This slice did not change generated RVV statement scheduling or resource
+  model counts, and it does not claim a performance improvement; no fresh
+  `ssh rvv` timing was required.
+
+Remaining Gate 4 continuation point after this slice:
+
+- Gate 4 remains open. Performance-preferred packed-i4 dispatch may be reopened
+  only by a new typed/provider-owned beyond-local schedule/resource repair
+  plus source-backed dequant and dequant-clamp measured-win evidence and
+  updated provider admission facts. Metadata, artifact names, route ids,
+  reports, generated-bundle status, or q8/q4 labels cannot reopen the boundary.
+
 ## Non-Goals
 
 - No generated-bundle-only or `ssh rvv`-only closeout unless it validates

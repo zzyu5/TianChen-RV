@@ -34,6 +34,10 @@
 # WPRDC-DAG: "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
 # WPRDC-DAG: "performance_admission_closure": "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1"
 # WPRDC-DAG: "performance_admission_reopen_requirement": "provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+# WPRDC-DAG: "beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1"
+# WPRDC-DAG: "beyond_local_repair_admission_decision": "deny-performance-preferred-no-provider-repair-beyond-local-frontier"
+# WPRDC-DAG: "beyond_local_repair_admission_blocker": "packed-i4-no-provider-beyond-local-repair-facts"
+# WPRDC-DAG: "beyond_local_repair_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
 # WPRDC-DAG: "remediation_measurement_evidence": "gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
 # WPRDC-DAG: "packed_i4_reference_oracle"
 # WPRDC-DAG: "runtime_n_unit": "packed input bytes"
@@ -47,6 +51,10 @@
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_admission_decision: deny-performance-preferred-with-resource-cost-no-win-blocker
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_admission_closure: no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_admission_reopen_requirement: provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.beyond_local_repair_admission_contract: rvv-low-precision-packed-i4-beyond-local-repair-admission.v1
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.beyond_local_repair_admission_decision: deny-performance-preferred-no-provider-repair-beyond-local-frontier
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.beyond_local_repair_admission_blocker: packed-i4-no-provider-beyond-local-repair-facts
+# HEADER-DAG: tianchenrv.rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement: new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1
 # HEADER-DAG: tianchenrv.rvv.low_precision_resource.remediation_measurement_evidence: gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
 # HEADER: void tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);
 

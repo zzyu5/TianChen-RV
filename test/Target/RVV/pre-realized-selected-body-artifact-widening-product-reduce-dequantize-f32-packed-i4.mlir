@@ -16,6 +16,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_selection_eligible", value = "false"/s//tcrv_rvv.low_precision_resource.performance_selection_eligible", value = "true"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-PERFORMANCE-SELECTION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_maturity_outcome", value = "no-win"/s//tcrv_rvv.low_precision_resource.performance_maturity_outcome", value = "win"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-PERFORMANCE-OUTCOME
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_admission_closure", value = "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1"/s//tcrv_rvv.low_precision_resource.performance_admission_closure", value = "metadata-only-no-safe-repair"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-PERFORMANCE-ADMISSION-CLOSURE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker", value = "packed-i4-no-provider-beyond-local-repair-facts"/s//tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker", value = "metadata-only-beyond-local-blocker"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-BEYOND-LOCAL-BLOCKER
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.dispatch_preference", value = "not-performance-preferred"/s//tcrv_rvv.low_precision_resource.dispatch_preference", value = "performance-preferred"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-DISPATCH-PREFERENCE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequantize/s//selected_dispatch_case_mirror:@metadata_only_dispatch_case/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-DISPATCH-CASE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback/s//selected_dispatch_fallback_mirror:@metadata_only_scalar_fallback/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-DISPATCH-FALLBACK
@@ -67,6 +68,10 @@ module {
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_admission_decision = "deny-performance-preferred-with-resource-cost-no-win-blocker"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_admission_closure = "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement = "provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract = "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision = "deny-performance-preferred-no-provider-repair-beyond-local-frontier"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker = "packed-i4-no-provider-beyond-local-repair-facts"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement = "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_maturity = "executable-not-performance-mature"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_maturity_evidence = "same-target-packed-i4-local-repair-frontier-no-win-gate4.v1"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_maturity_outcome = "no-win"
@@ -90,6 +95,10 @@ module {
 // REALIZED-SAME: region_index = 1 : i64
 // REALIZED-SAME: resource_decision = "consume-low-precision-packed-i4-high-nibble-vwmacc-single-reduce-budget-5of32.v1"
 // REALIZED: tcrv_rvv.gearbox_cross_region_handoff
+// REALIZED-SAME: beyond_local_repair_admission_blocker = "packed-i4-no-provider-beyond-local-repair-facts"
+// REALIZED-SAME: beyond_local_repair_admission_contract = "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1"
+// REALIZED-SAME: beyond_local_repair_admission_decision = "deny-performance-preferred-no-provider-repair-beyond-local-frontier"
+// REALIZED-SAME: beyond_local_repair_admission_reopen_requirement = "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
 // REALIZED-SAME: dequant_region_index = 2 : i64
 // REALIZED-SAME: from_phase = "load-product-reduce"
 // REALIZED-SAME: operand_form = "packed-i4-nibbles"
@@ -159,6 +168,10 @@ module {
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_admission_decision", value = "deny-performance-preferred-with-resource-cost-no-win-blocker"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_admission_closure", value = "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement", value = "provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract", value = "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision", value = "deny-performance-preferred-no-provider-repair-beyond-local-frontier"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker", value = "packed-i4-no-provider-beyond-local-repair-facts"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement", value = "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_maturity", value = "executable-not-performance-mature"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_maturity_evidence", value = "same-target-packed-i4-local-repair-frontier-no-win-gate4.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_maturity_outcome", value = "no-win"}
@@ -205,6 +218,10 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_admission_decision: deny-performance-preferred-with-resource-cost-no-win-blocker
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_admission_closure: no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_admission_reopen_requirement: provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.beyond_local_repair_admission_contract: rvv-low-precision-packed-i4-beyond-local-repair-admission.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.beyond_local_repair_admission_decision: deny-performance-preferred-no-provider-repair-beyond-local-frontier
+// HEADER: tianchenrv.rvv.low_precision_resource.beyond_local_repair_admission_blocker: packed-i4-no-provider-beyond-local-repair-facts
+// HEADER: tianchenrv.rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement: new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_maturity: executable-not-performance-mature
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_maturity_evidence: same-target-packed-i4-local-repair-frontier-no-win-gate4.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_maturity_outcome: no-win
@@ -269,6 +286,9 @@ module {
 
 // STALE-ARTIFACT-PERFORMANCE-ADMISSION-CLOSURE: low_precision_resource.performance_admission_closure provenance must mirror provider-selected low-precision direct-contraction resource performance admission closure 'no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1'
 // STALE-ARTIFACT-PERFORMANCE-ADMISSION-CLOSURE-SAME: metadata-only-no-safe-repair
+
+// STALE-ARTIFACT-BEYOND-LOCAL-BLOCKER: low_precision_resource.beyond_local_repair_admission_blocker provenance must mirror provider-selected low-precision direct-contraction resource beyond-local repair admission blocker 'packed-i4-no-provider-beyond-local-repair-facts'
+// STALE-ARTIFACT-BEYOND-LOCAL-BLOCKER-SAME: metadata-only-beyond-local-blocker
 
 // STALE-ARTIFACT-DISPATCH-PREFERENCE: low_precision_resource.dispatch_preference provenance must mirror provider-selected low-precision direct-contraction resource dispatch preference 'not-performance-preferred'
 // STALE-ARTIFACT-DISPATCH-PREFERENCE-SAME: performance-preferred

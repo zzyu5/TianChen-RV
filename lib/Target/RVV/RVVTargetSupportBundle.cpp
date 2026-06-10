@@ -1133,6 +1133,22 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        "tcrv_rvv.low_precision_resource."
        "performance_admission_reopen_requirement",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.beyond_local_repair_admission_contract",
+       "tcrv_rvv.low_precision_resource."
+       "beyond_local_repair_admission_contract",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.beyond_local_repair_admission_decision",
+       "tcrv_rvv.low_precision_resource."
+       "beyond_local_repair_admission_decision",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.beyond_local_repair_admission_blocker",
+       "tcrv_rvv.low_precision_resource."
+       "beyond_local_repair_admission_blocker",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.beyond_local_repair_admission_reopen_requirement",
+       "tcrv_rvv.low_precision_resource."
+       "beyond_local_repair_admission_reopen_requirement",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.performance_maturity",
        "tcrv_rvv.low_precision_resource.performance_maturity", "",
        /*allowDynamicValue=*/true, /*optional=*/true},

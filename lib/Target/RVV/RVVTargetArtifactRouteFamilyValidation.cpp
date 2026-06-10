@@ -4041,6 +4041,34 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
               kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 beyond-local repair admission contract",
+          selection.beyondLocalRepairAdmissionContract,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 beyond-local repair admission decision",
+          selection.beyondLocalRepairAdmissionDecision,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 beyond-local repair admission blocker",
+          selection.beyondLocalRepairAdmissionBlocker,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 beyond-local repair admission reopen requirement",
+          selection.beyondLocalRepairAdmissionReopenRequirement,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 performance maturity",
           selection.performanceMaturity,
           plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceMaturity))
@@ -6353,6 +6381,30 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
             "performance_admission_reopen_requirement",
             selection.performanceAdmissionReopenRequirement,
             "performance admission reopen requirement"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource."
+            "beyond_local_repair_admission_contract",
+            selection.beyondLocalRepairAdmissionContract,
+            "beyond-local repair admission contract"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource."
+            "beyond_local_repair_admission_decision",
+            selection.beyondLocalRepairAdmissionDecision,
+            "beyond-local repair admission decision"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource."
+            "beyond_local_repair_admission_blocker",
+            selection.beyondLocalRepairAdmissionBlocker,
+            "beyond-local repair admission blocker"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource."
+            "beyond_local_repair_admission_reopen_requirement",
+            selection.beyondLocalRepairAdmissionReopenRequirement,
+            "beyond-local repair admission reopen requirement"))
       return error;
     if (llvm::Error error = requireResourceMirror(
             "tcrv_rvv.low_precision_resource.performance_maturity",

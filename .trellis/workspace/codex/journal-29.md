@@ -1522,3 +1522,75 @@ typed/provider facts.
 [UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` records the
 local-repair frontier closure and the measured-win reopen rule beyond the
 local statement frontier.
+
+## Session 591: Gate 4 beyond-local repair/admission blocker
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV low-precision contraction primitive surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active Gate 4 macro task. This slice did not find or introduce a
+safe provider-owned schedule/resource repair beyond the local statement
+frontier. Instead it makes the no-further-repair admission boundary a
+production-consumed provider fact for packed-i4 product-reduction dequant and
+dequant-clamp, keeping performance-preferred dispatch closed until new
+typed/provider facts and source-backed measured-win evidence exist.
+
+### Main Changes
+
+- Added provider-owned beyond-local repair/admission facts:
+  `rvv-low-precision-packed-i4-beyond-local-repair-admission.v1`,
+  `deny-performance-preferred-no-provider-repair-beyond-local-frontier`,
+  `packed-i4-no-provider-beyond-local-repair-facts`, and
+  `new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1`.
+- Threaded those facts through typed resource attrs, selected-body realization,
+  Gearbox handoff, route-family and statement-plan validation, route metadata,
+  target artifact/header mirrors, generated-bundle scripts, same-target
+  evidence roots, production pressure profiles, and
+  `RVVLowPrecisionPerformancePolicy`.
+- Added stale/missing/metadata-derived beyond-local admission rejection in
+  focused plugin, target, lit, and script coverage.
+- Updated the RVV plugin spec, PRD, task notes, and existing source-backed
+  dequant/dequant-clamp evidence roots without changing timing values.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py
+  scripts/rvv_generated_bundle_same_target_measure.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py
+  --self-test`
+- [OK] focused lit from `build/test` for the two packed-i4 target fixtures,
+  ABI e2e dry-run tests, and same-target dry-run test
+- [OK] `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-
+  surface-gate1`
+- [OK] `git diff --check`
+
+### Status
+
+[OPEN MACRO TASK] Gate 4 remains open. No fresh `ssh rvv` timing was required
+because this slice changes admission/policy consumption and mirrors only; it
+does not change generated RVV statement scheduling, resource counts, or
+performance claims.
+
+### Continuation
+
+Performance-preferred packed-i4 dispatch can only reopen after a new
+typed/provider-owned beyond-local schedule/resource repair, fresh source-backed
+dequant and dequant-clamp measured-win evidence, and updated provider
+admission/maturity/target/policy facts. Metadata, artifact names, route ids,
+reports, generated-bundle status, or q8/q4 labels cannot reopen the boundary.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` records the
+provider-owned beyond-local no-further-repair admission blocker and the future
+measured-win reopen requirement.

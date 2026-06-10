@@ -43623,6 +43623,22 @@ getRVVSelectedBodyConfigArtifactMetadata(
           {"tcrv_rvv.low_precision_resource."
            "performance_admission_reopen_requirement",
            selection.performanceAdmissionReopenRequirement});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource."
+           "beyond_local_repair_admission_contract",
+           selection.beyondLocalRepairAdmissionContract});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource."
+           "beyond_local_repair_admission_decision",
+           selection.beyondLocalRepairAdmissionDecision});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource."
+           "beyond_local_repair_admission_blocker",
+           selection.beyondLocalRepairAdmissionBlocker});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource."
+           "beyond_local_repair_admission_reopen_requirement",
+           selection.beyondLocalRepairAdmissionReopenRequirement});
       metadata.push_back({"tcrv_rvv.low_precision_resource.performance_maturity",
                           selection.performanceMaturity});
       metadata.push_back(

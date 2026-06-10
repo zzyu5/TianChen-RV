@@ -848,6 +848,19 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_REOPEN_RE
     "provider-repair-beyond-local-statement-frontier-plus-source-backed-"
     "measured-win-and-updated-admission-facts.v1"
 )
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_CONTRACT = (
+    "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_DECISION = (
+    "deny-performance-preferred-no-provider-repair-beyond-local-frontier"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_BLOCKER = (
+    "packed-i4-no-provider-beyond-local-repair-facts"
+)
+WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_REOPEN_REQUIREMENT = (
+    "new-typed-provider-beyond-local-repair-plus-source-backed-"
+    "measured-win-and-updated-admission-facts.v1"
+)
 LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER = (
     "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
 )
@@ -8521,6 +8534,11 @@ LOW_PRECISION_RESOURCE_METADATA_KEYS = (
     "tcrv_rvv.low_precision_resource.performance_admission_decision",
     "tcrv_rvv.low_precision_resource.performance_admission_closure",
     "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement",
+    "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract",
+    "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision",
+    "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker",
+    "tcrv_rvv.low_precision_resource."
+    "beyond_local_repair_admission_reopen_requirement",
     "tcrv_rvv.low_precision_resource.realization_admission_contract",
     "tcrv_rvv.low_precision_resource.realization_admission_decision",
     "tcrv_rvv.low_precision_resource.realization_admission_evidence",
@@ -9495,6 +9513,18 @@ def product_dequant_low_precision_resource_profile(
             "performance_admission_reopen_requirement": (
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_REOPEN_REQUIREMENT
             ),
+            "beyond_local_repair_admission_contract": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_CONTRACT
+            ),
+            "beyond_local_repair_admission_decision": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_DECISION
+            ),
+            "beyond_local_repair_admission_blocker": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_BLOCKER
+            ),
+            "beyond_local_repair_admission_reopen_requirement": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_REOPEN_REQUIREMENT
+            ),
             "primitive_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CONTRACT,
             "primitive_kind": (
                 LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_CLAMP_KIND
@@ -9634,6 +9664,18 @@ def product_dequant_low_precision_resource_profile(
             ),
             "performance_admission_reopen_requirement": (
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_REOPEN_REQUIREMENT
+            ),
+            "beyond_local_repair_admission_contract": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_CONTRACT
+            ),
+            "beyond_local_repair_admission_decision": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_DECISION
+            ),
+            "beyond_local_repair_admission_blocker": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_BLOCKER
+            ),
+            "beyond_local_repair_admission_reopen_requirement": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_BEYOND_LOCAL_REPAIR_ADMISSION_REOPEN_REQUIREMENT
             ),
             "realization_admission_contract": (
                 LOW_PRECISION_RESOURCE_REALIZATION_ADMISSION_CONTRACT
@@ -9897,6 +9939,18 @@ def expected_low_precision_resource_metadata(
                 ],
                 "performance_admission_reopen_requirement": profile[
                     "performance_admission_reopen_requirement"
+                ],
+                "beyond_local_repair_admission_contract": profile[
+                    "beyond_local_repair_admission_contract"
+                ],
+                "beyond_local_repair_admission_decision": profile[
+                    "beyond_local_repair_admission_decision"
+                ],
+                "beyond_local_repair_admission_blocker": profile[
+                    "beyond_local_repair_admission_blocker"
+                ],
+                "beyond_local_repair_admission_reopen_requirement": profile[
+                    "beyond_local_repair_admission_reopen_requirement"
                 ],
                 "realization_admission_contract": profile[
                     "realization_admission_contract"
@@ -12465,6 +12519,26 @@ def expected_metadata_for(expectation: OpExpectation) -> dict[str, str]:
                             "performance_admission_reopen_requirement"
                         ]
                     ),
+                    "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract": (
+                        resource_profile[
+                            "beyond_local_repair_admission_contract"
+                        ]
+                    ),
+                    "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision": (
+                        resource_profile[
+                            "beyond_local_repair_admission_decision"
+                        ]
+                    ),
+                    "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker": (
+                        resource_profile[
+                            "beyond_local_repair_admission_blocker"
+                        ]
+                    ),
+                    "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement": (
+                        resource_profile[
+                            "beyond_local_repair_admission_reopen_requirement"
+                        ]
+                    ),
                 }
             )
     if expectation.is_widening_dot_reduce_add:
@@ -12851,6 +12925,10 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
             "tcrv_rvv.low_precision_resource.performance_admission_decision",
             "tcrv_rvv.low_precision_resource.performance_admission_closure",
             "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement",
+            "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract",
+            "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision",
+            "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker",
+            "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement",
         ):
             comment_key = "tianchenrv.rvv." + key.removeprefix("tcrv_rvv.")
             require_contains(
@@ -17745,6 +17823,26 @@ def verify_materialized_selected_body(
                     f'tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement = "{resource_profile["performance_admission_reopen_requirement"]}"',
                     "materialized selected-body MLIR packed-i4 performance admission reopen requirement",
                 )
+                require_contains(
+                    text,
+                    f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract = "{resource_profile["beyond_local_repair_admission_contract"]}"',
+                    "materialized selected-body MLIR packed-i4 beyond-local repair admission contract",
+                )
+                require_contains(
+                    text,
+                    f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision = "{resource_profile["beyond_local_repair_admission_decision"]}"',
+                    "materialized selected-body MLIR packed-i4 beyond-local repair admission decision",
+                )
+                require_contains(
+                    text,
+                    f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker = "{resource_profile["beyond_local_repair_admission_blocker"]}"',
+                    "materialized selected-body MLIR packed-i4 beyond-local repair admission blocker",
+                )
+                require_contains(
+                    text,
+                    f'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement = "{resource_profile["beyond_local_repair_admission_reopen_requirement"]}"',
+                    "materialized selected-body MLIR packed-i4 beyond-local repair admission reopen requirement",
+                )
             widening_product_reduction_boundary["selected_source_abi"][
                 "scale"
             ] = "dequant-scale-value"
@@ -17826,6 +17924,18 @@ def verify_materialized_selected_body(
                     ],
                     "performance_admission_reopen_requirement": resource_profile[
                         "performance_admission_reopen_requirement"
+                    ],
+                    "beyond_local_repair_admission_contract": resource_profile[
+                        "beyond_local_repair_admission_contract"
+                    ],
+                    "beyond_local_repair_admission_decision": resource_profile[
+                        "beyond_local_repair_admission_decision"
+                    ],
+                    "beyond_local_repair_admission_blocker": resource_profile[
+                        "beyond_local_repair_admission_blocker"
+                    ],
+                    "beyond_local_repair_admission_reopen_requirement": resource_profile[
+                        "beyond_local_repair_admission_reopen_requirement"
                     ],
                 }
                 widening_product_reduction_boundary[
@@ -34711,6 +34821,30 @@ def widening_product_reduction_boundary_summary(
                     "expected_performance_admission_reopen_requirement": resource_profile[
                         "performance_admission_reopen_requirement"
                     ],
+                    "beyond_local_repair_admission_contract": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract"
+                    ),
+                    "expected_beyond_local_repair_admission_contract": resource_profile[
+                        "beyond_local_repair_admission_contract"
+                    ],
+                    "beyond_local_repair_admission_decision": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision"
+                    ),
+                    "expected_beyond_local_repair_admission_decision": resource_profile[
+                        "beyond_local_repair_admission_decision"
+                    ],
+                    "beyond_local_repair_admission_blocker": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker"
+                    ),
+                    "expected_beyond_local_repair_admission_blocker": resource_profile[
+                        "beyond_local_repair_admission_blocker"
+                    ],
+                    "beyond_local_repair_admission_reopen_requirement": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement"
+                    ),
+                    "expected_beyond_local_repair_admission_reopen_requirement": resource_profile[
+                        "beyond_local_repair_admission_reopen_requirement"
+                    ],
                     "remediation_handoff_contract": route_metadata.get(
                         "tcrv_rvv.low_precision_resource.remediation_handoff_contract"
                     ),
@@ -35247,6 +35381,18 @@ def widening_product_reduction_boundary_summary(
                     "performance_admission_reopen_requirement": resource_profile[
                         "performance_admission_reopen_requirement"
                     ],
+                    "beyond_local_repair_admission_contract": resource_profile[
+                        "beyond_local_repair_admission_contract"
+                    ],
+                    "beyond_local_repair_admission_decision": resource_profile[
+                        "beyond_local_repair_admission_decision"
+                    ],
+                    "beyond_local_repair_admission_blocker": resource_profile[
+                        "beyond_local_repair_admission_blocker"
+                    ],
+                    "beyond_local_repair_admission_reopen_requirement": resource_profile[
+                        "beyond_local_repair_admission_reopen_requirement"
+                    ],
                 }
             )
             generated_artifact_resource_schedule_evidence[
@@ -35345,6 +35491,18 @@ def widening_product_reduction_boundary_summary(
                     "performance_admission_reopen_requirement": route_metadata.get(
                         "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement"
                     ),
+                    "beyond_local_repair_admission_contract": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract"
+                    ),
+                    "beyond_local_repair_admission_decision": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision"
+                    ),
+                    "beyond_local_repair_admission_blocker": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker"
+                    ),
+                    "beyond_local_repair_admission_reopen_requirement": route_metadata.get(
+                        "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement"
+                    ),
                 },
                 "expected_fields": {
                     "performance_feedback": resource_profile[
@@ -35426,6 +35584,18 @@ def widening_product_reduction_boundary_summary(
                     ],
                     "performance_admission_reopen_requirement": resource_profile[
                         "performance_admission_reopen_requirement"
+                    ],
+                    "beyond_local_repair_admission_contract": resource_profile[
+                        "beyond_local_repair_admission_contract"
+                    ],
+                    "beyond_local_repair_admission_decision": resource_profile[
+                        "beyond_local_repair_admission_decision"
+                    ],
+                    "beyond_local_repair_admission_blocker": resource_profile[
+                        "beyond_local_repair_admission_blocker"
+                    ],
+                    "beyond_local_repair_admission_reopen_requirement": resource_profile[
+                        "beyond_local_repair_admission_reopen_requirement"
                     ],
                 },
             }

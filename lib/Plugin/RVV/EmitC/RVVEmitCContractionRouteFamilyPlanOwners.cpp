@@ -4895,6 +4895,14 @@ void populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
       candidate.performanceAdmissionClosure.str();
   selection.performanceAdmissionReopenRequirement =
       candidate.performanceAdmissionReopenRequirement.str();
+  selection.beyondLocalRepairAdmissionContract =
+      candidate.beyondLocalRepairAdmissionContract.str();
+  selection.beyondLocalRepairAdmissionDecision =
+      candidate.beyondLocalRepairAdmissionDecision.str();
+  selection.beyondLocalRepairAdmissionBlocker =
+      candidate.beyondLocalRepairAdmissionBlocker.str();
+  selection.beyondLocalRepairAdmissionReopenRequirement =
+      candidate.beyondLocalRepairAdmissionReopenRequirement.str();
   selection.runtimeAVLSource = candidate.runtimeAVLSource.str();
   selection.producerScope = candidate.producerScope.str();
   selection.consumerScope = candidate.consumerScope.str();
@@ -5064,6 +5072,18 @@ void populateRVVLowPrecisionContractionResourceRealizationSchedule(
         kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure.str();
     selection.performanceAdmissionReopenRequirement =
         kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement
+            .str();
+    selection.beyondLocalRepairAdmissionContract =
+        kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract
+            .str();
+    selection.beyondLocalRepairAdmissionDecision =
+        kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision
+            .str();
+    selection.beyondLocalRepairAdmissionBlocker =
+        kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker
+            .str();
+    selection.beyondLocalRepairAdmissionReopenRequirement =
+        kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement
             .str();
     selection.realizationAdmissionScheduleDecisionContract =
         selection.scheduleDecisionContract;
@@ -5382,6 +5402,34 @@ llvm::Error requireRVVLowPrecisionResourceRealizationFacts(
                 kRVVLowPrecisionResourcePerformanceAdmissionDecisionAttrName,
                 "performance admission decision",
                 selection.performanceAdmissionDecision))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourceBeyondLocalRepairAdmissionContractAttrName,
+                "beyond-local repair admission contract",
+                selection.beyondLocalRepairAdmissionContract))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourceBeyondLocalRepairAdmissionDecisionAttrName,
+                "beyond-local repair admission decision",
+                selection.beyondLocalRepairAdmissionDecision))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourceBeyondLocalRepairAdmissionBlockerAttrName,
+                "beyond-local repair admission blocker",
+                selection.beyondLocalRepairAdmissionBlocker))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourceBeyondLocalRepairAdmissionReopenRequirementAttrName,
+                "beyond-local repair admission reopen requirement",
+                selection.beyondLocalRepairAdmissionReopenRequirement))
       return error;
     if (llvm::Error error =
             requireRVVLowPrecisionResourceRealizationStringFact(
@@ -5874,6 +5922,26 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
           "performance_admission_reopen_requirement",
           "performance admission reopen requirement",
           selection.performanceAdmissionReopenRequirement))
+    return error;
+  if (llvm::Error error = requireHandoffPackedI4StringFact(
+          "beyond_local_repair_admission_contract",
+          "beyond-local repair admission contract",
+          selection.beyondLocalRepairAdmissionContract))
+    return error;
+  if (llvm::Error error = requireHandoffPackedI4StringFact(
+          "beyond_local_repair_admission_decision",
+          "beyond-local repair admission decision",
+          selection.beyondLocalRepairAdmissionDecision))
+    return error;
+  if (llvm::Error error = requireHandoffPackedI4StringFact(
+          "beyond_local_repair_admission_blocker",
+          "beyond-local repair admission blocker",
+          selection.beyondLocalRepairAdmissionBlocker))
+    return error;
+  if (llvm::Error error = requireHandoffPackedI4StringFact(
+          "beyond_local_repair_admission_reopen_requirement",
+          "beyond-local repair admission reopen requirement",
+          selection.beyondLocalRepairAdmissionReopenRequirement))
     return error;
   if (llvm::Error error = requireHandoffResourceIntegerFact(
           "product_region_index", handoff.getProductRegionIndex(),
@@ -6536,6 +6604,26 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
       selection.performanceAdmissionReopenRequirement = *value;
     else
       return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourceBeyondLocalRepairAdmissionContractAttrName))
+      selection.beyondLocalRepairAdmissionContract = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourceBeyondLocalRepairAdmissionDecisionAttrName))
+      selection.beyondLocalRepairAdmissionDecision = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourceBeyondLocalRepairAdmissionBlockerAttrName))
+      selection.beyondLocalRepairAdmissionBlocker = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourceBeyondLocalRepairAdmissionReopenRequirementAttrName))
+      selection.beyondLocalRepairAdmissionReopenRequirement = *value;
+    else
+      return value.takeError();
     if (std::optional<std::string> value = readOptionalString(
             kRVVLowPrecisionResourceRealizationAdmissionContractAttrName))
       selection.realizationAdmissionContract = *value;
@@ -7134,6 +7222,27 @@ llvm::Error verifyRVVLowPrecisionContractionResourceRemediationHandoff(
           selection.performanceAdmissionReopenRequirement,
           kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement))
     return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "beyond-local repair admission contract",
+          selection.beyondLocalRepairAdmissionContract,
+          kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "beyond-local repair admission decision",
+          selection.beyondLocalRepairAdmissionDecision,
+          kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "beyond-local repair admission blocker",
+          selection.beyondLocalRepairAdmissionBlocker,
+          kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection,
+          "beyond-local repair admission reopen requirement",
+          selection.beyondLocalRepairAdmissionReopenRequirement,
+          kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement))
+    return error;
   return requireRVVLowPrecisionResourceStringField(
       context, selection, "schedule decision reason",
       selection.scheduleDecisionReason,
@@ -7242,6 +7351,14 @@ bool isRVVLowPrecisionResourceSelectionEqual(
          lhs.performanceAdmissionClosure == rhs.performanceAdmissionClosure &&
          lhs.performanceAdmissionReopenRequirement ==
              rhs.performanceAdmissionReopenRequirement &&
+         lhs.beyondLocalRepairAdmissionContract ==
+             rhs.beyondLocalRepairAdmissionContract &&
+         lhs.beyondLocalRepairAdmissionDecision ==
+             rhs.beyondLocalRepairAdmissionDecision &&
+         lhs.beyondLocalRepairAdmissionBlocker ==
+             rhs.beyondLocalRepairAdmissionBlocker &&
+         lhs.beyondLocalRepairAdmissionReopenRequirement ==
+             rhs.beyondLocalRepairAdmissionReopenRequirement &&
          lhs.performanceMaturity == rhs.performanceMaturity &&
          lhs.performanceMaturityEvidence == rhs.performanceMaturityEvidence &&
          lhs.performanceMaturityOutcome == rhs.performanceMaturityOutcome &&
@@ -7747,6 +7864,27 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
             context, selection, "performance admission reopen requirement",
             selection.performanceAdmissionReopenRequirement,
             kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "beyond-local repair admission contract",
+            selection.beyondLocalRepairAdmissionContract,
+            kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "beyond-local repair admission decision",
+            selection.beyondLocalRepairAdmissionDecision,
+            kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection, "beyond-local repair admission blocker",
+            selection.beyondLocalRepairAdmissionBlocker,
+            kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker))
+      return error;
+    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+            context, selection,
+            "beyond-local repair admission reopen requirement",
+            selection.beyondLocalRepairAdmissionReopenRequirement,
+            kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement))
       return error;
     if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
             context, selection, "performance maturity",

@@ -1201,6 +1201,26 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
           providerSelection.performanceAdmissionReopenRequirement,
           familySelection.performanceAdmissionReopenRequirement))
     return error;
+  if (llvm::Error error = requireString(
+          "beyond-local repair admission contract",
+          providerSelection.beyondLocalRepairAdmissionContract,
+          familySelection.beyondLocalRepairAdmissionContract))
+    return error;
+  if (llvm::Error error = requireString(
+          "beyond-local repair admission decision",
+          providerSelection.beyondLocalRepairAdmissionDecision,
+          familySelection.beyondLocalRepairAdmissionDecision))
+    return error;
+  if (llvm::Error error = requireString(
+          "beyond-local repair admission blocker",
+          providerSelection.beyondLocalRepairAdmissionBlocker,
+          familySelection.beyondLocalRepairAdmissionBlocker))
+    return error;
+  if (llvm::Error error = requireString(
+          "beyond-local repair admission reopen requirement",
+          providerSelection.beyondLocalRepairAdmissionReopenRequirement,
+          familySelection.beyondLocalRepairAdmissionReopenRequirement))
+    return error;
   if (llvm::Error error =
           requireString("performance maturity",
                         providerSelection.performanceMaturity,
@@ -1503,6 +1523,26 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
             "performance admission reopen requirement",
             familySelection.performanceAdmissionReopenRequirement,
             kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "beyond-local repair admission contract",
+            familySelection.beyondLocalRepairAdmissionContract,
+            kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "beyond-local repair admission decision",
+            familySelection.beyondLocalRepairAdmissionDecision,
+            kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "beyond-local repair admission blocker",
+            familySelection.beyondLocalRepairAdmissionBlocker,
+            kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "beyond-local repair admission reopen requirement",
+            familySelection.beyondLocalRepairAdmissionReopenRequirement,
+            kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement))
       return error;
     if (llvm::Error error = requireExpectedString(
             "performance maturity", familySelection.performanceMaturity,

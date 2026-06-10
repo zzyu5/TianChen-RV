@@ -7549,6 +7549,18 @@ performance-preferred
   `provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1`
   reopen requirement. These fields are provider-owned admission facts, not
   artifact metadata, script status, route ids, or report text.
+- After that local-repair frontier is closed, current no-win/regression
+  evidence must also carry the provider-owned beyond-local repair admission
+  tuple:
+  `rvv-low-precision-packed-i4-beyond-local-repair-admission.v1`,
+  `deny-performance-preferred-no-provider-repair-beyond-local-frontier`,
+  `packed-i4-no-provider-beyond-local-repair-facts`, and
+  `new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1`.
+  Selected-body realization, route metadata, statement planning, target
+  artifact mirrors, same-target evidence roots, generated-bundle pressure
+  profiles, and `RVVLowPrecisionPerformancePolicy` must consume the same tuple.
+  It records a production-consumed no-further-repair admission blocker, not a
+  documentation/report-only status and not a performance-preferred route.
 - The current closure is the packed-i4 local-repair frontier after the
   low-shifted-product rescale and high-nibble vwmacc local statement repairs
   have both been consumed and measured as no-win on the same target. It is a
@@ -7608,11 +7620,17 @@ performance-preferred
   closure, carrying a sibling-route closure, or omitting the provider reopen
   requirement -> fail closed before target validation or policy evaluation can
   accept the measurement record.
+- Current no-win/regression evidence missing the beyond-local repair admission
+  tuple, or carrying a metadata/report-derived beyond-local blocker that does
+  not match the provider-selected packed-i4 resource facts -> fail closed
+  before target validation or policy evaluation can accept the measurement
+  record.
 - Future measured-win evidence with stale local-repair-frontier closure or stale
   reopen requirement -> fail closed before performance preference; the provider
   must first update schedule/resource facts beyond the local statement
-  frontier, admission decision, closure, reopen requirement, target mirrors,
-  and same-target source-backed evidence as one contract.
+  frontier, admission decision, closure, reopen requirement, beyond-local
+  admission decision/blocker tuple, target mirrors, and same-target
+  source-backed evidence as one contract.
 - Measurement classification `win` without a provider maturity/selection update
   -> fail closed as measurement-only win promotion.
 - Provider says `performance-preferred` but target artifact mirrors still carry
@@ -7653,6 +7671,9 @@ performance-preferred
   and dequant-clamp same-target evidence JSON roots through the evidence-root
   overload and assert correctness fallback, performance-preference denial, and
   stale root-level result/schedule rejection.
+- Focused provider/target/script coverage must assert stale, missing, or
+  metadata-derived beyond-local repair admission fields are rejected at the
+  selected-body, route/target mirror, evidence-root, and policy boundaries.
 - Candidate-sensitive Gate 4 coverage must feed the current dequant-clamp
   source-backed `same_target_measurement_record` through the record overload
   and assert correctness fallback, performance-preference denial, stale

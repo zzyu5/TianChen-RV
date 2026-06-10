@@ -58,6 +58,7 @@
 # PACKED-ROOT-DAG: "same_target_measurement_records"
 # PACKED-ROOT-DAG: "contract": "packed-i4-same-target-performance-maturity-evidence-input.v1"
 # PACKED-ROOT-DAG: "provider_performance_selection_eligible": "false"
+# PACKED-ROOT-DAG: "provider_beyond_local_repair_admission_decision": "deny-performance-preferred-no-provider-repair-beyond-local-frontier"
 # PACKED-ROOT-DAG: "performance_win_claim_allowed": false
 
 # PACKED-CLAMP-ROOT-DAG: "same_target_measurement": true
@@ -68,6 +69,7 @@
 # PACKED-CLAMP-ROOT-DAG: "performance_maturity_contract_inputs"
 # PACKED-CLAMP-ROOT-DAG: "same_target_measurement_records"
 # PACKED-CLAMP-ROOT-DAG: "provider_runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
+# PACKED-CLAMP-ROOT-DAG: "provider_beyond_local_repair_admission_blocker": "packed-i4-no-provider-beyond-local-repair-facts"
 # PACKED-CLAMP-ROOT-DAG: "performance_win_claim_allowed": false
 
 # WPRD-DAG: "baseline_identity": "scalar-c-reference/product-reduction-dequant-v1"
@@ -168,6 +170,10 @@
 # PACKED-WPRD-DAG: "provider_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
 # PACKED-WPRD-DAG: "provider_performance_admission_closure": "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1"
 # PACKED-WPRD-DAG: "provider_performance_admission_reopen_requirement": "provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+# PACKED-WPRD-DAG: "provider_beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1"
+# PACKED-WPRD-DAG: "provider_beyond_local_repair_admission_decision": "deny-performance-preferred-no-provider-repair-beyond-local-frontier"
+# PACKED-WPRD-DAG: "provider_beyond_local_repair_admission_blocker": "packed-i4-no-provider-beyond-local-repair-facts"
+# PACKED-WPRD-DAG: "provider_beyond_local_repair_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
 # PACKED-WPRD-DAG: "provider_maturity": "executable-not-performance-mature"
 # PACKED-WPRD-DAG: "provider_maturity_evidence": "same-target-packed-i4-local-repair-frontier-no-win-gate4.v1"
 # PACKED-WPRD-DAG: "provider_maturity_outcome": "no-win"
@@ -221,6 +227,10 @@
 # PACKED-CLAMP-WPRDC-DAG: "provider_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
 # PACKED-CLAMP-WPRDC-DAG: "provider_performance_admission_closure": "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1"
 # PACKED-CLAMP-WPRDC-DAG: "provider_performance_admission_reopen_requirement": "provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+# PACKED-CLAMP-WPRDC-DAG: "provider_beyond_local_repair_admission_contract": "rvv-low-precision-packed-i4-beyond-local-repair-admission.v1"
+# PACKED-CLAMP-WPRDC-DAG: "provider_beyond_local_repair_admission_decision": "deny-performance-preferred-no-provider-repair-beyond-local-frontier"
+# PACKED-CLAMP-WPRDC-DAG: "provider_beyond_local_repair_admission_blocker": "packed-i4-no-provider-beyond-local-repair-facts"
+# PACKED-CLAMP-WPRDC-DAG: "provider_beyond_local_repair_admission_reopen_requirement": "new-typed-provider-beyond-local-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
 # PACKED-CLAMP-WPRDC-DAG: "source_record_contract": "rvv-low-precision-source-backed-artifact-measurement-record.v1"
 # PACKED-CLAMP-WPRDC-DAG: "source_selected_variant": "pre_realized_body_rvv_product_reduce_dequant_clamp"
 # PACKED-CLAMP-WPRDC-DAG: "source_generated_function": "tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp"

@@ -859,6 +859,26 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
             kRVVLowPrecisionResourcePerformanceAdmissionReopenRequirementAttrName,
             selected->performanceAdmissionReopenRequirement)))
       return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceBeyondLocalRepairAdmissionContractAttrName,
+            selected->beyondLocalRepairAdmissionContract)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceBeyondLocalRepairAdmissionDecisionAttrName,
+            selected->beyondLocalRepairAdmissionDecision)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceBeyondLocalRepairAdmissionBlockerAttrName,
+            selected->beyondLocalRepairAdmissionBlocker)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceBeyondLocalRepairAdmissionReopenRequirementAttrName,
+            selected->beyondLocalRepairAdmissionReopenRequirement)))
+      return mlir::failure();
   }
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceRuntimeAVLSourceAttrName,
@@ -1697,6 +1717,26 @@ validateLowPrecisionProductDequantGearboxBody(
           "performance_admission_decision",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalResourceCostStringFact(
+          "beyond_local_repair_admission_contract",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalResourceCostStringFact(
+          "beyond_local_repair_admission_decision",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalResourceCostStringFact(
+          "beyond_local_repair_admission_blocker",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalResourceCostStringFact(
+          "beyond_local_repair_admission_reopen_requirement",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement)))
     return mlir::failure();
 
   LoadOp lhsLoad = product.getLhs().getDefiningOp<LoadOp>();

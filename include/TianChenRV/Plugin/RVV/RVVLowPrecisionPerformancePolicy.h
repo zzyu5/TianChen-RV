@@ -46,6 +46,10 @@ struct RVVLowPrecisionPerformanceMeasurementOutcome {
   std::string providerPerformanceAdmissionDecision;
   std::string providerPerformanceAdmissionClosure;
   std::string providerPerformanceAdmissionReopenRequirement;
+  std::string providerBeyondLocalRepairAdmissionContract;
+  std::string providerBeyondLocalRepairAdmissionDecision;
+  std::string providerBeyondLocalRepairAdmissionBlocker;
+  std::string providerBeyondLocalRepairAdmissionReopenRequirement;
   std::string providerRealizationAdmissionContract;
   std::string providerRealizationAdmissionDecision;
   std::string providerRealizationAdmissionEvidence;
@@ -115,6 +119,10 @@ struct RVVLowPrecisionSameTargetMeasurementRecord {
   std::string providerPerformanceAdmissionDecision;
   std::string providerPerformanceAdmissionClosure;
   std::string providerPerformanceAdmissionReopenRequirement;
+  std::string providerBeyondLocalRepairAdmissionContract;
+  std::string providerBeyondLocalRepairAdmissionDecision;
+  std::string providerBeyondLocalRepairAdmissionBlocker;
+  std::string providerBeyondLocalRepairAdmissionReopenRequirement;
   std::string providerRealizationAdmissionContract;
   std::string providerRealizationAdmissionDecision;
   std::string providerRealizationAdmissionEvidence;
@@ -231,6 +239,10 @@ struct RVVLowPrecisionSameTargetMeasurementPolicyInput {
   std::string providerPerformanceAdmissionDecision;
   std::string providerPerformanceAdmissionClosure;
   std::string providerPerformanceAdmissionReopenRequirement;
+  std::string providerBeyondLocalRepairAdmissionContract;
+  std::string providerBeyondLocalRepairAdmissionDecision;
+  std::string providerBeyondLocalRepairAdmissionBlocker;
+  std::string providerBeyondLocalRepairAdmissionReopenRequirement;
   std::string providerRealizationAdmissionContract;
   std::string providerRealizationAdmissionDecision;
   std::string providerRealizationAdmissionEvidence;
@@ -417,6 +429,10 @@ struct RVVLowPrecisionProductionPressureProfile {
   std::string performanceAdmissionDecision;
   std::string performanceAdmissionClosure;
   std::string performanceAdmissionReopenRequirement;
+  std::string beyondLocalRepairAdmissionContract;
+  std::string beyondLocalRepairAdmissionDecision;
+  std::string beyondLocalRepairAdmissionBlocker;
+  std::string beyondLocalRepairAdmissionReopenRequirement;
   std::string realizationAdmissionContract;
   std::string realizationAdmissionDecision;
   std::string realizationAdmissionEvidence;

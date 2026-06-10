@@ -143,6 +143,15 @@ constexpr llvm::StringLiteral kPerformanceAdmissionClosureAttrName(
     "performance_admission_closure");
 constexpr llvm::StringLiteral kPerformanceAdmissionReopenRequirementAttrName(
     "performance_admission_reopen_requirement");
+constexpr llvm::StringLiteral kBeyondLocalRepairAdmissionContractAttrName(
+    "beyond_local_repair_admission_contract");
+constexpr llvm::StringLiteral kBeyondLocalRepairAdmissionDecisionAttrName(
+    "beyond_local_repair_admission_decision");
+constexpr llvm::StringLiteral kBeyondLocalRepairAdmissionBlockerAttrName(
+    "beyond_local_repair_admission_blocker");
+constexpr llvm::StringLiteral
+    kBeyondLocalRepairAdmissionReopenRequirementAttrName(
+        "beyond_local_repair_admission_reopen_requirement");
 constexpr llvm::StringLiteral kProductRegionIndexAttrName(
     "product_region_index");
 constexpr llvm::StringLiteral kDequantRegionIndexAttrName(
@@ -335,6 +344,10 @@ bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
          name == kPerformanceAdmissionDecisionAttrName ||
          name == kPerformanceAdmissionClosureAttrName ||
          name == kPerformanceAdmissionReopenRequirementAttrName ||
+         name == kBeyondLocalRepairAdmissionContractAttrName ||
+         name == kBeyondLocalRepairAdmissionDecisionAttrName ||
+         name == kBeyondLocalRepairAdmissionBlockerAttrName ||
+         name == kBeyondLocalRepairAdmissionReopenRequirementAttrName ||
          name == kProductRegionIndexAttrName ||
          name == kDequantRegionIndexAttrName ||
          name == kRemediationPlanContractAttrName ||
@@ -4398,6 +4411,30 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
           "performance admission decision",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalPackedI4StringFact(
+          kBeyondLocalRepairAdmissionContractAttrName,
+          "beyond-local repair admission contract",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalPackedI4StringFact(
+          kBeyondLocalRepairAdmissionDecisionAttrName,
+          "beyond-local repair admission decision",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalPackedI4StringFact(
+          kBeyondLocalRepairAdmissionBlockerAttrName,
+          "beyond-local repair admission blocker",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalPackedI4StringFact(
+          kBeyondLocalRepairAdmissionReopenRequirementAttrName,
+          "beyond-local repair admission reopen requirement",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement)))
     return mlir::failure();
 
   if (static_cast<std::int64_t>(getProductRegionIndex()) !=

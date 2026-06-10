@@ -184,6 +184,10 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::string performanceAdmissionDecision;
   std::string performanceAdmissionClosure;
   std::string performanceAdmissionReopenRequirement;
+  std::string beyondLocalRepairAdmissionContract;
+  std::string beyondLocalRepairAdmissionDecision;
+  std::string beyondLocalRepairAdmissionBlocker;
+  std::string beyondLocalRepairAdmissionReopenRequirement;
 
   std::string runtimeAVLSource;
   std::string producerScope;

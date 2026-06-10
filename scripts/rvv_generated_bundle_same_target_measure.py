@@ -134,6 +134,10 @@ PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS = (
     "provider_performance_admission_decision",
     "provider_performance_admission_closure",
     "provider_performance_admission_reopen_requirement",
+    "provider_beyond_local_repair_admission_contract",
+    "provider_beyond_local_repair_admission_decision",
+    "provider_beyond_local_repair_admission_blocker",
+    "provider_beyond_local_repair_admission_reopen_requirement",
     "provider_realization_admission_contract",
     "provider_realization_admission_decision",
     "provider_realization_admission_evidence",
@@ -2250,6 +2254,18 @@ def packed_i4_maturity_contract_evidence_input(
         "provider_performance_admission_reopen_requirement": fields[
             "performance_admission_reopen_requirement"
         ],
+        "provider_beyond_local_repair_admission_contract": fields[
+            "beyond_local_repair_admission_contract"
+        ],
+        "provider_beyond_local_repair_admission_decision": fields[
+            "beyond_local_repair_admission_decision"
+        ],
+        "provider_beyond_local_repair_admission_blocker": fields[
+            "beyond_local_repair_admission_blocker"
+        ],
+        "provider_beyond_local_repair_admission_reopen_requirement": fields[
+            "beyond_local_repair_admission_reopen_requirement"
+        ],
         "provider_realization_admission_contract": fields[
             "realization_admission_contract"
         ],
@@ -2539,6 +2555,18 @@ def validate_packed_i4_maturity_contract_evidence_input(
         "provider_performance_admission_reopen_requirement": fields[
             "performance_admission_reopen_requirement"
         ],
+        "provider_beyond_local_repair_admission_contract": fields[
+            "beyond_local_repair_admission_contract"
+        ],
+        "provider_beyond_local_repair_admission_decision": fields[
+            "beyond_local_repair_admission_decision"
+        ],
+        "provider_beyond_local_repair_admission_blocker": fields[
+            "beyond_local_repair_admission_blocker"
+        ],
+        "provider_beyond_local_repair_admission_reopen_requirement": fields[
+            "beyond_local_repair_admission_reopen_requirement"
+        ],
         "provider_realization_admission_contract": fields[
             "realization_admission_contract"
         ],
@@ -2759,6 +2787,10 @@ def packed_i4_provider_feedback_tie_back(
         "performance_admission_decision",
         "performance_admission_closure",
         "performance_admission_reopen_requirement",
+        "beyond_local_repair_admission_contract",
+        "beyond_local_repair_admission_decision",
+        "beyond_local_repair_admission_blocker",
+        "beyond_local_repair_admission_reopen_requirement",
         "realization_admission_contract",
         "realization_admission_decision",
         "realization_admission_evidence",
@@ -3131,6 +3163,18 @@ def op_measurement_summary(
             "provider_performance_admission_reopen_requirement": fields.get(
                 "performance_admission_reopen_requirement", ""
             ),
+            "provider_beyond_local_repair_admission_contract": fields.get(
+                "beyond_local_repair_admission_contract", ""
+            ),
+            "provider_beyond_local_repair_admission_decision": fields.get(
+                "beyond_local_repair_admission_decision", ""
+            ),
+            "provider_beyond_local_repair_admission_blocker": fields.get(
+                "beyond_local_repair_admission_blocker", ""
+            ),
+            "provider_beyond_local_repair_admission_reopen_requirement": fields.get(
+                "beyond_local_repair_admission_reopen_requirement", ""
+            ),
             "provider_realization_admission_schedule_decision_contract": fields.get(
                 "realization_admission_schedule_decision_contract", ""
             ),
@@ -3361,6 +3405,18 @@ def run_one_measurement(
                 ],
                 "provider_performance_admission_reopen_requirement": fields[
                     "performance_admission_reopen_requirement"
+                ],
+                "provider_beyond_local_repair_admission_contract": fields[
+                    "beyond_local_repair_admission_contract"
+                ],
+                "provider_beyond_local_repair_admission_decision": fields[
+                    "beyond_local_repair_admission_decision"
+                ],
+                "provider_beyond_local_repair_admission_blocker": fields[
+                    "beyond_local_repair_admission_blocker"
+                ],
+                "provider_beyond_local_repair_admission_reopen_requirement": fields[
+                    "beyond_local_repair_admission_reopen_requirement"
                 ],
                 "provider_realization_admission_schedule_decision_contract": fields[
                     "realization_admission_schedule_decision_contract"
@@ -4097,6 +4153,26 @@ def run_self_test() -> int:
             "provider_performance_admission_reopen_requirement",
             "metadata-derived-performance-admission-reopen-requirement",
             "performance_admission_reopen_requirement",
+        ),
+        (
+            "provider_beyond_local_repair_admission_contract",
+            "metadata-derived-beyond-local-repair-admission-contract",
+            "beyond_local_repair_admission_contract",
+        ),
+        (
+            "provider_beyond_local_repair_admission_decision",
+            "metadata-derived-beyond-local-repair-admission-decision",
+            "beyond_local_repair_admission_decision",
+        ),
+        (
+            "provider_beyond_local_repair_admission_blocker",
+            "metadata-derived-beyond-local-repair-admission-blocker",
+            "beyond_local_repair_admission_blocker",
+        ),
+        (
+            "provider_beyond_local_repair_admission_reopen_requirement",
+            "metadata-derived-beyond-local-repair-admission-reopen-requirement",
+            "beyond_local_repair_admission_reopen_requirement",
         ),
         (
             "provider_runtime_avl_source",
