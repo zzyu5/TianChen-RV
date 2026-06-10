@@ -61,6 +61,21 @@ struct RVVLowPrecisionSameTargetMeasurementRecord {
   bool sameTargetMeasurement = false;
   bool sshEvidence = false;
   std::string targetProfile;
+  std::string sourceRecordContract;
+  std::string sourceSelectedVariant;
+  std::string sourceSelectedInput;
+  std::string sourceGeneratedFunction;
+  std::string generatedArtifactIdentityContract;
+  std::string generatedArtifactObjectPath;
+  std::string generatedArtifactObjectSHA256;
+  std::string generatedArtifactHeaderPath;
+  std::string generatedArtifactHeaderSHA256;
+  std::string measurementTarget;
+  std::string measurementTargetProvenance;
+  std::string measurementRuntimeCountSet;
+  std::string measurementRuntimeCountProvenance;
+  std::string pressureProfileLabel;
+  std::string pressureProfileLabelProvenance;
 
   std::string providerResourceSelectedCandidate;
   std::string providerResourcePlanningContract;
@@ -144,6 +159,21 @@ struct RVVLowPrecisionSameTargetMeasurementPolicyInput {
   bool sameTargetMeasurement = false;
   bool sshEvidence = false;
   std::string targetProfile;
+  std::string sourceRecordContract;
+  std::string sourceSelectedVariant;
+  std::string sourceSelectedInput;
+  std::string sourceGeneratedFunction;
+  std::string generatedArtifactIdentityContract;
+  std::string generatedArtifactObjectPath;
+  std::string generatedArtifactObjectSHA256;
+  std::string generatedArtifactHeaderPath;
+  std::string generatedArtifactHeaderSHA256;
+  std::string measurementTarget;
+  std::string measurementTargetProvenance;
+  std::string measurementRuntimeCountSet;
+  std::string measurementRuntimeCountProvenance;
+  std::string pressureProfileLabel;
+  std::string pressureProfileLabelProvenance;
 
   std::string providerResourceSelectedCandidate;
   std::string providerResourcePlanningContract;
@@ -280,6 +310,21 @@ struct RVVLowPrecisionProductionPressureProfile {
   std::string runtimeABIOrder;
   std::string routeFamilyPlan;
   std::string providerSupportedMirror;
+  std::string sourceRecordContract;
+  std::string sourceSelectedVariant;
+  std::string sourceSelectedInput;
+  std::string sourceGeneratedFunction;
+  std::string generatedArtifactIdentityContract;
+  std::string generatedArtifactObjectPath;
+  std::string generatedArtifactObjectSHA256;
+  std::string generatedArtifactHeaderPath;
+  std::string generatedArtifactHeaderSHA256;
+  std::string measurementTarget;
+  std::string measurementTargetProvenance;
+  std::string measurementRuntimeCountSet;
+  std::string measurementRuntimeCountProvenance;
+  std::string pressureProfileLabel;
+  std::string pressureProfileLabelProvenance;
 
   std::string primitiveChainContract;
   std::string primitiveChainKind;

@@ -66,6 +66,23 @@ PACKED_I4_MATURITY_CONTRACT_AUTHORITY = (
     "low-precision resource facts and target artifact mirrors remain "
     "the maturity contract"
 )
+SOURCE_BACKED_MEASUREMENT_RECORD_CONTRACT = (
+    "rvv-low-precision-source-backed-artifact-measurement-record.v1"
+)
+GENERATED_ARTIFACT_IDENTITY_CONTRACT = (
+    "generated-object-header-sha256-after-target-artifact-validation.v1"
+)
+MEASUREMENT_TARGET_PROVENANCE = "same-target-measurement-workflow-ssh-target.v1"
+MEASUREMENT_RUNTIME_COUNT_PROVENANCE = (
+    "same-target-measurement-config-input-sizes.v1"
+)
+PRODUCTION_PRESSURE_PROFILE_LABEL = (
+    "low-precision-quantized-contraction-production-pressure"
+)
+PRODUCTION_PRESSURE_PROFILE_LABEL_PROVENANCE = (
+    "non-authoritative-pressure-label-derived-from-selected-typed-rvv-"
+    "provider-facts-and-source-backed-measurement-record"
+)
 PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS = (
     "contract",
     "authority",
@@ -79,6 +96,21 @@ PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS = (
     "same_target_measurement",
     "ssh_evidence",
     "target_profile",
+    "source_record_contract",
+    "source_selected_variant",
+    "source_selected_input",
+    "source_generated_function",
+    "generated_artifact_identity_contract",
+    "generated_artifact_object_path",
+    "generated_artifact_object_sha256",
+    "generated_artifact_header_path",
+    "generated_artifact_header_sha256",
+    "measurement_target",
+    "measurement_target_provenance",
+    "measurement_runtime_count_set",
+    "measurement_runtime_count_provenance",
+    "pressure_profile_label",
+    "pressure_profile_label_provenance",
     "provider_resource_selected_candidate",
     "provider_resource_planning_contract",
     "provider_resource_operand_form",
@@ -1931,6 +1963,46 @@ def maturity_contract_alignment(
     return "measurement-outcome-requires-provider-maturity-review"
 
 
+def runtime_count_set(counts: list[int]) -> str:
+    return ",".join(str(count) for count in counts)
+
+
+def source_backed_pressure_profile_record_context(
+    *,
+    generation_result: dict[str, Any],
+    expectation: abi.OpExpectation,
+    object_path: Path,
+    header_path: Path,
+    config: MeasurementConfig,
+    result_classification: dict[str, Any],
+) -> dict[str, Any]:
+    classification = str(result_classification.get("classification", ""))
+    measured = classification != RESULT_CLASSIFICATION_NOT_MEASURED
+    return {
+        "source_record_contract": SOURCE_BACKED_MEASUREMENT_RECORD_CONTRACT,
+        "source_selected_variant": expectation.selected_variant,
+        "source_selected_input": generation_result["selected_input"]["path"],
+        "source_generated_function": expectation.function_name,
+        "generated_artifact_identity_contract": (
+            GENERATED_ARTIFACT_IDENTITY_CONTRACT
+        ),
+        "generated_artifact_object_path": str(object_path),
+        "generated_artifact_object_sha256": abi.sha256_file(object_path),
+        "generated_artifact_header_path": str(header_path),
+        "generated_artifact_header_sha256": abi.sha256_file(header_path),
+        "measurement_target": PACKED_I4_SSH_TARGET_PROFILE if measured else "",
+        "measurement_target_provenance": MEASUREMENT_TARGET_PROVENANCE,
+        "measurement_runtime_count_set": runtime_count_set(config.counts),
+        "measurement_runtime_count_provenance": (
+            MEASUREMENT_RUNTIME_COUNT_PROVENANCE
+        ),
+        "pressure_profile_label": PRODUCTION_PRESSURE_PROFILE_LABEL,
+        "pressure_profile_label_provenance": (
+            PRODUCTION_PRESSURE_PROFILE_LABEL_PROVENANCE
+        ),
+    }
+
+
 def packed_i4_resource_int(fields: dict[str, str], name: str) -> int:
     try:
         return int(fields[name])
@@ -1950,6 +2022,7 @@ def packed_i4_maturity_contract_evidence_input(
     fields: dict[str, str],
     result_classification: dict[str, Any],
     measurement_evidence_id: str,
+    source_record_context: dict[str, Any],
 ) -> dict[str, Any]:
     classification = str(result_classification.get("classification", ""))
     outcome_family = str(result_classification.get("outcome_family", ""))
@@ -1989,6 +2062,45 @@ def packed_i4_maturity_contract_evidence_input(
             if classification != RESULT_CLASSIFICATION_NOT_MEASURED
             else ""
         ),
+        "source_record_contract": source_record_context["source_record_contract"],
+        "source_selected_variant": source_record_context[
+            "source_selected_variant"
+        ],
+        "source_selected_input": source_record_context["source_selected_input"],
+        "source_generated_function": source_record_context[
+            "source_generated_function"
+        ],
+        "generated_artifact_identity_contract": source_record_context[
+            "generated_artifact_identity_contract"
+        ],
+        "generated_artifact_object_path": source_record_context[
+            "generated_artifact_object_path"
+        ],
+        "generated_artifact_object_sha256": source_record_context[
+            "generated_artifact_object_sha256"
+        ],
+        "generated_artifact_header_path": source_record_context[
+            "generated_artifact_header_path"
+        ],
+        "generated_artifact_header_sha256": source_record_context[
+            "generated_artifact_header_sha256"
+        ],
+        "measurement_target": source_record_context["measurement_target"],
+        "measurement_target_provenance": source_record_context[
+            "measurement_target_provenance"
+        ],
+        "measurement_runtime_count_set": source_record_context[
+            "measurement_runtime_count_set"
+        ],
+        "measurement_runtime_count_provenance": source_record_context[
+            "measurement_runtime_count_provenance"
+        ],
+        "pressure_profile_label": source_record_context[
+            "pressure_profile_label"
+        ],
+        "pressure_profile_label_provenance": source_record_context[
+            "pressure_profile_label_provenance"
+        ],
         "provider_maturity": fields["performance_maturity"],
         "provider_maturity_evidence": fields["performance_maturity_evidence"],
         "provider_maturity_outcome": fields["performance_maturity_outcome"],
@@ -2148,6 +2260,7 @@ def validate_packed_i4_maturity_contract_evidence_input(
     fields: dict[str, str],
     result_classification: dict[str, Any],
     measurement_evidence_id: str,
+    source_record_context: dict[str, Any],
     maturity_input: dict[str, Any],
     context: str,
 ) -> None:
@@ -2192,6 +2305,45 @@ def validate_packed_i4_maturity_contract_evidence_input(
             if classification != RESULT_CLASSIFICATION_NOT_MEASURED
             else ""
         ),
+        "source_record_contract": source_record_context["source_record_contract"],
+        "source_selected_variant": source_record_context[
+            "source_selected_variant"
+        ],
+        "source_selected_input": source_record_context["source_selected_input"],
+        "source_generated_function": source_record_context[
+            "source_generated_function"
+        ],
+        "generated_artifact_identity_contract": source_record_context[
+            "generated_artifact_identity_contract"
+        ],
+        "generated_artifact_object_path": source_record_context[
+            "generated_artifact_object_path"
+        ],
+        "generated_artifact_object_sha256": source_record_context[
+            "generated_artifact_object_sha256"
+        ],
+        "generated_artifact_header_path": source_record_context[
+            "generated_artifact_header_path"
+        ],
+        "generated_artifact_header_sha256": source_record_context[
+            "generated_artifact_header_sha256"
+        ],
+        "measurement_target": source_record_context["measurement_target"],
+        "measurement_target_provenance": source_record_context[
+            "measurement_target_provenance"
+        ],
+        "measurement_runtime_count_set": source_record_context[
+            "measurement_runtime_count_set"
+        ],
+        "measurement_runtime_count_provenance": source_record_context[
+            "measurement_runtime_count_provenance"
+        ],
+        "pressure_profile_label": source_record_context[
+            "pressure_profile_label"
+        ],
+        "pressure_profile_label_provenance": source_record_context[
+            "pressure_profile_label_provenance"
+        ],
         "provider_maturity": fields["performance_maturity"],
         "provider_maturity_evidence": fields["performance_maturity_evidence"],
         "provider_maturity_outcome": fields["performance_maturity_outcome"],
@@ -2358,6 +2510,7 @@ def packed_i4_provider_feedback_tie_back(
     uses_packed_i4_resource: bool,
     result_classification: dict[str, Any],
     measurement_evidence_id: str,
+    source_record_context: dict[str, Any],
 ) -> dict[str, Any]:
     if not uses_packed_i4_resource:
         return {
@@ -2507,11 +2660,13 @@ def packed_i4_provider_feedback_tie_back(
         fields=fields,
         result_classification=result_classification,
         measurement_evidence_id=measurement_evidence_id,
+        source_record_context=source_record_context,
     )
     validate_packed_i4_maturity_contract_evidence_input(
         fields=fields,
         result_classification=result_classification,
         measurement_evidence_id=measurement_evidence_id,
+        source_record_context=source_record_context,
         maturity_input=maturity_input,
         context="packed-i4 provider feedback tie-back",
     )
@@ -3001,6 +3156,14 @@ def run_one_measurement(
             result_classification = classify_parsed_timing(
                 remote.get("parsed_timing", {})
             )
+        source_record_context = source_backed_pressure_profile_record_context(
+            generation_result=generation_result,
+            expectation=expectation,
+            object_path=object_path,
+            header_path=header_path,
+            config=config,
+            result_classification=result_classification,
+        )
         provider_feedback_tie_back = packed_i4_provider_feedback_tie_back(
             generation_result=generation_result,
             expectation=expectation,
@@ -3009,6 +3172,7 @@ def run_one_measurement(
             measurement_evidence_id=(
                 f"{run_id}/{expectation.kind}/same_target_measurement_evidence.json"
             ),
+            source_record_context=source_record_context,
         )
         if uses_packed_i4_resource:
             fields = provider_feedback_tie_back["fields"]
@@ -3376,6 +3540,49 @@ def run_self_test() -> int:
     feedback_metadata = abi.expected_low_precision_resource_metadata(
         packed_expectation, packed_i4=True
     )
+
+    def self_test_source_record_context(
+        expectation: abi.OpExpectation,
+        result_classification: dict[str, Any],
+    ) -> dict[str, Any]:
+        measured = (
+            result_classification["classification"]
+            != RESULT_CLASSIFICATION_NOT_MEASURED
+        )
+        return {
+            "source_record_contract": SOURCE_BACKED_MEASUREMENT_RECORD_CONTRACT,
+            "source_selected_variant": expectation.selected_variant,
+            "source_selected_input": str(expectation.input_path),
+            "source_generated_function": expectation.function_name,
+            "generated_artifact_identity_contract": (
+                GENERATED_ARTIFACT_IDENTITY_CONTRACT
+            ),
+            "generated_artifact_object_path": (
+                f"self-test/generated_bundle/{expectation.kind}.o"
+            ),
+            "generated_artifact_object_sha256": (
+                f"self-test-object-sha256-{expectation.kind}"
+            ),
+            "generated_artifact_header_path": (
+                f"self-test/generated_bundle/{expectation.kind}.h"
+            ),
+            "generated_artifact_header_sha256": (
+                f"self-test-header-sha256-{expectation.kind}"
+            ),
+            "measurement_target": (
+                PACKED_I4_SSH_TARGET_PROFILE if measured else ""
+            ),
+            "measurement_target_provenance": MEASUREMENT_TARGET_PROVENANCE,
+            "measurement_runtime_count_set": runtime_count_set(config.counts),
+            "measurement_runtime_count_provenance": (
+                MEASUREMENT_RUNTIME_COUNT_PROVENANCE
+            ),
+            "pressure_profile_label": PRODUCTION_PRESSURE_PROFILE_LABEL,
+            "pressure_profile_label_provenance": (
+                PRODUCTION_PRESSURE_PROFILE_LABEL_PROVENANCE
+            ),
+        }
+
     def check_packed_i4_contract_input(
         result_classification: dict[str, Any],
         *,
@@ -3387,6 +3594,9 @@ def run_self_test() -> int:
             "self-test/"
             f"{result_classification['classification']}/same_target_measurement_evidence.json"
         )
+        source_record_context = self_test_source_record_context(
+            packed_expectation, result_classification
+        )
         tie_back = packed_i4_provider_feedback_tie_back(
             generation_result={
                 "widening_product_reduction_boundary": {
@@ -3397,6 +3607,7 @@ def run_self_test() -> int:
             uses_packed_i4_resource=True,
             result_classification=result_classification,
             measurement_evidence_id=measurement_evidence_id,
+            source_record_context=source_record_context,
         )
         maturity_input = tie_back["maturity_contract_evidence_input"]
         if tie_back["result_alignment"] != expected_alignment:
@@ -3447,6 +3658,27 @@ def run_self_test() -> int:
         if maturity_input["target_profile"] != expected_target_profile:
             raise AssertionError("self-test packed-i4 target profile changed")
         if (
+            record["source_record_contract"]
+            != SOURCE_BACKED_MEASUREMENT_RECORD_CONTRACT
+            or record["source_selected_variant"]
+            != packed_expectation.selected_variant
+            or record["source_generated_function"]
+            != packed_expectation.function_name
+            or record["generated_artifact_identity_contract"]
+            != GENERATED_ARTIFACT_IDENTITY_CONTRACT
+            or record["measurement_runtime_count_set"]
+            != runtime_count_set(config.counts)
+            or record["pressure_profile_label"]
+            != PRODUCTION_PRESSURE_PROFILE_LABEL
+            or record["pressure_profile_label_provenance"]
+            != PRODUCTION_PRESSURE_PROFILE_LABEL_PROVENANCE
+        ):
+            raise AssertionError(
+                "self-test packed-i4 source-backed measurement record lost "
+                "selected-boundary, artifact, runtime-count, or pressure "
+                "provenance"
+            )
+        if (
             maturity_input["performance_preference_denial_reason"]
             != expected_denial_reason
         ):
@@ -3481,6 +3713,10 @@ def run_self_test() -> int:
         ),
         measurement_evidence_id=(
             "self-test/clamp/same_target_measurement_evidence.json"
+        ),
+        source_record_context=self_test_source_record_context(
+            packed_clamp_expectation,
+            not_measured_result_classification("self-test clamp not measured"),
         ),
     )
     clamp_fields = clamp_tie_back["fields"]
@@ -3538,6 +3774,9 @@ def run_self_test() -> int:
             "self-test/"
             f"{result_classification['classification']}/same_target_measurement_evidence.json"
         )
+        source_record_context = self_test_source_record_context(
+            packed_expectation, result_classification
+        )
         stale_input = dict(
             regression_tie_back["maturity_contract_evidence_input"]
         )
@@ -3547,6 +3786,7 @@ def run_self_test() -> int:
                 fields=fields,
                 result_classification=result_classification,
                 measurement_evidence_id=measurement_evidence_id,
+                source_record_context=source_record_context,
                 maturity_input=stale_input,
                 context="self-test stale packed-i4 maturity input",
             )
@@ -3575,6 +3815,27 @@ def run_self_test() -> int:
         ("same_target_measurement", False, "same_target_measurement"),
         ("ssh_evidence", False, "ssh_evidence"),
         ("target_profile", "local-x86", "target_profile"),
+        (
+            "source_selected_variant",
+            "metadata-only-selected-variant",
+            "source_selected_variant",
+        ),
+        (
+            "generated_artifact_object_sha256",
+            "metadata-only-object-sha256",
+            "generated_artifact_object_sha256",
+        ),
+        ("measurement_target", "local-x86", "measurement_target"),
+        (
+            "measurement_runtime_count_set",
+            "257",
+            "measurement_runtime_count_set",
+        ),
+        (
+            "pressure_profile_label",
+            "q8-label-only-pressure",
+            "pressure_profile_label",
+        ),
         ("provider_maturity_outcome", RESULT_CLASSIFICATION_WIN, "maturity"),
         (
             "provider_resource_planning_contract",
@@ -3718,6 +3979,9 @@ def run_self_test() -> int:
                 measurement_evidence_id=(
                     "self-test/stale-provider/same_target_measurement_evidence.json"
                 ),
+                source_record_context=self_test_source_record_context(
+                    packed_expectation, regression
+                ),
             )
         except abi.EvidenceError as exc:
             if expected_token not in str(exc):
@@ -3747,6 +4011,9 @@ def run_self_test() -> int:
                 result_classification=regression,
                 measurement_evidence_id=(
                     "self-test/missing-provider/same_target_measurement_evidence.json"
+                ),
+                source_record_context=self_test_source_record_context(
+                    packed_expectation, regression
                 ),
             )
         except abi.EvidenceError as exc:

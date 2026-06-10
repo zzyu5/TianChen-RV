@@ -125,6 +125,21 @@
 # PACKED-WPRD-DAG: "same_target_measurement": false
 # PACKED-WPRD-DAG: "ssh_evidence": false
 # PACKED-WPRD-DAG: "target_profile": ""
+# PACKED-WPRD-DAG: "source_record_contract": "rvv-low-precision-source-backed-artifact-measurement-record.v1"
+# PACKED-WPRD-DAG: "source_selected_variant": "pre_realized_body_rvv_product_reduce_dequantize"
+# PACKED-WPRD-DAG: "source_selected_input":
+# PACKED-WPRD-DAG: "source_generated_function": "tcrv_emitc_pre_realized_body_product_reduce_dequantize_kernel_pre_realized_body_rvv_product_reduce_dequantize"
+# PACKED-WPRD-DAG: "generated_artifact_identity_contract": "generated-object-header-sha256-after-target-artifact-validation.v1"
+# PACKED-WPRD-DAG: "generated_artifact_object_path":
+# PACKED-WPRD-DAG: "generated_artifact_object_sha256":
+# PACKED-WPRD-DAG: "generated_artifact_header_path":
+# PACKED-WPRD-DAG: "generated_artifact_header_sha256":
+# PACKED-WPRD-DAG: "measurement_target": ""
+# PACKED-WPRD-DAG: "measurement_target_provenance": "same-target-measurement-workflow-ssh-target.v1"
+# PACKED-WPRD-DAG: "measurement_runtime_count_set": "257,4096,65536"
+# PACKED-WPRD-DAG: "measurement_runtime_count_provenance": "same-target-measurement-config-input-sizes.v1"
+# PACKED-WPRD-DAG: "pressure_profile_label": "low-precision-quantized-contraction-production-pressure"
+# PACKED-WPRD-DAG: "pressure_profile_label_provenance": "non-authoritative-pressure-label-derived-from-selected-typed-rvv-provider-facts-and-source-backed-measurement-record"
 # PACKED-WPRD-DAG: "provider_resource_planning_contract": "rvv-low-precision-production-resource-planning-contract.v1"
 # PACKED-WPRD-DAG: "provider_resource_operand_form": "packed-i4-nibbles"
 # PACKED-WPRD-DAG: "provider_resource_source_signedness": "signed"
@@ -198,6 +213,12 @@
 # PACKED-CLAMP-WPRDC-DAG: "provider_runtime_avl_source": "runtime_abi:n"
 # PACKED-CLAMP-WPRDC-DAG: "provider_runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
 # PACKED-CLAMP-WPRDC-DAG: "provider_schedule_decision": "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"
+# PACKED-CLAMP-WPRDC-DAG: "source_record_contract": "rvv-low-precision-source-backed-artifact-measurement-record.v1"
+# PACKED-CLAMP-WPRDC-DAG: "source_selected_variant": "pre_realized_body_rvv_product_reduce_dequant_clamp"
+# PACKED-CLAMP-WPRDC-DAG: "source_generated_function": "tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp"
+# PACKED-CLAMP-WPRDC-DAG: "generated_artifact_identity_contract": "generated-object-header-sha256-after-target-artifact-validation.v1"
+# PACKED-CLAMP-WPRDC-DAG: "measurement_runtime_count_set": "257,4096,65536"
+# PACKED-CLAMP-WPRDC-DAG: "pressure_profile_label": "low-precision-quantized-contraction-production-pressure"
 # PACKED-CLAMP-WPRDC-DAG: "measurement_evidence_id": "gate3-packed-i4-dequant-clamp-measure/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
 # PACKED-CLAMP-WPRDC-DAG: "performance_preference_denial_reason": "same-target-measurement-not-run"
 # PACKED-CLAMP-WPRDC-DAG: "performance_win_claim_allowed": false

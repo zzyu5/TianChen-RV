@@ -4,3 +4,10 @@
 {"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Verify the round advances production-kernel capability rather than evidence-only drift"}
 {"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Verify same-target measurement and selected-dispatch evidence remain mirror-only and source-backed"}
 {"file": ".trellis/tasks/06-10-stage2-rvv-production-kernel-capability-campaign/prd.md", "reason": "Verify Gate 1 acceptance criteria and macro-task continuation state"}
+{"file": ".trellis/tasks/06-10-stage2-rvv-production-kernel-capability-campaign/prd.md", "reason": "Verify Gate 2 acceptance criteria are complete while Gates 3-4 remain open"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Verify new source-backed record/API fields are documented as executable contract and fail-closed behavior"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h", "reason": "Verify the record, policy input, and pressure-profile structs carry selected-boundary, artifact, measurement, count, and pressure-label provenance fields"}
+{"file": "lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp", "reason": "Verify C++ boundary rejects label-only, stale selected-boundary, stale artifact identity, wrong target, stale runtime-count, and missing resource/provenance facts"}
+{"file": "scripts/rvv_generated_bundle_same_target_measure.py", "reason": "Verify generated artifact/measurement workflow emits source-backed records into per-op/root evidence and self-tests negative cases"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Verify positive C++ parsing/materialization and fail-closed negative coverage"}
+{"file": "test/Scripts/rvv-generated-bundle-same-target-measure-gate4-dry-run.test", "reason": "Verify dry-run evidence text includes Gate 2 source-backed fields"}

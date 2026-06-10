@@ -57,6 +57,74 @@ or fallback behavior.
 
 Final coherent commit is created after this journal entry.
 
+## Session 579: Stage2 RVV production-kernel capability Gate 2
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV production-kernel capability campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed Gate 2 only. The previous slice
+made the production pressure-profile boundary real; this round made generated
+artifact and same-target measurement workflow records source-backed enough for
+that boundary to consume without treating q8/q4 labels, artifact names, route
+ids, or handwritten metadata as authority.
+
+### Main Changes
+
+- Extended `RVVLowPrecisionSameTargetMeasurementRecord`,
+  `RVVLowPrecisionSameTargetMeasurementPolicyInput`, and
+  `RVVLowPrecisionProductionPressureProfile` with selected-boundary,
+  generated artifact identity, measurement target, runtime-count, and
+  non-authoritative pressure-label provenance fields.
+- Added C++ fail-closed validation for missing/stale source record contract,
+  selected boundary, generated object/header identity, measurement target,
+  runtime-count provenance, and q8/q4 label-only pressure.
+- Updated `rvv_generated_bundle_same_target_measure.py` to emit the
+  source-backed record into per-op/root evidence and provider feedback inputs.
+- Refreshed existing packed-i4 dequant-clamp `ssh rvv` evidence JSONs with the
+  new record fields derived from already validated artifact identity and
+  measurement configuration, without claiming a new runtime/performance run.
+- Added focused C++ tests, script self-test cases, FileCheck coverage, and an
+  RVV plugin code-spec update for the new cross-layer record/API contract.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_same_target_measure.py`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] packed-i4 dequant dry-run plus manual `FileCheck --check-prefix=PACKED-WPRD`
+- [OK] packed-i4 dequant-clamp dry-run plus manual `FileCheck --check-prefix=PACKED-CLAMP-WPRDC`
+- [OK] `python3 -m json.tool` on refreshed packed-i4 evidence JSON files
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-production-kernel-capability-campaign`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded diff scan found no new legacy RVV route-authority path; q8/q4
+  and metadata-only occurrences are negative guards, pressure labels, spec
+  text, or evidence mirrors.
+
+### Spec Update Decision
+
+[SPEC UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` now records the
+Gate 2 source-backed measurement-record/API contract, including field names,
+validation matrix, bad cases, and tests required for selected-boundary,
+generated artifact, measurement target, runtime-count, and non-authoritative
+pressure-label provenance.
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-2 are complete. Gates 3-4 remain open. The next
+continuation point is Gate 3: selected-dispatch/performance policy consumes the
+source-backed pressure-profile records for preference, denial, fallback, and
+stale-provenance rejection.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 581: Stage2 RVV production-kernel capability campaign Gate 1
 
 **Date**: 2026-06-10

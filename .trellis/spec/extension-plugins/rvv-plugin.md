@@ -6584,6 +6584,21 @@ Packed-i4 per-op evidence and root summaries may carry:
     "provider_schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
     "provider_schedule_decision": "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1",
     "provider_schedule_decision_reason": "accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32",
+    "source_record_contract": "rvv-low-precision-source-backed-artifact-measurement-record.v1",
+    "source_selected_variant": "rvv_lp_pack_i4_widening_product_reduce_dequantize_f32",
+    "source_selected_input": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir",
+    "source_generated_function": "tcrv_rvv_lp_i4_widening_product_reduce_dequantize_f32",
+    "generated_artifact_identity_contract": "generated-object-header-sha256-after-target-artifact-validation.v1",
+    "generated_artifact_object_path": "generated_bundle/object.o",
+    "generated_artifact_object_sha256": "<sha256>",
+    "generated_artifact_header_path": "generated_bundle/header.h",
+    "generated_artifact_header_sha256": "<sha256>",
+    "measurement_target": "ssh rvv",
+    "measurement_target_provenance": "same-target-measurement-workflow-ssh-target.v1",
+    "measurement_runtime_count_set": "257,4096,65536",
+    "measurement_runtime_count_provenance": "same-target-measurement-config-input-sizes.v1",
+    "pressure_profile_label": "low-precision-quantized-contraction-production-pressure",
+    "pressure_profile_label_provenance": "non-authoritative-pressure-label-derived-from-selected-typed-rvv-provider-facts-and-source-backed-measurement-record",
     "contract_alignment": "matches-provider-maturity-outcome",
     "performance_win_claim_allowed": false,
     "performance_preference_denied": true,
@@ -6625,8 +6640,15 @@ names, including `measurement_evidence_id`,
 `provider_resource_packing_layout`, `provider_resource_unpack_intent`,
 `provider_resource_vsetvl_region_count`, `provider_runtime_avl_source`,
 `provider_runtime_abi_order`, `provider_primitive_chain_kind`,
-`provider_schedule_decision`, and the other provider/resource/remediation/target
-tie-backs. It must not include
+`provider_schedule_decision`, `source_record_contract`,
+`source_selected_variant`, `source_selected_input`,
+`source_generated_function`, `generated_artifact_identity_contract`,
+`generated_artifact_object_path`, `generated_artifact_object_sha256`,
+`generated_artifact_header_path`, `generated_artifact_header_sha256`,
+`measurement_target`, `measurement_target_provenance`,
+`measurement_runtime_count_set`, `measurement_runtime_count_provenance`,
+`pressure_profile_label`, `pressure_profile_label_provenance`, and the other
+provider/resource/remediation/target tie-backs. It must not include
 reporting-only fields such as `contract_alignment` or remediation-plan detail
 fields that are not part of `RVVLowPrecisionSameTargetMeasurementRecord`.
 
@@ -6646,6 +6668,19 @@ fields that are not part of `RVVLowPrecisionSameTargetMeasurementRecord`.
 - `same_target_measurement_record` is an exact record-shaped subset of the
   validated evidence input. It feeds the C++ record boundary before policy input
   is built; it must not carry reporting-only alignment fields as policy facts.
+- Source-backed record fields are mandatory for Gate 2 production pressure
+  profile construction:
+  `source_record_contract =
+  rvv-low-precision-source-backed-artifact-measurement-record.v1`,
+  selected variant/input/generated function copied from the selected RVV
+  generated-bundle workflow, generated object/header path and SHA256 copied
+  after target artifact validation, `measurement_target` copied from the actual
+  measurement workflow target, runtime count set copied from the measurement
+  configuration, and pressure label provenance explicitly marking the label as
+  non-authoritative.
+- `pressure_profile_label` may classify the production pressure family, but the
+  label and q4/q8-style naming must never satisfy selected-boundary,
+  primitive/resource, artifact identity, target, or runtime-count provenance.
 - C++ record consumption must fail closed for missing or type-mismatched record
   fields before policy input is materialized.
 - Gate 4 policy input must carry the Gate 2b provider-owned schedule-decision
@@ -6680,6 +6715,12 @@ fields that are not part of `RVVLowPrecisionSameTargetMeasurementRecord`.
   primitive chain tie-back differs, or schedule-decision tie-back differs -> C++
   policy input construction fails before dispatch/performance policy
   consumption.
+- Source record contract is missing or stale, selected variant/generated
+  function does not match the packed-i4 selected boundary, selected input is
+  missing, object/header path or SHA256 is missing or marker-only, measurement
+  target is not `ssh rvv`, measurement target/runtime-count provenance is stale,
+  or pressure label provenance is label-only -> C++ record and production
+  pressure profile construction fail before policy consumption.
 - Measurement classification is `regression`, `no-win`, or `not-measured` while
   `performance_win_claim_allowed = true` -> invalid evidence boundary.
 - Provider selection eligibility is `"false"` but reporting claims dispatch or
@@ -6707,6 +6748,10 @@ fields that are not part of `RVVLowPrecisionSameTargetMeasurementRecord`.
 - Bad: a script record changes `provider_runtime_abi_order`,
   `provider_primitive_chain_kind`, or `target_profile` while keeping the
   evidence id intact; C++ policy input construction must reject it as stale.
+- Bad: a script record carries `q8` or `q4` as the pressure truth, or uses
+  `metadata-only` object/header identity, while omitting selected-boundary and
+  generated artifact source fields; C++ source-backed record verification must
+  reject it before production pressure profile materialization.
 - Bad: a measurement win directly enables dispatch preference without a
   provider/resource contract update and new target artifact validation.
 
@@ -6721,10 +6766,16 @@ fields that are not part of `RVVLowPrecisionSameTargetMeasurementRecord`.
   that object, and fail-closed missing measurement id, missing/stale planning
   contract, stale packed resource form, stale target, stale runtime AVL/ABI, and
   stale primitive-chain cases.
+- C++ provider/policy tests must also assert the Gate 2 source-backed fields
+  reach `RVVLowPrecisionProductionPressureProfile`, and must reject missing
+  source record contract, stale selected boundary, marker-only generated
+  artifact identity, wrong measurement target, stale runtime-count provenance,
+  and q4/q8 label-only pressure.
 - Dry-run FileCheck coverage must assert the evidence-input object, provider
-  maturity mirrors, `same_target_measurement_record`, planning/resource/runtime
-  tie-backs, claim allowance, denial reason, route-support effect, and
-  correctness execution allowance.
+  maturity mirrors, `same_target_measurement_record`,
+  selected-boundary/artifact/measurement source-backed fields,
+  planning/resource/runtime tie-backs, claim allowance, denial reason,
+  route-support effect, and correctness execution allowance.
 - Same-target real-run evidence is required only when claiming runtime,
   correctness, or performance results beyond the dry-run/reporting bridge.
 
@@ -6743,6 +6794,9 @@ Correct:
 ```text
 same-target parsed classification
   -> evidence-input records provider maturity mirror and measured outcome
+  -> source-backed record ties selected boundary, generated object/header
+     identity, measurement target, runtime-count set, and non-authoritative
+     pressure label provenance to provider facts
   -> no-win/regression/not-measured deny performance preference
   -> win still requires provider contract update plus new validation before
      performance dispatch can be claimed

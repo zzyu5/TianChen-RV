@@ -4,3 +4,10 @@
 {"file": ".trellis/spec/variant-pipeline/generation-selection-tuning.md", "reason": "Stage 2 production-kernel campaign priority and q8/q4 pressure-test framing"}
 {"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Same-target measurement and selected-dispatch evidence contracts used by the pressure-profile boundary"}
 {"file": ".trellis/tasks/archive/2026-06/06-10-stage2-rvv-low-precision-contraction-primitive-surface-campaign/prd.md", "reason": "Previous completed primitive-surface campaign gates and produced facts that this macro campaign must consume"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h", "reason": "Gate 2 API surface for source-backed same-target measurement records, policy input, and production pressure-profile fields"}
+{"file": "lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp", "reason": "Gate 2 validation/materialization from source-backed artifact and measurement provenance into pressure-profile records"}
+{"file": "scripts/rvv_generated_bundle_same_target_measure.py", "reason": "Generated artifact and same-target measurement workflow now emits source-backed pressure-profile records"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Focused positive and fail-closed C++ coverage for Gate 2 record construction and policy-boundary compatibility"}
+{"file": "test/Scripts/rvv-generated-bundle-same-target-measure-gate4-dry-run.test", "reason": "Dry-run evidence coverage for source-backed record fields in packed-i4 measurement output"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Code-spec update for the new cross-layer source-backed record/API contract"}
+{"file": ".trellis/tasks/06-10-stage2-rvv-production-kernel-capability-campaign/prd.md", "reason": "Gate 2 slice acceptance, verification, spec decision, and Gate 3 continuation point"}

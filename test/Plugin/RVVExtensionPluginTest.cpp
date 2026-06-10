@@ -134,6 +134,30 @@ llvm::json::Object makeSameTargetMeasurementRecordEvidenceInput(
   evidenceInput["same_target_measurement"] = record.sameTargetMeasurement;
   evidenceInput["ssh_evidence"] = record.sshEvidence;
   evidenceInput["target_profile"] = record.targetProfile;
+  evidenceInput["source_record_contract"] = record.sourceRecordContract;
+  evidenceInput["source_selected_variant"] = record.sourceSelectedVariant;
+  evidenceInput["source_selected_input"] = record.sourceSelectedInput;
+  evidenceInput["source_generated_function"] = record.sourceGeneratedFunction;
+  evidenceInput["generated_artifact_identity_contract"] =
+      record.generatedArtifactIdentityContract;
+  evidenceInput["generated_artifact_object_path"] =
+      record.generatedArtifactObjectPath;
+  evidenceInput["generated_artifact_object_sha256"] =
+      record.generatedArtifactObjectSHA256;
+  evidenceInput["generated_artifact_header_path"] =
+      record.generatedArtifactHeaderPath;
+  evidenceInput["generated_artifact_header_sha256"] =
+      record.generatedArtifactHeaderSHA256;
+  evidenceInput["measurement_target"] = record.measurementTarget;
+  evidenceInput["measurement_target_provenance"] =
+      record.measurementTargetProvenance;
+  evidenceInput["measurement_runtime_count_set"] =
+      record.measurementRuntimeCountSet;
+  evidenceInput["measurement_runtime_count_provenance"] =
+      record.measurementRuntimeCountProvenance;
+  evidenceInput["pressure_profile_label"] = record.pressureProfileLabel;
+  evidenceInput["pressure_profile_label_provenance"] =
+      record.pressureProfileLabelProvenance;
   evidenceInput["provider_resource_selected_candidate"] =
       record.providerResourceSelectedCandidate;
   evidenceInput["provider_resource_planning_contract"] =
@@ -10231,6 +10255,29 @@ module {
                   packedI4ResourceSelection.runtimeAVLSource &&
               parsedPackedI4Gate2Record->providerRuntimeABIOrder ==
                   packedI4ResourceSelection.runtimeABIOrder &&
+              parsedPackedI4Gate2Record->sourceRecordContract ==
+                  "rvv-low-precision-source-backed-artifact-measurement-"
+                  "record.v1" &&
+              parsedPackedI4Gate2Record->sourceSelectedVariant ==
+                  "pre_realized_body_rvv_product_reduce_dequantize" &&
+              parsedPackedI4Gate2Record->sourceGeneratedFunction ==
+                  "tcrv_emitc_pre_realized_body_product_reduce_dequantize_"
+                  "kernel_pre_realized_body_rvv_product_reduce_dequantize" &&
+              parsedPackedI4Gate2Record
+                      ->generatedArtifactIdentityContract ==
+                  "generated-object-header-sha256-after-target-artifact-"
+                  "validation.v1" &&
+              !parsedPackedI4Gate2Record->generatedArtifactObjectPath.empty() &&
+              !parsedPackedI4Gate2Record
+                   ->generatedArtifactObjectSHA256.empty() &&
+              !parsedPackedI4Gate2Record->generatedArtifactHeaderPath.empty() &&
+              !parsedPackedI4Gate2Record
+                   ->generatedArtifactHeaderSHA256.empty() &&
+              parsedPackedI4Gate2Record->measurementTarget == "ssh rvv" &&
+              parsedPackedI4Gate2Record->measurementRuntimeCountSet ==
+                  "257,4096,65536" &&
+              parsedPackedI4Gate2Record->pressureProfileLabel ==
+                  "low-precision-quantized-contraction-production-pressure" &&
               parsedPackedI4Gate2Record->providerPrimitiveChainKind ==
                   packedI4ResourceSelection.primitiveChainKind &&
               parsedPackedI4Gate2Record->providerPrimitiveProductDType ==
@@ -10262,6 +10309,17 @@ module {
                   packedI4ResourceSelection.planningContract &&
               parsedPackedI4Gate2PolicyInput->providerRuntimeAVLSource ==
                   packedI4ResourceSelection.runtimeAVLSource &&
+              parsedPackedI4Gate2PolicyInput->sourceSelectedVariant ==
+                  "pre_realized_body_rvv_product_reduce_dequantize" &&
+              parsedPackedI4Gate2PolicyInput->sourceGeneratedFunction ==
+                  "tcrv_emitc_pre_realized_body_product_reduce_dequantize_"
+                  "kernel_pre_realized_body_rvv_product_reduce_dequantize" &&
+              parsedPackedI4Gate2PolicyInput->generatedArtifactObjectSHA256 ==
+                  acceptedPackedI4Gate4MeasurementRecord
+                      .generatedArtifactObjectSHA256 &&
+              parsedPackedI4Gate2PolicyInput->measurementTarget == "ssh rvv" &&
+              parsedPackedI4Gate2PolicyInput->measurementRuntimeCountSet ==
+                  "257,4096,65536" &&
               parsedPackedI4Gate2PolicyInput->providerResourceSelectedCandidate ==
                   packedI4ResourceSelection.selectedCandidateID &&
               parsedPackedI4Gate2PolicyInput->providerPrimitiveContract ==
@@ -10288,6 +10346,21 @@ module {
                   .takeError(),
           {"same-target measurement record string field",
            "measurement_evidence_id"}))
+    return result;
+
+  llvm::json::Object missingSourceRecordGate2Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  missingSourceRecordGate2Evidence.erase("source_record_contract");
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
+                  missingSourceRecordGate2Evidence,
+                  "selected-boundary packed-i4 Gate 2 missing source-backed "
+                  "record contract")
+                  .takeError(),
+          {"same-target measurement record string field",
+           "source_record_contract"}))
     return result;
 
   llvm::json::Object missingPlanningContractGate3Evidence =
@@ -10333,6 +10406,84 @@ module {
                   "selected-boundary packed-i4 Gate 2 stale target profile")
                   .takeError(),
           {"target profile", "ssh rvv", "local-x86"}))
+    return result;
+
+  llvm::json::Object staleSelectedBoundaryGate2Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  staleSelectedBoundaryGate2Evidence["source_selected_variant"] =
+      "stale-selected-boundary";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+                  packedI4ResourceSelection, staleSelectedBoundaryGate2Evidence,
+                  "selected-boundary packed-i4 Gate 2 stale selected "
+                  "boundary provenance")
+                  .takeError(),
+          {"source selected variant", "stale-selected-boundary",
+           "pre_realized_body_rvv_product_reduce_dequantize"}))
+    return result;
+
+  llvm::json::Object staleArtifactIdentityGate2Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  staleArtifactIdentityGate2Evidence["generated_artifact_object_sha256"] =
+      "metadata-only-generated-artifact-identity";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+                  packedI4ResourceSelection, staleArtifactIdentityGate2Evidence,
+                  "selected-boundary packed-i4 Gate 2 stale artifact "
+                  "identity provenance")
+                  .takeError(),
+          {"metadata-only",
+           "generated artifact object sha256"}))
+    return result;
+
+  llvm::json::Object staleMeasurementTargetGate2Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  staleMeasurementTargetGate2Evidence["measurement_target"] = "local-x86";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+                  packedI4ResourceSelection, staleMeasurementTargetGate2Evidence,
+                  "selected-boundary packed-i4 Gate 2 stale measurement "
+                  "target")
+                  .takeError(),
+          {"measurement target", "ssh rvv", "local-x86"}))
+    return result;
+
+  llvm::json::Object staleRuntimeCountGate2Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  staleRuntimeCountGate2Evidence["measurement_runtime_count_provenance"] =
+      "metadata-only-runtime-counts";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+                  packedI4ResourceSelection, staleRuntimeCountGate2Evidence,
+                  "selected-boundary packed-i4 Gate 2 stale runtime count "
+                  "provenance")
+                  .takeError(),
+          {"measurement runtime count provenance",
+           "same-target-measurement-config-input-sizes.v1",
+           "metadata-only-runtime-counts"}))
+    return result;
+
+  llvm::json::Object labelOnlyPressureGate2Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  labelOnlyPressureGate2Evidence["pressure_profile_label"] =
+      "q8-label-only-pressure";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+                  packedI4ResourceSelection, labelOnlyPressureGate2Evidence,
+                  "selected-boundary packed-i4 Gate 2 label-only pressure")
+                  .takeError(),
+          {"pressure-profile boundary", "label-only q8/q4",
+           "pressure profile label"}))
     return result;
 
   llvm::json::Object staleRuntimeABIGate2Evidence =
@@ -10621,6 +10772,19 @@ module {
                       kRVVLowPrecisionResourceOperandFormPackedI4Nibbles &&
               packedI4PressureProfile->runtimeABIOrder ==
                   packedI4ResourceSelection.runtimeABIOrder &&
+              packedI4PressureProfile->sourceSelectedVariant ==
+                  "pre_realized_body_rvv_product_reduce_dequantize" &&
+              packedI4PressureProfile->sourceGeneratedFunction ==
+                  "tcrv_emitc_pre_realized_body_product_reduce_dequantize_"
+                  "kernel_pre_realized_body_rvv_product_reduce_dequantize" &&
+              packedI4PressureProfile->generatedArtifactObjectSHA256 ==
+                  acceptedPackedI4Gate4MeasurementRecord
+                      .generatedArtifactObjectSHA256 &&
+              packedI4PressureProfile->measurementTarget == "ssh rvv" &&
+              packedI4PressureProfile->measurementRuntimeCountSet ==
+                  "257,4096,65536" &&
+              packedI4PressureProfile->pressureProfileLabel ==
+                  "low-precision-quantized-contraction-production-pressure" &&
               packedI4PressureProfile->primitiveReductionIntrinsic ==
                   tianchenrv::plugin::rvv::
                       kRVVLowPrecisionResourcePrimitiveReductionIntrinsic &&

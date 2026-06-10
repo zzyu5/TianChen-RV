@@ -31,6 +31,10 @@ authority.
 - Common EmitC/export may carry provider payloads and mirrors only. It must not
   infer dtype, schedule, low-precision resource identity, measurement identity,
   selected-dispatch behavior, or performance decisions.
+- The immediately previous slice, commit
+  `d35f9f42 rvv: add production pressure profile boundary`, completed Gate 1 by
+  adding the production pressure-profile boundary and focused fail-closed
+  policy tests.
 
 ## Requirements
 
@@ -38,7 +42,7 @@ authority.
   genuinely complete or human steering redirects the campaign.
 - Complete one coherent slice per round and update this PRD with completed and
   remaining gates.
-- Gate 1 must make a concrete production compiler or production workflow change
+- Gate 1 made a concrete production compiler or production workflow change
   in the pressure-profile, measurement-policy input, provider validation, or
   selected-dispatch boundary.
 - Pressure-profile facts must be tied to provider-owned typed body/config,
@@ -60,7 +64,7 @@ authority.
   low-precision/Gearbox/provider facts to same-target measurement and
   selected-dispatch policy inputs, with stale/label-only/sibling-route/
   metadata-only fail-closed validation.
-- [ ] Gate 2: generated artifact and measurement workflow emits source-backed
+- [x] Gate 2: generated artifact and measurement workflow emits source-backed
   same-target comparison records for the representative pressure path on
   `ssh rvv`.
 - [ ] Gate 3: selected-dispatch/performance policy consumes those records for
@@ -70,29 +74,43 @@ authority.
   plugin-owned realization/provider -> artifact/runtime measurement ->
   selected-dispatch policy path and archives only after all gates are complete.
 
-## Current Round Slice: Gate 1
+## Current Round Slice: Gate 2
 
-Implement Gate 1 only unless repository evidence proves it is already complete
-in production source. The bounded slice should add or harden a production
-pressure-profile boundary for the representative packed low-precision
-contraction path, such as packed-i4 widening product-reduce dequant-clamp.
+Implement Gate 2 only. The bounded slice should make the generated artifact and
+same-target measurement workflow emit source-backed pressure-profile records
+for the representative packed low-precision contraction path, such as packed-i4
+widening product-reduce dequant-clamp.
+
+The record must connect the selected RVV boundary, provider-owned
+low-precision primitive/resource facts, generated artifact identity, runtime
+measurement provenance, measurement target, runtime-count provenance, and a
+non-authoritative production pressure label. q8/q4-style pressure labels may
+explain why this path matters, but labels, artifact names, route ids, ABI
+strings, raw stdout, benchmark names, or handwritten metadata must not become
+route, dtype, schedule, measurement, dispatch, or policy authority.
 
 Acceptance criteria:
 
 - [x] Production C++ or production workflow code constructs or validates a
-  pressure-profile input from provider-owned typed low-precision primitive
-  facts, Gearbox/resource facts, runtime ABI facts, target facts,
-  same-target measurement identity, and selected-dispatch policy tie-backs.
-- [x] Positive focused coverage proves the pressure profile can be built from
-  provider-owned typed facts, not labels or artifact names.
+  source-backed pressure-profile record from provider-owned typed
+  low-precision primitive facts, Gearbox/resource facts, runtime ABI facts,
+  target facts, generated object/header identity, measurement target,
+  runtime-count provenance, and selected-boundary provenance.
+- [x] The generated artifact / same-target measurement workflow emits that
+  record into per-op and root evidence, and keeps the record consumable by the
+  production pressure-profile boundary.
+- [x] Positive focused coverage proves the record is built from selected
+  boundary + provider/resource/primitive + generated artifact + measurement
+  provenance, not labels, artifact names, route ids, ABI strings, or raw stdout.
 - [x] Negative focused coverage rejects label-only q8/q4 pressure, stale
-  primitive/resource/schedule/runtime facts, sibling-route measurements,
-  metadata-only measurement records, and stale selected-dispatch tie-backs.
+  selected-boundary provenance, stale artifact identity/provenance, missing
+  primitive/resource facts, wrong measurement target, stale runtime-count
+  provenance, and metadata-only pressure facts.
 - [x] Relevant focused checks pass, including C++ plugin/target tests when
   touched, measurement script self-test when touched, lit/script tests when
   touched, `git diff --check`, `git diff --cached --check`, and a bounded
   old-authority scan over touched files or added diff lines.
-- [x] The task remains active after the Gate 1 slice unless all macro gates are
+- [x] The task remains active after the Gate 2 slice unless all macro gates are
   genuinely complete.
 
 ## Completed Slice: Gate 1
@@ -113,33 +131,65 @@ Acceptance criteria:
   metadata-only provider support, sibling-route measurements, and stale
   selected-dispatch origin.
 
+## Completed Slice: Gate 2
+
+- Extended `RVVLowPrecisionSameTargetMeasurementRecord`,
+  `RVVLowPrecisionSameTargetMeasurementPolicyInput`, and
+  `RVVLowPrecisionProductionPressureProfile` with source-backed artifact /
+  measurement fields: selected variant, selected input, generated function,
+  generated object/header path and SHA256, measurement target/provenance,
+  runtime-count set/provenance, and a non-authoritative production pressure
+  label/provenance pair.
+- Added strict C++ validation before policy-boundary materialization for missing
+  source contract, stale selected-boundary facts, missing or marker-only
+  generated artifact identity, wrong measurement target, stale runtime-count
+  provenance, and q8/q4 label-only pressure.
+- Updated `rvv_generated_bundle_same_target_measure.py` so the generated
+  artifact / same-target measurement workflow emits the source-backed record
+  into per-op evidence, root evidence, and provider feedback tie-back inputs
+  without rewriting provider-owned maturity/resource facts.
+- Refreshed the checked-in packed-i4 dequant-clamp `ssh rvv` evidence JSONs by
+  adding source-backed record fields derived from the existing validated
+  artifact identity and measurement configuration. This preserves the old raw
+  timing evidence and does not claim a new runtime/performance run.
+- Added focused positive and negative C++ coverage plus script self-test and
+  FileCheck coverage for the new source-backed fields.
+
 ## Verification
 
 - [x] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
 - [x] `build/bin/tianchenrv-rvv-extension-plugin-test`
 - [x] `cmake --build build --target tianchenrv-target-artifact-export-test`
 - [x] `build/bin/tianchenrv-target-artifact-export-test`
+- [x] `python3 -m py_compile scripts/rvv_generated_bundle_same_target_measure.py`
+- [x] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [x] Packed-i4 dequant dry-run with manual
+  `FileCheck --check-prefix=PACKED-WPRD`
+- [x] Packed-i4 dequant-clamp dry-run with manual
+  `FileCheck --check-prefix=PACKED-CLAMP-WPRDC`
+- [x] `python3 -m json.tool` on refreshed packed-i4 evidence JSON files
 - [x] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-production-kernel-capability-campaign`
 - [x] `git diff --check`
 - [x] `git diff --cached --check`
 - [x] Bounded current-diff scan for legacy RVV route-authority markers returned
-  no matches.
+  no new route-authority matches; remaining q8/q4/metadata-only occurrences are
+  negative guards, pressure labels, spec text, or evidence mirrors.
 
 ## Spec Update Decision
 
-No `.trellis/spec/` update is required for Gate 1. The existing RVV plugin,
-EmitC route, variant-pipeline, and testing specs already require provider-owned
-typed low-precision facts, same-target measurement records, selected-dispatch
-mirrors, and fail-closed stale/metadata-only rejection. This slice implements
-that existing contract as a production pressure-profile boundary.
+`.trellis/spec/extension-plugins/rvv-plugin.md` was updated for Gate 2 because
+this slice changed a cross-layer record/API contract. The spec now names the
+source-backed record fields, validation matrix, bad cases, and required tests
+for generated artifact identity, selected-boundary provenance, measurement
+target/runtime-count provenance, and non-authoritative pressure labels.
 
 ## Status
 
-Open macro task. Gate 1 is complete. Gates 2-4 remain open. The next
-continuation point is Gate 2: generated artifact and measurement workflow
-emits source-backed same-target comparison records for the representative
-pressure path on `ssh rvv`, using the production pressure-profile boundary as
-the policy/measurement input contract.
+Open macro task. Gates 1 and 2 are complete. Gates 3-4 remain open. The next
+continuation point is Gate 3: selected-dispatch/performance policy consumes the
+source-backed pressure-profile records for preference, denial, fallback, and
+stale-provenance rejection, without treating labels, artifact names, route ids,
+or handwritten metadata as authority.
 
 ## Out of Scope
 
@@ -150,7 +200,7 @@ the policy/measurement input contract.
   inference.
 - Broad benchmark dashboards, global tuning databases, or performance profile
   systems.
-- Archiving this macro task after only Gate 1.
+- Archiving this macro task after only Gates 1-2.
 
 ## Technical Notes
 
@@ -164,4 +214,4 @@ the policy/measurement input contract.
 - Read archived primitive-surface campaign PRD at
   `.trellis/tasks/archive/2026-06/06-10-stage2-rvv-low-precision-contraction-primitive-surface-campaign/prd.md`.
 - Initial repository state: `main`, clean worktree, latest commit
-  `aacf5600 rvv: archive low-precision primitive campaign`.
+  `d35f9f42 rvv: add production pressure profile boundary`.

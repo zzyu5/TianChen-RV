@@ -43,6 +43,19 @@ constexpr llvm::StringLiteral kProductionPressureProfileContract(
 constexpr llvm::StringLiteral kProductionPressureProfileAuthority(
     "selected-typed-rvv-provider-resource-facts-plus-source-backed-"
     "same-target-measurement-and-selected-dispatch-policy-inputs");
+constexpr llvm::StringLiteral kSourceBackedMeasurementRecordContract(
+    "rvv-low-precision-source-backed-artifact-measurement-record.v1");
+constexpr llvm::StringLiteral kGeneratedArtifactIdentityContract(
+    "generated-object-header-sha256-after-target-artifact-validation.v1");
+constexpr llvm::StringLiteral kMeasurementTargetProvenance(
+    "same-target-measurement-workflow-ssh-target.v1");
+constexpr llvm::StringLiteral kMeasurementRuntimeCountProvenance(
+    "same-target-measurement-config-input-sizes.v1");
+constexpr llvm::StringLiteral kProductionPressureProfileLabel(
+    "low-precision-quantized-contraction-production-pressure");
+constexpr llvm::StringLiteral kProductionPressureProfileLabelProvenance(
+    "non-authoritative-pressure-label-derived-from-selected-typed-rvv-"
+    "provider-facts-and-source-backed-measurement-record");
 constexpr llvm::StringLiteral kDispatchCaseRoleValue("dispatch case");
 constexpr llvm::StringLiteral kDispatchFallbackRoleValue("dispatch fallback");
 constexpr llvm::StringLiteral kRVVPluginOriginValue("rvv-plugin");
@@ -135,6 +148,12 @@ bool containsLabelOnlyPressureMarker(llvm::StringRef value) {
          containsPolicyMarker(value, "llama");
 }
 
+llvm::StringRef
+getPackedI4SourceSelectedVariantForCandidate(llvm::StringRef candidateID);
+
+llvm::StringRef
+getPackedI4SourceGeneratedFunctionForCandidate(llvm::StringRef candidateID);
+
 llvm::Error rejectLabelOnlyPressureMarker(llvm::StringRef context,
                                           llvm::StringRef label,
                                           llvm::StringRef value) {
@@ -197,6 +216,123 @@ llvm::Error rejectPressureProfileMarkerOnlyFacts(
   return llvm::Error::success();
 }
 
+llvm::Error rejectSourceBackedRecordMarkerOnlyFacts(
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    llvm::StringRef context) {
+  struct Field {
+    llvm::StringRef label;
+    llvm::StringRef value;
+  };
+  Field fields[] = {
+      {"source selected variant", input.sourceSelectedVariant},
+      {"source selected input", input.sourceSelectedInput},
+      {"source generated function", input.sourceGeneratedFunction},
+      {"generated artifact object path", input.generatedArtifactObjectPath},
+      {"generated artifact object sha256",
+       input.generatedArtifactObjectSHA256},
+      {"generated artifact header path", input.generatedArtifactHeaderPath},
+      {"generated artifact header sha256",
+       input.generatedArtifactHeaderSHA256},
+      {"measurement target", input.measurementTarget},
+      {"measurement runtime count set", input.measurementRuntimeCountSet},
+      {"pressure profile label", input.pressureProfileLabel},
+      {"pressure profile label provenance",
+       input.pressureProfileLabelProvenance},
+  };
+  for (const Field &field : fields) {
+    if (llvm::Error error =
+            rejectLabelOnlyPressureMarker(context, field.label, field.value))
+      return error;
+    if (llvm::Error error =
+            rejectMetadataOnlyPressureMarker(context, field.label, field.value))
+      return error;
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error verifySourceBackedMeasurementRecordFacts(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
+    llvm::StringRef context) {
+  if (llvm::Error error =
+          requirePolicyString(context, "source record contract",
+                              input.sourceRecordContract,
+                              kSourceBackedMeasurementRecordContract))
+    return error;
+  if (llvm::Error error =
+          rejectSourceBackedRecordMarkerOnlyFacts(input, context))
+    return error;
+  if (llvm::Error error = requireNonEmptyPolicyString(
+          context, "source selected variant", input.sourceSelectedVariant))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "source selected variant", input.sourceSelectedVariant,
+          getPackedI4SourceSelectedVariantForCandidate(
+              selection.selectedCandidateID)))
+    return error;
+  if (llvm::Error error = requireNonEmptyPolicyString(
+          context, "source selected input", input.sourceSelectedInput))
+    return error;
+  if (llvm::Error error = requireNonEmptyPolicyString(
+          context, "source generated function", input.sourceGeneratedFunction))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "source generated function", input.sourceGeneratedFunction,
+          getPackedI4SourceGeneratedFunctionForCandidate(
+              selection.selectedCandidateID)))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "generated artifact identity contract",
+                              input.generatedArtifactIdentityContract,
+                              kGeneratedArtifactIdentityContract))
+    return error;
+  if (llvm::Error error = requireNonEmptyPolicyString(
+          context, "generated artifact object path",
+          input.generatedArtifactObjectPath))
+    return error;
+  if (llvm::Error error = requireNonEmptyPolicyString(
+          context, "generated artifact object sha256",
+          input.generatedArtifactObjectSHA256))
+    return error;
+  if (llvm::Error error = requireNonEmptyPolicyString(
+          context, "generated artifact header path",
+          input.generatedArtifactHeaderPath))
+    return error;
+  if (llvm::Error error = requireNonEmptyPolicyString(
+          context, "generated artifact header sha256",
+          input.generatedArtifactHeaderSHA256))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "measurement target",
+                              input.measurementTarget, input.targetProfile))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "measurement target provenance",
+                              input.measurementTargetProvenance,
+                              kMeasurementTargetProvenance))
+    return error;
+  if (llvm::Error error = requireNonEmptyPolicyString(
+          context, "measurement runtime count set",
+          input.measurementRuntimeCountSet))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "measurement runtime count provenance",
+                              input.measurementRuntimeCountProvenance,
+                              kMeasurementRuntimeCountProvenance))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "pressure profile label",
+                              input.pressureProfileLabel,
+                              kProductionPressureProfileLabel))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "pressure profile label provenance",
+                              input.pressureProfileLabelProvenance,
+                              kProductionPressureProfileLabelProvenance))
+    return error;
+  return llvm::Error::success();
+}
+
 bool hasPackedI4SiblingRouteMeasurement(
     const RVVLowPrecisionContractionResourceSelection &selection,
     llvm::StringRef providerSelectedCandidate) {
@@ -243,6 +379,41 @@ std::int64_t getPackedI4Gate4CorrectnessRecordCountForCandidate(
   if (candidateID == kRVVLowPrecisionResourceDequantPackedI4Candidate)
     return kPackedI4Gate4CorrectnessRecordCount;
   return 0;
+}
+
+bool isPackedI4DequantClampCandidate(llvm::StringRef candidateID) {
+  return candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate;
+}
+
+llvm::StringRef
+getPackedI4SourceSelectedVariantForCandidate(llvm::StringRef candidateID) {
+  return isPackedI4DequantClampCandidate(candidateID)
+             ? llvm::StringRef("pre_realized_body_rvv_product_reduce_dequant_"
+                               "clamp")
+             : llvm::StringRef("pre_realized_body_rvv_product_reduce_"
+                               "dequantize");
+}
+
+llvm::StringRef
+getPackedI4SourceSelectedInputForCandidate(llvm::StringRef candidateID) {
+  return isPackedI4DequantClampCandidate(candidateID)
+             ? llvm::StringRef(
+                   "test/Target/RVV/pre-realized-selected-body-artifact-"
+                   "widening-product-reduce-dequant-clamp-f32-packed-i4.mlir")
+             : llvm::StringRef(
+                   "test/Target/RVV/pre-realized-selected-body-artifact-"
+                   "widening-product-reduce-dequantize-f32-packed-i4.mlir");
+}
+
+llvm::StringRef
+getPackedI4SourceGeneratedFunctionForCandidate(llvm::StringRef candidateID) {
+  return isPackedI4DequantClampCandidate(candidateID)
+             ? llvm::StringRef(
+                   "tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_"
+                   "kernel_pre_realized_body_rvv_product_reduce_dequant_clamp")
+             : llvm::StringRef(
+                   "tcrv_emitc_pre_realized_body_product_reduce_dequantize_"
+                   "kernel_pre_realized_body_rvv_product_reduce_dequantize");
 }
 
 llvm::Expected<std::string>
@@ -484,6 +655,9 @@ llvm::Error verifyPackedI4SameTargetMeasurementPolicyInput(
   if (llvm::Error error = requirePolicyString(
           context, "target profile", input.targetProfile,
           kPackedI4Gate4TargetProfile))
+    return error;
+  if (llvm::Error error =
+          verifySourceBackedMeasurementRecordFacts(selection, input, context))
     return error;
 
   if (llvm::Error error = requireSameTargetPolicyInputTieBack(
@@ -793,6 +967,24 @@ materializeRVVLowPrecisionPolicyInputFromMeasurementRecord(
   input.sameTargetMeasurement = record.sameTargetMeasurement;
   input.sshEvidence = record.sshEvidence;
   input.targetProfile = record.targetProfile;
+  input.sourceRecordContract = record.sourceRecordContract;
+  input.sourceSelectedVariant = record.sourceSelectedVariant;
+  input.sourceSelectedInput = record.sourceSelectedInput;
+  input.sourceGeneratedFunction = record.sourceGeneratedFunction;
+  input.generatedArtifactIdentityContract =
+      record.generatedArtifactIdentityContract;
+  input.generatedArtifactObjectPath = record.generatedArtifactObjectPath;
+  input.generatedArtifactObjectSHA256 = record.generatedArtifactObjectSHA256;
+  input.generatedArtifactHeaderPath = record.generatedArtifactHeaderPath;
+  input.generatedArtifactHeaderSHA256 = record.generatedArtifactHeaderSHA256;
+  input.measurementTarget = record.measurementTarget;
+  input.measurementTargetProvenance = record.measurementTargetProvenance;
+  input.measurementRuntimeCountSet = record.measurementRuntimeCountSet;
+  input.measurementRuntimeCountProvenance =
+      record.measurementRuntimeCountProvenance;
+  input.pressureProfileLabel = record.pressureProfileLabel;
+  input.pressureProfileLabelProvenance =
+      record.pressureProfileLabelProvenance;
   input.providerResourceSelectedCandidate =
       record.providerResourceSelectedCandidate;
   input.providerResourcePlanningContract =
@@ -1339,6 +1531,24 @@ materializeRVVLowPrecisionProductionPressureProfile(
   profile.runtimeABIOrder = input.providerRuntimeABIOrder;
   profile.routeFamilyPlan = input.providerResourceRouteFamilyPlan;
   profile.providerSupportedMirror = input.providerSupportedMirror;
+  profile.sourceRecordContract = input.sourceRecordContract;
+  profile.sourceSelectedVariant = input.sourceSelectedVariant;
+  profile.sourceSelectedInput = input.sourceSelectedInput;
+  profile.sourceGeneratedFunction = input.sourceGeneratedFunction;
+  profile.generatedArtifactIdentityContract =
+      input.generatedArtifactIdentityContract;
+  profile.generatedArtifactObjectPath = input.generatedArtifactObjectPath;
+  profile.generatedArtifactObjectSHA256 = input.generatedArtifactObjectSHA256;
+  profile.generatedArtifactHeaderPath = input.generatedArtifactHeaderPath;
+  profile.generatedArtifactHeaderSHA256 = input.generatedArtifactHeaderSHA256;
+  profile.measurementTarget = input.measurementTarget;
+  profile.measurementTargetProvenance = input.measurementTargetProvenance;
+  profile.measurementRuntimeCountSet = input.measurementRuntimeCountSet;
+  profile.measurementRuntimeCountProvenance =
+      input.measurementRuntimeCountProvenance;
+  profile.pressureProfileLabel = input.pressureProfileLabel;
+  profile.pressureProfileLabelProvenance =
+      input.pressureProfileLabelProvenance;
 
   profile.primitiveChainContract = input.providerPrimitiveChainContract;
   profile.primitiveChainKind = input.providerPrimitiveChainKind;
@@ -1446,6 +1656,35 @@ buildRVVPackedI4Gate4SameTargetMeasurementRecord(
   record.sameTargetMeasurement = true;
   record.sshEvidence = true;
   record.targetProfile = kPackedI4Gate4TargetProfile.str();
+  record.sourceRecordContract = kSourceBackedMeasurementRecordContract.str();
+  record.sourceSelectedVariant =
+      getPackedI4SourceSelectedVariantForCandidate(selection.selectedCandidateID)
+          .str();
+  record.sourceSelectedInput =
+      getPackedI4SourceSelectedInputForCandidate(selection.selectedCandidateID)
+          .str();
+  record.sourceGeneratedFunction =
+      getPackedI4SourceGeneratedFunctionForCandidate(
+          selection.selectedCandidateID)
+          .str();
+  record.generatedArtifactIdentityContract =
+      kGeneratedArtifactIdentityContract.str();
+  record.generatedArtifactObjectPath =
+      "generated-bundle-object:" + record.sourceGeneratedFunction;
+  record.generatedArtifactObjectSHA256 =
+      "source-backed-object-sha256:" + selection.selectedCandidateID;
+  record.generatedArtifactHeaderPath =
+      "generated-bundle-header:" + record.sourceGeneratedFunction;
+  record.generatedArtifactHeaderSHA256 =
+      "source-backed-header-sha256:" + selection.selectedCandidateID;
+  record.measurementTarget = kPackedI4Gate4TargetProfile.str();
+  record.measurementTargetProvenance = kMeasurementTargetProvenance.str();
+  record.measurementRuntimeCountSet = "257,4096,65536";
+  record.measurementRuntimeCountProvenance =
+      kMeasurementRuntimeCountProvenance.str();
+  record.pressureProfileLabel = kProductionPressureProfileLabel.str();
+  record.pressureProfileLabelProvenance =
+      kProductionPressureProfileLabelProvenance.str();
   record.providerResourceSelectedCandidate = selection.selectedCandidateID;
   record.providerResourcePlanningContract = selection.planningContract;
   record.providerResourceOperandForm = selection.operandForm;
@@ -1588,6 +1827,30 @@ buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
   TCRV_READ_RECORD_BOOL(sameTargetMeasurement, "same_target_measurement");
   TCRV_READ_RECORD_BOOL(sshEvidence, "ssh_evidence");
   TCRV_READ_RECORD_STRING(targetProfile, "target_profile");
+  TCRV_READ_RECORD_STRING(sourceRecordContract, "source_record_contract");
+  TCRV_READ_RECORD_STRING(sourceSelectedVariant, "source_selected_variant");
+  TCRV_READ_RECORD_STRING(sourceSelectedInput, "source_selected_input");
+  TCRV_READ_RECORD_STRING(sourceGeneratedFunction, "source_generated_function");
+  TCRV_READ_RECORD_STRING(generatedArtifactIdentityContract,
+                          "generated_artifact_identity_contract");
+  TCRV_READ_RECORD_STRING(generatedArtifactObjectPath,
+                          "generated_artifact_object_path");
+  TCRV_READ_RECORD_STRING(generatedArtifactObjectSHA256,
+                          "generated_artifact_object_sha256");
+  TCRV_READ_RECORD_STRING(generatedArtifactHeaderPath,
+                          "generated_artifact_header_path");
+  TCRV_READ_RECORD_STRING(generatedArtifactHeaderSHA256,
+                          "generated_artifact_header_sha256");
+  TCRV_READ_RECORD_STRING(measurementTarget, "measurement_target");
+  TCRV_READ_RECORD_STRING(measurementTargetProvenance,
+                          "measurement_target_provenance");
+  TCRV_READ_RECORD_STRING(measurementRuntimeCountSet,
+                          "measurement_runtime_count_set");
+  TCRV_READ_RECORD_STRING(measurementRuntimeCountProvenance,
+                          "measurement_runtime_count_provenance");
+  TCRV_READ_RECORD_STRING(pressureProfileLabel, "pressure_profile_label");
+  TCRV_READ_RECORD_STRING(pressureProfileLabelProvenance,
+                          "pressure_profile_label_provenance");
   TCRV_READ_RECORD_STRING(providerResourceSelectedCandidate,
                           "provider_resource_selected_candidate");
   TCRV_READ_RECORD_STRING(providerResourcePlanningContract,
