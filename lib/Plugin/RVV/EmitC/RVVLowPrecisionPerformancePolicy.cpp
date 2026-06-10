@@ -569,6 +569,25 @@ llvm::Error verifyPackedI4SelectionFacts(
           kRVVLowPrecisionResourcePrimitiveChainKind))
     return error;
   if (llvm::Error error = requirePolicyString(
+          context, "widening product multiplicand roles",
+          selection.wideningProductMultiplicandRoleSummary,
+          kRVVLowPrecisionResourceWideningProductMultiplicandRoles))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "widening product extension policy",
+          selection.wideningProductExtensionPolicy,
+          kRVVLowPrecisionResourceWideningProductExtensionPolicy))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "primitive source load", selection.primitiveSourceLoadKind,
+          kRVVLowPrecisionResourcePrimitiveSourceLoad))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "primitive source extension",
+          selection.primitiveSourceExtensionKind,
+          kRVVLowPrecisionResourcePrimitiveSourceExtension))
+    return error;
+  if (llvm::Error error = requirePolicyString(
           context, "primitive widening product relation",
           selection.primitiveWideningProductRelation,
           kRVVLowPrecisionResourcePrimitiveWideningProductRelation))
@@ -819,6 +838,26 @@ llvm::Error verifyPackedI4SameTargetMeasurementPolicyInput(
   if (llvm::Error error = requireSameTargetPolicyInputTieBack(
           context, "provider primitive kind", input.providerPrimitiveKind,
           selection.primitiveKind))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider widening product multiplicand roles",
+          input.providerWideningProductMultiplicandRoles,
+          selection.wideningProductMultiplicandRoleSummary))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider widening product extension policy",
+          input.providerWideningProductExtensionPolicy,
+          selection.wideningProductExtensionPolicy))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive source load",
+          input.providerPrimitiveSourceLoad,
+          selection.primitiveSourceLoadKind))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider primitive source extension",
+          input.providerPrimitiveSourceExtension,
+          selection.primitiveSourceExtensionKind))
     return error;
   if (llvm::Error error = requireSameTargetPolicyInputTieBack(
           context, "provider primitive source dtype",
@@ -1118,6 +1157,13 @@ materializeRVVLowPrecisionPolicyInputFromMeasurementRecord(
   input.providerPrimitiveChainKind = record.providerPrimitiveChainKind;
   input.providerPrimitiveContract = record.providerPrimitiveContract;
   input.providerPrimitiveKind = record.providerPrimitiveKind;
+  input.providerWideningProductMultiplicandRoles =
+      record.providerWideningProductMultiplicandRoles;
+  input.providerWideningProductExtensionPolicy =
+      record.providerWideningProductExtensionPolicy;
+  input.providerPrimitiveSourceLoad = record.providerPrimitiveSourceLoad;
+  input.providerPrimitiveSourceExtension =
+      record.providerPrimitiveSourceExtension;
   input.providerPrimitiveSourceDType = record.providerPrimitiveSourceDType;
   input.providerPrimitiveSourceSignedness =
       record.providerPrimitiveSourceSignedness;
@@ -1656,6 +1702,12 @@ materializeRVVLowPrecisionProductionPressureProfile(
   profile.primitiveChainKind = input.providerPrimitiveChainKind;
   profile.primitiveContract = input.providerPrimitiveContract;
   profile.primitiveKind = input.providerPrimitiveKind;
+  profile.wideningProductMultiplicandRoles =
+      input.providerWideningProductMultiplicandRoles;
+  profile.wideningProductExtensionPolicy =
+      input.providerWideningProductExtensionPolicy;
+  profile.primitiveSourceLoad = input.providerPrimitiveSourceLoad;
+  profile.primitiveSourceExtension = input.providerPrimitiveSourceExtension;
   profile.primitiveSourceDType = input.providerPrimitiveSourceDType;
   profile.primitiveSourceSignedness = input.providerPrimitiveSourceSignedness;
   profile.primitiveSourceSEW = input.providerPrimitiveSourceSEW;
@@ -1784,6 +1836,12 @@ llvm::Error rejectProductionPressureProfileMarkerOnlyFacts(
        profile.pressureProfileLabelProvenance},
       {"primitive chain contract", profile.primitiveChainContract},
       {"primitive kind", profile.primitiveKind},
+      {"widening product multiplicand roles",
+       profile.wideningProductMultiplicandRoles},
+      {"widening product extension policy",
+       profile.wideningProductExtensionPolicy},
+      {"primitive source load", profile.primitiveSourceLoad},
+      {"primitive source extension", profile.primitiveSourceExtension},
       {"primitive source dtype", profile.primitiveSourceDType},
       {"primitive source signedness", profile.primitiveSourceSignedness},
       {"primitive product dtype", profile.primitiveProductDType},
@@ -2087,6 +2145,26 @@ llvm::Error verifyProductionPressureProfileAgainstCandidate(
           requirePolicyString(context, "primitive kind", profile.primitiveKind,
                               candidate.primitiveKind))
     return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "widening product multiplicand roles",
+          profile.wideningProductMultiplicandRoles,
+          candidate.wideningProductMultiplicandRoleSummary))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "widening product extension policy",
+          profile.wideningProductExtensionPolicy,
+          candidate.wideningProductExtensionPolicy))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive source load",
+                              profile.primitiveSourceLoad,
+                              candidate.primitiveSourceLoadKind))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "primitive source extension",
+                              profile.primitiveSourceExtension,
+                              candidate.primitiveSourceExtensionKind))
+    return error;
   if (llvm::Error error =
           requirePolicyString(context, "primitive source dtype",
                               profile.primitiveSourceDType,
@@ -2347,6 +2425,13 @@ llvm::Error verifyProductionPressureProfileAgainstSelection(
   candidate.primitiveKind = selection.primitiveKind;
   candidate.primitiveChainContractID = selection.primitiveChainContractID;
   candidate.primitiveChainKind = selection.primitiveChainKind;
+  candidate.wideningProductMultiplicandRoleSummary =
+      selection.wideningProductMultiplicandRoleSummary;
+  candidate.wideningProductExtensionPolicy =
+      selection.wideningProductExtensionPolicy;
+  candidate.primitiveSourceLoadKind = selection.primitiveSourceLoadKind;
+  candidate.primitiveSourceExtensionKind =
+      selection.primitiveSourceExtensionKind;
   candidate.primitiveWideningProductRelation =
       selection.primitiveWideningProductRelation;
   candidate.primitiveProductReductionChainRelation =
@@ -2510,6 +2595,13 @@ buildRVVPackedI4Gate4SameTargetMeasurementRecord(
   record.providerPrimitiveChainKind = selection.primitiveChainKind;
   record.providerPrimitiveContract = selection.primitiveContractID;
   record.providerPrimitiveKind = selection.primitiveKind;
+  record.providerWideningProductMultiplicandRoles =
+      selection.wideningProductMultiplicandRoleSummary;
+  record.providerWideningProductExtensionPolicy =
+      selection.wideningProductExtensionPolicy;
+  record.providerPrimitiveSourceLoad = selection.primitiveSourceLoadKind;
+  record.providerPrimitiveSourceExtension =
+      selection.primitiveSourceExtensionKind;
   record.providerPrimitiveSourceDType = selection.sourceElementTypeName;
   record.providerPrimitiveSourceSignedness = selection.sourceSignedness;
   record.providerPrimitiveSourceSEW = selection.sourceSEW;
@@ -2707,6 +2799,14 @@ buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
   TCRV_READ_RECORD_STRING(providerPrimitiveContract,
                           "provider_primitive_contract");
   TCRV_READ_RECORD_STRING(providerPrimitiveKind, "provider_primitive_kind");
+  TCRV_READ_RECORD_STRING(providerWideningProductMultiplicandRoles,
+                          "provider_widening_product_multiplicand_roles");
+  TCRV_READ_RECORD_STRING(providerWideningProductExtensionPolicy,
+                          "provider_widening_product_extension_policy");
+  TCRV_READ_RECORD_STRING(providerPrimitiveSourceLoad,
+                          "provider_primitive_source_load");
+  TCRV_READ_RECORD_STRING(providerPrimitiveSourceExtension,
+                          "provider_primitive_source_extension");
   TCRV_READ_RECORD_STRING(providerPrimitiveSourceDType,
                           "provider_primitive_source_dtype");
   TCRV_READ_RECORD_STRING(providerPrimitiveSourceSignedness,
@@ -2852,6 +2952,13 @@ buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
   input.providerPrimitiveChainKind = selection.primitiveChainKind;
   input.providerPrimitiveContract = selection.primitiveContractID;
   input.providerPrimitiveKind = selection.primitiveKind;
+  input.providerWideningProductMultiplicandRoles =
+      selection.wideningProductMultiplicandRoleSummary;
+  input.providerWideningProductExtensionPolicy =
+      selection.wideningProductExtensionPolicy;
+  input.providerPrimitiveSourceLoad = selection.primitiveSourceLoadKind;
+  input.providerPrimitiveSourceExtension =
+      selection.primitiveSourceExtensionKind;
   input.providerPrimitiveSourceDType = selection.sourceElementTypeName;
   input.providerPrimitiveSourceSignedness = selection.sourceSignedness;
   input.providerPrimitiveSourceSEW = selection.sourceSEW;

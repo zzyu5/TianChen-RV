@@ -210,6 +210,14 @@ llvm::json::Object makeSameTargetMeasurementRecordEvidenceInput(
   evidenceInput["provider_primitive_contract"] =
       record.providerPrimitiveContract;
   evidenceInput["provider_primitive_kind"] = record.providerPrimitiveKind;
+  evidenceInput["provider_widening_product_multiplicand_roles"] =
+      record.providerWideningProductMultiplicandRoles;
+  evidenceInput["provider_widening_product_extension_policy"] =
+      record.providerWideningProductExtensionPolicy;
+  evidenceInput["provider_primitive_source_load"] =
+      record.providerPrimitiveSourceLoad;
+  evidenceInput["provider_primitive_source_extension"] =
+      record.providerPrimitiveSourceExtension;
   evidenceInput["provider_primitive_source_dtype"] =
       record.providerPrimitiveSourceDType;
   evidenceInput["provider_primitive_source_signedness"] =
@@ -8529,7 +8537,7 @@ module {
 
   constexpr llvm::StringLiteral primitiveResourceInsertionPoint =
       "tcrv_rvv.low_precision_resource.peak_live_vector_groups = 7 : i64";
-  constexpr llvm::StringLiteral primitiveResourceFacts = R"mlir(, tcrv_rvv.low_precision_resource.primitive_accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", tcrv_rvv.low_precision_resource.primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1", tcrv_rvv.low_precision_resource.primitive_chain_kind = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1", tcrv_rvv.low_precision_resource.primitive_contract = "rvv-low-precision-widening-primitive-facts.v1", tcrv_rvv.low_precision_resource.primitive_kind = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant.v1", tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1", tcrv_rvv.low_precision_resource.primitive_reduction_store_vl = "1", tcrv_rvv.low_precision_resource.primitive_result_layout = "store-standalone-reduction-lane0-to-output-scalar", tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic = "__riscv_vmv_v_x_i32m1", tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic = "__riscv_vwmul_vv_i16mf2", tcrv_rvv.low_precision_resource.primitive_widening_product_relation = "signed-i8mf4xi8mf4-to-i16mf2")mlir";
+  constexpr llvm::StringLiteral primitiveResourceFacts = R"mlir(, tcrv_rvv.low_precision_resource.primitive_accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", tcrv_rvv.low_precision_resource.primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1", tcrv_rvv.low_precision_resource.primitive_chain_kind = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1", tcrv_rvv.low_precision_resource.primitive_contract = "rvv-low-precision-widening-primitive-facts.v1", tcrv_rvv.low_precision_resource.primitive_kind = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant.v1", tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1", tcrv_rvv.low_precision_resource.primitive_reduction_store_vl = "1", tcrv_rvv.low_precision_resource.primitive_result_layout = "store-standalone-reduction-lane0-to-output-scalar", tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic = "__riscv_vmv_v_x_i32m1", tcrv_rvv.low_precision_resource.primitive_source_extension = "sign-extend-i8-to-i16-product", tcrv_rvv.low_precision_resource.primitive_source_load = "unit-stride-byte-load", tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic = "__riscv_vwmul_vv_i16mf2", tcrv_rvv.low_precision_resource.primitive_widening_product_relation = "signed-i8mf4xi8mf4-to-i16mf2", tcrv_rvv.low_precision_resource.widening_product_extension_policy = "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2", tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles = "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4")mlir";
   std::string sourceWithPrimitiveResourceFacts(source.str());
   unsigned insertedPrimitiveResourceFacts = 0;
   for (std::size_t position = 0;;) {
@@ -10372,6 +10380,13 @@ module {
                   "low-precision-quantized-contraction-production-pressure" &&
               parsedPackedI4Gate2Record->providerPrimitiveChainKind ==
                   packedI4ResourceSelection.primitiveChainKind &&
+              parsedPackedI4Gate2Record
+                      ->providerWideningProductMultiplicandRoles ==
+                  packedI4ResourceSelection
+                      .wideningProductMultiplicandRoleSummary &&
+              parsedPackedI4Gate2Record
+                      ->providerPrimitiveSourceExtension ==
+                  packedI4ResourceSelection.primitiveSourceExtensionKind &&
               parsedPackedI4Gate2Record->providerPrimitiveProductDType ==
                   packedI4ResourceSelection.productElementTypeName &&
               parsedPackedI4Gate2Record->providerPrimitiveProductSEW ==
@@ -10425,6 +10440,9 @@ module {
                   packedI4ResourceSelection.selectedCandidateID &&
               parsedPackedI4Gate2PolicyInput->providerPrimitiveContract ==
                   packedI4ResourceSelection.primitiveContractID &&
+              parsedPackedI4Gate2PolicyInput
+                      ->providerPrimitiveSourceLoad ==
+                  packedI4ResourceSelection.primitiveSourceLoadKind &&
               parsedPackedI4Gate2PolicyInput
                       ->providerPrimitiveWideningProductIntrinsic ==
                   packedI4ResourceSelection.primitiveWideningProductIntrinsic &&
@@ -10688,6 +10706,26 @@ module {
                   .takeError(),
           {"provider primitive chain kind", "artifact-name-derived-primitive",
            tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePrimitiveChainKind}))
+    return result;
+
+  llvm::json::Object stalePrimitiveSourceExtensionGate4Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  stalePrimitiveSourceExtensionGate4Evidence
+      ["provider_primitive_source_extension"] =
+          "artifact-name-derived-extension";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+                  packedI4ResourceSelection,
+                  stalePrimitiveSourceExtensionGate4Evidence,
+                  "selected-boundary packed-i4 Gate 4 stale primitive source "
+                  "extension")
+                  .takeError(),
+          {"provider primitive source extension",
+           "artifact-name-derived-extension",
+           tianchenrv::plugin::rvv::
+               kRVVLowPrecisionResourcePrimitiveSourceExtension}))
     return result;
 
   llvm::json::Object stalePrimitiveIntrinsicGate3Evidence =
@@ -11523,9 +11561,25 @@ module {
                       ->providerResourcePlanningContract ==
                   dequantClampPackedI4ResourceSelection.planningContract &&
               parsedPackedI4DequantClampRecord->providerScheduleDecision ==
-                  dequantClampPackedI4ResourceSelection.scheduleDecision,
+                  dequantClampPackedI4ResourceSelection.scheduleDecision &&
+              parsedPackedI4DequantClampRecord
+                      ->providerWideningProductMultiplicandRoles ==
+                  dequantClampPackedI4ResourceSelection
+                      .wideningProductMultiplicandRoleSummary &&
+              parsedPackedI4DequantClampRecord
+                      ->providerWideningProductExtensionPolicy ==
+                  dequantClampPackedI4ResourceSelection
+                      .wideningProductExtensionPolicy &&
+              parsedPackedI4DequantClampRecord->providerPrimitiveSourceLoad ==
+                  dequantClampPackedI4ResourceSelection
+                      .primitiveSourceLoadKind &&
+              parsedPackedI4DequantClampRecord
+                      ->providerPrimitiveSourceExtension ==
+                  dequantClampPackedI4ResourceSelection
+                      .primitiveSourceExtensionKind,
           "packed-i4 dequant-clamp Gate 4 artifact record preserves "
-          "measurement counts, planning, runtime ABI, and schedule tie-backs"))
+          "measurement counts, planning, runtime ABI, primitive source facts, "
+          "widening product facts, and schedule tie-backs"))
     return result;
 
   auto parsedPackedI4DequantClampPolicy =

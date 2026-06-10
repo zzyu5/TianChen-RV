@@ -112,6 +112,10 @@ struct RVVLowPrecisionSameTargetMeasurementRecord {
   std::string providerPrimitiveChainKind;
   std::string providerPrimitiveContract;
   std::string providerPrimitiveKind;
+  std::string providerWideningProductMultiplicandRoles;
+  std::string providerWideningProductExtensionPolicy;
+  std::string providerPrimitiveSourceLoad;
+  std::string providerPrimitiveSourceExtension;
   std::string providerPrimitiveSourceDType;
   std::string providerPrimitiveSourceSignedness;
   std::int64_t providerPrimitiveSourceSEW = 0;
@@ -217,6 +221,10 @@ struct RVVLowPrecisionSameTargetMeasurementPolicyInput {
   std::string providerPrimitiveChainKind;
   std::string providerPrimitiveContract;
   std::string providerPrimitiveKind;
+  std::string providerWideningProductMultiplicandRoles;
+  std::string providerWideningProductExtensionPolicy;
+  std::string providerPrimitiveSourceLoad;
+  std::string providerPrimitiveSourceExtension;
   std::string providerPrimitiveSourceDType;
   std::string providerPrimitiveSourceSignedness;
   std::int64_t providerPrimitiveSourceSEW = 0;
@@ -352,6 +360,10 @@ struct RVVLowPrecisionProductionPressureProfile {
   std::string primitiveChainKind;
   std::string primitiveContract;
   std::string primitiveKind;
+  std::string wideningProductMultiplicandRoles;
+  std::string wideningProductExtensionPolicy;
+  std::string primitiveSourceLoad;
+  std::string primitiveSourceExtension;
   std::string primitiveSourceDType;
   std::string primitiveSourceSignedness;
   std::int64_t primitiveSourceSEW = 0;

@@ -265,6 +265,19 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePrimitiveChainKindAttrName(
         "tcrv_rvv.low_precision_resource.primitive_chain_kind");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceWideningProductMultiplicandRolesAttrName(
+        "tcrv_rvv.low_precision_resource."
+        "widening_product_multiplicand_roles");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceWideningProductExtensionPolicyAttrName(
+        "tcrv_rvv.low_precision_resource.widening_product_extension_policy");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveSourceLoadAttrName(
+        "tcrv_rvv.low_precision_resource.primitive_source_load");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePrimitiveSourceExtensionAttrName(
+        "tcrv_rvv.low_precision_resource.primitive_source_extension");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePrimitiveWideningProductRelationAttrName(
         "tcrv_rvv.low_precision_resource.primitive_widening_product_relation");
 constexpr llvm::StringLiteral
@@ -617,6 +630,18 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePrimitiveChainKind(
     "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceWideningProductMultiplicandRoles(
+        "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;"
+        "rhs=rhs-input-buffer:wprod-rhs:src-i8mf4");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceWideningProductExtensionPolicy(
+        "source=signed;extension=sign-extend-i8-to-i16-product;"
+        "product=i16mf2");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePrimitiveSourceLoad(
+    "unit-stride-byte-load");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePrimitiveSourceExtension(
+    "sign-extend-i8-to-i16-product");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePrimitiveWideningProductRelation(
         "signed-i8mf4xi8mf4-to-i16mf2");
 constexpr llvm::StringLiteral
@@ -691,6 +716,10 @@ struct RVVLowPrecisionContractionResourceCandidate {
   llvm::StringRef primitiveKind;
   llvm::StringRef primitiveChainContractID;
   llvm::StringRef primitiveChainKind;
+  llvm::StringRef wideningProductMultiplicandRoleSummary;
+  llvm::StringRef wideningProductExtensionPolicy;
+  llvm::StringRef primitiveSourceLoadKind;
+  llvm::StringRef primitiveSourceExtensionKind;
   llvm::StringRef primitiveWideningProductRelation;
   llvm::StringRef primitiveProductReductionChainRelation;
   llvm::StringRef primitiveWideningProductIntrinsic;
@@ -1057,6 +1086,14 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
   candidate.primitiveChainContractID =
       kRVVLowPrecisionResourcePrimitiveChainContract;
   candidate.primitiveChainKind = kRVVLowPrecisionResourcePrimitiveChainKind;
+  candidate.wideningProductMultiplicandRoleSummary =
+      kRVVLowPrecisionResourceWideningProductMultiplicandRoles;
+  candidate.wideningProductExtensionPolicy =
+      kRVVLowPrecisionResourceWideningProductExtensionPolicy;
+  candidate.primitiveSourceLoadKind =
+      kRVVLowPrecisionResourcePrimitiveSourceLoad;
+  candidate.primitiveSourceExtensionKind =
+      kRVVLowPrecisionResourcePrimitiveSourceExtension;
   candidate.primitiveWideningProductRelation =
       kRVVLowPrecisionResourcePrimitiveWideningProductRelation;
   candidate.primitiveProductReductionChainRelation =
@@ -1424,6 +1461,11 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name == kRVVLowPrecisionResourcePrimitiveKindAttrName ||
          name == kRVVLowPrecisionResourcePrimitiveChainContractAttrName ||
          name == kRVVLowPrecisionResourcePrimitiveChainKindAttrName ||
+         name ==
+             kRVVLowPrecisionResourceWideningProductMultiplicandRolesAttrName ||
+         name == kRVVLowPrecisionResourceWideningProductExtensionPolicyAttrName ||
+         name == kRVVLowPrecisionResourcePrimitiveSourceLoadAttrName ||
+         name == kRVVLowPrecisionResourcePrimitiveSourceExtensionAttrName ||
          name ==
              kRVVLowPrecisionResourcePrimitiveWideningProductRelationAttrName ||
          name ==

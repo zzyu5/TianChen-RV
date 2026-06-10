@@ -946,6 +946,20 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       {"low_precision_resource.primitive_chain_kind",
        "tcrv_rvv.low_precision_resource.primitive_chain_kind", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.widening_product_multiplicand_roles",
+       "tcrv_rvv.low_precision_resource."
+       "widening_product_multiplicand_roles",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.widening_product_extension_policy",
+       "tcrv_rvv.low_precision_resource."
+       "widening_product_extension_policy",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_source_load",
+       "tcrv_rvv.low_precision_resource.primitive_source_load", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.primitive_source_extension",
+       "tcrv_rvv.low_precision_resource.primitive_source_extension", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_widening_product_relation",
        "tcrv_rvv.low_precision_resource."
        "primitive_widening_product_relation",

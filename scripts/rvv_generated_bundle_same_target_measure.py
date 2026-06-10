@@ -138,6 +138,10 @@ PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS = (
     "provider_primitive_chain_kind",
     "provider_primitive_contract",
     "provider_primitive_kind",
+    "provider_widening_product_multiplicand_roles",
+    "provider_widening_product_extension_policy",
+    "provider_primitive_source_load",
+    "provider_primitive_source_extension",
     "provider_primitive_source_dtype",
     "provider_primitive_source_signedness",
     "provider_primitive_source_sew",
@@ -2134,6 +2138,16 @@ def packed_i4_maturity_contract_evidence_input(
         "provider_primitive_chain_kind": fields["primitive_chain_kind"],
         "provider_primitive_contract": fields["primitive_contract"],
         "provider_primitive_kind": fields["primitive_kind"],
+        "provider_widening_product_multiplicand_roles": fields[
+            "widening_product_multiplicand_roles"
+        ],
+        "provider_widening_product_extension_policy": fields[
+            "widening_product_extension_policy"
+        ],
+        "provider_primitive_source_load": fields["primitive_source_load"],
+        "provider_primitive_source_extension": fields[
+            "primitive_source_extension"
+        ],
         "provider_primitive_source_dtype": fields["source_dtype"],
         "provider_primitive_source_signedness": fields["source_signedness"],
         "provider_primitive_source_sew": packed_i4_resource_int(
@@ -2398,6 +2412,16 @@ def validate_packed_i4_maturity_contract_evidence_input(
         "provider_primitive_chain_kind": fields["primitive_chain_kind"],
         "provider_primitive_contract": fields["primitive_contract"],
         "provider_primitive_kind": fields["primitive_kind"],
+        "provider_widening_product_multiplicand_roles": fields[
+            "widening_product_multiplicand_roles"
+        ],
+        "provider_widening_product_extension_policy": fields[
+            "widening_product_extension_policy"
+        ],
+        "provider_primitive_source_load": fields["primitive_source_load"],
+        "provider_primitive_source_extension": fields[
+            "primitive_source_extension"
+        ],
         "provider_primitive_source_dtype": fields["source_dtype"],
         "provider_primitive_source_signedness": fields["source_signedness"],
         "provider_primitive_source_sew": packed_i4_resource_int(
@@ -2640,6 +2664,10 @@ def packed_i4_provider_feedback_tie_back(
         "primitive_kind",
         "primitive_chain_contract",
         "primitive_chain_kind",
+        "widening_product_multiplicand_roles",
+        "widening_product_extension_policy",
+        "primitive_source_load",
+        "primitive_source_extension",
         "primitive_widening_product_relation",
         "primitive_product_reduction_chain_relation",
         "primitive_widening_product_intrinsic",
@@ -2687,6 +2715,13 @@ def packed_i4_provider_feedback_tie_back(
         "schedule_decision_contract",
         "schedule_decision",
         "schedule_decision_reason",
+        "realization_admission_contract",
+        "realization_admission_decision",
+        "realization_admission_evidence",
+        "realization_admission_dispatch_policy",
+        "realization_admission_schedule_decision_contract",
+        "realization_admission_schedule_decision",
+        "realization_admission_schedule_decision_reason",
         "operand_form",
         "packing_layout",
         "unpack_intent",
@@ -3970,6 +4005,11 @@ def run_self_test() -> int:
             "primitive_chain_kind",
         ),
         (
+            "provider_primitive_source_extension",
+            "stale-primitive-source-extension",
+            "primitive_source_extension",
+        ),
+        (
             "provider_primitive_reduction_intrinsic",
             "__riscv_vwredsum_vs_i32m1_i32m1",
             "primitive_reduction_intrinsic",
@@ -4219,6 +4259,11 @@ def run_self_test() -> int:
             "tcrv_rvv.low_precision_resource.primitive_chain_kind",
             "stale-primitive-chain-kind",
             "primitive_chain_kind",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.primitive_source_extension",
+            "stale-primitive-source-extension",
+            "primitive_source_extension",
         ),
         (
             "tcrv_rvv.low_precision_resource.realization_decision",

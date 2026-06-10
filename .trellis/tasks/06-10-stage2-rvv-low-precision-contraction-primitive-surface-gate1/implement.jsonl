@@ -16,3 +16,24 @@
 {"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Updated fail-closed target expectation for provider-derived unsigned ABI mismatch"}
 {"file": "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir", "reason": "Added accepted and stale-mirror lit coverage for unsigned u8 widening product-reduction"}
 {"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Recorded signed/unsigned widening-reduction primitive-fact contract and fail-closed matrix"}
+{"file": ".trellis/spec/index.md", "reason": "Confirmed Stage 2 RVV Gate 4 must keep RVV plugin-owned typed body/resource/measurement authority"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "Checked Gate 4 Gearbox/resource-aware selected-body realization and same-target measurement provenance contract"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Confirmed Common EmitC stays neutral while RVV provider owns primitive source and widening-product facts"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h", "reason": "Added low-precision resource primitive source and widening-product role/policy facts to Gearbox candidates"}
+{"file": "lib/Plugin/RVV/RVVGearboxSchedules.cpp", "reason": "Validated and materialized primitive source and widening-product facts in resource candidates"}
+{"file": "include/TianChenRV/Dialect/RVV/IR/RVVOps.td", "reason": "Required Gearbox handoff attrs for primitive source and widening-product facts"}
+{"file": "lib/Dialect/RVV/IR/RVVDialect.cpp", "reason": "Verified Gearbox handoff primitive source and widening-product fact mirrors"}
+{"file": "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp", "reason": "Carried primitive source and widening-product facts through selected-body realization handoff"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp", "reason": "Propagated and validated primitive source and widening-product facts in route-family selection and descriptions"}
+{"file": "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp", "reason": "Exported primitive source and widening-product facts into route/artifact metadata"}
+{"file": "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp", "reason": "Validated target artifact low-precision resource mirrors for primitive source and widening-product facts"}
+{"file": "lib/Target/RVV/RVVTargetSupportBundle.cpp", "reason": "Exported new low-precision resource facts in target support bundle headers"}
+{"file": "include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h", "reason": "Extended same-target measurement and production-pressure policy records with primitive source and widening-product facts"}
+{"file": "lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp", "reason": "Required measurement/policy/pressure provenance to mirror provider primitive source and widening-product facts"}
+{"file": "scripts/rvv_generated_bundle_same_target_measure.py", "reason": "Updated same-target measurement records and self-tests for required primitive source and widening-product provenance"}
+{"file": "scripts/rvv_generated_bundle_abi_e2e.py", "reason": "Updated generated-bundle expected low-precision metadata keys for primitive source, widening-product, and realization admission facts"}
+{"file": "artifacts/gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json", "reason": "Updated source-backed packed-i4 dequant-clamp measurement record with provider primitive source and widening-product facts"}
+{"file": "test/Plugin/RVVExtensionPluginTest.cpp", "reason": "Covered parsed measurement records and stale provenance rejection for primitive source and widening-product facts"}
+{"file": "test/Target/TargetArtifactExportTest.cpp", "reason": "Updated target fixture resource facts consumed by artifact validation"}
+{"file": "test/Transforms/RVV/rvv-gearbox-widening-product-reduce-dequantize-f32.mlir", "reason": "Added Gearbox schedule accepted and stale primitive source-extension FileCheck coverage"}
+{"file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir", "reason": "Added selected-body handoff, plan, header, and stale primitive source-extension coverage"}

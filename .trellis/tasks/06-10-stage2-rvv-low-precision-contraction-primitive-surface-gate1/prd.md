@@ -8,13 +8,12 @@ low-level `tcrv_rvv` primitive facts and RVV plugin-owned legality/planning,
 not q8/q4 route ids, artifact names, source-front-door markers, or
 generated-bundle-only evidence.
 
-Gates 1-2 are complete. The current round implements Gate 3:
-provider-owned widening reduction/accumulation facts for low-precision
-contraction chains. The slice must carry signed i8 and unsigned u8
-widening-product facts into explicit widening-reduction primitive facts that
-route-family planning, route validation, target metadata, and target artifact
-validation consume before any later Gearbox/resource or measured-comparison
-claim.
+Gates 1-3 are complete. The current round implements a Gate 4 slice:
+Gearbox/resource-aware selected-body realization and measured same-target
+comparison must consume the low-precision primitive source facts,
+widening-product multiplicand/extension facts, widening reduction facts,
+config/policy/VL facts, source-backed artifact identity, and measurement
+provenance before route, target, or policy surfaces can claim maturity.
 
 ## What I Already Know
 
@@ -66,6 +65,14 @@ claim.
 - Gate 3 signed i8 and unsigned u8 accepted cases must be provider-owned and
   fail closed when stale, missing, mismatched, or metadata-derived primitive
   facts attempt to claim widening reduction support.
+- Gate 4 must wire the Gate 1-3 primitive facts through Gearbox resource
+  candidate/admission, selected-body realization and handoff, route metadata,
+  target artifact mirrors, target support bundle export, same-target
+  measurement records, and production-pressure policy inputs.
+- Gate 4 must fail closed when primitive source/load/extension facts,
+  widening-product role/policy facts, resource schedule/admission facts,
+  target mirrors, artifact identity, or same-target measurement provenance are
+  missing, stale, or metadata-only.
 - Targeted diagnostics must distinguish missing typed vector/config facts,
   unsupported signedness/extension form, missing byte-load facts, and
   metadata/route-id/artifact-name authority attempts where the code surface can
@@ -87,39 +94,39 @@ claim.
   consumed for contraction-style kernels.
 - [ ] Gate 4: Gearbox/resource-aware selected-body realization and measured
   same-target comparison consume these primitive facts with source-backed
-  evidence.
+  evidence. Current slice wires primitive source and widening-product facts
+  through Gearbox/resource admission, realization handoff, route/target
+  metadata, and same-target measurement records; remaining Gate 4 work is
+  measured same-target production-kernel comparison maturity and any further
+  resource-schedule improvement needed before performance-preferred dispatch.
 
-## Current Round Slice: Gate 3
+## Current Round Slice: Gate 4 Primitive-Fact Provenance
 
-Implementation first inspects the existing signed product-reduction path,
-unsigned u8 standalone widening-product path, route-family facts, target
-artifact validation, and focused lit/C++ tests. The expected Gate 3 hardening
-is a production provider-owned widening-reduction primitive-fact surface that
-is consumed for signed i8 and unsigned u8 product-reduction chains before
-target artifact acceptance. Existing signed support may be reused if it already
-meets the contract; the unsigned path must not be accepted through route ids,
-fixture names, artifact metadata, or Common EmitC inference.
+Implementation starts from the completed Gate 1-3 low-precision primitive
+surface. This Gate 4 slice wires primitive source/load/extension facts and
+widening-product multiplicand/extension policy facts into Gearbox resource
+candidates, selected-body realization, route-family validation, target artifact
+mirrors, target support bundle export, same-target measurement records, and
+production-pressure policy inputs.
 
 Acceptance criteria:
 
-- [x] Production C++ models widening reduction/accumulation primitive facts
-  for signed i8 and unsigned u8 low-precision product-reduction chains,
-  including source/load/extension/product facts, accumulator/result facts,
-  chain relation, product/reduction intrinsics, scalar seed splat,
-  accumulator/result layout, reduction store VL, runtime ABI order, and target
-  mirrors as provider-owned RVV facts.
-- [x] RVV route-family plan validation, route description validation, and
-  route construction consume those primitive facts before a product-reduction
-  route can claim support.
-- [x] Target artifact validation compares provider-owned widening-reduction
-  primitive facts and rejects stale source signedness/load/extension,
-  product/accumulator/result dtype or config, intrinsic, seed, layout, store
-  VL, or metadata-derived mirrors before candidate acceptance.
-- [x] Focused tests prove accepted signed i8 sign-extension and unsigned u8
-  zero-extension product-reduction facts from typed body/config/runtime ABI
-  facts.
-- [x] Focused tests prove stale/missing/mismatched/metadata-derived reduction
-  or accumulation facts fail closed with targeted diagnostics.
+- [x] Gearbox resource candidates and selected-body realization carry
+  primitive source load, primitive source extension, widening-product
+  multiplicand roles, and widening-product extension policy into realized
+  handoff attributes and reject stale/missing values.
+- [x] RVV route-family plan validation, route description validation, route
+  metadata, target artifact validation, and target support bundle export
+  consume those facts as provider-owned mirrors.
+- [x] Same-target measurement records, performance-policy inputs, and
+  production-pressure profiles require the same primitive source and
+  widening-product facts and reject stale source-backed artifact records.
+- [x] Existing source-backed packed-i4 dequant-clamp same-target evidence is
+  updated to preserve these provider facts in its measurement record without
+  turning the measured regression into a performance-preferred dispatch claim.
+- [x] Focused tests prove accepted Gearbox realization/target metadata and
+  fail-closed stale primitive source-extension, schedule, resource, target
+  mirror, and measurement-provenance paths.
 - [x] Bounded scan confirms touched code and added diff do not introduce legacy
   RVV route-authority markers as positive support.
 - [x] Relevant focused build/test targets pass.
@@ -183,6 +190,35 @@ Completed Gate 3 slice:
 - Added a selected-body unsigned u8 product-reduction artifact fixture with
   accepted mirror checks and stale source signedness, source extension,
   accumulator dtype, reduction intrinsic, and C type mapping rejection coverage.
+
+Completed Gate 4 slice in this round:
+
+- Added Gearbox resource candidate fields for primitive source load,
+  primitive source extension, widening-product multiplicand roles, and
+  widening-product extension policy.
+- Required selected-body realization and `gearbox_cross_region_handoff` to
+  materialize and verify those facts before route planning can consume the
+  handoff.
+- Propagated the same facts through RVV route-family plan validation, route
+  description validation, route metadata, target artifact mirror validation,
+  and target support bundle header export.
+- Extended same-target measurement record parsing, policy input construction,
+  production-pressure profile construction, script-generated evidence records,
+  and stale-evidence checks to require source-backed primitive provenance.
+- Updated the packed-i4 dequant-clamp source-backed evidence JSON so the
+  measurement record preserves provider primitive source and widening-product
+  facts while still denying performance-preferred dispatch for the measured
+  no-win/regression outcome.
+
+Remaining Gate 4 continuation:
+
+- Use the now-source-backed primitive/resource/measurement provenance to
+  improve or audit the low-precision production-kernel same-target comparison
+  path. The next owner should focus on whether the measured packed-i4
+  dequant/dequant-clamp resource schedule can be improved or whether the
+  source-backed regression evidence should remain the explicit performance
+  denial. Do not switch to new route ids, q8/q4 named wrappers, or
+  generated-bundle-only evidence.
 
 ## Non-Goals
 
@@ -254,10 +290,28 @@ Completed Gate 3 slice:
 - `git diff --cached --check` passed.
 - Bounded changed-file and staged-diff scan for `RVVI32M1`, `rvv-i32m1`,
   `tcrv_rvv.i32_`, `!tcrv_rvv.i32m`, source-front-door, q8/q4 route naming,
-  and exact `__riscv_*_i32m1` old-authority introduction found no new positive
-  legacy route authority. Remaining `i32` occurrences are the typed signed
-  product-reduction accumulator/result surface or negative stale-metadata
-  checks, not Stage 1 route authority.
+- `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test` passed for this Gate 4 slice.
+- `build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `build/bin/tianchenrv-target-artifact-export-test` passed.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+  passed.
+- Focused manual FileCheck positive checks passed for
+  `test/Transforms/RVV/rvv-gearbox-widening-product-reduce-dequantize-f32.mlir`
+  and `test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir`
+  covering Gearbox schedule, selected-body realization, emission-plan metadata,
+  and target header artifact export.
+- Focused manual FileCheck negative checks passed for stale primitive source
+  extension in Gearbox schedule and stale primitive source extension in
+  `gearbox_cross_region_handoff`.
+- `git diff --check` passed.
+- Bounded added-diff scan for `RVVI32M1`, `rvv-i32m1`, `tcrv_rvv.i32_`,
+  `!tcrv_rvv.i32m`, q8/q4/llama route naming, source-front-door,
+  descriptor-driven, and direct C exporter authority found no new positive
+  legacy authority. Added `__riscv_*_i32m1` matches are the expected
+  provider-owned widening-reduction primitive intrinsic mirrors for typed
+  i8/i16/i32 product-reduction facts, not old i32m1 route authority.
 
 ## Spec Update Decision
 

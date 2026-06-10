@@ -399,6 +399,25 @@ mlir::LogicalResult validateLowPrecisionResourceCandidatePrimitiveSurface(
           op, "source signedness", candidate.sourceSignedness,
           primitiveFacts->sourceSignedness)))
     return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "primitive source load", candidate.primitiveSourceLoadKind,
+          primitiveFacts->sourceLoadKind)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "primitive source extension",
+          candidate.primitiveSourceExtensionKind,
+          primitiveFacts->sourceExtensionKind)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "widening product multiplicand roles",
+          candidate.wideningProductMultiplicandRoleSummary,
+          kRVVLowPrecisionResourceWideningProductMultiplicandRoles)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "widening product extension policy",
+          candidate.wideningProductExtensionPolicy,
+          kRVVLowPrecisionResourceWideningProductExtensionPolicy)))
+    return mlir::failure();
   if (mlir::failed(requireLowPrecisionPrimitiveIntegerField(
           op, "source SEW", candidate.sourceSEW, primitiveFacts->sourceSEW)))
     return mlir::failure();
@@ -839,6 +858,24 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourcePrimitiveChainKindAttrName,
           selected->primitiveChainKind)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder,
+          kRVVLowPrecisionResourceWideningProductMultiplicandRolesAttrName,
+          selected->wideningProductMultiplicandRoleSummary)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder,
+          kRVVLowPrecisionResourceWideningProductExtensionPolicyAttrName,
+          selected->wideningProductExtensionPolicy)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourcePrimitiveSourceLoadAttrName,
+          selected->primitiveSourceLoadKind)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourcePrimitiveSourceExtensionAttrName,
+          selected->primitiveSourceExtensionKind)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder,
@@ -1399,6 +1436,28 @@ validateLowPrecisionProductDequantGearboxBody(
           "primitive_source_signedness", handoff.getPrimitiveSourceSignedness(),
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourceSourceSignednessSigned)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "primitive_source_load", handoff.getPrimitiveSourceLoad(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveSourceLoad)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "primitive_source_extension", handoff.getPrimitiveSourceExtension(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveSourceExtension)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "widening_product_multiplicand_roles",
+          handoff.getWideningProductMultiplicandRoles(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceWideningProductMultiplicandRoles)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "widening_product_extension_policy",
+          handoff.getWideningProductExtensionPolicy(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceWideningProductExtensionPolicy)))
     return mlir::failure();
   if (mlir::failed(requireHandoffPrimitiveFact(
           "primitive_widening_product_relation",

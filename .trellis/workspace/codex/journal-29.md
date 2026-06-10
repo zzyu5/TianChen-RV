@@ -755,7 +755,18 @@ Implemented Gate 1 low-precision production pressure-profile admission API, wire
 
 ### Main Changes
 
-(Add details)
+- Added primitive source load, primitive source extension, widening-product
+  multiplicand-role, and widening-product extension-policy facts to Gearbox
+  resource candidates and selected-body handoff attributes.
+- Required RVV route-family validation, route metadata, target artifact mirror
+  validation, and target support bundle header export to consume those facts.
+- Extended same-target measurement records, production-pressure policy inputs,
+  generated-bundle script self-tests, and the existing packed-i4
+  dequant-clamp source-backed evidence record to preserve provider primitive
+  provenance.
+- Added focused positive and stale-provenance checks for Gearbox schedule,
+  `gearbox_cross_region_handoff`, emission-plan metadata, target header export,
+  parsed measurement records, and stale source-backed evidence.
 
 ### Git Commits
 
@@ -765,15 +776,32 @@ Implemented Gate 1 low-precision production pressure-profile admission API, wire
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] Focused manual FileCheck positive checks for Gearbox schedule,
+  selected-body realization, emission-plan metadata, and target header export.
+- [OK] Focused manual FileCheck negative checks for stale primitive source
+  extension in Gearbox schedule and `gearbox_cross_region_handoff`.
+- [OK] `git diff --check`
+- [OK] Bounded added-diff old-authority scan, excluding expected
+  widening-reduction primitive intrinsic mirrors.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1`
 
 ### Status
 
-[OK] **Completed**
+[OPEN MACRO TASK] Gates 1-3 are complete. This session completed one Gate 4
+primitive-provenance slice. Gate 4 remains open for measured same-target
+production-kernel comparison maturity and any resource-schedule improvement or
+explicit performance-denial closeout.
 
 ### Next Steps
 
-- None - task complete
+- Continue Gate 4 from the source-backed primitive/resource/measurement
+  provenance now in place. Do not switch to q8/q4 route authority,
+  generated-bundle-only closeout, or a new macro task unless human steering
+  redirects the campaign.
 
 ## Session 580: Stage2 RVV Gearbox Gate 2 schedule-choice consumption
 
@@ -832,3 +860,36 @@ same-target records.
 ### Git Commits
 
 Final coherent commit is created after this journal entry.
+
+
+## Session 579: Gate 4 primitive provenance through Gearbox measurement
+
+**Date**: 2026-06-10
+**Task**: Gate 4 primitive provenance through Gearbox measurement
+**Branch**: `main`
+
+### Summary
+
+Completed a Gate 4 slice for the active RVV low-precision macro task: primitive source/load/extension and widening-product role/policy facts now flow through Gearbox resource admission, selected-body handoff, route/target metadata, target header export, same-target measurement records, and production-pressure policy inputs with stale provenance rejection. The macro task remains active for measured same-target production-kernel comparison maturity.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `final-commit-see-git-log` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

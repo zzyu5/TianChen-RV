@@ -715,6 +715,24 @@ LOW_PRECISION_RESOURCE_PRIMITIVE_DEQUANT_CLAMP_KIND = (
 LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_KIND = (
     "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1"
 )
+LOW_PRECISION_RESOURCE_WIDENING_PRODUCT_MULTIPLICAND_ROLES = (
+    "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;"
+    "rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"
+)
+LOW_PRECISION_RESOURCE_WIDENING_PRODUCT_EXTENSION_POLICY = (
+    "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2"
+)
+LOW_PRECISION_RESOURCE_PRIMITIVE_SOURCE_LOAD = "unit-stride-byte-load"
+LOW_PRECISION_RESOURCE_PRIMITIVE_SOURCE_EXTENSION = (
+    "sign-extend-i8-to-i16-product"
+)
+LOW_PRECISION_RESOURCE_REALIZATION_ADMISSION_CONTRACT = (
+    "rvv-low-precision-selected-body-realization-admission.v1"
+)
+LOW_PRECISION_RESOURCE_REALIZATION_ADMISSION_DECISION = "realize"
+LOW_PRECISION_RESOURCE_REALIZATION_ADMISSION_DISPATCH_POLICY = (
+    "correctness-fallback"
+)
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_FEEDBACK = (
     "same-target-packed-i4-no-win.v1"
 )
@@ -8427,6 +8445,10 @@ LOW_PRECISION_RESOURCE_METADATA_KEYS = (
     "tcrv_rvv.low_precision_resource.primitive_kind",
     "tcrv_rvv.low_precision_resource.primitive_chain_contract",
     "tcrv_rvv.low_precision_resource.primitive_chain_kind",
+    "tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles",
+    "tcrv_rvv.low_precision_resource.widening_product_extension_policy",
+    "tcrv_rvv.low_precision_resource.primitive_source_load",
+    "tcrv_rvv.low_precision_resource.primitive_source_extension",
     "tcrv_rvv.low_precision_resource.primitive_widening_product_relation",
     "tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation",
     "tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic",
@@ -8467,6 +8489,15 @@ LOW_PRECISION_RESOURCE_METADATA_KEYS = (
     "tcrv_rvv.low_precision_resource.schedule_decision_contract",
     "tcrv_rvv.low_precision_resource.schedule_decision",
     "tcrv_rvv.low_precision_resource.schedule_decision_reason",
+    "tcrv_rvv.low_precision_resource.realization_admission_contract",
+    "tcrv_rvv.low_precision_resource.realization_admission_decision",
+    "tcrv_rvv.low_precision_resource.realization_admission_evidence",
+    "tcrv_rvv.low_precision_resource.realization_admission_dispatch_policy",
+    "tcrv_rvv.low_precision_resource."
+    "realization_admission_schedule_decision_contract",
+    "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision",
+    "tcrv_rvv.low_precision_resource."
+    "realization_admission_schedule_decision_reason",
     "tcrv_rvv.low_precision_resource.performance_maturity",
     "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
     "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
@@ -9530,6 +9561,29 @@ def product_dequant_low_precision_resource_profile(
             "schedule_decision_reason": (
                 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_REASON
             ),
+            "realization_admission_contract": (
+                LOW_PRECISION_RESOURCE_REALIZATION_ADMISSION_CONTRACT
+            ),
+            "realization_admission_decision": (
+                LOW_PRECISION_RESOURCE_REALIZATION_ADMISSION_DECISION
+            ),
+            "realization_admission_evidence": (
+                WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVIDENCE
+                if is_product_dequant_clamp
+                else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVIDENCE
+            ),
+            "realization_admission_dispatch_policy": (
+                LOW_PRECISION_RESOURCE_REALIZATION_ADMISSION_DISPATCH_POLICY
+            ),
+            "realization_admission_schedule_decision_contract": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_CONTRACT
+            ),
+            "realization_admission_schedule_decision": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION
+            ),
+            "realization_admission_schedule_decision_reason": (
+                WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_SCHEDULE_DECISION_REASON
+            ),
         }
     is_product_dequant_clamp = (
         expectation.is_widening_product_reduce_dequant_clamp_f32
@@ -9569,6 +9623,16 @@ def product_dequant_low_precision_resource_profile(
         ),
         "primitive_chain_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_CONTRACT,
         "primitive_chain_kind": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_KIND,
+        "widening_product_multiplicand_roles": (
+            LOW_PRECISION_RESOURCE_WIDENING_PRODUCT_MULTIPLICAND_ROLES
+        ),
+        "widening_product_extension_policy": (
+            LOW_PRECISION_RESOURCE_WIDENING_PRODUCT_EXTENSION_POLICY
+        ),
+        "primitive_source_load": LOW_PRECISION_RESOURCE_PRIMITIVE_SOURCE_LOAD,
+        "primitive_source_extension": (
+            LOW_PRECISION_RESOURCE_PRIMITIVE_SOURCE_EXTENSION
+        ),
         "primitive_widening_product_relation": WIDENING_PRODUCT_RELATION_I8_I16,
         "primitive_product_reduction_chain_relation": WIDENING_PRODUCT_REDUCE_RELATION,
         "primitive_widening_product_intrinsic": WIDENING_PRODUCT_REDUCE_INTRINSIC,
@@ -9648,6 +9712,16 @@ def expected_low_precision_resource_metadata(
         ),
         "primitive_chain_contract": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_CONTRACT,
         "primitive_chain_kind": LOW_PRECISION_RESOURCE_PRIMITIVE_CHAIN_KIND,
+        "widening_product_multiplicand_roles": (
+            LOW_PRECISION_RESOURCE_WIDENING_PRODUCT_MULTIPLICAND_ROLES
+        ),
+        "widening_product_extension_policy": (
+            LOW_PRECISION_RESOURCE_WIDENING_PRODUCT_EXTENSION_POLICY
+        ),
+        "primitive_source_load": LOW_PRECISION_RESOURCE_PRIMITIVE_SOURCE_LOAD,
+        "primitive_source_extension": (
+            LOW_PRECISION_RESOURCE_PRIMITIVE_SOURCE_EXTENSION
+        ),
         "primitive_widening_product_relation": WIDENING_PRODUCT_RELATION_I8_I16,
         "primitive_product_reduction_chain_relation": WIDENING_PRODUCT_REDUCE_RELATION,
         "primitive_widening_product_intrinsic": WIDENING_PRODUCT_REDUCE_INTRINSIC,
@@ -9735,6 +9809,27 @@ def expected_low_precision_resource_metadata(
                 ],
                 "schedule_decision": profile["schedule_decision"],
                 "schedule_decision_reason": profile["schedule_decision_reason"],
+                "realization_admission_contract": profile[
+                    "realization_admission_contract"
+                ],
+                "realization_admission_decision": profile[
+                    "realization_admission_decision"
+                ],
+                "realization_admission_evidence": profile[
+                    "realization_admission_evidence"
+                ],
+                "realization_admission_dispatch_policy": profile[
+                    "realization_admission_dispatch_policy"
+                ],
+                "realization_admission_schedule_decision_contract": profile[
+                    "realization_admission_schedule_decision_contract"
+                ],
+                "realization_admission_schedule_decision": profile[
+                    "realization_admission_schedule_decision"
+                ],
+                "realization_admission_schedule_decision_reason": profile[
+                    "realization_admission_schedule_decision_reason"
+                ],
             }
         )
     return {

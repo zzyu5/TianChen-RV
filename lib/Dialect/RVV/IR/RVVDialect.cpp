@@ -163,6 +163,14 @@ constexpr llvm::StringLiteral kPrimitiveChainKindAttrName(
     "primitive_chain_kind");
 constexpr llvm::StringLiteral kPrimitiveSourceSignednessAttrName(
     "primitive_source_signedness");
+constexpr llvm::StringLiteral kPrimitiveSourceLoadAttrName(
+    "primitive_source_load");
+constexpr llvm::StringLiteral kPrimitiveSourceExtensionAttrName(
+    "primitive_source_extension");
+constexpr llvm::StringLiteral kWideningProductMultiplicandRolesAttrName(
+    "widening_product_multiplicand_roles");
+constexpr llvm::StringLiteral kWideningProductExtensionPolicyAttrName(
+    "widening_product_extension_policy");
 constexpr llvm::StringLiteral kPrimitiveWideningProductRelationAttrName(
     "primitive_widening_product_relation");
 constexpr llvm::StringLiteral
@@ -324,6 +332,10 @@ bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
          name == kPrimitiveChainContractAttrName ||
          name == kPrimitiveChainKindAttrName ||
          name == kPrimitiveSourceSignednessAttrName ||
+         name == kPrimitiveSourceLoadAttrName ||
+         name == kPrimitiveSourceExtensionAttrName ||
+         name == kWideningProductMultiplicandRolesAttrName ||
+         name == kWideningProductExtensionPolicyAttrName ||
          name == kPrimitiveWideningProductRelationAttrName ||
          name == kPrimitiveProductReductionChainRelationAttrName ||
          name == kPrimitiveWideningProductIntrinsicAttrName ||
@@ -4567,6 +4579,28 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
               kRVVLowPrecisionResourceSourceSignednessSigned)))
     return mlir::failure();
   if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveSourceLoadAttrName, getPrimitiveSourceLoad(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveSourceLoad)))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kPrimitiveSourceExtensionAttrName, getPrimitiveSourceExtension(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePrimitiveSourceExtension)))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kWideningProductMultiplicandRolesAttrName,
+          getWideningProductMultiplicandRoles(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceWideningProductMultiplicandRoles)))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
+          kWideningProductExtensionPolicyAttrName,
+          getWideningProductExtensionPolicy(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceWideningProductExtensionPolicy)))
+    return mlir::failure();
+  if (mlir::failed(requirePrimitiveFact(
           kPrimitiveWideningProductRelationAttrName,
           getPrimitiveWideningProductRelation(),
           product.getProductRelation())))
@@ -4670,6 +4704,20 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyBoundedMetadata(op, kPrimitiveSourceSignednessAttrName,
                                          getPrimitiveSourceSignedness())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kPrimitiveSourceLoadAttrName,
+                                         getPrimitiveSourceLoad())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(op, kPrimitiveSourceExtensionAttrName,
+                                         getPrimitiveSourceExtension())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(
+          op, kWideningProductMultiplicandRolesAttrName,
+          getWideningProductMultiplicandRoles())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(
+          op, kWideningProductExtensionPolicyAttrName,
+          getWideningProductExtensionPolicy())))
     return mlir::failure();
   if (mlir::failed(verifyBoundedMetadata(
           op, kPrimitiveWideningProductRelationAttrName,

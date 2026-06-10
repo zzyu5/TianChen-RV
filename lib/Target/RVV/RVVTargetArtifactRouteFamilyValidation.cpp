@@ -6028,6 +6028,27 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
       return error;
     if (llvm::Error error = requireResourceMirror(
             "tcrv_rvv.low_precision_resource."
+            "widening_product_multiplicand_roles",
+            selection.wideningProductMultiplicandRoleSummary,
+            "widening product multiplicand roles"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource."
+            "widening_product_extension_policy",
+            selection.wideningProductExtensionPolicy,
+            "widening product extension policy"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.primitive_source_load",
+            selection.primitiveSourceLoadKind, "primitive source load"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.primitive_source_extension",
+            selection.primitiveSourceExtensionKind,
+            "primitive source extension"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource."
             "primitive_widening_product_relation",
             selection.primitiveWideningProductRelation,
             "primitive widening product relation"))

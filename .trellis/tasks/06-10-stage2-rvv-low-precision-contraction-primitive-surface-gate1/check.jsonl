@@ -10,3 +10,14 @@
 {"check": "git diff --check", "result": "passed"}
 {"check": "git diff --cached --check", "result": "passed"}
 {"check": "bounded staged added-diff old-authority scan", "result": "passed: only PRD/spec non-authority wording and stale-negative lit intrinsic replacement matched, no new positive legacy route authority"}
+{"check": "cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test", "result": "passed"}
+{"check": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed"}
+{"check": "build/bin/tianchenrv-target-artifact-export-test", "result": "passed"}
+{"check": "python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test", "result": "passed"}
+{"check": "manual FileCheck: Gearbox schedule primitive source/widening-product facts", "result": "passed", "file": "test/Transforms/RVV/rvv-gearbox-widening-product-reduce-dequantize-f32.mlir"}
+{"check": "manual FileCheck: selected-body realization, emission-plan metadata, and target header primitive facts", "result": "passed", "file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir"}
+{"check": "manual FileCheck negative: stale Gearbox primitive source extension", "result": "passed", "file": "test/Transforms/RVV/rvv-gearbox-widening-product-reduce-dequantize-f32.mlir"}
+{"check": "manual FileCheck negative: stale gearbox_cross_region_handoff primitive source extension", "result": "passed", "file": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir"}
+{"check": "git diff --check", "result": "passed"}
+{"check": "bounded added-diff old-authority scan excluding expected widening-reduction primitive intrinsic mirrors", "result": "passed: no RVVI32M1, rvv-i32m1, tcrv_rvv.i32_, !tcrv_rvv.i32m, q8/q4/llama route naming, source-front-door, descriptor-driven, or direct C exporter authority"}
+{"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1", "result": "passed"}

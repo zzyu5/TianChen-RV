@@ -376,9 +376,10 @@ def GearboxCrossRegionHandoffOp
     source, VL token, phase ordering, region count, selected resource
     candidate, resource budget, operand packing/unpack policy, remediation plan
     facts when applicable, primitive-chain resource facts including source
-    signedness, and the producer/consumer region scopes structural before
-    provider route support. It is not a math op, intrinsic wrapper, descriptor,
-    route id, artifact metadata, or executable proof.
+    signedness/load/extension and widening-product multiplicand-role/extension
+    policy, and the producer/consumer region scopes structural before provider
+    route support. It is not a math op, intrinsic wrapper, descriptor, route
+    id, artifact metadata, or executable proof.
   }];
 
   let arguments = (ins
@@ -417,6 +418,10 @@ def GearboxCrossRegionHandoffOp
     StrAttr:$primitive_chain_contract,
     StrAttr:$primitive_chain_kind,
     StrAttr:$primitive_source_signedness,
+    StrAttr:$primitive_source_load,
+    StrAttr:$primitive_source_extension,
+    StrAttr:$widening_product_multiplicand_roles,
+    StrAttr:$widening_product_extension_policy,
     StrAttr:$primitive_widening_product_relation,
     StrAttr:$primitive_product_reduction_chain_relation,
     StrAttr:$primitive_widening_product_intrinsic,

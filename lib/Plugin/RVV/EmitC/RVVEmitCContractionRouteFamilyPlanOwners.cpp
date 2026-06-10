@@ -4893,6 +4893,13 @@ void populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
   selection.primitiveKind = candidate.primitiveKind.str();
   selection.primitiveChainContractID = candidate.primitiveChainContractID.str();
   selection.primitiveChainKind = candidate.primitiveChainKind.str();
+  selection.wideningProductMultiplicandRoleSummary =
+      candidate.wideningProductMultiplicandRoleSummary.str();
+  selection.wideningProductExtensionPolicy =
+      candidate.wideningProductExtensionPolicy.str();
+  selection.primitiveSourceLoadKind = candidate.primitiveSourceLoadKind.str();
+  selection.primitiveSourceExtensionKind =
+      candidate.primitiveSourceExtensionKind.str();
   selection.primitiveWideningProductRelation =
       candidate.primitiveWideningProductRelation.str();
   selection.primitiveProductReductionChainRelation =
@@ -4936,6 +4943,22 @@ void populateRVVLowPrecisionContractionResourceRouteFacts(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
   selection.routeFamilyPlanID = plan.familyPlanID.str();
   selection.providerSupportedMirror = plan.providerSupportedMirror.str();
+  if (selection.wideningProductMultiplicandRoleSummary.empty() &&
+      !plan.wideningProductMultiplicandRoleSummary.empty())
+    selection.wideningProductMultiplicandRoleSummary =
+        plan.wideningProductMultiplicandRoleSummary.str();
+  if (selection.wideningProductExtensionPolicy.empty() &&
+      !plan.wideningProductExtensionPolicy.empty())
+    selection.wideningProductExtensionPolicy =
+        plan.wideningProductExtensionPolicy.str();
+  if (selection.primitiveSourceLoadKind.empty() &&
+      !plan.lowPrecisionPrimitiveSourceLoadKind.empty())
+    selection.primitiveSourceLoadKind =
+        plan.lowPrecisionPrimitiveSourceLoadKind.str();
+  if (selection.primitiveSourceExtensionKind.empty() &&
+      !plan.lowPrecisionPrimitiveSourceExtensionKind.empty())
+    selection.primitiveSourceExtensionKind =
+        plan.lowPrecisionPrimitiveSourceExtensionKind.str();
 }
 
 void populateRVVLowPrecisionContractionResourceRemediationHandoff(
@@ -6098,6 +6121,26 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     else
       return value.takeError();
     if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourceWideningProductMultiplicandRolesAttrName))
+      selection.wideningProductMultiplicandRoleSummary = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourceWideningProductExtensionPolicyAttrName))
+      selection.wideningProductExtensionPolicy = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourcePrimitiveSourceLoadAttrName))
+      selection.primitiveSourceLoadKind = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourcePrimitiveSourceExtensionAttrName))
+      selection.primitiveSourceExtensionKind = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
             kRVVLowPrecisionResourcePrimitiveWideningProductRelationAttrName))
       selection.primitiveWideningProductRelation = *value;
     else
@@ -6418,6 +6461,25 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveSurfaceSelection(
           context, selection, "primitive source signedness",
           selection.sourceSignedness, primitiveFacts.sourceSignedness))
     return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive source load",
+          selection.primitiveSourceLoadKind, primitiveFacts.sourceLoadKind))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive source extension",
+          selection.primitiveSourceExtensionKind,
+          primitiveFacts.sourceExtensionKind))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "widening product multiplicand roles",
+          selection.wideningProductMultiplicandRoleSummary,
+          kRVVLowPrecisionResourceWideningProductMultiplicandRoles))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "widening product extension policy",
+          selection.wideningProductExtensionPolicy,
+          kRVVLowPrecisionResourceWideningProductExtensionPolicy))
+    return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "primitive source SEW", selection.sourceSEW,
           primitiveFacts.sourceSEW))
@@ -6512,6 +6574,26 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainSelection(
           selection.sourceSignedness, primitiveFacts->sourceSignedness))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive source load",
+          selection.primitiveSourceLoadKind,
+          plan.lowPrecisionPrimitiveSourceLoadKind))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive source extension",
+          selection.primitiveSourceExtensionKind,
+          plan.lowPrecisionPrimitiveSourceExtensionKind))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "widening product multiplicand roles",
+          selection.wideningProductMultiplicandRoleSummary,
+          plan.wideningProductMultiplicandRoleSummary))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "widening product extension policy",
+          selection.wideningProductExtensionPolicy,
+          plan.wideningProductExtensionPolicy))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "primitive widening product relation",
           selection.primitiveWideningProductRelation,
           plan.wideningProductRelation))
@@ -6598,6 +6680,26 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainDescriptionSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "primitive source signedness",
           selection.sourceSignedness, primitiveFacts->sourceSignedness))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive source load",
+          selection.primitiveSourceLoadKind,
+          description.lowPrecisionPrimitiveSourceLoadKind))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive source extension",
+          selection.primitiveSourceExtensionKind,
+          description.lowPrecisionPrimitiveSourceExtensionKind))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "widening product multiplicand roles",
+          selection.wideningProductMultiplicandRoleSummary,
+          description.wideningProductMultiplicandRoleSummary))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "widening product extension policy",
+          selection.wideningProductExtensionPolicy,
+          description.wideningProductExtensionPolicy))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "primitive widening product relation",
@@ -6916,6 +7018,13 @@ bool isRVVLowPrecisionResourceSelectionEqual(
          lhs.primitiveKind == rhs.primitiveKind &&
          lhs.primitiveChainContractID == rhs.primitiveChainContractID &&
          lhs.primitiveChainKind == rhs.primitiveChainKind &&
+         lhs.wideningProductMultiplicandRoleSummary ==
+             rhs.wideningProductMultiplicandRoleSummary &&
+         lhs.wideningProductExtensionPolicy ==
+             rhs.wideningProductExtensionPolicy &&
+         lhs.primitiveSourceLoadKind == rhs.primitiveSourceLoadKind &&
+         lhs.primitiveSourceExtensionKind ==
+             rhs.primitiveSourceExtensionKind &&
          lhs.primitiveWideningProductRelation ==
              rhs.primitiveWideningProductRelation &&
          lhs.primitiveProductReductionChainRelation ==
@@ -7000,7 +7109,7 @@ llvm::StringRef getRVVLowPrecisionPrimitiveSourceExtensionKind(
 
 static bool isRVVUnsignedLowPrecisionWideningProductPlan(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
-  return plan.usesWideningProduct &&
+  return (plan.usesWideningProduct || plan.usesProductReductionChain) &&
          plan.wideningProductRelation ==
              getContractionWideningProductRelation(
                  tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(),
@@ -7010,7 +7119,7 @@ static bool isRVVUnsignedLowPrecisionWideningProductPlan(
 
 llvm::StringRef getRVVWideningProductMultiplicandRoleSummary(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
-  if (!plan.usesWideningProduct)
+  if (!plan.usesWideningProduct && !plan.usesProductReductionChain)
     return {};
   return isRVVUnsignedLowPrecisionWideningProductPlan(plan)
              ? llvm::StringRef(
@@ -7021,7 +7130,7 @@ llvm::StringRef getRVVWideningProductMultiplicandRoleSummary(
 
 llvm::StringRef getRVVWideningProductExtensionPolicy(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
-  if (!plan.usesWideningProduct)
+  if (!plan.usesWideningProduct && !plan.usesProductReductionChain)
     return {};
   return isRVVUnsignedLowPrecisionWideningProductPlan(plan)
              ? llvm::StringRef(
@@ -7063,6 +7172,10 @@ void populateRVVLowPrecisionPrimitiveFacts(
           ? getContractionIntegerElementTypeName(plan.sew)
           : plan.elementTypeName;
   plan.lowPrecisionPrimitiveResultElementTypeName = plan.elementTypeName;
+  plan.wideningProductMultiplicandRoleSummary =
+      getRVVWideningProductMultiplicandRoleSummary(plan);
+  plan.wideningProductExtensionPolicy =
+      getRVVWideningProductExtensionPolicy(plan);
 }
 
 llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
@@ -7951,7 +8064,7 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
             plan.lowPrecisionPrimitiveResultElementTypeName, ""))
       return error;
   }
-  if (isWideningProduct) {
+  if (usesLowPrecisionPrimitive) {
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "widening product multiplicand roles",
             plan.wideningProductMultiplicandRoleSummary,
@@ -9130,6 +9243,10 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
     description.reductionAccumulatorLayout = plan.accumulatorLayout;
     description.reductionResultLayout = plan.resultLayout;
     description.wideningProductRelation = plan.wideningProductRelation;
+    description.wideningProductMultiplicandRoleSummary =
+        plan.wideningProductMultiplicandRoleSummary;
+    description.wideningProductExtensionPolicy =
+        plan.wideningProductExtensionPolicy;
     description.productReductionChainRelation =
         plan.productReductionChainRelation;
     description.intrinsic = plan.contractionComputeIntrinsic;
@@ -9587,6 +9704,24 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
             context, "widening product relation",
             description.wideningProductRelation,
             primitiveFacts->wideningProductRelation))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "widening product multiplicand roles",
+            description.wideningProductMultiplicandRoleSummary,
+            primitiveFacts->sourceSignedness == "unsigned"
+                ? llvm::StringRef(
+                      kRVVLowPrecisionUnsignedWideningProductMultiplicandRoles)
+                : llvm::StringRef(
+                      kRVVLowPrecisionSignedWideningProductMultiplicandRoles)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "widening product extension policy",
+            description.wideningProductExtensionPolicy,
+            primitiveFacts->sourceSignedness == "unsigned"
+                ? llvm::StringRef(
+                      kRVVLowPrecisionUnsignedWideningProductExtensionPolicy)
+                : llvm::StringRef(
+                      kRVVLowPrecisionSignedWideningProductExtensionPolicy)))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "product-reduction relation",

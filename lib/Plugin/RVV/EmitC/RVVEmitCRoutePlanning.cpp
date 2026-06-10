@@ -17773,6 +17773,24 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
           kRVVLowPrecisionResourceSourceSignednessSigned))
     return error;
   if (llvm::Error error = requireHandoffPrimitiveFact(
+          "primitive_source_load", handoff.getPrimitiveSourceLoad(),
+          kRVVLowPrecisionResourcePrimitiveSourceLoad))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
+          "primitive_source_extension", handoff.getPrimitiveSourceExtension(),
+          kRVVLowPrecisionResourcePrimitiveSourceExtension))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
+          "widening_product_multiplicand_roles",
+          handoff.getWideningProductMultiplicandRoles(),
+          kRVVLowPrecisionResourceWideningProductMultiplicandRoles))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
+          "widening_product_extension_policy",
+          handoff.getWideningProductExtensionPolicy(),
+          kRVVLowPrecisionResourceWideningProductExtensionPolicy))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
           "primitive_widening_product_relation",
           handoff.getPrimitiveWideningProductRelation(),
           kRVVLowPrecisionResourcePrimitiveWideningProductRelation))
@@ -43220,6 +43238,10 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         description.reductionResultLayout});
     metadata.push_back({"tcrv_rvv.widening_product_relation",
                         description.wideningProductRelation});
+    metadata.push_back({"tcrv_rvv.widening_product_multiplicand_roles",
+                        description.wideningProductMultiplicandRoleSummary});
+    metadata.push_back({"tcrv_rvv.widening_product_extension_policy",
+                        description.wideningProductExtensionPolicy});
     metadata.push_back({"tcrv_rvv.product_reduction_chain_relation",
                         description.productReductionChainRelation});
     metadata.push_back({"tcrv_rvv.widening_product_intrinsic",
@@ -43400,6 +43422,19 @@ getRVVSelectedBodyConfigArtifactMetadata(
       metadata.push_back(
           {"tcrv_rvv.low_precision_resource.primitive_chain_kind",
            selection.primitiveChainKind});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource."
+           "widening_product_multiplicand_roles",
+           selection.wideningProductMultiplicandRoleSummary});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.widening_product_extension_policy",
+           selection.wideningProductExtensionPolicy});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.primitive_source_load",
+           selection.primitiveSourceLoadKind});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.primitive_source_extension",
+           selection.primitiveSourceExtensionKind});
       metadata.push_back(
           {"tcrv_rvv.low_precision_resource.primitive_widening_product_relation",
            selection.primitiveWideningProductRelation});

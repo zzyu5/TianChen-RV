@@ -199,6 +199,29 @@ llvm::Error validateLowPrecisionResourceCandidatePrimitiveFacts(
     return error;
   if (llvm::Error error =
           requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "primitive source load", candidate.primitiveSourceLoadKind,
+              primitiveFacts.sourceLoadKind))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "primitive source extension",
+              candidate.primitiveSourceExtensionKind,
+              primitiveFacts.sourceExtensionKind))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "widening product multiplicand roles",
+              candidate.wideningProductMultiplicandRoleSummary,
+              kRVVLowPrecisionResourceWideningProductMultiplicandRoles))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "widening product extension policy",
+              candidate.wideningProductExtensionPolicy,
+              kRVVLowPrecisionResourceWideningProductExtensionPolicy))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
               "primitive widening product relation",
               candidate.primitiveWideningProductRelation,
               primitiveFacts.wideningProductRelation))
@@ -370,6 +393,17 @@ materializeLowPrecisionResourceRealizationAttrs(
           requireLowPrecisionResourceCandidatePrimitiveStringMatch(
               "source signedness", selected->sourceSignedness,
               primitiveFacts.sourceSignedness))
+    return std::move(error);
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "primitive source load", selected->primitiveSourceLoadKind,
+              primitiveFacts.sourceLoadKind))
+    return std::move(error);
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "primitive source extension",
+              selected->primitiveSourceExtensionKind,
+              primitiveFacts.sourceExtensionKind))
     return std::move(error);
   if (llvm::Error error =
           requireLowPrecisionResourceCandidatePrimitiveStringMatch(
@@ -659,6 +693,24 @@ materializeLowPrecisionResourceRealizationAttrs(
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourcePrimitiveChainKindAttrName,
           selected->primitiveChainKind))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source,
+          kRVVLowPrecisionResourceWideningProductMultiplicandRolesAttrName,
+          selected->wideningProductMultiplicandRoleSummary))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source,
+          kRVVLowPrecisionResourceWideningProductExtensionPolicyAttrName,
+          selected->wideningProductExtensionPolicy))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourcePrimitiveSourceLoadAttrName,
+          selected->primitiveSourceLoadKind))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourcePrimitiveSourceExtensionAttrName,
+          selected->primitiveSourceExtensionKind))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source,
@@ -1082,6 +1134,19 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
                      builder.getStringAttr(selectedCandidate.primitiveChainKind));
   state.addAttribute("primitive_source_signedness",
                      builder.getStringAttr(selectedCandidate.sourceSignedness));
+  state.addAttribute("primitive_source_load",
+                     builder.getStringAttr(
+                         selectedCandidate.primitiveSourceLoadKind));
+  state.addAttribute("primitive_source_extension",
+                     builder.getStringAttr(
+                         selectedCandidate.primitiveSourceExtensionKind));
+  state.addAttribute(
+      "widening_product_multiplicand_roles",
+      builder.getStringAttr(
+          selectedCandidate.wideningProductMultiplicandRoleSummary));
+  state.addAttribute("widening_product_extension_policy",
+                     builder.getStringAttr(
+                         selectedCandidate.wideningProductExtensionPolicy));
   state.addAttribute("primitive_widening_product_relation",
                      builder.getStringAttr(
                          selectedCandidate.primitiveWideningProductRelation));
@@ -1256,6 +1321,12 @@ llvm::Error validateLowPrecisionPrimitiveFactsForRealization(
           "source signedness", primitiveFacts.sourceSignedness))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
+          "primitive source load", primitiveFacts.sourceLoadKind))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
+          "primitive source extension", primitiveFacts.sourceExtensionKind))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionPrimitiveNonEmptyField(
           "widening product intrinsic",
           primitiveFacts.wideningProductIntrinsic))
     return std::move(error);
@@ -1277,6 +1348,15 @@ llvm::Error validateLowPrecisionPrimitiveFactsForRealization(
           "source signedness",
           kRVVLowPrecisionResourceSourceSignednessSigned,
           primitiveFacts.sourceSignedness))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
+          "primitive source load", kRVVLowPrecisionResourcePrimitiveSourceLoad,
+          primitiveFacts.sourceLoadKind))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
+          "primitive source extension",
+          kRVVLowPrecisionResourcePrimitiveSourceExtension,
+          primitiveFacts.sourceExtensionKind))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveIntegerField(
           "source SEW", plan.sourceSEW, primitiveFacts.sourceSEW))

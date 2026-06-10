@@ -11,6 +11,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/consumer_scope = "gearbox-scope:dequant-store"/consumer_scope = "gearbox-scope:product-reduction"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-GEARBOX-SCOPE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"/primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i32m1_i32m1"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-PRIMITIVE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/primitive_source_signedness = "signed"/primitive_source_signedness = "unsigned"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-SIGN
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/primitive_source_extension = "sign-extend-i8-to-i16-product"/primitive_source_extension = "metadata-only-source-extension"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-SOURCE-EXTENSION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1\[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped\]"/resource_selected_candidate = "artifact-name-derived-resource-candidate"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-RESOURCE-CANDIDATE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1\[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped\]", //' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-HANDOFF-RESOURCE-CANDIDATE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/planning_contract = "rvv-low-precision-production-resource-planning-contract.v1"/planning_contract = "metadata-derived-resource-planning-contract"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-PLANNING
@@ -107,6 +108,8 @@ module {
 // REALIZED-SAME: primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
 // REALIZED-SAME: primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
 // REALIZED-SAME: primitive_reduction_store_vl = "1"
+// REALIZED-SAME: primitive_source_extension = "sign-extend-i8-to-i16-product"
+// REALIZED-SAME: primitive_source_load = "unit-stride-byte-load"
 // REALIZED-SAME: primitive_source_signedness = "signed"
 // REALIZED-SAME: producer_scope = "gearbox-scope:product-reduction"
 // REALIZED-SAME: product_region_index = 2 : i64
@@ -118,6 +121,8 @@ module {
 // REALIZED-SAME: to_phase = "dequant-store"
 // REALIZED-SAME: unpack_intent = "none-direct-widening-product"
 // REALIZED-SAME: vector_register_budget = 32 : i64
+// REALIZED-SAME: widening_product_extension_policy = "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2"
+// REALIZED-SAME: widening_product_multiplicand_roles = "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"
 // REALIZED-SAME: -> !tcrv_rvv.vector<i32, "m1">
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: selected_variant = @pre_realized_body_rvv_product_reduce_dequantize
@@ -144,9 +149,13 @@ module {
 
 // GEARBOX-SCHEDULE-PRIMITIVE: tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body
 // GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1"
+// GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_source_extension = "sign-extend-i8-to-i16-product"
+// GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_source_load = "unit-stride-byte-load"
 // GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
 // GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
 // GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
+// GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.widening_product_extension_policy = "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2"
+// GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles = "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"
 
 // PLAN: tcrv.exec.diagnostic
 // PLAN-SAME: artifact_kind = "riscv-elf-relocatable-object"
@@ -172,6 +181,10 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.gearbox.producer_scope", value = "gearbox-scope:product-reduction"}
 // PLAN-SAME: {key = "tcrv_rvv.gearbox.consumer_scope", value = "gearbox-scope:dequant-store"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.primitive_chain_contract", value = "rvv-low-precision-widening-reduction-primitive-facts.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles", value = "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.widening_product_extension_policy", value = "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.primitive_source_load", value = "unit-stride-byte-load"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.primitive_source_extension", value = "sign-extend-i8-to-i16-product"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic", value = "__riscv_vwredsum_vs_i16mf2_i32m1"}
 // PLAN-SAME: runtime_abi_name = "rvv-generic-widening-product-reduce-dequantize-f32-callable-c-abi.v1"
 // PLAN-SAME: status = "supported"
@@ -192,6 +205,10 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.memory_form: unit-stride-widening-product-reduce-dequantize-f32
 // HEADER: tianchenrv.rvv.low_precision_resource.vector_register_budget: 32
 // HEADER: tianchenrv.rvv.low_precision_resource.primitive_chain_contract: rvv-low-precision-widening-reduction-primitive-facts.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.widening_product_multiplicand_roles: lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4
+// HEADER: tianchenrv.rvv.low_precision_resource.widening_product_extension_policy: source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2
+// HEADER: tianchenrv.rvv.low_precision_resource.primitive_source_load: unit-stride-byte-load
+// HEADER: tianchenrv.rvv.low_precision_resource.primitive_source_extension: sign-extend-i8-to-i16-product
 // HEADER: tianchenrv.rvv.low_precision_resource.primitive_reduction_intrinsic: __riscv_vwredsum_vs_i16mf2_i32m1
 // HEADER: tianchenrv.rvv.gearbox_producer_scope: gearbox-scope:product-reduction
 // HEADER: tianchenrv.rvv.gearbox_consumer_scope: gearbox-scope:dequant-store
@@ -237,6 +254,10 @@ module {
 // STALE-HANDOFF-SIGN: requires primitive-chain resource fact 'primitive_source_signedness'
 // STALE-HANDOFF-SIGN-SAME: signed
 // STALE-HANDOFF-SIGN-SAME: unsigned
+
+// STALE-HANDOFF-SOURCE-EXTENSION: requires primitive-chain resource fact 'primitive_source_extension'
+// STALE-HANDOFF-SOURCE-EXTENSION-SAME: sign-extend-i8-to-i16-product
+// STALE-HANDOFF-SOURCE-EXTENSION-SAME: metadata-only-source-extension
 
 // STALE-HANDOFF-RESOURCE-CANDIDATE: requires resource_selected_candidate to belong to the provider-owned resource_candidate_set
 
