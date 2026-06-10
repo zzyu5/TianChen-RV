@@ -10,18 +10,16 @@ schedule facts, mask/tail policy, runtime AVL/ABI facts, same-target
 measurement-policy prerequisites, provider validation, target validation, and
 later dispatch policy flow through one RVV-owned fail-closed boundary.
 
-Gate 1 and Gate 2 are complete. Gate 2 connected the representative
-product-reduction dequant path and the additional
-`widening_product_reduce_dequant_clamp_f32` production representative through
-structural handoff and marker planning-contract consumers. Gate 3 already has
-source-backed generated artifact and same-target measurement-record evidence
-for the first packed-i4 `widening_product_reduce_dequantize_f32`
-representative. The current round continues Gate 3 for the packed-i4
-`widening_product_reduce_dequant_clamp_f32` representative, with the generated
-artifact and same-target measurement record explicitly tied back to RVV-owned
-planning-contract, resource-selection, clamp/select, runtime AVL/VL, ABI,
-correctness, and target-provenance facts before any Gate 4 performance-policy
-consumption.
+Gate 1 and Gate 2 are complete. Gate 3 is complete for both the packed-i4
+`widening_product_reduce_dequantize_f32` and
+`widening_product_reduce_dequant_clamp_f32` representatives, including
+source-backed generated artifacts, same-target measurement records, and real
+`ssh rvv` regression/no-win evidence. The current round closes Gate 4 at the
+target-artifact selected-dispatch/performance policy boundary by proving
+provider-owned resource and measurement facts are consumed, correctness
+fallback remains available, and metadata-only route-support, correctness,
+performance-selection, dispatch, or win-claim mirrors fail before artifact
+acceptance.
 
 ## What I Already Know
 
@@ -87,7 +85,7 @@ consumption.
 - [x] Gate 3: generated artifact and same-target measurement evidence for the
   realized resource-aware path when executable correctness or performance is
   claimed.
-- [ ] Gate 4: selected-dispatch/performance policy consumes resource and
+- [x] Gate 4: selected-dispatch/performance policy consumes resource and
   measurement facts with correctness fallback and fail-closed provenance.
 
 ## Current Slice: Gate 1
@@ -242,6 +240,25 @@ consumption.
   semantics, ABI roles, runtime AVL/VL, variant origin, and fallback semantics
   unchanged.
 
+## Current Slice: Gate 4 Target-Artifact Selected-Dispatch/Performance Mirror Closure
+
+- [x] Keep the same macro task active and close the final Gate 4 audit at the
+  target-artifact selected-dispatch/performance boundary.
+- [x] Make target artifact validation reject metadata-only packed-i4
+  route-support, correctness-execution, correctness-fallback,
+  performance-selection, dispatch-policy, route-support-effect, and win-claim
+  mirrors before artifact acceptance.
+- [x] Keep the positive selected-dispatch path source-backed by provider-owned
+  low-precision resource facts and Gate 4 measurement policy facts, with
+  correctness fallback selected and performance preference denied for the
+  current regression/no-win records.
+- [x] Add focused target artifact C++ coverage for metadata-only
+  performance-selection, correctness-execution, correctness-fallback, and
+  route-support-effect mirrors.
+- [x] Keep Common EmitC, artifact names, route ids, q4/q8 labels, computation
+  semantics, dtype semantics, ABI roles, runtime AVL/VL, variant origin, and
+  fallback semantics unchanged.
+
 ## Completed Gate 3 Sub-Slice
 
 - Extended `RVVLowPrecisionSameTargetMeasurementRecord` and the corresponding
@@ -360,7 +377,7 @@ consumption.
 - Added dequant-clamp stale and missing marker/handoff planning-contract
   negative diagnostics.
 
-## Remaining Campaign Gates
+## Completed Campaign Gates
 
 - Gate 2 is complete for the campaign's bounded representative surface:
   product-reduction dequant handoff and marker consumers are complete, and the
@@ -373,14 +390,13 @@ consumption.
   `ssh rvv` regression/no-win evidence tied back to provider resource facts.
   Gate 3 should only reopen for an additional representative if human steering
   expands the campaign surface.
-- Gate 4 remains: selected-dispatch/performance policy consumes resource and
-  measurement facts with correctness fallback and fail-closed provenance. This
-  round completed the dequant-clamp source-backed artifact-record consumer and
-  made measurement expectations candidate-sensitive. A final Gate 4 audit may
-  still reconcile the missing current-tree
-  `artifacts/gate3-packed-i4-schedule-decision-ssh` dequantize artifact input
-  or broaden target-artifact performance-selection mirror checks if human
-  steering requires full macro closure.
+- Gate 4 is complete for the current campaign scope: source-backed dequant and
+  dequant-clamp measurement records feed the selected-dispatch/performance
+  policy boundary, current regression/no-win evidence selects correctness
+  fallback and denies performance preference, stale provenance fails closed,
+  and target artifact validation rejects metadata-only performance-selection,
+  dispatch, correctness, route-support, and win-claim mirrors before artifact
+  acceptance.
 
 ## Out Of Scope
 
@@ -451,13 +467,15 @@ consumption.
   `test/Plugin/RVVExtensionPluginTest.cpp`. It consumed the existing
   `artifacts/gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json`
   record through the C++ record overload and selected-dispatch boundary.
+- Gate 4 target-artifact selected-dispatch/performance mirror closure touched
+  `lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp` and
+  `test/Target/TargetArtifactExportTest.cpp`. It rejects metadata-only packed-i4
+  route-support, correctness, performance-selection, dispatch, route-support
+  effect, and win-claim mirrors at target artifact validation.
 
 ## Continuation Point
 
-After this Gate 4 dequant-clamp source-backed policy-consumption sub-slice,
-continue the same macro task only if human steering requires Gate 4 final audit
-closure beyond the committed dequant-clamp artifact record. The likely next
-continuation point is reconciling the absent current-tree
-`artifacts/gate3-packed-i4-schedule-decision-ssh` dequantize evidence input or
-adding target-artifact performance-selection mirror negatives. Do not archive
-the macro task yet unless Gate 4 final audit is explicitly accepted as complete.
+After this Gate 4 target-artifact selected-dispatch/performance mirror closure
+slice, all current macro campaign gates are complete. The next step is final
+verification and Trellis wrap-up/archive unless human steering reopens Gate 4
+for an additional representative or stricter same-target evidence refresh.

@@ -1916,3 +1916,65 @@ dequant-clamp source-backed artifact record. The macro task remains open for
 Gate 4 final audit closure if human steering requires reconciling the absent
 current-tree `artifacts/gate3-packed-i4-schedule-decision-ssh` dequantize
 evidence input or adding target-artifact performance-selection mirror negatives.
+
+## 2026-06-10 - Stage2 RVV Gearbox Gate 4 target-artifact mirror closure
+
+### Summary
+
+Continued the active production-kernel Gearbox/resource-aware selected-body
+realization macro task at the final Gate 4 target-artifact boundary. This
+slice closes metadata-only selected-dispatch/performance claim drift: packed-i4
+target artifact validation now rejects route-support, correctness-execution,
+correctness-fallback, performance-selection, dispatch-policy, route-support
+effect, and win-claim mirrors unless they are provider-owned facts consumed by
+the policy/target validation path.
+
+### Main Changes
+
+- Extended `RVVTargetArtifactRouteFamilyValidation.cpp` metadata-only packed-i4
+  claim rejection to cover route support, correctness execution, correctness
+  fallback, route-support effect, and provider-contract update mirrors.
+- Added `TargetArtifactExportTest.cpp` coverage for metadata-only
+  performance-selection, correctness-execution, correctness-fallback, and
+  route-support-effect mirrors.
+- Updated the macro PRD to mark Gate 4 and the current campaign scope complete.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] The RVV plugin spec already requires target artifact tests for
+stale performance-selection/dispatch mirrors and forbids artifact metadata from
+authorizing Gate 4 dispatch or performance claims. This slice implements and
+tests that existing contract.
+
+
+## Session 576: Stage2 RVV Gate 4 target-artifact policy mirror closure
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV Gate 4 target-artifact policy mirror closure
+**Branch**: `main`
+
+### Summary
+
+Closed the Stage2 RVV Gearbox Gate 4 target-artifact selected-dispatch/performance mirror boundary by rejecting metadata-only packed-i4 route-support, correctness, fallback, performance-selection, dispatch, route-support-effect, and win-claim mirrors; added focused target artifact C++ negatives and archived the completed macro task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b7b30d94` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

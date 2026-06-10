@@ -14468,12 +14468,47 @@ bool expectRVVTargetArtifactExporterShape(
            "dispatch preference", "not-performance-preferred"}))
     return false;
   if (!expectPackedI4MetadataOnlyClaimFailure(
+          "tcrv_rvv.low_precision_resource.performance_selection_allowed",
+          "true",
+          "packed-i4 product-reduction registry rejects metadata-only "
+          "performance-selection allowance",
+          {"metadata-only packed-i4 performance-selection allowance", "true",
+           "performance selection eligibility", "false",
+           "dispatch preference", "not-performance-preferred"}))
+    return false;
+  if (!expectPackedI4MetadataOnlyClaimFailure(
+          "tcrv_rvv.low_precision_resource.correctness_execution_allowed",
+          "true",
+          "packed-i4 product-reduction registry rejects metadata-only "
+          "correctness execution claim",
+          {"metadata-only packed-i4 correctness-execution allowance", "true",
+           "performance action",
+           "no-win-repair-required-before-performance-claim"}))
+    return false;
+  if (!expectPackedI4MetadataOnlyClaimFailure(
+          "tcrv_rvv.low_precision_resource.correctness_fallback_path_selected",
+          "true",
+          "packed-i4 product-reduction registry rejects metadata-only "
+          "correctness fallback path claim",
+          {"metadata-only packed-i4 correctness-fallback path selection",
+           "true", "dispatch preference", "not-performance-preferred"}))
+    return false;
+  if (!expectPackedI4MetadataOnlyClaimFailure(
           "tcrv_rvv.low_precision_resource.dispatch_policy_path",
           "performance-preferred",
           "packed-i4 product-reduction registry rejects metadata-only "
           "dispatch policy path",
           {"metadata-only packed-i4 dispatch policy path",
            "performance-preferred", "not-performance-preferred"}))
+    return false;
+  if (!expectPackedI4MetadataOnlyClaimFailure(
+          "tcrv_rvv.low_precision_resource.route_support_effect",
+          "preserve-executable-route-support",
+          "packed-i4 product-reduction registry rejects metadata-only "
+          "route-support effect claim",
+          {"metadata-only packed-i4 route-support effect",
+           "preserve-executable-route-support",
+           "no-win-repair-required-before-performance-claim"}))
     return false;
   if (!expectPackedI4MetadataOnlyClaimFailure(
           "tcrv_rvv.low_precision_resource.win_claim",

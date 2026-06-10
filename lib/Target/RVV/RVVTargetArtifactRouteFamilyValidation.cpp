@@ -6162,22 +6162,32 @@ llvm::Error validateRVVPackedI4MetadataOnlyClaimMirrors(
           selection.selectedCandidateID))
     return llvm::Error::success();
   constexpr llvm::StringLiteral metadataOnlyClaimMirrors[][2] = {
+      {"tcrv_rvv.low_precision_resource.route_support_allowed",
+       "route-support allowance"},
+      {"tcrv_rvv.low_precision_resource.correctness_execution_allowed",
+       "correctness-execution allowance"},
       {"tcrv_rvv.low_precision_resource.performance_win_claim_allowed",
        "performance win-claim allowance"},
       {"tcrv_rvv.low_precision_resource.performance_selection_allowed",
        "performance-selection allowance"},
       {"tcrv_rvv.low_precision_resource.performance_preferred_path_selected",
        "performance-preferred path selection"},
+      {"tcrv_rvv.low_precision_resource.correctness_fallback_path_selected",
+       "correctness-fallback path selection"},
       {"tcrv_rvv.low_precision_resource.performance_preference_denied",
        "performance-preference decision"},
       {"tcrv_rvv.low_precision_resource.performance_preference_denial_reason",
        "performance-preference denial reason"},
       {"tcrv_rvv.low_precision_resource.dispatch_policy_path",
        "dispatch policy path"},
+      {"tcrv_rvv.low_precision_resource.route_support_effect",
+       "route-support effect"},
       {"tcrv_rvv.low_precision_resource.performance_claim",
        "performance claim"},
       {"tcrv_rvv.low_precision_resource.win_claim", "win claim"},
-      {"tcrv_rvv.low_precision_resource.claim_allowed", "claim allowance"}};
+      {"tcrv_rvv.low_precision_resource.claim_allowed", "claim allowance"},
+      {"tcrv_rvv.low_precision_resource.provider_contract_update_required",
+       "provider-contract update requirement"}};
   for (const auto &entry : metadataOnlyClaimMirrors)
     if (llvm::Error error =
             rejectRVVPackedI4MetadataOnlyClaimMirror(candidate, entry[0],
