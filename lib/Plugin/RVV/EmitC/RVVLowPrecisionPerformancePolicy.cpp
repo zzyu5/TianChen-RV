@@ -25,6 +25,9 @@ constexpr llvm::StringLiteral kPackedI4Gate4MeasurementClassification(
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementOutcomeFamily("no-win");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementBestSpeedupRange(
     "0.689815..0.705331");
+constexpr llvm::StringLiteral
+    kPackedI4DequantClampGate4MeasurementBestSpeedupRange(
+        "0.693878..0.964286");
 constexpr llvm::StringLiteral kPackedI4Gate4TargetProfile("ssh rvv");
 constexpr llvm::StringLiteral kPackedI4PerformancePreferenceDenialReason(
     "same-target-measurement-no-win-or-regression");
@@ -53,6 +56,10 @@ constexpr llvm::StringLiteral kPackedI4MeasuredWinNoBlocker("none");
 constexpr std::int64_t kPackedI4Gate4MeasurementSummaryRecordCount = 12;
 constexpr std::int64_t kPackedI4Gate4MeasurementRecordCount = 60;
 constexpr std::int64_t kPackedI4Gate4CorrectnessRecordCount = 12;
+constexpr std::int64_t
+    kPackedI4DequantClampGate4MeasurementSummaryRecordCount = 24;
+constexpr std::int64_t kPackedI4DequantClampGate4MeasurementRecordCount = 24;
+constexpr std::int64_t kPackedI4DequantClampGate4CorrectnessRecordCount = 24;
 
 llvm::Error makeRVVLowPrecisionPerformancePolicyError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -119,6 +126,43 @@ bool hasPackedI4SiblingRouteMeasurement(
          isRVVLowPrecisionResourcePackedI4CandidateID(
              providerSelectedCandidate) &&
          providerSelectedCandidate != selection.selectedCandidateID;
+}
+
+llvm::StringRef
+getPackedI4Gate4MeasurementBestSpeedupRangeForCandidate(
+    llvm::StringRef candidateID) {
+  if (candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate)
+    return kPackedI4DequantClampGate4MeasurementBestSpeedupRange;
+  if (candidateID == kRVVLowPrecisionResourceDequantPackedI4Candidate)
+    return kPackedI4Gate4MeasurementBestSpeedupRange;
+  return {};
+}
+
+std::int64_t getPackedI4Gate4MeasurementSummaryRecordCountForCandidate(
+    llvm::StringRef candidateID) {
+  if (candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate)
+    return kPackedI4DequantClampGate4MeasurementSummaryRecordCount;
+  if (candidateID == kRVVLowPrecisionResourceDequantPackedI4Candidate)
+    return kPackedI4Gate4MeasurementSummaryRecordCount;
+  return 0;
+}
+
+std::int64_t
+getPackedI4Gate4MeasurementRecordCountForCandidate(llvm::StringRef candidateID) {
+  if (candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate)
+    return kPackedI4DequantClampGate4MeasurementRecordCount;
+  if (candidateID == kRVVLowPrecisionResourceDequantPackedI4Candidate)
+    return kPackedI4Gate4MeasurementRecordCount;
+  return 0;
+}
+
+std::int64_t getPackedI4Gate4CorrectnessRecordCountForCandidate(
+    llvm::StringRef candidateID) {
+  if (candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate)
+    return kPackedI4DequantClampGate4CorrectnessRecordCount;
+  if (candidateID == kRVVLowPrecisionResourceDequantPackedI4Candidate)
+    return kPackedI4Gate4CorrectnessRecordCount;
+  return 0;
 }
 
 llvm::Expected<std::string>
@@ -767,23 +811,57 @@ llvm::Error verifyPackedI4MeasurementOutcome(
           outcome.measurementOutcomeFamily,
           kPackedI4Gate4MeasurementOutcomeFamily))
     return error;
+  llvm::StringRef expectedBestSpeedupRange =
+      getPackedI4Gate4MeasurementBestSpeedupRangeForCandidate(
+          selection.selectedCandidateID);
+  if (expectedBestSpeedupRange.empty())
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires candidate-sensitive Gate 4 same-target measurement range "
+        "for selected packed-i4 candidate '" +
+        selection.selectedCandidateID + "'");
   if (llvm::Error error = requirePolicyString(
           context, "measurement best-speedup range",
-          outcome.measurementBestSpeedupRange,
-          kPackedI4Gate4MeasurementBestSpeedupRange))
+          outcome.measurementBestSpeedupRange, expectedBestSpeedupRange))
     return error;
+  const std::int64_t expectedSummaryRecordCount =
+      getPackedI4Gate4MeasurementSummaryRecordCountForCandidate(
+          selection.selectedCandidateID);
+  if (expectedSummaryRecordCount <= 0)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires candidate-sensitive Gate 4 summary record count for "
+        "selected packed-i4 candidate '" +
+        selection.selectedCandidateID + "'");
   if (llvm::Error error = requirePolicyInt(
           context, "measurement summary record count",
-          outcome.measurementSummaryRecordCount,
-          kPackedI4Gate4MeasurementSummaryRecordCount))
+          outcome.measurementSummaryRecordCount, expectedSummaryRecordCount))
     return error;
+  const std::int64_t expectedMeasurementRecordCount =
+      getPackedI4Gate4MeasurementRecordCountForCandidate(
+          selection.selectedCandidateID);
+  if (expectedMeasurementRecordCount <= 0)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires candidate-sensitive Gate 4 measurement record count for "
+        "selected packed-i4 candidate '" +
+        selection.selectedCandidateID + "'");
   if (llvm::Error error = requirePolicyInt(
           context, "measurement record count",
-          outcome.measurementRecordCount, kPackedI4Gate4MeasurementRecordCount))
+          outcome.measurementRecordCount, expectedMeasurementRecordCount))
     return error;
+  const std::int64_t expectedCorrectnessRecordCount =
+      getPackedI4Gate4CorrectnessRecordCountForCandidate(
+          selection.selectedCandidateID);
+  if (expectedCorrectnessRecordCount <= 0)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires candidate-sensitive Gate 4 correctness record count for "
+        "selected packed-i4 candidate '" +
+        selection.selectedCandidateID + "'");
   if (llvm::Error error = requirePolicyInt(
           context, "correctness record count", outcome.correctnessRecordCount,
-          kPackedI4Gate4CorrectnessRecordCount))
+          expectedCorrectnessRecordCount))
     return error;
   if (llvm::Error error = requirePolicyBool(
           context, "performance preference denial",
@@ -1037,11 +1115,18 @@ buildRVVPackedI4Gate4SameTargetMeasurementRecord(
   record.measurementOutcomeFamily =
       kPackedI4Gate4MeasurementOutcomeFamily.str();
   record.measurementBestSpeedupRange =
-      kPackedI4Gate4MeasurementBestSpeedupRange.str();
+      getPackedI4Gate4MeasurementBestSpeedupRangeForCandidate(
+          selection.selectedCandidateID)
+          .str();
   record.measurementSummaryRecordCount =
-      kPackedI4Gate4MeasurementSummaryRecordCount;
-  record.measurementRecordCount = kPackedI4Gate4MeasurementRecordCount;
-  record.correctnessRecordCount = kPackedI4Gate4CorrectnessRecordCount;
+      getPackedI4Gate4MeasurementSummaryRecordCountForCandidate(
+          selection.selectedCandidateID);
+  record.measurementRecordCount =
+      getPackedI4Gate4MeasurementRecordCountForCandidate(
+          selection.selectedCandidateID);
+  record.correctnessRecordCount =
+      getPackedI4Gate4CorrectnessRecordCountForCandidate(
+          selection.selectedCandidateID);
   record.sameTargetMeasurement = true;
   record.sshEvidence = true;
   record.targetProfile = kPackedI4Gate4TargetProfile.str();

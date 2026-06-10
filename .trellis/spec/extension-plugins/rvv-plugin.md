@@ -6889,6 +6889,28 @@ performance-preferred
     accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32
   ```
 
+- The strict Gate 4 no-win/regression verifier must derive the accepted
+  `measurementEvidenceID`, `measurementBestSpeedupRange`,
+  `measurementSummaryRecordCount`, `measurementRecordCount`, and
+  `correctnessRecordCount` from the selected provider resource candidate. A
+  dequant packed-i4 record and a dequant-clamp packed-i4 record are sibling
+  measurement records, not interchangeable evidence. The current accepted
+  dequant-clamp record uses:
+
+  ```text
+  measurementEvidenceID =
+    gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
+  measurementClassification = regression
+  measurementOutcomeFamily = no-win
+  measurementBestSpeedupRange = 0.693878..0.964286
+  measurementSummaryRecordCount = 24
+  measurementRecordCount = 24
+  correctnessRecordCount = 24
+  dispatchPolicyPath = correctness-fallback
+  performancePreferenceDenialReason =
+    same-target-measurement-no-win-or-regression
+  ```
+
 - A measured win may select `performance-preferred` only when all of these
   structured facts agree: same-target `ssh rvv` measurement, `classification =
   win`, provider maturity outcome `win`, provider performance selection
@@ -6910,6 +6932,11 @@ performance-preferred
   `ssh rvv` evidence, stale target profile, stale provider tie-back, or stale
   primitive/remediation/schedule-decision fact -> strict policy evaluation
   fails; resolver returns correctness fallback if the route remains legal.
+- A measurement record belongs to the dequant packed-i4 sibling while the
+  selected provider resource candidate is dequant-clamp packed-i4, or the
+  reverse -> strict policy evaluation fails as stale sibling-route measurement;
+  resolver may keep correctness fallback only if the selected route remains
+  legal.
 - Current regression/no-win evidence with provider
   `performance_selection_eligible = true` or `dispatch_preference =
   performance-preferred` -> fail closed before performance preference.
@@ -6949,6 +6976,10 @@ performance-preferred
   evidence JSON object through that same selected-dispatch record overload; a
   helper-built representative record alone is not enough to prove the
   source-backed record ingestion boundary.
+- Candidate-sensitive Gate 4 coverage must feed the current dequant-clamp
+  source-backed `same_target_measurement_record` through the record overload
+  and assert correctness fallback, performance-preference denial, stale
+  schedule-decision rejection, and correctness-disabled rejection.
 - C++ provider/policy tests must assert a measured-win fixture selects
   `performance-preferred` only after provider maturity, eligibility, dispatch,
   remediation, and measurement tie-back facts all agree.

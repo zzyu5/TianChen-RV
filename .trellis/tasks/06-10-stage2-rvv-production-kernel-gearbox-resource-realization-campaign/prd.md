@@ -84,7 +84,7 @@ consumption.
   representative low-precision/contraction body without changing computation
   semantics, dtype semantics, parameter roles, runtime AVL/VL, variant origin,
   dispatch, or fallback behavior.
-- [ ] Gate 3: generated artifact and same-target measurement evidence for the
+- [x] Gate 3: generated artifact and same-target measurement evidence for the
   realized resource-aware path when executable correctness or performance is
   claimed.
 - [ ] Gate 4: selected-dispatch/performance policy consumes resource and
@@ -219,6 +219,29 @@ consumption.
   existing policy-input boundary, but it must not claim performance preference
   or rewrite provider maturity facts from measurement output alone.
 
+## Current Slice: Gate 4 Dequant-Clamp Source-Backed Policy Consumption
+
+- [x] Keep the same macro task active and consume the existing packed-i4
+  `widening_product_reduce_dequant_clamp_f32` Gate 3 artifact as a Gate 4
+  policy input, not as route authority or artifact-name authority.
+- [x] Make strict packed-i4 performance policy validation choose accepted
+  same-target measurement range and record counts from the selected provider
+  resource candidate, so the dequant and dequant-clamp sibling records are not
+  interchangeable.
+- [x] Parse the committed dequant-clamp
+  `same_target_measurement_record` JSON object through the C++
+  `RVVLowPrecisionSameTargetMeasurementRecord` boundary and then through the
+  selected-dispatch record overload.
+- [x] Prove the current dequant-clamp regression/no-win record selects
+  correctness fallback, keeps correctness execution allowed, denies
+  performance-preferred dispatch, and denies performance-win claims.
+- [x] Add focused stale schedule-decision and correctness-disabled negative
+  checks for the dequant-clamp artifact record before selected-dispatch policy
+  acceptance.
+- [x] Keep Common EmitC, target artifact metadata, computation semantics, dtype
+  semantics, ABI roles, runtime AVL/VL, variant origin, and fallback semantics
+  unchanged.
+
 ## Completed Gate 3 Sub-Slice
 
 - Extended `RVVLowPrecisionSameTargetMeasurementRecord` and the corresponding
@@ -351,7 +374,13 @@ consumption.
   Gate 3 should only reopen for an additional representative if human steering
   expands the campaign surface.
 - Gate 4 remains: selected-dispatch/performance policy consumes resource and
-  measurement facts with correctness fallback and fail-closed provenance.
+  measurement facts with correctness fallback and fail-closed provenance. This
+  round completed the dequant-clamp source-backed artifact-record consumer and
+  made measurement expectations candidate-sensitive. A final Gate 4 audit may
+  still reconcile the missing current-tree
+  `artifacts/gate3-packed-i4-schedule-decision-ssh` dequantize artifact input
+  or broaden target-artifact performance-selection mirror checks if human
+  steering requires full macro closure.
 
 ## Out Of Scope
 
@@ -417,11 +446,18 @@ consumption.
   `scripts/rvv_generated_bundle_same_target_measure.py`,
   focused C++ tests, focused script/target lit tests, and
   `artifacts/gate3-packed-i4-dequant-clamp-ssh`.
+- Gate 4 dequant-clamp source-backed policy-consumption sub-slice touched
+  `lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp` and
+  `test/Plugin/RVVExtensionPluginTest.cpp`. It consumed the existing
+  `artifacts/gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json`
+  record through the C++ record overload and selected-dispatch boundary.
 
 ## Continuation Point
 
-After this Gate 3 dequant-clamp sub-slice, continue the same macro task at Gate
-4: selected-dispatch/performance policy consumption of the provider-owned
-resource and same-target measurement facts with correctness fallback and
-fail-closed provenance. Do not archive the macro task yet because Gate 4
-remains open.
+After this Gate 4 dequant-clamp source-backed policy-consumption sub-slice,
+continue the same macro task only if human steering requires Gate 4 final audit
+closure beyond the committed dequant-clamp artifact record. The likely next
+continuation point is reconciling the absent current-tree
+`artifacts/gate3-packed-i4-schedule-decision-ssh` dequantize evidence input or
+adding target-artifact performance-selection mirror negatives. Do not archive
+the macro task yet unless Gate 4 final audit is explicitly accepted as complete.

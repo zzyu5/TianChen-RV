@@ -1857,3 +1857,62 @@ dequant-clamp same-target records, with real `ssh rvv` regression/no-win
 evidence. Gate 4 selected-dispatch/performance policy consumption remains open.
 The next continuation point is Gate 4 unless human steering adds another Gate 3
 representative.
+
+## 2026-06-10 - Stage2 RVV Gearbox Gate 4 dequant-clamp policy consumption
+
+### Summary
+
+Continued the active production-kernel Gearbox/resource-aware selected-body
+realization macro task at Gate 4. This sub-slice connects the existing
+packed-i4 dequant-clamp same-target measurement record to the production C++
+selected-dispatch/performance policy boundary, with correctness fallback and
+fail-closed provenance.
+
+### Main Changes
+
+- Made `RVVLowPrecisionPerformancePolicy.cpp` choose accepted Gate 4
+  measurement evidence id, best-speedup range, summary count, measurement count,
+  and correctness count from the selected packed-i4 provider resource candidate.
+- Preserved the existing dequant packed-i4 Gate 4 helper behavior while adding
+  the current dequant-clamp accepted record:
+  `0.693878..0.964286`, 24 summaries, 24 measurement records, and 24
+  correctness records.
+- Added C++ coverage that parses
+  `artifacts/gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json`
+  and feeds its `same_target_measurement_record` through the direct record
+  overload plus selected-dispatch boundary.
+- Added dequant-clamp stale schedule-decision and correctness-disabled negative
+  checks before selected-dispatch policy acceptance.
+- Updated the RVV plugin spec with the candidate-sensitive Gate 4 measurement
+  rule and the accepted dequant-clamp regression/no-win outcome.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `cmake --build build --target tianchenrv-target-artifact-export-test tcrv-opt
+  tcrv-translate`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- Initial lit invocation with an absolute `build/test` path failed because this
+  repository's `lit.site.cfg.py` expects to load `../../test/lit.cfg.py` from
+  the `build/test` working directory.
+- Re-run from `build/test` passed:
+  `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv .
+  --filter rvv-generated-bundle-same-target-measure-gate4-dry-run`.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`.
+
+### Spec Update Decision
+
+[SPEC UPDATED] The Gate 4 policy contract now records that no-win/regression
+measurement expectations are selected-candidate-sensitive and that the current
+dequant-clamp source-backed artifact record is an accepted correctness-fallback
+policy input, not performance-preferred dispatch authority.
+
+### Status
+
+[OPEN MACRO TASK] Gate 1, Gate 2, and the current requested Gate 3
+representative scope are complete. This Gate 4 sub-slice is complete for the
+dequant-clamp source-backed artifact record. The macro task remains open for
+Gate 4 final audit closure if human steering requires reconciling the absent
+current-tree `artifacts/gate3-packed-i4-schedule-decision-ssh` dequantize
+evidence input or adding target-artifact performance-selection mirror negatives.
