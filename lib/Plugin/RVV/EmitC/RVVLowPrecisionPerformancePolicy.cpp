@@ -433,6 +433,14 @@ getPackedI4SourceGeneratedFunctionForCandidate(llvm::StringRef candidateID) {
                    "kernel_pre_realized_body_rvv_product_reduce_dequantize");
 }
 
+llvm::StringRef getPackedI4OpKindForCandidate(llvm::StringRef candidateID) {
+  if (candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate)
+    return "widening_product_reduce_dequant_clamp_f32";
+  if (candidateID == kRVVLowPrecisionResourceDequantPackedI4Candidate)
+    return "widening_product_reduce_dequantize_f32";
+  return {};
+}
+
 llvm::Expected<std::string>
 requireEvidenceInputString(const llvm::json::Object &evidenceInput,
                            llvm::StringRef context, llvm::StringRef key) {
@@ -462,6 +470,394 @@ requireEvidenceInputBool(const llvm::json::Object &evidenceInput,
   return makeRVVLowPrecisionPerformancePolicyError(
       llvm::Twine(context) +
       " requires same-target measurement record boolean field '" + key + "'");
+}
+
+llvm::Expected<const llvm::json::Object *>
+requireEvidenceRootObject(const llvm::json::Object &evidenceRoot,
+                          llvm::StringRef context, llvm::StringRef key) {
+  if (const llvm::json::Object *value = evidenceRoot.getObject(key))
+    return value;
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) +
+      " requires same-target measurement evidence root object field '" + key +
+      "'");
+}
+
+llvm::Expected<std::string>
+requireEvidenceRootString(const llvm::json::Object &evidenceRoot,
+                          llvm::StringRef context, llvm::StringRef key) {
+  if (std::optional<llvm::StringRef> value = evidenceRoot.getString(key))
+    return value->str();
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) +
+      " requires same-target measurement evidence root string field '" + key +
+      "'");
+}
+
+llvm::Expected<bool>
+requireEvidenceRootBool(const llvm::json::Object &evidenceRoot,
+                        llvm::StringRef context, llvm::StringRef key) {
+  if (std::optional<bool> value = evidenceRoot.getBoolean(key))
+    return *value;
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) +
+      " requires same-target measurement evidence root boolean field '" + key +
+      "'");
+}
+
+llvm::Error requireEvidenceRootString(llvm::StringRef context,
+                                      llvm::StringRef label,
+                                      llvm::StringRef actual,
+                                      llvm::StringRef expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) + " requires same-target measurement evidence " +
+      label + " '" + expected + "' but found '" + actual + "'");
+}
+
+llvm::Error requireEvidenceRootInt(llvm::StringRef context,
+                                   llvm::StringRef label, std::int64_t actual,
+                                   std::int64_t expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) + " requires same-target measurement evidence " +
+      label + " " + llvm::Twine(expected) + " but found " +
+      llvm::Twine(actual));
+}
+
+llvm::Error requireEvidenceRootBool(llvm::StringRef context,
+                                    llvm::StringRef label, bool actual,
+                                    bool expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) + " requires same-target measurement evidence " +
+      label + " " + (expected ? "true" : "false") + " but found " +
+      (actual ? "true" : "false"));
+}
+
+llvm::Error requireEvidenceRootStringField(
+    const llvm::json::Object &object, llvm::StringRef context,
+    llvm::StringRef objectLabel, llvm::StringRef key,
+    llvm::StringRef expected) {
+  const std::string fieldLabel = (llvm::Twine(objectLabel) + "." + key).str();
+  if (std::optional<llvm::StringRef> actual = object.getString(key))
+    return requireEvidenceRootString(context, fieldLabel, *actual, expected);
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) +
+      " requires same-target measurement evidence root string field '" +
+      fieldLabel + "'");
+}
+
+llvm::Error requireEvidenceRootIntField(const llvm::json::Object &object,
+                                        llvm::StringRef context,
+                                        llvm::StringRef objectLabel,
+                                        llvm::StringRef key,
+                                        std::int64_t expected) {
+  const std::string fieldLabel = (llvm::Twine(objectLabel) + "." + key).str();
+  if (std::optional<std::int64_t> actual = object.getInteger(key))
+    return requireEvidenceRootInt(context, fieldLabel, *actual, expected);
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) +
+      " requires same-target measurement evidence root integer field '" +
+      fieldLabel + "'");
+}
+
+llvm::Error requireEvidenceRootBoolField(const llvm::json::Object &object,
+                                         llvm::StringRef context,
+                                         llvm::StringRef objectLabel,
+                                         llvm::StringRef key, bool expected) {
+  const std::string fieldLabel = (llvm::Twine(objectLabel) + "." + key).str();
+  if (std::optional<bool> actual = object.getBoolean(key))
+    return requireEvidenceRootBool(context, fieldLabel, *actual, expected);
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) +
+      " requires same-target measurement evidence root boolean field '" +
+      fieldLabel + "'");
+}
+
+llvm::Error verifyPackedI4SameTargetEvidenceRoot(
+    const llvm::json::Object &evidenceRoot,
+    const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    llvm::StringRef context) {
+  llvm::StringRef expectedOpKind =
+      getPackedI4OpKindForCandidate(record.providerResourceSelectedCandidate);
+  llvm::StringRef expectedBaseline =
+      getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
+          record.providerResourceSelectedCandidate);
+  if (expectedOpKind.empty() || expectedBaseline.empty())
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " requires a known packed-i4 provider candidate before consuming a "
+        "same-target measurement evidence root");
+
+  llvm::Expected<std::string> status =
+      requireEvidenceRootString(evidenceRoot, context, "status");
+  if (!status)
+    return status.takeError();
+  if (llvm::Error error =
+          requireEvidenceRootString(context, "root status", *status, "success"))
+    return error;
+  llvm::Expected<std::string> opKind =
+      requireEvidenceRootString(evidenceRoot, context, "op_kind");
+  if (!opKind)
+    return opKind.takeError();
+  if (llvm::Error error = requireEvidenceRootString(context, "root op_kind",
+                                                    *opKind, expectedOpKind))
+    return error;
+  llvm::Expected<std::string> baseline =
+      requireEvidenceRootString(evidenceRoot, context, "baseline_identity");
+  if (!baseline)
+    return baseline.takeError();
+  if (llvm::Error error = requireEvidenceRootString(
+          context, "root baseline_identity", *baseline, expectedBaseline))
+    return error;
+  llvm::Expected<std::string> sshTarget =
+      requireEvidenceRootString(evidenceRoot, context, "ssh_target");
+  if (!sshTarget)
+    return sshTarget.takeError();
+  if (llvm::Error error =
+          requireEvidenceRootString(context, "root ssh_target", *sshTarget,
+                                    "rvv"))
+    return error;
+  llvm::Expected<std::string> timingMethod =
+      requireEvidenceRootString(evidenceRoot, context, "timing_method");
+  if (!timingMethod)
+    return timingMethod.takeError();
+  if (llvm::Error error =
+          requireEvidenceRootString(context, "root timing_method",
+                                    *timingMethod,
+                                    "clock_gettime(CLOCK_MONOTONIC_RAW)"))
+    return error;
+  llvm::Expected<std::string> inputMode =
+      requireEvidenceRootString(evidenceRoot, context, "input_mode");
+  if (!inputMode)
+    return inputMode.takeError();
+  if (llvm::Error error = requireEvidenceRootString(
+          context, "root input_mode", *inputMode, "pre-realized-selected-body"))
+    return error;
+  llvm::Expected<bool> dryRun =
+      requireEvidenceRootBool(evidenceRoot, context, "dry_run");
+  if (!dryRun)
+    return dryRun.takeError();
+  if (llvm::Error error =
+          requireEvidenceRootBool(context, "root dry_run", *dryRun, false))
+    return error;
+  llvm::Expected<bool> sshEvidence =
+      requireEvidenceRootBool(evidenceRoot, context, "ssh_evidence");
+  if (!sshEvidence)
+    return sshEvidence.takeError();
+  if (llvm::Error error = requireEvidenceRootBool(context, "root ssh_evidence",
+                                                  *sshEvidence, true))
+    return error;
+  llvm::Expected<bool> packedMetadataSelected =
+      requireEvidenceRootBool(evidenceRoot, context,
+                              "packed_i4_resource_metadata_selected");
+  if (!packedMetadataSelected)
+    return packedMetadataSelected.takeError();
+  if (llvm::Error error = requireEvidenceRootBool(
+          context, "root packed_i4_resource_metadata_selected",
+          *packedMetadataSelected, true))
+    return error;
+
+  llvm::Expected<const llvm::json::Object *> resultClassification =
+      requireEvidenceRootObject(evidenceRoot, context, "result_classification");
+  if (!resultClassification)
+    return resultClassification.takeError();
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **resultClassification, context, "result_classification",
+          "classification", record.measurementClassification))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **resultClassification, context, "result_classification",
+          "outcome_family", record.measurementOutcomeFamily))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **resultClassification, context, "result_classification",
+          "best_speedup_range", record.measurementBestSpeedupRange))
+    return error;
+  if (llvm::Error error = requireEvidenceRootIntField(
+          **resultClassification, context, "result_classification",
+          "summary_record_count", record.measurementSummaryRecordCount))
+    return error;
+  if (llvm::Error error = requireEvidenceRootIntField(
+          **resultClassification, context, "result_classification",
+          "measurement_record_count", record.measurementRecordCount))
+    return error;
+  if (llvm::Error error = requireEvidenceRootIntField(
+          **resultClassification, context, "result_classification",
+          "correctness_record_count", record.correctnessRecordCount))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **resultClassification, context, "result_classification",
+          "timing_method", *timingMethod))
+    return error;
+  if (llvm::Error error = requireEvidenceRootBoolField(
+          **resultClassification, context, "result_classification",
+          "correctness_before_timing", true))
+    return error;
+
+  llvm::Expected<const llvm::json::Object *> measurementHarness =
+      requireEvidenceRootObject(evidenceRoot, context, "measurement_harness");
+  if (!measurementHarness)
+    return measurementHarness.takeError();
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
+          "baseline_identity", expectedBaseline))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
+          "generated_function", record.sourceGeneratedFunction))
+    return error;
+  if (llvm::Error error = requireEvidenceRootBoolField(
+          **measurementHarness, context, "measurement_harness",
+          "correctness_before_timing", true))
+    return error;
+  if (llvm::Error error = requireEvidenceRootBoolField(
+          **measurementHarness, context, "measurement_harness",
+          "packed_i4_reference_oracle", true))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
+          "provider_schedule_decision_contract",
+          record.providerScheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
+          "provider_schedule_decision", record.providerScheduleDecision))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
+          "provider_schedule_decision_reason",
+          record.providerScheduleDecisionReason))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
+          "provider_realization_admission_schedule_decision_contract",
+          record.providerRealizationAdmissionScheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
+          "provider_realization_admission_schedule_decision",
+          record.providerRealizationAdmissionScheduleDecision))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
+          "provider_realization_admission_schedule_decision_reason",
+          record.providerRealizationAdmissionScheduleDecisionReason))
+    return error;
+
+  llvm::Expected<const llvm::json::Object *> scheduleEvidence =
+      requireEvidenceRootObject(evidenceRoot, context,
+                                "measurement_schedule_decision_evidence");
+  if (!scheduleEvidence)
+    return scheduleEvidence.takeError();
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_schedule_decision_contract",
+          record.providerScheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_schedule_decision", record.providerScheduleDecision))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_schedule_decision_reason",
+          record.providerScheduleDecisionReason))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_realization_admission_schedule_decision_contract",
+          record.providerRealizationAdmissionScheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_realization_admission_schedule_decision",
+          record.providerRealizationAdmissionScheduleDecision))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_realization_admission_schedule_decision_reason",
+          record.providerRealizationAdmissionScheduleDecisionReason))
+    return error;
+
+  llvm::Expected<const llvm::json::Object *> packedOracle =
+      requireEvidenceRootObject(evidenceRoot, context,
+                                "packed_i4_reference_oracle");
+  if (!packedOracle)
+    return packedOracle.takeError();
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **packedOracle, context, "packed_i4_reference_oracle",
+          "baseline_identity", expectedBaseline))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **packedOracle, context, "packed_i4_reference_oracle",
+          "operand_form", record.providerResourceOperandForm))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **packedOracle, context, "packed_i4_reference_oracle",
+          "packing_layout", record.providerResourcePackingLayout))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **packedOracle, context, "packed_i4_reference_oracle",
+          "unpack_intent", record.providerResourceUnpackIntent))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **packedOracle, context, "packed_i4_reference_oracle",
+          "provider_schedule_decision_contract",
+          record.providerScheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **packedOracle, context, "packed_i4_reference_oracle",
+          "provider_schedule_decision", record.providerScheduleDecision))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **packedOracle, context, "packed_i4_reference_oracle",
+          "provider_schedule_decision_reason",
+          record.providerScheduleDecisionReason))
+    return error;
+
+  llvm::Expected<const llvm::json::Object *> maturityInput =
+      requireEvidenceRootObject(evidenceRoot, context,
+                                "performance_maturity_contract_evidence_input");
+  if (!maturityInput)
+    return maturityInput.takeError();
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **maturityInput, context,
+          "performance_maturity_contract_evidence_input",
+          "measurement_evidence_id", record.measurementEvidenceID))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **maturityInput, context,
+          "performance_maturity_contract_evidence_input",
+          "contract_alignment", "matches-provider-maturity-outcome"))
+    return error;
+
+  llvm::Expected<const llvm::json::Object *> providerTieBack =
+      requireEvidenceRootObject(evidenceRoot, context, "provider_feedback_tie_back");
+  if (!providerTieBack)
+    return providerTieBack.takeError();
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **providerTieBack, context, "provider_feedback_tie_back",
+          "baseline_identity", expectedBaseline))
+    return error;
+  if (llvm::Error error = requireEvidenceRootBoolField(
+          **providerTieBack, context, "provider_feedback_tie_back",
+          "packed_i4_resource_metadata_selected", true))
+    return error;
+  if (llvm::Error error = requireEvidenceRootBoolField(
+          **providerTieBack, context, "provider_feedback_tie_back",
+          "performance_win_claim_allowed", false))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **providerTieBack, context, "provider_feedback_tie_back",
+          "result_alignment", "matches-provider-maturity-outcome"))
+    return error;
+
+  return llvm::Error::success();
 }
 
 llvm::Error requireSameTargetPolicyInputTieBack(llvm::StringRef context,
@@ -2945,6 +3341,26 @@ buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
   return record;
 }
 
+llvm::Expected<RVVLowPrecisionSameTargetMeasurementRecord>
+buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceRoot(
+    const llvm::json::Object &evidenceRoot, llvm::StringRef context) {
+  llvm::Expected<const llvm::json::Object *> recordObject =
+      requireEvidenceRootObject(evidenceRoot, context,
+                                "same_target_measurement_record");
+  if (!recordObject)
+    return recordObject.takeError();
+
+  llvm::Expected<RVVLowPrecisionSameTargetMeasurementRecord> record =
+      buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
+          **recordObject, context);
+  if (!record)
+    return record.takeError();
+  if (llvm::Error error =
+          verifyPackedI4SameTargetEvidenceRoot(evidenceRoot, *record, context))
+    return std::move(error);
+  return record;
+}
+
 RVVLowPrecisionSameTargetMeasurementPolicyInput
 buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
     const RVVLowPrecisionContractionResourceSelection &selection,
@@ -3095,6 +3511,19 @@ buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
   llvm::Expected<RVVLowPrecisionSameTargetMeasurementRecord> record =
       buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
           evidenceInput, context);
+  if (!record)
+    return record.takeError();
+  return buildRVVLowPrecisionSameTargetMeasurementPolicyInput(selection, *record,
+                                                             context);
+}
+
+llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput>
+buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceRoot(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const llvm::json::Object &evidenceRoot, llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionSameTargetMeasurementRecord> record =
+      buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceRoot(
+          evidenceRoot, context);
   if (!record)
     return record.takeError();
   return buildRVVLowPrecisionSameTargetMeasurementPolicyInput(selection, *record,
@@ -3782,6 +4211,21 @@ evaluateRVVLowPrecisionPerformancePolicy(
   return decision;
 }
 
+llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
+evaluateRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const llvm::json::Object &evidenceRoot,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput> input =
+      buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceRoot(
+          selection, evidenceRoot, context);
+  if (!input)
+    return input.takeError();
+  return evaluateRVVLowPrecisionPerformancePolicy(selection, *input,
+                                                 dispatchBoundary, context);
+}
+
 RVVLowPrecisionPerformancePolicyDecision
 resolveRVVLowPrecisionDispatchPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
@@ -4170,6 +4614,40 @@ llvm::Error verifyRVVLowPrecisionPerformancePolicy(
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
         " selected-dispatch same-target measurement record must deny "
+       "performance selection and preserve the conservative correctness "
+       "fallback path");
+  return llvm::Error::success();
+}
+
+llvm::Error verifyRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const llvm::json::Object &evidenceRoot,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
+      evaluateRVVLowPrecisionPerformancePolicy(selection, evidenceRoot,
+                                               dispatchBoundary, context);
+  if (!decision)
+    return decision.takeError();
+  if (!decision->routeSupportAllowed)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " must preserve executable route support for the accepted selected-"
+        "dispatch same-target measurement evidence root");
+  if (!decision->correctnessExecutionAllowed)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " must preserve correctness execution for the accepted selected-"
+        "dispatch same-target measurement evidence root");
+  if (decision->performancePreferredPathSelected)
+    return llvm::Error::success();
+  if (decision->performanceSelectionAllowed ||
+      decision->performanceWinClaimAllowed ||
+      !decision->correctnessFallbackPathSelected ||
+      decision->dispatchPolicyPath != kPackedI4CorrectnessFallbackPolicyPath)
+    return makeRVVLowPrecisionPerformancePolicyError(
+        llvm::Twine(context) +
+        " selected-dispatch same-target measurement evidence root must deny "
         "performance selection and preserve the conservative correctness "
         "fallback path");
   return llvm::Error::success();

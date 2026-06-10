@@ -7387,6 +7387,22 @@ evaluateRVVLowPrecisionPerformancePolicy(
     const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
     llvm::StringRef context);
 
+llvm::Expected<RVVLowPrecisionSameTargetMeasurementRecord>
+buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceRoot(
+    const llvm::json::Object &evidenceRoot, llvm::StringRef context);
+
+llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput>
+buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceRoot(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const llvm::json::Object &evidenceRoot, llvm::StringRef context);
+
+llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
+evaluateRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const llvm::json::Object &evidenceRoot,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context);
+
 RVVLowPrecisionPerformancePolicyDecision
 resolveRVVLowPrecisionDispatchPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
@@ -7512,6 +7528,22 @@ performance-preferred
   edit provider maturity fields or directly authorize dispatch.
 - Common EmitC may carry provider-built route payloads only; it must not choose
   `dispatchPolicyPath` or infer packed-i4 performance preference.
+- When the policy surface consumes a complete same-target evidence JSON object,
+  the evidence-root overload must first validate the root object, not only the
+  nested `same_target_measurement_record`. The root must carry `status =
+  success`, `ssh_evidence = true`, `ssh_target = rvv`, `dry_run = false`,
+  `timing_method = clock_gettime(CLOCK_MONOTONIC_RAW)`, the expected packed-i4
+  `op_kind`, the candidate-specific packed scalar baseline identity, validated
+  packed-i4 resource metadata selection, `result_classification` values that
+  exactly match the nested record, and measurement harness/schedule evidence
+  fields that exactly match the provider-owned schedule and realization
+  admission schedule mirrors.
+- The evidence-root overload is a policy ingestion boundary only. It verifies
+  that source-backed evidence, parsed measurement record, packed oracle
+  selection, schedule-decision mirrors, and provider feedback tie-backs agree
+  before dispatch-policy evaluation. It must not let the JSON root select a
+  route, edit provider maturity fields, or promote `performance-preferred`
+  without the provider-owned measured-win contract.
 
 ### 4. Validation & Error Matrix
 
@@ -7521,6 +7553,11 @@ performance-preferred
   `ssh rvv` evidence, stale target profile, stale provider tie-back, or stale
   primitive/remediation/schedule-decision fact -> strict policy evaluation
   fails; resolver returns correctness fallback if the route remains legal.
+- A complete evidence root has a stale root-level `result_classification`,
+  `measurement_harness`, packed oracle, schedule-decision evidence, maturity
+  evidence input, or provider feedback tie-back that disagrees with the nested
+  record/provider schedule facts -> strict policy evaluation fails before
+  selected dispatch can consume the record.
 - A measurement record belongs to the dequant packed-i4 sibling while the
   selected provider resource candidate is dequant-clamp packed-i4, or the
   reverse -> strict policy evaluation fails as stale sibling-route measurement;
@@ -7565,6 +7602,10 @@ performance-preferred
   evidence JSON object through that same selected-dispatch record overload; a
   helper-built representative record alone is not enough to prove the
   source-backed record ingestion boundary.
+- Gate 4 root-ingestion coverage must feed both current source-backed dequant
+  and dequant-clamp same-target evidence JSON roots through the evidence-root
+  overload and assert correctness fallback, performance-preference denial, and
+  stale root-level result/schedule rejection.
 - Candidate-sensitive Gate 4 coverage must feed the current dequant-clamp
   source-backed `same_target_measurement_record` through the record overload
   and assert correctness fallback, performance-preference denial, stale

@@ -11053,6 +11053,128 @@ module {
           "resource, primitive, measurement, and selected-dispatch facts"))
     return result;
 
+  constexpr llvm::StringLiteral kDequantEvidencePath(
+      "artifacts/gate4-packed-i4-low-product-before-high-unpack-dequant-ssh/"
+      "widening_product_reduce_dequantize_f32/"
+      "same_target_measurement_evidence.json");
+  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> dequantEvidenceBuffer =
+      llvm::MemoryBuffer::getFile(kDequantEvidencePath);
+  if (!dequantEvidenceBuffer) {
+    std::string fallbackPath =
+        (llvm::Twine("../") + kDequantEvidencePath).str();
+    dequantEvidenceBuffer = llvm::MemoryBuffer::getFile(fallbackPath);
+  }
+  if (!dequantEvidenceBuffer)
+    return fail(llvm::Twine("failed to read Gate 4 dequant evidence JSON for "
+                            "root policy audit: ") +
+                dequantEvidenceBuffer.getError().message());
+  llvm::Expected<llvm::json::Value> dequantEvidence =
+      llvm::json::parse((*dequantEvidenceBuffer)->getBuffer());
+  if (!dequantEvidence)
+    return fail("failed to parse Gate 4 dequant evidence JSON: " +
+                llvm::toString(dequantEvidence.takeError()));
+  const llvm::json::Object *dequantEvidenceRoot =
+      dequantEvidence->getAsObject();
+  if (!dequantEvidenceRoot)
+    return fail("Gate 4 dequant evidence JSON root is not an object");
+  auto parsedPackedI4DequantRootRecord =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceRoot(
+              *dequantEvidenceRoot,
+              "selected-dispatch packed-i4 Gate 4 dequant evidence-root "
+              "record parse");
+  if (!parsedPackedI4DequantRootRecord)
+    return fail("packed-i4 Gate 4 dequant evidence-root record parse: " +
+                llvm::toString(parsedPackedI4DequantRootRecord.takeError()));
+  if (int result = expect(
+          parsedPackedI4DequantRootRecord->measurementEvidenceID ==
+                  acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
+              parsedPackedI4DequantRootRecord->measurementBestSpeedupRange ==
+                  "0.688202..0.705410" &&
+              parsedPackedI4DequantRootRecord->measurementSummaryRecordCount ==
+                  12 &&
+              parsedPackedI4DequantRootRecord->measurementRecordCount == 60 &&
+              parsedPackedI4DequantRootRecord->correctnessRecordCount == 12 &&
+              parsedPackedI4DequantRootRecord->providerResourceSelectedCandidate ==
+                  packedI4ResourceSelection.selectedCandidateID &&
+              parsedPackedI4DequantRootRecord->sourceGeneratedFunction ==
+                  acceptedPackedI4Gate4MeasurementRecord
+                      .sourceGeneratedFunction &&
+              parsedPackedI4DequantRootRecord->providerScheduleDecision ==
+                  packedI4ResourceSelection.scheduleDecision &&
+              parsedPackedI4DequantRootRecord
+                      ->providerRealizationAdmissionScheduleDecision ==
+                  packedI4ResourceSelection
+                      .realizationAdmissionScheduleDecision,
+          "packed-i4 dequant Gate 4 evidence root preserves source-backed "
+          "record identity, schedule, counts, and admission tie-backs"))
+    return result;
+  auto parsedPackedI4DequantRootPolicyInput =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceRoot(
+              packedI4ResourceSelection, *dequantEvidenceRoot,
+              "selected-dispatch packed-i4 Gate 4 dequant evidence-root "
+              "policy input");
+  if (!parsedPackedI4DequantRootPolicyInput)
+    return fail("packed-i4 Gate 4 dequant evidence-root policy input: " +
+                llvm::toString(
+                    parsedPackedI4DequantRootPolicyInput.takeError()));
+  if (int result = expect(
+          parsedPackedI4DequantRootPolicyInput->measurementEvidenceID ==
+                  acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
+              parsedPackedI4DequantRootPolicyInput->providerResourceSelectedCandidate ==
+                  packedI4ResourceSelection.selectedCandidateID &&
+              parsedPackedI4DequantRootPolicyInput->providerScheduleDecision ==
+                  packedI4ResourceSelection.scheduleDecision &&
+              parsedPackedI4DequantRootPolicyInput->sourceSelectedInput ==
+                  acceptedPackedI4Gate4MeasurementRecord.sourceSelectedInput &&
+              parsedPackedI4DequantRootPolicyInput
+                      ->generatedArtifactObjectSHA256 ==
+                  "db7672602c0dfd9ad6fac09f9e6794fc8246723bba8f256290444fa68f2e96d5",
+          "packed-i4 dequant Gate 4 evidence root feeds policy input with "
+          "source artifact identity and provider schedule facts"))
+    return result;
+  auto parsedPackedI4DequantRootPolicy =
+      tianchenrv::plugin::rvv::evaluateRVVLowPrecisionPerformancePolicy(
+          packedI4ResourceSelection, *dequantEvidenceRoot,
+          packedI4SelectedDispatchBoundary,
+          "selected-dispatch packed-i4 Gate 4 dequant evidence-root policy "
+          "audit");
+  if (!parsedPackedI4DequantRootPolicy)
+    return fail("packed-i4 Gate 4 dequant evidence-root policy audit: " +
+                llvm::toString(parsedPackedI4DequantRootPolicy.takeError()));
+  if (int result = expect(
+          parsedPackedI4DequantRootPolicy->routeSupportAllowed &&
+              parsedPackedI4DequantRootPolicy->correctnessExecutionAllowed &&
+              !parsedPackedI4DequantRootPolicy->performanceSelectionAllowed &&
+              !parsedPackedI4DequantRootPolicy->performanceWinClaimAllowed &&
+              parsedPackedI4DequantRootPolicy
+                  ->correctnessFallbackPathSelected &&
+              parsedPackedI4DequantRootPolicy->dispatchPolicyPath ==
+                  "correctness-fallback" &&
+              parsedPackedI4DequantRootPolicy->handoff
+                  .acceptedForDispatchPolicy,
+          "packed-i4 dequant Gate 4 policy consumes the full source-backed "
+          "evidence root and preserves correctness fallback"))
+    return result;
+  llvm::json::Object staleDequantEvidenceRoot = *dequantEvidenceRoot;
+  llvm::json::Object *staleDequantResult =
+      staleDequantEvidenceRoot["result_classification"].getAsObject();
+  if (!staleDequantResult)
+    return fail("Gate 4 dequant stale evidence root lacks result_classification");
+  (*staleDequantResult)["best_speedup_range"] =
+      "metadata-only-speedup-range";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection, staleDequantEvidenceRoot,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 4 dequant evidence-root "
+              "rejects stale root speedup range"),
+          {"same-target measurement evidence",
+           "result_classification.best_speedup_range",
+           "metadata-only-speedup-range"}))
+    return result;
+
   auto packedI4RealizationAdmission =
       tianchenrv::plugin::rvv::admitRVVLowPrecisionSelectedBodyRealization(
           packedI4ResourceSelection, &*packedI4PressureProfile,
@@ -11576,19 +11698,14 @@ module {
       dequantClampEvidence->getAsObject();
   if (!dequantClampEvidenceRoot)
     return fail("Gate 4 dequant-clamp evidence JSON root is not an object");
-  const llvm::json::Object *dequantClampMeasurementRecordObject =
-      dequantClampEvidenceRoot->getObject("same_target_measurement_record");
-  if (!dequantClampMeasurementRecordObject)
-    return fail("Gate 4 dequant-clamp evidence JSON lacks "
-                "same_target_measurement_record");
   auto parsedPackedI4DequantClampRecord =
       tianchenrv::plugin::rvv::
-          buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
-              *dequantClampMeasurementRecordObject,
+          buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceRoot(
+              *dequantClampEvidenceRoot,
               "selected-dispatch packed-i4 Gate 4 dequant-clamp artifact "
-              "record parse");
+              "evidence-root record parse");
   if (!parsedPackedI4DequantClampRecord)
-    return fail("packed-i4 Gate 4 dequant-clamp artifact record parse: " +
+    return fail("packed-i4 Gate 4 dequant-clamp evidence-root record parse: " +
                 llvm::toString(parsedPackedI4DequantClampRecord.takeError()));
   if (int result = expect(
           parsedPackedI4DequantClampRecord->measurementEvidenceID ==
@@ -11635,13 +11752,12 @@ module {
   auto parsedPackedI4DequantClampPolicy =
       tianchenrv::plugin::rvv::
           evaluateRVVLowPrecisionPerformancePolicy(
-              dequantClampPackedI4ResourceSelection,
-              *parsedPackedI4DequantClampRecord,
+              dequantClampPackedI4ResourceSelection, *dequantClampEvidenceRoot,
               dequantClampSelectedDispatchBoundary,
-              "selected-dispatch packed-i4 dequant-clamp Gate 4 artifact "
-              "record policy audit");
+              "selected-dispatch packed-i4 dequant-clamp Gate 4 evidence-root "
+              "policy audit");
   if (!parsedPackedI4DequantClampPolicy)
-    return fail("packed-i4 dequant-clamp Gate 4 policy audit: " +
+    return fail("packed-i4 dequant-clamp Gate 4 evidence-root policy audit: " +
                 llvm::toString(
                     parsedPackedI4DequantClampPolicy.takeError()));
   if (int result = expect(
@@ -11796,6 +11912,27 @@ module {
               "rejects correctness-disabled evidence"),
           {"policy handoff diagnosis", "stale-measurement",
            "correctness execution allowance", "true", "false"}))
+    return result;
+
+  llvm::json::Object staleDequantClampEvidenceRoot =
+      *dequantClampEvidenceRoot;
+  llvm::json::Object *staleDequantClampHarness =
+      staleDequantClampEvidenceRoot["measurement_harness"].getAsObject();
+  if (!staleDequantClampHarness)
+    return fail("Gate 4 dequant-clamp stale evidence root lacks "
+                "measurement_harness");
+  (*staleDequantClampHarness)["provider_schedule_decision"] =
+      "metadata-only-packed-i4-schedule-decision";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              dequantClampPackedI4ResourceSelection,
+              staleDequantClampEvidenceRoot,
+              dequantClampSelectedDispatchBoundary,
+              "selected-dispatch packed-i4 dequant-clamp Gate 4 "
+              "evidence-root rejects stale harness schedule"),
+          {"same-target measurement evidence",
+           "measurement_harness.provider_schedule_decision",
+           "metadata-only-packed-i4-schedule-decision"}))
     return result;
 
   tianchenrv::plugin::rvv::RVVLowPrecisionPerformancePolicyDecision

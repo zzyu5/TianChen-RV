@@ -453,6 +453,10 @@ llvm::Expected<RVVLowPrecisionSameTargetMeasurementRecord>
 buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
     const llvm::json::Object &evidenceInput, llvm::StringRef context);
 
+llvm::Expected<RVVLowPrecisionSameTargetMeasurementRecord>
+buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceRoot(
+    const llvm::json::Object &evidenceRoot, llvm::StringRef context);
+
 llvm::Expected<RVVLowPrecisionPerformanceMeasurementOutcome>
 buildRVVLowPrecisionPerformanceMeasurementOutcomeFromSameTargetRecord(
     const RVVLowPrecisionContractionResourceSelection &selection,
@@ -474,6 +478,11 @@ llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput>
 buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const llvm::json::Object &evidenceInput, llvm::StringRef context);
+
+llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput>
+buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceRoot(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const llvm::json::Object &evidenceRoot, llvm::StringRef context);
 
 llvm::Expected<RVVLowPrecisionPerformanceMeasurementOutcome>
 consumeRVVLowPrecisionSameTargetMeasurementPolicyInput(
@@ -597,6 +606,13 @@ evaluateRVVLowPrecisionPerformancePolicy(
     const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
     llvm::StringRef context);
 
+llvm::Expected<RVVLowPrecisionPerformancePolicyDecision>
+evaluateRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const llvm::json::Object &evidenceRoot,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context);
+
 RVVLowPrecisionPerformancePolicyDecision
 resolveRVVLowPrecisionDispatchPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
@@ -652,6 +668,12 @@ llvm::Error verifyRVVLowPrecisionPerformancePolicy(
 llvm::Error verifyRVVLowPrecisionPerformancePolicy(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionSameTargetMeasurementRecord &record,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context);
+
+llvm::Error verifyRVVLowPrecisionPerformancePolicy(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    const llvm::json::Object &evidenceRoot,
     const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
     llvm::StringRef context);
 

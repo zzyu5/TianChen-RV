@@ -366,6 +366,66 @@ Completed Gate 4 schedule/resource repair slice:
   different provider-owned packed-i4 schedule/resource bottleneck or record a
   precise blocker before any further performance policy change.
 
+Current Gate 4 evidence-root policy-ingestion slice:
+
+- This round refines the production policy denial boundary after the fresh
+  low-product-before-high-unpack measurements remained regression/no-win. The
+  bounded improvement is not another generated-bundle closeout and not another
+  schedule rewrite; it makes the RVV low-precision performance policy consume
+  the complete same-target evidence JSON root before selected-dispatch
+  acceptance, instead of trusting only a helper-built record or an isolated
+  nested `same_target_measurement_record`.
+- The concrete blocker carried forward is still the fresh same-target
+  regression/no-win evidence. The policy seam now verifies that the root
+  `status`, `ssh` target/provenance, timing method, root-level
+  `result_classification`, measurement harness schedule mirrors, packed-i4
+  oracle selection, maturity evidence input, provider feedback tie-back, and
+  nested source-backed record all agree with the provider-owned packed-i4
+  resource/schedule facts before correctness fallback is accepted.
+- No fresh `ssh rvv` measurement is required in this slice because generated
+  RVV statement order, target artifact payload, and runtime behavior are
+  unchanged. The existing source-backed dequant and dequant-clamp measurements
+  remain the current evidence inputs and continue to deny performance
+  preference.
+
+Acceptance:
+
+- [x] Production policy exposes evidence-root ingestion APIs for parsing the
+  complete same-target evidence JSON root into a measurement record and policy
+  input.
+- [x] Evidence-root ingestion rejects stale root-level result/schedule facts
+  before selected dispatch can consume a no-win record.
+- [x] Focused C++ coverage feeds both current source-backed dequant and
+  dequant-clamp Gate 4 JSON roots through the evidence-root policy path and
+  proves correctness fallback plus performance-preference denial.
+- [x] Existing helper-built and record-level policy paths remain covered and
+  continue to reject stale source-backed, primitive, schedule, artifact, and
+  correctness facts.
+- [x] Macro task remains active because Gate 4 still needs a later
+  provider-owned schedule/resource repair plus fresh same-target timing before
+  any performance-preferred dispatch claim.
+
+Completed Gate 4 evidence-root policy-ingestion slice:
+
+- Added `buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceRoot`,
+  `buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceRoot`, and
+  selected-dispatch policy/verify overloads that consume complete evidence
+  roots while preserving provider-owned route and maturity authority.
+- The root verifier now requires `status = success`, `ssh_evidence = true`,
+  `ssh_target = rvv`, `dry_run = false`, the monotonic raw timing method,
+  candidate-specific op kind/baseline identity, validated packed-i4 metadata
+  selection, root `result_classification` agreement, measurement harness
+  schedule agreement, packed oracle agreement, maturity input agreement, and
+  provider feedback tie-back agreement.
+- Updated plugin coverage so the current dequant JSON root and current
+  dequant-clamp JSON root both drive selected-dispatch policy evaluation. Stale
+  root-level speedup and harness schedule facts now fail before the no-win
+  record can authorize a selected-dispatch decision.
+- The consumed policy decision remains `correctness-fallback` with
+  `performanceSelectionAllowed = false`,
+  `performanceWinClaimAllowed = false`, and
+  `same-target-measurement-no-win-or-regression`.
+
 ## Non-Goals
 
 - No generated-bundle-only or `ssh rvv`-only closeout unless it validates
@@ -505,6 +565,33 @@ Current Gate 4 schedule/resource repair verification:
   positive route, descriptor-driven compute, or Common EmitC RVV semantic
   inference.
 
+Current Gate 4 evidence-root policy-ingestion verification:
+
+- `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test` passed after adding the evidence-root
+  policy ingestion API and focused coverage. The target artifact test target
+  still emits its existing switch-coverage warnings.
+- `build/bin/tianchenrv-rvv-extension-plugin-test` passed, including dequant
+  and dequant-clamp source-backed JSON root policy ingestion, root-level stale
+  speedup rejection, and root-level stale harness schedule rejection.
+- `build/bin/tianchenrv-target-artifact-export-test` passed.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+  passed.
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter
+  'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-
+  packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-
+  dequant-clamp-f32-packed-i4|rvv-generated-bundle-same-target-measure-gate4-
+  dry-run|rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-
+  dequantize-f32-packed-i4-dry-run|rvv-generated-bundle-abi-e2e-pre-realized-
+  widening-product-reduce-dequant-clamp-f32-packed-i4-dry-run'` passed from
+  `build/test` with 5 focused tests.
+- No fresh `ssh rvv` timing was rerun in this slice because the generated RVV
+  statement schedule, target artifact payload, and runtime behavior did not
+  change. The existing fresh dequant `0.688202..0.705410` and dequant-clamp
+  `0.683721..0.705212` regression/no-win records remain the consumed evidence
+  inputs and still deny performance preference.
+
 ## Spec Update Decision
 
 - Updated `.trellis/spec/extension-plugins/rvv-plugin.md` to record the
@@ -521,6 +608,11 @@ Current Gate 4 schedule/resource repair verification:
   low-product-before-high-unpack schedule/resource repair contract, the
   provider-mirror vs fresh-measurement range distinction, current same-target
   evidence IDs, and the strict no-win/regression dispatch policy ranges.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the complete
+  same-target evidence-root policy ingestion contract: root status/ssh/timing,
+  result classification, measurement harness schedule, packed oracle,
+  maturity-input, and provider-feedback tie-backs must agree with the nested
+  source-backed record before selected-dispatch policy evaluation.
 
 ## Continuation Point
 

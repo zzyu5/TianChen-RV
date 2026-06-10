@@ -1076,3 +1076,55 @@ dispatch claim. The current policy decision remains correctness fallback with
 low-product-before-high-unpack schedule/resource repair, the provider mirror
 versus fresh measurement distinction, and the current Gate 4 strict measurement
 ranges.
+
+## Session 584: Gate 4 same-target evidence-root policy ingestion
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active Gate 4 macro task with a production policy-ingestion
+refinement. The RVV low-precision performance policy now has evidence-root
+overloads that consume the complete source-backed same-target JSON root before
+selected-dispatch acceptance. The root verifier checks root status, ssh target,
+timing method, result classification, harness schedule mirrors, packed-i4
+oracle selection, maturity input, and provider feedback tie-back against the
+nested measurement record and provider-owned packed-i4 schedule facts.
+
+### Main Changes
+
+- Added evidence-root parsing/policy/evaluation/verify APIs in
+  `RVVLowPrecisionPerformancePolicy`.
+- Updated plugin coverage so both current Gate 4 dequant and dequant-clamp
+  JSON roots drive selected-dispatch policy evaluation.
+- Added stale root-level speedup and stale root-level harness schedule
+  rejection coverage.
+- Updated the RVV plugin spec and macro PRD with the evidence-root ingestion
+  contract.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py
+  --self-test`
+- [OK] Focused packed-i4 Gate 4 lit filter: 5 tests passed from `build/test`
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-3 remain complete. Gate 4 remains open. This slice
+does not change generated RVV schedule/runtime behavior, so no fresh `ssh rvv`
+timing was rerun; the existing dequant `0.688202..0.705410` and dequant-clamp
+`0.683721..0.705212` regression/no-win records remain the consumed evidence and
+continue to deny performance preference.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` now records complete
+same-target evidence-root policy ingestion and stale root-level
+result/schedule rejection as the current Gate 4 policy contract.
