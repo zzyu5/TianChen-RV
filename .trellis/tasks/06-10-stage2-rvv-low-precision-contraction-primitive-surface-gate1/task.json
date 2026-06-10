@@ -21,6 +21,6 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "Gates 1-3 are complete. Gate 3 added provider-owned signed i8 and unsigned u8 widening reduction/accumulation primitive facts for product-reduction chains, consumed by route-family planning, route description validation, route construction, statement planning, target metadata, and target artifact mirrors with fail-closed stale fact rejection. Macro remains active; next continuation is Gate 4 Gearbox/resource-aware selected-body realization plus measured same-target comparison."
+  "notes": "Gates 1-3 are complete. Gate 3 added provider-owned signed i8 and unsigned u8 widening reduction/accumulation primitive facts for product-reduction chains, consumed by route-family planning, route description validation, route construction, statement planning, target metadata, and target artifact mirrors with fail-closed stale fact rejection. Macro remains active; next continuation is Gate 4 Gearbox/resource-aware selected-body realization plus measured same-target comparison.",
   "meta": {}
 }
