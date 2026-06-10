@@ -1018,3 +1018,71 @@ active because Gate 3 generated artifact correctness plus same-target `ssh rvv`
 evidence and Gate 4 selected-dispatch/performance-policy consumption remain
 future milestones. The next continuation point is Gate 3 for the representative
 generated artifact correctness path.
+
+
+## Session 589: Stage2 RVV low-precision primitive-surface Gate 3
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Closed Gate 3 for the active macro task with generated artifact correctness
+and same-target `ssh rvv` evidence for the representative pre-realized
+`widening_product_reduce_dequant_clamp_f32` path. No production source gap was
+found; the existing Gate 1/Gate 2 consumers remained connected through
+selected-body realization, Gearbox/resource facts, provider route planning,
+target artifact export, generated bundle ABI consumption, and remote runtime
+oracle checks.
+
+### Main Evidence
+
+- Non-dry-run evidence:
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e_gate3/gate3-pre-realized-widening-product-reduce-dequant-clamp-f32-ssh/`.
+- Root evidence: `status=success`, `ssh_evidence=true`,
+  `input_mode=pre-realized-selected-body`, and
+  `pre_realized_selected_body=true`.
+- Remote target profile from compile stdout: `remote_arch=riscv64`,
+  `clang_path=/usr/bin/clang`, and `Ubuntu clang version 18.1.3`.
+- Remote runtime stdout ended with
+  `PASS op=widening_product_reduce_dequant_clamp_f32 counts=0,1,16,17,257 patterns=0,1 scales=-0.125,0.375 bound_pairs=-1.5:2.25,-8:-0.75 tolerance=1e-05`.
+- The per-case remote output covered below/inside/above clamp cases, mixed
+  signed positive/negative widening products, `source_preserved`,
+  `accumulator_preserved`, and `tail_preserved`.
+- Explicit selected-body dry-run also passed for
+  `widening_product_reduce_dequant_clamp_f32`, proving the explicit compound
+  selected-body entrance still materializes through the same provider-owned
+  route and target artifact boundary.
+
+### Checks
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`.
+- Pre-realized dequant-clamp generated-bundle dry-run with counts
+  `0,1,16,17,257`.
+- Explicit dequant-clamp generated-bundle dry-run with counts `0,1,16,17,257`.
+- Pre-realized dequant-clamp non-dry-run `ssh rvv` generated-bundle ABI run
+  with counts `0,1,16,17,257`.
+- Stale resource-memory negative chain: replacing
+  `unit-stride-widening-product-reduce-dequant-clamp-f32` with
+  `unit-stride-widening-product-reduce-dequantize-f32` still fails before
+  emission-plan route construction and matches `STALE-RESOURCE-MEMORY`.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] This slice applies the existing RVV plugin, EmitC route,
+variant-pipeline, and testing contracts. It does not introduce a new durable
+architecture rule; it supplies the named Gate 3 generated artifact and
+same-target correctness evidence for the macro campaign.
+
+### Status
+
+[OPEN MACRO TASK] Gate 3 is complete. The macro task remains active because
+Gate 4 is still open: selected-dispatch/performance policy must consume
+measurement and schedule facts without promoting measurement-only wins or
+claiming performance preference from executable correctness alone.

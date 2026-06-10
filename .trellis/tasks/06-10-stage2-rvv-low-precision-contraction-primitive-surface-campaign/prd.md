@@ -64,11 +64,103 @@ authority.
   consume those primitive facts for the campaign's bounded low-precision
   product-reduction representatives, with provider/statement-plan and target
   validation fail-closing stale or disconnected facts.
-- [ ] Gate 3: generated artifact correctness plus same-target `ssh rvv`
-  measurement for the changed production path when runtime/correctness or
-  performance behavior is claimed.
+- [x] Gate 3: generated artifact correctness plus same-target `ssh rvv`
+  correctness evidence for the representative Gate 1/Gate 2 low-precision
+  production path when runtime/correctness behavior is claimed.
 - [ ] Gate 4: selected-dispatch/performance policy consumes measurement and
   schedule facts without promoting measurement-only wins.
+
+## Completed Slice Checklist: 2026-06-10 Gate 3 Generated Artifact Correctness
+
+- [x] Keep this slice inside the active macro task and do not create a
+  neighboring generated-bundle or q8/q4-named task.
+- [x] Use the representative pre-realized
+  `widening_product_reduce_dequant_clamp_f32` path because it exercises the
+  Gate 1 primitive facts, Gate 2 selected-body realization, Gearbox/resource
+  facts, provider route planning, target artifact validation, generated
+  bundle, ABI/header/runtime boundary, oracle correctness, source preservation,
+  accumulator preservation, and tail preservation.
+- [x] Run the existing dry-run generated-bundle fixture checks for the same
+  representative path before claiming remote evidence.
+- [x] Run a non-dry-run generated-bundle ABI execution on the same named
+  `ssh rvv` target and record the raw remote correctness output and evidence
+  paths.
+- [x] Prove at least one focused stale fact still fails closed before route or
+  artifact acceptance for the same representative production surface.
+- [x] If the generated artifact or remote run exposes a disconnected primitive,
+  schedule, resource, ABI, runtime, or target artifact fact, fix the production
+  owner that is disconnected. If no gap is found, record the exact
+  no-source-change justification tied to the Gate 1 and Gate 2 consumers.
+- [x] Run focused RVV plugin/target checks, diff whitespace checks, Trellis
+  validation, and a bounded old-authority scan.
+- [x] Leave the macro task active because Gate 4 remains open after this slice.
+
+## Acceptance Criteria For Gate 3 Slice
+
+- [x] Generated bundle evidence starts from selected/pre-realized typed
+  `tcrv_rvv` body coverage and consumes the public selected-body realization
+  path before route construction.
+- [x] Evidence ties the generated object/header/prototype/runtime ABI order to
+  provider-owned primitive/resource/schedule facts and target artifact mirror
+  validation, not artifact names, q8/q4 labels, route ids, descriptors, or
+  Common EmitC semantic inference.
+- [x] The `ssh rvv` run prints PASS output for oracle correctness across
+  runtime counts, sign/scale/bound cases, source preservation, accumulator
+  preservation, and tail preservation.
+- [x] At least one stale primitive, schedule, resource, ABI, or target artifact
+  fact fails closed with a targeted diagnostic before a stale generated
+  artifact can be accepted.
+- [x] No performance-preferred or selected-dispatch policy claim is made; Gate 4
+  remains the future owner for measurement-policy consumption.
+
+## Completed Slice: 2026-06-10 Gate 3
+
+- Closed Gate 3 for the representative low-precision product-reduction
+  dequant-clamp path. The slice used
+  `test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32.mlir`
+  as the runtime evidence representative because it carries the Gate 1
+  primitive-surface contract and Gate 2 Gearbox/resource selected-body
+  realization facts through provider route planning and target artifact export.
+- Also ran the explicit selected-body dry-run for
+  `widening_product_reduce_dequant_clamp_f32` to confirm the explicit compound
+  body still materializes through the same provider-owned route and target
+  artifact boundary. Only the pre-realized representative was executed on
+  `ssh rvv` in this slice.
+- Non-dry-run evidence is under
+  `artifacts/tmp/rvv_generated_bundle_abi_e2e_gate3/gate3-pre-realized-widening-product-reduce-dequant-clamp-f32-ssh/`.
+  Root evidence reports `status = success`, `ssh_evidence = true`,
+  `input_mode = pre-realized-selected-body`, and
+  `pre_realized_selected_body = true`.
+- Remote target evidence reports `remote_arch = riscv64`,
+  `clang_path = /usr/bin/clang`, and `Ubuntu clang version 18.1.3`. The remote
+  harness compiled and ran through the generated object/header bundle rather
+  than an in-process compiler test.
+- Remote correctness output printed
+  `PASS op=widening_product_reduce_dequant_clamp_f32` for runtime counts
+  `0,1,16,17,257`, patterns `0,1`, scales `-0.125,0.375`, bound pairs
+  `-1.5:2.25,-8:-0.75`, and tolerance `1e-05`.
+- The same output covers below/inside/above clamp cases, mixed signed product
+  cases, source preservation, accumulator preservation, and tail preservation.
+- Generated artifact evidence records object/header agreement, selected input
+  hash, generated function
+  `tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp`,
+  runtime ABI order `lhs,rhs,acc,scale,lower_bound,upper_bound,out,n`, and the
+  provider-owned primitive/resource fields for selected candidate, memory
+  form, runtime AVL, widening product, widening reduction, dequant, clamp, and
+  target mirror validation.
+- A stale resource-memory negative check still fails closed when
+  `tcrv_rvv.low_precision_resource.memory_form` is changed from
+  `unit-stride-widening-product-reduce-dequant-clamp-f32` to
+  `unit-stride-widening-product-reduce-dequantize-f32` before emission-plan
+  construction.
+- No production source gap was found. Gate 1 and Gate 2 already established
+  the production consumers in selected-body realization, Gearbox/resource
+  scheduling, provider route planning, and target-boundary validation; Gate 3
+  showed those consumers remain connected in generated artifact export and
+  same-target `ssh rvv` execution.
+- No performance-preferred dispatch or performance-win claim is made in this
+  slice. Gate 4 remains open for selected-dispatch/performance policy
+  consumption of measurement and schedule facts.
 
 ## Completed Slice Checklist: Gate 2b Representative Resource Consumption
 
@@ -340,9 +432,11 @@ authority.
 
 ## Continuation Point
 
-Gate 2 is closed by source-backed audit. Keep this macro task active and
-continue with Gate 3: run representative generated artifact correctness for
-the Gate 2 production surface and collect same-target `ssh rvv` evidence only
-for runtime/correctness/performance claims actually made in that slice. Gate 4
-remains future work after Gate 3: selected-dispatch/performance policy must
-consume measurement and schedule facts without promoting measurement-only wins.
+Gate 3 is closed by generated artifact correctness and same-target `ssh rvv`
+evidence for the representative pre-realized
+`widening_product_reduce_dequant_clamp_f32` path. Keep this macro task active
+and continue with Gate 4: selected-dispatch/performance policy must consume
+measurement and schedule facts without promoting measurement-only wins,
+especially for low-precision resource candidates whose executable correctness
+is proven but whose performance preference still requires measured policy
+evidence.
