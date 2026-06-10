@@ -67,50 +67,48 @@ authority.
 - [x] Gate 2: generated artifact and measurement workflow emits source-backed
   same-target comparison records for the representative pressure path on
   `ssh rvv`.
-- [ ] Gate 3: selected-dispatch/performance policy consumes those records for
+- [x] Gate 3: selected-dispatch/performance policy consumes those records for
   correctness fallback versus measured-win preference with stale/no-win/
   regression rejection.
 - [ ] Gate 4: campaign closeout proves the full selected boundary ->
   plugin-owned realization/provider -> artifact/runtime measurement ->
   selected-dispatch policy path and archives only after all gates are complete.
 
-## Current Round Slice: Gate 2
+## Current Round Slice: Gate 3
 
-Implement Gate 2 only. The bounded slice should make the generated artifact and
-same-target measurement workflow emit source-backed pressure-profile records
-for the representative packed low-precision contraction path, such as packed-i4
-widening product-reduce dequant-clamp.
+Implement Gate 3 only. The bounded slice should make the selected-dispatch /
+performance policy seam consume the source-backed pressure-profile records
+emitted by Gate 2, with decisions derived from selected-boundary,
+provider-owned low-precision primitive/resource, generated artifact,
+same-target measurement, and dispatch-boundary facts.
 
-The record must connect the selected RVV boundary, provider-owned
-low-precision primitive/resource facts, generated artifact identity, runtime
-measurement provenance, measurement target, runtime-count provenance, and a
-non-authoritative production pressure label. q8/q4-style pressure labels may
-explain why this path matters, but labels, artifact names, route ids, ABI
-strings, raw stdout, benchmark names, or handwritten metadata must not become
-route, dtype, schedule, measurement, dispatch, or policy authority.
+The policy may use the packed-i4 widening product-reduce dequant/dequant-clamp
+records as representative pressure inputs. It must treat q8/q4-style labels,
+artifact paths, route ids, benchmark names, raw stdout, and metadata-only
+records as mirrors or invalid pressure facts, never as route, dtype, schedule,
+measurement, dispatch, or performance authority.
 
 Acceptance criteria:
 
-- [x] Production C++ or production workflow code constructs or validates a
-  source-backed pressure-profile record from provider-owned typed
-  low-precision primitive facts, Gearbox/resource facts, runtime ABI facts,
-  target facts, generated object/header identity, measurement target,
-  runtime-count provenance, and selected-boundary provenance.
-- [x] The generated artifact / same-target measurement workflow emits that
-  record into per-op and root evidence, and keeps the record consumable by the
-  production pressure-profile boundary.
-- [x] Positive focused coverage proves the record is built from selected
-  boundary + provider/resource/primitive + generated artifact + measurement
-  provenance, not labels, artifact names, route ids, ABI strings, or raw stdout.
-- [x] Negative focused coverage rejects label-only q8/q4 pressure, stale
-  selected-boundary provenance, stale artifact identity/provenance, missing
-  primitive/resource facts, wrong measurement target, stale runtime-count
-  provenance, and metadata-only pressure facts.
-- [x] Relevant focused checks pass, including C++ plugin/target tests when
-  touched, measurement script self-test when touched, lit/script tests when
-  touched, `git diff --check`, `git diff --cached --check`, and a bounded
-  old-authority scan over touched files or added diff lines.
-- [x] The task remains active after the Gate 2 slice unless all macro gates are
+- [x] Production C++ policy code consumes source-backed
+  `RVVLowPrecisionSameTargetMeasurementRecord` / pressure-profile records
+  through the selected-dispatch boundary before producing a dispatch /
+  performance decision.
+- [x] Positive focused coverage proves the current accepted no-win/regression
+  source-backed record selects `correctness-fallback`, preserves route support
+  and correctness execution, and denies performance preference / win claims.
+- [x] Positive focused coverage proves a measured-win record selects
+  `performance-preferred` only when provider maturity, eligibility, dispatch,
+  remediation, schedule, primitive/resource, measurement, and selected-dispatch
+  facts all agree.
+- [x] Negative focused coverage rejects or safely resolves stale/missing
+  provenance, label-only q8/q4 pressure, sibling-route measurements, stale
+  selected-dispatch facts, correctness-disabled records, stale schedule /
+  primitive / target facts, and measurement-only win promotion.
+- [x] Relevant focused checks pass, including C++ plugin tests, script/lit checks
+  only if touched, `git diff --check`, `git diff --cached --check`, and a
+  bounded old-authority scan over touched files or added diff lines.
+- [x] The task remains active after the Gate 3 slice unless Gate 4 is also
   genuinely complete.
 
 ## Completed Slice: Gate 1
@@ -155,6 +153,28 @@ Acceptance criteria:
 - Added focused positive and negative C++ coverage plus script self-test and
   FileCheck coverage for the new source-backed fields.
 
+## Completed Slice: Gate 3
+
+- Hardened the selected-dispatch safe resolver for source-backed
+  `RVVLowPrecisionSameTargetMeasurementRecord` inputs so it consumes the same
+  production pressure-profile boundary as the strict selected-dispatch policy
+  evaluator before returning an accepted decision.
+- If selected-dispatch pressure facts are marker-only or otherwise stale after
+  the record/resource/measurement handoff has been accepted, the resolver now
+  denies performance preference and win claims, preserves correctness fallback
+  for the legal route, and carries the precise pressure-profile diagnostic in
+  the fallback reason.
+- Added focused C++ coverage proving the selected-dispatch record resolver
+  consumes the source-backed pressure-profile boundary and falls back on a
+  metadata-only selected-dispatch marker instead of treating it as policy
+  authority.
+- Existing Gate 3/4 C++ coverage continues to prove current no-win/regression
+  records select `correctness-fallback`, measured-win records select
+  `performance-preferred` only after matching provider facts, parsed
+  dequant-clamp evidence is consumed through the record overload, and stale
+  target/runtime ABI/planning/vsetvl/primitive/schedule/correctness/win
+  promotion cases fail closed.
+
 ## Verification
 
 - [x] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
@@ -174,6 +194,17 @@ Acceptance criteria:
 - [x] Bounded current-diff scan for legacy RVV route-authority markers returned
   no new route-authority matches; remaining q8/q4/metadata-only occurrences are
   negative guards, pressure labels, spec text, or evidence mirrors.
+- [x] Gate 3: `cmake --build build --target
+  tianchenrv-rvv-extension-plugin-test`
+- [x] Gate 3: `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [x] Gate 3: `cmake --build build --target tcrv-opt tcrv-translate`
+- [x] Gate 3: `git diff --check`
+- [x] Gate 3: `git diff --cached --check`
+- [x] Gate 3: bounded added-diff scan for legacy RVV route-authority markers
+  returned no `RVVI32M1`, `rvv-i32m1`, `tcrv_rvv.i32_*`,
+  `!tcrv_rvv.i32m*`, `__riscv_*_i32m1`, source-front-door, or
+  descriptor-driven route-authority matches. The broader scan only found PRD
+  non-authority wording and the new metadata-only negative test marker.
 
 ## Spec Update Decision
 
@@ -183,13 +214,21 @@ source-backed record fields, validation matrix, bad cases, and required tests
 for generated artifact identity, selected-boundary provenance, measurement
 target/runtime-count provenance, and non-authoritative pressure labels.
 
+Gate 3 did not require a spec update. The RVV plugin spec already requires the
+selected-dispatch record resolver to prefer source-backed measurement records,
+consume the record/resource/measurement handoff through the pressure-profile
+boundary, preserve correctness fallback for stale evidence, and deny
+performance preference for marker-only or mismatched pressure facts. This slice
+implements that existing contract in production policy code and tests.
+
 ## Status
 
-Open macro task. Gates 1 and 2 are complete. Gates 3-4 remain open. The next
-continuation point is Gate 3: selected-dispatch/performance policy consumes the
-source-backed pressure-profile records for preference, denial, fallback, and
-stale-provenance rejection, without treating labels, artifact names, route ids,
-or handwritten metadata as authority.
+Open macro task. Gates 1, 2, and 3 are complete. Gate 4 remains open. The next
+continuation point is Gate 4: campaign closeout must prove the full selected
+boundary -> plugin-owned realization/provider -> artifact/runtime measurement
+-> selected-dispatch policy path, including a parsed generated evidence record
+through the selected-dispatch record overload, before the macro task can be
+finished or archived.
 
 ## Out of Scope
 

@@ -370,3 +370,69 @@ stale mirror diagnostics.
 ### Git Commits
 
 Final coherent commit is created after this journal entry.
+
+## Session 579: Stage2 RVV production-kernel capability Gate 3
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV production-kernel capability campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed Gate 3 only. Gate 2 already
+emitted source-backed pressure-profile records from selected-boundary,
+provider-owned resource/primitive, generated artifact, and same-target
+measurement facts. This round hardened the production selected-dispatch safe
+resolver so accepted source-backed measurement records must also pass through
+the production pressure-profile boundary before the resolver returns a dispatch
+/ performance decision.
+
+### Main Changes
+
+- Updated the macro PRD from the stale Gate 2 current-slice description to Gate
+  3 selected-dispatch/performance policy consumption, then marked Gate 3
+  complete after implementation and checks.
+- Changed `resolveRVVLowPrecisionDispatchPerformancePolicy(selection, record,
+  dispatchBoundary, context)` so an accepted record/resource/measurement
+  handoff also materializes `RVVLowPrecisionProductionPressureProfile`. If that
+  boundary rejects stale or marker-only pressure facts, the resolver denies
+  performance preference and win claims, preserves correctness fallback for the
+  legal route, and carries the precise failure in `fallbackReason`.
+- Added focused C++ coverage for a metadata-only selected-dispatch marker in
+  the record resolver path, proving the resolver consumes the pressure-profile
+  boundary instead of treating marker-only dispatch facts as policy authority.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Bounded added-diff scan for legacy RVV route-authority markers returned
+  no `RVVI32M1`, `rvv-i32m1`, `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`,
+  `__riscv_*_i32m1`, source-front-door, or descriptor-driven route-authority
+  matches. The broader scan only found PRD non-authority wording and the new
+  metadata-only negative test marker.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] The RVV plugin spec already requires selected-dispatch policy
+consumption to prefer source-backed measurement records, validate the
+record/resource/measurement handoff through the pressure-profile boundary, deny
+performance preference for stale or marker-only facts, and preserve correctness
+fallback where the selected route remains legal. This slice implements that
+existing contract in production policy code and tests.
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-3 are complete. Gate 4 remains open. The next
+continuation point is Gate 4: final campaign closeout must prove the full
+selected boundary -> plugin-owned realization/provider -> artifact/runtime
+measurement -> selected-dispatch policy path, including parsed generated
+evidence through the selected-dispatch record overload, before this macro task
+can be finished or archived.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.

@@ -2746,6 +2746,34 @@ resolveRVVLowPrecisionDispatchPerformancePolicy(
     decision.performancePreferenceDenialReason =
         llvm::toString(std::move(error));
     populateRVVLowPrecisionPolicyDispatchPath(decision);
+    return decision;
+  }
+  llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput> input =
+      buildRVVLowPrecisionSameTargetMeasurementPolicyInput(selection, record,
+                                                           context);
+  if (!input) {
+    decision.performanceSelectionAllowed = false;
+    decision.performanceWinClaimAllowed = false;
+    decision.performancePreferredPathSelected = false;
+    decision.dispatchPreference =
+        kRVVLowPrecisionResourcePackedI4DispatchPreference.str();
+    decision.performancePreferenceDenialReason =
+        llvm::toString(input.takeError());
+    populateRVVLowPrecisionPolicyDispatchPath(decision);
+    return decision;
+  }
+  llvm::Expected<RVVLowPrecisionProductionPressureProfile> pressureProfile =
+      materializeRVVLowPrecisionProductionPressureProfile(
+          selection, *input, dispatchBoundary, decision, context);
+  if (!pressureProfile) {
+    decision.performanceSelectionAllowed = false;
+    decision.performanceWinClaimAllowed = false;
+    decision.performancePreferredPathSelected = false;
+    decision.dispatchPreference =
+        kRVVLowPrecisionResourcePackedI4DispatchPreference.str();
+    decision.performancePreferenceDenialReason =
+        llvm::toString(pressureProfile.takeError());
+    populateRVVLowPrecisionPolicyDispatchPath(decision);
   }
   return decision;
 }

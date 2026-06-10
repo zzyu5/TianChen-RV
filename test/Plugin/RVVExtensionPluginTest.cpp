@@ -11196,6 +11196,35 @@ module {
           "packed-i4 Gate 3 selected-dispatch resolver consumes the "
           "measurement record and keeps the conservative fallback"))
     return result;
+  auto metadataOnlyDispatchResolverBoundary =
+      packedI4SelectedDispatchBoundary;
+  metadataOnlyDispatchResolverBoundary.selectedCaseVariant =
+      "metadata-only-selected-dispatch-case";
+  tianchenrv::plugin::rvv::RVVLowPrecisionPerformancePolicyDecision
+      metadataOnlyDispatchResolver =
+          tianchenrv::plugin::rvv::
+              resolveRVVLowPrecisionDispatchPerformancePolicy(
+                  packedI4ResourceSelection,
+                  acceptedPackedI4Gate4MeasurementRecord,
+                  metadataOnlyDispatchResolverBoundary,
+                  "selected-dispatch packed-i4 Gate 3 record resolver rejects "
+                  "metadata-only dispatch marker");
+  if (int result = expect(
+          metadataOnlyDispatchResolver.routeSupportAllowed &&
+              metadataOnlyDispatchResolver.correctnessExecutionAllowed &&
+              !metadataOnlyDispatchResolver.performanceSelectionAllowed &&
+              !metadataOnlyDispatchResolver.performanceWinClaimAllowed &&
+              !metadataOnlyDispatchResolver.performancePreferredPathSelected &&
+              metadataOnlyDispatchResolver.correctnessFallbackPathSelected &&
+              metadataOnlyDispatchResolver.dispatchPolicyPath ==
+                  "correctness-fallback" &&
+              llvm::StringRef(metadataOnlyDispatchResolver.fallbackReason)
+                  .contains("metadata-only") &&
+              llvm::StringRef(metadataOnlyDispatchResolver.fallbackReason)
+                  .contains("selected-dispatch case variant"),
+          "packed-i4 Gate 3 selected-dispatch resolver consumes the pressure "
+          "profile boundary and falls back on metadata-only dispatch markers"))
+    return result;
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
               packedI4ResourceSelection, acceptedPackedI4PolicyInput,
