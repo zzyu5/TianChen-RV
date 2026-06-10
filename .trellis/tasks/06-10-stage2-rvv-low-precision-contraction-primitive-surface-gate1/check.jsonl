@@ -57,3 +57,11 @@
 {"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1", "result": "passed"}
 {"check": "git diff --check", "result": "passed"}
 {"check": "bounded added-line old-authority scan", "result": "passed: only PRD non-goal wording and FileCheck implicit-check-not guards matched; no new positive legacy route authority"}
+{"check": "cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test", "result": "passed after packed-i4 resource-cost/admission boundary and target exporter stack self-repair"}
+{"check": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed"}
+{"check": "build/bin/tianchenrv-target-artifact-export-test", "result": "initially failed with signal 11 under default stack; fixed by reducing large route-provider temporaries and raising the monolithic target exporter test soft stack limit, then passed"}
+{"check": "python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test", "result": "initially failed on missing resource_cost_contract in packed-i4 provider feedback tie-back; fixed expected field list, then passed"}
+{"check": "python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test", "result": "initially failed on packed_i4/resource-cost metadata scope; fixed default metadata and packed-only summary handling, then passed"}
+{"check": "python3 scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root /tmp/tcrv-gate4-packed-i4-dry-run --run-id codex-gate4-resource-cost --overwrite --op-kind widening_product_reduce_dequantize_f32 --op-kind widening_product_reduce_dequant_clamp_f32", "result": "passed: dry_run_success"}
+{"check": "git diff --check", "result": "passed"}
+{"check": "bounded added-diff old-authority scan", "result": "passed: only PRD non-goal wording matched; no new positive RVVI32M1, rvv-i32m1, tcrv_rvv.i32_, !tcrv_rvv.i32m, __riscv_*_i32m1 route authority, source-front-door, or descriptor marker"}

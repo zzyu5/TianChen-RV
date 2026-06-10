@@ -827,6 +827,29 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
           op, builder, kRVVLowPrecisionResourceVectorRegisterBudgetAttrName,
           selected->vectorRegisterBudget)))
     return mlir::failure();
+  if (isRVVLowPrecisionResourcePackedI4CandidateID(selected->candidateID)) {
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourceCostContractAttrName,
+            selected->resourceCostContract)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourceCostModelAttrName,
+            selected->resourceCostModel)))
+      return mlir::failure();
+    if (mlir::failed(requireIntegerAttr(
+            op, builder, kRVVLowPrecisionResourceCostLoopBodyStepsAttrName,
+            selected->resourceCostLoopBodySteps)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourceCostBlockerAttrName,
+            selected->resourceCostBlocker)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourcePerformanceAdmissionDecisionAttrName,
+            selected->performanceAdmissionDecision)))
+      return mlir::failure();
+  }
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceRuntimeAVLSourceAttrName,
           selected->runtimeAVLSource)))
@@ -1587,6 +1610,83 @@ validateLowPrecisionProductDequantGearboxBody(
           "schedule_decision_reason",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason)))
+    return mlir::failure();
+
+  auto requireOptionalResourceCostStringFact =
+      [&](llvm::StringRef attrName,
+          llvm::StringRef expected) -> mlir::LogicalResult {
+    auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return handoff->emitError()
+               << "RVV low-precision Gearbox resource candidate derivation "
+                  "requires packed-i4 resource-cost fact '"
+               << attrName
+               << "' to be absent for unpacked-byte resource candidates";
+      return mlir::success();
+    }
+    if (!attr)
+      return handoff->emitError()
+             << "RVV low-precision Gearbox resource candidate derivation "
+                "requires packed-i4 resource-cost fact '"
+             << attrName << "' before route support";
+    if (attr.getValue() == expected)
+      return mlir::success();
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires packed-i4 resource-cost fact '"
+           << attrName << "' to match provider-owned resource fact '"
+           << expected << "' but found '" << attr.getValue() << "'";
+  };
+  auto requireOptionalResourceCostIntegerFact =
+      [&](llvm::StringRef attrName,
+          std::int64_t expected) -> mlir::LogicalResult {
+    auto attr = handoff->getAttrOfType<mlir::IntegerAttr>(attrName);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return handoff->emitError()
+               << "RVV low-precision Gearbox resource candidate derivation "
+                  "requires packed-i4 resource-cost fact '"
+               << attrName
+               << "' to be absent for unpacked-byte resource candidates";
+      return mlir::success();
+    }
+    if (!attr)
+      return handoff->emitError()
+             << "RVV low-precision Gearbox resource candidate derivation "
+                "requires packed-i4 resource-cost fact '"
+             << attrName << "' before route support";
+    if (attr.getInt() == expected)
+      return mlir::success();
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires packed-i4 resource-cost fact '"
+           << attrName << "' to match provider-owned resource fact "
+           << expected << " but found " << attr.getInt();
+  };
+  if (mlir::failed(requireOptionalResourceCostStringFact(
+          "resource_cost_contract",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4CostContract)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalResourceCostStringFact(
+          "resource_cost_model",
+          tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePackedI4CostModel)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalResourceCostIntegerFact(
+          "resource_cost_loop_body_steps",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4CostLoopBodySteps)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalResourceCostStringFact(
+          "resource_cost_blocker",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4CostBlocker)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalResourceCostStringFact(
+          "performance_admission_decision",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision)))
     return mlir::failure();
 
   LoadOp lhsLoad = product.getLhs().getDefiningOp<LoadOp>();

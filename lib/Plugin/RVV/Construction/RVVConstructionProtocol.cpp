@@ -11,6 +11,7 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <atomic>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -4485,7 +4486,7 @@ llvm::Error verifyRVVTypedRoleGraphRealization(
   return verifySelectedBodyRoutes();
 }
 
-llvm::Error verifyRVVConstructionProtocolReady() {
+static llvm::Error verifyRVVConstructionProtocolReadyUncached() {
   if (llvm::Error error = verifySelectedBodyRoutes())
     return error;
 
@@ -4875,6 +4876,16 @@ llvm::Error verifyRVVConstructionProtocolReady() {
               kTargetArtifactMapping.emitCToCppTranslateRouteID))
     return error;
 
+  return llvm::Error::success();
+}
+
+llvm::Error verifyRVVConstructionProtocolReady() {
+  static std::atomic<bool> verified(false);
+  if (verified.load(std::memory_order_acquire))
+    return llvm::Error::success();
+  if (llvm::Error error = verifyRVVConstructionProtocolReadyUncached())
+    return error;
+  verified.store(true, std::memory_order_release);
   return llvm::Error::success();
 }
 

@@ -1185,3 +1185,77 @@ claim.
 [UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` records the
 low-shifted-product-rescale schedule/resource contract and final candidate-
 sensitive Gate 4 no-win measurement ranges.
+
+## Session 586: Gate 4 packed-i4 resource-cost admission boundary
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV low-precision contraction primitive surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active Gate 4 macro task with a production resource-cost and
+admission boundary for the current packed-i4 low-shifted-product-rescale path.
+The path now carries a provider-owned cost contract/model, loop-body step
+count, no-win blocker, and performance admission decision from Gearbox resource
+selection through selected-body realization, route facts, target mirrors,
+same-target evidence inputs, and `RVVLowPrecisionPerformancePolicy`.
+
+### Main Changes
+
+- Added packed-i4 resource-cost facts:
+  `rvv-low-precision-packed-i4-resource-cost-contract.v1`,
+  `low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1`,
+  loop-body steps `12`,
+  `packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win`, and
+  `deny-performance-preferred-with-resource-cost-no-win-blocker`.
+- Required those facts in Gearbox handoff verification, route-family resource
+  selection, route metadata, target artifact metadata, generated-bundle
+  metadata, same-target measurement records, evidence-root policy ingestion,
+  production-pressure profiles, and no-win admission denial.
+- Updated the current source-backed dequant/dequant-clamp evidence roots with
+  provider resource-cost/admission facts without changing timing data or the
+  generated runtime schedule.
+- Self-repaired stack pressure exposed in the monolithic target exporter test by
+  moving large provider/control temporaries off the stack and raising the test
+  binary's own soft stack limit.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py
+  --self-test`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py
+  --dry-run --artifact-root /tmp/tcrv-gate4-packed-i4-dry-run --run-id
+  codex-gate4-resource-cost --overwrite --op-kind
+  widening_product_reduce_dequantize_f32 --op-kind
+  widening_product_reduce_dequant_clamp_f32`
+- [OK] `git diff --check`
+- [OK] Bounded added-diff old-authority scan: only PRD non-goal wording matched.
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-3 remain complete. Gate 4 remains open. The current
+resource-cost boundary sharpens the production-consumed no-win blocker but does
+not change generated runtime behavior or create a measured win, so no fresh
+`ssh rvv` timing was rerun in this slice. Existing dequant
+`0.688202..0.705133` and dequant-clamp `0.677994..0.704931` regression/no-win
+records still deny performance preference.
+
+### Continuation
+
+Next owner should choose the next provider-owned packed-i4 schedule/resource
+bottleneck beyond the current 12-step low-shifted-product-rescale path, or
+record a precise production-consumed blocker if no measured-win repair is
+available. Final coherent commit is created after this journal entry.
+
+### Spec Update Decision
+
+[NO UPDATE] This slice implemented the existing Gate 4 policy boundary in
+production code and tests; no durable spec wording change was needed beyond the
+active macro PRD update.

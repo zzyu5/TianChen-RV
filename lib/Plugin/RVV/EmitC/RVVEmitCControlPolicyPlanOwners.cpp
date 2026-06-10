@@ -5,6 +5,8 @@
 
 #include "llvm/ADT/Twine.h"
 
+#include <memory>
+
 namespace tianchenrv::plugin::rvv {
 namespace {
 
@@ -1890,7 +1892,7 @@ getRVVSelectedBodyRouteControlProviderPlan(
     llvm::StringRef context) {
   const RVVSelectedBodyEmitCRouteDescription &description =
       analysis.description;
-  RVVSelectedBodyRouteControlProviderPlan plan;
+  auto plan = std::make_unique<RVVSelectedBodyRouteControlProviderPlan>();
   const RVVRuntimeAVLVLControlPlan *runtimeControlPlan = nullptr;
   const RVVSelectedBodyRouteControlProviderOwner *selectedOwner = nullptr;
   for (const RVVSelectedBodyRouteControlProviderOwner &owner :
@@ -1914,10 +1916,10 @@ getRVVSelectedBodyRouteControlProviderPlan(
   }
 
   if (!selectedOwner)
-    return plan;
+    return std::move(*plan);
 
   if (llvm::Error error = selectedOwner->buildProviderPlan(
-          analysis, materializationFacts, plan, runtimeControlPlan, context))
+          analysis, materializationFacts, *plan, runtimeControlPlan, context))
     return std::move(error);
 
   if (!runtimeControlPlan)
@@ -1947,19 +1949,20 @@ getRVVSelectedBodyRouteControlProviderPlan(
         llvm::Twine(context) +
         " route-control provider plan requires selected RVV target "
         "capability facts before provider route construction");
-  RVVSelectedTargetCapabilityFacts capabilityFacts =
-      analysis.selectedTargetCapabilityFacts;
+  auto capabilityFacts =
+      std::make_unique<RVVSelectedTargetCapabilityFacts>(
+          analysis.selectedTargetCapabilityFacts);
   std::string capabilityContext =
       (llvm::Twine(context) +
        " route-control provider plan target-capability gate")
           .str();
   if (llvm::Error error = verifyRVVSelectedTargetCapabilityForTypedConfig(
-          capabilityFacts, materializationFacts.typedConfigFacts,
+          *capabilityFacts, materializationFacts.typedConfigFacts,
           capabilityContext))
     return std::move(error);
-  if (capabilityFacts.providerMirror !=
+  if (capabilityFacts->providerMirror !=
           analysis.selectedTargetCapabilityFacts.providerMirror ||
-      capabilityFacts.legalityMirror !=
+      capabilityFacts->legalityMirror !=
           analysis.selectedTargetCapabilityFacts.legalityMirror)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -1976,22 +1979,22 @@ getRVVSelectedBodyRouteControlProviderPlan(
         "provider-built selected target capability facts before provider route "
         "construction");
 
-  plan.typedConfigFacts = &analysis.typedConfigFacts;
-  plan.selectedTargetCapabilityFacts = &analysis.selectedTargetCapabilityFacts;
-  plan.runtimeControlPlan = runtimeControlPlan;
-  plan.plansRouteControl = true;
-  plan.controlPlanIDMirror = runtimeControlPlan->controlPlanID;
-  plan.configContractIDMirror = runtimeControlPlan->configContractID;
-  plan.runtimeVLContractIDMirror = runtimeControlPlan->runtimeVLContractID;
-  plan.runtimeAVLASourceMirror = runtimeControlPlan->runtimeAVLASource;
-  plan.runtimeABIOrderMirror = runtimeControlPlan->runtimeABIOrder;
-  plan.tailPolicyMirror = runtimeControlPlan->tailPolicy;
-  plan.maskPolicyMirror = runtimeControlPlan->maskPolicy;
-  plan.selectedProviderMirror =
+  plan->typedConfigFacts = &analysis.typedConfigFacts;
+  plan->selectedTargetCapabilityFacts = &analysis.selectedTargetCapabilityFacts;
+  plan->runtimeControlPlan = runtimeControlPlan;
+  plan->plansRouteControl = true;
+  plan->controlPlanIDMirror = runtimeControlPlan->controlPlanID;
+  plan->configContractIDMirror = runtimeControlPlan->configContractID;
+  plan->runtimeVLContractIDMirror = runtimeControlPlan->runtimeVLContractID;
+  plan->runtimeAVLASourceMirror = runtimeControlPlan->runtimeAVLASource;
+  plan->runtimeABIOrderMirror = runtimeControlPlan->runtimeABIOrder;
+  plan->tailPolicyMirror = runtimeControlPlan->tailPolicy;
+  plan->maskPolicyMirror = runtimeControlPlan->maskPolicy;
+  plan->selectedProviderMirror =
       analysis.selectedTargetCapabilityFacts.providerMirror;
-  plan.selectedLegalityMirror =
+  plan->selectedLegalityMirror =
       analysis.selectedTargetCapabilityFacts.legalityMirror;
-  return plan;
+  return std::move(*plan);
 }
 
 static bool isRVVSelectedBodyComputedMaskSelectMaskTailPolicyConsumer(

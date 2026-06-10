@@ -39,6 +39,11 @@ struct RVVLowPrecisionPerformanceMeasurementOutcome {
   std::string providerScheduleDecisionContract;
   std::string providerScheduleDecision;
   std::string providerScheduleDecisionReason;
+  std::string providerResourceCostContract;
+  std::string providerResourceCostModel;
+  std::int64_t providerResourceCostLoopBodySteps = 0;
+  std::string providerResourceCostBlocker;
+  std::string providerPerformanceAdmissionDecision;
   std::string providerRealizationAdmissionContract;
   std::string providerRealizationAdmissionDecision;
   std::string providerRealizationAdmissionEvidence;
@@ -101,6 +106,11 @@ struct RVVLowPrecisionSameTargetMeasurementRecord {
   std::string providerScheduleDecisionContract;
   std::string providerScheduleDecision;
   std::string providerScheduleDecisionReason;
+  std::string providerResourceCostContract;
+  std::string providerResourceCostModel;
+  std::int64_t providerResourceCostLoopBodySteps = 0;
+  std::string providerResourceCostBlocker;
+  std::string providerPerformanceAdmissionDecision;
   std::string providerRealizationAdmissionContract;
   std::string providerRealizationAdmissionDecision;
   std::string providerRealizationAdmissionEvidence;
@@ -210,6 +220,11 @@ struct RVVLowPrecisionSameTargetMeasurementPolicyInput {
   std::string providerScheduleDecisionContract;
   std::string providerScheduleDecision;
   std::string providerScheduleDecisionReason;
+  std::string providerResourceCostContract;
+  std::string providerResourceCostModel;
+  std::int64_t providerResourceCostLoopBodySteps = 0;
+  std::string providerResourceCostBlocker;
+  std::string providerPerformanceAdmissionDecision;
   std::string providerRealizationAdmissionContract;
   std::string providerRealizationAdmissionDecision;
   std::string providerRealizationAdmissionEvidence;
@@ -389,6 +404,11 @@ struct RVVLowPrecisionProductionPressureProfile {
   std::string scheduleDecisionContract;
   std::string scheduleDecision;
   std::string scheduleDecisionReason;
+  std::string resourceCostContract;
+  std::string resourceCostModel;
+  std::int64_t resourceCostLoopBodySteps = 0;
+  std::string resourceCostBlocker;
+  std::string performanceAdmissionDecision;
   std::string realizationAdmissionContract;
   std::string realizationAdmissionDecision;
   std::string realizationAdmissionEvidence;

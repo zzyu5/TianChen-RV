@@ -7,6 +7,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <utility>
 
@@ -1166,6 +1167,31 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
                         familySelection.remediationVLPlan))
     return error;
   if (llvm::Error error =
+          requireString("resource cost contract",
+                        providerSelection.resourceCostContract,
+                        familySelection.resourceCostContract))
+    return error;
+  if (llvm::Error error =
+          requireString("resource cost model",
+                        providerSelection.resourceCostModel,
+                        familySelection.resourceCostModel))
+    return error;
+  if (llvm::Error error =
+          requireInteger("resource cost loop-body steps",
+                         providerSelection.resourceCostLoopBodySteps,
+                         familySelection.resourceCostLoopBodySteps))
+    return error;
+  if (llvm::Error error =
+          requireString("resource cost blocker",
+                        providerSelection.resourceCostBlocker,
+                        familySelection.resourceCostBlocker))
+    return error;
+  if (llvm::Error error =
+          requireString("performance admission decision",
+                        providerSelection.performanceAdmissionDecision,
+                        familySelection.performanceAdmissionDecision))
+    return error;
+  if (llvm::Error error =
           requireString("performance maturity",
                         providerSelection.performanceMaturity,
                         familySelection.performanceMaturity))
@@ -1435,6 +1461,28 @@ llvm::Error requireRVVDirectContractionStatementLowPrecisionResourceSelection(
     if (llvm::Error error = requireExpectedString(
             "remediation VL plan", familySelection.remediationVLPlan,
             kRVVLowPrecisionResourcePackedI4RemediationVLPlan))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "resource cost contract", familySelection.resourceCostContract,
+            kRVVLowPrecisionResourcePackedI4CostContract))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "resource cost model", familySelection.resourceCostModel,
+            kRVVLowPrecisionResourcePackedI4CostModel))
+      return error;
+    if (llvm::Error error = requireExpectedInteger(
+            "resource cost loop-body steps",
+            familySelection.resourceCostLoopBodySteps,
+            kRVVLowPrecisionResourcePackedI4CostLoopBodySteps))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "resource cost blocker", familySelection.resourceCostBlocker,
+            kRVVLowPrecisionResourcePackedI4CostBlocker))
+      return error;
+    if (llvm::Error error = requireExpectedString(
+            "performance admission decision",
+            familySelection.performanceAdmissionDecision,
+            kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision))
       return error;
     if (llvm::Error error = requireExpectedString(
             "performance maturity", familySelection.performanceMaturity,
@@ -3012,45 +3060,58 @@ getRVVSelectedBodyRouteStatementPlanOwnerSelection(
   const RVVSelectedBodyEmitCRouteDescription &description =
       analysis.description;
 
-  llvm::Expected<RVVSelectedBodyMigratedRouteStatementPlan>
-      migratedStatementPlanOrError = getRVVSelectedBodyMigratedRouteStatementPlan(
-          analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
-          memoryOperandBindingFacts, mathOperandBindingFacts,
-          residualOperandBindingFacts, context);
-  if (!migratedStatementPlanOrError)
-    return migratedStatementPlanOrError.takeError();
+  const bool expectsMigratedOwner =
+      isRVVSelectedBodyMigratedRouteStatementPlanConsumer(description);
+  const bool expectsDirectContractionOwner =
+      isRVVSelectedBodyDirectContractionRouteProviderConsumer(description);
 
-  llvm::Expected<RVVSelectedBodyDirectContractionRouteProviderPlan>
-      directContractionProviderPlan =
-          getRVVSelectedBodyDirectContractionRouteProviderPlan(
-              analysis, materializationFacts, mathOperandBindingFacts,
-              context);
-  if (!directContractionProviderPlan)
-    return directContractionProviderPlan.takeError();
+  using MigratedExpected =
+      llvm::Expected<RVVSelectedBodyMigratedRouteStatementPlan>;
+  std::unique_ptr<MigratedExpected> migratedStatementPlanOrError;
+  if (expectsMigratedOwner) {
+    migratedStatementPlanOrError = std::make_unique<MigratedExpected>(
+        getRVVSelectedBodyMigratedRouteStatementPlan(
+            analysis, materializationFacts, elementwiseSelectOperandBindingFacts,
+            memoryOperandBindingFacts, mathOperandBindingFacts,
+            residualOperandBindingFacts, context));
+    if (!*migratedStatementPlanOrError)
+      return migratedStatementPlanOrError->takeError();
+  }
 
-  llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>
-      directContractionStatementPlanOrError =
-          getRVVSelectedBodyDirectContractionRouteStatementPlanFromProviderPlan(
-              analysis, *directContractionProviderPlan, context);
-  if (!directContractionStatementPlanOrError)
-    return directContractionStatementPlanOrError.takeError();
+  using DirectProviderExpected =
+      llvm::Expected<RVVSelectedBodyDirectContractionRouteProviderPlan>;
+  std::unique_ptr<DirectProviderExpected> directContractionProviderPlan;
+  using DirectStatementExpected =
+      llvm::Expected<RVVSelectedBodyDirectContractionRouteStatementPlan>;
+  std::unique_ptr<DirectStatementExpected> directContractionStatementPlanOrError;
+  if (expectsDirectContractionOwner) {
+    directContractionProviderPlan = std::make_unique<DirectProviderExpected>(
+        getRVVSelectedBodyDirectContractionRouteProviderPlan(
+            analysis, materializationFacts, mathOperandBindingFacts, context));
+    if (!*directContractionProviderPlan)
+      return directContractionProviderPlan->takeError();
 
-  RVVSelectedBodyMigratedRouteStatementPlan migratedStatementPlan =
-      std::move(*migratedStatementPlanOrError);
-  RVVSelectedBodyDirectContractionRouteStatementPlan
-      directContractionStatementPlan =
-          std::move(*directContractionStatementPlanOrError);
+    directContractionStatementPlanOrError =
+        std::make_unique<DirectStatementExpected>(
+            getRVVSelectedBodyDirectContractionRouteStatementPlanFromProviderPlan(
+                analysis, **directContractionProviderPlan, context));
+    if (!*directContractionStatementPlanOrError)
+      return directContractionStatementPlanOrError->takeError();
+  }
 
-  const bool hasMigratedOwner = migratedStatementPlan.plansMigratedRoute;
+  const bool hasMigratedOwner =
+      migratedStatementPlanOrError &&
+      (*migratedStatementPlanOrError)->plansMigratedRoute;
   const bool hasDirectContractionOwner =
-      directContractionStatementPlan.plansDirectContractionRoute;
+      directContractionStatementPlanOrError &&
+      (*directContractionStatementPlanOrError)->plansDirectContractionRoute;
   if (hasMigratedOwner && hasDirectContractionOwner)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " statement-plan owner module expected exactly one RVV-owned "
         "provider-facing owner, but both migrated family '" +
         stringifyRVVSelectedBodyMigratedRouteStatementPlanFamilyName(
-            migratedStatementPlan.family) +
+            (*migratedStatementPlanOrError)->family) +
         "' and direct-contraction owner matched before route construction for "
         "operation '" +
         stringifyRVVSelectedBodyOperationKind(description.operation) +
@@ -3059,16 +3120,16 @@ getRVVSelectedBodyRouteStatementPlanOwnerSelection(
 
   RVVSelectedBodyRouteStatementPlanOwnerSelection selection;
   if (hasMigratedOwner) {
-    moveMigratedStatementPlan(migratedStatementPlan, selection);
+    moveMigratedStatementPlan(**migratedStatementPlanOrError, selection);
     return selection;
   }
   if (hasDirectContractionOwner) {
-    moveDirectContractionStatementPlan(directContractionStatementPlan,
+    moveDirectContractionStatementPlan(**directContractionStatementPlanOrError,
                                        selection);
     if (llvm::Error error =
             verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
                 analysis, materializationFacts, mathOperandBindingFacts,
-                *directContractionProviderPlan, selection, context))
+                **directContractionProviderPlan, selection, context))
       return std::move(error);
     return selection;
   }

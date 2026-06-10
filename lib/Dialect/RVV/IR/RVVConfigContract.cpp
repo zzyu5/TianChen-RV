@@ -1698,358 +1698,167 @@ getRVVSelectedBodySegment2InterleaveRuntimeABIParameters() {
 llvm::Error verifyRVVSelectedBodyRuntimeABIParameters(
     llvm::ArrayRef<support::RuntimeABIParameter> parameters,
     llvm::StringRef context) {
-  llvm::SmallVector<support::RuntimeABIParameter, 4> expected =
-      getRVVSelectedBodyRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, expected))
-    return llvm::Error::success();
+  auto acceptsExpected = [&](auto &&expectedParameters) {
+    return support::runtimeABIParametersEqual(parameters, expectedParameters);
+  };
 
-  llvm::SmallVector<support::RuntimeABIParameter, 4> i64Expected =
-      getRVVSelectedBodyI64RuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, i64Expected))
+  if (acceptsExpected(getRVVSelectedBodyRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 7> stridedExpected =
-      getRVVSelectedBodyStridedRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, stridedExpected))
+  if (acceptsExpected(getRVVSelectedBodyI64RuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4> stridedLoadUnitStore =
-      getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, stridedLoadUnitStore))
+  if (acceptsExpected(getRVVSelectedBodyStridedRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4> unitLoadStridedStore =
-      getRVVSelectedBodyUnitLoadStridedStoreRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, unitLoadStridedStore))
+  if (acceptsExpected(
+          getRVVSelectedBodyStridedLoadUnitStoreRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4> indexedGather =
-      getRVVSelectedBodyIndexedGatherRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, indexedGather))
+  if (acceptsExpected(
+          getRVVSelectedBodyUnitLoadStridedStoreRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4> indexedScatter =
-      getRVVSelectedBodyIndexedScatterRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, indexedScatter))
+  if (acceptsExpected(getRVVSelectedBodyIndexedGatherRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4> maskedMemory =
-      getRVVSelectedBodyMaskedMemoryRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, maskedMemory))
+  if (acceptsExpected(getRVVSelectedBodyIndexedScatterRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 5> computedMaskMemory =
-      getRVVSelectedBodyComputedMaskMemoryRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, computedMaskMemory))
+  if (acceptsExpected(getRVVSelectedBodyMaskedMemoryRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6> computedMaskSelect =
-      getRVVSelectedBodyComputedMaskSelectRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, computedMaskSelect))
+  if (acceptsExpected(
+          getRVVSelectedBodyComputedMaskMemoryRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6> computedMaskSelectI64 =
-      buildRVVSelectedBodyComputedMaskSelectRuntimeABIParameters("int64_t");
-  if (support::runtimeABIParametersEqual(parameters, computedMaskSelectI64))
+  if (acceptsExpected(
+          getRVVSelectedBodyComputedMaskSelectRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      runtimeScalarCompareSelect =
-          getRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters,
-                                         runtimeScalarCompareSelect))
+  if (acceptsExpected(
+          buildRVVSelectedBodyComputedMaskSelectRuntimeABIParameters("int64_t")))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      runtimeScalarCompareSelectI64 =
+  if (acceptsExpected(
+          getRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters()))
+    return llvm::Error::success();
+  if (acceptsExpected(
           buildRVVSelectedBodyRuntimeScalarCompareSelectRuntimeABIParameters(
-              "int64_t");
-  if (support::runtimeABIParametersEqual(parameters,
-                                         runtimeScalarCompareSelectI64))
+              "int64_t")))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 8>
-      runtimeScalarDualCompareMaskAndSelect =
-          getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(
-          parameters, runtimeScalarDualCompareMaskAndSelect))
+  if (acceptsExpected(
+          getRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 8>
-      runtimeScalarDualCompareMaskAndSelectI64 =
+  if (acceptsExpected(
           buildRVVSelectedBodyRuntimeScalarDualCompareMaskAndSelectRuntimeABIParameters(
-              "int64_t");
-  if (support::runtimeABIParametersEqual(
-          parameters, runtimeScalarDualCompareMaskAndSelectI64))
+              "int64_t")))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 5>
-      runtimeScalarF32ClampSelect =
-          getRVVSelectedBodyRuntimeScalarF32ClampSelectRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters,
-                                         runtimeScalarF32ClampSelect))
+  if (acceptsExpected(
+          getRVVSelectedBodyRuntimeScalarF32ClampSelectRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 5>
-      runtimeScalarComputedMaskStore =
-          getRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters,
-                                         runtimeScalarComputedMaskStore))
+  if (acceptsExpected(
+          getRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 5>
-      runtimeScalarComputedMaskStoreI64 =
+  if (acceptsExpected(
           buildRVVSelectedBodyRuntimeScalarComputedMaskStoreRuntimeABIParameters(
-              "int64_t");
-  if (support::runtimeABIParametersEqual(parameters,
-                                         runtimeScalarComputedMaskStoreI64))
+              "int64_t")))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      computedMaskStridedStore =
-          getRVVSelectedBodyComputedMaskStridedStoreRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters,
-                                         computedMaskStridedStore))
+  if (acceptsExpected(
+          getRVVSelectedBodyComputedMaskStridedStoreRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      computedMaskStridedLoad =
-          getRVVSelectedBodyComputedMaskStridedLoadRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters,
-                                         computedMaskStridedLoad))
+  if (acceptsExpected(
+          getRVVSelectedBodyComputedMaskStridedLoadRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      computedMaskIndexedGather =
-          getRVVSelectedBodyComputedMaskIndexedGatherRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters,
-                                         computedMaskIndexedGather))
+  if (acceptsExpected(
+          getRVVSelectedBodyComputedMaskIndexedGatherRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      runtimeScalarComputedMaskIndexedGather =
-          getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(
-          parameters, runtimeScalarComputedMaskIndexedGather))
+  if (acceptsExpected(
+          getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      computedMaskIndexedScatter =
-          getRVVSelectedBodyComputedMaskIndexedScatterRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters,
-                                         computedMaskIndexedScatter))
+  if (acceptsExpected(
+          getRVVSelectedBodyComputedMaskIndexedScatterRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      runtimeScalarComputedMaskIndexedScatter =
-          getRVVSelectedBodyRuntimeScalarComputedMaskIndexedScatterRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(
-          parameters, runtimeScalarComputedMaskIndexedScatter))
+  if (acceptsExpected(
+          getRVVSelectedBodyRuntimeScalarComputedMaskIndexedScatterRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      computedMaskSegment2Load =
-          getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, computedMaskSegment2Load))
+  if (acceptsExpected(
+          getRVVSelectedBodyComputedMaskSegment2LoadRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      runtimeScalarComputedMaskSegment2Load =
-          getRVVSelectedBodyRuntimeScalarComputedMaskSegment2LoadRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(
-          parameters, runtimeScalarComputedMaskSegment2Load))
+  if (acceptsExpected(
+          getRVVSelectedBodyRuntimeScalarComputedMaskSegment2LoadRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      computedMaskSegment2Store =
-          getRVVSelectedBodyComputedMaskSegment2StoreRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, computedMaskSegment2Store))
+  if (acceptsExpected(
+          getRVVSelectedBodyComputedMaskSegment2StoreRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      runtimeScalarComputedMaskSegment2Store =
-          getRVVSelectedBodyRuntimeScalarComputedMaskSegment2StoreRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(
-          parameters, runtimeScalarComputedMaskSegment2Store))
+  if (acceptsExpected(
+          getRVVSelectedBodyRuntimeScalarComputedMaskSegment2StoreRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4> segment2 =
-      getRVVSelectedBodySegment2DeinterleaveRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, segment2))
+  if (acceptsExpected(
+          getRVVSelectedBodySegment2DeinterleaveRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4> segment2Interleave =
-      getRVVSelectedBodySegment2InterleaveRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, segment2Interleave))
+  if (acceptsExpected(
+          getRVVSelectedBodySegment2InterleaveRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4> scalarBroadcastExpected =
-      getRVVSelectedBodyScalarBroadcastRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, scalarBroadcastExpected))
+  if (acceptsExpected(getRVVSelectedBodyScalarBroadcastRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 5>
-      scalarBroadcastMAccExpected =
-          getRVVSelectedBodyScalarBroadcastMAccRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters,
-                                         scalarBroadcastMAccExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyScalarBroadcastMAccRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4> runtimeSplatExpected =
-      getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, runtimeSplatExpected))
+  if (acceptsExpected(getRVVSelectedBodyRuntimeSplatStoreRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 3> conversionExpected =
-      getRVVSelectedBodyWideningConversionRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, conversionExpected))
+  if (acceptsExpected(getRVVSelectedBodyWideningConversionRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 3> widenI16ToI32Expected =
-      getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, widenI16ToI32Expected))
+  if (acceptsExpected(getRVVSelectedBodyWidenI16ToI32RuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4> dequantExpected =
-      getRVVSelectedBodyDequantizationRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, dequantExpected))
+  if (acceptsExpected(getRVVSelectedBodyDequantizationRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      dequantClampF32EpilogueExpected =
-          getRVVSelectedBodyDequantClampF32EpilogueRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters,
-                                         dequantClampF32EpilogueExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyDequantClampF32EpilogueRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 5> maccExpected =
-      getRVVSelectedBodyMAccRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, maccExpected))
+  if (acceptsExpected(getRVVSelectedBodyMAccRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 7>
-      computedMaskMAccExpected =
-          getRVVSelectedBodyComputedMaskMAccRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters,
-                                         computedMaskMAccExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyComputedMaskMAccRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 7>
-      runtimeScalarComputedMaskMAccExpected =
-          getRVVSelectedBodyRuntimeScalarComputedMaskMAccRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(
-          parameters, runtimeScalarComputedMaskMAccExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyRuntimeScalarComputedMaskMAccRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 8>
-      runtimeScalarComputedMaskIndexedGatherMAccScatterExpected =
-          getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatterRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(
-          parameters,
-          runtimeScalarComputedMaskIndexedGatherMAccScatterExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyRuntimeScalarComputedMaskIndexedGatherMAccScatterRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 5> wideningMAccExpected =
-      getRVVSelectedBodyWideningMAccRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, wideningMAccExpected))
+  if (acceptsExpected(getRVVSelectedBodyWideningMAccRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4>
-      wideningProductExpected =
-          getRVVSelectedBodyWideningProductRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters, wideningProductExpected))
+  if (acceptsExpected(getRVVSelectedBodyWideningProductRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4>
-      unsignedWideningProductExpected =
-          getRVVSelectedBodyUnsignedWideningProductRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters,
-                                         unsignedWideningProductExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyUnsignedWideningProductRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 5>
-      wideningProductReductionExpected =
-          getRVVSelectedBodyWideningProductReductionRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters,
-                                         wideningProductReductionExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyWideningProductReductionRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 5>
-      unsignedWideningProductReductionExpected =
-          getRVVSelectedBodyUnsignedWideningProductReductionRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(
-          parameters, unsignedWideningProductReductionExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyUnsignedWideningProductReductionRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      wideningProductReductionDequantizationExpected =
-          getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(
-          parameters, wideningProductReductionDequantizationExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyWideningProductReductionDequantizationRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 8>
-      wideningProductReductionDequantClampF32Expected =
-          getRVVSelectedBodyWideningProductReductionDequantClampF32RuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(
-          parameters, wideningProductReductionDequantClampF32Expected))
+  if (acceptsExpected(
+          getRVVSelectedBodyWideningProductReductionDequantClampF32RuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4>
-      standaloneReductionExpected =
-          getRVVSelectedBodyStandaloneReductionRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters,
-                                         standaloneReductionExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyStandaloneReductionRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 4>
-      wideningStandaloneReductionExpected =
-          getRVVSelectedBodyWideningStandaloneReductionRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(
-          parameters, wideningStandaloneReductionExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyWideningStandaloneReductionRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      computedMaskStandaloneReductionExpected =
-          getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(
-          parameters, computedMaskStandaloneReductionExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyComputedMaskStandaloneReductionRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      runtimeScalarComputedMaskStandaloneReductionExpected =
-          getRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(
-          parameters, runtimeScalarComputedMaskStandaloneReductionExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 6>
-      runtimeScalarComputedMaskStandaloneReductionI64Expected =
+  if (acceptsExpected(
           buildRVVSelectedBodyRuntimeScalarComputedMaskStandaloneReductionRuntimeABIParameters(
-              "int64_t");
-  if (support::runtimeABIParametersEqual(
-          parameters, runtimeScalarComputedMaskStandaloneReductionI64Expected))
+              "int64_t")))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 7>
-      stridedInputWideningDotExpected =
-          getRVVSelectedBodyStridedInputWideningDotReduceRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters,
-                                         stridedInputWideningDotExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyStridedInputWideningDotReduceRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 7>
-      computedMaskWideningDotExpected =
-          getRVVSelectedBodyComputedMaskWideningDotReduceRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(parameters,
-                                         computedMaskWideningDotExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyComputedMaskWideningDotReduceRuntimeABIParameters()))
     return llvm::Error::success();
-
-  llvm::SmallVector<support::RuntimeABIParameter, 9>
-      computedMaskStridedInputWideningDotExpected =
-          getRVVSelectedBodyComputedMaskStridedInputWideningDotReduceRuntimeABIParameters();
-  if (support::runtimeABIParametersEqual(
-          parameters, computedMaskStridedInputWideningDotExpected))
+  if (acceptsExpected(
+          getRVVSelectedBodyComputedMaskStridedInputWideningDotReduceRuntimeABIParameters()))
     return llvm::Error::success();
 
   return makeRuntimeABIError(

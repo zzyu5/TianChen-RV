@@ -50,6 +50,10 @@
 #include <string>
 #include <utility>
 
+#if defined(__unix__)
+#include <sys/resource.h>
+#endif
+
 using namespace tianchenrv::target;
 
 namespace {
@@ -842,11 +846,14 @@ module {
     constexpr llvm::StringLiteral primitiveResourceInsertionPoint =
         "tcrv_rvv.low_precision_resource.peak_live_vector_groups = 6 : i64";
     constexpr llvm::StringLiteral primitiveResourceFacts = R"mlir(, tcrv_rvv.low_precision_resource.primitive_accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", tcrv_rvv.low_precision_resource.primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1", tcrv_rvv.low_precision_resource.primitive_chain_kind = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1", tcrv_rvv.low_precision_resource.primitive_contract = "rvv-low-precision-widening-primitive-facts.v1", tcrv_rvv.low_precision_resource.primitive_kind = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant.v1", tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1", tcrv_rvv.low_precision_resource.primitive_reduction_store_vl = "1", tcrv_rvv.low_precision_resource.primitive_result_layout = "store-standalone-reduction-lane0-to-output-scalar", tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic = "__riscv_vmv_v_x_i32m1", tcrv_rvv.low_precision_resource.primitive_source_extension = "sign-extend-i8-to-i16-product", tcrv_rvv.low_precision_resource.primitive_source_load = "unit-stride-byte-load", tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic = "__riscv_vwmul_vv_i16mf2", tcrv_rvv.low_precision_resource.primitive_widening_product_relation = "signed-i8mf4xi8mf4-to-i16mf2", tcrv_rvv.low_precision_resource.widening_product_extension_policy = "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2", tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles = "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4")mlir";
+    constexpr llvm::StringLiteral resourceCostFacts = R"mlir(, tcrv_rvv.low_precision_resource.resource_cost_contract = "rvv-low-precision-packed-i4-resource-cost-contract.v1", tcrv_rvv.low_precision_resource.resource_cost_model = "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1", tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps = 12 : i64, tcrv_rvv.low_precision_resource.resource_cost_blocker = "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win", tcrv_rvv.low_precision_resource.performance_admission_decision = "deny-performance-preferred-with-resource-cost-no-win-blocker")mlir";
     std::size_t position = source.find(primitiveResourceInsertionPoint.str());
     if (position == std::string::npos)
       return {};
     position += primitiveResourceInsertionPoint.size();
     source.insert(position, primitiveResourceFacts.str());
+    position += primitiveResourceFacts.size();
+    source.insert(position, resourceCostFacts.str());
     return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
   }
   if (op ==
@@ -28547,9 +28554,29 @@ bool expectTargetArtifactBundleComponentContractValidation() {
   return true;
 }
 
+void raiseTargetArtifactTestStackLimit() {
+#if defined(__unix__)
+  constexpr rlim_t kTargetArtifactTestStackBytes = 64ULL * 1024ULL * 1024ULL;
+  rlimit limit;
+  if (getrlimit(RLIMIT_STACK, &limit) != 0)
+    return;
+  if (limit.rlim_cur >= kTargetArtifactTestStackBytes)
+    return;
+  rlim_t requested = kTargetArtifactTestStackBytes;
+  if (limit.rlim_max != RLIM_INFINITY && requested > limit.rlim_max)
+    requested = limit.rlim_max;
+  if (requested > limit.rlim_cur) {
+    limit.rlim_cur = requested;
+    (void)setrlimit(RLIMIT_STACK, &limit);
+  }
+#endif
+}
+
 } // namespace
 
 int main() {
+  raiseTargetArtifactTestStackLimit();
+
   mlir::DialectRegistry dialectRegistry;
   tianchenrv::registerAllDialects(dialectRegistry);
   mlir::MLIRContext context(dialectRegistry);

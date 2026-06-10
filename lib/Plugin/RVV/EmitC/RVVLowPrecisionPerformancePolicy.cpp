@@ -735,6 +735,30 @@ llvm::Error verifyPackedI4SameTargetEvidenceRoot(
     return error;
   if (llvm::Error error = requireEvidenceRootStringField(
           **measurementHarness, context, "measurement_harness",
+          "provider_resource_cost_contract",
+          record.providerResourceCostContract))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
+          "provider_resource_cost_model", record.providerResourceCostModel))
+    return error;
+  if (llvm::Error error = requireEvidenceRootIntField(
+          **measurementHarness, context, "measurement_harness",
+          "provider_resource_cost_loop_body_steps",
+          record.providerResourceCostLoopBodySteps))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
+          "provider_resource_cost_blocker",
+          record.providerResourceCostBlocker))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
+          "provider_performance_admission_decision",
+          record.providerPerformanceAdmissionDecision))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
           "provider_realization_admission_schedule_decision_contract",
           record.providerRealizationAdmissionScheduleDecisionContract))
     return error;
@@ -767,6 +791,30 @@ llvm::Error verifyPackedI4SameTargetEvidenceRoot(
           **scheduleEvidence, context, "measurement_schedule_decision_evidence",
           "provider_schedule_decision_reason",
           record.providerScheduleDecisionReason))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_resource_cost_contract",
+          record.providerResourceCostContract))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_resource_cost_model", record.providerResourceCostModel))
+    return error;
+  if (llvm::Error error = requireEvidenceRootIntField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_resource_cost_loop_body_steps",
+          record.providerResourceCostLoopBodySteps))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_resource_cost_blocker",
+          record.providerResourceCostBlocker))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_performance_admission_decision",
+          record.providerPerformanceAdmissionDecision))
     return error;
   if (llvm::Error error = requireEvidenceRootStringField(
           **scheduleEvidence, context, "measurement_schedule_decision_evidence",
@@ -1050,6 +1098,30 @@ llvm::Error verifyPackedI4SelectionFacts(
           selection.scheduleDecisionReason,
           kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason))
     return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 resource cost contract",
+          selection.resourceCostContract,
+          kRVVLowPrecisionResourcePackedI4CostContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 resource cost model",
+          selection.resourceCostModel, kRVVLowPrecisionResourcePackedI4CostModel))
+    return error;
+  if (llvm::Error error = requirePolicyInt(
+          context, "packed-i4 resource cost loop-body steps",
+          selection.resourceCostLoopBodySteps,
+          kRVVLowPrecisionResourcePackedI4CostLoopBodySteps))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 resource cost blocker",
+          selection.resourceCostBlocker,
+          kRVVLowPrecisionResourcePackedI4CostBlocker))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 performance admission decision",
+          selection.performanceAdmissionDecision,
+          kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision))
+    return error;
   if (llvm::Error error = requireNonEmptyPolicyString(
           context, "target capability provider mirror",
           selection.targetCapabilityProviderMirror))
@@ -1160,6 +1232,29 @@ llvm::Error verifyPackedI4SameTargetMeasurementPolicyInput(
           context, "provider schedule decision reason",
           input.providerScheduleDecisionReason,
           selection.scheduleDecisionReason))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider resource cost contract",
+          input.providerResourceCostContract,
+          selection.resourceCostContract))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider resource cost model",
+          input.providerResourceCostModel, selection.resourceCostModel))
+    return error;
+  if (llvm::Error error = requirePolicyInt(
+          context, "provider resource cost loop-body steps",
+          input.providerResourceCostLoopBodySteps,
+          selection.resourceCostLoopBodySteps))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider resource cost blocker",
+          input.providerResourceCostBlocker, selection.resourceCostBlocker))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider performance admission decision",
+          input.providerPerformanceAdmissionDecision,
+          selection.performanceAdmissionDecision))
     return error;
   if (llvm::Error error = requireSameTargetPolicyInputTieBack(
           context, "provider realization admission contract",
@@ -1461,6 +1556,13 @@ materializeRVVLowPrecisionMeasurementOutcomeFromPolicyInput(
   outcome.providerScheduleDecision = input.providerScheduleDecision;
   outcome.providerScheduleDecisionReason =
       input.providerScheduleDecisionReason;
+  outcome.providerResourceCostContract = input.providerResourceCostContract;
+  outcome.providerResourceCostModel = input.providerResourceCostModel;
+  outcome.providerResourceCostLoopBodySteps =
+      input.providerResourceCostLoopBodySteps;
+  outcome.providerResourceCostBlocker = input.providerResourceCostBlocker;
+  outcome.providerPerformanceAdmissionDecision =
+      input.providerPerformanceAdmissionDecision;
   outcome.providerRealizationAdmissionContract =
       input.providerRealizationAdmissionContract;
   outcome.providerRealizationAdmissionDecision =
@@ -1547,6 +1649,13 @@ materializeRVVLowPrecisionPolicyInputFromMeasurementRecord(
   input.providerScheduleDecision = record.providerScheduleDecision;
   input.providerScheduleDecisionReason =
       record.providerScheduleDecisionReason;
+  input.providerResourceCostContract = record.providerResourceCostContract;
+  input.providerResourceCostModel = record.providerResourceCostModel;
+  input.providerResourceCostLoopBodySteps =
+      record.providerResourceCostLoopBodySteps;
+  input.providerResourceCostBlocker = record.providerResourceCostBlocker;
+  input.providerPerformanceAdmissionDecision =
+      record.providerPerformanceAdmissionDecision;
   input.providerRealizationAdmissionContract =
       record.providerRealizationAdmissionContract;
   input.providerRealizationAdmissionDecision =
@@ -2188,6 +2297,12 @@ materializeRVVLowPrecisionProductionPressureProfile(
       input.providerScheduleDecisionContract;
   profile.scheduleDecision = input.providerScheduleDecision;
   profile.scheduleDecisionReason = input.providerScheduleDecisionReason;
+  profile.resourceCostContract = input.providerResourceCostContract;
+  profile.resourceCostModel = input.providerResourceCostModel;
+  profile.resourceCostLoopBodySteps = input.providerResourceCostLoopBodySteps;
+  profile.resourceCostBlocker = input.providerResourceCostBlocker;
+  profile.performanceAdmissionDecision =
+      input.providerPerformanceAdmissionDecision;
   profile.realizationAdmissionContract =
       input.providerRealizationAdmissionContract;
   profile.realizationAdmissionDecision =
@@ -2306,6 +2421,11 @@ llvm::Error rejectProductionPressureProfileMarkerOnlyFacts(
       {"schedule decision contract", profile.scheduleDecisionContract},
       {"schedule decision", profile.scheduleDecision},
       {"schedule decision reason", profile.scheduleDecisionReason},
+      {"resource cost contract", profile.resourceCostContract},
+      {"resource cost model", profile.resourceCostModel},
+      {"resource cost blocker", profile.resourceCostBlocker},
+      {"performance admission decision",
+       profile.performanceAdmissionDecision},
       {"realization admission contract",
        profile.realizationAdmissionContract},
       {"realization admission decision",
@@ -2415,6 +2535,30 @@ llvm::Error verifyProductionPressureProfileAgainstCandidate(
           context, "packed-i4 schedule decision reason",
           candidate.scheduleDecisionReason,
           kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 resource cost contract",
+          candidate.resourceCostContract,
+          kRVVLowPrecisionResourcePackedI4CostContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 resource cost model",
+          candidate.resourceCostModel, kRVVLowPrecisionResourcePackedI4CostModel))
+    return error;
+  if (llvm::Error error = requirePolicyInt(
+          context, "packed-i4 resource cost loop-body steps",
+          candidate.resourceCostLoopBodySteps,
+          kRVVLowPrecisionResourcePackedI4CostLoopBodySteps))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 resource cost blocker",
+          candidate.resourceCostBlocker,
+          kRVVLowPrecisionResourcePackedI4CostBlocker))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 performance admission decision",
+          candidate.performanceAdmissionDecision,
+          kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision))
     return error;
   if (llvm::Error error =
           requirePolicyString(context, "pressure profile contract",
@@ -2892,6 +3036,12 @@ llvm::Error verifyProductionPressureProfileAgainstSelection(
   candidate.scheduleDecisionContract = selection.scheduleDecisionContract;
   candidate.scheduleDecision = selection.scheduleDecision;
   candidate.scheduleDecisionReason = selection.scheduleDecisionReason;
+  candidate.resourceCostContract = selection.resourceCostContract;
+  candidate.resourceCostModel = selection.resourceCostModel;
+  candidate.resourceCostLoopBodySteps = selection.resourceCostLoopBodySteps;
+  candidate.resourceCostBlocker = selection.resourceCostBlocker;
+  candidate.performanceAdmissionDecision =
+      selection.performanceAdmissionDecision;
   candidate.isLegal = selection.isLegal;
   candidate.rejectionReason = selection.rejectionReason;
   if (llvm::Error error =
@@ -3020,6 +3170,13 @@ buildRVVPackedI4Gate4SameTargetMeasurementRecord(
   record.providerScheduleDecision = selection.scheduleDecision;
   record.providerScheduleDecisionReason =
       selection.scheduleDecisionReason;
+  record.providerResourceCostContract = selection.resourceCostContract;
+  record.providerResourceCostModel = selection.resourceCostModel;
+  record.providerResourceCostLoopBodySteps =
+      selection.resourceCostLoopBodySteps;
+  record.providerResourceCostBlocker = selection.resourceCostBlocker;
+  record.providerPerformanceAdmissionDecision =
+      selection.performanceAdmissionDecision;
   record.providerRealizationAdmissionContract =
       selection.realizationAdmissionContract;
   record.providerRealizationAdmissionDecision =
@@ -3219,6 +3376,16 @@ buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
                           "provider_schedule_decision");
   TCRV_READ_RECORD_STRING(providerScheduleDecisionReason,
                           "provider_schedule_decision_reason");
+  TCRV_READ_RECORD_STRING(providerResourceCostContract,
+                          "provider_resource_cost_contract");
+  TCRV_READ_RECORD_STRING(providerResourceCostModel,
+                          "provider_resource_cost_model");
+  TCRV_READ_RECORD_INT(providerResourceCostLoopBodySteps,
+                       "provider_resource_cost_loop_body_steps");
+  TCRV_READ_RECORD_STRING(providerResourceCostBlocker,
+                          "provider_resource_cost_blocker");
+  TCRV_READ_RECORD_STRING(providerPerformanceAdmissionDecision,
+                          "provider_performance_admission_decision");
   TCRV_READ_RECORD_STRING(providerRealizationAdmissionContract,
                           "provider_realization_admission_contract");
   TCRV_READ_RECORD_STRING(providerRealizationAdmissionDecision,
@@ -3398,6 +3565,13 @@ buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
   input.providerScheduleDecision = outcome.providerScheduleDecision;
   input.providerScheduleDecisionReason =
       outcome.providerScheduleDecisionReason;
+  input.providerResourceCostContract = selection.resourceCostContract;
+  input.providerResourceCostModel = selection.resourceCostModel;
+  input.providerResourceCostLoopBodySteps =
+      selection.resourceCostLoopBodySteps;
+  input.providerResourceCostBlocker = selection.resourceCostBlocker;
+  input.providerPerformanceAdmissionDecision =
+      selection.performanceAdmissionDecision;
   input.providerRealizationAdmissionContract =
       selection.realizationAdmissionContract;
   input.providerRealizationAdmissionDecision =

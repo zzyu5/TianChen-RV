@@ -471,6 +471,81 @@ Acceptance:
   source-front-door positive route, descriptor-driven compute, or Common EmitC
   semantic inference.
 
+Current Gate 4 resource-cost blocker/admission slice:
+
+- This round keeps the active macro task open and adds a production
+  resource-cost/admission boundary for the current packed-i4
+  low-shifted-product-rescale path. The compiler path must carry a
+  provider-owned cost contract/model, loop-body step count, blocker, and
+  admission decision from resource candidate selection through selected-body
+  realization, route facts, target mirrors, generated evidence inputs, and
+  low-precision performance policy.
+- The slice does not change the generated RVV statement schedule by default:
+  the existing same-target evidence still shows dequant and dequant-clamp
+  packed-i4 no-win/regression. The expected production behavior is therefore a
+  sharper correctness-fallback denial that selected dispatch and performance
+  policy consume from provider-owned resource facts rather than from reports,
+  artifact names, q8/q4 labels, or Common EmitC inference.
+- If implementation discovers a narrowly justified schedule/resource repair
+  beyond the low-shifted-product-rescale path, that repair must be part of this
+  same boundary and must be followed by fresh same-target timing. Otherwise,
+  runtime behavior is unchanged and the existing evidence roots are consumed as
+  the admission denial evidence.
+
+Acceptance:
+
+- [x] Packed-i4 provider/resource facts include a resource-cost contract/model,
+  loop-body step count, resource-cost blocker, and performance-admission
+  decision for the low-shifted-product-rescale schedule.
+- [x] Selected-body realization, route fact derivation, cross-region handoff,
+  and target artifact mirrors require or preserve those facts for packed-i4
+  dequant and dequant-clamp.
+- [x] Same-target measurement records/evidence inputs and
+  `RVVLowPrecisionPerformancePolicy` consume the provider-owned resource-cost
+  facts and deny performance-preferred admission for current no-win evidence;
+  stale or missing resource-cost facts are rejected.
+- [x] Focused C++/FileCheck/script coverage proves the new admission boundary
+  and stale resource-cost rejection without relying on report-only or
+  generated-bundle-only evidence.
+- [x] Because generated runtime schedule is unchanged, no fresh `ssh rvv`
+  timing is required; if runtime generation changes, fresh dequant and
+  dequant-clamp same-target timing must be collected before policy claims.
+- [x] Bounded scans show no new legacy RVV route authority, q8/q4 route naming,
+  source-front-door positive route, descriptor-driven compute, or Common EmitC
+  semantic inference.
+
+Completed Gate 4 resource-cost blocker/admission slice:
+
+- Added provider-owned packed-i4 resource-cost facts for the current
+  low-shifted-product-rescale path:
+  `rvv-low-precision-packed-i4-resource-cost-contract.v1`,
+  `low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1`,
+  loop-body step count `12`,
+  blocker `packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win`,
+  and admission decision
+  `deny-performance-preferred-with-resource-cost-no-win-blocker`.
+- Required those facts through Gearbox resource candidates, selected-body
+  realization, `gearbox_cross_region_handoff` verification, route-family
+  selection, statement planning consistency checks, route metadata, target
+  artifact mirrors, generated-bundle metadata, same-target measurement records,
+  evidence roots, and production-pressure policy inputs.
+- Updated the current source-backed dequant and dequant-clamp evidence roots to
+  carry the provider resource-cost/admission facts without changing timing
+  data or generated runtime schedule. Since both current roots remain
+  regression/no-win, the policy still selects correctness fallback and denies
+  performance-preferred dispatch.
+- Added focused plugin, target, script, and evidence-root checks for accepted
+  resource-cost facts and stale/missing resource-cost/admission rejection.
+- Self-repaired the target exporter test stack pressure exposed by the larger
+  route/provider fact surface: route-control and segment2 provider temporary
+  plans now avoid large stack copies, and the monolithic target artifact test
+  raises its own soft stack limit before constructing the full RVV fixture
+  matrix.
+- Gate 4 remains open. The next continuation point is a provider-owned
+  packed-i4 schedule/resource bottleneck beyond the current 12-step
+  low-shifted-product-rescale path, or a precise production-consumed blocker if
+  no measured-win repair is found.
+
 ## Non-Goals
 
 - No generated-bundle-only or `ssh rvv`-only closeout unless it validates
@@ -636,6 +711,32 @@ Current Gate 4 evidence-root policy-ingestion verification:
   `0.677994..0.704931` regression/no-win records are the consumed evidence
   inputs and still deny performance preference.
 
+Current Gate 4 resource-cost blocker/admission verification:
+
+- `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test` passed after adding provider-owned
+  packed-i4 resource-cost/admission facts and the target exporter stack
+  self-repair. The target artifact test target still emits its existing
+  switch-coverage warnings.
+- `build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `build/bin/tianchenrv-target-artifact-export-test` passed with the default
+  command after the test binary raises its own soft stack limit.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+  passed after adding resource-cost/admission tie-back checks.
+- `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test` passed after
+  limiting packed-i4 resource-cost metadata to packed-i4 resource profiles.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --dry-run
+  --artifact-root /tmp/tcrv-gate4-packed-i4-dry-run --run-id
+  codex-gate4-resource-cost --overwrite --op-kind
+  widening_product_reduce_dequantize_f32 --op-kind
+  widening_product_reduce_dequant_clamp_f32` passed.
+- `git diff --check` passed.
+- Bounded added-diff scan for `RVVI32M1`, `rvv-i32m1`, `tcrv_rvv.i32_`,
+  `!tcrv_rvv.i32m`, `__riscv_*_i32m1`, source-front-door, and descriptor
+  markers found only the PRD non-goal wording; no new positive legacy route
+  authority was added.
+
 ## Spec Update Decision
 
 - Updated `.trellis/spec/extension-plugins/rvv-plugin.md` to record the
@@ -661,7 +762,9 @@ Current Gate 4 evidence-root policy-ingestion verification:
 ## Continuation Point
 
 Keep this macro task active. Gates 1-3 are complete. The next unfinished
-milestone is Gate 4: Gearbox/resource-aware selected-body realization plus
-measured same-target comparison must consume the provider-owned low-precision
-primitive facts with source-backed evidence, without q8/q4 wrappers,
-artifact-name authority, or Common EmitC semantic inference.
+milestone is Gate 4: choose the next provider-owned packed-i4 schedule/resource
+bottleneck beyond the current 12-step low-shifted-product-rescale path, or
+record a precise production-consumed blocker if no measured-win repair is
+available. Do not claim performance-preferred dispatch until a source-backed
+same-target measured win agrees with provider maturity, target mirrors,
+measurement roots, and policy facts.

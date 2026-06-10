@@ -1077,6 +1077,22 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
   state.addAttribute(
       "vector_register_budget",
       builder.getI64IntegerAttr(selectedCandidate.vectorRegisterBudget));
+  if (isRVVLowPrecisionResourcePackedI4CandidateID(
+          selectedCandidate.candidateID)) {
+    state.addAttribute("resource_cost_contract",
+                       builder.getStringAttr(
+                           selectedCandidate.resourceCostContract));
+    state.addAttribute("resource_cost_model",
+                       builder.getStringAttr(selectedCandidate.resourceCostModel));
+    state.addAttribute("resource_cost_loop_body_steps",
+                       builder.getI64IntegerAttr(
+                           selectedCandidate.resourceCostLoopBodySteps));
+    state.addAttribute("resource_cost_blocker",
+                       builder.getStringAttr(selectedCandidate.resourceCostBlocker));
+    state.addAttribute(
+        "performance_admission_decision",
+        builder.getStringAttr(selectedCandidate.performanceAdmissionDecision));
+  }
   state.addAttribute(
       "product_region_index",
       builder.getI64IntegerAttr(

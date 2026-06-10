@@ -177,6 +177,11 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::int64_t vsetvlRegionCount = 0;
   std::int64_t peakLiveVectorGroups = 0;
   std::int64_t vectorRegisterBudget = 0;
+  std::string resourceCostContract;
+  std::string resourceCostModel;
+  std::int64_t resourceCostLoopBodySteps = 0;
+  std::string resourceCostBlocker;
+  std::string performanceAdmissionDecision;
 
   std::string runtimeAVLSource;
   std::string producerScope;

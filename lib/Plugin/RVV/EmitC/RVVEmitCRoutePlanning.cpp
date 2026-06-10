@@ -28,6 +28,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -796,24 +797,45 @@ getRVVStandaloneReductionKindMirror(RVVSelectedBodyOperationKind operation) {
   }
 }
 
+static bool populateRVVStandaloneReductionRouteFacts(
+    RVVStandaloneReductionRouteFacts &facts,
+    RVVSelectedBodyOperationKind operation, std::int64_t sew,
+    bool includeRouteOperandBindingSummary);
+
 std::optional<RVVStandaloneReductionRouteFacts>
 getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation) {
-  return getRVVStandaloneReductionRouteFacts(operation, /*sew=*/0);
+  RVVStandaloneReductionRouteFacts facts;
+  if (!populateRVVStandaloneReductionRouteFacts(
+          facts, operation, /*sew=*/0,
+          /*includeRouteOperandBindingSummary=*/true))
+    return std::nullopt;
+  return facts;
 }
 
 std::optional<RVVStandaloneReductionRouteFacts>
 getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation,
                                     std::int64_t sew) {
+  RVVStandaloneReductionRouteFacts facts;
+  if (!populateRVVStandaloneReductionRouteFacts(
+          facts, operation, sew, /*includeRouteOperandBindingSummary=*/true))
+    return std::nullopt;
+  return facts;
+}
+
+static bool populateRVVStandaloneReductionRouteFacts(
+    RVVStandaloneReductionRouteFacts &facts,
+    RVVSelectedBodyOperationKind operation, std::int64_t sew,
+    bool includeRouteOperandBindingSummary) {
   std::optional<llvm::StringRef> planID =
       getRVVStandaloneReductionRouteOperandBindingPlanID(operation);
   if (!planID)
-    return std::nullopt;
+    return false;
   const bool isWideningStandalone =
       operation == RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
   if (isWideningStandalone && sew != 0 && sew != 32)
-    return std::nullopt;
+    return false;
   if (!isWideningStandalone && sew != 0 && sew != 32 && sew != 64)
-    return std::nullopt;
+    return false;
 
   const bool isPlain =
       isRVVPlainStandaloneReductionRouteFactsOperation(operation);
@@ -824,7 +846,7 @@ getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation,
           operation);
   const bool isComputedMask = isVectorComputedMask || isRuntimeScalarComputedMask;
   if (!isPlain && !isComputedMask)
-    return std::nullopt;
+    return false;
 
   const bool isAdd =
       operation == RVVSelectedBodyOperationKind::ComputedMaskStandaloneReduceAdd ||
@@ -843,7 +865,6 @@ getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation,
                        "masked-standalone-reduction-neutral-inactive-lanes-before-reduction"))
           : llvm::StringRef();
 
-  RVVStandaloneReductionRouteFacts facts;
   facts.operation = operation;
   facts.reductionKind = getRVVStandaloneReductionKindMirror(operation);
   facts.memoryForm =
@@ -951,50 +972,52 @@ getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation,
   facts.reductionStoreVL = "1";
   facts.scalarResultRuntimeBoundary =
       "scalar-result-out0-seeded-before-loop-and-carried-across-runtime-vl-chunks.v1";
-  if (isPlain) {
-    if (isWideningStandalone)
+  if (includeRouteOperandBindingSummary) {
+    if (isPlain) {
+      if (isWideningStandalone)
+        facts.routeOperandBindingSummary =
+            (llvm::Twine(*planID) +
+             ";lhs=lhs-input-buffer:lhs:abi|load|reduce-input|src-i16mf2|hdr;"
+             "acc=accumulator-input-buffer:acc:abi|seed|acc-state|acc-i32|hdr;"
+             "out=output-buffer:out:abi|acc-state|store|res-i32m1|hdr;"
+             "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
+                .str();
+      else
+        facts.routeOperandBindingSummary =
+            (llvm::Twine(*planID) +
+             ";lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;"
+             "acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;"
+             "out=output-buffer:out:abi|acc-state|store|hdr;"
+             "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
+                .str();
+    } else if (isVectorComputedMask) {
       facts.routeOperandBindingSummary =
           (llvm::Twine(*planID) +
-           ";lhs=lhs-input-buffer:lhs:abi|load|reduce-input|src-i16mf2|hdr;"
-           "acc=accumulator-input-buffer:acc:abi|seed|acc-state|acc-i32|hdr;"
-           "out=output-buffer:out:abi|acc-state|store|res-i32m1|hdr;"
+           ";cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;"
+           "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;"
+           "src=source-input-buffer:src:abi|src-load|masked-reduce-input|" +
+           inactiveUse +
+           "|hdr;"
+           "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;"
+           "out=output-buffer:out:abi|acc-state|store-base|hdr;"
            "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
               .str();
-    else
+    } else {
       facts.routeOperandBindingSummary =
           (llvm::Twine(*planID) +
-           ";lhs=lhs-input-buffer:lhs:abi|load|reduce-input|hdr;"
-           "acc=accumulator-input-buffer:acc:abi|seed|acc-state|hdr;"
-           "out=output-buffer:out:abi|acc-state|store|hdr;"
+           ";cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;"
+           "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs-call|hdr;"
+           "src=source-input-buffer:src:abi|src-load|masked-reduce-input|" +
+           inactiveUse +
+           "|hdr;"
+           "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;"
+           "out=output-buffer:out:abi|acc-state|store-base|hdr;"
            "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
               .str();
-  } else if (isVectorComputedMask) {
-    facts.routeOperandBindingSummary =
-        (llvm::Twine(*planID) +
-         ";cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;"
-         "cmp_rhs=rhs-input-buffer:cmp_rhs:abi|cmp-rhs-load|cmp-rhs-call|hdr;"
-         "src=source-input-buffer:src:abi|src-load|masked-reduce-input|" +
-         inactiveUse +
-         "|hdr;"
-         "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;"
-         "out=output-buffer:out:abi|acc-state|store-base|hdr;"
-         "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
-            .str();
-  } else {
-    facts.routeOperandBindingSummary =
-        (llvm::Twine(*planID) +
-         ";cmp_lhs=lhs-input-buffer:cmp_lhs:abi|cmp-lhs-load|cmp-lhs-call|hdr;"
-         "rhs_scalar=rhs-scalar-value:rhs_scalar:abi|splat|cmp-rhs-call|hdr;"
-         "src=source-input-buffer:src:abi|src-load|masked-reduce-input|" +
-         inactiveUse +
-         "|hdr;"
-         "acc=accumulator-input-buffer:acc:abi|initial-seed|acc-state|masked-reduce-acc|hdr;"
-         "out=output-buffer:out:abi|acc-state|store-base|hdr;"
-         "n=runtime-element-count:n:abi|setvl-avl|loop|hdr")
-            .str();
+    }
   }
 
-  if (sew != 0) {
+  if (sew != 0 && includeRouteOperandBindingSummary) {
     const llvm::StringRef scalarCType = sew == 64 ? llvm::StringRef("int64_t")
                                                   : llvm::StringRef("int32_t");
     const llvm::StringRef sourceScalarCType =
@@ -1036,7 +1059,7 @@ getRVVStandaloneReductionRouteFacts(RVVSelectedBodyOperationKind operation,
     addParameter("n", "size_t", RuntimeABIParameterRole::RuntimeElementCount);
   }
 
-  return facts;
+  return true;
 }
 
 std::optional<RVVRuntimeScalarComputedMaskStandaloneReductionRouteFacts>
@@ -11049,10 +11072,10 @@ llvm::Error validateRVVSelectedBodyStandaloneReductionRouteFamilyPlan(
           plan.operation);
   const bool isWideningStandalone =
       plan.operation == RVVSelectedBodyOperationKind::WideningStandaloneReduceAdd;
-  std::optional<RVVStandaloneReductionRouteFacts> routeFacts =
-      getRVVStandaloneReductionRouteFacts(plan.operation,
-                                          plan.runtimeControlPlan.sew);
-  if (!routeFacts)
+  auto routeFacts = std::make_unique<RVVStandaloneReductionRouteFacts>();
+  if (!populateRVVStandaloneReductionRouteFacts(
+          *routeFacts, plan.operation, plan.runtimeControlPlan.sew,
+          /*includeRouteOperandBindingSummary=*/false))
     return makeRVVEmitCRouteProviderError(
         "standalone reduction route-family plan requires provider-owned "
         "add/min/max canonical route facts for the selected operation and SEW");
@@ -43579,6 +43602,20 @@ getRVVSelectedBodyConfigArtifactMetadata(
       metadata.push_back(
           {"tcrv_rvv.low_precision_resource.schedule_decision_reason",
            selection.scheduleDecisionReason});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.resource_cost_contract",
+           selection.resourceCostContract});
+      metadata.push_back({"tcrv_rvv.low_precision_resource.resource_cost_model",
+                          selection.resourceCostModel});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps",
+           llvm::Twine(selection.resourceCostLoopBodySteps).str()});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.resource_cost_blocker",
+           selection.resourceCostBlocker});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.performance_admission_decision",
+           selection.performanceAdmissionDecision});
       metadata.push_back({"tcrv_rvv.low_precision_resource.performance_maturity",
                           selection.performanceMaturity});
       metadata.push_back(

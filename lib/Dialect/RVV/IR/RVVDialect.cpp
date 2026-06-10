@@ -129,6 +129,16 @@ constexpr llvm::StringLiteral kPeakLiveVectorGroupsAttrName(
     "peak_live_vector_groups");
 constexpr llvm::StringLiteral kVectorRegisterBudgetAttrName(
     "vector_register_budget");
+constexpr llvm::StringLiteral kResourceCostContractAttrName(
+    "resource_cost_contract");
+constexpr llvm::StringLiteral kResourceCostModelAttrName(
+    "resource_cost_model");
+constexpr llvm::StringLiteral kResourceCostLoopBodyStepsAttrName(
+    "resource_cost_loop_body_steps");
+constexpr llvm::StringLiteral kResourceCostBlockerAttrName(
+    "resource_cost_blocker");
+constexpr llvm::StringLiteral kPerformanceAdmissionDecisionAttrName(
+    "performance_admission_decision");
 constexpr llvm::StringLiteral kProductRegionIndexAttrName(
     "product_region_index");
 constexpr llvm::StringLiteral kDequantRegionIndexAttrName(
@@ -314,6 +324,11 @@ bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
          name == kUnpackIntentAttrName ||
          name == kPeakLiveVectorGroupsAttrName ||
          name == kVectorRegisterBudgetAttrName ||
+         name == kResourceCostContractAttrName ||
+         name == kResourceCostModelAttrName ||
+         name == kResourceCostLoopBodyStepsAttrName ||
+         name == kResourceCostBlockerAttrName ||
+         name == kPerformanceAdmissionDecisionAttrName ||
          name == kProductRegionIndexAttrName ||
          name == kDequantRegionIndexAttrName ||
          name == kRemediationPlanContractAttrName ||
@@ -4308,6 +4323,77 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return emitOpError()
            << "requires peak_live_vector_groups to fit inside "
               "vector_register_budget";
+
+  auto requireOptionalPackedI4StringFact =
+      [&](llvm::StringRef attrName, llvm::StringRef label,
+          llvm::StringRef expected) -> mlir::LogicalResult {
+    auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return emitOpError()
+               << "requires packed-i4 resource-cost attribute '" << attrName
+               << "' to be absent for unpacked-byte resource candidates";
+      return mlir::success();
+    }
+    if (!attr)
+      return emitOpError()
+             << "requires packed-i4 resource-cost attribute '" << attrName
+             << "' on the selected resource handoff";
+    if (attr.getValue() != expected)
+      return emitOpError()
+             << "requires packed-i4 resource-cost attribute '" << attrName
+             << "' to match provider-owned " << label << " '" << expected
+             << "' but found '" << attr.getValue() << "'";
+    return verifyBoundedMetadata(op, attrName, attr.getValue());
+  };
+  auto requireOptionalPackedI4IntegerFact =
+      [&](llvm::StringRef attrName, llvm::StringRef label,
+          std::int64_t expected) -> mlir::LogicalResult {
+    auto attr = op->getAttrOfType<mlir::IntegerAttr>(attrName);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return emitOpError()
+               << "requires packed-i4 resource-cost attribute '" << attrName
+               << "' to be absent for unpacked-byte resource candidates";
+      return mlir::success();
+    }
+    if (!attr)
+      return emitOpError()
+             << "requires packed-i4 resource-cost attribute '" << attrName
+             << "' on the selected resource handoff";
+    if (attr.getInt() != expected)
+      return emitOpError()
+             << "requires packed-i4 resource-cost attribute '" << attrName
+             << "' to match provider-owned " << label << " " << expected
+             << " but found " << attr.getInt();
+    return mlir::success();
+  };
+  if (mlir::failed(requireOptionalPackedI4StringFact(
+          kResourceCostContractAttrName, "resource cost contract",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4CostContract)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalPackedI4StringFact(
+          kResourceCostModelAttrName, "resource cost model",
+          tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePackedI4CostModel)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalPackedI4IntegerFact(
+          kResourceCostLoopBodyStepsAttrName, "resource cost loop-body steps",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4CostLoopBodySteps)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalPackedI4StringFact(
+          kResourceCostBlockerAttrName, "resource cost blocker",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4CostBlocker)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalPackedI4StringFact(
+          kPerformanceAdmissionDecisionAttrName,
+          "performance admission decision",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision)))
+    return mlir::failure();
+
   if (static_cast<std::int64_t>(getProductRegionIndex()) !=
           expectedProductRegionIndex ||
       static_cast<std::int64_t>(getDequantRegionIndex()) !=

@@ -4002,6 +4002,32 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
           plugin::rvv::kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 resource cost contract",
+          selection.resourceCostContract,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4CostContract))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 resource cost model",
+          selection.resourceCostModel,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4CostModel))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractIntField(
+          contract.consumerLabel, "packed-i4 resource cost loop-body steps",
+          selection.resourceCostLoopBodySteps,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4CostLoopBodySteps))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 resource cost blocker",
+          selection.resourceCostBlocker,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4CostBlocker))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 performance admission decision",
+          selection.performanceAdmissionDecision,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 performance maturity",
           selection.performanceMaturity,
           plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceMaturity))
@@ -6289,6 +6315,28 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
     if (llvm::Error error = requireResourceMirror(
             "tcrv_rvv.low_precision_resource.schedule_decision_reason",
             selection.scheduleDecisionReason, "schedule decision reason"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.resource_cost_contract",
+            selection.resourceCostContract, "resource cost contract"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.resource_cost_model",
+            selection.resourceCostModel, "resource cost model"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps",
+            llvm::Twine(selection.resourceCostLoopBodySteps).str(),
+            "resource cost loop-body steps"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.resource_cost_blocker",
+            selection.resourceCostBlocker, "resource cost blocker"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.performance_admission_decision",
+            selection.performanceAdmissionDecision,
+            "performance admission decision"))
       return error;
     if (llvm::Error error = requireResourceMirror(
             "tcrv_rvv.low_precision_resource.performance_maturity",

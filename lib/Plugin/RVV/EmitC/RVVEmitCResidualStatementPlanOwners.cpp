@@ -515,7 +515,8 @@ llvm::Error verifyRVVSelectedBodyWideningConversionRouteProviderFacts(
   }
 
   if (llvm::Error error =
-          verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context))
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              analysis, context))
     return error;
 
   if (!analysis.wideningConversionRouteFamilyPlan ||
@@ -869,7 +870,8 @@ llvm::Error verifyRVVSelectedBodyDequantizationRouteProviderFacts(
   }
 
   if (llvm::Error error =
-          verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context))
+          verifyRVVSelectedBodyStandaloneReductionRouteFamilyProviderPlans(
+              analysis, context))
     return error;
 
   if (!analysis.dequantizationRouteFamilyPlan ||
@@ -1247,10 +1249,6 @@ llvm::Error verifyRVVSelectedBodyStandaloneReductionRouteProviderFacts(
           "' before creating TCRVEmitCLowerableRoute");
     return llvm::Error::success();
   }
-
-  if (llvm::Error error =
-          verifyRVVSelectedBodyRouteFamilyProviderPlans(analysis, context))
-    return error;
 
   if (!analysis.standaloneReductionRouteFamilyPlan ||
       materializationFacts.standaloneReductionPlan !=

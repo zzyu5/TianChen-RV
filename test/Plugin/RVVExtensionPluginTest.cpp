@@ -189,6 +189,16 @@ llvm::json::Object makeSameTargetMeasurementRecordEvidenceInput(
       record.providerScheduleDecision;
   evidenceInput["provider_schedule_decision_reason"] =
       record.providerScheduleDecisionReason;
+  evidenceInput["provider_resource_cost_contract"] =
+      record.providerResourceCostContract;
+  evidenceInput["provider_resource_cost_model"] =
+      record.providerResourceCostModel;
+  evidenceInput["provider_resource_cost_loop_body_steps"] =
+      record.providerResourceCostLoopBodySteps;
+  evidenceInput["provider_resource_cost_blocker"] =
+      record.providerResourceCostBlocker;
+  evidenceInput["provider_performance_admission_decision"] =
+      record.providerPerformanceAdmissionDecision;
   evidenceInput["provider_realization_admission_contract"] =
       record.providerRealizationAdmissionContract;
   evidenceInput["provider_realization_admission_decision"] =
@@ -8540,6 +8550,7 @@ module {
   constexpr llvm::StringLiteral primitivePackedI4ResourceInsertionPoint =
       "tcrv_rvv.low_precision_resource.peak_live_vector_groups = 6 : i64";
   constexpr llvm::StringLiteral primitiveResourceFacts = R"mlir(, tcrv_rvv.low_precision_resource.primitive_accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input", tcrv_rvv.low_precision_resource.primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1", tcrv_rvv.low_precision_resource.primitive_chain_kind = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1", tcrv_rvv.low_precision_resource.primitive_contract = "rvv-low-precision-widening-primitive-facts.v1", tcrv_rvv.low_precision_resource.primitive_kind = "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-reduction-f32m1-dequant.v1", tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32", tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1", tcrv_rvv.low_precision_resource.primitive_reduction_store_vl = "1", tcrv_rvv.low_precision_resource.primitive_result_layout = "store-standalone-reduction-lane0-to-output-scalar", tcrv_rvv.low_precision_resource.primitive_scalar_seed_splat_intrinsic = "__riscv_vmv_v_x_i32m1", tcrv_rvv.low_precision_resource.primitive_source_extension = "sign-extend-i8-to-i16-product", tcrv_rvv.low_precision_resource.primitive_source_load = "unit-stride-byte-load", tcrv_rvv.low_precision_resource.primitive_widening_product_intrinsic = "__riscv_vwmul_vv_i16mf2", tcrv_rvv.low_precision_resource.primitive_widening_product_relation = "signed-i8mf4xi8mf4-to-i16mf2", tcrv_rvv.low_precision_resource.widening_product_extension_policy = "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2", tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles = "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4")mlir";
+  constexpr llvm::StringLiteral packedI4ResourceCostFacts = R"mlir(, tcrv_rvv.low_precision_resource.resource_cost_contract = "rvv-low-precision-packed-i4-resource-cost-contract.v1", tcrv_rvv.low_precision_resource.resource_cost_model = "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1", tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps = 12 : i64, tcrv_rvv.low_precision_resource.resource_cost_blocker = "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win", tcrv_rvv.low_precision_resource.performance_admission_decision = "deny-performance-preferred-with-resource-cost-no-win-blocker")mlir";
   std::string sourceWithPrimitiveResourceFacts(source.str());
   unsigned insertedPrimitiveResourceFacts = 0;
   auto insertPrimitiveFactsAfter = [&](llvm::StringRef insertionPoint) {
@@ -8560,6 +8571,15 @@ module {
   if (insertedPrimitiveResourceFacts != 2)
     return fail("failed to seed low-precision primitive resource facts into "
                 "pre-realized contraction route-entry fixture");
+  std::size_t packedI4CostInsertionPosition =
+      sourceWithPrimitiveResourceFacts.find(
+          primitivePackedI4ResourceInsertionPoint.str());
+  if (packedI4CostInsertionPosition == std::string::npos)
+    return fail("failed to find packed-i4 resource-cost insertion point in "
+                "pre-realized contraction route-entry fixture");
+  packedI4CostInsertionPosition += primitivePackedI4ResourceInsertionPoint.size();
+  sourceWithPrimitiveResourceFacts.insert(packedI4CostInsertionPosition,
+                                          packedI4ResourceCostFacts.str());
 
   mlir::OwningOpRef<mlir::ModuleOp> module =
       parseModule(context, sourceWithPrimitiveResourceFacts);
@@ -9947,6 +9967,31 @@ module {
                   "sign-extend-i4-nibbles-before-widening-product" &&
               packedI4ProductDequantHandoff.getPeakLiveVectorGroups() == 6 &&
               packedI4ProductDequantHandoff.getVectorRegisterBudget() == 32 &&
+              packedI4ProductDequantHandoff
+                      .getResourceCostContract()
+                      .value_or(llvm::StringRef()) ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4CostContract &&
+              packedI4ProductDequantHandoff
+                      .getResourceCostModel()
+                      .value_or(llvm::StringRef()) ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4CostModel &&
+              packedI4ProductDequantHandoff
+                      .getResourceCostLoopBodySteps()
+                      .value_or(0) ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4CostLoopBodySteps &&
+              packedI4ProductDequantHandoff
+                      .getResourceCostBlocker()
+                      .value_or(llvm::StringRef()) ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4CostBlocker &&
+              packedI4ProductDequantHandoff
+                      .getPerformanceAdmissionDecision()
+                      .value_or(llvm::StringRef()) ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision &&
               packedI4ProductDequantHandoff.getProductRegionIndex() == 1 &&
               packedI4ProductDequantHandoff.getDequantRegionIndex() == 2 &&
               packedI4ProductDequantHandoff.getRemediationPlanContract()
@@ -10101,6 +10146,21 @@ module {
               packedI4ResourceSelection.scheduleDecisionReason ==
                   "accepted-remediation-schedule-low-shifted-product-rescale-"
                   "pair-sum-single-vwredsum-budget-6of32" &&
+              packedI4ResourceSelection.resourceCostContract ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4CostContract &&
+              packedI4ResourceSelection.resourceCostModel ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4CostModel &&
+              packedI4ResourceSelection.resourceCostLoopBodySteps ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4CostLoopBodySteps &&
+              packedI4ResourceSelection.resourceCostBlocker ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4CostBlocker &&
+              packedI4ResourceSelection.performanceAdmissionDecision ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision &&
               packedI4ResourceSelection.performanceMaturity ==
                   "executable-not-performance-mature" &&
               packedI4ResourceSelection.performanceMaturityEvidence ==

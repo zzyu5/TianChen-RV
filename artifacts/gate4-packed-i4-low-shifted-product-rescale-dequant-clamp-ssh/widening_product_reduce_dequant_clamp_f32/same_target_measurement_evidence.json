@@ -601,7 +601,12 @@
             "remediation_vl_plan": "two-region-runtime-avl-product-reduce-then-dequant-store.v1",
             "schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
             "schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
-            "schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32"
+            "schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32",
+            "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+            "resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+            "resource_cost_loop_body_steps": 12,
+            "resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+            "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
           },
           "fields": {
             "performance_action": "no-win-repair-required-before-performance-claim",
@@ -624,7 +629,12 @@
             "remediation_vl_plan": "two-region-runtime-avl-product-reduce-then-dequant-store.v1",
             "schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
             "schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
-            "schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32"
+            "schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32",
+            "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+            "resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+            "resource_cost_loop_body_steps": 12,
+            "resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+            "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
           },
           "reference_oracle_source": "provider-owned packed-i4 operand form and remediation metadata, not artifact path/name metadata",
           "source": "validated object/header low-precision resource mirrors for the provider-selected packed-i4 resource"
@@ -1166,7 +1176,12 @@
     "provider_schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
     "provider_schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32",
     "schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
-    "sha256": "65b17e5a52fe28e167b1a7c4d138d57a8be8c5334d2896c15ff711e1749dc668"
+    "sha256": "65b17e5a52fe28e167b1a7c4d138d57a8be8c5334d2896c15ff711e1749dc668",
+    "provider_resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+    "provider_resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+    "provider_resource_cost_loop_body_steps": 12,
+    "provider_resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+    "provider_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
   },
   "measurement_schedule_decision_evidence": {
     "provider_realization_admission_schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
@@ -1176,7 +1191,12 @@
     "provider_schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
     "provider_schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32",
     "schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
-    "source": "provider-owned packed-i4 schedule decision mirrored by validated generated object/header metadata"
+    "source": "provider-owned packed-i4 schedule decision mirrored by validated generated object/header metadata",
+    "provider_resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+    "provider_resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+    "provider_resource_cost_loop_body_steps": 12,
+    "provider_resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+    "provider_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
   },
   "op_kind": "widening_product_reduce_dequant_clamp_f32",
   "op_summary": {
@@ -1383,7 +1403,12 @@
               "remediation_vl_plan": "two-region-runtime-avl-product-reduce-then-dequant-store.v1",
               "schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
               "schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
-              "schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32"
+              "schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32",
+              "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+              "resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+              "resource_cost_loop_body_steps": 12,
+              "resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+              "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
             },
             "fields": {
               "performance_action": "no-win-repair-required-before-performance-claim",
@@ -1406,7 +1431,12 @@
               "remediation_vl_plan": "two-region-runtime-avl-product-reduce-then-dequant-store.v1",
               "schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
               "schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
-              "schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32"
+              "schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32",
+              "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+              "resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+              "resource_cost_loop_body_steps": 12,
+              "resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+              "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
             },
             "reference_oracle_source": "provider-owned packed-i4 operand form and remediation metadata, not artifact path/name metadata",
             "source": "validated object/header low-precision resource mirrors for the provider-selected packed-i4 resource"
@@ -1955,7 +1985,12 @@
       "schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
       "sha256": "65b17e5a52fe28e167b1a7c4d138d57a8be8c5334d2896c15ff711e1749dc668",
       "timing_method": "clock_gettime(CLOCK_MONOTONIC_RAW)",
-      "warmup_count": 2
+      "warmup_count": 2,
+      "provider_resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+      "provider_resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+      "provider_resource_cost_loop_body_steps": 12,
+      "provider_resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+      "provider_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
     },
     "op_kind": "widening_product_reduce_dequant_clamp_f32",
     "packed_i4_resource_metadata_selected": true,
@@ -2069,7 +2104,12 @@
       "ssh_evidence": true,
       "target_capability_legality_mirror": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic",
       "target_capability_provider_mirror": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact",
-      "target_profile": "ssh rvv"
+      "target_profile": "ssh rvv",
+      "provider_resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+      "provider_resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+      "provider_resource_cost_loop_body_steps": 12,
+      "provider_resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+      "provider_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
     },
     "provider_feedback_tie_back": {
       "authority": "provider-owned low-precision resource facts mirrored by generated object/header metadata after target artifact validation",
@@ -2162,7 +2202,12 @@
         "unpack_intent": "sign-extend-i4-nibbles-before-widening-product",
         "vsetvl_region_count": "2",
         "widening_product_extension_policy": "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2",
-        "widening_product_multiplicand_roles": "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"
+        "widening_product_multiplicand_roles": "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4",
+        "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+        "resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+        "resource_cost_loop_body_steps": 12,
+        "resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+        "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
       },
       "fields": {
         "accumulator_dtype": "i32",
@@ -2252,7 +2297,12 @@
         "unpack_intent": "sign-extend-i4-nibbles-before-widening-product",
         "vsetvl_region_count": "2",
         "widening_product_extension_policy": "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2",
-        "widening_product_multiplicand_roles": "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"
+        "widening_product_multiplicand_roles": "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4",
+        "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+        "resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+        "resource_cost_loop_body_steps": 12,
+        "resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+        "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
       },
       "maturity_contract_evidence_input": {
         "authority": "measurement-evidence-input-only; provider-owned low-precision resource facts and target artifact mirrors remain the maturity contract",
@@ -2364,7 +2414,12 @@
         "ssh_evidence": true,
         "target_capability_legality_mirror": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic",
         "target_capability_provider_mirror": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact",
-        "target_profile": "ssh rvv"
+        "target_profile": "ssh rvv",
+        "provider_resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+        "provider_resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+        "provider_resource_cost_loop_body_steps": 12,
+        "provider_resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+        "provider_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
       },
       "next_repair_owner_if_no_win": "RVV plugin-local Gearbox/resource/statement planning for the selected packed-i4 product-reduction candidate",
       "packed_i4_resource_metadata_selected": true,
@@ -2470,7 +2525,12 @@
         "ssh_evidence": true,
         "target_capability_legality_mirror": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic",
         "target_capability_provider_mirror": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact",
-        "target_profile": "ssh rvv"
+        "target_profile": "ssh rvv",
+        "provider_resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+        "provider_resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+        "provider_resource_cost_loop_body_steps": 12,
+        "provider_resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+        "provider_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
       }
     },
     "result_classification": {
@@ -2781,7 +2841,12 @@
       "ssh_evidence": true,
       "target_capability_legality_mirror": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic",
       "target_capability_provider_mirror": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact",
-      "target_profile": "ssh rvv"
+      "target_profile": "ssh rvv",
+      "provider_resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+      "provider_resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+      "provider_resource_cost_loop_body_steps": 12,
+      "provider_resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+      "provider_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
     },
     "same_target_schedule_decision_evidence": {
       "provider_realization_admission_schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
@@ -2790,7 +2855,12 @@
       "provider_schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
       "provider_schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
       "provider_schedule_decision_reason": "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-single-vwredsum-budget-6of32",
-      "schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1"
+      "schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
+      "provider_resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+      "provider_resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+      "provider_resource_cost_loop_body_steps": 12,
+      "provider_resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+      "provider_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
     },
     "ssh_measurement_summary": {
       "compile_command": {
@@ -5184,7 +5254,12 @@
     "runtime_n_unit": "packed input bytes",
     "schedule_decision": "select-packed-i4-low-shifted-product-rescale-single-reduce-u1-two-region-budget-6of32.v1",
     "source": "provider-owned low-precision resource metadata selected signed packed-i4 nibbles",
-    "unpack_intent": "sign-extend-i4-nibbles-before-widening-product"
+    "unpack_intent": "sign-extend-i4-nibbles-before-widening-product",
+    "provider_resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+    "provider_resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+    "provider_resource_cost_loop_body_steps": 12,
+    "provider_resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+    "provider_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
   },
   "packed_i4_resource_metadata_selected": true,
   "performance_maturity_contract_evidence_input": {
@@ -5297,7 +5372,12 @@
     "ssh_evidence": true,
     "target_capability_legality_mirror": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic",
     "target_capability_provider_mirror": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact",
-    "target_profile": "ssh rvv"
+    "target_profile": "ssh rvv",
+    "provider_resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+    "provider_resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+    "provider_resource_cost_loop_body_steps": 12,
+    "provider_resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+    "provider_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
   },
   "provider_feedback_tie_back": {
     "authority": "provider-owned low-precision resource facts mirrored by generated object/header metadata after target artifact validation",
@@ -5390,7 +5470,12 @@
       "unpack_intent": "sign-extend-i4-nibbles-before-widening-product",
       "vsetvl_region_count": "2",
       "widening_product_extension_policy": "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2",
-      "widening_product_multiplicand_roles": "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"
+      "widening_product_multiplicand_roles": "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4",
+      "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+      "resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+      "resource_cost_loop_body_steps": 12,
+      "resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+      "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
     },
     "fields": {
       "accumulator_dtype": "i32",
@@ -5480,7 +5565,12 @@
       "unpack_intent": "sign-extend-i4-nibbles-before-widening-product",
       "vsetvl_region_count": "2",
       "widening_product_extension_policy": "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2",
-      "widening_product_multiplicand_roles": "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"
+      "widening_product_multiplicand_roles": "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4",
+      "resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+      "resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+      "resource_cost_loop_body_steps": 12,
+      "resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+      "performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
     },
     "maturity_contract_evidence_input": {
       "authority": "measurement-evidence-input-only; provider-owned low-precision resource facts and target artifact mirrors remain the maturity contract",
@@ -5592,7 +5682,12 @@
       "ssh_evidence": true,
       "target_capability_legality_mirror": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic",
       "target_capability_provider_mirror": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact",
-      "target_profile": "ssh rvv"
+      "target_profile": "ssh rvv",
+      "provider_resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+      "provider_resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+      "provider_resource_cost_loop_body_steps": 12,
+      "provider_resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+      "provider_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
     },
     "next_repair_owner_if_no_win": "RVV plugin-local Gearbox/resource/statement planning for the selected packed-i4 product-reduction candidate",
     "packed_i4_resource_metadata_selected": true,
@@ -5698,7 +5793,12 @@
       "ssh_evidence": true,
       "target_capability_legality_mirror": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic",
       "target_capability_provider_mirror": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact",
-      "target_profile": "ssh rvv"
+      "target_profile": "ssh rvv",
+      "provider_resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+      "provider_resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+      "provider_resource_cost_loop_body_steps": 12,
+      "provider_resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+      "provider_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
     }
   },
   "remote_measurement": {
@@ -8221,7 +8321,12 @@
     "ssh_evidence": true,
     "target_capability_legality_mirror": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic",
     "target_capability_provider_mirror": "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact",
-    "target_profile": "ssh rvv"
+    "target_profile": "ssh rvv",
+    "provider_resource_cost_contract": "rvv-low-precision-packed-i4-resource-cost-contract.v1",
+    "provider_resource_cost_model": "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1",
+    "provider_resource_cost_loop_body_steps": 12,
+    "provider_resource_cost_blocker": "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win",
+    "provider_performance_admission_decision": "deny-performance-preferred-with-resource-cost-no-win-blocker"
   },
   "schema_version": 1,
   "ssh_evidence": true,

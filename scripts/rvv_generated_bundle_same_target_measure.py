@@ -127,6 +127,11 @@ PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS = (
     "provider_schedule_decision_contract",
     "provider_schedule_decision",
     "provider_schedule_decision_reason",
+    "provider_resource_cost_contract",
+    "provider_resource_cost_model",
+    "provider_resource_cost_loop_body_steps",
+    "provider_resource_cost_blocker",
+    "provider_performance_admission_decision",
     "provider_realization_admission_contract",
     "provider_realization_admission_decision",
     "provider_realization_admission_evidence",
@@ -2228,6 +2233,15 @@ def packed_i4_maturity_contract_evidence_input(
         ],
         "provider_schedule_decision": fields["schedule_decision"],
         "provider_schedule_decision_reason": fields["schedule_decision_reason"],
+        "provider_resource_cost_contract": fields["resource_cost_contract"],
+        "provider_resource_cost_model": fields["resource_cost_model"],
+        "provider_resource_cost_loop_body_steps": packed_i4_resource_int(
+            fields, "resource_cost_loop_body_steps"
+        ),
+        "provider_resource_cost_blocker": fields["resource_cost_blocker"],
+        "provider_performance_admission_decision": fields[
+            "performance_admission_decision"
+        ],
         "provider_realization_admission_contract": fields[
             "realization_admission_contract"
         ],
@@ -2502,6 +2516,15 @@ def validate_packed_i4_maturity_contract_evidence_input(
         ],
         "provider_schedule_decision": fields["schedule_decision"],
         "provider_schedule_decision_reason": fields["schedule_decision_reason"],
+        "provider_resource_cost_contract": fields["resource_cost_contract"],
+        "provider_resource_cost_model": fields["resource_cost_model"],
+        "provider_resource_cost_loop_body_steps": packed_i4_resource_int(
+            fields, "resource_cost_loop_body_steps"
+        ),
+        "provider_resource_cost_blocker": fields["resource_cost_blocker"],
+        "provider_performance_admission_decision": fields[
+            "performance_admission_decision"
+        ],
         "provider_realization_admission_contract": fields[
             "realization_admission_contract"
         ],
@@ -2715,6 +2738,11 @@ def packed_i4_provider_feedback_tie_back(
         "schedule_decision_contract",
         "schedule_decision",
         "schedule_decision_reason",
+        "resource_cost_contract",
+        "resource_cost_model",
+        "resource_cost_loop_body_steps",
+        "resource_cost_blocker",
+        "performance_admission_decision",
         "realization_admission_contract",
         "realization_admission_decision",
         "realization_admission_evidence",
@@ -3066,6 +3094,21 @@ def op_measurement_summary(
             "provider_schedule_decision_reason": fields.get(
                 "schedule_decision_reason", ""
             ),
+            "provider_resource_cost_contract": fields.get(
+                "resource_cost_contract", ""
+            ),
+            "provider_resource_cost_model": fields.get(
+                "resource_cost_model", ""
+            ),
+            "provider_resource_cost_loop_body_steps": packed_i4_resource_int(
+                fields, "resource_cost_loop_body_steps"
+            ),
+            "provider_resource_cost_blocker": fields.get(
+                "resource_cost_blocker", ""
+            ),
+            "provider_performance_admission_decision": fields.get(
+                "performance_admission_decision", ""
+            ),
             "provider_realization_admission_schedule_decision_contract": fields.get(
                 "realization_admission_schedule_decision_contract", ""
             ),
@@ -3277,6 +3320,19 @@ def run_one_measurement(
                 "provider_schedule_decision": fields["schedule_decision"],
                 "provider_schedule_decision_reason": fields[
                     "schedule_decision_reason"
+                ],
+                "provider_resource_cost_contract": fields[
+                    "resource_cost_contract"
+                ],
+                "provider_resource_cost_model": fields["resource_cost_model"],
+                "provider_resource_cost_loop_body_steps": packed_i4_resource_int(
+                    fields, "resource_cost_loop_body_steps"
+                ),
+                "provider_resource_cost_blocker": fields[
+                    "resource_cost_blocker"
+                ],
+                "provider_performance_admission_decision": fields[
+                    "performance_admission_decision"
                 ],
                 "provider_realization_admission_schedule_decision_contract": fields[
                     "realization_admission_schedule_decision_contract"
@@ -3978,6 +4034,31 @@ def run_self_test() -> int:
             "provider_resource_vsetvl_region_count",
             3,
             "vsetvl_region_count",
+        ),
+        (
+            "provider_resource_cost_contract",
+            "metadata-derived-resource-cost-contract",
+            "resource_cost_contract",
+        ),
+        (
+            "provider_resource_cost_model",
+            "metadata-derived-resource-cost-model",
+            "resource_cost_model",
+        ),
+        (
+            "provider_resource_cost_loop_body_steps",
+            99,
+            "resource_cost_loop_body_steps",
+        ),
+        (
+            "provider_resource_cost_blocker",
+            "metadata-derived-resource-cost-blocker",
+            "resource_cost_blocker",
+        ),
+        (
+            "provider_performance_admission_decision",
+            "metadata-derived-performance-admission",
+            "performance_admission_decision",
         ),
         (
             "provider_runtime_avl_source",

@@ -11,6 +11,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -2339,7 +2340,7 @@ getRVVSelectedBodySegment2RouteFamilyProviderPlan(
     llvm::StringRef context) {
   const RVVSelectedBodyEmitCRouteDescription &description =
       analysis.description;
-  RVVSelectedBodySegment2RouteFamilyProviderPlan plan;
+  auto plan = std::make_unique<RVVSelectedBodySegment2RouteFamilyProviderPlan>();
 
   llvm::SmallVector<const RVVSelectedBodySegment2RouteFamilyPlanningOwner *, 2>
       selectedOwners;
@@ -2375,23 +2376,23 @@ getRVVSelectedBodySegment2RouteFamilyProviderPlan(
   }
 
   if (selectedOwners.empty())
-    return plan;
+    return std::move(*plan);
 
   const RVVSelectedBodySegment2RouteFamilyPlanningOwner &owner =
       *selectedOwners.front();
   if (llvm::Error error = owner.buildProviderPlan(
-          analysis, materializationFacts, memoryOperandBindingFacts, plan,
+          analysis, materializationFacts, memoryOperandBindingFacts, *plan,
           context))
     return std::move(error);
-  if (!plan.plansSegment2MemoryRoute ||
-      plan.selectedBodyFamilyName != owner.familyName)
+  if (!plan->plansSegment2MemoryRoute ||
+      plan->selectedBodyFamilyName != owner.familyName)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " segment2 route-family planning owner '" + owner.familyName +
         "' failed to produce its selected-body family plan before provider "
         "route construction for operation '" +
         stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-  return plan;
+  return std::move(*plan);
 }
 
 llvm::Expected<tcrv::rvv::WithVLOp>

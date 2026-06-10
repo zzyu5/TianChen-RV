@@ -118,6 +118,18 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceVectorRegisterBudgetAttrName(
         "tcrv_rvv.low_precision_resource.vector_register_budget");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceCostContractAttrName(
+        "tcrv_rvv.low_precision_resource.resource_cost_contract");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceCostModelAttrName(
+    "tcrv_rvv.low_precision_resource.resource_cost_model");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceCostLoopBodyStepsAttrName(
+    "tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceCostBlockerAttrName(
+    "tcrv_rvv.low_precision_resource.resource_cost_blocker");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePerformanceAdmissionDecisionAttrName(
+        "tcrv_rvv.low_precision_resource.performance_admission_decision");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRuntimeAVLSourceAttrName(
     "tcrv_rvv.low_precision_resource.runtime_avl_source");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceRuntimeABIOrderAttrName(
@@ -569,6 +581,15 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason(
         "accepted-remediation-schedule-low-shifted-product-rescale-pair-sum-"
         "single-vwredsum-budget-6of32");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4CostContract(
+    "rvv-low-precision-packed-i4-resource-cost-contract.v1");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4CostModel(
+    "low-shifted-product-rescale-loop-12-peak-live-6of32-two-region-vsetvl.v1");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4CostBlocker(
+    "packed-i4-low-shifted-product-rescale-loop-12-budget-6of32-no-win");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision(
+        "deny-performance-preferred-with-resource-cost-no-win-blocker");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturity(
         "executable-not-performance-mature");
@@ -594,6 +615,7 @@ constexpr std::int64_t kRVVLowPrecisionResourcePackedI4Unroll = 1;
 constexpr std::int64_t kRVVLowPrecisionResourcePackedI4AccumulatorCount = 1;
 constexpr std::int64_t kRVVLowPrecisionResourcePackedI4VSetVLRegions = 2;
 constexpr std::int64_t kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups = 6;
+constexpr std::int64_t kRVVLowPrecisionResourcePackedI4CostLoopBodySteps = 12;
 constexpr std::int64_t kRVVLowPrecisionResourceVectorRegisterBudget = 32;
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceOperandFormUnpackedByte(
     "unpacked-byte-elements");
@@ -706,6 +728,11 @@ struct RVVLowPrecisionContractionResourceCandidate {
   std::int64_t vsetvlRegionCount = 0;
   std::int64_t peakLiveVectorGroups = 0;
   std::int64_t vectorRegisterBudget = 0;
+  llvm::StringRef resourceCostContract;
+  llvm::StringRef resourceCostModel;
+  std::int64_t resourceCostLoopBodySteps = 0;
+  llvm::StringRef resourceCostBlocker;
+  llvm::StringRef performanceAdmissionDecision;
 
   llvm::StringRef runtimeAVLSource;
   llvm::StringRef producerScope;
@@ -931,6 +958,16 @@ inline bool isRVVLowPrecisionResourceAcceptedPackedI4ScheduleDecision(
              kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups &&
          candidate.vectorRegisterBudget ==
              kRVVLowPrecisionResourceVectorRegisterBudget &&
+         candidate.resourceCostContract ==
+             kRVVLowPrecisionResourcePackedI4CostContract &&
+         candidate.resourceCostModel ==
+             kRVVLowPrecisionResourcePackedI4CostModel &&
+         candidate.resourceCostLoopBodySteps ==
+             kRVVLowPrecisionResourcePackedI4CostLoopBodySteps &&
+         candidate.resourceCostBlocker ==
+             kRVVLowPrecisionResourcePackedI4CostBlocker &&
+         candidate.performanceAdmissionDecision ==
+             kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision &&
          candidate.peakLiveVectorGroups <= candidate.vectorRegisterBudget;
 }
 
@@ -1186,6 +1223,15 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
       kRVVLowPrecisionResourcePackedI4VSetVLRegions;
   packedI4Candidate.peakLiveVectorGroups =
       kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups;
+  packedI4Candidate.resourceCostContract =
+      kRVVLowPrecisionResourcePackedI4CostContract;
+  packedI4Candidate.resourceCostModel = kRVVLowPrecisionResourcePackedI4CostModel;
+  packedI4Candidate.resourceCostLoopBodySteps =
+      kRVVLowPrecisionResourcePackedI4CostLoopBodySteps;
+  packedI4Candidate.resourceCostBlocker =
+      kRVVLowPrecisionResourcePackedI4CostBlocker;
+  packedI4Candidate.performanceAdmissionDecision =
+      kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision;
   packedI4Candidate.remediationPlanContract =
       kRVVLowPrecisionResourcePackedI4RemediationPlanContract;
   packedI4Candidate.remediationPlan =
@@ -1398,6 +1444,12 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name == kRVVLowPrecisionResourceVSetVLRegionCountAttrName ||
          name == kRVVLowPrecisionResourcePeakLiveVectorGroupsAttrName ||
          name == kRVVLowPrecisionResourceVectorRegisterBudgetAttrName ||
+         name == kRVVLowPrecisionResourceCostContractAttrName ||
+         name == kRVVLowPrecisionResourceCostModelAttrName ||
+         name == kRVVLowPrecisionResourceCostLoopBodyStepsAttrName ||
+         name == kRVVLowPrecisionResourceCostBlockerAttrName ||
+         name ==
+             kRVVLowPrecisionResourcePerformanceAdmissionDecisionAttrName ||
          name == kRVVLowPrecisionResourceRuntimeAVLSourceAttrName ||
          name == kRVVLowPrecisionResourceRuntimeABIOrderAttrName ||
          name == kRVVLowPrecisionResourceLegalityAttrName ||
