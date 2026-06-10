@@ -1447,3 +1447,78 @@ validation, generated-bundle mirrors, same-target evidence roots, and
 high-nibble vwmacc measured admission/denial subgate as a production-consumed
 no-safe-local-repair/no-win boundary, but Gate 4 remains open for a future
 provider-owned schedule/resource repair or a broader production blocker.
+
+## Session 590: Gate 4 local-repair frontier closure
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV low-precision contraction primitive surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active Gate 4 macro task without opening a neighboring task.
+This slice does not change the generated RVV runtime schedule. It promotes the
+current packed-i4 no-win denial from the high-nibble vwmacc subgate into a
+provider-owned local-repair frontier blocker consumed by route metadata, target
+mirrors, generated-bundle evidence, source-backed measurement records, and
+`RVVLowPrecisionPerformancePolicy`.
+
+### Main Changes
+
+- Updated the packed-i4 resource-cost blocker to
+  `packed-i4-local-repair-frontier-loop-11-budget-5of32-no-win`.
+- Updated the no-win admission closure to
+  `no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1`.
+- Updated the reopen requirement to
+  `provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1`.
+- Synchronized provider constants, generated-bundle script expectations,
+  focused plugin/target/lit checks, current source-backed evidence roots, the
+  RVV plugin spec, and the active PRD.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py
+  scripts/rvv_generated_bundle_same_target_measure.py`
+- [OK] `python3 scripts/rvv_generated_bundle_abi_e2e.py --self-test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py
+  --self-test`
+- [OK] focused lit from `build/test` for the two packed-i4 target fixtures,
+  ABI e2e dry-run tests, and same-target dry-run test
+- [OK] `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-
+  surface-gate1`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] old high-nibble subgate string scan over touched production/test/spec/
+  artifact/task paths found no stale expected values.
+- [OK] bounded added-line scan found no new positive `RVVI32M1`,
+  `rvv-i32m1`, `tcrv_rvv.i32_`, `!tcrv_rvv.i32m`, source-front-door,
+  descriptor-driven, or direct C exporter route authority. Added q8/q4 wording
+  is PRD guardrail text only; added `__riscv_*_i32m1` matches are existing
+  widening-reduction primitive mirrors.
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-3 remain complete. Gate 4 remains open. No fresh
+`ssh rvv` timing was required because this slice changed policy/provider facts
+only, not statement scheduling or the resource model. The current source-backed
+dequant `0.897163..1.018998` and dequant-clamp `0.864516..1.043210` no-win
+evidence still denies `performance-preferred`.
+
+### Continuation
+
+Next owner should either introduce a provider-owned schedule/resource repair
+beyond the local statement frontier with fresh source-backed measured-win
+evidence, or make a later campaign-level no-further-repair decision with new
+typed/provider facts.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` records the
+local-repair frontier closure and the measured-win reopen rule beyond the
+local statement frontier.

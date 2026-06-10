@@ -38,8 +38,8 @@ module {
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.operand_form = "packed-i4-nibbles"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_baseline = "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_admission_decision = "deny-performance-preferred-with-resource-cost-no-win-blocker"
-// REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_admission_closure = "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1"
-// REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement = "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_admission_closure = "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement = "provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.remediation_measurement_evidence = "gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
 // REALIZED: tcrv_rvv.gearbox_cross_region_handoff
 // REALIZED-DAG: resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
@@ -55,8 +55,8 @@ module {
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_baseline", value = "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.remediation_measurement_evidence", value = "gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_admission_decision", value = "deny-performance-preferred-with-resource-cost-no-win-blocker"}
-// PLAN: {key = "tcrv_rvv.low_precision_resource.performance_admission_closure", value = "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1"}
-// PLAN: {key = "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement", value = "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.performance_admission_closure", value = "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement", value = "provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1"}
 // PLAN-SAME: status = "supported"
 
 // HEADER: tianchenrv.rvv.runtime_abi_order: lhs,rhs,acc,scale,lower_bound,upper_bound,out,n
@@ -65,8 +65,8 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_baseline: scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1
 // HEADER: tianchenrv.rvv.low_precision_resource.remediation_measurement_evidence: gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_admission_decision: deny-performance-preferred-with-resource-cost-no-win-blocker
-// HEADER: tianchenrv.rvv.low_precision_resource.performance_admission_closure: no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1
-// HEADER: tianchenrv.rvv.low_precision_resource.performance_admission_reopen_requirement: provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.performance_admission_closure: no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.performance_admission_reopen_requirement: provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1
 // HEADER: void tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);
 
 // CPP: __riscv_vle8_v_i8mf4

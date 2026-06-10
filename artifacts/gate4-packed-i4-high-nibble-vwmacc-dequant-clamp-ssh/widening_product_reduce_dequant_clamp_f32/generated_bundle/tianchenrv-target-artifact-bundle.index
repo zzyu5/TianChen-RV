@@ -603,7 +603,7 @@ artifact[0]:
     value: "gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
   artifact_metadata[181]:
     key: "tcrv_rvv.low_precision_resource.remediation_decision"
-    value: "accepted-no-win-regression-high-nibble-vwmacc-repair-required.v1"
+    value: "accepted-no-win-local-repair-frontier-closure.v1"
   artifact_metadata[182]:
     key: "tcrv_rvv.low_precision_resource.remediation_action"
     value: "no-win-repair-required-before-performance-claim"
@@ -612,13 +612,13 @@ artifact[0]:
     value: "not-performance-preferred"
   artifact_metadata[184]:
     key: "tcrv_rvv.low_precision_resource.remediation_blocker"
-    value: "same-target-packed-i4-high-nibble-vwmacc-no-win-or-regression"
+    value: "same-target-packed-i4-local-repair-frontier-no-win-or-regression"
   artifact_metadata[185]:
     key: "tcrv_rvv.low_precision_resource.remediation_plan_contract"
     value: "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
   artifact_metadata[186]:
     key: "tcrv_rvv.low_precision_resource.remediation_plan"
-    value: "repair-packed-i4-high-nibble-vwmacc-single-reduce-before-performance-claim.v1"
+    value: "close-packed-i4-local-statement-repair-frontier-before-performance-claim.v1"
   artifact_metadata[187]:
     key: "tcrv_rvv.low_precision_resource.remediation_statement_strategy"
     value: "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum"
@@ -660,22 +660,22 @@ artifact[0]:
     value: "11"
   artifact_metadata[200]:
     key: "tcrv_rvv.low_precision_resource.resource_cost_blocker"
-    value: "packed-i4-high-nibble-vwmacc-loop-11-budget-5of32-no-win"
+    value: "packed-i4-local-repair-frontier-loop-11-budget-5of32-no-win"
   artifact_metadata[201]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_decision"
     value: "deny-performance-preferred-with-resource-cost-no-win-blocker"
   artifact_metadata[202]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_closure"
-    value: "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1"
+    value: "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1"
   artifact_metadata[203]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement"
-    value: "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+    value: "provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1"
   artifact_metadata[204]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity"
     value: "executable-not-performance-mature"
   artifact_metadata[205]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity_evidence"
-    value: "same-target-packed-i4-high-nibble-vwmacc-no-win-gate4.v1"
+    value: "same-target-packed-i4-local-repair-frontier-no-win-gate4.v1"
   artifact_metadata[206]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity_outcome"
     value: "no-win"
@@ -1301,7 +1301,7 @@ artifact[1]:
     value: "gate4-packed-i4-high-nibble-vwmacc-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
   artifact_metadata[181]:
     key: "tcrv_rvv.low_precision_resource.remediation_decision"
-    value: "accepted-no-win-regression-high-nibble-vwmacc-repair-required.v1"
+    value: "accepted-no-win-local-repair-frontier-closure.v1"
   artifact_metadata[182]:
     key: "tcrv_rvv.low_precision_resource.remediation_action"
     value: "no-win-repair-required-before-performance-claim"
@@ -1310,13 +1310,13 @@ artifact[1]:
     value: "not-performance-preferred"
   artifact_metadata[184]:
     key: "tcrv_rvv.low_precision_resource.remediation_blocker"
-    value: "same-target-packed-i4-high-nibble-vwmacc-no-win-or-regression"
+    value: "same-target-packed-i4-local-repair-frontier-no-win-or-regression"
   artifact_metadata[185]:
     key: "tcrv_rvv.low_precision_resource.remediation_plan_contract"
     value: "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
   artifact_metadata[186]:
     key: "tcrv_rvv.low_precision_resource.remediation_plan"
-    value: "repair-packed-i4-high-nibble-vwmacc-single-reduce-before-performance-claim.v1"
+    value: "close-packed-i4-local-statement-repair-frontier-before-performance-claim.v1"
   artifact_metadata[187]:
     key: "tcrv_rvv.low_precision_resource.remediation_statement_strategy"
     value: "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum"
@@ -1358,22 +1358,22 @@ artifact[1]:
     value: "11"
   artifact_metadata[200]:
     key: "tcrv_rvv.low_precision_resource.resource_cost_blocker"
-    value: "packed-i4-high-nibble-vwmacc-loop-11-budget-5of32-no-win"
+    value: "packed-i4-local-repair-frontier-loop-11-budget-5of32-no-win"
   artifact_metadata[201]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_decision"
     value: "deny-performance-preferred-with-resource-cost-no-win-blocker"
   artifact_metadata[202]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_closure"
-    value: "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1"
+    value: "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1"
   artifact_metadata[203]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement"
-    value: "provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
+    value: "provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1"
   artifact_metadata[204]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity"
     value: "executable-not-performance-mature"
   artifact_metadata[205]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity_evidence"
-    value: "same-target-packed-i4-high-nibble-vwmacc-no-win-gate4.v1"
+    value: "same-target-packed-i4-local-repair-frontier-no-win-gate4.v1"
   artifact_metadata[206]:
     key: "tcrv_rvv.low_precision_resource.performance_maturity_outcome"
     value: "no-win"

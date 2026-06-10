@@ -550,14 +550,14 @@ constexpr llvm::StringLiteral
         "same_target_measurement_evidence.json");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationDecision(
-        "accepted-no-win-regression-high-nibble-vwmacc-repair-required.v1");
+        "accepted-no-win-local-repair-frontier-closure.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4RemediationBlocker(
-    "same-target-packed-i4-high-nibble-vwmacc-no-win-or-regression");
+    "same-target-packed-i4-local-repair-frontier-no-win-or-regression");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationPlanContract(
         "rvv-low-precision-packed-i4-resource-remediation-plan.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4RemediationPlan(
-    "repair-packed-i4-high-nibble-vwmacc-single-reduce-before-performance-claim.v1");
+    "close-packed-i4-local-statement-repair-frontier-before-performance-claim.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy(
         "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum");
@@ -593,18 +593,18 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4CostContract(
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4CostModel(
     "high-nibble-vwmacc-loop-11-peak-live-5of32-two-region-vsetvl.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4CostBlocker(
-    "packed-i4-high-nibble-vwmacc-loop-11-budget-5of32-no-win");
+    "packed-i4-local-repair-frontier-loop-11-budget-5of32-no-win");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision(
         "deny-performance-preferred-with-resource-cost-no-win-blocker");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure(
-        "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32."
+        "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32."
         "v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement(
-        "provider-schedule-resource-repair-plus-source-backed-measured-win-and-"
-        "updated-admission-facts.v1");
+        "provider-repair-beyond-local-statement-frontier-plus-source-backed-"
+        "measured-win-and-updated-admission-facts.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4MeasuredWinPerformanceAdmissionDecision(
         "admit-performance-preferred-with-resource-cost-measured-win");
@@ -619,7 +619,7 @@ constexpr llvm::StringLiteral
         "executable-not-performance-mature");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence(
-        "same-target-packed-i4-high-nibble-vwmacc-no-win-gate4.v1");
+        "same-target-packed-i4-local-repair-frontier-no-win-gate4.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome("no-win");
 constexpr llvm::StringLiteral

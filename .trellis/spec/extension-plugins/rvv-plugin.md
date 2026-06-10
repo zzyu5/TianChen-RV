@@ -6852,7 +6852,7 @@ tcrv_rvv.low_precision_resource.performance_action =
 tcrv_rvv.low_precision_resource.remediation_plan_contract =
   "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
 tcrv_rvv.low_precision_resource.remediation_plan =
-  "repair-packed-i4-high-nibble-vwmacc-single-reduce-before-performance-claim.v1"
+  "close-packed-i4-local-statement-repair-frontier-before-performance-claim.v1"
 tcrv_rvv.low_precision_resource.remediation_statement_strategy =
   "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum"
 tcrv_rvv.low_precision_resource.remediation_vector_budget =
@@ -6994,7 +6994,7 @@ The accepted packed-i4 regression values are:
 tcrv_rvv.low_precision_resource.performance_maturity =
   "executable-not-performance-mature"
 tcrv_rvv.low_precision_resource.performance_maturity_evidence =
-  "same-target-packed-i4-high-nibble-vwmacc-no-win-gate4.v1"
+  "same-target-packed-i4-local-repair-frontier-no-win-gate4.v1"
 tcrv_rvv.low_precision_resource.performance_maturity_outcome =
   "regression"
 tcrv_rvv.low_precision_resource.performance_selection_eligible =
@@ -7116,7 +7116,7 @@ Packed-i4 per-op evidence and root summaries may carry:
     "measurement_summary_record_count": 12,
     "measurement_record_count": 60,
     "provider_maturity": "executable-not-performance-mature",
-    "provider_maturity_evidence": "same-target-packed-i4-high-nibble-vwmacc-no-win-gate4.v1",
+    "provider_maturity_evidence": "same-target-packed-i4-local-repair-frontier-no-win-gate4.v1",
     "provider_maturity_outcome": "regression",
     "provider_performance_selection_eligible": "false",
     "provider_dispatch_preference": "not-performance-preferred",
@@ -7498,9 +7498,9 @@ performance-preferred
   providerScheduleDecisionReason =
     accepted-remediation-schedule-high-nibble-vwmacc-single-vwredsum-budget-5of32
   providerPerformanceAdmissionClosure =
-    no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1
+    no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1
   providerPerformanceAdmissionReopenRequirement =
-    provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1
+    provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1
   ```
 
 - The strict Gate 4 no-win/regression verifier must derive the accepted
@@ -7524,9 +7524,9 @@ performance-preferred
   performancePreferenceDenialReason =
     same-target-measurement-no-win-or-regression
   providerPerformanceAdmissionClosure =
-    no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1
+    no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1
   providerPerformanceAdmissionReopenRequirement =
-    provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1
+    provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1
   ```
 
 - A measured win may select `performance-preferred` only when all of these
@@ -7544,11 +7544,19 @@ performance-preferred
 - Current no-win/regression evidence may be accepted only when the provider
   resource selection, route metadata, target artifact validation, same-target
   evidence input, and policy record all carry the same
-  `no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1`
+  `no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1`
   closure and the
-  `provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1`
+  `provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1`
   reopen requirement. These fields are provider-owned admission facts, not
   artifact metadata, script status, route ids, or report text.
+- The current closure is the packed-i4 local-repair frontier after the
+  low-shifted-product rescale and high-nibble vwmacc local statement repairs
+  have both been consumed and measured as no-win on the same target. It is a
+  broader blocker than the high-nibble vwmacc subgate: another
+  performance-preferred claim must update provider schedule/resource facts
+  beyond the local statement frontier, target mirrors, source-backed
+  measurement evidence, resource-cost admission, closure, and policy facts as
+  one contract.
 - Measurement scripts may report evidence inputs and alignment; they must not
   edit provider maturity fields or directly authorize dispatch.
 - Common EmitC may carry provider-built route payloads only; it must not choose
@@ -7596,15 +7604,15 @@ performance-preferred
   deny-performance-preferred-with-resource-cost-no-win-blocker` -> fail closed
   before performance preference; the resource-cost admission decision must be
   updated by the RVV provider, not by measurement JSON or artifact metadata.
-- Current no-win/regression evidence missing the provider no-safe-local-repair
+- Current no-win/regression evidence missing the provider local-repair-frontier
   closure, carrying a sibling-route closure, or omitting the provider reopen
   requirement -> fail closed before target validation or policy evaluation can
   accept the measurement record.
-- Future measured-win evidence with stale no-safe-local-repair closure or stale
+- Future measured-win evidence with stale local-repair-frontier closure or stale
   reopen requirement -> fail closed before performance preference; the provider
-  must first update the schedule/resource facts, admission decision, closure,
-  reopen requirement, target mirrors, and same-target source-backed evidence as
-  one contract.
+  must first update schedule/resource facts beyond the local statement
+  frontier, admission decision, closure, reopen requirement, target mirrors,
+  and same-target source-backed evidence as one contract.
 - Measurement classification `win` without a provider maturity/selection update
   -> fail closed as measurement-only win promotion.
 - Provider says `performance-preferred` but target artifact mirrors still carry

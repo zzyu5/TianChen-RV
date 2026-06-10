@@ -752,7 +752,7 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY = (
     "executable-not-performance-mature"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_EVIDENCE = (
-    "same-target-packed-i4-high-nibble-vwmacc-no-win-gate4.v1"
+    "same-target-packed-i4-local-repair-frontier-no-win-gate4.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_MATURITY_OUTCOME = (
     "no-win"
@@ -778,7 +778,7 @@ WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_REMEDIATION_MEASUREMENT_EVID
     "widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DECISION = (
-    "accepted-no-win-regression-high-nibble-vwmacc-repair-required.v1"
+    "accepted-no-win-local-repair-frontier-closure.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_ACTION = (
     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ACTION
@@ -787,13 +787,13 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_DISPATCH_PREFERENCE
     WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_DISPATCH_PREFERENCE
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_BLOCKER = (
-    "same-target-packed-i4-high-nibble-vwmacc-no-win-or-regression"
+    "same-target-packed-i4-local-repair-frontier-no-win-or-regression"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PLAN_CONTRACT = (
     "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_PLAN = (
-    "repair-packed-i4-high-nibble-vwmacc-single-reduce-before-performance-claim.v1"
+    "close-packed-i4-local-statement-repair-frontier-before-performance-claim.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_REMEDIATION_STATEMENT_STRATEGY = (
     "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum"
@@ -836,17 +836,17 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_LOOP_BODY_STEPS =
     "11"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_BLOCKER = (
-    "packed-i4-high-nibble-vwmacc-loop-11-budget-5of32-no-win"
+    "packed-i4-local-repair-frontier-loop-11-budget-5of32-no-win"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_DECISION = (
     "deny-performance-preferred-with-resource-cost-no-win-blocker"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_CLOSURE = (
-    "no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1"
+    "no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_REOPEN_REQUIREMENT = (
-    "provider-schedule-resource-repair-plus-source-backed-measured-win-and-"
-    "updated-admission-facts.v1"
+    "provider-repair-beyond-local-statement-frontier-plus-source-backed-"
+    "measured-win-and-updated-admission-facts.v1"
 )
 LOW_PRECISION_RESOURCE_REALIZATION_PRODUCER = (
     "rvv-plugin-local-selected-body-realization-resource-consumer.v1"

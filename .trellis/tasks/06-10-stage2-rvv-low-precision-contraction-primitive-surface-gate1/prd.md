@@ -726,9 +726,9 @@ Completed in this slice:
 - Added provider-owned `performance_admission_closure` and
   `performance_admission_reopen_requirement` facts for the packed-i4
   high-nibble vwmacc path. The current no-win closure is
-  `no-safe-local-repair-no-win-high-nibble-vwmacc-loop-11-budget-5of32.v1`;
+  `no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1`;
   reopening performance-preferred requires
-  `provider-schedule-resource-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1`.
+  `provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1`.
 - Threaded those facts through Gearbox schedule/resource selection,
   selected-body realization handoff, route selection, route metadata, statement
   consistency checks, target artifact validation, target support bundle
@@ -744,13 +744,58 @@ Completed in this slice:
   `deny-performance-preferred-with-resource-cost-no-win-blocker`; route support
   and correctness execution remain available through correctness fallback.
 
+Current Gate 4 local-repair frontier closure slice:
+
+- This round does not change the generated RVV runtime schedule. The current
+  emitted packed-i4 schedule is still the provider-owned high-nibble vwmacc
+  path with loop-body steps `11`, peak live vector groups `5/32`, and the same
+  source-backed same-target no-win evidence for dequant and dequant-clamp.
+- The slice narrows the remaining local packed-i4 repair space into a
+  production-consumed frontier blocker. The low-shifted-product rescale repair
+  and high-nibble vwmacc repair have both been consumed by route, target,
+  generated-bundle, evidence-root, and policy paths and still measured no-win.
+  The accepted no-win resource/admission facts therefore move from a
+  high-nibble subgate closure to a local statement-repair frontier closure.
+- `performance-preferred` remains denied. Reopening it now requires provider
+  schedule/resource facts beyond the local statement frontier plus source-
+  backed measured-win evidence and updated admission facts. Measurement JSON,
+  artifact metadata, route ids, q8/q4 labels, or Common EmitC are not allowed
+  to reopen the decision.
+
+Acceptance:
+
+- [x] Provider-owned packed-i4 no-win facts identify the local-repair frontier
+  blocker rather than only the high-nibble vwmacc subgate.
+- [x] Existing route, selected-body, target artifact, generated-bundle,
+  evidence-root, and performance-policy consumers continue to reject stale
+  blocker/closure/reopen facts through the same production fields.
+- [x] Source-backed dequant and dequant-clamp evidence roots carry the updated
+  local-repair frontier facts without changing timing or generated schedule
+  evidence.
+- [x] No fresh `ssh rvv` timing is required because the runtime statement
+  schedule, resource model, and performance claim did not change.
+
+Completed in this slice:
+
+- Promoted the packed-i4 no-win blocker to
+  `packed-i4-local-repair-frontier-loop-11-budget-5of32-no-win` and the
+  admission closure to
+  `no-safe-local-packed-i4-repair-frontier-loop-11-budget-5of32.v1`.
+- Updated the provider reopen requirement to
+  `provider-repair-beyond-local-statement-frontier-plus-source-backed-measured-win-and-updated-admission-facts.v1`.
+- Synchronized provider constants, generated-bundle metadata expectations,
+  focused plugin/target/lit checks, source-backed evidence roots, and the RVV
+  plugin spec so the blocker is consumed as production policy input rather
+  than report text.
+
 Remaining Gate 4 continuation point:
 
 - The current high-nibble vwmacc 11-step/5-of-32 schedule/resource path now has
-  a production-consumed no-safe-local-repair/no-win admission closure. Gate 4
-  remains open for either a new provider-owned schedule/resource repair with
-  source-backed measured-win evidence, or a broader production-owned blocker
-  that proves no safe local packed-i4 repair is available.
+  a production-consumed local-repair-frontier no-win admission closure. Gate 4
+  remains open for either a new provider-owned schedule/resource repair beyond
+  the local statement frontier with source-backed measured-win evidence, or a
+  later campaign-level decision that no further production repair should be
+  admitted without new typed/provider facts.
 
 ## Non-Goals
 
