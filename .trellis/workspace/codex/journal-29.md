@@ -1009,3 +1009,70 @@ before any performance-preferred dispatch claim.
 
 [UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` now records the
 low-precision no-win dispatch preference boundary and its required C++ tests.
+
+## Session 583: Gate 4 packed-i4 low-product schedule repair
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active Gate 4 macro task with a production schedule/resource
+repair. The packed-i4 statement owner now emits low-nibble sign-extension and
+the low widening product before high-nibble unpack/product construction, while
+preserving provider-owned typed primitive facts, pair-sum semantics, and one
+`vwredsum`. A self-repair also synchronized realization-admission schedule
+facts with provider schedule facts so regenerated evidence, policy records,
+target metadata, and artifact mirrors carry the same
+low-product-before-high-unpack reason.
+
+### Main Changes
+
+- Repaired packed-i4 statement planning in the RVV provider path and updated
+  target artifact validation to require the new statement order.
+- Updated provider schedule/remediation/maturity facts, generated-bundle script
+  checks, target/FileCheck fixtures, and C++ policy tests for the
+  low-product-before-high-unpack contract.
+- Regenerated Gate 4 same-target evidence for dequant and dequant-clamp after
+  the production repair.
+- Kept performance policy on correctness fallback because both fresh
+  measurements remain regression/no-win.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused lit/FileCheck for packed-i4 dequant/dequant-clamp target
+  fixtures and script dry-run tests: 5 passed from `build/test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py
+  --self-test`
+- [OK] Fresh `ssh rvv` same-target timing:
+  dequant `0.688202..0.705410`, dequant-clamp `0.683721..0.705212`
+- [OK] Bounded old-evidence scan found no old Gate 3 evidence ID, old
+  pair-sum-only schedule decision, stale schedule reason, q8/q4 route
+  authority, source-front-door route, descriptor compute, or Common EmitC RVV
+  semantic inference in touched source/tests/spec/current Gate 4 artifacts.
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-3 remain complete. The current Gate 4 repair slice is
+complete and evidence-backed, but Gate 4 remains open because the repaired
+packed-i4 schedule still measured below the scalar packed-i4 baseline.
+
+### Continuation
+
+Next owner should choose a different provider-owned packed-i4 schedule/resource
+bottleneck, or record a precise blocker, before any performance-preferred
+dispatch claim. The current policy decision remains correctness fallback with
+`same-target-measurement-no-win-or-regression`.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` records the
+low-product-before-high-unpack schedule/resource repair, the provider mirror
+versus fresh measurement distinction, and the current Gate 4 strict measurement
+ranges.

@@ -12,10 +12,10 @@
 # RUN: FileCheck %s --check-prefix=PACKED-WPRD < %t.packed.artifacts/gate4-packed-i4-same-target-measure/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
 # RUN: FileCheck %s --check-prefix=PACKED-HARNESS --implicit-check-not="descriptor" --implicit-check-not="source-front-door" --implicit-check-not="direct-C" --implicit-check-not="q8" --implicit-check-not="q4" < %t.packed.artifacts/gate4-packed-i4-same-target-measure/widening_product_reduce_dequantize_f32/rvv_generated_bundle_same_target_measure_widening_product_reduce_dequantize_f32.c
 # RUN: rm -rf %t.packed.clamp.artifacts
-# RUN: python3 %S/../../scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root %t.packed.clamp.artifacts --run-id gate3-packed-i4-dequant-clamp-measure --overwrite --op-kind widening_product_reduce_dequant_clamp_f32 --input %S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir --measure-count 257 --measure-count 4096 --measure-count 65536 --warmup-count 2 --repeat-count 5 --measure-iterations 8 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=PACKED-CLAMP-STDOUT
-# RUN: FileCheck %s --check-prefix=PACKED-CLAMP-ROOT < %t.packed.clamp.artifacts/gate3-packed-i4-dequant-clamp-measure/evidence.json
-# RUN: FileCheck %s --check-prefix=PACKED-CLAMP-WPRDC < %t.packed.clamp.artifacts/gate3-packed-i4-dequant-clamp-measure/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
-# RUN: FileCheck %s --check-prefix=PACKED-CLAMP-HARNESS --implicit-check-not="descriptor" --implicit-check-not="source-front-door" --implicit-check-not="direct-C" --implicit-check-not="q8" --implicit-check-not="q4" < %t.packed.clamp.artifacts/gate3-packed-i4-dequant-clamp-measure/widening_product_reduce_dequant_clamp_f32/rvv_generated_bundle_same_target_measure_widening_product_reduce_dequant_clamp_f32.c
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root %t.packed.clamp.artifacts --run-id gate4-packed-i4-low-product-before-high-unpack-dequant-clamp-measure --overwrite --op-kind widening_product_reduce_dequant_clamp_f32 --input %S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir --measure-count 257 --measure-count 4096 --measure-count 65536 --warmup-count 2 --repeat-count 5 --measure-iterations 8 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=PACKED-CLAMP-STDOUT
+# RUN: FileCheck %s --check-prefix=PACKED-CLAMP-ROOT < %t.packed.clamp.artifacts/gate4-packed-i4-low-product-before-high-unpack-dequant-clamp-measure/evidence.json
+# RUN: FileCheck %s --check-prefix=PACKED-CLAMP-WPRDC < %t.packed.clamp.artifacts/gate4-packed-i4-low-product-before-high-unpack-dequant-clamp-measure/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
+# RUN: FileCheck %s --check-prefix=PACKED-CLAMP-HARNESS --implicit-check-not="descriptor" --implicit-check-not="source-front-door" --implicit-check-not="direct-C" --implicit-check-not="q8" --implicit-check-not="q4" < %t.packed.clamp.artifacts/gate4-packed-i4-low-product-before-high-unpack-dequant-clamp-measure/widening_product_reduce_dequant_clamp_f32/rvv_generated_bundle_same_target_measure_widening_product_reduce_dequant_clamp_f32.c
 
 # STDOUT: rvv_generated_bundle_same_target_measure: dry_run_success
 # STDOUT: artifact_dir:
@@ -94,25 +94,25 @@
 # PACKED-WPRD-DAG: "primitive_chain_kind": "signed-i8mf4xi8mf4-to-i16mf2-product-i32m1-vwredsum.v1"
 # PACKED-WPRD-DAG: "primitive_widening_product_intrinsic": "__riscv_vwmul_vv_i16mf2"
 # PACKED-WPRD-DAG: "primitive_reduction_intrinsic": "__riscv_vwredsum_vs_i16mf2_i32m1"
-# PACKED-WPRD-DAG: "realization_decision": "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1"
+# PACKED-WPRD-DAG: "realization_decision": "consume-low-precision-packed-i4-low-product-before-high-unpack-single-reduce-budget-7of32.v1"
 # PACKED-WPRD-DAG: "remediation_handoff_contract": "rvv-low-precision-packed-i4-measurement-policy-handoff.v1"
 # PACKED-WPRD-DAG: "remediation_diagnosis": "correctness-supported-no-win-regression"
-# PACKED-WPRD-DAG: "remediation_measurement_evidence": "gate3-packed-i4-schedule-decision-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json"
+# PACKED-WPRD-DAG: "remediation_measurement_evidence": "gate4-packed-i4-low-product-before-high-unpack-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json"
 # PACKED-WPRD-DAG: "remediation_decision": "accepted-no-win-regression-resource-schedule-repair-required.v1"
 # PACKED-WPRD-DAG: "remediation_dispatch_preference": "not-performance-preferred"
 # PACKED-WPRD-DAG: "remediation_blocker": "same-target-measurement-no-win-or-regression"
 # PACKED-WPRD-DAG: "remediation_plan_contract": "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
-# PACKED-WPRD-DAG: "remediation_plan": "repair-packed-i4-product-pair-sum-single-reduce-before-performance-claim.v1"
-# PACKED-WPRD-DAG: "remediation_statement_strategy": "unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum"
+# PACKED-WPRD-DAG: "remediation_plan": "repair-packed-i4-low-product-before-high-unpack-single-reduce-before-performance-claim.v1"
+# PACKED-WPRD-DAG: "remediation_statement_strategy": "unpack-low-signed-i4-nibbles-product-before-high-nibbles-pair-sum-single-vwredsum"
 # PACKED-WPRD-DAG: "remediation_vector_budget": "packed-i4-remediation-budget-7of32-vector-groups"
 # PACKED-WPRD-DAG: "remediation_schedule_contract": "rvv-low-precision-packed-i4-resource-remediation-schedule.v1"
 # PACKED-WPRD-DAG: "remediation_unpack_plan": "sign-extend-low-high-signed-i4-nibbles-before-widening-product.v1"
-# PACKED-WPRD-DAG: "remediation_product_plan": "two-signed-i4-widening-products-plus-i16-pair-sum.v1"
+# PACKED-WPRD-DAG: "remediation_product_plan": "low-product-before-high-product-plus-i16-pair-sum.v1"
 # PACKED-WPRD-DAG: "remediation_reduction_plan": "single-vwredsum-i16-pair-sum-with-i32-seed.v1"
 # PACKED-WPRD-DAG: "remediation_vl_plan": "two-region-runtime-avl-product-reduce-then-dequant-store.v1"
 # PACKED-WPRD-DAG: "schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
-# PACKED-WPRD-DAG: "schedule_decision": "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"
-# PACKED-WPRD-DAG: "schedule_decision_reason": "accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32"
+# PACKED-WPRD-DAG: "schedule_decision": "select-packed-i4-low-product-before-high-unpack-single-reduce-u1-two-region-budget-7of32.v1"
+# PACKED-WPRD-DAG: "schedule_decision_reason": "accepted-remediation-schedule-low-product-before-high-unpack-pair-sum-single-vwredsum-budget-7of32"
 # PACKED-WPRD-DAG: "measurement_schedule_decision_evidence"
 # PACKED-WPRD-DAG: "same_target_schedule_decision_evidence"
 # PACKED-WPRD-DAG: "target_capability_legality_mirror": "selected_target_capability_legality_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact;sew=32;lmul=m1;tail=agnostic;mask=agnostic"
@@ -158,14 +158,14 @@
 # PACKED-WPRD-DAG: "provider_remediation_blocker": "same-target-measurement-no-win-or-regression"
 # PACKED-WPRD-DAG: "provider_remediation_schedule_contract": "rvv-low-precision-packed-i4-resource-remediation-schedule.v1"
 # PACKED-WPRD-DAG: "provider_remediation_unpack_plan": "sign-extend-low-high-signed-i4-nibbles-before-widening-product.v1"
-# PACKED-WPRD-DAG: "provider_remediation_product_plan": "two-signed-i4-widening-products-plus-i16-pair-sum.v1"
+# PACKED-WPRD-DAG: "provider_remediation_product_plan": "low-product-before-high-product-plus-i16-pair-sum.v1"
 # PACKED-WPRD-DAG: "provider_remediation_reduction_plan": "single-vwredsum-i16-pair-sum-with-i32-seed.v1"
 # PACKED-WPRD-DAG: "provider_remediation_vl_plan": "two-region-runtime-avl-product-reduce-then-dequant-store.v1"
 # PACKED-WPRD-DAG: "provider_schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
-# PACKED-WPRD-DAG: "provider_schedule_decision": "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"
-# PACKED-WPRD-DAG: "provider_schedule_decision_reason": "accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32"
+# PACKED-WPRD-DAG: "provider_schedule_decision": "select-packed-i4-low-product-before-high-unpack-single-reduce-u1-two-region-budget-7of32.v1"
+# PACKED-WPRD-DAG: "provider_schedule_decision_reason": "accepted-remediation-schedule-low-product-before-high-unpack-pair-sum-single-vwredsum-budget-7of32"
 # PACKED-WPRD-DAG: "provider_maturity": "executable-not-performance-mature"
-# PACKED-WPRD-DAG: "provider_maturity_evidence": "same-target-packed-i4-product-pair-sum-regression-gate6.v1"
+# PACKED-WPRD-DAG: "provider_maturity_evidence": "same-target-packed-i4-low-product-before-high-unpack-regression-gate4.v1"
 # PACKED-WPRD-DAG: "provider_maturity_outcome": "regression"
 # PACKED-WPRD-DAG: "provider_performance_selection_eligible": "false"
 # PACKED-WPRD-DAG: "provider_dispatch_preference": "not-performance-preferred"
@@ -177,10 +177,10 @@
 # PACKED-WPRD-DAG: "provider_contract_update_required": false
 # PACKED-WPRD-DAG: "performance_feedback": "same-target-packed-i4-no-win.v1"
 # PACKED-WPRD-DAG: "performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
-# PACKED-WPRD-DAG: "performance_best_speedup_range": "0.689815..0.705331"
+# PACKED-WPRD-DAG: "performance_best_speedup_range": "0.685950..0.705587"
 # PACKED-WPRD-DAG: "performance_action": "no-win-repair-required-before-performance-claim"
 # PACKED-WPRD-DAG: "performance_maturity": "executable-not-performance-mature"
-# PACKED-WPRD-DAG: "performance_maturity_evidence": "same-target-packed-i4-product-pair-sum-regression-gate6.v1"
+# PACKED-WPRD-DAG: "performance_maturity_evidence": "same-target-packed-i4-low-product-before-high-unpack-regression-gate4.v1"
 # PACKED-WPRD-DAG: "performance_maturity_outcome": "regression"
 # PACKED-WPRD-DAG: "performance_selection_eligible": "false"
 # PACKED-WPRD-DAG: "dispatch_preference": "not-performance-preferred"
@@ -205,21 +205,21 @@
 # PACKED-CLAMP-WPRDC-DAG: "provider_feedback_tie_back"
 # PACKED-CLAMP-WPRDC-DAG: "selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
 # PACKED-CLAMP-WPRDC-DAG: "performance_baseline": "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"
-# PACKED-CLAMP-WPRDC-DAG: "remediation_measurement_evidence": "gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
+# PACKED-CLAMP-WPRDC-DAG: "remediation_measurement_evidence": "gate4-packed-i4-low-product-before-high-unpack-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
 # PACKED-CLAMP-WPRDC-DAG: "provider_resource_planning_contract": "rvv-low-precision-production-resource-planning-contract.v1"
 # PACKED-CLAMP-WPRDC-DAG: "provider_resource_operand_form": "packed-i4-nibbles"
 # PACKED-CLAMP-WPRDC-DAG: "provider_resource_storage_element_width": 8
 # PACKED-CLAMP-WPRDC-DAG: "provider_resource_effective_element_width": 4
 # PACKED-CLAMP-WPRDC-DAG: "provider_runtime_avl_source": "runtime_abi:n"
 # PACKED-CLAMP-WPRDC-DAG: "provider_runtime_abi_order": "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"
-# PACKED-CLAMP-WPRDC-DAG: "provider_schedule_decision": "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1"
+# PACKED-CLAMP-WPRDC-DAG: "provider_schedule_decision": "select-packed-i4-low-product-before-high-unpack-single-reduce-u1-two-region-budget-7of32.v1"
 # PACKED-CLAMP-WPRDC-DAG: "source_record_contract": "rvv-low-precision-source-backed-artifact-measurement-record.v1"
 # PACKED-CLAMP-WPRDC-DAG: "source_selected_variant": "pre_realized_body_rvv_product_reduce_dequant_clamp"
 # PACKED-CLAMP-WPRDC-DAG: "source_generated_function": "tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp"
 # PACKED-CLAMP-WPRDC-DAG: "generated_artifact_identity_contract": "generated-object-header-sha256-after-target-artifact-validation.v1"
 # PACKED-CLAMP-WPRDC-DAG: "measurement_runtime_count_set": "257,4096,65536"
 # PACKED-CLAMP-WPRDC-DAG: "pressure_profile_label": "low-precision-quantized-contraction-production-pressure"
-# PACKED-CLAMP-WPRDC-DAG: "measurement_evidence_id": "gate3-packed-i4-dequant-clamp-measure/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
+# PACKED-CLAMP-WPRDC-DAG: "measurement_evidence_id": "gate4-packed-i4-low-product-before-high-unpack-dequant-clamp-measure/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
 # PACKED-CLAMP-WPRDC-DAG: "performance_preference_denial_reason": "same-target-measurement-not-run"
 # PACKED-CLAMP-WPRDC-DAG: "performance_win_claim_allowed": false
 # PACKED-CLAMP-WPRDC-DAG: "packed_i4_resource_metadata_selected": true

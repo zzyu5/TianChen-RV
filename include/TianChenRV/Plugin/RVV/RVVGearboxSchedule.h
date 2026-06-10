@@ -498,7 +498,7 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceGroupedRealizationDecision(
         "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4RealizationDecision(
-    "consume-low-precision-packed-i4-product-pair-sum-single-reduce-budget-7of32.v1");
+    "consume-low-precision-packed-i4-low-product-before-high-unpack-single-reduce-budget-7of32.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceFeedback(
         "same-target-packed-i4-no-win.v1");
@@ -510,7 +510,7 @@ constexpr llvm::StringLiteral
         "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange(
-        "0.689815..0.705331");
+        "0.685950..0.705587");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4PerformanceAction(
     "no-win-repair-required-before-performance-claim");
 constexpr llvm::StringLiteral
@@ -521,12 +521,12 @@ constexpr llvm::StringLiteral
         "correctness-supported-no-win-regression");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceID(
-        "gate3-packed-i4-schedule-decision-ssh/"
+        "gate4-packed-i4-low-product-before-high-unpack-dequant-ssh/"
         "widening_product_reduce_dequantize_f32/"
         "same_target_measurement_evidence.json");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4DequantClampRemediationMeasurementEvidenceID(
-        "gate3-packed-i4-dequant-clamp-ssh/"
+        "gate4-packed-i4-low-product-before-high-unpack-dequant-clamp-ssh/"
         "widening_product_reduce_dequant_clamp_f32/"
         "same_target_measurement_evidence.json");
 constexpr llvm::StringLiteral
@@ -538,10 +538,10 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationPlanContract(
         "rvv-low-precision-packed-i4-resource-remediation-plan.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4RemediationPlan(
-    "repair-packed-i4-product-pair-sum-single-reduce-before-performance-claim.v1");
+    "repair-packed-i4-low-product-before-high-unpack-single-reduce-before-performance-claim.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy(
-        "unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum");
+        "unpack-low-signed-i4-nibbles-product-before-high-nibbles-pair-sum-single-vwredsum");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationVectorBudget(
         "packed-i4-remediation-budget-7of32-vector-groups");
@@ -553,7 +553,7 @@ constexpr llvm::StringLiteral
         "sign-extend-low-high-signed-i4-nibbles-before-widening-product.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationProductPlan(
-        "two-signed-i4-widening-products-plus-i16-pair-sum.v1");
+        "low-product-before-high-product-plus-i16-pair-sum.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4RemediationReductionPlan(
         "single-vwredsum-i16-pair-sum-with-i32-seed.v1");
@@ -564,17 +564,17 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract(
         "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4ScheduleDecision(
-    "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1");
+    "select-packed-i4-low-product-before-high-unpack-single-reduce-u1-two-region-budget-7of32.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason(
-        "accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-"
+        "accepted-remediation-schedule-low-product-before-high-unpack-pair-sum-"
         "single-vwredsum-budget-7of32");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturity(
         "executable-not-performance-mature");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence(
-        "same-target-packed-i4-product-pair-sum-regression-gate6.v1");
+        "same-target-packed-i4-low-product-before-high-unpack-regression-gate4.v1");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome("regression");
 constexpr llvm::StringLiteral

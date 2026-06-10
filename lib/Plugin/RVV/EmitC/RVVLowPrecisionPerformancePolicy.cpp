@@ -24,10 +24,10 @@ constexpr llvm::StringLiteral kPackedI4Gate4MeasurementClassification(
     "regression");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementOutcomeFamily("no-win");
 constexpr llvm::StringLiteral kPackedI4Gate4MeasurementBestSpeedupRange(
-    "0.689815..0.705331");
+    "0.688202..0.705410");
 constexpr llvm::StringLiteral
     kPackedI4DequantClampGate4MeasurementBestSpeedupRange(
-        "0.693878..0.964286");
+        "0.683721..0.705212");
 constexpr llvm::StringLiteral kPackedI4Gate4TargetProfile("ssh rvv");
 constexpr llvm::StringLiteral kPackedI4PerformancePreferenceDenialReason(
     "same-target-measurement-no-win-or-regression");
@@ -80,7 +80,7 @@ constexpr std::int64_t kPackedI4Gate4MeasurementRecordCount = 60;
 constexpr std::int64_t kPackedI4Gate4CorrectnessRecordCount = 12;
 constexpr std::int64_t
     kPackedI4DequantClampGate4MeasurementSummaryRecordCount = 24;
-constexpr std::int64_t kPackedI4DequantClampGate4MeasurementRecordCount = 24;
+constexpr std::int64_t kPackedI4DequantClampGate4MeasurementRecordCount = 120;
 constexpr std::int64_t kPackedI4DequantClampGate4CorrectnessRecordCount = 24;
 
 llvm::Error makeRVVLowPrecisionPerformancePolicyError(llvm::Twine message) {

@@ -5040,6 +5040,11 @@ void populateRVVLowPrecisionContractionResourceRealizationSchedule(
         kRVVLowPrecisionResourcePackedI4ScheduleDecision.str();
     selection.scheduleDecisionReason =
         kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason.str();
+    selection.realizationAdmissionScheduleDecisionContract =
+        selection.scheduleDecisionContract;
+    selection.realizationAdmissionScheduleDecision = selection.scheduleDecision;
+    selection.realizationAdmissionScheduleDecisionReason =
+        selection.scheduleDecisionReason;
     selection.performanceFeedback =
         kRVVLowPrecisionResourcePackedI4PerformanceFeedback.str();
     selection.performanceBaseline =

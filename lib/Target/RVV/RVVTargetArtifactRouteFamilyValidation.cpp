@@ -5280,12 +5280,11 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
     return validateUnitSourceLoad(step, abi, resultName, stepLabel);
   };
 
-  auto validatePackedI4SignExtend =
+  auto validatePackedI4LowSignExtend =
       [&](std::size_t shiftLeftIndex, llvm::StringRef packedVecName,
           llvm::StringRef lowShiftedVecName, llvm::StringRef lowVecName,
-          llvm::StringRef highVecName, llvm::StringRef shiftLeftLabel,
-          llvm::StringRef lowShiftRightLabel,
-          llvm::StringRef highShiftRightLabel) -> llvm::Error {
+          llvm::StringRef shiftLeftLabel,
+          llvm::StringRef lowShiftRightLabel) -> llvm::Error {
     if (llvm::Error error = validateRVVProviderBuiltRouteStep(
             loop.bodySteps[shiftLeftIndex], consumerLabel, shiftLeftLabel,
             packedI4ShiftLeftIntrinsic,
@@ -5302,8 +5301,15 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
              {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
             lowVecName, description.sourceVectorCType))
       return error;
+    return llvm::Error::success();
+  };
+
+  auto validatePackedI4HighSignExtend =
+      [&](std::size_t stepIndex, llvm::StringRef packedVecName,
+          llvm::StringRef highVecName,
+          llvm::StringRef highShiftRightLabel) -> llvm::Error {
     return validateRVVProviderBuiltRouteStep(
-        loop.bodySteps[shiftLeftIndex + 2], consumerLabel, highShiftRightLabel,
+        loop.bodySteps[stepIndex], consumerLabel, highShiftRightLabel,
         packedI4ArithmeticShiftRightIntrinsic,
         {{packedVecName, description.sourceVectorCType},
          {packedI4ShiftAmount, packedI4ShiftAmountCType},
@@ -5383,28 +5389,34 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
               loop.bodySteps[2], *rhsABI, "rhs_packed_i4_vec",
               "rhs packed-i4 source load"))
         return error;
-      if (llvm::Error error = validatePackedI4SignExtend(
+      if (llvm::Error error = validatePackedI4LowSignExtend(
               3, "lhs_packed_i4_vec", "lhs_low_i4_shifted_vec",
-              "lhs_low_i4_vec", "lhs_high_i4_vec",
+              "lhs_low_i4_vec",
               "lhs packed-i4 low-nibble shift-left",
-              "lhs packed-i4 low-nibble arithmetic shift-right",
-              "lhs packed-i4 high-nibble arithmetic shift-right"))
+              "lhs packed-i4 low-nibble arithmetic shift-right"))
         return error;
-      if (llvm::Error error = validatePackedI4SignExtend(
-              6, "rhs_packed_i4_vec", "rhs_low_i4_shifted_vec",
-              "rhs_low_i4_vec", "rhs_high_i4_vec",
+      if (llvm::Error error = validatePackedI4LowSignExtend(
+              5, "rhs_packed_i4_vec", "rhs_low_i4_shifted_vec",
+              "rhs_low_i4_vec",
               "rhs packed-i4 low-nibble shift-left",
-              "rhs packed-i4 low-nibble arithmetic shift-right",
-              "rhs packed-i4 high-nibble arithmetic shift-right"))
+              "rhs packed-i4 low-nibble arithmetic shift-right"))
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
-              loop.bodySteps[9], consumerLabel,
+              loop.bodySteps[7], consumerLabel,
               "packed-i4 low-nibble widening product",
               description.wideningProductIntrinsic,
               {{"lhs_low_i4_vec", description.sourceVectorCType},
                {"rhs_low_i4_vec", description.sourceVectorCType},
                {runtimeContract.emitCLoopVLName, runtimeContract.vlCType}},
               "product_vec", description.productVectorCType))
+        return error;
+      if (llvm::Error error = validatePackedI4HighSignExtend(
+              8, "lhs_packed_i4_vec", "lhs_high_i4_vec",
+              "lhs packed-i4 high-nibble arithmetic shift-right"))
+        return error;
+      if (llvm::Error error = validatePackedI4HighSignExtend(
+              9, "rhs_packed_i4_vec", "rhs_high_i4_vec",
+              "rhs packed-i4 high-nibble arithmetic shift-right"))
         return error;
       if (llvm::Error error = validateRVVProviderBuiltRouteStep(
               loop.bodySteps[10], consumerLabel,

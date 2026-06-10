@@ -39,3 +39,11 @@
 {"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1", "result": "passed"}
 {"check": "git diff --check", "result": "passed"}
 {"check": "bounded added-diff old-authority scan", "result": "passed: no legacy RVV route-authority, q8/q4, source-front-door, descriptor-driven, or direct C exporter markers in added diff lines"}
+{"check": "cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test", "result": "passed after packed-i4 schedule repair and policy range update"}
+{"check": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "initially failed on stale realization-admission schedule-decision reason in regenerated evidence; fixed by syncing packed-i4 admission schedule facts with provider schedule facts, then passed"}
+{"check": "build/bin/tianchenrv-target-artifact-export-test", "result": "passed after target artifact validation updates"}
+{"check": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter packed-i4 Gate 4 target and script dry-run tests", "result": "passed: 5 focused tests from build/test"}
+{"check": "python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test", "result": "passed"}
+{"check": "fresh ssh rvv measurement: gate4-packed-i4-low-product-before-high-unpack-dequant-ssh", "result": "passed correctness; classification=regression best_speedup_range=0.688202..0.705410 summaries=12 measurements=60"}
+{"check": "fresh ssh rvv measurement: gate4-packed-i4-low-product-before-high-unpack-dequant-clamp-ssh", "result": "passed correctness; classification=regression best_speedup_range=0.683721..0.705212 summaries=24 measurements=120"}
+{"check": "bounded old packed-i4 evidence and schedule scan", "result": "passed: no old Gate 3 evidence ID, old pair-sum-only schedule decision, stale schedule reason, or stale strict measurement range in touched source/tests/spec/current Gate 4 artifacts"}

@@ -1788,10 +1788,10 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
         TCRVEmitCCallOpaqueResult{resultName.str(), sourceVectorCType.str()});
   };
 
-  auto addPackedI4SignExtend =
+  auto addPackedI4LowSignExtend =
       [&](mlir::Operation *op, llvm::StringRef packedVecName,
-          llvm::StringRef lowShiftedVecName, llvm::StringRef lowVecName,
-          llvm::StringRef highVecName) -> llvm::Error {
+          llvm::StringRef lowShiftedVecName,
+          llvm::StringRef lowVecName) -> llvm::Error {
     if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
             plan, op, "compute", kRVVPackedI4ShiftLeftIntrinsic,
             {TCRVEmitCCallOpaqueOperand{packedVecName.str(),
@@ -1814,6 +1814,12 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
             TCRVEmitCCallOpaqueResult{lowVecName.str(),
                                       sourceVectorCType.str()}))
       return error;
+    return llvm::Error::success();
+  };
+
+  auto addPackedI4HighSignExtend =
+      [&](mlir::Operation *op, llvm::StringRef packedVecName,
+          llvm::StringRef highVecName) -> llvm::Error {
     return addRVVDirectContractionStatementOwnerLoopStep(
         plan, op, "compute", kRVVPackedI4ArithmeticShiftRightIntrinsic,
         {TCRVEmitCCallOpaqueOperand{packedVecName.str(),
@@ -1932,15 +1938,15 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
                 addUnitSourceLoad(slice.rhsLoadOperation, boundRHSABI,
                                   kPackedI4RHSPackedVecName))
           return error;
-        if (llvm::Error error = addPackedI4SignExtend(
+        if (llvm::Error error = addPackedI4LowSignExtend(
                 slice.wideningProductOp.getOperation(),
                 kPackedI4LHSPackedVecName, kPackedI4LHSLowShiftedVecName,
-                kPackedI4LHSLowVecName, kPackedI4LHSHighVecName))
+                kPackedI4LHSLowVecName))
           return error;
-        if (llvm::Error error = addPackedI4SignExtend(
+        if (llvm::Error error = addPackedI4LowSignExtend(
                 slice.wideningProductOp.getOperation(),
                 kPackedI4RHSPackedVecName, kPackedI4RHSLowShiftedVecName,
-                kPackedI4RHSLowVecName, kPackedI4RHSHighVecName))
+                kPackedI4RHSLowVecName))
           return error;
       } else {
         if (llvm::Error error = addUnitSourceLoad(slice.lhsLoadOperation,
@@ -2115,6 +2121,14 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
     }
     if (isProductReductionDequantization) {
       if (usesPackedI4LowPrecisionProductReduction) {
+        if (llvm::Error error = addPackedI4HighSignExtend(
+                slice.wideningProductOp.getOperation(),
+                kPackedI4LHSPackedVecName, kPackedI4LHSHighVecName))
+          return error;
+        if (llvm::Error error = addPackedI4HighSignExtend(
+                slice.wideningProductOp.getOperation(),
+                kPackedI4RHSPackedVecName, kPackedI4RHSHighVecName))
+          return error;
         if (llvm::Error error = addRVVDirectContractionStatementOwnerLoopStep(
                 plan, slice.wideningProductOp.getOperation(), "compute",
                 providerFacts.wideningProductLeaf,

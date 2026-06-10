@@ -6710,7 +6710,7 @@ object equivalent to:
     "fields": {
       "performance_feedback": "same-target-packed-i4-no-win.v1",
       "performance_baseline": "scalar-c-reference/product-reduction-dequant-packed-i4-v1",
-      "performance_best_speedup_range": "0.689815..0.705331",
+      "performance_best_speedup_range": "0.685950..0.705587",
       "performance_action": "no-win-repair-required-before-performance-claim",
       "operand_form": "packed-i4-nibbles",
       "packing_layout": "two-signed-i4-elements-per-byte-low-high-nibbles",
@@ -6842,15 +6842,15 @@ tcrv_rvv.low_precision_resource.performance_feedback =
 tcrv_rvv.low_precision_resource.performance_baseline =
   "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
 tcrv_rvv.low_precision_resource.performance_best_speedup_range =
-  "0.689815..0.705331"
+  "0.685950..0.705587"
 tcrv_rvv.low_precision_resource.performance_action =
   "no-win-repair-required-before-performance-claim"
 tcrv_rvv.low_precision_resource.remediation_plan_contract =
   "rvv-low-precision-packed-i4-resource-remediation-plan.v1"
 tcrv_rvv.low_precision_resource.remediation_plan =
-  "repair-packed-i4-product-pair-sum-single-reduce-before-performance-claim.v1"
+  "repair-packed-i4-low-product-before-high-unpack-single-reduce-before-performance-claim.v1"
 tcrv_rvv.low_precision_resource.remediation_statement_strategy =
-  "unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum"
+  "unpack-low-signed-i4-nibbles-product-before-high-nibbles-pair-sum-single-vwredsum"
 tcrv_rvv.low_precision_resource.remediation_vector_budget =
   "packed-i4-remediation-budget-7of32-vector-groups"
 ```
@@ -6877,6 +6877,11 @@ tcrv_rvv.low_precision_resource.remediation_vector_budget =
 - The `performance_action` value means the compiler path requires a repair or
   an explicit fail-closed decision before any future packed-i4 performance win
   claim. It must not be rewritten into success/readiness/status language.
+- `performance_best_speedup_range` is the provider resource feedback mirror
+  attached to the selected candidate. The strict dispatch policy consumes the
+  fresh same-target measurement record's `measurement_best_speedup_range`;
+  these values are compared at different layers and must not be substituted for
+  each other.
 
 ### 4. Validation & Error Matrix
 
@@ -6915,7 +6920,7 @@ tcrv_rvv.low_precision_resource.remediation_vector_budget =
   change and new same-target timing; target validation must reject it.
 - Bad: route metadata says `metadata-only-packed-i4-unpack-plan` while the
   provider-owned selection requires
-  `unpack-low-high-signed-i4-nibbles-product-pair-sum-single-vwredsum`; target
+  `unpack-low-signed-i4-nibbles-product-before-high-nibbles-pair-sum-single-vwredsum`; target
   validation must reject it before header/artifact acceptance.
 
 ### 6. Tests Required
@@ -6984,7 +6989,7 @@ The accepted packed-i4 regression values are:
 tcrv_rvv.low_precision_resource.performance_maturity =
   "executable-not-performance-mature"
 tcrv_rvv.low_precision_resource.performance_maturity_evidence =
-  "same-target-packed-i4-product-pair-sum-regression-gate6.v1"
+  "same-target-packed-i4-low-product-before-high-unpack-regression-gate4.v1"
 tcrv_rvv.low_precision_resource.performance_maturity_outcome =
   "regression"
 tcrv_rvv.low_precision_resource.performance_selection_eligible =
@@ -7102,18 +7107,18 @@ Packed-i4 per-op evidence and root summaries may carry:
     "measurement_evidence_id": "run/op/same_target_measurement_evidence.json",
     "measurement_classification": "win | no-win | regression | not-measured",
     "measurement_outcome_family": "win | no-win | not-measured",
-    "measurement_best_speedup_range": "0.689815..0.705331",
+    "measurement_best_speedup_range": "0.688202..0.705410",
     "measurement_summary_record_count": 12,
     "measurement_record_count": 60,
     "provider_maturity": "executable-not-performance-mature",
-    "provider_maturity_evidence": "same-target-packed-i4-product-pair-sum-regression-gate6.v1",
+    "provider_maturity_evidence": "same-target-packed-i4-low-product-before-high-unpack-regression-gate4.v1",
     "provider_maturity_outcome": "regression",
     "provider_performance_selection_eligible": "false",
     "provider_dispatch_preference": "not-performance-preferred",
     "provider_performance_action": "no-win-repair-required-before-performance-claim",
     "provider_schedule_decision_contract": "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1",
-    "provider_schedule_decision": "select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1",
-    "provider_schedule_decision_reason": "accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32",
+    "provider_schedule_decision": "select-packed-i4-low-product-before-high-unpack-single-reduce-u1-two-region-budget-7of32.v1",
+    "provider_schedule_decision_reason": "accepted-remediation-schedule-low-product-before-high-unpack-pair-sum-single-vwredsum-budget-7of32",
     "source_record_contract": "rvv-low-precision-source-backed-artifact-measurement-record.v1",
     "source_selected_variant": "rvv_lp_pack_i4_widening_product_reduce_dequantize_f32",
     "source_selected_input": "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir",
@@ -7448,10 +7453,10 @@ performance-preferred
 
   ```text
   measurementEvidenceID =
-    gate3-packed-i4-schedule-decision-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
+    gate4-packed-i4-low-product-before-high-unpack-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
   measurementClassification = regression
   measurementOutcomeFamily = no-win
-  measurementBestSpeedupRange = 0.689815..0.705331
+  measurementBestSpeedupRange = 0.688202..0.705410
   measurementSummaryRecordCount = 12
   measurementRecordCount = 60
   correctnessRecordCount = 12
@@ -7468,9 +7473,9 @@ performance-preferred
   providerScheduleDecisionContract =
     rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1
   providerScheduleDecision =
-    select-packed-i4-pair-sum-single-reduce-u1-two-region-budget-7of32.v1
+    select-packed-i4-low-product-before-high-unpack-single-reduce-u1-two-region-budget-7of32.v1
   providerScheduleDecisionReason =
-    accepted-remediation-schedule-low-high-unpack-two-products-pair-sum-single-vwredsum-budget-7of32
+    accepted-remediation-schedule-low-product-before-high-unpack-pair-sum-single-vwredsum-budget-7of32
   ```
 
 - The strict Gate 4 no-win/regression verifier must derive the accepted
@@ -7483,12 +7488,12 @@ performance-preferred
 
   ```text
   measurementEvidenceID =
-    gate3-packed-i4-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
+    gate4-packed-i4-low-product-before-high-unpack-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
   measurementClassification = regression
   measurementOutcomeFamily = no-win
-  measurementBestSpeedupRange = 0.693878..0.964286
+  measurementBestSpeedupRange = 0.683721..0.705212
   measurementSummaryRecordCount = 24
-  measurementRecordCount = 24
+  measurementRecordCount = 120
   correctnessRecordCount = 24
   dispatchPolicyPath = correctness-fallback
   performancePreferenceDenialReason =
