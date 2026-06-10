@@ -626,6 +626,103 @@ prefetch/software-pipeline structure
 accumulator/reduction layout
 ```
 
+## Low-Precision No-Win Dispatch Preference Boundary
+
+### 1. Scope / Trigger
+
+Use this contract when a packed-i4 low-precision product-reduction route has
+route-supported and correctness-executable RVV evidence, but the source-backed
+same-target measurement classifies the current schedule as no-win or
+regression. This is a production dispatch-preference policy boundary, not an
+artifact-reporting convention.
+
+### 2. Signatures
+
+The RVV performance policy API consumes:
+
+```c++
+evaluateRVVLowPrecisionPerformancePolicy(selection, record, dispatchBoundary,
+                                         context)
+evaluateRVVLowPrecisionPerformancePolicy(selection, input, dispatchBoundary,
+                                         context)
+verifyRVVLowPrecisionPerformancePolicy(selection, record, dispatchBoundary,
+                                       context)
+```
+
+where `dispatchBoundary` is an
+`RVVLowPrecisionSelectedDispatchPolicyBoundary` carrying the selected RVV case,
+fallback case, case/fallback policies, and selected-dispatch mirrors.
+
+### 3. Contracts
+
+- Route support and correctness execution may remain allowed for the accepted
+  packed-i4 no-win/regression measurement.
+- Performance selection, performance-win claims, and performance-preferred
+  dispatch must remain denied unless a newer same-target measured-win record
+  and matching provider maturity facts promote the policy.
+- For the no-win/regression path, the selected-dispatch case policy,
+  selected-dispatch case mirror, fallback policy, and fallback mirror must not
+  contain a `performance-preferred` marker. Such a marker is treated as a
+  route-support-as-performance-preference authority attempt.
+- The policy decision must select the `correctness-fallback` dispatch path and
+  carry `same-target-measurement-no-win-or-regression` as the denial reason.
+
+### 4. Validation & Error Matrix
+
+- Missing selected dispatch case or fallback facts -> policy boundary error.
+- Selected dispatch case policy or case mirror contains
+  `performance-preferred` while the measurement is no-win/regression -> policy
+  boundary error before dispatch-preference acceptance.
+- Fallback policy or fallback mirror contains `performance-preferred` while the
+  measurement is no-win/regression -> policy boundary error.
+- Route-supported packed-i4 selection with no accepted source-backed
+  measurement -> correctness fallback may be resolved, but performance
+  preference remains denied.
+- Measured-win claim without matching provider maturity, remediation, and
+  dispatch-preference facts -> policy boundary error.
+
+### 5. Good/Base/Bad Cases
+
+- Good: route-supported packed-i4 selected body plus source-backed no-win
+  evidence -> `correctness-fallback`, route support preserved, performance
+  preference denied.
+- Good: source-backed measured-win evidence plus provider maturity fields
+  updated to performance-mature -> `performance-preferred`.
+- Base: stale measurement identity or stale sibling-route measurement ->
+  conservative correctness fallback, no performance preference.
+- Bad: selected RVV dispatch case mirror says `performance-preferred` only
+  because the route is supported, while the accepted measurement remains
+  no-win/regression.
+
+### 6. Tests Required
+
+- C++ policy tests must assert the accepted no-win path preserves route support
+  and correctness execution while selecting `correctness-fallback`.
+- C++ policy tests must mutate selected-dispatch case policy and case mirror
+  with `performance-preferred` and assert fail-closed diagnostics.
+- Target artifact/provider tests that carry packed-i4 low-precision resource
+  facts must continue to consume the same policy API before accepting dispatch
+  preference mirrors.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+route-supported packed-i4 selected body
+  -> selected dispatch case mirror says performance-preferred
+  -> dispatch treats RVV as performance-preferred despite no-win measurement
+```
+
+Correct:
+
+```text
+route-supported packed-i4 selected body
+  -> source-backed same-target no-win/regression evidence
+  -> RVV policy selects correctness-fallback
+  -> selected-dispatch case/mirror cannot carry performance-preferred markers
+```
+
 ## Runtime-Scalar Indexed Gather-MAcc-Scatter Route Contract
 
 ### 1. Scope / Trigger

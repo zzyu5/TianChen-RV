@@ -955,3 +955,57 @@ testing specs already cover the packed-i4 no-win maturity boundary,
 source-backed same-target evidence, performance-selection denial, and
 metadata-only claim rejection. The durable state change is captured in the PRD,
 fixture coverage, and check records.
+
+## Session 582: Gate 4 selected-dispatch no-win preference denial
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task under Gate 4. This slice made the existing
+source-backed packed-i4 no-win/regression outcome a stricter
+selected-dispatch policy boundary: route support and correctness execution
+remain allowed, but selected-dispatch case/fallback policy or mirror text may
+not carry `performance-preferred` markers unless measured-win evidence and
+provider maturity facts promote the decision.
+
+### Main Changes
+
+- Added fail-closed selected-dispatch no-win validation in
+  `RVVLowPrecisionPerformancePolicy.cpp`.
+- Added plugin regression coverage for stale selected-dispatch case policy and
+  selected-dispatch case mirror performance-preferred markers.
+- Updated the macro PRD/task notes and RVV plugin spec with the new no-win
+  dispatch preference boundary.
+- Did not rerun `ssh rvv` measurement because no schedule/resource behavior was
+  changed.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test
+  tcrv-opt tcrv-translate`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter
+  pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4`
+  from `build/test`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1`
+- [OK] `git diff --check`
+- [OK] Bounded added-diff old-authority scan found no legacy RVV
+  route-authority or q8/q4/source-front-door markers in added lines.
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-3 remain complete. Gate 4 remains open for a real
+provider-owned packed-i4 schedule/resource repair plus fresh same-target timing
+before any performance-preferred dispatch claim.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` now records the
+low-precision no-win dispatch preference boundary and its required C++ tests.

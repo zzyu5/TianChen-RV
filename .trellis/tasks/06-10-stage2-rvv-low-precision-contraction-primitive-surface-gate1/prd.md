@@ -265,6 +265,42 @@ Remaining Gate 4 continuation:
   performance-preference denial. Do not switch to new route ids, q8/q4 named
   wrappers, or generated-bundle-only evidence.
 
+Current Gate 4 dispatch-preference denial slice:
+
+- This round adds a production-consumed selected-dispatch policy boundary for
+  the existing source-backed packed-i4 no-win/regression result. The goal is
+  not to claim a new schedule win, but to make the compiler reject any selected
+  dispatch case/mirror that tries to carry `performance-preferred` semantics
+  while the measured policy decision selects the conservative
+  correctness-fallback path.
+- Acceptance:
+  - [x] Selected-dispatch policy validation fails closed when the RVV dispatch
+    case policy or case mirror claims performance preference for the current
+    no-win/regression packed-i4 measurement.
+  - [x] Route support and correctness execution remain allowed for the
+    accepted source-backed record, while performance selection and performance
+    win claims remain denied.
+  - [x] Focused C++ coverage proves accepted no-win dispatch policy, stale
+    dispatch-case policy rejection, and stale dispatch-case mirror rejection.
+  - [x] No new same-target measurement is required because this slice changes
+    policy consumption only, not generated schedule/resource behavior.
+  - [x] The macro task remains active after the slice unless Gate 4 is fully
+    closed with a provider-owned schedule/resource repair and fresh
+    same-target timing.
+
+Completed Gate 4 dispatch-preference denial slice:
+
+- Added fail-closed selected-dispatch no-win policy validation so a route-
+  supported packed-i4 dispatch case cannot carry `performance-preferred`
+  policy or mirror text unless same-target measured-win evidence and provider
+  maturity facts have promoted the decision.
+- Added focused plugin tests for the accepted no-win correctness-fallback path,
+  stale selected-dispatch case policy rejection, and stale selected-dispatch
+  case mirror rejection.
+- No new `ssh rvv` measurement was rerun in this slice because generated
+  schedule/resource behavior did not change; existing source-backed
+  no-win/regression evidence still denies performance preference.
+
 ## Non-Goals
 
 - No generated-bundle-only or `ssh rvv`-only closeout unless it validates
@@ -357,6 +393,22 @@ Remaining Gate 4 continuation:
   legacy authority. Added `__riscv_*_i32m1` matches are the expected
   provider-owned widening-reduction primitive intrinsic mirrors for typed
   i8/i16/i32 product-reduction facts, not old i32m1 route authority.
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test` passed
+  for the Gate 4 selected-dispatch denial slice.
+- `build/bin/tianchenrv-rvv-extension-plugin-test` passed, including stale
+  selected-dispatch case policy and selected-dispatch case mirror rejection.
+- `cmake --build build --target tianchenrv-target-artifact-export-test
+  tcrv-opt tcrv-translate` passed.
+- `build/bin/tianchenrv-target-artifact-export-test` passed.
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter
+  pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-
+  f32-packed-i4` passed from `build/test`.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+  passed.
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-
+  gate1` passed.
+- `git diff --check` passed.
 
 ## Spec Update Decision
 
@@ -365,6 +417,11 @@ Remaining Gate 4 continuation:
   contract, including unsigned source/product/accumulator/result facts,
   intrinsics, scalar seed splat, target mirror validation, and Common EmitC
   neutrality.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the
+  low-precision no-win dispatch preference boundary: route-supported
+  packed-i4 no-win/regression cases must select correctness fallback and reject
+  selected-dispatch case or mirror text that claims `performance-preferred`
+  without measured-win evidence.
 
 ## Continuation Point
 

@@ -10880,6 +10880,49 @@ module {
           "measurement facts plus explicit conservative fallback facts"))
     return result;
 
+  auto expectPackedI4SelectedDispatchPolicyError =
+      [&](tianchenrv::plugin::rvv::RVVLowPrecisionSelectedDispatchPolicyBoundary
+              boundary,
+          std::initializer_list<llvm::StringRef> fragments) -> int {
+    auto invalid =
+        tianchenrv::plugin::rvv::evaluateRVVLowPrecisionPerformancePolicy(
+            packedI4ResourceSelection, acceptedPackedI4Gate4Outcome, boundary,
+            "selected-dispatch packed-i4 Gate 4 no-win dispatch-preference "
+            "denial boundary");
+    if (invalid)
+      return fail("packed-i4 selected-dispatch no-win policy accepted "
+                  "performance-preferred dispatch preference");
+    return expectErrorContains(invalid.takeError(), fragments);
+  };
+
+  tianchenrv::plugin::rvv::RVVLowPrecisionSelectedDispatchPolicyBoundary
+      stalePerformancePreferredCasePolicy =
+          packedI4SelectedDispatchBoundary;
+  stalePerformancePreferredCasePolicy.selectedCasePolicy =
+      "performance-preferred-route-supported-case";
+  if (int result = expectPackedI4SelectedDispatchPolicyError(
+          stalePerformancePreferredCasePolicy,
+          {"selected-dispatch no-win policy boundary rejects "
+           "performance-preferred marker",
+           "selected dispatch case policy",
+           "route support and correctness execution do not authorize "
+           "performance-preferred dispatch"}))
+    return result;
+
+  tianchenrv::plugin::rvv::RVVLowPrecisionSelectedDispatchPolicyBoundary
+      stalePerformancePreferredCaseMirror =
+          packedI4SelectedDispatchBoundary;
+  stalePerformancePreferredCaseMirror.selectedDispatchCaseMirror +=
+      ";dispatch_preference=performance-preferred";
+  if (int result = expectPackedI4SelectedDispatchPolicyError(
+          stalePerformancePreferredCaseMirror,
+          {"selected-dispatch no-win policy boundary rejects "
+           "performance-preferred marker",
+           "selected dispatch case mirror",
+           "route support and correctness execution do not authorize "
+           "performance-preferred dispatch"}))
+    return result;
+
   auto acceptedPackedI4PolicyInputOr =
       tianchenrv::plugin::rvv::
           buildRVVLowPrecisionSameTargetMeasurementPolicyInput(

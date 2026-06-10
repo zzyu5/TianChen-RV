@@ -184,6 +184,19 @@ llvm::Error rejectMetadataOnlyPressureMarker(llvm::StringRef context,
       "selected-dispatch policy inputs");
 }
 
+llvm::Error rejectNoWinDispatchPerformancePreferenceMarker(
+    llvm::StringRef context, llvm::StringRef label, llvm::StringRef value) {
+  if (!containsPolicyMarker(value, "performance-preferred"))
+    return llvm::Error::success();
+  return makeRVVLowPrecisionPerformancePolicyError(
+      llvm::Twine(context) +
+      " selected-dispatch no-win policy boundary rejects performance-"
+      "preferred marker in " +
+      label + " '" + value +
+      "'; route support and correctness execution do not authorize "
+      "performance-preferred dispatch without measured-win evidence");
+}
+
 llvm::Error rejectPressureProfileMarkerOnlyFacts(
     const RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionSameTargetMeasurementPolicyInput &input,
@@ -1566,6 +1579,40 @@ llvm::Error verifyPackedI4PolicyOutcomeConsistency(
   return llvm::Error::success();
 }
 
+llvm::Error verifyNoWinSelectedDispatchPreferenceDenial(
+    const RVVLowPrecisionPerformancePolicyDecision &decision,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  if (llvm::Error error =
+          requirePolicyString(context, "no-win dispatch preference",
+                              decision.dispatchPreference,
+                              kRVVLowPrecisionResourcePackedI4DispatchPreference))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "no-win performance preference denial reason",
+          decision.performancePreferenceDenialReason,
+          kPackedI4PerformancePreferenceDenialReason))
+    return error;
+  if (llvm::Error error =
+          rejectNoWinDispatchPerformancePreferenceMarker(
+              context, "selected dispatch case policy",
+              dispatchBoundary.selectedCasePolicy))
+    return error;
+  if (llvm::Error error =
+          rejectNoWinDispatchPerformancePreferenceMarker(
+              context, "selected dispatch case mirror",
+              dispatchBoundary.selectedDispatchCaseMirror))
+    return error;
+  if (llvm::Error error =
+          rejectNoWinDispatchPerformancePreferenceMarker(
+              context, "selected dispatch fallback policy",
+              dispatchBoundary.fallbackPolicy))
+    return error;
+  return rejectNoWinDispatchPerformancePreferenceMarker(
+      context, "selected dispatch fallback mirror",
+      dispatchBoundary.selectedDispatchFallbackMirror);
+}
+
 llvm::Error verifyRVVLowPrecisionSelectedDispatchBoundary(
     const RVVLowPrecisionPerformancePolicyDecision &decision,
     const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
@@ -1635,7 +1682,8 @@ llvm::Error verifyRVVLowPrecisionSelectedDispatchBoundary(
         llvm::Twine(context) +
         " no-win/regression selected-dispatch policy requires the "
         "correctness-fallback dispatch path");
-  return llvm::Error::success();
+  return verifyNoWinSelectedDispatchPreferenceDenial(decision, dispatchBoundary,
+                                                    context);
 }
 
 llvm::Expected<RVVLowPrecisionProductionPressureProfile>

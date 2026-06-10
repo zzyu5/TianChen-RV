@@ -30,3 +30,12 @@
 {"check": "git diff --check", "result": "passed"}
 {"check": "git diff --cached --check", "result": "passed"}
 {"check": "bounded added-diff old-authority scan", "result": "passed: only negative PRD wording for q8/q4 named wrappers matched; no new positive legacy route authority"}
+{"check": "cmake --build build --target tianchenrv-rvv-extension-plugin-test", "result": "passed"}
+{"check": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "passed"}
+{"check": "cmake --build build --target tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate", "result": "passed"}
+{"check": "build/bin/tianchenrv-target-artifact-export-test", "result": "passed"}
+{"check": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4", "result": "passed", "cwd": "build/test"}
+{"check": "python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test", "result": "passed"}
+{"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1", "result": "passed"}
+{"check": "git diff --check", "result": "passed"}
+{"check": "bounded added-diff old-authority scan", "result": "passed: no legacy RVV route-authority, q8/q4, source-front-door, descriptor-driven, or direct C exporter markers in added diff lines"}
