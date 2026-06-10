@@ -5829,10 +5829,11 @@ route ids, q8/q4 names, helper names, or Common EmitC.
 - Once a candidate is selected, that candidate owns the realization decision:
   realized `with_vl` attrs, producer/consumer `tcrv_rvv.vsetvl_region_marker`
   ops, and the Gearbox cross-region handoff must carry marker count, ordering,
-  phase, scope, runtime AVL source, and resource decision derived from the
-  selected candidate. The provider must derive the expected resource decision
-  from the selected candidate and reject stale marker/handoff/resource facts
-  before constructing `TCRVEmitCLowerableRoute`.
+  phase, scope, runtime AVL source, planning contract, and resource decision
+  derived from the selected candidate. The provider must derive the expected
+  planning contract and resource decision from the selected candidate and reject
+  stale marker/handoff/resource facts before constructing
+  `TCRVEmitCLowerableRoute`.
 - For product-reduction Gearbox selected-body realization, the cross-region
   handoff must also carry the selected primitive-chain resource facts:
   `primitive_chain_contract`, `primitive_chain_kind`,
@@ -6967,6 +6968,8 @@ The bounded structural op is:
     to_phase = "dequant-store",
     region_count = 2 : i64,
     runtime_avl_source = "runtime_abi:n",
+    planning_contract =
+      "rvv-low-precision-production-resource-planning-contract.v1",
     resource_decision =
       "consume-low-precision-u1-two-vsetvl-region-budget-4of32.v1"
   }
@@ -7034,8 +7037,8 @@ tcrv_rvv.widening_product
 - The handoff runtime AVL operand must be the same SSA value consumed by
   `setvl`, and `runtime_avl_source` must be `runtime_abi:n`.
 - The handoff `contract`, `from_phase`, `to_phase`, `region_count`, and
-  `resource_decision` must match the RVV-owned low-precision Gearbox resource
-  facts.
+  `planning_contract`, and `resource_decision` must match the RVV-owned
+  low-precision Gearbox resource facts.
 - The RVV schedule pass, selected-body realizer, construction protocol, route
   planner, provider family plan, and target artifact/header validation must all
   agree on the typed compute chain, producer/consumer scope facts, resource
@@ -7048,8 +7051,9 @@ tcrv_rvv.widening_product
 - Missing handoff before dequantize -> fail closed before route support.
 - `dequantize` consumes the reduction result while a handoff exists -> provider
   fails closed before route support.
-- Handoff uses stale contract, phase, region count, runtime AVL source, or
-  resource decision -> dialect verifier or provider fails closed.
+- Handoff uses stale contract, phase, region count, runtime AVL source,
+  planning contract, or resource decision -> dialect verifier or provider fails
+  closed.
 - Handoff consumes a different VL token or runtime AVL SSA value than `setvl` /
   `with_vl` -> verifier/provider fails closed.
 - Missing, sibling, unordered, or wrong-VL consumer `with_vl` for the
@@ -7094,8 +7098,8 @@ tcrv_rvv.widening_product
 - Explicit already-realized fixture containing the same handoff as the authority
   for route planning.
 - Provider fail-closed evidence for missing handoff, stale dequantize consumer,
-  stale scope facts, and stale realized region/resource facts after
-  schedule/resource facts exist.
+  stale scope facts, stale or missing handoff `planning_contract`, and stale
+  realized region/resource facts after schedule/resource facts exist.
 - Header/artifact export evidence showing the four-op non-clamp typed compute
   chain, or six-op dequant-clamp typed compute chain, is accepted by
   construction and target validation.

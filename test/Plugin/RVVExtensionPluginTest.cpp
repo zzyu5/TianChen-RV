@@ -9073,6 +9073,12 @@ module {
                   "one-element-per-byte" &&
               productDequantHandoff.getUnpackIntent() ==
                   "none-direct-widening-product" &&
+              productDequantHandoff->getAttrOfType<mlir::StringAttr>(
+                  "planning_contract") &&
+              productDequantHandoff->getAttrOfType<mlir::StringAttr>(
+                  "planning_contract").getValue() ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePlanningContract &&
               productDequantHandoff.getPeakLiveVectorGroups() == 7 &&
               productDequantHandoff.getVectorRegisterBudget() == 32 &&
               productDequantHandoff.getProductRegionIndex() == 2 &&

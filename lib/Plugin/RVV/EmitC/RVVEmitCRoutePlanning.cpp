@@ -61,6 +61,8 @@ constexpr llvm::StringLiteral kRequiredTailPolicyPropertyName(
     "required_tail_policy");
 constexpr llvm::StringLiteral kRequiredMaskPolicyPropertyName(
     "required_mask_policy");
+constexpr llvm::StringLiteral kGearboxHandoffPlanningContractAttrName(
+    "planning_contract");
 
 std::string joinRVVSelectedCapabilityProviderSymbols(
     llvm::ArrayRef<const support::CapabilityDescriptor *> providers) {
@@ -17656,6 +17658,22 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
         "low-precision product-reduction dequantization RVV route requires "
         "tcrv_rvv.gearbox_cross_region_handoff resource_selected_candidate "
         "to belong to the provider-owned resource_candidate_set");
+  auto planningContract =
+      handoff->getAttrOfType<mlir::StringAttr>(
+          kGearboxHandoffPlanningContractAttrName);
+  if (!planningContract)
+    return makeRVVEmitCRouteProviderError(
+        "low-precision product-reduction dequantization RVV route requires "
+        "tcrv_rvv.gearbox_cross_region_handoff planning_contract from the "
+        "selected resource plan");
+  if (planningContract.getValue() != kRVVLowPrecisionResourcePlanningContract)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("low-precision product-reduction dequantization RVV "
+                    "route requires tcrv_rvv.gearbox_cross_region_handoff "
+                    "planning_contract to match provider-owned resource "
+                    "planning contract '") +
+        kRVVLowPrecisionResourcePlanningContract + "' but found '" +
+        planningContract.getValue() + "'");
   const llvm::StringRef expectedDecisionFromCandidate =
       getRVVLowPrecisionContractionResourceRealizationDecision(
           handoff.getResourceSelectedCandidate());

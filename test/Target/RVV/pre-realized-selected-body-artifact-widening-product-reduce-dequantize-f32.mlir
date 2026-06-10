@@ -13,6 +13,8 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/primitive_source_signedness = "signed"/primitive_source_signedness = "unsigned"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-SIGN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1\[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped\]"/resource_selected_candidate = "artifact-name-derived-resource-candidate"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-RESOURCE-CANDIDATE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1\[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped\]", //' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-HANDOFF-RESOURCE-CANDIDATE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/planning_contract = "rvv-low-precision-production-resource-planning-contract.v1"/planning_contract = "metadata-derived-resource-planning-contract"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-PLANNING
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/planning_contract = "rvv-low-precision-production-resource-planning-contract.v1", //' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=MISSING-HANDOFF-PLANNING
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/peak_live_vector_groups = 7 : i64/peak_live_vector_groups = 99 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-RESOURCE-BUDGET
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/unpack_intent = "none-direct-widening-product"/unpack_intent = "metadata-only-unpack-plan"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-UNPACK-POLICY
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/dequant_region_index = 3 : i64/dequant_region_index = 1 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-REGION-INDEX
@@ -96,6 +98,7 @@ module {
 // REALIZED-SAME: operand_form = "unpacked-byte-elements"
 // REALIZED-SAME: packing_layout = "one-element-per-byte"
 // REALIZED-SAME: peak_live_vector_groups = 7 : i64
+// REALIZED-SAME: planning_contract = "rvv-low-precision-production-resource-planning-contract.v1"
 // REALIZED-SAME: primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1"
 // REALIZED-SAME: primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
 // REALIZED-SAME: primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
@@ -233,6 +236,13 @@ module {
 // STALE-HANDOFF-RESOURCE-CANDIDATE: requires resource_selected_candidate to belong to the provider-owned resource_candidate_set
 
 // MISSING-HANDOFF-RESOURCE-CANDIDATE: requires attribute 'resource_selected_candidate'
+
+// STALE-HANDOFF-PLANNING: requires planning_contract to match the selected low-precision resource planning contract
+// STALE-HANDOFF-PLANNING-SAME: rvv-low-precision-production-resource-planning-contract.v1
+// STALE-HANDOFF-PLANNING-SAME: metadata-derived-resource-planning-contract
+
+// MISSING-HANDOFF-PLANNING: requires planning_contract
+// MISSING-HANDOFF-PLANNING-SAME: rvv-low-precision-production-resource-planning-contract.v1
 
 // STALE-HANDOFF-RESOURCE-BUDGET: requires peak_live_vector_groups to match the selected low-precision resource candidate
 

@@ -1474,6 +1474,55 @@ record-level correctness-disabled and measurement-only win promotion negatives.
 [READY TO ARCHIVE] All campaign gates are complete. The task can be finished
 and archived after final validation and the coherent Gate 4 commit.
 
+## 2026-06-10 - Stage2 RVV Gearbox resource-planning Gate 2 handoff consumer
+
+### Summary
+
+Continued the active production-kernel Gearbox/resource-aware selected-body
+realization macro task at Gate 2. This sub-slice makes the selected-body
+realization handoff consume the Gate 1 planning contract structurally: the
+realized `tcrv_rvv.gearbox_cross_region_handoff` now carries the selected
+resource planning contract, and RVV dialect/provider validation rejects missing
+or stale handoff planning-contract facts before route construction.
+
+### Main Changes
+
+- Added `planning_contract =
+  "rvv-low-precision-production-resource-planning-contract.v1"` to the realized
+  product-reduction Gearbox cross-region handoff.
+- Made `GearboxCrossRegionHandoffOp::verify` require that handoff planning
+  contract and keep it bounded metadata.
+- Made direct route-slice recording and contraction route-family validation
+  compare the handoff planning contract with the provider-selected
+  `RVVLowPrecisionContractionResourceSelection`.
+- Updated the representative product-reduction-dequant FileCheck coverage with
+  positive, stale, and missing handoff planning-contract checks, and repaired the
+  explicit realized fixture.
+- Updated the RVV plugin spec with the executable handoff planning-contract
+  requirement.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- Manual positive `tcrv-opt` check for
+  `pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir`
+  showing handoff `planning_contract`.
+- Manual stale/missing handoff planning-contract negative `tcrv-opt` checks.
+- `build/bin/tcrv-opt` emission-plan checks for the explicit product-dequant
+  fixture, dequant-clamp fixture, and packed-i4 fixture.
+
+### Status
+
+[OPEN MACRO TASK] Gate 1 is complete. Gate 2 handoff planning-contract consumer
+sub-slice is complete, but Gate 2 remains partially open for marker-level
+resource-plan checks or another production representative if required. Gates 3
+and 4 remain open. The next continuation point is the remaining Gate 2
+resource-plan realization surface, not generated artifact or same-target
+measurement evidence.
+
 
 ## Session 575: Stage2 RVV same-target measurement Gate 4 audit
 

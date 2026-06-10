@@ -117,6 +117,7 @@ constexpr llvm::StringLiteral kRegionCountAttrName("region_count");
 constexpr llvm::StringLiteral kRuntimeAVLSourceAttrName(
     "runtime_avl_source");
 constexpr llvm::StringLiteral kResourceDecisionAttrName("resource_decision");
+constexpr llvm::StringLiteral kPlanningContractAttrName("planning_contract");
 constexpr llvm::StringLiteral kResourceCandidateSetAttrName(
     "resource_candidate_set");
 constexpr llvm::StringLiteral kResourceSelectedCandidateAttrName(
@@ -297,6 +298,7 @@ bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
          name == kToPhaseAttrName || name == kRegionCountAttrName ||
          name == kRuntimeAVLSourceAttrName ||
          name == kResourceDecisionAttrName ||
+         name == kPlanningContractAttrName ||
          name == kResourceCandidateSetAttrName ||
          name == kResourceSelectedCandidateAttrName ||
          name == kOperandFormAttrName || name == kPackingLayoutAttrName ||
@@ -4150,6 +4152,20 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return emitOpError()
            << "requires resource_selected_candidate to belong to the "
               "provider-owned resource_candidate_set";
+  auto planningContract =
+      op->getAttrOfType<mlir::StringAttr>(kPlanningContractAttrName);
+  if (!planningContract)
+    return emitOpError()
+           << "requires planning_contract '"
+           << tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePlanningContract
+           << "' from the selected low-precision resource plan";
+  if (planningContract.getValue() !=
+      tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePlanningContract)
+    return emitOpError()
+           << "requires planning_contract to match the selected "
+              "low-precision resource planning contract '"
+           << tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePlanningContract
+           << "' but found '" << planningContract.getValue() << "'";
 
   const llvm::StringRef expectedDecisionFromCandidate =
       tianchenrv::plugin::rvv::
@@ -4547,6 +4563,9 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return mlir::failure();
   if (mlir::failed(verifyBoundedMetadata(op, kResourceDecisionAttrName,
                                          getResourceDecision())))
+    return mlir::failure();
+  if (mlir::failed(verifyBoundedMetadata(
+          op, kPlanningContractAttrName, planningContract.getValue())))
     return mlir::failure();
   if (mlir::failed(verifyBoundedMetadata(op, kResourceCandidateSetAttrName,
                                          getResourceCandidateSet())))

@@ -5377,6 +5377,18 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
           "resource_selected_candidate",
           handoff.getResourceSelectedCandidate(), selection.selectedCandidateID))
     return error;
+  auto planningContract =
+      handoff->getAttrOfType<mlir::StringAttr>("planning_contract");
+  if (!planningContract)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires Gearbox cross-region handoff planning_contract "
+        "from the selected resource plan");
+  if (llvm::Error error = requireHandoffResourceFact(
+          "planning_contract", planningContract.getValue(),
+          selection.planningContract))
+    return error;
   if (llvm::Error error = requireHandoffResourceFact(
           "operand_form", handoff.getOperandForm(), selection.operandForm))
     return error;

@@ -898,6 +898,8 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
                      builder.getStringAttr(selectedCandidate.runtimeAVLSource));
   state.addAttribute("resource_decision",
                      builder.getStringAttr(resourceDecision));
+  state.addAttribute("planning_contract",
+                     builder.getStringAttr(selectedCandidate.planningContract));
   state.addAttribute("resource_candidate_set",
                      builder.getStringAttr(selectedCandidate.candidateSetID));
   state.addAttribute("resource_selected_candidate",

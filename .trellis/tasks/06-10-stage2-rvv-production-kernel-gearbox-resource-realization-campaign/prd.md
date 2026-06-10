@@ -10,10 +10,13 @@ schedule facts, mask/tail policy, runtime AVL/ABI facts, same-target
 measurement-policy prerequisites, provider validation, target validation, and
 later dispatch policy flow through one RVV-owned fail-closed boundary.
 
-The current round completes Gate 1 only: define and connect a production
-resource-planning contract plus at least one real production consumer and
-diagnostic. Gates 2-4 remain future milestones unless this PRD is updated by
-human steering or later evidence.
+Gate 1 is complete. The current round continues Gate 2 with a bounded
+production sub-slice: the RVV selected-body realization handoff for the
+representative product-reduction dequant path must carry the Gate 1 planning
+contract as structural `tcrv_rvv.gearbox_cross_region_handoff` data, and
+dialect/provider validation must fail closed when that handoff planning
+contract is missing or stale. Gates 3-4 remain future milestones unless this
+PRD is updated by human steering or later evidence.
 
 ## What I Already Know
 
@@ -101,6 +104,27 @@ human steering or later evidence.
 - [x] Commit the Gate 1 slice and leave the macro task active because Gates 2-4
   remain incomplete.
 
+## Current Slice: Gate 2 Handoff Planning-Contract Consumer
+
+- [x] Keep the same macro task active and target the representative
+  `widening_product_reduce_dequantize_f32` product-reduction Gearbox path.
+- [x] Make selected-body realization copy the selected low-precision resource
+  planning contract into the structural
+  `tcrv_rvv.gearbox_cross_region_handoff`, not only the realized `with_vl`
+  attrs or route metadata mirrors.
+- [x] Make `tcrv_rvv.gearbox_cross_region_handoff` verifier reject missing or
+  stale handoff planning contracts before provider route planning.
+- [x] Make RVV route planning and route-family validation compare the handoff
+  planning contract with the selected
+  `RVVLowPrecisionContractionResourceSelection::planningContract` before
+  `TCRVEmitCLowerableRoute` construction.
+- [x] Add focused positive and fail-closed coverage for the realized handoff
+  planning contract without changing computation semantics, dtype semantics,
+  ABI roles, runtime AVL/VL, variant origin, dispatch, or fallback behavior.
+- [x] Leave Gate 2 open after this sub-slice; remaining Gate 2 work can extend
+  the same pattern to marker-level planning-contract checks or additional
+  production representatives if human steering requires it.
+
 ## Acceptance Criteria For Gate 1
 
 - [x] A production C++ contract or contract field names the low-precision
@@ -139,12 +163,28 @@ human steering or later evidence.
 - Updated the RVV plugin spec with the executable contract, failure matrix, and
   required tests.
 
+## Completed Gate 2 Sub-Slice
+
+- Added a structural `planning_contract` handoff attr to the realized
+  product-reduction Gearbox cross-region handoff, populated from the selected
+  low-precision resource candidate.
+- Made the RVV dialect verifier reject handoff operations with missing or stale
+  `planning_contract` values before they can reach Common EmitC.
+- Made RVV route planning and route-family validation require the handoff
+  planning contract to match the selected provider resource plan.
+- Added positive C++/MLIR coverage and stale/missing handoff planning-contract
+  diagnostics for the representative `widening_product_reduce_dequantize_f32`
+  path.
+- Updated the RVV plugin spec with the executable handoff planning-contract
+  requirement and test obligations.
+
 ## Remaining Campaign Gates
 
-- Gate 2 remains: selected-body realization must use the resource plan as an
-  implementation driver for a representative low-precision/contraction body
-  without changing computation semantics, runtime AVL/VL, ABI roles, variant
-  origin, dispatch, or fallback behavior.
+- Gate 2 remains partially open: the handoff planning-contract consumer is
+  complete for the representative product-reduction dequant path, but the macro
+  Gate 2 can still extend the same structural resource-plan checks to marker
+  attrs and any additional low-precision/contraction representative required by
+  human steering.
 - Gate 3 remains: generated artifact and same-target measurement evidence for
   the realized resource-aware path when executable correctness or performance is
   claimed.
@@ -184,10 +224,17 @@ human steering or later evidence.
   `lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp`,
   and
   `lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp`.
+- Gate 2 handoff planning-contract sub-slice additionally touched
+  `lib/Dialect/RVV/IR/RVVDialect.cpp`,
+  `lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp`,
+  `test/Plugin/RVVExtensionPluginTest.cpp`, and
+  `test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir`.
 
 ## Continuation Point
 
-After Gate 1, continue the same macro task at Gate 2: make selected-body
-realization consume the resource plan as the implementation driver for a
-representative low-precision/contraction body and prove it preserves semantics,
-runtime AVL/VL, ABI roles, and dispatch/fallback behavior.
+After this Gate 2 sub-slice, continue the same macro task at the remaining Gate
+2 surface if needed: extend resource-plan structural checks from the
+cross-region handoff to marker-level facts or another production
+low-precision/contraction representative. Do not move to Gate 3 generated
+artifact/same-target evidence unless the remaining Gate 2 realization-consumer
+surface is accepted as complete.
