@@ -10979,6 +10979,10 @@ bool expectRVVTargetArtifactExporterShape(
           wideningProductFacts->lowPrecisionPrimitiveSourceElementTypeName ||
       wideningProductDescription.lowPrecisionPrimitiveSourceSignedness !=
           wideningProductFacts->lowPrecisionPrimitiveSourceSignedness ||
+      wideningProductDescription.lowPrecisionPrimitiveSourceLoadKind !=
+          wideningProductFacts->lowPrecisionPrimitiveSourceLoadKind ||
+      wideningProductDescription.lowPrecisionPrimitiveSourceExtensionKind !=
+          wideningProductFacts->lowPrecisionPrimitiveSourceExtensionKind ||
       wideningProductDescription.lowPrecisionPrimitiveProductElementTypeName !=
           wideningProductFacts->lowPrecisionPrimitiveProductElementTypeName ||
       wideningProductDescription.lowPrecisionPrimitiveAccumulatorElementTypeName !=
@@ -10992,6 +10996,10 @@ bool expectRVVTargetArtifactExporterShape(
           wideningProductFacts->storeIntrinsic ||
       wideningProductContract->lowPrecisionPrimitiveSourceSignedness !=
           wideningProductFacts->lowPrecisionPrimitiveSourceSignedness ||
+      wideningProductContract->lowPrecisionPrimitiveSourceLoadKind !=
+          wideningProductFacts->lowPrecisionPrimitiveSourceLoadKind ||
+      wideningProductContract->lowPrecisionPrimitiveSourceExtensionKind !=
+          wideningProductFacts->lowPrecisionPrimitiveSourceExtensionKind ||
       !tianchenrv::support::runtimeABIParametersEqual(
           wideningProductDescription.runtimeABIParameters,
           wideningProductFacts->runtimeABIParameters)) {
@@ -11055,6 +11063,30 @@ bool expectRVVTargetArtifactExporterShape(
           "low-precision widening-product registry rejects stale i8 source "
           "SEW",
           {"source SEW", "8", "16"}))
+    return false;
+
+  RVVRouteDescription staleWideningProductSourceLoad =
+      wideningProductDescription;
+  staleWideningProductSourceLoad.lowPrecisionPrimitiveSourceLoadKind =
+      "metadata-only-byte-load";
+  if (!expectWideningProductProviderFailure(
+          staleWideningProductSourceLoad,
+          "low-precision widening-product registry rejects stale source load",
+          {"low-precision primitive source load", "unit-stride-byte-load",
+           "metadata-only-byte-load"}))
+    return false;
+
+  RVVRouteDescription staleWideningProductSourceExtension =
+      wideningProductDescription;
+  staleWideningProductSourceExtension.lowPrecisionPrimitiveSourceExtensionKind =
+      "metadata-only-source-extension";
+  if (!expectWideningProductProviderFailure(
+          staleWideningProductSourceExtension,
+          "low-precision widening-product registry rejects stale source "
+          "extension",
+          {"low-precision primitive source extension",
+           "sign-extend-i8-to-i16-product",
+           "metadata-only-source-extension"}))
     return false;
 
   RVVRouteDescription staleWideningProductLHSCType =

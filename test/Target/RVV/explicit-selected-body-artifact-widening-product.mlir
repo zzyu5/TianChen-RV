@@ -2,6 +2,8 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.source_dtype\", value = \"i8\"/s//tcrv_rvv.low_precision_primitive.source_dtype\", value = \"u8\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIM
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.source_signedness\", value = \"signed\"/s//tcrv_rvv.low_precision_primitive.source_signedness\", value = \"unsigned\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SIGN
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.source_load\", value = \"unit-stride-byte-load\"/s//tcrv_rvv.low_precision_primitive.source_load\", value = \"metadata-only-byte-load\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-LOAD
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.source_extension\", value = \"sign-extend-i8-to-i16-product\"/s//tcrv_rvv.low_precision_primitive.source_extension\", value = \"zero-extend-u8-to-u16-product\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-EXT
 
 // Explicit selected-body input for the bounded Stage 2 signed low-precision
 // widening-product primitive. The typed tcrv_rvv body carries i8 source loads,
@@ -53,6 +55,8 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.kind", value = "signed-i8mf4xi8mf4-to-i16mf2-widening-product.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.source_dtype", value = "i8"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.source_signedness", value = "signed"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.source_load", value = "unit-stride-byte-load"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.source_extension", value = "sign-extend-i8-to-i16-product"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.product_dtype", value = "i16"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.result_dtype", value = "i16"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
@@ -73,6 +77,8 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_primitive.kind: signed-i8mf4xi8mf4-to-i16mf2-widening-product.v1
 // HEADER: tianchenrv.rvv.low_precision_primitive.source_dtype: i8
 // HEADER: tianchenrv.rvv.low_precision_primitive.source_signedness: signed
+// HEADER: tianchenrv.rvv.low_precision_primitive.source_load: unit-stride-byte-load
+// HEADER: tianchenrv.rvv.low_precision_primitive.source_extension: sign-extend-i8-to-i16-product
 // HEADER: tianchenrv.rvv.low_precision_primitive.product_dtype: i16
 // HEADER: tianchenrv.rvv.low_precision_primitive.result_dtype: i16
 // HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-i8mf4-i16mf2-contraction-leaf-profile.v1
@@ -82,3 +88,5 @@ module {
 
 // STALE-PRIM: candidate tcrv_rvv.low_precision_primitive.source_dtype provenance must mirror selected typed RVV widening product low-precision primitive source dtype 'i8' but was 'u8'
 // STALE-SIGN: candidate tcrv_rvv.low_precision_primitive.source_signedness provenance must mirror selected typed RVV widening product low-precision primitive source signedness 'signed' but was 'unsigned'
+// STALE-LOAD: candidate tcrv_rvv.low_precision_primitive.source_load provenance must mirror selected typed RVV widening product low-precision primitive source load 'unit-stride-byte-load' but was 'metadata-only-byte-load'
+// STALE-EXT: candidate tcrv_rvv.low_precision_primitive.source_extension provenance must mirror selected typed RVV widening product low-precision primitive source extension 'sign-extend-i8-to-i16-product' but was 'zero-extend-u8-to-u16-product'

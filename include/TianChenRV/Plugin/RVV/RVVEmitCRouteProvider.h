@@ -446,6 +446,8 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef lowPrecisionPrimitiveKind;
   llvm::StringRef lowPrecisionPrimitiveSourceElementTypeName;
   llvm::StringRef lowPrecisionPrimitiveSourceSignedness;
+  llvm::StringRef lowPrecisionPrimitiveSourceLoadKind;
+  llvm::StringRef lowPrecisionPrimitiveSourceExtensionKind;
   llvm::StringRef lowPrecisionPrimitiveProductElementTypeName;
   llvm::StringRef lowPrecisionPrimitiveAccumulatorElementTypeName;
   llvm::StringRef lowPrecisionPrimitiveResultElementTypeName;
@@ -2469,6 +2471,8 @@ struct RVVWideningProductRouteFacts {
   llvm::StringRef lowPrecisionPrimitiveKind;
   llvm::StringRef lowPrecisionPrimitiveSourceElementTypeName;
   llvm::StringRef lowPrecisionPrimitiveSourceSignedness;
+  llvm::StringRef lowPrecisionPrimitiveSourceLoadKind;
+  llvm::StringRef lowPrecisionPrimitiveSourceExtensionKind;
   llvm::StringRef lowPrecisionPrimitiveProductElementTypeName;
   llvm::StringRef lowPrecisionPrimitiveAccumulatorElementTypeName;
   llvm::StringRef lowPrecisionPrimitiveResultElementTypeName;
@@ -2573,6 +2577,8 @@ struct RVVWideningProductRouteValidationContract {
   std::string lowPrecisionPrimitiveKind;
   std::string lowPrecisionPrimitiveSourceElementTypeName;
   std::string lowPrecisionPrimitiveSourceSignedness;
+  std::string lowPrecisionPrimitiveSourceLoadKind;
+  std::string lowPrecisionPrimitiveSourceExtensionKind;
   std::string lowPrecisionPrimitiveProductElementTypeName;
   std::string lowPrecisionPrimitiveAccumulatorElementTypeName;
   std::string lowPrecisionPrimitiveResultElementTypeName;
@@ -2803,6 +2809,8 @@ struct RVVLowPrecisionWideningReductionPrimitiveFacts {
 
   std::string sourceElementTypeName;
   std::string sourceSignedness;
+  std::string sourceLoadKind;
+  std::string sourceExtensionKind;
   std::int64_t sourceSEW = 0;
   std::string sourceLMUL;
   std::string sourceVectorTypeName;

@@ -113,6 +113,13 @@ constexpr llvm::StringLiteral
         "unit-stride-compare-element-strided-lhs-rhs-dot-source-unit-stride-output-runtime-abi");
 constexpr llvm::StringLiteral kRVVUnitStrideSourceMemoryForm(
     "unit-stride-load");
+constexpr llvm::StringLiteral kRVVLowPrecisionPrimitiveSourceLoadKind(
+    "unit-stride-byte-load");
+constexpr llvm::StringLiteral kRVVLowPrecisionPrimitiveSignedSourceExtensionKind(
+    "sign-extend-i8-to-i16-product");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionPrimitiveUnsignedSourceExtensionKind(
+        "zero-extend-u8-to-u16-product");
 constexpr llvm::StringLiteral kRVVLHSStrideSource("runtime_abi:lhs_stride");
 constexpr llvm::StringLiteral kRVVRHSStrideSource("runtime_abi:rhs_stride");
 constexpr llvm::StringLiteral kRVVStridedInputDotSourceMemoryForm(
@@ -1112,6 +1119,10 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
           plan.lowPrecisionPrimitiveSourceElementTypeName ||
       analysis.description.lowPrecisionPrimitiveSourceSignedness !=
           plan.lowPrecisionPrimitiveSourceSignedness ||
+      analysis.description.lowPrecisionPrimitiveSourceLoadKind !=
+          plan.lowPrecisionPrimitiveSourceLoadKind ||
+      analysis.description.lowPrecisionPrimitiveSourceExtensionKind !=
+          plan.lowPrecisionPrimitiveSourceExtensionKind ||
       analysis.description.lowPrecisionPrimitiveProductElementTypeName !=
           plan.lowPrecisionPrimitiveProductElementTypeName ||
       analysis.description.lowPrecisionPrimitiveAccumulatorElementTypeName !=
@@ -1299,6 +1310,10 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
             wideningProductFacts->lowPrecisionPrimitiveSourceElementTypeName ||
         description.lowPrecisionPrimitiveSourceSignedness !=
             wideningProductFacts->lowPrecisionPrimitiveSourceSignedness ||
+        description.lowPrecisionPrimitiveSourceLoadKind !=
+            wideningProductFacts->lowPrecisionPrimitiveSourceLoadKind ||
+        description.lowPrecisionPrimitiveSourceExtensionKind !=
+            wideningProductFacts->lowPrecisionPrimitiveSourceExtensionKind ||
         description.lowPrecisionPrimitiveProductElementTypeName !=
             wideningProductFacts->lowPrecisionPrimitiveProductElementTypeName ||
         description.lowPrecisionPrimitiveAccumulatorElementTypeName !=
@@ -1507,6 +1522,14 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
           "low-precision primitive source signedness",
           description.lowPrecisionPrimitiveSourceSignedness,
           primitiveFacts.sourceSignedness);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive source load",
+          description.lowPrecisionPrimitiveSourceLoadKind,
+          primitiveFacts.sourceLoadKind);
+      TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
+          "low-precision primitive source extension",
+          description.lowPrecisionPrimitiveSourceExtensionKind,
+          primitiveFacts.sourceExtensionKind);
       TCRV_REQUIRE_WIDENING_DOT_STRING_FACT(
           "low-precision primitive product dtype",
           description.lowPrecisionPrimitiveProductElementTypeName,
@@ -1898,6 +1921,13 @@ buildRVVWideningProductRouteFacts(RVVSelectedBodyOperationKind operation,
   facts.lowPrecisionPrimitiveSourceSignedness =
       isUnsigned ? llvm::StringRef(kRVVLowPrecisionResourceSourceSignednessUnsigned)
                  : llvm::StringRef(kRVVLowPrecisionResourceSourceSignednessSigned);
+  facts.lowPrecisionPrimitiveSourceLoadKind =
+      kRVVLowPrecisionPrimitiveSourceLoadKind;
+  facts.lowPrecisionPrimitiveSourceExtensionKind =
+      isUnsigned ? llvm::StringRef(
+                       kRVVLowPrecisionPrimitiveUnsignedSourceExtensionKind)
+                 : llvm::StringRef(
+                       kRVVLowPrecisionPrimitiveSignedSourceExtensionKind);
   facts.lowPrecisionPrimitiveProductElementTypeName =
       facts.resultElementTypeName;
   facts.lowPrecisionPrimitiveAccumulatorElementTypeName = "";
@@ -2052,6 +2082,10 @@ static void populateRVVWideningProductValidationContract(
       facts.lowPrecisionPrimitiveSourceElementTypeName.str();
   contract.lowPrecisionPrimitiveSourceSignedness =
       facts.lowPrecisionPrimitiveSourceSignedness.str();
+  contract.lowPrecisionPrimitiveSourceLoadKind =
+      facts.lowPrecisionPrimitiveSourceLoadKind.str();
+  contract.lowPrecisionPrimitiveSourceExtensionKind =
+      facts.lowPrecisionPrimitiveSourceExtensionKind.str();
   contract.lowPrecisionPrimitiveProductElementTypeName =
       facts.lowPrecisionPrimitiveProductElementTypeName.str();
   contract.lowPrecisionPrimitiveAccumulatorElementTypeName =
@@ -2266,6 +2300,9 @@ getRVVLowPrecisionWideningReductionPrimitiveFacts(
   facts.sourceElementTypeName =
       getContractionIntegerElementTypeName(kSourceSEW).str();
   facts.sourceSignedness = kRVVLowPrecisionResourceSourceSignednessSigned.str();
+  facts.sourceLoadKind = kRVVLowPrecisionPrimitiveSourceLoadKind.str();
+  facts.sourceExtensionKind =
+      kRVVLowPrecisionPrimitiveSignedSourceExtensionKind.str();
   facts.sourceSEW = kSourceSEW;
   facts.sourceLMUL = kSourceLMUL.str();
   facts.sourceVectorTypeName =
@@ -6726,6 +6763,27 @@ llvm::StringRef getRVVLowPrecisionPrimitiveSourceSignedness(
   return {};
 }
 
+llvm::StringRef getRVVLowPrecisionPrimitiveSourceLoadKind(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  if (plan.usesWideningProduct || plan.usesProductReductionChain)
+    return kRVVLowPrecisionPrimitiveSourceLoadKind;
+  return {};
+}
+
+llvm::StringRef getRVVLowPrecisionPrimitiveSourceExtensionKind(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  if (plan.usesWideningProduct &&
+      plan.wideningProductRelation ==
+          getContractionWideningProductRelation(
+              tcrv::rvv::getRVVSEW8Bits(), tcrv::rvv::getRVVLMULMF4(),
+              tcrv::rvv::getRVVSEW16Bits(), tcrv::rvv::getRVVLMULMF2(),
+              /*isUnsigned=*/true))
+    return kRVVLowPrecisionPrimitiveUnsignedSourceExtensionKind;
+  if (plan.usesWideningProduct || plan.usesProductReductionChain)
+    return kRVVLowPrecisionPrimitiveSignedSourceExtensionKind;
+  return {};
+}
+
 void populateRVVLowPrecisionPrimitiveFacts(
     RVVSelectedBodyContractionRouteFamilyPlan &plan) {
   if (!plan.usesWideningProduct && !plan.usesProductReductionChain)
@@ -6737,6 +6795,10 @@ void populateRVVLowPrecisionPrimitiveFacts(
       plan.sourceElementTypeName;
   plan.lowPrecisionPrimitiveSourceSignedness =
       getRVVLowPrecisionPrimitiveSourceSignedness(plan);
+  plan.lowPrecisionPrimitiveSourceLoadKind =
+      getRVVLowPrecisionPrimitiveSourceLoadKind(plan);
+  plan.lowPrecisionPrimitiveSourceExtensionKind =
+      getRVVLowPrecisionPrimitiveSourceExtensionKind(plan);
   if (plan.usesWideningProduct) {
     plan.lowPrecisionPrimitiveProductElementTypeName = plan.elementTypeName;
     plan.lowPrecisionPrimitiveAccumulatorElementTypeName = "";
@@ -7553,6 +7615,16 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
             getRVVLowPrecisionPrimitiveSourceSignedness(plan)))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "low-precision primitive source load",
+            plan.lowPrecisionPrimitiveSourceLoadKind,
+            getRVVLowPrecisionPrimitiveSourceLoadKind(plan)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "low-precision primitive source extension",
+            plan.lowPrecisionPrimitiveSourceExtensionKind,
+            getRVVLowPrecisionPrimitiveSourceExtensionKind(plan)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "low-precision primitive product dtype",
             plan.lowPrecisionPrimitiveProductElementTypeName,
             plan.usesWideningProduct ? plan.elementTypeName
@@ -7586,6 +7658,14 @@ llvm::Error validateRVVSelectedBodyContractionRouteFamilyPlan(
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "low-precision primitive source signedness",
             plan.lowPrecisionPrimitiveSourceSignedness, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "low-precision primitive source load",
+            plan.lowPrecisionPrimitiveSourceLoadKind, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
+            plan, "low-precision primitive source extension",
+            plan.lowPrecisionPrimitiveSourceExtensionKind, ""))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionPlanField(
             plan, "low-precision primitive product dtype",
@@ -8661,6 +8741,10 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
       plan.lowPrecisionPrimitiveSourceElementTypeName;
   description.lowPrecisionPrimitiveSourceSignedness =
       plan.lowPrecisionPrimitiveSourceSignedness;
+  description.lowPrecisionPrimitiveSourceLoadKind =
+      plan.lowPrecisionPrimitiveSourceLoadKind;
+  description.lowPrecisionPrimitiveSourceExtensionKind =
+      plan.lowPrecisionPrimitiveSourceExtensionKind;
   description.lowPrecisionPrimitiveProductElementTypeName =
       plan.lowPrecisionPrimitiveProductElementTypeName;
   description.lowPrecisionPrimitiveAccumulatorElementTypeName =
@@ -8942,6 +9026,22 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
                       kRVVLowPrecisionResourceSourceSignednessSigned)))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "low-precision primitive source load",
+            description.lowPrecisionPrimitiveSourceLoadKind,
+            usesWideningProduct
+                ? wideningProductFacts->lowPrecisionPrimitiveSourceLoadKind
+                : llvm::StringRef(kRVVLowPrecisionPrimitiveSourceLoadKind)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "low-precision primitive source extension",
+            description.lowPrecisionPrimitiveSourceExtensionKind,
+            usesWideningProduct
+                ? wideningProductFacts
+                      ->lowPrecisionPrimitiveSourceExtensionKind
+                : llvm::StringRef(
+                      kRVVLowPrecisionPrimitiveSignedSourceExtensionKind)))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "low-precision primitive product dtype",
             description.lowPrecisionPrimitiveProductElementTypeName,
             usesWideningProduct
@@ -8981,6 +9081,14 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "low-precision primitive source signedness",
             description.lowPrecisionPrimitiveSourceSignedness, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "low-precision primitive source load",
+            description.lowPrecisionPrimitiveSourceLoadKind, ""))
+      return error;
+    if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
+            context, "low-precision primitive source extension",
+            description.lowPrecisionPrimitiveSourceExtensionKind, ""))
       return error;
     if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
             context, "low-precision primitive product dtype",

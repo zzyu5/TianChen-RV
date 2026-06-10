@@ -332,6 +332,8 @@ struct RVVSelectedBodyContractionRouteFamilyPlan {
   llvm::StringRef lowPrecisionPrimitiveKind;
   llvm::StringRef lowPrecisionPrimitiveSourceElementTypeName;
   llvm::StringRef lowPrecisionPrimitiveSourceSignedness;
+  llvm::StringRef lowPrecisionPrimitiveSourceLoadKind;
+  llvm::StringRef lowPrecisionPrimitiveSourceExtensionKind;
   llvm::StringRef lowPrecisionPrimitiveProductElementTypeName;
   llvm::StringRef lowPrecisionPrimitiveAccumulatorElementTypeName;
   llvm::StringRef lowPrecisionPrimitiveResultElementTypeName;

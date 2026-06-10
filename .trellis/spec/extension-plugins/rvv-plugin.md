@@ -223,11 +223,13 @@ Accepted route support additionally requires provider-owned unsigned facts:
 ```text
 source dtype/sign: u8 / unsigned
 product/result dtype/sign: u16
+source load fact: unit-stride-byte-load
+source extension fact: zero-extend-u8-to-u16-product
 vector C types: vuint8mf4_t, vuint16mf2_t
 load/store leaves: unsigned u8/u16 RVV leaves
 widening product leaf: vwmulu.vv / __riscv_vwmulu_vv_u16mf2
 target mirrors: exact unsigned primitive source signedness, type, header, and
-intrinsic facts
+load/extension/intrinsic facts
 ```
 
 ### 3. Contracts
@@ -239,7 +241,8 @@ intrinsic facts
   `TCRVEmitCLowerableRoute` construction and name the missing unsigned
   intrinsic/target facts.
 - Common EmitC may carry provider payloads only; it must not infer unsigned
-  dtype, vector C types, load/store leaves, or intrinsic spelling.
+  dtype, vector C types, load/store leaves, source extension, or intrinsic
+  spelling.
 - Target artifact validation must compare provider-owned unsigned mirrors
   exactly before accepting an artifact.
 
@@ -250,8 +253,8 @@ intrinsic facts
   error.
 - Verifier-legal u8 body but no unsigned provider intrinsic/type/target facts
   -> RVV provider error before route construction.
-- Stale unsigned primitive source signedness, type, header, or intrinsic mirror
-  -> target artifact validation error.
+- Stale unsigned primitive source signedness, type, byte-load, zero-extension,
+  header, or intrinsic mirror -> target artifact validation error.
 - Common EmitC-derived unsigned route payload -> invalid architecture; move the
   derivation back to the RVV provider.
 
@@ -271,10 +274,11 @@ intrinsic facts
 - Provider/EmitC lit or C++: unsupported u8 fails at the RVV provider boundary
   with a diagnostic naming missing unsigned intrinsic/target facts.
 - When accepted support is added: positive provider/target tests for unsigned
-  vector C types, load/store leaves, `vwmulu.vv`, and exact target mirrors.
+  vector C types, byte load, zero-extension, load/store leaves, `vwmulu.vv`,
+  and exact target mirrors.
 - Negative target tests: stale unsigned primitive source signedness,
-  source/product/result, intrinsic, type, or header mirror fails before artifact
-  acceptance.
+  source load, source extension, source/product/result, intrinsic, type, or
+  header mirror fails before artifact acceptance.
 
 ### 7. Wrong vs Correct
 
@@ -325,6 +329,8 @@ struct RVVLowPrecisionWideningReductionPrimitiveFacts {
   StringRef kind;
   StringRef sourceElementTypeName;
   StringRef sourceSignedness;
+  StringRef sourceLoadKind;
+  StringRef sourceExtensionKind;
   StringRef productElementTypeName;
   StringRef accumulatorElementTypeName;
   StringRef reductionResultElementTypeName;
@@ -354,7 +360,9 @@ from the selected typed body/config/runtime facts before route construction.
 ### 3. Contracts
 
 - Source and product facts must mirror the typed low-precision product surface:
-  source `i8/mf4`, source signedness `signed`, product `i16/mf2`, and relation
+  source `i8/mf4`, source signedness `signed`, source load
+  `unit-stride-byte-load`, source extension
+  `sign-extend-i8-to-i16-product`, product `i16/mf2`, and relation
   `signed-i8mf4xi8mf4-to-i16mf2` for the bounded signed chain.
 - Accumulator and reduction-result facts must be explicit and distinct from
   final epilogue result facts: the primitive reduction result is `i32/m1`, while
@@ -374,8 +382,8 @@ from the selected typed body/config/runtime facts before route construction.
 - Product-reduction chain without primitive facts -> RVV provider error before
   `TCRVEmitCLowerableRoute` construction.
 - Primitive facts disagree with the selected typed body source signedness,
-  source/product dtype, SEW, LMUL, or product relation -> provider fail-closed
-  diagnostic.
+  source load, source extension, source/product dtype, SEW, LMUL, or product
+  relation -> provider fail-closed diagnostic.
 - Primitive facts use stale accumulator/result dtype, SEW, LMUL, layout, seed
   splat, reduction intrinsic, or store VL -> provider fail-closed diagnostic.
 - Target candidate mirror disagrees with any primitive fact -> target
@@ -399,13 +407,15 @@ from the selected typed body/config/runtime facts before route construction.
 ### 6. Tests Required
 
 - Provider/C++ coverage for positive product-reduction primitive facts:
-  source signedness, source/product/accumulator/result dtype, SEW/LMUL,
-  relation, intrinsics, seed splat, layouts, and store VL.
+  source signedness, source load, source extension,
+  source/product/accumulator/result dtype, SEW/LMUL, relation, intrinsics,
+  seed splat, layouts, and store VL.
 - Provider negative coverage for stale or unsupported primitive facts before
   route construction.
 - Target artifact coverage proving exact mirror acceptance and stale source
-  signedness, source/product/accumulator/result dtype, SEW/LMUL, intrinsic,
-  seed, layout, or store-VL rejection.
+  signedness, source load, source extension,
+  source/product/accumulator/result dtype, SEW/LMUL, intrinsic, seed, layout,
+  or store-VL rejection.
 - Focused lit coverage for the selected product-reduction artifact path when
   metadata mirror diagnostics are user-visible.
 - Runtime `ssh rvv` evidence is required only when the task claims executable

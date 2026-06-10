@@ -8636,6 +8636,41 @@ module {
             {expectedRelationField, expectedRelation}))
       return result;
 
+    if (ownerPlan->usesWideningProduct ||
+        ownerPlan->usesProductReductionChain) {
+      llvm::StringRef expectedSourceExtension =
+          ownerPlan->lowPrecisionPrimitiveSourceSignedness == "unsigned"
+              ? "zero-extend-u8-to-u16-product"
+              : "sign-extend-i8-to-i16-product";
+      if (int result = expect(
+              ownerPlan->lowPrecisionPrimitiveSourceLoadKind ==
+                      "unit-stride-byte-load" &&
+                  ownerPlan->lowPrecisionPrimitiveSourceExtensionKind ==
+                      expectedSourceExtension,
+              llvm::Twine(label) +
+                  " low-precision primitive source load/extension facts "
+                  "come from the owner-derived typed route-family plan"))
+        return result;
+
+      stalePlan = *ownerPlan;
+      stalePlan.lowPrecisionPrimitiveSourceLoadKind =
+          "metadata-only-byte-load";
+      if (int result = expectErrorContains(
+              validateRVVSelectedBodyContractionRouteFamilyPlan(stalePlan),
+              {"low-precision primitive source load",
+               "unit-stride-byte-load"}))
+        return result;
+
+      stalePlan = *ownerPlan;
+      stalePlan.lowPrecisionPrimitiveSourceExtensionKind =
+          "metadata-only-source-extension";
+      if (int result = expectErrorContains(
+              validateRVVSelectedBodyContractionRouteFamilyPlan(stalePlan),
+              {"low-precision primitive source extension",
+               expectedSourceExtension}))
+        return result;
+    }
+
     if (ownerPlan->usesComputedMask) {
       stalePlan = *ownerPlan;
       stalePlan.maskSource = "metadata-mask-source";

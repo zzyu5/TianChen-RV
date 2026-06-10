@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "Global architecture invariants and RVV stage order"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV plugin authority, typed body, low-precision primitive contracts"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality and provider-built route contract"}
+{"file": ".trellis/spec/variant-pipeline/index.md", "reason": "Variant/selection constraints for Stage 2 RVV work"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused tests and RVV evidence policy"}

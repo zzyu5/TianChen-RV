@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/index.md", "reason": "Global architecture and stage-order quality check"}
+{"file": ".trellis/spec/extension-plugins/rvv-plugin.md", "reason": "RVV typed-body/provider/fail-closed contract check"}
+{"file": ".trellis/spec/lowering-runtime/emitc-route.md", "reason": "Common EmitC neutrality check"}
+{"file": ".trellis/spec/testing/mlir-testing-contract.md", "reason": "Focused compiler/API test requirements"}

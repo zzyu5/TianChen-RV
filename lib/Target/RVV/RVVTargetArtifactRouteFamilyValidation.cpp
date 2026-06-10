@@ -2961,6 +2961,16 @@ llvm::Error validateRVVWideningProductDescriptionAgainstContract(
           contract.lowPrecisionPrimitiveSourceSignedness))
     return error;
   if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "low-precision primitive source load",
+          description.lowPrecisionPrimitiveSourceLoadKind,
+          contract.lowPrecisionPrimitiveSourceLoadKind))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
+          contract.consumerLabel, "low-precision primitive source extension",
+          description.lowPrecisionPrimitiveSourceExtensionKind,
+          contract.lowPrecisionPrimitiveSourceExtensionKind))
+    return error;
+  if (llvm::Error error = requireRVVWideningProductContractStringField(
           contract.consumerLabel, "low-precision primitive product dtype",
           description.lowPrecisionPrimitiveProductElementTypeName,
           contract.lowPrecisionPrimitiveProductElementTypeName))
@@ -3409,6 +3419,18 @@ llvm::Error validateRVVWideningProductTargetArtifactCandidateMirrors(
           "signedness"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.low_precision_primitive.source_load",
+          contract->lowPrecisionPrimitiveSourceLoadKind,
+          "selected typed RVV widening product low-precision primitive source "
+          "load"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, "tcrv_rvv.low_precision_primitive.source_extension",
+          contract->lowPrecisionPrimitiveSourceExtensionKind,
+          "selected typed RVV widening product low-precision primitive source "
+          "extension"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.low_precision_primitive.product_dtype",
           contract->lowPrecisionPrimitiveProductElementTypeName,
           "selected typed RVV widening product low-precision primitive product "
@@ -3539,6 +3561,18 @@ llvm::Error validateRVVLowPrecisionWideningReductionPrimitiveProviderFacts(
           "low-precision widening-reduction primitive source signedness",
           description.lowPrecisionPrimitiveSourceSignedness,
           primitive.sourceSignedness))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive source load",
+          description.lowPrecisionPrimitiveSourceLoadKind,
+          primitive.sourceLoadKind))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "low-precision widening-reduction primitive source extension",
+          description.lowPrecisionPrimitiveSourceExtensionKind,
+          primitive.sourceExtensionKind))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
@@ -6390,6 +6424,14 @@ llvm::Error validateRVVLowPrecisionWideningReductionPrimitiveCandidateMirrors(
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.source_signedness",
           primitive.sourceSignedness, "source signedness"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.low_precision_primitive.source_load",
+          primitive.sourceLoadKind, "source load"))
+    return error;
+  if (llvm::Error error = requirePrimitiveMirror(
+          "tcrv_rvv.low_precision_primitive.source_extension",
+          primitive.sourceExtensionKind, "source extension"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.product_dtype",
