@@ -9,12 +9,15 @@ facts, target capability facts, runtime ABI facts, and selected-dispatch policy
 results affect RVV selected-body realization and later Gearbox schedule
 admission.
 
-The current round implements Gate 1 only: a production admission boundary that
-the selected-body realization path consumes before resource-aware realization.
-It must fail closed for missing, stale, mismatched, sibling-route, label-only,
-or metadata-only pressure/profile provenance. The boundary is not route
-authority, artifact-name authority, helper-name authority, or Common EmitC
-semantic inference.
+Gate 1 is complete. The current round implements Gate 2: after a trusted Gate 1
+admission decision, the RVV contraction selected-body realization owner must
+consume a Gearbox/resource-aware schedule choice for the packed-i4
+low-precision contraction class. The schedule choice must be carried as
+provider-owned realization facts or explicit mirrors on realized `tcrv_rvv`
+structure, and must fail closed for missing, stale, mismatched, label-only,
+metadata-only, sibling-route-derived, or non-source-backed schedule/admission
+facts. The boundary is not route authority, artifact-name authority,
+helper-name authority, or Common EmitC semantic inference.
 
 ## What I Already Know
 
@@ -39,19 +42,21 @@ semantic inference.
   complete or human steering redirects the campaign.
 - Complete one coherent slice per round and update this PRD with completed and
   remaining gates.
-- Gate 1 must add production source changes in the selected-body realization or
-  pressure-profile admission path, not only tests or report metadata.
+- Gate 2 must add production source changes in the selected-body realization or
+  schedule/admission path, not only tests or report metadata.
 - Admission must consume the existing source-backed production pressure profile
   plus provider-owned primitive/resource facts, target capability mirrors,
   runtime ABI facts, and selected-dispatch policy results.
-- Admission must return explicit realize/defer/deny state with a targeted
-  diagnostic when required provenance is missing, stale, mismatched,
-  sibling-route, label-only, metadata-only, or otherwise untrusted.
+- Admission must return explicit realize/defer/deny state plus the trusted
+  schedule decision facts with a targeted diagnostic when required provenance
+  is missing, stale, mismatched, sibling-route, label-only, metadata-only, or
+  otherwise untrusted.
 - Admission must not change computation semantics. It only gates whether the
-  selected-body realization owner may consume the resource/profile facts.
-- The selected-body realization owner must consume the admission decision at
-  the low-precision contraction boundary before carrying resource-aware facts
-  into the realized `tcrv_rvv` body.
+  selected-body realization owner may consume the resource/profile/schedule
+  facts.
+- The selected-body realization owner must consume the admission decision and
+  schedule choice at the low-precision contraction boundary before carrying
+  resource-aware facts into the realized `tcrv_rvv` body.
 - Route/artifact/report metadata remain mirrors. The admission API must not use
   artifact names, route ids, helper names, q8/q4 labels, or llama.cpp labels as
   authority.
@@ -60,7 +65,7 @@ semantic inference.
 
 - [x] Gate 1: pressure-profile admission boundary is modeled and consumed by
   RVV selected-body realization with fail-closed provenance checks.
-- [ ] Gate 2: Gearbox/resource-aware schedule choice is consumed by the
+- [x] Gate 2: Gearbox/resource-aware schedule choice is consumed by the
   realization owner for at least one low-precision contraction class without
   changing compute semantics.
 - [ ] Gate 3: realized body plus route/artifact/measurement path proves the
@@ -69,7 +74,42 @@ semantic inference.
   evidence, and measurement provenance compose into one closeout test; archive
   only after this gate.
 
-## Current Round Slice: Gate 1
+## Current Round Slice: Gate 2
+
+Implement a focused production schedule-choice consumption seam:
+
+- Extend the RVV low-precision realization admission boundary so a successful
+  Gate 1 pressure-profile admission carries the provider-owned packed-i4
+  schedule decision contract, decision, and reason.
+- Wire the contraction selected-body realization owner to materialize those
+  admitted schedule facts as explicit realization mirrors on the realized
+  low-precision `with_vl` / handoff structure.
+- Preserve existing computation, dtype, parameter roles, selected variant
+  origin, dispatch/fallback behavior, and runtime AVL/VL values.
+- Fail closed when admission or schedule facts are missing, stale, mismatched,
+  metadata-only, label-only, sibling-route-derived, or not source-backed.
+- Keep Common EmitC/export neutral; route/artifact/report metadata remain
+  mirrors only.
+
+Acceptance criteria:
+
+- [x] Production C++ admission API carries schedule decision contract/decision/
+  reason only after a trusted pressure-profile admission.
+- [x] Low-precision contraction selected-body realization consumes the admitted
+  schedule facts and records explicit realization mirrors on realized structure.
+- [x] Focused C++ tests prove packed-i4 realization after Gate 1 admission
+  carries admitted schedule facts.
+- [x] Focused C++ tests prove missing/stale/mismatched schedule or admission
+  facts fail closed before accepted realization facts can be used.
+- [x] Existing Gate 1 pressure-profile and selected-dispatch policy tests still
+  pass.
+- [x] Bounded check confirms Common EmitC/export remains neutral and metadata
+  fields are mirrors only.
+- [x] Relevant focused checks pass.
+- [x] Task remains active with Gates 1-2 marked complete and Gates 3-4
+  remaining.
+
+## Completed Slice: Gate 1
 
 Implement a focused production admission seam:
 
@@ -112,7 +152,7 @@ Acceptance criteria:
   global autotuning database, dashboard, source-front-door positive route,
   q8/q4 named route authority, llama.cpp wrapper authority, dtype/LMUL clone
   batch, or Common EmitC RVV semantic inference.
-- No campaign archive after Gate 1.
+- No campaign archive after Gate 2.
 
 ## Technical Notes
 
@@ -147,14 +187,26 @@ Acceptance criteria:
 
 - Passed `cmake --build build --target tianchenrv-rvv-extension-plugin-test`.
 - Passed `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- Passed `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-gearbox-realization-campaign`.
 - Passed `git diff --check`.
 - Passed `git diff --cached --check`.
-- Passed bounded added-diff scan for `RVVI32M1`, `rvv-i32m1`, `i32m1`,
-  `tcrv_rvv.i32_`, `source-front-door`, and `source_artifact`.
-- Confirmed changed paths stay in RVV plugin/provider/test and do not modify
-  common EmitC/export materializer code.
+- Passed bounded added-diff scan over source/test changes for legacy RVV
+  route-authority markers. The PRD's own forbidden-marker vocabulary is
+  non-authority reporting text only.
+- Confirmed changed paths stay in RVV plugin/admission/owner/test/spec/task
+  documentation and do not modify common EmitC/export materializer code.
+- No focused target artifact/export check was run because this Gate 2 slice did
+  not touch route/artifact/export boundaries.
 - Initial `task.py validate` failed because command strings were placed in
   `check.jsonl.file`; repaired `check.jsonl` to reference real files.
+
+## Spec Update Decision
+
+Updated `.trellis/spec/extension-plugins/rvv-plugin.md` because Gate 2 changed
+the executable realization admission payload. The new
+Low-Precision Realization Admission Schedule Handoff contract records the
+schedule decision fields, validation matrix, mirror-only realized structure
+contract, tests required, and Common EmitC/export neutrality boundary.
 
 ## Completed Slices
 
@@ -169,15 +221,23 @@ Acceptance criteria:
   tests cover successful packed-i4 admission, owner consumption, and
   fail-closed missing/stale/metadata-only/label-only/selected-dispatch
   mismatches.
+- Gate 2 schedule-choice consumption:
+  `RVVLowPrecisionSelectedBodyRealizationAdmission` now carries the trusted
+  packed-i4 schedule decision contract, decision, and reason after successful
+  source-backed pressure-profile admission. The contraction selected-body
+  realization owner materializes those admitted schedule facts as explicit
+  realization mirrors on realized `with_vl` operations and the Gearbox
+  cross-region handoff. Focused C++ tests cover successful admitted schedule
+  consumption plus missing/stale schedule/admission fail-closed diagnostics.
 
 ## Remaining Slices
 
-- Gate 2 resource-aware schedule choice consumption by realization owner.
 - Gate 3 realized body plus route/artifact/measurement proof.
 - Gate 4 composed closeout and archive.
 
 ## Next Continuation Point
 
-Continue with Gate 2: consume the Gearbox/resource-aware schedule choice inside
-the realization owner for one low-precision contraction class, preserving
-compute semantics and using the Gate 1 admission result as the precondition.
+Continue with Gate 3: prove the realized body plus route/artifact/measurement
+path consumes the admitted packed-i4 schedule decision against source-backed
+same-target records, without treating artifact metadata or Common EmitC/export
+as schedule authority.

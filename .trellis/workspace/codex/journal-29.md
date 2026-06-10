@@ -537,3 +537,61 @@ Implemented Gate 1 low-precision production pressure-profile admission API, wire
 ### Next Steps
 
 - None - task complete
+
+## Session 580: Stage2 RVV Gearbox Gate 2 schedule-choice consumption
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV Gearbox resource-aware selected-body realization campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed Gate 2 only. Gate 1 already
+created the source-backed production pressure-profile admission boundary; this
+round made the packed-i4 Gearbox/resource-aware schedule choice part of the
+admitted selected-body realization facts. The macro task remains open for Gates
+3-4.
+
+### Main Changes
+
+- Extended `RVVLowPrecisionSelectedBodyRealizationAdmission` with provider-owned
+  schedule decision contract, decision, and reason.
+- Hardened packed-i4 admission so the selected resource candidate must carry
+  the accepted schedule decision fields before a pressure profile can admit
+  realization.
+- Wired the contraction selected-body realization owner to materialize admitted
+  schedule mirrors on realized `with_vl` operations and the Gearbox
+  cross-region handoff.
+- Added focused C++ coverage for successful admitted schedule consumption and
+  missing/stale schedule fail-closed diagnostics.
+- Updated the RVV plugin spec with the Low-Precision Realization Admission
+  Schedule Handoff contract.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-gearbox-realization-campaign`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] Bounded added-diff scan over source/test changes returned no legacy RVV
+  route-authority matches. Documentation mentions forbidden markers only as
+  non-authority scan vocabulary.
+
+### Spec Update Decision
+
+[UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` now records the
+Gate 2 admission schedule handoff API fields, validation matrix, mirror-only
+realized structure contract, tests required, and Common EmitC/export neutrality
+boundary.
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-2 are complete. Gates 3-4 remain open. The next
+continuation point is Gate 3: realized body plus route/artifact/measurement
+proof consumes the admitted packed-i4 schedule decision against source-backed
+same-target records.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.

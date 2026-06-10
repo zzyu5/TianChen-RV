@@ -1774,6 +1774,21 @@ llvm::Error verifyProductionPressureProfileAgainstCandidate(
         "packed-i4 low-precision production pressure profile for the current "
         "Gate 1 boundary");
   if (llvm::Error error =
+          requirePolicyString(context, "packed-i4 schedule decision contract",
+                              candidate.scheduleDecisionContract,
+                              kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract))
+    return error;
+  if (llvm::Error error =
+          requirePolicyString(context, "packed-i4 schedule decision",
+                              candidate.scheduleDecision,
+                              kRVVLowPrecisionResourcePackedI4ScheduleDecision))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 schedule decision reason",
+          candidate.scheduleDecisionReason,
+          kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason))
+    return error;
+  if (llvm::Error error =
           requirePolicyString(context, "pressure profile contract",
                               profile.contract,
                               kProductionPressureProfileContract))
@@ -2225,9 +2240,12 @@ makeSelectedBodyRealizationAdmission(
   admission.pressureProfileContract = profile.contract;
   admission.measurementEvidenceID = profile.measurementEvidenceID;
   admission.dispatchPolicyPath = profile.dispatchPolicyPath;
+  admission.scheduleDecisionContract = profile.scheduleDecisionContract;
+  admission.scheduleDecision = profile.scheduleDecision;
+  admission.scheduleDecisionReason = profile.scheduleDecisionReason;
   admission.diagnostic =
-      "source-backed production pressure profile accepted for selected-body "
-      "resource-aware realization";
+      "source-backed production pressure profile and schedule decision accepted "
+      "for selected-body resource-aware realization";
   return admission;
 }
 

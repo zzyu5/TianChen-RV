@@ -397,6 +397,9 @@ struct RVVLowPrecisionSelectedBodyRealizationAdmission {
   std::string pressureProfileContract;
   std::string measurementEvidenceID;
   std::string dispatchPolicyPath;
+  std::string scheduleDecisionContract;
+  std::string scheduleDecision;
+  std::string scheduleDecisionReason;
   std::string diagnostic;
 
   bool admitsRealization() const;

@@ -6127,6 +6127,126 @@ typed low-precision tcrv_rvv body
   -> same-target correctness and timing against named baseline
 ```
 
+## Low-Precision Realization Admission Schedule Handoff
+
+### 1. Scope / Trigger
+
+Use this contract when a source-backed production pressure profile is used to
+admit RVV low-precision selected-body realization and the selected packed-i4
+Gearbox/resource schedule must be consumed by the contraction realization owner.
+This is a Gate 2 selected-body realization boundary. It is not a route id,
+artifact metadata, q4/q8 label, Common EmitC decision, or performance claim.
+
+### 2. Signatures
+
+The admission result must carry the schedule decision fields after pressure
+profile validation:
+
+```c++
+struct RVVLowPrecisionSelectedBodyRealizationAdmission {
+  std::string admissionContract;
+  std::string admissionOwner;
+  RVVLowPrecisionRealizationAdmissionDecision decision;
+  std::string selectedCandidateID;
+  std::string pressureProfileContract;
+  std::string measurementEvidenceID;
+  std::string dispatchPolicyPath;
+  std::string scheduleDecisionContract;
+  std::string scheduleDecision;
+  std::string scheduleDecisionReason;
+  std::string diagnostic;
+};
+```
+
+The realized low-precision `with_vl` and Gearbox handoff may expose those facts
+only as explicit realization-admission mirrors:
+
+```text
+tcrv_rvv.low_precision_resource.realization_admission_schedule_decision_contract
+tcrv_rvv.low_precision_resource.realization_admission_schedule_decision
+tcrv_rvv.low_precision_resource.realization_admission_schedule_decision_reason
+```
+
+### 3. Contracts
+
+- The schedule decision fields come from the accepted
+  `RVVLowPrecisionProductionPressureProfile`, after that profile has been
+  matched against the selected packed-i4 resource candidate, source-backed
+  measurement record, selected-dispatch boundary, primitive facts, runtime ABI
+  order, and target capability mirrors.
+- The contraction selected-body realization owner may materialize admitted
+  schedule mirrors only when `admission.decision = Realize`.
+- The admitted schedule mirrors must match the provider-owned packed-i4
+  schedule contract, decision, and reason already selected by the RVV
+  Gearbox/resource candidate path.
+- Realization admission mirrors may be copied to realized `with_vl` operations
+  and Gearbox handoff structure. They do not define compute semantics, dtype,
+  runtime AVL/VL, dispatch/fallback behavior, route support, or intrinsic
+  spelling.
+- Common EmitC/export may carry provider-built route payloads and mirrors only;
+  it must not infer or repair these schedule facts.
+
+### 4. Validation & Error Matrix
+
+- Missing source-backed pressure profile -> selected-body realization admission
+  fails before schedule consumption.
+- Missing packed-i4 schedule decision contract, decision, or reason on the
+  selected resource candidate -> admission fails before realization mirrors are
+  accepted.
+- Pressure-profile schedule fields differ from the selected resource candidate
+  -> admission fails with a schedule-decision diagnostic.
+- Metadata-only, label-only, q4/q8, sibling-route, or non-source-backed
+  schedule/profile facts -> admission fails before realized body facts are
+  trusted.
+- Realized handoff carries admitted schedule mirrors that differ from the
+  selected candidate -> provider/handoff validation must fail before route
+  construction.
+
+### 5. Good/Base/Bad Cases
+
+- Good: packed-i4 resource candidate -> source-backed pressure profile admits
+  realization -> admission carries the same schedule contract/decision/reason
+  -> realized `with_vl` and Gearbox handoff expose admission schedule mirrors.
+- Base: low-precision realization without a production pressure profile can
+  still use the older non-admission owner entry, but it must not claim Gate 2
+  source-backed schedule admission.
+- Bad: schedule decision appears only in artifact metadata, a route id, or a
+  q4/q8 benchmark label, then realization treats it as accepted.
+- Bad: a metadata-only schedule marker is copied to `with_vl` without the
+  pressure-profile admission boundary.
+
+### 6. Tests Required
+
+- C++ admission tests must assert successful packed-i4 admission carries
+  schedule decision contract, decision, and reason.
+- C++ selected-body realization tests must assert the admitted schedule fields
+  appear on realized `with_vl` and Gearbox handoff structure.
+- Negative C++ tests must cover missing schedule contract, stale schedule
+  decision, missing pressure profile, metadata-only schedule/profile facts, and
+  stale selected-dispatch or source-backed measurement tie-backs.
+- Bounded checks must prove Common EmitC/export did not gain RVV schedule
+  inference logic.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+artifact metadata says packed-i4 schedule selected
+  -> realization copies schedule attrs
+  -> route claims resource-aware schedule consumption
+```
+
+Correct:
+
+```text
+selected packed-i4 resource candidate
+  -> source-backed pressure profile validates schedule tie-back
+  -> admission decision carries schedule contract/decision/reason
+  -> selected-body realization mirrors admitted schedule on realized structure
+  -> provider validates before route construction
+```
+
 ## Packed-I4 Same-Target Measurement Classification Evidence
 
 ### 1. Scope / Trigger

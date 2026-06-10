@@ -150,6 +150,18 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceRealizationAdmissionDispatchPolicyAttrName(
         "tcrv_rvv.low_precision_resource.realization_admission_dispatch_policy");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionContractAttrName(
+        "tcrv_rvv.low_precision_resource."
+        "realization_admission_schedule_decision_contract");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionAttrName(
+        "tcrv_rvv.low_precision_resource."
+        "realization_admission_schedule_decision");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionReasonAttrName(
+        "tcrv_rvv.low_precision_resource."
+        "realization_admission_schedule_decision_reason");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceRealizedUnrollFactorAttrName(
         "tcrv_rvv.low_precision_resource.realized_unroll_factor");
 constexpr llvm::StringLiteral
@@ -1363,6 +1375,12 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
              kRVVLowPrecisionResourceRealizationAdmissionEvidenceAttrName ||
          name ==
              kRVVLowPrecisionResourceRealizationAdmissionDispatchPolicyAttrName ||
+         name ==
+             kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionContractAttrName ||
+         name ==
+             kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionAttrName ||
+         name ==
+             kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionReasonAttrName ||
          name == kRVVLowPrecisionResourceRealizedUnrollFactorAttrName ||
          name ==
              kRVVLowPrecisionResourceRealizedVSetVLRegionCountAttrName ||

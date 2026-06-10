@@ -56,6 +56,15 @@ void materializeLowPrecisionRealizationAdmissionAttrs(
   destination->setAttr(
       kRVVLowPrecisionResourceRealizationAdmissionDispatchPolicyAttrName,
       builder.getStringAttr(admission.dispatchPolicyPath));
+  destination->setAttr(
+      kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionContractAttrName,
+      builder.getStringAttr(admission.scheduleDecisionContract));
+  destination->setAttr(
+      kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionAttrName,
+      builder.getStringAttr(admission.scheduleDecision));
+  destination->setAttr(
+      kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionReasonAttrName,
+      builder.getStringAttr(admission.scheduleDecisionReason));
 }
 
 llvm::Expected<std::string>
@@ -973,7 +982,9 @@ void createRealizedVSetVLRegionMarker(mlir::OpBuilder &builder,
 mlir::Operation *createRealizedGearboxCrossRegionHandoff(
     mlir::OpBuilder &builder, mlir::Location loc, mlir::Value input,
     mlir::Value vl, mlir::Value runtimeAVL,
-    const RVVLowPrecisionContractionResourceCandidate &selectedCandidate) {
+    const RVVLowPrecisionContractionResourceCandidate &selectedCandidate,
+    const RVVLowPrecisionSelectedBodyRealizationAdmission *admission =
+        nullptr) {
   mlir::OperationState state(loc, "tcrv_rvv.gearbox_cross_region_handoff");
   const llvm::StringRef resourceDecision =
       getRVVLowPrecisionContractionResourceRealizationDecision(
@@ -1096,7 +1107,11 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
                      builder.getStringAttr(
                          selectedCandidate.primitiveReductionStoreVL));
   state.addTypes(input.getType());
-  return builder.create(state);
+  mlir::Operation *handoff = builder.create(state);
+  if (admission)
+    materializeLowPrecisionRealizationAdmissionAttrs(builder, handoff,
+                                                    *admission);
+  return handoff;
 }
 
 struct RVVSelectedBodyContractionRealizationPlan {
@@ -1724,7 +1739,8 @@ realizePreRealizedRVVSelectedContractionFamily(
     auto handoff = llvm::cast<tcrv::rvv::GearboxCrossRegionHandoffOp>(
         createRealizedGearboxCrossRegionHandoff(
             builder, loc, reduced.getResult(), setvl.getVl(), plan.n,
-            *selectedResourceCandidate));
+            *selectedResourceCandidate,
+            selectedAdmission ? &*selectedAdmission : nullptr));
     dequantSource = handoff.getOutput();
     consumerWithVL =
         createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,

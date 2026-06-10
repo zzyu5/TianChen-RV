@@ -10826,9 +10826,19 @@ module {
               packedI4RealizationAdmission->measurementEvidenceID ==
                   acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
               packedI4RealizationAdmission->dispatchPolicyPath ==
-                  "correctness-fallback",
+                  "correctness-fallback" &&
+              packedI4RealizationAdmission->scheduleDecisionContract ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract &&
+              packedI4RealizationAdmission->scheduleDecision ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4ScheduleDecision &&
+              packedI4RealizationAdmission->scheduleDecisionReason ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason,
           "packed-i4 Gate 1 selected-body realization admission consumes "
-          "source-backed pressure profile facts before Gearbox realization"))
+          "source-backed pressure profile and schedule facts before Gearbox "
+          "realization"))
     return result;
 
   mlir::OwningOpRef<mlir::ModuleOp> admissionModule =
@@ -10878,6 +10888,18 @@ module {
       admittedRealization->getOperation()->getAttrOfType<mlir::StringAttr>(
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourceRealizationAdmissionEvidenceAttrName);
+  auto admissionScheduleContractAttr =
+      admittedRealization->getOperation()->getAttrOfType<mlir::StringAttr>(
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionContractAttrName);
+  auto admissionScheduleDecisionAttr =
+      admittedRealization->getOperation()->getAttrOfType<mlir::StringAttr>(
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionAttrName);
+  auto admissionScheduleReasonAttr =
+      admittedRealization->getOperation()->getAttrOfType<mlir::StringAttr>(
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionReasonAttrName);
   if (int result = expect(
           admissionContractAttr &&
               admissionContractAttr.getValue() ==
@@ -10886,9 +10908,40 @@ module {
               admissionDecisionAttr.getValue() == "realize" &&
               admissionEvidenceAttr &&
               admissionEvidenceAttr.getValue() ==
-                  acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID,
-          "packed-i4 Gate 1 owner overload materializes realization "
-          "admission mirrors on the realized selected body"))
+                  acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
+              admissionScheduleContractAttr &&
+              admissionScheduleContractAttr.getValue() ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract &&
+              admissionScheduleDecisionAttr &&
+              admissionScheduleDecisionAttr.getValue() ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4ScheduleDecision &&
+              admissionScheduleReasonAttr &&
+              admissionScheduleReasonAttr.getValue() ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason,
+          "packed-i4 Gate 2 owner overload materializes admitted schedule "
+          "decision mirrors on the realized selected body"))
+    return result;
+
+  auto admittedHandoff = llvm::dyn_cast_or_null<
+      tianchenrv::tcrv::rvv::GearboxCrossRegionHandoffOp>(
+      findFirstNestedOp(admissionVariant,
+                        "tcrv_rvv.gearbox_cross_region_handoff"));
+  auto admittedHandoffScheduleDecisionAttr =
+      admittedHandoff
+          ? admittedHandoff->getAttrOfType<mlir::StringAttr>(
+                tianchenrv::plugin::rvv::
+                    kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionAttrName)
+          : mlir::StringAttr();
+  if (int result = expect(
+          admittedHandoff && admittedHandoffScheduleDecisionAttr &&
+              admittedHandoffScheduleDecisionAttr.getValue() ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4ScheduleDecision,
+          "packed-i4 Gate 2 owner overload carries admitted schedule decision "
+          "onto the realized Gearbox handoff"))
     return result;
 
   if (int result = expectErrorContains(
@@ -10936,6 +10989,31 @@ module {
                   "admission"),
           {"route-family plan", "stale-low-precision-route-family-plan",
            packedI4ResourceSelection.routeFamilyPlanID}))
+    return result;
+
+  auto missingScheduleAdmissionSelection = packedI4ResourceSelection;
+  missingScheduleAdmissionSelection.scheduleDecisionContract.clear();
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionSelectedBodyRealizationAdmission(
+                  missingScheduleAdmissionSelection, &*packedI4PressureProfile,
+                  "selected-dispatch packed-i4 Gate 2 missing admitted "
+                  "schedule contract"),
+          {"packed-i4 schedule decision contract",
+           tianchenrv::plugin::rvv::
+               kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract}))
+    return result;
+
+  auto staleScheduleAdmissionProfile = *packedI4PressureProfile;
+  staleScheduleAdmissionProfile.scheduleDecision =
+      "metadata-only-packed-i4-schedule-decision";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              verifyRVVLowPrecisionSelectedBodyRealizationAdmission(
+                  packedI4ResourceSelection, &staleScheduleAdmissionProfile,
+                  "selected-dispatch packed-i4 Gate 2 stale admitted "
+                  "schedule decision"),
+          {"metadata-only pressure fact", "schedule decision"}))
     return result;
 
   auto staleDispatchAdmissionProfile = *packedI4PressureProfile;
