@@ -11,6 +11,7 @@
 #include "TianChenRV/Plugin/RVV/RVVEmitCSegment2RouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCStatementPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVGearboxSchedule.h"
+#include "TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h"
 #include "TianChenRV/Plugin/RVV/RVVSelectedBodyRealization.h"
 
 #include "mlir/IR/Attributes.h"
@@ -38743,6 +38744,20 @@ analyzeRVVSelectedBodyRoute(const VariantEmitCLowerableRequest &request) {
     analysis.contractionRouteFamilyPlan = std::move(*contractionPlan);
     applyRVVSelectedBodyContractionRouteFamilyPlan(
         *analysis.contractionRouteFamilyPlan, analysis.description);
+    if (analysis.description.lowPrecisionResourceSelection.hasSelection &&
+        isRVVLowPrecisionResourcePackedI4CandidateID(
+            analysis.description.lowPrecisionResourceSelection
+                .selectedCandidateID) &&
+        analysis.description.lowPrecisionSelectedDispatchPolicyBoundary
+            .hasFacts()) {
+      if (llvm::Error error =
+              populateRVVLowPrecisionSelectedDispatchPolicyOutput(
+                  analysis.description.lowPrecisionResourceSelection,
+                  analysis.description.lowPrecisionSelectedDispatchPolicyBoundary,
+                  "selected RVV route analysis packed-i4 selected-dispatch "
+                  "policy-output boundary"))
+        return std::move(error);
+    }
   }
   if (routeProfile->operation.isMemoryMovement) {
     const bool isUnitLoadStridedStore =
@@ -42779,6 +42794,47 @@ getRVVSelectedBodyConfigArtifactMetadata(
   if (!description.selectedDispatchFallbackMirror.empty())
     metadata.push_back({"tcrv_rvv.selected_dispatch_fallback_mirror",
                         description.selectedDispatchFallbackMirror});
+  const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary =
+      description.lowPrecisionSelectedDispatchPolicyBoundary;
+  if (dispatchBoundary.hasSelectedDispatchPolicyOutput) {
+    auto boolMirror = [](bool value) -> llvm::StringRef {
+      return value ? "true" : "false";
+    };
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.selected_dispatch_policy_contract",
+         dispatchBoundary.selectedDispatchPolicyContract});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.dispatch_policy_path",
+         dispatchBoundary.selectedDispatchPolicyPath});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.performance_preference_denial_reason",
+         dispatchBoundary.selectedDispatchPerformanceDenialReason});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.fallback_reason",
+                        dispatchBoundary.selectedDispatchFallbackReason});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.route_support_allowed",
+         boolMirror(dispatchBoundary.selectedDispatchRouteSupportAllowed)});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.correctness_execution_allowed",
+         boolMirror(
+             dispatchBoundary.selectedDispatchCorrectnessExecutionAllowed)});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.performance_selection_allowed",
+         boolMirror(
+             dispatchBoundary.selectedDispatchPerformanceSelectionAllowed)});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.performance_win_claim_allowed",
+         boolMirror(dispatchBoundary.selectedDispatchPerformanceWinClaimAllowed)});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.correctness_fallback_path_selected",
+         boolMirror(
+             dispatchBoundary.selectedDispatchCorrectnessFallbackPathSelected)});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.performance_preferred_path_selected",
+         boolMirror(
+             dispatchBoundary
+                 .selectedDispatchPerformancePreferredPathSelected)});
+  }
   if (!description.routeOperandBindingPlanID.empty()) {
     metadata.push_back({"tcrv_rvv.route_operand_binding_plan",
                         description.routeOperandBindingPlanID});

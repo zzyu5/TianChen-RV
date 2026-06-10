@@ -7477,6 +7477,32 @@ performance-preferred
   origin, case policy, fallback variant, fallback path role, fallback role,
   fallback origin, and fallback policy already collected from the real
   `tcrv.exec.dispatch` envelope.
+- Selected-dispatch policy output is also provider-owned boundary state, not
+  artifact/header authority. For a packed-i4 selected-dispatch pressure path,
+  the provider must populate `hasSelectedDispatchPolicyOutput` and mirror the
+  accepted `RVVLowPrecisionPerformancePolicyDecision` into the selected
+  dispatch boundary before artifact export:
+
+  ```text
+  selected_dispatch_policy_contract
+  dispatch_policy_path
+  selected_dispatch_preference
+  performance_preference_denial_reason
+  fallback_reason
+  route_support_allowed
+  correctness_execution_allowed
+  performance_selection_allowed
+  performance_win_claim_allowed
+  correctness_fallback_path_selected
+  performance_preferred_path_selected
+  ```
+
+  Target artifact metadata and generated header comments may expose these only
+  through `tcrv_rvv.low_precision_resource.*` mirrors of that provider-owned
+  policy-output boundary. `dispatch_preference` remains the existing
+  low-precision resource mirror; it must agree with the selected-dispatch
+  policy decision, but it is not a standalone selected-dispatch policy-output
+  key.
 - The current accepted Gate 4 packed-i4 regression/no-win outcome must set:
 
   ```text
@@ -7649,6 +7675,15 @@ performance-preferred
   policy, stale runtime guard, stale origin, or stale fallback role while the
   structured dispatch boundary carries different facts -> policy evaluation and
   target artifact validation fail before the mirror can be accepted.
+- A selected-dispatch policy-output mirror is present in target artifact
+  metadata while `hasSelectedDispatchPolicyOutput` is false -> target artifact
+  validation rejects it as a metadata-only selected-dispatch policy-output
+  mirror before export.
+- A selected-dispatch policy-output mirror disagrees with the accepted policy
+  decision, such as `dispatch_policy_path = performance-preferred` or
+  `performance_win_claim_allowed = true` while provider facts select
+  correctness fallback/no-win -> provider or target validation fails before the
+  artifact/header can claim performance-preferred dispatch.
 
 ### 5. Good/Base/Bad Cases
 
@@ -7702,6 +7737,11 @@ performance-preferred
 - Target artifact tests must assert stale provider selected-dispatch mirrors
   fail closed even when candidate metadata mirrors the stale provider value
   exactly.
+- Target artifact tests must assert selected-dispatch policy-output mirrors are
+  exported only after provider-owned policy-output facts exist, and that stale
+  `dispatch_policy_path`, `performance_win_claim_allowed`, route-support,
+  correctness-execution, performance-selection, and path-selection mirrors fail
+  closed.
 - Script self-tests and dry-run lit coverage must keep evidence-input reporting
   mirror-only and must not allow no-win/regression/not-measured evidence to
   authorize performance dispatch.
@@ -7724,6 +7764,22 @@ same-target measurement says win
   -> target artifact mirrors validate the updated provider facts
   -> policy consumes matching measurement and provider facts
   -> dispatch policy selects performance-preferred
+```
+
+Wrong:
+
+```text
+artifact metadata sets performance_win_claim_allowed=true
+  -> header exporter reports a packed-i4 performance win
+```
+
+Correct:
+
+```text
+selected tcrv.exec.dispatch case/fallback facts
+  -> RVV provider evaluates the packed-i4 policy decision
+  -> selected-dispatch boundary carries provider-owned policy-output fields
+  -> artifact/header mirrors compare those fields exactly or fail closed
 ```
 
 ## Gearbox Product-Reduce-Dequant/Clamp Cross-Region Handoff

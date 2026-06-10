@@ -2,7 +2,7 @@
   "id": "stage2-rvv-production-selected-dispatch-admission",
   "name": "stage2-rvv-production-selected-dispatch-admission",
   "title": "Stage2 RVV production-kernel selected-dispatch performance-admission campaign",
-  "description": "Macro campaign for Stage2 RVV production-kernel selected-dispatch performance admission. Gate 1 current slice hardens the production policy/target selected-dispatch mirror handoff so provider mirrors must tie back to structured tcrv.exec.dispatch case/fallback facts before selected-dispatch policy or target artifact acceptance.",
+  "description": "Macro campaign for Stage2 RVV production-kernel selected-dispatch performance admission. Gate 1 hardened selected-dispatch case/fallback mirror tie-back; Gate 2 carries packed-i4 no-win policy output through provider-owned selected-dispatch facts into target mirrors.",
   "status": "in_progress",
   "dev_type": null,
   "scope": null,
@@ -21,6 +21,6 @@
   "children": [],
   "parent": null,
   "relatedFiles": [],
-  "notes": "Gate 1 current slice complete: RVVLowPrecisionPerformancePolicy now verifies selected-dispatch case/fallback mirrors against structured dispatch boundary fields, and target artifact validation rejects stale provider selected-dispatch mirrors even when candidate metadata matches them. Gates 2-4 remain open. No ssh rvv evidence was required because this slice changes validation/diagnostics only, not generated runtime, correctness, or performance behavior.",
+  "notes": "Gate 1 slice complete: RVVLowPrecisionPerformancePolicy verifies selected-dispatch case/fallback mirrors against structured dispatch boundary fields, and target artifact validation rejects stale provider selected-dispatch mirrors even when candidate metadata matches them. Gate 2 slice complete: packed-i4 no-win policy output is populated as provider-owned selected-dispatch policy-output facts, emitted as target/header mirrors, and rejected when stale or metadata-only. Gates 3-4 remain open. No ssh rvv evidence was required because this slice changes policy/target mirror contracts and diagnostics only, not generated runtime, correctness, or performance behavior.",
   "meta": {}
 }

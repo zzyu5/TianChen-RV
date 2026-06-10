@@ -7,3 +7,10 @@
 {"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-production-selected-dispatch-admission", "result": "passed"}
 {"check": "git diff --check", "result": "passed"}
 {"check": "git diff --cached --check", "result": "passed"}
+{"check": "cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2", "result": "passed; rebuilt required compiler tools and focused C++ test binaries for Gate 2 policy-output mirror changes"}
+{"check": "build/bin/tianchenrv-rvv-extension-plugin-test", "result": "initially failed because measured-win tests reused a boundary populated with no-win selected-dispatch policy-output facts; added a cleared measured-win boundary and then passed"}
+{"check": "build/bin/tianchenrv-target-artifact-export-test", "result": "initially failed on missing manual policy-output mirrors and old metadata-only claim expectations; added provider-owned policy-output fixture mirrors, updated expected fail-closed diagnostics, and then passed"}
+{"check": "python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|selected-dispatch'", "cwd": "build/test", "result": "initially failed because target header export mapping and HEADER check order lacked the new policy-output keys; added RVV target support bundle mappings, fixed FileCheck order, and then passed 2/2"}
+{"check": "python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-production-selected-dispatch-admission", "result": "passed"}
+{"check": "bounded old-authority scan over added diff lines", "result": "passed: no added RVVI32M1, rvv-i32m1, tcrv_rvv.i32_, !tcrv_rvv.i32m, __riscv_*_i32m1, source-front-door, source-artifact, descriptor, or status=supported authority strings"}
+{"check": "git diff --check", "result": "passed"}

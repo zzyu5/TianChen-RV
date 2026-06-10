@@ -6588,6 +6588,73 @@ llvm::Error validateRVVLowPrecisionSelectedDispatchCandidateMirrors(
       "fallback mirror");
 }
 
+llvm::Error validateRVVLowPrecisionSelectedDispatchPolicyOutputMirrors(
+    const TargetArtifactCandidate &candidate,
+    const plugin::rvv::RVVLowPrecisionSelectedDispatchPolicyBoundary
+        &boundary) {
+  struct PolicyOutputMirror {
+    llvm::StringRef key;
+    llvm::StringRef expected;
+    llvm::StringRef label;
+  };
+
+  auto boolMirror = [](bool value) -> llvm::StringRef {
+    return value ? "true" : "false";
+  };
+
+  PolicyOutputMirror mirrors[] = {
+      {"tcrv_rvv.low_precision_resource.selected_dispatch_policy_contract",
+       boundary.selectedDispatchPolicyContract,
+       "selected-dispatch policy-output contract"},
+      {"tcrv_rvv.low_precision_resource.dispatch_policy_path",
+       boundary.selectedDispatchPolicyPath,
+       "selected-dispatch policy path"},
+      {"tcrv_rvv.low_precision_resource.performance_preference_denial_reason",
+       boundary.selectedDispatchPerformanceDenialReason,
+       "selected-dispatch performance-preference denial reason"},
+      {"tcrv_rvv.low_precision_resource.fallback_reason",
+       boundary.selectedDispatchFallbackReason,
+       "selected-dispatch fallback reason"},
+      {"tcrv_rvv.low_precision_resource.route_support_allowed",
+       boolMirror(boundary.selectedDispatchRouteSupportAllowed),
+       "selected-dispatch route-support allowance"},
+      {"tcrv_rvv.low_precision_resource.correctness_execution_allowed",
+       boolMirror(boundary.selectedDispatchCorrectnessExecutionAllowed),
+       "selected-dispatch correctness-execution allowance"},
+      {"tcrv_rvv.low_precision_resource.performance_selection_allowed",
+       boolMirror(boundary.selectedDispatchPerformanceSelectionAllowed),
+       "selected-dispatch performance-selection allowance"},
+      {"tcrv_rvv.low_precision_resource.performance_win_claim_allowed",
+       boolMirror(boundary.selectedDispatchPerformanceWinClaimAllowed),
+       "selected-dispatch performance win-claim allowance"},
+      {"tcrv_rvv.low_precision_resource.correctness_fallback_path_selected",
+       boolMirror(boundary.selectedDispatchCorrectnessFallbackPathSelected),
+       "selected-dispatch correctness-fallback path selection"},
+      {"tcrv_rvv.low_precision_resource.performance_preferred_path_selected",
+       boolMirror(boundary.selectedDispatchPerformancePreferredPathSelected),
+       "selected-dispatch performance-preferred path selection"}};
+
+  if (!boundary.hasSelectedDispatchPolicyOutput) {
+    for (const PolicyOutputMirror &mirror : mirrors)
+      if (!lookupCandidateMetadataValue(candidate, mirror.key).empty())
+        return makeRVVTargetRouteError(
+            llvm::Twine("widening dot-reduction target artifact consumer "
+                        "rejects metadata-only selected-dispatch policy-output "
+                        "mirror ") +
+            mirror.key +
+            " before artifact export; provider-owned selected-dispatch "
+            "policy-output facts are required");
+    return llvm::Error::success();
+  }
+
+  for (const PolicyOutputMirror &mirror : mirrors)
+    if (llvm::Error error = requireCandidateMetadataMirror(
+            candidate, mirror.key, mirror.expected,
+            (llvm::Twine("provider-owned ") + mirror.label).str()))
+      return error;
+  return llvm::Error::success();
+}
+
 llvm::Error rejectRVVPackedI4MetadataOnlyClaimMirror(
     const TargetArtifactCandidate &candidate, llvm::StringRef key,
     llvm::StringRef label) {
@@ -6616,24 +6683,8 @@ llvm::Error validateRVVPackedI4MetadataOnlyClaimMirrors(
           selection.selectedCandidateID))
     return llvm::Error::success();
   constexpr llvm::StringLiteral metadataOnlyClaimMirrors[][2] = {
-      {"tcrv_rvv.low_precision_resource.route_support_allowed",
-       "route-support allowance"},
-      {"tcrv_rvv.low_precision_resource.correctness_execution_allowed",
-       "correctness-execution allowance"},
-      {"tcrv_rvv.low_precision_resource.performance_win_claim_allowed",
-       "performance win-claim allowance"},
-      {"tcrv_rvv.low_precision_resource.performance_selection_allowed",
-       "performance-selection allowance"},
-      {"tcrv_rvv.low_precision_resource.performance_preferred_path_selected",
-       "performance-preferred path selection"},
-      {"tcrv_rvv.low_precision_resource.correctness_fallback_path_selected",
-       "correctness-fallback path selection"},
       {"tcrv_rvv.low_precision_resource.performance_preference_denied",
        "performance-preference decision"},
-      {"tcrv_rvv.low_precision_resource.performance_preference_denial_reason",
-       "performance-preference denial reason"},
-      {"tcrv_rvv.low_precision_resource.dispatch_policy_path",
-       "dispatch policy path"},
       {"tcrv_rvv.low_precision_resource.route_support_effect",
        "route-support effect"},
       {"tcrv_rvv.low_precision_resource.performance_claim",
@@ -6905,6 +6956,13 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
       contract->lowPrecisionResourceSelection.hasSelection)
     if (llvm::Error error =
             validateRVVLowPrecisionSelectedDispatchCandidateMirrors(
+                candidate,
+                contract->lowPrecisionSelectedDispatchPolicyBoundary))
+      return error;
+  if (isProductReductionDequantization &&
+      contract->lowPrecisionResourceSelection.hasSelection)
+    if (llvm::Error error =
+            validateRVVLowPrecisionSelectedDispatchPolicyOutputMirrors(
                 candidate,
                 contract->lowPrecisionSelectedDispatchPolicyBoundary))
       return error;

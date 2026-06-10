@@ -12,11 +12,11 @@ measurement evidence agree.
 
 ## Campaign Gates
 
-- [ ] Gate 1: inventory and harden the policy-to-dispatch boundary. Production
+- [x] Gate 1: inventory and harden the policy-to-dispatch boundary. Production
   owners that consume route support, correctness fallback, performance
   admission, source-backed measurement, schedule/resource closure, and selected
   fallback mirrors must fail closed on stale or metadata-derived handoff facts.
-- [ ] Gate 2: one concrete RVV low-precision or contraction pressure path carries
+- [x] Gate 2: one concrete RVV low-precision or contraction pressure path carries
   policy output into selected-dispatch/fallback behavior without artifact
   metadata, route id, q8/q4 label, or test-name authority.
 - [ ] Gate 3: same-target measured-win or no-win records can update
@@ -28,16 +28,18 @@ measurement evidence agree.
 
 ## Current Round Slice
 
-Implement Gate 1. The bounded slice is:
+Implement Gate 2 for the current packed-i4 no-win pressure path. The bounded
+slice is:
 
-- Inventory the current production boundary among
-  `RVVLowPrecisionPerformancePolicy`, selected-dispatch envelope collection,
-  route/provider validation, and target artifact validation.
-- Harden one real handoff where selected-dispatch mirror strings could otherwise
-  be treated as valid merely because they match target artifact metadata.
-- Keep the packed-i4 Gate 4 no-win closure as correctness fallback; do not
-  reopen performance preference, add q8/q4-named routes, or refresh evidence as
-  the main work.
+- Carry the existing packed-i4 no-win `RVVLowPrecisionPerformancePolicy`
+  decision into provider-owned selected-dispatch policy-output facts.
+- Materialize those facts as target artifact mirrors only after the RVV provider
+  derives them from structured packed-i4 resource facts, source-backed
+  same-target no-win evidence, and real `tcrv.exec.dispatch` case/fallback
+  facts.
+- Keep the no-win path as `correctness-fallback` /
+  `not-performance-preferred`; do not reopen performance preference, add
+  q8/q4-named routes, or refresh evidence as the main work.
 
 ## What I Already Know
 
@@ -64,32 +66,48 @@ spells the same selected variant, role, origin, policy, runtime guard, fallback
 variant, and fallback role as the structured dispatch/fallback facts. That
 would let a stale provider mirror masquerade as selected-dispatch authority.
 
+## Discovered Gate 2 Gap
+
+Gate 1 made selected-dispatch case/fallback mirrors tie back to structured
+`tcrv.exec.dispatch` case/fallback facts. The remaining Gate 2 gap is that the
+packed-i4 no-win policy decision itself is mostly consumed as a verifier result:
+route support, correctness fallback, dispatch policy path, dispatch preference,
+and denial reason are not yet carried as provider-owned selected-dispatch
+policy-output facts into the route description and target artifact mirror
+surface. Target validation rejects metadata-only policy-output claims, but there
+is no positive provider-owned mirror path for the same facts.
+
 ## Requirements
 
-- `RVVLowPrecisionPerformancePolicy` must reject selected-dispatch case and
-  fallback mirrors that do not mirror the structured dispatch boundary fields.
-- The check must be inside the production policy/dispatch boundary, not in
-  Python scripts, reports, artifact names, or route IDs.
+- Gate 1 behavior remains required: `RVVLowPrecisionPerformancePolicy` must
+  reject selected-dispatch case and fallback mirrors that do not mirror the
+  structured dispatch boundary fields.
+- Gate 2 policy-output facts must be produced inside the RVV plugin/provider
+  path from the accepted packed-i4 policy decision, not in Python scripts,
+  reports, artifact names, route IDs, fixture names, or target-local metadata.
 - Existing no-win packed-i4 policy must continue to select
-  `correctness-fallback` and reject performance-preferred markers.
-- Target artifact validation must reject a candidate whose metadata mirrors a
-  stale provider selected-dispatch mirror, not only candidates whose metadata
-  differs from the provider mirror.
+  `correctness-fallback`, deny `performance-preferred`, and reject
+  performance-preferred markers.
+- Target artifact validation must accept policy-output mirrors only when they
+  exactly match provider-owned selected-dispatch policy-output facts, and must
+  reject stale or metadata-only policy-output mirrors.
 
 ## Acceptance Criteria
 
-- [ ] Production C++ rejects stale selected-dispatch case mirror handoff facts.
-- [ ] Production C++ rejects stale selected-dispatch fallback mirror handoff
+- [x] Production C++ rejects stale selected-dispatch case mirror handoff facts.
+- [x] Production C++ rejects stale selected-dispatch fallback mirror handoff
   facts.
-- [ ] RVV plugin tests cover positive no-win selected-dispatch policy and the
-  new stale provider mirror failures.
-- [ ] Target artifact tests cover stale provider selected-dispatch mirror
-  rejection even when candidate metadata matches the stale provider mirror.
-- [ ] Focused build/tests for `tcrv-opt`, `tcrv-translate`,
+- [x] Production C++ carries accepted packed-i4 no-win policy output into
+  provider-owned selected-dispatch policy-output facts.
+- [x] RVV plugin tests cover positive no-win selected-dispatch policy-output
+  facts and stale policy-output failures.
+- [x] Target artifact tests cover accepted policy-output mirrors and stale or
+  metadata-only policy-output mirror rejection.
+- [x] Focused build/tests for `tcrv-opt`, `tcrv-translate`,
   `tianchenrv-rvv-extension-plugin-test`, and
   `tianchenrv-target-artifact-export-test` pass.
-- [ ] Focused lit for selected-dispatch policy/target tests passes.
-- [ ] `git diff --check`, `git diff --cached --check`, and clean final status
+- [x] Focused lit for selected-dispatch policy/target tests passes.
+- [x] `git diff --check`, `git diff --cached --check`, and clean final status
   are recorded.
 
 ## Out Of Scope
@@ -122,9 +140,10 @@ would let a stale provider mirror masquerade as selected-dispatch authority.
 
 ## Current Status
 
-Gate 1 current slice is complete.
+Gate 1 current slice is complete. Gate 2 current slice is complete. Gates 3-4
+remain open, so the macro task stays active.
 
-Completed in this slice:
+Completed in Gate 1:
 
 - Added production policy validation that selected-dispatch case/fallback mirror
   strings must mirror the structured `tcrv.exec.dispatch` case/fallback facts:
@@ -176,12 +195,61 @@ No `ssh rvv` run was required: this slice changes policy/target validation and
 diagnostics only, not generated RVV runtime behavior, correctness behavior, or
 performance claims.
 
+## Current Gate 2 Slice
+
+In this round, the packed-i4 no-win policy output was carried into
+selected-dispatch facts for the product-reduction dequant/dequant-clamp
+pressure path:
+
+- provider route analysis derives selected-dispatch policy-output facts from
+  the packed-i4 resource selection, the source-backed no-win measurement record,
+  and collected `tcrv.exec.dispatch` case/fallback boundary;
+- target artifact metadata mirrors those facts with explicit mirror labels;
+- target validation rejects stale or metadata-only policy-output mirrors before
+  artifact acceptance.
+- target support bundle mapping exports the same policy-output mirrors into
+  generated header comments.
+
+Completed in Gate 2:
+
+- Added `hasSelectedDispatchPolicyOutput` and explicit policy-output fields to
+  `RVVLowPrecisionSelectedDispatchPolicyBoundary`.
+- Added provider helper
+  `populateRVVLowPrecisionSelectedDispatchPolicyOutput` so the accepted
+  packed-i4 no-win `RVVLowPrecisionPerformancePolicyDecision` becomes
+  provider-owned selected-dispatch boundary state before route metadata/export.
+- Added target artifact validation for policy-output mirrors and metadata-only
+  rejection when provider-owned policy-output facts are absent.
+- Added plugin, target, and lit coverage for positive no-win policy-output
+  propagation and stale/metadata-only policy-output rejection.
+- Updated the RVV plugin spec with the provider-owned selected-dispatch
+  policy-output contract.
+
+Checks for Gate 2:
+
+- `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test -j2` passed.
+- `build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `build/bin/tianchenrv-target-artifact-export-test` passed.
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter
+  'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|selected-dispatch'`
+  from `build/test` passed 2/2.
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-11-stage2-rvv-production-selected-dispatch-admission`
+  passed.
+- `git diff --check` passed.
+- Bounded old-authority scan over added diff lines found no new legacy RVV
+  authority strings.
+
+No `ssh rvv` run was required: this slice changes provider policy-output
+facts, target/header mirrors, validation, and diagnostics only. It does not
+change generated runtime behavior or make a new correctness/performance claim.
+
 ## Continuation Point
 
-Keep this macro task active. Gate 1 is complete for the selected-dispatch
-provider-mirror hardening slice. Gates 2-4 remain open.
-
-Next continuation point: implement Gate 2 by carrying one concrete
-low-precision/contraction pressure path's policy output into selected
-dispatch/fallback behavior through provider-owned facts, without artifact
-metadata, route ID, q8/q4 label, or test-name authority.
+Keep this macro task active. Gate 3 is the next campaign gate: same-target
+measured-win or no-win records must update admission/reopen facts through
+provider-owned contracts and target mirrors. Gate 4 remains focused executable
+or measurement evidence only when runtime/correctness/performance behavior is
+claimed.

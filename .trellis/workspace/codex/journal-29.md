@@ -1683,3 +1683,61 @@ Implemented provider-owned packed-i4 scalar post-loop dequant/dequant-clamp epil
 ### Next Steps
 
 - None - task complete
+
+
+## Session 592: Stage2 RVV Gate 2 packed-i4 policy-output dispatch path
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV production-kernel selected-dispatch performance-admission campaign
+**Branch**: `main`
+
+### Summary
+
+Completed the Gate 2 slice for the active macro task: the packed-i4 no-win
+performance policy decision now becomes provider-owned selected-dispatch
+policy-output facts, then target/header mirrors, with stale and metadata-only
+handoffs rejected before artifact acceptance.
+
+### Main Changes
+
+- Added selected-dispatch policy-output fields to
+  `RVVLowPrecisionSelectedDispatchPolicyBoundary` and populated them from the
+  accepted packed-i4 no-win `RVVLowPrecisionPerformancePolicyDecision`.
+- Wired route analysis to populate the policy-output boundary after collecting
+  real `tcrv.exec.dispatch` case/fallback facts.
+- Emitted policy-output target metadata and target-support-bundle header
+  mappings for contract, policy path, denial/fallback reason, route/correctness
+  allowances, performance allowances, and path-selection booleans.
+- Hardened target artifact validation so selected-dispatch policy-output
+  mirrors require provider-owned facts and fail closed when stale or
+  metadata-only.
+- Updated focused plugin, target artifact, lit, PRD, and RVV plugin spec
+  coverage. The macro task remains active.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter
+  'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|selected-dispatch'`
+  from `build/test` passed 2/2
+- [OK] `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-11-stage2-rvv-production-selected-dispatch-admission`
+- [OK] bounded old-authority scan over added diff lines
+- [OK] `git diff --check`
+
+### Status
+
+[OPEN MACRO TASK] Gate 2 slice complete. Gates 3-4 remain open. No fresh
+`ssh rvv` run was required because this slice changes provider policy-output
+facts, target/header mirrors, validation, and diagnostics only; it does not
+change generated runtime behavior or make a new correctness/performance claim.
+
+### Continuation
+
+Gate 3 is next: same-target measured-win or no-win records must update
+admission/reopen facts through provider-owned contracts and target mirrors
+before any performance-preferred selected dispatch can be admitted.

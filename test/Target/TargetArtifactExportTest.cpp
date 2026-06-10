@@ -13417,6 +13417,18 @@ bool expectRVVTargetArtifactExporterShape(
       "selected_dispatch_fallback_mirror:@target_artifact_scalar_fallback;"
       "role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;"
       "policy=target-artifact-packed-i4-product-reduction-dequant-fallback";
+  if (llvm::Error error =
+          tianchenrv::plugin::rvv::
+              populateRVVLowPrecisionSelectedDispatchPolicyOutput(
+                  packedI4ProductDequantDescription
+                      .lowPrecisionResourceSelection,
+                  packedI4TargetDispatchBoundary,
+                  "packed-i4 target artifact selected-dispatch "
+                  "policy-output facts")) {
+    llvm::errs() << "packed-i4 target artifact policy-output facts failed: "
+                 << llvm::toString(std::move(error)) << "\n";
+    return false;
+  }
 
   TargetArtifactCandidate selectedDispatchPackedI4Candidate =
       packedI4ProductDequantFixture.candidate;
@@ -13426,6 +13438,52 @@ bool expectRVVTargetArtifactExporterShape(
   selectedDispatchPackedI4Candidate.artifactMetadata.push_back(
       {"tcrv_rvv.selected_dispatch_fallback_mirror",
        packedI4TargetDispatchBoundary.selectedDispatchFallbackMirror});
+  auto boolPolicyOutputMetadata = [](bool value) -> const char * {
+    return value ? "true" : "false";
+  };
+  selectedDispatchPackedI4Candidate.artifactMetadata.push_back(
+      {"tcrv_rvv.low_precision_resource.selected_dispatch_policy_contract",
+       packedI4TargetDispatchBoundary.selectedDispatchPolicyContract});
+  selectedDispatchPackedI4Candidate.artifactMetadata.push_back(
+      {"tcrv_rvv.low_precision_resource.dispatch_policy_path",
+       packedI4TargetDispatchBoundary.selectedDispatchPolicyPath});
+  selectedDispatchPackedI4Candidate.artifactMetadata.push_back(
+      {"tcrv_rvv.low_precision_resource.performance_preference_denial_reason",
+       packedI4TargetDispatchBoundary
+           .selectedDispatchPerformanceDenialReason});
+  selectedDispatchPackedI4Candidate.artifactMetadata.push_back(
+      {"tcrv_rvv.low_precision_resource.fallback_reason",
+       packedI4TargetDispatchBoundary.selectedDispatchFallbackReason});
+  selectedDispatchPackedI4Candidate.artifactMetadata.push_back(
+      {"tcrv_rvv.low_precision_resource.route_support_allowed",
+       boolPolicyOutputMetadata(
+           packedI4TargetDispatchBoundary
+               .selectedDispatchRouteSupportAllowed)});
+  selectedDispatchPackedI4Candidate.artifactMetadata.push_back(
+      {"tcrv_rvv.low_precision_resource.correctness_execution_allowed",
+       boolPolicyOutputMetadata(
+           packedI4TargetDispatchBoundary
+               .selectedDispatchCorrectnessExecutionAllowed)});
+  selectedDispatchPackedI4Candidate.artifactMetadata.push_back(
+      {"tcrv_rvv.low_precision_resource.performance_selection_allowed",
+       boolPolicyOutputMetadata(
+           packedI4TargetDispatchBoundary
+               .selectedDispatchPerformanceSelectionAllowed)});
+  selectedDispatchPackedI4Candidate.artifactMetadata.push_back(
+      {"tcrv_rvv.low_precision_resource.performance_win_claim_allowed",
+       boolPolicyOutputMetadata(
+           packedI4TargetDispatchBoundary
+               .selectedDispatchPerformanceWinClaimAllowed)});
+  selectedDispatchPackedI4Candidate.artifactMetadata.push_back(
+      {"tcrv_rvv.low_precision_resource.correctness_fallback_path_selected",
+       boolPolicyOutputMetadata(
+           packedI4TargetDispatchBoundary
+               .selectedDispatchCorrectnessFallbackPathSelected)});
+  selectedDispatchPackedI4Candidate.artifactMetadata.push_back(
+      {"tcrv_rvv.low_precision_resource.performance_preferred_path_selected",
+       boolPolicyOutputMetadata(
+           packedI4TargetDispatchBoundary
+               .selectedDispatchPerformancePreferredPathSelected)});
   RVVRouteDescription selectedDispatchPackedI4Description =
       packedI4ProductDequantDescription;
   selectedDispatchPackedI4Description.lowPrecisionSelectedDispatchPolicyBoundary =
@@ -13507,6 +13565,47 @@ bool expectRVVTargetArtifactExporterShape(
                       "preserve conservative fallback\n";
     return false;
   }
+
+  TargetArtifactCandidate staleSelectedDispatchPolicyPath =
+      selectedDispatchPackedI4Candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleSelectedDispatchPolicyPath,
+          "tcrv_rvv.low_precision_resource.dispatch_policy_path",
+          "performance-preferred")) {
+    llvm::errs() << "selected-dispatch packed-i4 target test did not contain "
+                    "policy path metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  RVVRouteValidationContext{staleSelectedDispatchPolicyPath,
+                                            packedI4ProductDequantRoute,
+                                            selectedDispatchPackedI4Description}),
+          "packed-i4 target artifact rejects stale selected-dispatch policy "
+          "path mirror",
+          {"dispatch_policy_path",
+           "provider-owned selected-dispatch policy path",
+           "correctness-fallback", "performance-preferred"}))
+    return false;
+
+  RVVRouteDescription missingSelectedDispatchPolicyOutput =
+      selectedDispatchPackedI4Description;
+  missingSelectedDispatchPolicyOutput.lowPrecisionSelectedDispatchPolicyBoundary
+      .hasSelectedDispatchPolicyOutput = false;
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  RVVRouteValidationContext{
+                      selectedDispatchPackedI4Candidate,
+                      packedI4ProductDequantRoute,
+                      missingSelectedDispatchPolicyOutput}),
+          "packed-i4 target artifact rejects metadata-only selected-dispatch "
+          "policy output mirrors",
+          {"metadata-only selected-dispatch policy-output mirror",
+           "selected_dispatch_policy_contract",
+           "provider-owned selected-dispatch policy-output facts"}))
+    return false;
 
   TargetArtifactCandidate staleSelectedDispatchCaseMirror =
       selectedDispatchPackedI4Candidate;
@@ -14739,45 +14838,45 @@ bool expectRVVTargetArtifactExporterShape(
           "true",
           "packed-i4 product-reduction registry rejects metadata-only "
           "performance win claim",
-          {"metadata-only packed-i4 performance win-claim allowance", "true",
-           "performance action",
-           "no-win-repair-required-before-performance-claim",
-           "performance selection eligibility", "false",
-           "dispatch preference", "not-performance-preferred"}))
+          {"metadata-only selected-dispatch policy-output mirror",
+           "performance_win_claim_allowed",
+           "provider-owned selected-dispatch policy-output facts"}))
     return false;
   if (!expectPackedI4MetadataOnlyClaimFailure(
           "tcrv_rvv.low_precision_resource.performance_selection_allowed",
           "true",
           "packed-i4 product-reduction registry rejects metadata-only "
           "performance-selection allowance",
-          {"metadata-only packed-i4 performance-selection allowance", "true",
-           "performance selection eligibility", "false",
-           "dispatch preference", "not-performance-preferred"}))
+          {"metadata-only selected-dispatch policy-output mirror",
+           "performance_selection_allowed",
+           "provider-owned selected-dispatch policy-output facts"}))
     return false;
   if (!expectPackedI4MetadataOnlyClaimFailure(
           "tcrv_rvv.low_precision_resource.correctness_execution_allowed",
           "true",
           "packed-i4 product-reduction registry rejects metadata-only "
           "correctness execution claim",
-          {"metadata-only packed-i4 correctness-execution allowance", "true",
-           "performance action",
-           "no-win-repair-required-before-performance-claim"}))
+          {"metadata-only selected-dispatch policy-output mirror",
+           "correctness_execution_allowed",
+           "provider-owned selected-dispatch policy-output facts"}))
     return false;
   if (!expectPackedI4MetadataOnlyClaimFailure(
           "tcrv_rvv.low_precision_resource.correctness_fallback_path_selected",
           "true",
           "packed-i4 product-reduction registry rejects metadata-only "
           "correctness fallback path claim",
-          {"metadata-only packed-i4 correctness-fallback path selection",
-           "true", "dispatch preference", "not-performance-preferred"}))
+          {"metadata-only selected-dispatch policy-output mirror",
+           "correctness_fallback_path_selected",
+           "provider-owned selected-dispatch policy-output facts"}))
     return false;
   if (!expectPackedI4MetadataOnlyClaimFailure(
           "tcrv_rvv.low_precision_resource.dispatch_policy_path",
           "performance-preferred",
           "packed-i4 product-reduction registry rejects metadata-only "
           "dispatch policy path",
-          {"metadata-only packed-i4 dispatch policy path",
-           "performance-preferred", "not-performance-preferred"}))
+          {"metadata-only selected-dispatch policy-output mirror",
+           "dispatch_policy_path",
+           "provider-owned selected-dispatch policy-output facts"}))
     return false;
   if (!expectPackedI4MetadataOnlyClaimFailure(
           "tcrv_rvv.low_precision_resource.route_support_effect",

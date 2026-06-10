@@ -2552,6 +2552,68 @@ llvm::Error verifyNoWinSelectedDispatchPreferenceDenial(
       dispatchBoundary.selectedDispatchFallbackMirror);
 }
 
+llvm::Error verifyRVVLowPrecisionSelectedDispatchPolicyOutputTieBack(
+    const RVVLowPrecisionPerformancePolicyDecision &decision,
+    const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  if (!dispatchBoundary.hasSelectedDispatchPolicyOutput)
+    return llvm::Error::success();
+  if (llvm::Error error = requirePolicyString(
+          context, "selected-dispatch policy-output contract",
+          dispatchBoundary.selectedDispatchPolicyContract,
+          decision.policyContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "selected-dispatch policy path",
+          dispatchBoundary.selectedDispatchPolicyPath,
+          decision.dispatchPolicyPath))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "selected-dispatch preference",
+          dispatchBoundary.selectedDispatchPreference,
+          decision.dispatchPreference))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "selected-dispatch performance denial reason",
+          dispatchBoundary.selectedDispatchPerformanceDenialReason,
+          decision.performancePreferenceDenialReason))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "selected-dispatch fallback reason",
+          dispatchBoundary.selectedDispatchFallbackReason,
+          decision.fallbackReason))
+    return error;
+  if (llvm::Error error = requirePolicyBool(
+          context, "selected-dispatch route support allowance",
+          dispatchBoundary.selectedDispatchRouteSupportAllowed,
+          decision.routeSupportAllowed))
+    return error;
+  if (llvm::Error error = requirePolicyBool(
+          context, "selected-dispatch correctness execution allowance",
+          dispatchBoundary.selectedDispatchCorrectnessExecutionAllowed,
+          decision.correctnessExecutionAllowed))
+    return error;
+  if (llvm::Error error = requirePolicyBool(
+          context, "selected-dispatch performance selection allowance",
+          dispatchBoundary.selectedDispatchPerformanceSelectionAllowed,
+          decision.performanceSelectionAllowed))
+    return error;
+  if (llvm::Error error = requirePolicyBool(
+          context, "selected-dispatch performance win-claim allowance",
+          dispatchBoundary.selectedDispatchPerformanceWinClaimAllowed,
+          decision.performanceWinClaimAllowed))
+    return error;
+  if (llvm::Error error = requirePolicyBool(
+          context, "selected-dispatch correctness fallback path selection",
+          dispatchBoundary.selectedDispatchCorrectnessFallbackPathSelected,
+          decision.correctnessFallbackPathSelected))
+    return error;
+  return requirePolicyBool(
+      context, "selected-dispatch performance-preferred path selection",
+      dispatchBoundary.selectedDispatchPerformancePreferredPathSelected,
+      decision.performancePreferredPathSelected);
+}
+
 llvm::Error verifyRVVLowPrecisionSelectedDispatchBoundary(
     const RVVLowPrecisionPerformancePolicyDecision &decision,
     const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
@@ -2613,8 +2675,12 @@ llvm::Error verifyRVVLowPrecisionSelectedDispatchBoundary(
           llvm::Twine(context) +
           " performance-preferred selected-dispatch policy requires the "
           "performance-preferred dispatch path");
-    return verifyRVVLowPrecisionSelectedDispatchMirrorTieBack(dispatchBoundary,
-                                                            context);
+    if (llvm::Error error =
+            verifyRVVLowPrecisionSelectedDispatchMirrorTieBack(dispatchBoundary,
+                                                              context))
+      return error;
+    return verifyRVVLowPrecisionSelectedDispatchPolicyOutputTieBack(
+        decision, dispatchBoundary, context);
   }
   if (!decision.correctnessFallbackPathSelected ||
       decision.dispatchPolicyPath != kPackedI4CorrectnessFallbackPolicyPath)
@@ -2626,8 +2692,12 @@ llvm::Error verifyRVVLowPrecisionSelectedDispatchBoundary(
           verifyNoWinSelectedDispatchPreferenceDenial(decision,
                                                      dispatchBoundary, context))
     return error;
-  return verifyRVVLowPrecisionSelectedDispatchMirrorTieBack(dispatchBoundary,
-                                                          context);
+  if (llvm::Error error =
+          verifyRVVLowPrecisionSelectedDispatchMirrorTieBack(dispatchBoundary,
+                                                            context))
+    return error;
+  return verifyRVVLowPrecisionSelectedDispatchPolicyOutputTieBack(
+      decision, dispatchBoundary, context);
 }
 
 llvm::Expected<RVVLowPrecisionProductionPressureProfile>
@@ -4304,6 +4374,44 @@ buildRVVLowPrecisionProductionPressureProfile(
   return buildRVVLowPrecisionProductionPressureProfile(selection, *input,
                                                       dispatchBoundary,
                                                       context);
+}
+
+llvm::Error populateRVVLowPrecisionSelectedDispatchPolicyOutput(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context) {
+  if (!isRVVLowPrecisionResourcePackedI4CandidateID(
+          selection.selectedCandidateID))
+    return llvm::Error::success();
+
+  RVVLowPrecisionSameTargetMeasurementRecord record =
+      buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
+  llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
+      evaluateRVVLowPrecisionPerformancePolicy(selection, record,
+                                               dispatchBoundary, context);
+  if (!decision)
+    return decision.takeError();
+
+  dispatchBoundary.hasSelectedDispatchPolicyOutput = true;
+  dispatchBoundary.selectedDispatchPolicyContract = decision->policyContract;
+  dispatchBoundary.selectedDispatchPolicyPath = decision->dispatchPolicyPath;
+  dispatchBoundary.selectedDispatchPreference = decision->dispatchPreference;
+  dispatchBoundary.selectedDispatchPerformanceDenialReason =
+      decision->performancePreferenceDenialReason;
+  dispatchBoundary.selectedDispatchFallbackReason = decision->fallbackReason;
+  dispatchBoundary.selectedDispatchRouteSupportAllowed =
+      decision->routeSupportAllowed;
+  dispatchBoundary.selectedDispatchCorrectnessExecutionAllowed =
+      decision->correctnessExecutionAllowed;
+  dispatchBoundary.selectedDispatchPerformanceSelectionAllowed =
+      decision->performanceSelectionAllowed;
+  dispatchBoundary.selectedDispatchPerformanceWinClaimAllowed =
+      decision->performanceWinClaimAllowed;
+  dispatchBoundary.selectedDispatchCorrectnessFallbackPathSelected =
+      decision->correctnessFallbackPathSelected;
+  dispatchBoundary.selectedDispatchPerformancePreferredPathSelected =
+      decision->performancePreferredPathSelected;
+  return llvm::Error::success();
 }
 
 llvm::Error populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(

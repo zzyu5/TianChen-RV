@@ -10958,6 +10958,64 @@ module {
           "packed-i4 selected-dispatch analysis collects structured "
           "case/fallback facts before low-precision policy consumption"))
     return result;
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::
+              populateRVVLowPrecisionSelectedDispatchPolicyOutput(
+                  packedI4ResourceSelection, packedI4SelectedDispatchBoundary,
+                  "packed-i4 selected-dispatch policy-output facts"),
+          "packed-i4 selected-dispatch policy-output facts"))
+    return result;
+  if (int result = expect(
+          packedI4SelectedDispatchBoundary
+                  .hasSelectedDispatchPolicyOutput &&
+              packedI4SelectedDispatchBoundary
+                      .selectedDispatchPolicyContract ==
+                  "rvv-low-precision-packed-i4-dispatch-performance-policy."
+                  "v1" &&
+              packedI4SelectedDispatchBoundary
+                      .selectedDispatchPolicyPath ==
+                  "correctness-fallback" &&
+              packedI4SelectedDispatchBoundary
+                      .selectedDispatchPreference ==
+                  "not-performance-preferred" &&
+              packedI4SelectedDispatchBoundary
+                      .selectedDispatchPerformanceDenialReason ==
+                  "same-target-measurement-no-win-or-regression" &&
+              packedI4SelectedDispatchBoundary
+                      .selectedDispatchFallbackReason ==
+                  "same-target-measurement-no-win-or-regression" &&
+              packedI4SelectedDispatchBoundary
+                  .selectedDispatchRouteSupportAllowed &&
+              packedI4SelectedDispatchBoundary
+                  .selectedDispatchCorrectnessExecutionAllowed &&
+              !packedI4SelectedDispatchBoundary
+                   .selectedDispatchPerformanceSelectionAllowed &&
+              !packedI4SelectedDispatchBoundary
+                   .selectedDispatchPerformanceWinClaimAllowed &&
+              packedI4SelectedDispatchBoundary
+                  .selectedDispatchCorrectnessFallbackPathSelected &&
+              !packedI4SelectedDispatchBoundary
+                   .selectedDispatchPerformancePreferredPathSelected,
+          "packed-i4 selected-dispatch policy output carries the no-win "
+          "correctness-fallback decision through provider facts"))
+    return result;
+  auto clearSelectedDispatchPolicyOutput =
+      [](tianchenrv::plugin::rvv::
+             RVVLowPrecisionSelectedDispatchPolicyBoundary boundary) {
+        boundary.hasSelectedDispatchPolicyOutput = false;
+        boundary.selectedDispatchPolicyContract.clear();
+        boundary.selectedDispatchPolicyPath.clear();
+        boundary.selectedDispatchPreference.clear();
+        boundary.selectedDispatchPerformanceDenialReason.clear();
+        boundary.selectedDispatchFallbackReason.clear();
+        boundary.selectedDispatchRouteSupportAllowed = false;
+        boundary.selectedDispatchCorrectnessExecutionAllowed = false;
+        boundary.selectedDispatchPerformanceSelectionAllowed = false;
+        boundary.selectedDispatchPerformanceWinClaimAllowed = false;
+        boundary.selectedDispatchCorrectnessFallbackPathSelected = false;
+        boundary.selectedDispatchPerformancePreferredPathSelected = false;
+        return boundary;
+      };
   auto packedI4SelectedDispatchPolicy =
       tianchenrv::plugin::rvv::
           evaluateRVVLowPrecisionPerformancePolicy(
@@ -11048,6 +11106,16 @@ module {
           {"selected dispatch fallback mirror", "fallback variant",
            "pre_realized_body_scalar_fallback",
            "pre_realized_body_scalar_fallback_sibling"}))
+    return result;
+
+  auto staleSelectedDispatchPolicyOutput =
+      packedI4SelectedDispatchBoundary;
+  staleSelectedDispatchPolicyOutput.selectedDispatchPolicyPath =
+      "performance-preferred";
+  if (int result = expectPackedI4SelectedDispatchPolicyError(
+          staleSelectedDispatchPolicyOutput,
+          {"selected-dispatch policy path", "correctness-fallback",
+           "performance-preferred"}))
     return result;
 
   auto acceptedPackedI4PolicyInputOr =
@@ -12512,6 +12580,8 @@ module {
   measuredWinPackedI4Selection.realizationAdmissionScheduleDecision.clear();
   measuredWinPackedI4Selection
       .realizationAdmissionScheduleDecisionReason.clear();
+  auto measuredWinSelectedDispatchBoundary =
+      clearSelectedDispatchPolicyOutput(packedI4SelectedDispatchBoundary);
   if (llvm::Error error =
           tianchenrv::plugin::rvv::
               populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(
@@ -12590,12 +12660,11 @@ module {
           "agree"))
     return result;
   auto measuredWinSelectedDispatchInputPolicy =
-      tianchenrv::plugin::rvv::
-          evaluateRVVLowPrecisionPerformancePolicy(
-              measuredWinPackedI4Selection, measuredWinPackedI4PolicyInput,
-              packedI4SelectedDispatchBoundary,
-              "selected-boundary packed-i4 Gate 3 measured-win selected-"
-              "dispatch policy input test");
+      tianchenrv::plugin::rvv::evaluateRVVLowPrecisionPerformancePolicy(
+          measuredWinPackedI4Selection, measuredWinPackedI4PolicyInput,
+          measuredWinSelectedDispatchBoundary,
+          "selected-boundary packed-i4 Gate 3 measured-win selected-"
+          "dispatch policy input test");
   if (!measuredWinSelectedDispatchInputPolicy)
     return fail("packed-i4 measured-win selected-dispatch policy input: " +
                 llvm::toString(
@@ -12620,12 +12689,11 @@ module {
           "selects performance-preferred only after provider facts match"))
     return result;
   auto measuredWinSelectedDispatchRecordPolicy =
-      tianchenrv::plugin::rvv::
-          evaluateRVVLowPrecisionPerformancePolicy(
-              measuredWinPackedI4Selection, measuredWinPackedI4Record,
-              packedI4SelectedDispatchBoundary,
-              "selected-boundary packed-i4 Gate 3 measured-win selected-"
-              "dispatch record policy test");
+      tianchenrv::plugin::rvv::evaluateRVVLowPrecisionPerformancePolicy(
+          measuredWinPackedI4Selection, measuredWinPackedI4Record,
+          measuredWinSelectedDispatchBoundary,
+          "selected-boundary packed-i4 Gate 3 measured-win selected-"
+          "dispatch record policy test");
   if (!measuredWinSelectedDispatchRecordPolicy)
     return fail("packed-i4 measured-win selected-dispatch record policy: " +
                 llvm::toString(
@@ -12656,7 +12724,7 @@ module {
   if (int result = expectSuccess(
           tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
               measuredWinPackedI4Selection, measuredWinPackedI4Record,
-              packedI4SelectedDispatchBoundary,
+              measuredWinSelectedDispatchBoundary,
               "selected-boundary packed-i4 Gate 3 measured-win record "
               "verification"),
           "packed-i4 measured-win selected-dispatch record verification"))
@@ -12673,7 +12741,7 @@ module {
           tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
               deniedAdmissionMeasuredWinSelection,
               deniedAdmissionMeasuredWinRecord,
-              packedI4SelectedDispatchBoundary,
+              measuredWinSelectedDispatchBoundary,
               "selected-boundary packed-i4 Gate 4 measured-win record rejects "
               "resource-cost denial admission"),
           {"policy handoff diagnosis", "performance-preferred-measured-win",
@@ -12696,7 +12764,7 @@ module {
           tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
               staleBeyondLocalAdmissionSelection,
               staleBeyondLocalAdmissionRecord,
-              packedI4SelectedDispatchBoundary,
+              measuredWinSelectedDispatchBoundary,
               "selected-boundary packed-i4 Gate 4 measured-win record rejects "
               "stale beyond-local admission"),
           {"policy handoff diagnosis", "performance-preferred-measured-win",

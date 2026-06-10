@@ -548,6 +548,11 @@ buildRVVLowPrecisionProductionPressureProfile(
     const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
     llvm::StringRef context);
 
+llvm::Error populateRVVLowPrecisionSelectedDispatchPolicyOutput(
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,
+    llvm::StringRef context);
+
 llvm::Error populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(
     RVVLowPrecisionContractionResourceSelection &selection,
     const RVVLowPrecisionSelectedDispatchPolicyBoundary &dispatchBoundary,

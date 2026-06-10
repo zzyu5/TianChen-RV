@@ -20,7 +20,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.dispatch_preference", value = "not-performance-preferred"/s//tcrv_rvv.low_precision_resource.dispatch_preference", value = "performance-preferred"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-DISPATCH-PREFERENCE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequantize/s//selected_dispatch_case_mirror:@metadata_only_dispatch_case/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-DISPATCH-CASE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback/s//selected_dispatch_fallback_mirror:@metadata_only_scalar_fallback/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-DISPATCH-FALLBACK
-// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.dispatch_preference", value = "not-performance-preferred"}/s//tcrv_rvv.low_precision_resource.dispatch_preference", value = "not-performance-preferred"}, {key = "tcrv_rvv.low_precision_resource.performance_win_claim_allowed", value = "true"}/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=METADATA-ONLY-WIN-CLAIM
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_win_claim_allowed", value = "false"/s//tcrv_rvv.low_precision_resource.performance_win_claim_allowed", value = "true"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-POLICY-WIN-CLAIM
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-rvv-emitc-to-cpp | FileCheck %s --check-prefix=CPP
 
@@ -136,6 +136,16 @@ module {
 
 // PLAN: {key = "tcrv_rvv.selected_dispatch_case_mirror", value = "selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequantize;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-case"}
 // PLAN: {key = "tcrv_rvv.selected_dispatch_fallback_mirror", value = "selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-fallback-envelope"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.selected_dispatch_policy_contract", value = "rvv-low-precision-packed-i4-dispatch-performance-policy.v1"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.dispatch_policy_path", value = "correctness-fallback"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.performance_preference_denial_reason", value = "same-target-measurement-no-win-or-regression"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.fallback_reason", value = "same-target-measurement-no-win-or-regression"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.route_support_allowed", value = "true"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.correctness_execution_allowed", value = "true"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.performance_selection_allowed", value = "false"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.performance_win_claim_allowed", value = "false"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.correctness_fallback_path_selected", value = "true"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.performance_preferred_path_selected", value = "false"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.realization_decision", value = "consume-low-precision-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-budget-5of32.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.realization_admission_contract", value = "rvv-low-precision-selected-body-realization-admission.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.realization_admission_decision", value = "realize"}
@@ -226,6 +236,16 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_maturity_evidence: same-target-packed-i4-campaign-no-further-repair-no-win-gate4.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_maturity_outcome: no-win
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_selection_eligible: false
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.selected_dispatch_policy_contract: rvv-low-precision-packed-i4-dispatch-performance-policy.v1
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.dispatch_policy_path: correctness-fallback
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_preference_denial_reason: same-target-measurement-no-win-or-regression
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.fallback_reason: same-target-measurement-no-win-or-regression
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.route_support_allowed: true
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.correctness_execution_allowed: true
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_selection_allowed: false
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_win_claim_allowed: false
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.correctness_fallback_path_selected: true
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_preferred_path_selected: false
 // HEADER: tianchenrv.rvv.low_precision_resource.dispatch_preference: not-performance-preferred
 // HEADER: tianchenrv.rvv.selected_dispatch_case_mirror: selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequantize;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-case
 // HEADER: tianchenrv.rvv.selected_dispatch_fallback_mirror: selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-fallback-envelope
@@ -306,6 +326,5 @@ module {
 // STALE-ARTIFACT-DISPATCH-FALLBACK-SAME: provider-owned selected-dispatch low-precision policy boundary fallback mirror
 // STALE-ARTIFACT-DISPATCH-FALLBACK-SAME: metadata_only_scalar_fallback
 
-// METADATA-ONLY-WIN-CLAIM: rejects metadata-only packed-i4 performance win-claim allowance 'true'
-// METADATA-ONLY-WIN-CLAIM-SAME: performance_win_claim_allowed
-// METADATA-ONLY-WIN-CLAIM-SAME: no-win-repair-required-before-performance-claim
+// STALE-POLICY-WIN-CLAIM: performance_win_claim_allowed provenance must mirror provider-owned selected-dispatch performance win-claim allowance 'false'
+// STALE-POLICY-WIN-CLAIM-SAME: true

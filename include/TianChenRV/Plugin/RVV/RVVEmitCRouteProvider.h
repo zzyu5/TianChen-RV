@@ -313,9 +313,22 @@ struct RVVLowPrecisionSelectedDispatchPolicyBoundary {
   std::string fallbackPolicy;
   std::string selectedDispatchCaseMirror;
   std::string selectedDispatchFallbackMirror;
+  bool hasSelectedDispatchPolicyOutput = false;
+  std::string selectedDispatchPolicyContract;
+  std::string selectedDispatchPolicyPath;
+  std::string selectedDispatchPreference;
+  std::string selectedDispatchPerformanceDenialReason;
+  std::string selectedDispatchFallbackReason;
+  bool selectedDispatchRouteSupportAllowed = false;
+  bool selectedDispatchCorrectnessExecutionAllowed = false;
+  bool selectedDispatchPerformanceSelectionAllowed = false;
+  bool selectedDispatchPerformanceWinClaimAllowed = false;
+  bool selectedDispatchCorrectnessFallbackPathSelected = false;
+  bool selectedDispatchPerformancePreferredPathSelected = false;
 
   bool hasFacts() const {
     return hasSelectedDispatchCase || hasSelectedDispatchFallback ||
+           hasSelectedDispatchPolicyOutput ||
            !selectedDispatchCaseMirror.empty() ||
            !selectedDispatchFallbackMirror.empty();
   }
