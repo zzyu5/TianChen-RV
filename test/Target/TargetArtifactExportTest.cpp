@@ -13178,6 +13178,18 @@ bool expectRVVTargetArtifactExporterShape(
   if (acceptedPackedI4Gate4PolicyInput->providerPrimitiveChainKind !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .primitiveChainKind ||
+      acceptedPackedI4Gate4PolicyInput->providerResourcePlanningContract !=
+          packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .planningContract ||
+      acceptedPackedI4Gate4PolicyInput->providerResourceOperandForm !=
+          packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .operandForm ||
+      acceptedPackedI4Gate4PolicyInput->providerResourceVSetVLRegionCount !=
+          packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .vsetvlRegionCount ||
+      acceptedPackedI4Gate4PolicyInput->providerRuntimeAVLSource !=
+          packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .runtimeAVLSource ||
       acceptedPackedI4Gate4PolicyInput->providerScheduleDecision !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .scheduleDecision ||
@@ -13187,8 +13199,9 @@ bool expectRVVTargetArtifactExporterShape(
       acceptedPackedI4Gate4PolicyInput->targetCapabilityLegalityMirror !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .targetCapabilityLegalityMirror) {
-    llvm::errs() << "packed-i4 target artifact Gate 4 policy input did not "
-                    "carry provider primitive, schedule, and target facts\n";
+    llvm::errs() << "packed-i4 target artifact Gate 3 policy input did not "
+                    "carry provider planning, resource, runtime, primitive, "
+                    "schedule, and target facts\n";
     return false;
   }
   auto packedI4Policy =
@@ -13428,6 +13441,26 @@ bool expectRVVTargetArtifactExporterShape(
           "packed-i4 target artifact rejects stale policy input runtime ABI",
           {"provider runtime ABI order", "lhs,rhs,out,n",
            "lhs,rhs,acc,scale,out,n"}))
+    return false;
+
+  auto stalePlanningPackedI4MeasurementRecord =
+      acceptedPackedI4Gate4MeasurementRecord;
+  stalePlanningPackedI4MeasurementRecord.providerResourcePlanningContract =
+      "metadata-derived-resource-planning-contract";
+  auto stalePlanningPackedI4PolicyInput =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
+              selectedDispatchPackedI4Description.lowPrecisionResourceSelection,
+              stalePlanningPackedI4MeasurementRecord,
+              "packed-i4 target artifact Gate 3 policy input rejects stale "
+              "planning contract");
+  if (!expectErrorContains(
+          stalePlanningPackedI4PolicyInput.takeError(),
+          "packed-i4 target artifact rejects stale policy input planning "
+          "contract",
+          {"provider planning contract",
+           "metadata-derived-resource-planning-contract",
+           tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePlanningContract}))
     return false;
 
   auto measuredWinTargetSelection =

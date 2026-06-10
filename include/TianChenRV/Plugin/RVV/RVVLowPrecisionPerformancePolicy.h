@@ -63,6 +63,15 @@ struct RVVLowPrecisionSameTargetMeasurementRecord {
   std::string targetProfile;
 
   std::string providerResourceSelectedCandidate;
+  std::string providerResourcePlanningContract;
+  std::string providerResourceOperandForm;
+  std::string providerResourceSourceSignedness;
+  std::int64_t providerResourceStorageElementWidth = 0;
+  std::int64_t providerResourceEffectiveElementWidth = 0;
+  std::string providerResourcePackingLayout;
+  std::string providerResourceUnpackIntent;
+  std::int64_t providerResourceVSetVLRegionCount = 0;
+  std::string providerRuntimeAVLSource;
   std::string providerResourceRouteFamilyPlan;
   std::string providerSupportedMirror;
   std::string providerRuntimeABIOrder;
@@ -116,6 +125,15 @@ struct RVVLowPrecisionSameTargetMeasurementPolicyInput {
   std::string targetProfile;
 
   std::string providerResourceSelectedCandidate;
+  std::string providerResourcePlanningContract;
+  std::string providerResourceOperandForm;
+  std::string providerResourceSourceSignedness;
+  std::int64_t providerResourceStorageElementWidth = 0;
+  std::int64_t providerResourceEffectiveElementWidth = 0;
+  std::string providerResourcePackingLayout;
+  std::string providerResourceUnpackIntent;
+  std::int64_t providerResourceVSetVLRegionCount = 0;
+  std::string providerRuntimeAVLSource;
   std::string providerResourceRouteFamilyPlan;
   std::string providerSupportedMirror;
   std::string providerRuntimeABIOrder;

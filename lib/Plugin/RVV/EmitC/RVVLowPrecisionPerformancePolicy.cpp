@@ -195,6 +195,10 @@ llvm::Error verifyPackedI4SelectionFacts(
           kRVVLowPrecisionResourceDequantPackedI4SelectionReason))
     return error;
   if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 planning contract", selection.planningContract,
+          kRVVLowPrecisionResourcePlanningContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
           context, "packed-i4 operand form", selection.operandForm,
           kRVVLowPrecisionResourceOperandFormPackedI4Nibbles))
     return error;
@@ -231,6 +235,11 @@ llvm::Error verifyPackedI4SelectionFacts(
           kRVVLowPrecisionResourcePackedI4RealizationDecision))
     return error;
   if (llvm::Error error = requirePolicyInt(
+          context, "packed-i4 vsetvl region count",
+          selection.vsetvlRegionCount,
+          kRVVLowPrecisionResourcePackedI4VSetVLRegions))
+    return error;
+  if (llvm::Error error = requirePolicyInt(
           context, "packed-i4 realized vsetvl region count",
           selection.realizedVSetVLRegionCount,
           kRVVLowPrecisionResourcePackedI4VSetVLRegions))
@@ -239,6 +248,10 @@ llvm::Error verifyPackedI4SelectionFacts(
           context, "packed-i4 realized peak live vector groups",
           selection.realizedPeakLiveVectorGroups,
           kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 runtime AVL source", selection.runtimeAVLSource,
+          kRVVGearboxRuntimeAVLSourceN))
     return error;
   if (llvm::Error error = requirePolicyString(
           context, "primitive chain contract",
@@ -345,6 +358,45 @@ llvm::Error verifyPackedI4SameTargetMeasurementPolicyInput(
   if (llvm::Error error = requireSameTargetPolicyInputTieBack(
           context, "provider selected candidate",
           input.providerResourceSelectedCandidate, selection.selectedCandidateID))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider planning contract",
+          input.providerResourcePlanningContract, selection.planningContract))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider operand form", input.providerResourceOperandForm,
+          selection.operandForm))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider source signedness",
+          input.providerResourceSourceSignedness, selection.sourceSignedness))
+    return error;
+  if (llvm::Error error = requirePolicyInt(
+          context, "provider storage element width",
+          input.providerResourceStorageElementWidth,
+          selection.storageElementWidth))
+    return error;
+  if (llvm::Error error = requirePolicyInt(
+          context, "provider effective element width",
+          input.providerResourceEffectiveElementWidth,
+          selection.effectiveElementWidth))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider packing layout",
+          input.providerResourcePackingLayout, selection.packingLayout))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider unpack intent", input.providerResourceUnpackIntent,
+          selection.unpackIntent))
+    return error;
+  if (llvm::Error error = requirePolicyInt(
+          context, "provider vsetvl region count",
+          input.providerResourceVSetVLRegionCount,
+          selection.vsetvlRegionCount))
+    return error;
+  if (llvm::Error error = requireSameTargetPolicyInputTieBack(
+          context, "provider runtime AVL source",
+          input.providerRuntimeAVLSource, selection.runtimeAVLSource))
     return error;
   if (llvm::Error error = requireSameTargetPolicyInputTieBack(
           context, "provider route-family plan",
@@ -522,6 +574,21 @@ materializeRVVLowPrecisionPolicyInputFromMeasurementRecord(
   input.targetProfile = record.targetProfile;
   input.providerResourceSelectedCandidate =
       record.providerResourceSelectedCandidate;
+  input.providerResourcePlanningContract =
+      record.providerResourcePlanningContract;
+  input.providerResourceOperandForm = record.providerResourceOperandForm;
+  input.providerResourceSourceSignedness =
+      record.providerResourceSourceSignedness;
+  input.providerResourceStorageElementWidth =
+      record.providerResourceStorageElementWidth;
+  input.providerResourceEffectiveElementWidth =
+      record.providerResourceEffectiveElementWidth;
+  input.providerResourcePackingLayout =
+      record.providerResourcePackingLayout;
+  input.providerResourceUnpackIntent = record.providerResourceUnpackIntent;
+  input.providerResourceVSetVLRegionCount =
+      record.providerResourceVSetVLRegionCount;
+  input.providerRuntimeAVLSource = record.providerRuntimeAVLSource;
   input.providerResourceRouteFamilyPlan =
       record.providerResourceRouteFamilyPlan;
   input.providerSupportedMirror = record.providerSupportedMirror;
@@ -968,6 +1035,16 @@ buildRVVPackedI4Gate4SameTargetMeasurementRecord(
   record.sshEvidence = true;
   record.targetProfile = kPackedI4Gate4TargetProfile.str();
   record.providerResourceSelectedCandidate = selection.selectedCandidateID;
+  record.providerResourcePlanningContract = selection.planningContract;
+  record.providerResourceOperandForm = selection.operandForm;
+  record.providerResourceSourceSignedness = selection.sourceSignedness;
+  record.providerResourceStorageElementWidth = selection.storageElementWidth;
+  record.providerResourceEffectiveElementWidth =
+      selection.effectiveElementWidth;
+  record.providerResourcePackingLayout = selection.packingLayout;
+  record.providerResourceUnpackIntent = selection.unpackIntent;
+  record.providerResourceVSetVLRegionCount = selection.vsetvlRegionCount;
+  record.providerRuntimeAVLSource = selection.runtimeAVLSource;
   record.providerResourceRouteFamilyPlan = selection.routeFamilyPlanID;
   record.providerSupportedMirror = selection.providerSupportedMirror;
   record.providerRuntimeABIOrder = selection.runtimeABIOrder;
@@ -1074,6 +1151,24 @@ buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
   TCRV_READ_RECORD_STRING(targetProfile, "target_profile");
   TCRV_READ_RECORD_STRING(providerResourceSelectedCandidate,
                           "provider_resource_selected_candidate");
+  TCRV_READ_RECORD_STRING(providerResourcePlanningContract,
+                          "provider_resource_planning_contract");
+  TCRV_READ_RECORD_STRING(providerResourceOperandForm,
+                          "provider_resource_operand_form");
+  TCRV_READ_RECORD_STRING(providerResourceSourceSignedness,
+                          "provider_resource_source_signedness");
+  TCRV_READ_RECORD_INT(providerResourceStorageElementWidth,
+                       "provider_resource_storage_element_width");
+  TCRV_READ_RECORD_INT(providerResourceEffectiveElementWidth,
+                       "provider_resource_effective_element_width");
+  TCRV_READ_RECORD_STRING(providerResourcePackingLayout,
+                          "provider_resource_packing_layout");
+  TCRV_READ_RECORD_STRING(providerResourceUnpackIntent,
+                          "provider_resource_unpack_intent");
+  TCRV_READ_RECORD_INT(providerResourceVSetVLRegionCount,
+                       "provider_resource_vsetvl_region_count");
+  TCRV_READ_RECORD_STRING(providerRuntimeAVLSource,
+                          "provider_runtime_avl_source");
   TCRV_READ_RECORD_STRING(providerResourceRouteFamilyPlan,
                           "provider_resource_route_family_plan");
   TCRV_READ_RECORD_STRING(providerSupportedMirror, "provider_supported_mirror");
@@ -1161,6 +1256,15 @@ buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
   input.targetProfile = outcome.targetProfile;
 
   input.providerResourceSelectedCandidate = selection.selectedCandidateID;
+  input.providerResourcePlanningContract = selection.planningContract;
+  input.providerResourceOperandForm = selection.operandForm;
+  input.providerResourceSourceSignedness = selection.sourceSignedness;
+  input.providerResourceStorageElementWidth = selection.storageElementWidth;
+  input.providerResourceEffectiveElementWidth = selection.effectiveElementWidth;
+  input.providerResourcePackingLayout = selection.packingLayout;
+  input.providerResourceUnpackIntent = selection.unpackIntent;
+  input.providerResourceVSetVLRegionCount = selection.vsetvlRegionCount;
+  input.providerRuntimeAVLSource = selection.runtimeAVLSource;
   input.providerResourceRouteFamilyPlan = selection.routeFamilyPlanID;
   input.providerSupportedMirror = selection.providerSupportedMirror;
   input.providerRuntimeABIOrder = selection.runtimeABIOrder;

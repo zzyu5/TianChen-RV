@@ -6618,9 +6618,15 @@ names, including `measurement_evidence_id`,
 `measurement_classification`, `measurement_best_speedup_range`,
 `measurement_summary_record_count`, `measurement_record_count`,
 `correctness_record_count`, `same_target_measurement`, `ssh_evidence`,
-`target_profile`, `provider_runtime_abi_order`,
-`provider_primitive_chain_kind`, `provider_schedule_decision`, and the other
-provider/resource/remediation/target tie-backs. It must not include
+`target_profile`, `provider_resource_planning_contract`,
+`provider_resource_operand_form`, `provider_resource_source_signedness`,
+`provider_resource_storage_element_width`,
+`provider_resource_effective_element_width`,
+`provider_resource_packing_layout`, `provider_resource_unpack_intent`,
+`provider_resource_vsetvl_region_count`, `provider_runtime_avl_source`,
+`provider_runtime_abi_order`, `provider_primitive_chain_kind`,
+`provider_schedule_decision`, and the other provider/resource/remediation/target
+tie-backs. It must not include
 reporting-only fields such as `contract_alignment` or remediation-plan detail
 fields that are not part of `RVVLowPrecisionSameTargetMeasurementRecord`.
 
@@ -6630,6 +6636,13 @@ fields that are not part of `RVVLowPrecisionSameTargetMeasurementRecord`.
   classification and the current evidence path.
 - `provider_*` fields must be copied from provider-owned route/resource facts or
   generated object/header metadata mirrors after target artifact validation.
+- Gate 3 measurement records must tie the parsed measurement back to the Gate
+  1/2 resource boundary by carrying the exact planning contract,
+  packed-resource operand form, signedness, storage/effective element widths,
+  packing layout, unpack intent, vsetvl region count, runtime AVL source, and
+  runtime ABI order from validated provider/resource facts. These fields are
+  evidence tie-backs only; they do not make artifact metadata, fixture names, or
+  raw stdout route authority.
 - `same_target_measurement_record` is an exact record-shaped subset of the
   validated evidence input. It feeds the C++ record boundary before policy input
   is built; it must not carry reporting-only alignment fields as policy facts.
@@ -6661,9 +6674,12 @@ fields that are not part of `RVVLowPrecisionSameTargetMeasurementRecord`.
   validated metadata -> fail the provider feedback tie-back before accepting
   the measurement summary.
 - Record target profile differs from `ssh rvv`, `ssh_evidence` is false for a
-  measured record, runtime ABI order differs from provider facts, primitive
-  chain tie-back differs, or schedule-decision tie-back differs -> C++ policy
-  input construction fails before dispatch/performance policy consumption.
+  measured record, planning contract differs from the selected resource plan,
+  packed resource form/signedness/width/layout/unpack facts differ from provider
+  facts, runtime AVL source or runtime ABI order differs from provider facts,
+  primitive chain tie-back differs, or schedule-decision tie-back differs -> C++
+  policy input construction fails before dispatch/performance policy
+  consumption.
 - Measurement classification is `regression`, `no-win`, or `not-measured` while
   `performance_win_claim_allowed = true` -> invalid evidence boundary.
 - Provider selection eligibility is `"false"` but reporting claims dispatch or
@@ -6702,11 +6718,13 @@ fields that are not part of `RVVLowPrecisionSameTargetMeasurementRecord`.
   C++ record-shaped field subset and does not leak reporting-only fields.
 - C++ provider/policy tests must assert evidence-object parsing into
   `RVVLowPrecisionSameTargetMeasurementRecord`, policy-input construction from
-  that object, and fail-closed missing measurement id, stale target, stale
-  runtime ABI, and stale primitive-chain cases.
+  that object, and fail-closed missing measurement id, missing/stale planning
+  contract, stale packed resource form, stale target, stale runtime AVL/ABI, and
+  stale primitive-chain cases.
 - Dry-run FileCheck coverage must assert the evidence-input object, provider
-  maturity mirrors, `same_target_measurement_record`, claim allowance, denial
-  reason, route-support effect, and correctness execution allowance.
+  maturity mirrors, `same_target_measurement_record`, planning/resource/runtime
+  tie-backs, claim allowance, denial reason, route-support effect, and
+  correctness execution allowance.
 - Same-target real-run evidence is required only when claiming runtime,
   correctness, or performance results beyond the dry-run/reporting bridge.
 

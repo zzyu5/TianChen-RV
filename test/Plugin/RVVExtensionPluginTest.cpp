@@ -135,6 +135,24 @@ llvm::json::Object makeSameTargetMeasurementRecordEvidenceInput(
   evidenceInput["target_profile"] = record.targetProfile;
   evidenceInput["provider_resource_selected_candidate"] =
       record.providerResourceSelectedCandidate;
+  evidenceInput["provider_resource_planning_contract"] =
+      record.providerResourcePlanningContract;
+  evidenceInput["provider_resource_operand_form"] =
+      record.providerResourceOperandForm;
+  evidenceInput["provider_resource_source_signedness"] =
+      record.providerResourceSourceSignedness;
+  evidenceInput["provider_resource_storage_element_width"] =
+      record.providerResourceStorageElementWidth;
+  evidenceInput["provider_resource_effective_element_width"] =
+      record.providerResourceEffectiveElementWidth;
+  evidenceInput["provider_resource_packing_layout"] =
+      record.providerResourcePackingLayout;
+  evidenceInput["provider_resource_unpack_intent"] =
+      record.providerResourceUnpackIntent;
+  evidenceInput["provider_resource_vsetvl_region_count"] =
+      record.providerResourceVSetVLRegionCount;
+  evidenceInput["provider_runtime_avl_source"] =
+      record.providerRuntimeAVLSource;
   evidenceInput["provider_resource_route_family_plan"] =
       record.providerResourceRouteFamilyPlan;
   evidenceInput["provider_supported_mirror"] = record.providerSupportedMirror;
@@ -10087,14 +10105,23 @@ module {
   if (int result = expect(
           parsedPackedI4Gate2Record->measurementEvidenceID ==
                   acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
+              parsedPackedI4Gate2Record->providerResourcePlanningContract ==
+                  packedI4ResourceSelection.planningContract &&
+              parsedPackedI4Gate2Record->providerResourceOperandForm ==
+                  packedI4ResourceSelection.operandForm &&
+              parsedPackedI4Gate2Record->providerResourceVSetVLRegionCount ==
+                  packedI4ResourceSelection.vsetvlRegionCount &&
+              parsedPackedI4Gate2Record->providerRuntimeAVLSource ==
+                  packedI4ResourceSelection.runtimeAVLSource &&
               parsedPackedI4Gate2Record->providerRuntimeABIOrder ==
                   packedI4ResourceSelection.runtimeABIOrder &&
               parsedPackedI4Gate2Record->providerPrimitiveChainKind ==
                   packedI4ResourceSelection.primitiveChainKind &&
               parsedPackedI4Gate2Record->providerScheduleDecision ==
                   packedI4ResourceSelection.scheduleDecision,
-          "packed-i4 Gate 2 generated artifact record JSON preserves "
-          "measurement identity, ABI, primitive, and schedule tie-backs"))
+          "packed-i4 Gate 3 generated artifact record JSON preserves "
+          "measurement identity, planning, resource, runtime, primitive, and "
+          "schedule tie-backs"))
     return result;
   auto parsedPackedI4Gate2PolicyInput =
       tianchenrv::plugin::rvv::
@@ -10106,14 +10133,19 @@ module {
     return fail("packed-i4 Gate 2 generated artifact policy input: " +
                 llvm::toString(parsedPackedI4Gate2PolicyInput.takeError()));
   if (int result = expect(
-          parsedPackedI4Gate2PolicyInput->measurementEvidenceID ==
+              parsedPackedI4Gate2PolicyInput->measurementEvidenceID ==
                   acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID &&
+              parsedPackedI4Gate2PolicyInput
+                      ->providerResourcePlanningContract ==
+                  packedI4ResourceSelection.planningContract &&
+              parsedPackedI4Gate2PolicyInput->providerRuntimeAVLSource ==
+                  packedI4ResourceSelection.runtimeAVLSource &&
               parsedPackedI4Gate2PolicyInput->providerResourceSelectedCandidate ==
                   packedI4ResourceSelection.selectedCandidateID &&
               parsedPackedI4Gate2PolicyInput->targetCapabilityLegalityMirror ==
                   packedI4ResourceSelection.targetCapabilityLegalityMirror,
-          "packed-i4 Gate 2 generated artifact evidence object feeds the Gate "
-          "1 policy-input boundary"))
+          "packed-i4 Gate 3 generated artifact evidence object feeds the "
+          "policy-input boundary with planning/runtime provenance"))
     return result;
 
   llvm::json::Object missingMeasurementIDGate2Evidence =
@@ -10129,6 +10161,22 @@ module {
                   .takeError(),
           {"same-target measurement record string field",
            "measurement_evidence_id"}))
+    return result;
+
+  llvm::json::Object missingPlanningContractGate3Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  missingPlanningContractGate3Evidence.erase(
+      "provider_resource_planning_contract");
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceInput(
+                  missingPlanningContractGate3Evidence,
+                  "selected-boundary packed-i4 Gate 3 missing planning "
+                  "contract")
+                  .takeError(),
+          {"same-target measurement record string field",
+           "provider_resource_planning_contract"}))
     return result;
 
   llvm::json::Object staleTargetGate2Evidence =
@@ -10156,6 +10204,23 @@ module {
                   .takeError(),
           {"provider runtime ABI order", "lhs,rhs,out,n",
            "lhs,rhs,acc,scale,out,n"}))
+    return result;
+
+  llvm::json::Object stalePlanningGate3Evidence =
+      makeSameTargetMeasurementRecordEvidenceInput(
+          acceptedPackedI4Gate4MeasurementRecord);
+  stalePlanningGate3Evidence["provider_resource_planning_contract"] =
+      "metadata-derived-resource-planning-contract";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::
+              buildRVVLowPrecisionSameTargetMeasurementPolicyInputFromEvidenceInput(
+                  packedI4ResourceSelection, stalePlanningGate3Evidence,
+                  "selected-boundary packed-i4 Gate 3 stale planning "
+                  "contract")
+                  .takeError(),
+          {"provider planning contract",
+           "metadata-derived-resource-planning-contract",
+           tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePlanningContract}))
     return result;
 
   llvm::json::Object stalePrimitiveGate2Evidence =
@@ -10319,7 +10384,20 @@ module {
   tianchenrv::plugin::rvv::RVVLowPrecisionSameTargetMeasurementPolicyInput
       acceptedPackedI4PolicyInput = *acceptedPackedI4PolicyInputOr;
   if (int result = expect(
-          acceptedPackedI4PolicyInput.providerScheduleDecisionContract ==
+          acceptedPackedI4PolicyInput.providerResourcePlanningContract ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePlanningContract.str() &&
+              acceptedPackedI4PolicyInput.providerResourceOperandForm ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourceOperandFormPackedI4Nibbles
+                          .str() &&
+              acceptedPackedI4PolicyInput.providerResourceVSetVLRegionCount ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4VSetVLRegions &&
+              acceptedPackedI4PolicyInput.providerRuntimeAVLSource ==
+                  tianchenrv::plugin::rvv::kRVVGearboxRuntimeAVLSourceN
+                      .str() &&
+              acceptedPackedI4PolicyInput.providerScheduleDecisionContract ==
                   tianchenrv::plugin::rvv::
                       kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract
                           .str() &&
@@ -10330,8 +10408,8 @@ module {
                   tianchenrv::plugin::rvv::
                       kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason
                           .str(),
-          "packed-i4 Gate 4 policy input carries the provider-owned Gate 2b "
-          "schedule decision facts"))
+          "packed-i4 Gate 3 policy input carries provider-owned planning, "
+          "resource, runtime, and schedule decision facts"))
     return result;
   auto packedI4SelectedDispatchInputPolicy =
       tianchenrv::plugin::rvv::
@@ -10609,6 +10687,35 @@ module {
           {"policy handoff diagnosis", "stale-measurement",
            "provider runtime ABI order", "lhs,rhs,out,n",
            "lhs,rhs,acc,scale,out,n"}))
+    return result;
+
+  auto stalePlanningPackedI4Record =
+      acceptedPackedI4Gate4MeasurementRecord;
+  stalePlanningPackedI4Record.providerResourcePlanningContract =
+      "metadata-derived-resource-planning-contract";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection, stalePlanningPackedI4Record,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 3 record rejects stale "
+              "planning contract"),
+          {"policy handoff diagnosis", "stale-measurement",
+           "provider planning contract",
+           "metadata-derived-resource-planning-contract",
+           tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePlanningContract}))
+    return result;
+
+  auto staleVSetVLPackedI4Record =
+      acceptedPackedI4Gate4MeasurementRecord;
+  staleVSetVLPackedI4Record.providerResourceVSetVLRegionCount = 3;
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection, staleVSetVLPackedI4Record,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 3 record rejects stale "
+              "vsetvl region count"),
+          {"policy handoff diagnosis", "stale-measurement",
+           "provider vsetvl region count", "2", "3"}))
     return result;
 
   auto stalePrimitivePackedI4Record = acceptedPackedI4Gate4MeasurementRecord;

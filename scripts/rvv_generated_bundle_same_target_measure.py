@@ -77,6 +77,15 @@ PACKED_I4_SAME_TARGET_MEASUREMENT_RECORD_FIELDS = (
     "ssh_evidence",
     "target_profile",
     "provider_resource_selected_candidate",
+    "provider_resource_planning_contract",
+    "provider_resource_operand_form",
+    "provider_resource_source_signedness",
+    "provider_resource_storage_element_width",
+    "provider_resource_effective_element_width",
+    "provider_resource_packing_layout",
+    "provider_resource_unpack_intent",
+    "provider_resource_vsetvl_region_count",
+    "provider_runtime_avl_source",
     "provider_resource_route_family_plan",
     "provider_supported_mirror",
     "provider_runtime_abi_order",
@@ -1475,6 +1484,20 @@ def maturity_contract_alignment(
     return "measurement-outcome-requires-provider-maturity-review"
 
 
+def packed_i4_resource_int(fields: dict[str, str], name: str) -> int:
+    try:
+        return int(fields[name])
+    except KeyError as exc:
+        raise abi.EvidenceError(
+            f"packed-i4 provider feedback tie-back missing {name}"
+        ) from exc
+    except ValueError as exc:
+        raise abi.EvidenceError(
+            f"packed-i4 provider feedback tie-back requires integer {name}: "
+            f"{fields.get(name)!r}"
+        ) from exc
+
+
 def packed_i4_maturity_contract_evidence_input(
     *,
     fields: dict[str, str],
@@ -1523,6 +1546,21 @@ def packed_i4_maturity_contract_evidence_input(
         "provider_maturity_evidence": fields["performance_maturity_evidence"],
         "provider_maturity_outcome": fields["performance_maturity_outcome"],
         "provider_resource_selected_candidate": fields["selected_candidate"],
+        "provider_resource_planning_contract": fields["planning_contract"],
+        "provider_resource_operand_form": fields["operand_form"],
+        "provider_resource_source_signedness": fields["source_signedness"],
+        "provider_resource_storage_element_width": packed_i4_resource_int(
+            fields, "storage_element_width"
+        ),
+        "provider_resource_effective_element_width": packed_i4_resource_int(
+            fields, "effective_element_width"
+        ),
+        "provider_resource_packing_layout": fields["packing_layout"],
+        "provider_resource_unpack_intent": fields["unpack_intent"],
+        "provider_resource_vsetvl_region_count": packed_i4_resource_int(
+            fields, "vsetvl_region_count"
+        ),
+        "provider_runtime_avl_source": fields["runtime_avl_source"],
         "provider_resource_route_family_plan": fields["route_family_plan"],
         "provider_supported_mirror": fields["provider_supported_mirror"],
         "provider_runtime_abi_order": fields["runtime_abi_order"],
@@ -1672,6 +1710,21 @@ def validate_packed_i4_maturity_contract_evidence_input(
         "provider_maturity_evidence": fields["performance_maturity_evidence"],
         "provider_maturity_outcome": fields["performance_maturity_outcome"],
         "provider_resource_selected_candidate": fields["selected_candidate"],
+        "provider_resource_planning_contract": fields["planning_contract"],
+        "provider_resource_operand_form": fields["operand_form"],
+        "provider_resource_source_signedness": fields["source_signedness"],
+        "provider_resource_storage_element_width": packed_i4_resource_int(
+            fields, "storage_element_width"
+        ),
+        "provider_resource_effective_element_width": packed_i4_resource_int(
+            fields, "effective_element_width"
+        ),
+        "provider_resource_packing_layout": fields["packing_layout"],
+        "provider_resource_unpack_intent": fields["unpack_intent"],
+        "provider_resource_vsetvl_region_count": packed_i4_resource_int(
+            fields, "vsetvl_region_count"
+        ),
+        "provider_runtime_avl_source": fields["runtime_avl_source"],
         "provider_resource_route_family_plan": fields["route_family_plan"],
         "provider_supported_mirror": fields["provider_supported_mirror"],
         "provider_runtime_abi_order": fields["runtime_abi_order"],
@@ -1835,9 +1888,15 @@ def packed_i4_provider_feedback_tie_back(
     expected_field_names = (
         "selected_candidate",
         "selection_reason",
+        "planning_contract",
         "route_family_plan",
         "provider_supported_mirror",
+        "runtime_avl_source",
         "runtime_abi_order",
+        "source_signedness",
+        "storage_element_width",
+        "effective_element_width",
+        "vsetvl_region_count",
         "primitive_contract",
         "primitive_kind",
         "primitive_chain_contract",
@@ -2914,6 +2973,51 @@ def run_self_test() -> int:
         ("target_profile", "local-x86", "target_profile"),
         ("provider_maturity_outcome", RESULT_CLASSIFICATION_WIN, "maturity"),
         (
+            "provider_resource_planning_contract",
+            "metadata-derived-resource-planning-contract",
+            "planning_contract",
+        ),
+        (
+            "provider_resource_operand_form",
+            "metadata-only-packed-form",
+            "operand_form",
+        ),
+        (
+            "provider_resource_source_signedness",
+            "unsigned",
+            "source_signedness",
+        ),
+        (
+            "provider_resource_storage_element_width",
+            16,
+            "storage_element_width",
+        ),
+        (
+            "provider_resource_effective_element_width",
+            8,
+            "effective_element_width",
+        ),
+        (
+            "provider_resource_packing_layout",
+            "metadata-only-packed-layout",
+            "packing_layout",
+        ),
+        (
+            "provider_resource_unpack_intent",
+            "metadata-only-unpack-intent",
+            "unpack_intent",
+        ),
+        (
+            "provider_resource_vsetvl_region_count",
+            3,
+            "vsetvl_region_count",
+        ),
+        (
+            "provider_runtime_avl_source",
+            "metadata-derived-avl",
+            "runtime_avl_source",
+        ),
+        (
             "provider_resource_route_family_plan",
             "stale-route-family-plan.v1",
             "route_family_plan",
@@ -3048,6 +3152,51 @@ def run_self_test() -> int:
         )
 
     for metadata_key, stale_value, expected_token in [
+        (
+            "tcrv_rvv.low_precision_resource.planning_contract",
+            "metadata-derived-resource-planning-contract",
+            "planning_contract",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.operand_form",
+            "metadata-only-packed-form",
+            "operand_form",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.source_signedness",
+            "unsigned",
+            "source_signedness",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.storage_element_width",
+            "16",
+            "storage_element_width",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.effective_element_width",
+            "8",
+            "effective_element_width",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.packing_layout",
+            "metadata-only-packed-layout",
+            "packing_layout",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.unpack_intent",
+            "metadata-only-unpack-intent",
+            "unpack_intent",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.vsetvl_region_count",
+            "3",
+            "vsetvl_region_count",
+        ),
+        (
+            "tcrv_rvv.low_precision_resource.runtime_avl_source",
+            "metadata-derived-avl",
+            "runtime_avl_source",
+        ),
         (
             "tcrv_rvv.low_precision_resource.route_family_plan",
             "stale-route-family-plan.v1",

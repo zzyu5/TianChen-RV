@@ -1676,3 +1676,86 @@ structural planning-contract evidence. Gate 3 generated artifact/same-target
 measurement evidence and Gate 4 selected-dispatch/performance policy remain
 open. The next continuation point is Gate 3, not another Gate 2 representative
 unless human steering reopens Gate 2.
+
+## 2026-06-10 - Stage2 RVV Gearbox Gate 3 same-target measurement record boundary
+
+### Summary
+
+Continued the active production-kernel Gearbox/resource-aware selected-body
+realization macro task at Gate 3. This sub-slice makes the packed-i4
+`widening_product_reduce_dequantize_f32` same-target measurement record carry
+and validate the Gate 1/2 planning-contract, resource-form, runtime AVL/VL,
+runtime ABI, correctness, and target-provenance tie-backs before any
+selected-dispatch/performance policy consumption.
+
+### Main Changes
+
+- Extended `RVVLowPrecisionSameTargetMeasurementRecord` and
+  `RVVLowPrecisionSameTargetMeasurementPolicyInput` with provider resource
+  planning contract, packed operand form/signedness/width/layout/unpack facts,
+  vsetvl region count, and runtime AVL source.
+- Made C++ policy-input validation compare those fields with the selected
+  provider-owned `RVVLowPrecisionContractionResourceSelection`.
+- Made `rvv_generated_bundle_same_target_measure.py` derive the same record
+  fields from validated provider/resource metadata and generated object/header
+  mirrors, with stale and missing metadata self-tests.
+- Updated `rvv_generated_bundle_abi_e2e.py` expected low-precision resource
+  metadata so the shared script validator includes the planning contract.
+- Updated dry-run FileCheck and C++ tests for positive record parsing plus
+  stale/missing planning/resource/runtime tie-back diagnostics.
+- Updated `.trellis/spec/extension-plugins/rvv-plugin.md` with the executable
+  Gate 3 record fields and test obligations.
+
+### Evidence
+
+- `cmake --build build --target tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test tcrv-opt tcrv-translate`.
+- `build/bin/tianchenrv-rvv-extension-plugin-test`.
+- `build/bin/tianchenrv-target-artifact-export-test`.
+- `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`.
+- `python3 -m py_compile scripts/rvv_generated_bundle_abi_e2e.py
+  scripts/rvv_generated_bundle_same_target_measure.py`.
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv .
+  --filter rvv-generated-bundle-same-target-measure-gate4-dry-run` from
+  `build/test`.
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv .
+  --filter rvv-generated-bundle-abi-e2e-pre-realized-widening-product-reduce-dequantize-f32-packed-i4-dry-run`
+  from `build/test`.
+- Real `ssh rvv` same-target run:
+  `python3 scripts/rvv_generated_bundle_same_target_measure.py --artifact-root
+  artifacts --run-id gate3-packed-i4-schedule-decision-ssh --overwrite
+  --op-kind widening_product_reduce_dequantize_f32 --input
+  test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir
+  --measure-count 257 --measure-count 4096 --measure-count 65536
+  --warmup-count 1 --repeat-count 1 --measure-iterations 1 --ssh-target rvv
+  --tcrv-opt build/bin/tcrv-opt --tcrv-translate build/bin/tcrv-translate
+  --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj`.
+- The real run produced 12 correctness guards, 12 measurement records, 12
+  summaries, `classification = regression`, best speedup range
+  `0.171543..0.853933`, `performance_selection_eligible = false`, and
+  `performance_win_claim_allowed = false`.
+- `python3 .trellis/scripts/task.py validate
+  .trellis/tasks/06-10-stage2-rvv-production-kernel-gearbox-resource-realization-campaign`.
+- `git diff --check`.
+- Bounded added-diff scan found no new legacy `RVVI32M1`, `rvv-i32m1`,
+  `tcrv_rvv.i32_`, `!tcrv_rvv.i32m`, descriptor, source-front-door,
+  direct-C/source-artifact, q4/q8/llama authority in code or tests. The only
+  hit was the PRD's explicit negative "q4/q8 labels" wording.
+
+### Spec Update Decision
+
+[SPEC UPDATED] The same-target measurement record contract now has executable
+Gate 3 fields for planning-contract, packed resource-form, runtime AVL/VL, ABI,
+correctness, and target-provenance tie-backs before Gate 4 policy consumption.
+
+### Status
+
+[OPEN MACRO TASK] Gate 1 and Gate 2 are complete. This Gate 3 sub-slice is
+complete for the first packed-i4 `widening_product_reduce_dequantize_f32`
+representative, including real `ssh rvv` regression/no-win evidence. Gate 3
+remains open only for any additional resource-aware representative or fuller
+repeat policy that human steering requires before policy consumption. Gate 4
+selected-dispatch/performance policy remains future work. The exact next
+continuation point is either another Gate 3 representative such as
+dequant-clamp measurement record evidence, or Gate 4 policy consumption if this
+first representative is accepted as sufficient.

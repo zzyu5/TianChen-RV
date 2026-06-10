@@ -682,6 +682,9 @@ WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON = (
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE = (
     "typed-low-precision-product-reduction-dequant-resource-legality.v1"
 )
+LOW_PRECISION_RESOURCE_PLANNING_CONTRACT = (
+    "rvv-low-precision-production-resource-planning-contract.v1"
+)
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_DECISION = (
     "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
 )
@@ -9549,6 +9552,7 @@ def expected_low_precision_resource_metadata(
         "candidate_set": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET,
         "selected_candidate": profile["selected_candidate"],
         "selection_reason": profile["selection_reason"],
+        "planning_contract": LOW_PRECISION_RESOURCE_PLANNING_CONTRACT,
         "legality_scope": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE,
         "source_dtype": "i8",
         "source_sew": "8",

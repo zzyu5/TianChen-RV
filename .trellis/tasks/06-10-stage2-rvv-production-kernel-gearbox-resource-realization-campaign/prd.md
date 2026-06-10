@@ -10,15 +10,15 @@ schedule facts, mask/tail policy, runtime AVL/ABI facts, same-target
 measurement-policy prerequisites, provider validation, target validation, and
 later dispatch policy flow through one RVV-owned fail-closed boundary.
 
-Gate 1 is complete. Gate 2 has already connected the representative
-product-reduction dequant path through structural handoff and marker
-planning-contract consumers. The current round closes Gate 2 by proving the
-same generalized selected-body realization path covers the additional
-`widening_product_reduce_dequant_clamp_f32` production representative: the
-RVV-owned planning contract is present in realized marker/handoff structure,
-mirrored from provider facts, and stale or missing marker/handoff contracts fail
-closed before route construction. Gates 3-4 remain future milestones unless
-this PRD is updated by human steering or later evidence.
+Gate 1 and Gate 2 are complete. Gate 2 connected the representative
+product-reduction dequant path and the additional
+`widening_product_reduce_dequant_clamp_f32` production representative through
+structural handoff and marker planning-contract consumers. The current round is
+Gate 3: generated artifact and same-target measurement evidence for the first
+resource-aware production-kernel representative, with the measurement record
+explicitly tied back to RVV-owned planning-contract, resource-selection,
+runtime AVL/VL, ABI, correctness, and target-provenance facts before any Gate 4
+performance-policy consumption.
 
 ## What I Already Know
 
@@ -171,6 +171,48 @@ this PRD is updated by human steering or later evidence.
   dequant and dequant-clamp paths now have structural resource-plan consumer
   coverage.
 
+## Current Slice: Gate 3 Same-Target Artifact Measurement Record Boundary
+
+- [x] Keep the same macro task active and target the first resource-aware
+  production-kernel representative:
+  `widening_product_reduce_dequantize_f32` with the validated packed-i4
+  resource-aware schedule.
+- [x] Make the generated artifact / same-target measurement evidence record
+  explicitly carry and validate the Gate 1/2 planning contract, selected
+  resource operand form, storage/effective element width, packing layout,
+  unpack intent, runtime AVL source, vsetvl region count, runtime ABI order,
+  correctness evidence flags, and target capability/profile provenance.
+- [x] Ensure those record fields are sourced from provider-owned resource facts
+  and validated generated object/header mirrors, not from route ids, artifact
+  names, fixture names, q4/q8 labels, Common EmitC, or raw stdout alone.
+- [x] Add fail-closed coverage for stale or missing planning-contract,
+  resource-form, runtime AVL/VL, ABI, target, measurement, or correctness facts
+  before selected-dispatch/performance policy consumes the record.
+- [x] Preserve Gate 4 as future policy consumption: this slice may feed the
+  existing policy-input boundary, but it must not claim performance preference
+  or rewrite provider maturity facts from measurement output alone.
+
+## Completed Gate 3 Sub-Slice
+
+- Extended `RVVLowPrecisionSameTargetMeasurementRecord` and the corresponding
+  policy input to carry planning-contract, packed resource-form, signedness,
+  storage/effective width, packing layout, unpack intent, vsetvl region count,
+  runtime AVL source, runtime ABI order, correctness, and target-provenance
+  tie-backs.
+- Made C++ policy-input validation compare those record fields against the
+  selected provider-owned `RVVLowPrecisionContractionResourceSelection` before
+  selected-dispatch/performance policy consumption.
+- Made the same-target measurement script build those fields from validated
+  provider/resource metadata and generated object/header mirrors, with
+  fail-closed self-tests for stale or missing planning/resource/runtime facts.
+- Added focused C++ and dry-run FileCheck coverage for the packed-i4
+  `widening_product_reduce_dequantize_f32` representative.
+- Collected real `ssh rvv` same-target evidence for
+  `artifacts/gate3-packed-i4-schedule-decision-ssh`:
+  correctness guards passed for 12 cases over counts 257, 4096, and 65536;
+  parsed timing produced 12 summaries; classification was `regression`;
+  performance selection stayed false and performance-win claims stayed denied.
+
 ## Acceptance Criteria For Gate 1
 
 - [x] A production C++ contract or contract field names the low-precision
@@ -252,8 +294,11 @@ this PRD is updated by human steering or later evidence.
   additional dequant-clamp representative is covered by focused structural
   evidence using the same generalized production path.
 - Gate 3 remains: generated artifact and same-target measurement evidence for
-  the realized resource-aware path when executable correctness or performance is
-  claimed.
+  any remaining resource-aware representative that human steering requires
+  before policy consumption. The first packed-i4
+  `widening_product_reduce_dequantize_f32` representative now has source-backed
+  artifact/measurement-record binding and one real `ssh rvv` regression
+  measurement.
 - Gate 4 remains: selected-dispatch/performance policy consumes resource and
   measurement facts with correctness fallback and fail-closed provenance.
 
