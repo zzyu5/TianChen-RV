@@ -9,11 +9,15 @@ facts, selected-body realization facts, route/provider legality, target
 validation, and later same-target policy consumption flow through production
 RVV-owned compiler surfaces.
 
-The current round implements Gate 1 only. It must add or harden production
-compiler behavior for typed low-precision contraction primitive facts and
-fail-closed diagnostics before stale metadata, q8/q4 names, packed-i4 labels,
-descriptor residue, generated C strings, route ids, or artifact names can stand
-in for typed body/config facts.
+The current round implements Gate 2 only. It must harden RVV plugin-local
+selected-body realization so a representative low-precision
+product-reduction/dequant path consumes the Gate 1 primitive facts before route
+construction. The realization boundary must preserve compute semantics, dtype
+semantics, ABI roles, runtime AVL/VL, variant origin, dispatch, and fallback
+behavior while rejecting missing or stale primitive/resource facts before Common
+EmitC, target artifact metadata, q8/q4 labels, packed-i4 labels, descriptor
+residue, generated C strings, route ids, or artifact names can stand in for
+typed body/config/provider facts.
 
 ## What I Already Know
 
@@ -52,30 +56,32 @@ in for typed body/config facts.
   human steering redirects it.
 - Complete one coherent milestone slice per worker round, commit it, and leave
   this task active while remaining gates are incomplete.
-- Gate 1 must change or harden production compiler/validation code. PRD-only,
+- Gate 2 must change or harden production compiler/validation code. PRD-only,
   journal-only, generated-bundle dry-run-only, broad smoke-only, or evidence
   packaging-only work does not satisfy the slice.
 - Primitive authority must come from typed `tcrv_rvv` body/config/provider
   facts. It must not come from q8/q4 labels, llama.cpp names, packed-i4
   artifact labels, descriptor residue, generated C strings, route ids,
   artifact names, Common EmitC, status fields, or metadata mirrors.
-- The Gate 1 surface must expose and validate the smallest coherent production
-  subset of low-precision contraction facts that source inspection proves is
-  missing or weak. Acceptable minimum scope is i8/u8 operand element facts plus
-  widening product/accumulator facts and provider/target fail-closed
-  diagnostics.
+- The Gate 2 surface must prove that selected-body realization consumes the
+  smallest coherent production subset of low-precision contraction facts that
+  source inspection proves is missing or weak. Acceptable minimum scope is the
+  signed i8 product-reduction/dequant path with source/product/accumulator/
+  reduction/final element facts, SEW/LMUL, signedness, primitive chain facts,
+  selected resource decision, runtime AVL/VL, and provider-visible realization
+  schedule facts.
 - Common EmitC must remain neutral. It may consume provider-built route payloads
   that already exist, but it must not invent RVV dtype, SEW/LMUL, widening, or
   contraction semantics.
-- Focused tests must prove both the positive typed-body/config fact path and at
-  least one stale metadata/name/artifact-label/generated-string authority path
-  failing closed before route or artifact acceptance.
+- Focused tests must prove both the positive selected-body realization path and
+  stale or missing primitive/resource facts failing closed before route or
+  artifact acceptance.
 
 ## Macro Campaign Gates
 
 - [x] Gate 1: typed low-precision contraction primitive facts and fail-closed
   provider/validation surface exist in production code.
-- [ ] Gate 2: RVV plugin-local selected-body realization consumes those facts
+- [x] Gate 2: RVV plugin-local selected-body realization consumes those facts
   for a representative low-precision contraction/dequant path without changing
   compute semantics.
 - [ ] Gate 3: route/provider/artifact export carries those facts into generated
@@ -84,24 +90,26 @@ in for typed body/config facts.
   fail-closed, preserving correctness fallback and denying stale/no-win
   performance claims.
 
-## Current Slice: Gate 1
+## Current Slice: Gate 2
 
-- [x] Inspect the existing RVV dialect/plugin/provider/target-validation
-  low-precision contraction surfaces and identify the first production consumer
-  or diagnostic gap.
-- [x] Add or harden production typed low-precision contraction primitive facts:
-  operand element type/config facts, source signedness where relevant,
-  widening product facts, and accumulator/result facts.
-- [x] Make RVV-owned provider or target validation fail closed when stale
-  metadata, q8/q4 labels, packed-i4 artifact labels, descriptor residue, route
-  ids, artifact names, or generated strings try to stand in for typed
-  body/config facts.
-- [x] Add focused positive and negative tests for the changed production
-  surface.
-- [x] Run focused C++ tests, any directly touched lit tests, whitespace checks,
-  bounded old-authority scans, and Trellis validation.
-- [ ] Commit the Gate 1 slice and keep `.trellis/.current-task` active because
-  Gates 2-4 remain incomplete.
+- [x] Inspect the RVV contraction selected-body realization owner and
+  provider-facing low-precision resource selection path for the representative
+  product-reduction/dequant body.
+- [x] Harden selected-body realization so the selected resource candidate's
+  primitive chain fields are checked directly against provider-owned
+  `RVVLowPrecisionWideningReductionPrimitiveFacts` before realized `with_vl`,
+  region-marker, handoff, or provider-visible resource facts are accepted.
+- [x] Preserve the existing positive realization path: pre-realized
+  product-reduction/dequant selected bodies become realized typed
+  setvl/with_vl/load/widening_product/standalone_reduce/handoff/dequant/store
+  structure with provider-visible resource and primitive facts.
+- [x] Add focused negative C++ coverage for missing or stale primitive/resource
+  facts failing closed at selected-body realization before route or artifact
+  authority.
+- [x] Run focused C++ tests, directly touched tests, whitespace checks, bounded
+  old-authority scans, and Trellis validation.
+- [x] Commit the Gate 2 slice and keep `.trellis/.current-task` active because
+  Gates 3-4 remain incomplete.
 
 ## Completed Slice: Gate 1
 
@@ -116,11 +124,30 @@ in for typed body/config facts.
   checks. No `ssh rvv` evidence was claimed or required because this slice does
   not make a new runtime/correctness/performance claim.
 
+## Completed Slice: Gate 2
+
+- Hardened `RVVContractionSelectedBodyRealizationOwner` so the selected
+  low-precision product-reduction/dequant resource candidate's primitive
+  contract, primitive kind, chain contract/kind, product/reduction relations,
+  widening/reduction/seed intrinsics, accumulator/result layout, and reduction
+  store-VL must match provider-owned
+  `RVVLowPrecisionWideningReductionPrimitiveFacts` before realization accepts
+  the candidate.
+- Preserved the positive realization path where the representative
+  pre-realized product-reduction/dequant body materializes into typed
+  setvl/with_vl/load/widening_product/standalone_reduce/handoff/dequant/store
+  structure carrying provider-visible resource and primitive facts.
+- Added focused RVV plugin C++ coverage proving missing primitive resource
+  facts and stale primitive reduction intrinsic facts fail closed at selected
+  body realization, before provider route construction or target artifact
+  acceptance.
+- Verified the slice with focused plugin/target C++ tests, Trellis validation,
+  whitespace checks, and a bounded old-authority scan. No `ssh rvv` evidence was
+  claimed or required because this slice does not make a new runtime,
+  correctness, or performance claim.
+
 ## Remaining Macro Gates
 
-- Gate 2: RVV plugin-local selected-body realization must consume these facts
-  for a representative low-precision contraction/dequant path without changing
-  compute semantics.
 - Gate 3: route/provider/artifact export must carry the facts into generated
   artifacts and source-backed same-target measurement records.
 - Gate 4: selected-dispatch/performance policy must consume those measurements
@@ -128,11 +155,11 @@ in for typed body/config facts.
 
 ## Next Continuation Point
 
-Continue Gate 2 in this same task: inspect selected-body realization for the
-representative low-precision contraction/dequant path and make it consume the
-typed primitive facts structurally before route construction, without changing
-compute semantics, dtype semantics, ABI roles, runtime AVL/VL, variant origin,
-dispatch, or fallback behavior.
+Continue Gate 3 in this same task: inspect route/provider/artifact export for
+the representative low-precision product-reduction/dequant path and make the
+facts consumed by selected-body realization carry into generated artifacts and
+source-backed same-target measurement records with fail-closed stale mirror
+diagnostics. Do not switch to performance policy until Gate 3 is complete.
 
 ## Out Of Scope
 
@@ -144,7 +171,7 @@ dispatch, or fallback behavior.
 - No Common EmitC invention of RVV semantics.
 - No resurrection of legacy `i32m1` route authority.
 - No unrelated memory, mask, compare/select, reduction, or dispatch rewrites
-  outside the Gate 1 primitive-surface boundary.
+  outside the low-precision primitive-surface campaign boundary.
 
 ## Technical Notes
 

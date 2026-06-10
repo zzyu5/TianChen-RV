@@ -145,6 +145,76 @@ llvm::Error requireLowPrecisionResourceCandidatePrimitiveStringMatch(
       "' but provider primitive facts require '" + primitiveValue + "'");
 }
 
+llvm::Error validateLowPrecisionResourceCandidatePrimitiveFacts(
+    const RVVLowPrecisionContractionResourceCandidate &candidate,
+    const RVVLowPrecisionWideningReductionPrimitiveFacts &primitiveFacts) {
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "low-precision primitive contract",
+              candidate.primitiveContractID,
+              primitiveFacts.lowPrecisionPrimitiveContractID))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "low-precision primitive kind", candidate.primitiveKind,
+              primitiveFacts.lowPrecisionPrimitiveKind))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "primitive chain contract", candidate.primitiveChainContractID,
+              primitiveFacts.contractID))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "primitive chain kind", candidate.primitiveChainKind,
+              primitiveFacts.kind))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "primitive widening product relation",
+              candidate.primitiveWideningProductRelation,
+              primitiveFacts.wideningProductRelation))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "primitive product-reduction chain relation",
+              candidate.primitiveProductReductionChainRelation,
+              primitiveFacts.productReductionChainRelation))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "primitive widening product intrinsic",
+              candidate.primitiveWideningProductIntrinsic,
+              primitiveFacts.wideningProductIntrinsic))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "primitive reduction intrinsic",
+              candidate.primitiveReductionIntrinsic,
+              primitiveFacts.reductionIntrinsic))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "primitive scalar seed splat intrinsic",
+              candidate.primitiveScalarSeedSplatIntrinsic,
+              primitiveFacts.scalarSeedSplatIntrinsic))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "primitive accumulator layout",
+              candidate.primitiveAccumulatorLayout,
+              primitiveFacts.accumulatorLayout))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "primitive result layout", candidate.primitiveResultLayout,
+              primitiveFacts.resultLayout))
+    return error;
+  return requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+      "primitive reduction store VL", candidate.primitiveReductionStoreVL,
+      primitiveFacts.reductionStoreVL);
+}
+
 mlir::Operation *createRealizedSetVL(mlir::OpBuilder &builder,
                                      mlir::Location loc, mlir::Value nValue,
                                      std::int64_t sew, llvm::StringRef lmul,
@@ -287,6 +357,9 @@ materializeLowPrecisionResourceRealizationAttrs(
           requireLowPrecisionResourceCandidatePrimitiveStringMatch(
               "final result dtype", selected->resultElementTypeName,
               primitiveFacts.finalResultElementTypeName))
+    return std::move(error);
+  if (llvm::Error error = validateLowPrecisionResourceCandidatePrimitiveFacts(
+          *selected, primitiveFacts))
     return std::move(error);
 
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(

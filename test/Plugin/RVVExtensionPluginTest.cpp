@@ -8860,6 +8860,80 @@ module {
                  "found contraction realization owner"))
     return result;
 
+  auto expectProductDequantRealizationError =
+      [&](llvm::StringRef fixtureSource,
+          std::initializer_list<llvm::StringRef> fragments,
+          llvm::StringRef label) -> int {
+    mlir::OwningOpRef<mlir::ModuleOp> negativeModule =
+        parseModule(context, fixtureSource);
+    if (!negativeModule)
+      return fail(llvm::Twine(label) + ": failed to parse fixture");
+    KernelOp negativeKernel =
+        findKernel(*negativeModule,
+                   "rvv_pre_realized_contraction_route_entry_kernel");
+    if (!negativeKernel)
+      return fail(llvm::Twine(label) + ": missing kernel");
+    TargetCapabilitySet negativeCapabilities =
+        TargetCapabilitySet::buildFromKernel(negativeKernel);
+    VariantOp negativeVariant =
+        findVariant(negativeKernel, "rvv_pre_route_product_reduce_dequantize");
+    if (!negativeVariant)
+      return fail(llvm::Twine(label) + ": missing product-dequant variant");
+    mlir::Operation *negativeBody = findFirstNestedOp(
+        negativeVariant,
+        "tcrv_rvv.typed_widening_product_reduce_dequantize_"
+        "pre_realized_body");
+    if (!negativeBody)
+      return fail(llvm::Twine(label) + ": missing product-dequant body");
+    mlir::OpBuilder negativeBuilder(negativeModule->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> realized =
+        contractionOwner->realize(
+            VariantLoweringBoundaryRequest(
+                negativeVariant, negativeKernel, negativeCapabilities,
+                VariantEmissionRole::DirectVariant, negativeBuilder),
+            negativeBody);
+    if (realized)
+      return fail(llvm::Twine(label) +
+                  ": unexpectedly realized stale product-dequant body");
+    return expectErrorContains(realized.takeError(), fragments);
+  };
+
+  if (int result = expectProductDequantRealizationError(
+          source,
+          {"requires pass-produced low-precision direct-contraction resource "
+           "fact",
+           "tcrv_rvv.low_precision_resource.primitive_contract"},
+          "selected-body product-dequant realization rejects missing primitive "
+          "resource facts"))
+    return result;
+
+  std::string stalePrimitiveRealizationSource =
+      sourceWithPrimitiveResourceFacts;
+  constexpr llvm::StringLiteral expectedPrimitiveReductionFact =
+      "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "
+      "\"__riscv_vwredsum_vs_i16mf2_i32m1\"";
+  constexpr llvm::StringLiteral stalePrimitiveReductionFact =
+      "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "
+      "\"artifact-name-derived-vwredsum\"";
+  std::size_t stalePrimitivePosition =
+      stalePrimitiveRealizationSource.find(expectedPrimitiveReductionFact.str());
+  if (stalePrimitivePosition == std::string::npos)
+    return fail("failed to locate product-dequant primitive reduction fact for "
+                "selected-body realization stale-fact fixture");
+  stalePrimitiveRealizationSource.replace(
+      stalePrimitivePosition, expectedPrimitiveReductionFact.size(),
+      stalePrimitiveReductionFact.str());
+  if (int result = expectProductDequantRealizationError(
+          stalePrimitiveRealizationSource,
+          {"cannot consume stale or unsupported low-precision "
+           "direct-contraction resource fact",
+           "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic",
+           "__riscv_vwredsum_vs_i16mf2_i32m1",
+           "artifact-name-derived-vwredsum"},
+          "selected-body product-dequant realization rejects stale primitive "
+          "reduction facts"))
+    return result;
+
   VariantOp wideningMAccVariant =
       findVariant(kernel, "rvv_pre_route_widening_macc");
   if (int result = expect(

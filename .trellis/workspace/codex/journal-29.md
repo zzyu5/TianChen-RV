@@ -56,3 +56,64 @@ or fallback behavior.
 ### Git Commits
 
 Final coherent commit is created after this journal entry.
+
+## Session 578: Stage2 RVV low-precision contraction primitive Gate 2
+
+**Date**: 2026-06-10
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed Gate 2 only. The production
+selected-body realization path already consumed many low-precision
+product-reduction/dequant resource facts, but the selected resource candidate's
+primitive-chain fields were not directly compared against provider-owned
+`RVVLowPrecisionWideningReductionPrimitiveFacts` at the realization boundary.
+This round tightened that RVV plugin-local boundary before route/provider or
+target artifact authority can accept stale primitive-chain facts.
+
+### Main Changes
+
+- Added `validateLowPrecisionResourceCandidatePrimitiveFacts` in the RVV
+  contraction selected-body realization owner so primitive contract/kind,
+  chain contract/kind, product/reduction relations, intrinsic spellings,
+  accumulator/result layouts, and reduction store-VL must match provider-owned
+  primitive facts before realized `with_vl`, region-marker, handoff, or
+  provider-visible resource facts are accepted.
+- Added C++ regression coverage for missing primitive resource facts and a
+  stale primitive reduction intrinsic, both failing closed at selected-body
+  realization before route construction or artifact validation.
+- Updated the macro PRD/task description to mark Gate 2 complete and leave
+  Gates 3-4 open.
+
+### Testing
+
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-10-stage2-rvv-low-precision-contraction-primitive-surface-campaign`
+- [OK] `git diff --check`
+- [OK] bounded diff scan for legacy RVV route-authority markers returned no
+  matches.
+
+### Spec Update Decision
+
+[NO SPEC UPDATE] The RVV plugin spec already states that low-precision
+product-reduction selected-body realization must consume provider-owned
+widening-reduction primitive facts and pass-produced resource facts before
+route construction. This slice implements that existing contract at the
+candidate primitive-chain comparison point.
+
+### Status
+
+[OPEN MACRO TASK] Gates 1-2 are complete. Gates 3-4 remain open. The next
+continuation point is Gate 3: carry the selected-body-realization-consumed
+primitive/resource facts through route/provider/artifact export into generated
+artifacts and source-backed same-target measurement records with fail-closed
+stale mirror diagnostics.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
