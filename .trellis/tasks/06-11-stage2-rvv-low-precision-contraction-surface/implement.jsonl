@@ -1,14 +1,31 @@
-{"file":".trellis/spec/index.md","reason":"Project-wide authority chain and mirror-only invariants for outcome-language cleanup."}
-{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV low-precision primitive outcomes, selected-body realization, provider/artifact carry-through, and measurement-disposition boundary wording."}
+{"file":".trellis/spec/index.md","reason":"Project-wide authority chain and mirror-only invariants for packed-i4 carry-through cleanup."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV low-precision primitive/resource authority and measurement-disposition evidence boundaries."}
 {"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Common EmitC neutrality and provider-owned payload/mirror boundaries."}
-{"file":".trellis/spec/testing/index.md","reason":"Focused C++/lit evidence expectations for production-path compiler changes."}
-{"file":".trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface/prd.md","reason":"Active macro PRD repaired from stale numbered-milestone terminology to outcome/milestone language."}
-{"file":"include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h","reason":"Public measurement-disposition same-target record helper name after numbered-milestone production API cleanup."}
-{"file":"lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp","reason":"Measurement-disposition helper constants, diagnostics, and no-win policy wording."}
-{"file":"lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp","reason":"Low-precision provider diagnostic cleanup for bounded plain product-reduction support."}
-{"file":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","reason":"Target artifact measurement-disposition evidence/admission mirror helper and diagnostic cleanup."}
-{"file":"test/Plugin/RVVExtensionPluginTest.cpp","reason":"C++ policy/provider test call sites and context strings for renamed measurement-disposition helper."}
-{"file":"test/Target/TargetArtifactExportTest.cpp","reason":"Target artifact C++ test call sites and diagnostics for renamed measurement-disposition helper."}
-{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir","reason":"Focused signed product-reduction artifact coverage to keep provider payload validation intact."}
-{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir","reason":"Focused unsigned product-reduction artifact coverage to keep provider payload validation intact."}
-{"file":"test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-add.mlir","reason":"Focused pre-realized signed/unsigned product-reduction coverage to keep selected-body realization and payload carry-through intact."}
+{"file":".trellis/spec/testing/mlir-testing-contract.md","reason":"Focused C++ and lit evidence expectations for production-path compiler changes."}
+{"file":".trellis/spec/guides/capability-first-design-guide.md","reason":"Check packed-i4 facts remain capability/body/provider facts rather than policy authority."}
+{"file":".trellis/spec/guides/plugin-locality-review-guide.md","reason":"Check RVV plugin owns realization, provider payloads, route mapping, and evidence policy boundaries."}
+{"file":".trellis/spec/guides/compute-boundary-review-guide.md","reason":"Check no high-level frontend or core compute semantics are introduced."}
+{"file":".trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface/prd.md","reason":"Active macro PRD repaired for this packed-i4 dequant/dequant-clamp carry-through milestone."}
+{"file":"include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h","reason":"Packed-i4 resource, remediation, admission, and measurement-disposition fact field names/constants."}
+{"file":"include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h","reason":"Measurement-disposition policy input/output structures and route-support/evidence separation."}
+{"file":"lib/Plugin/RVV/RVVGearboxSchedules.cpp","reason":"Selected-body/Gearbox resource handoff verification diagnostics for packed-i4 remediation and admission facts."}
+{"file":"lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp","reason":"Selected-body realization owner for packed-i4 product-reduction dequant/dequant-clamp facts."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp","reason":"Provider-owned primitive/resource route payload construction for product-reduction dequant/dequant-clamp."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp","reason":"Emission metadata mirror construction for packed-i4 resource and measurement-disposition facts."}
+{"file":"lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp","reason":"Measurement-disposition policy verification and same-target record helper behavior."}
+{"file":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","reason":"Target artifact validation boundary between packed-i4 compiler facts and measurement-disposition evidence mirrors."}
+{"file":"test/Plugin/RVVExtensionPluginTest.cpp","reason":"Focused C++ provider/policy tests for packed-i4 dequant/dequant-clamp route and evidence boundaries."}
+{"file":"test/Target/TargetArtifactExportTest.cpp","reason":"Focused target artifact validation tests for packed-i4 compiler facts and evidence mirror quarantining."}
+{"file":"test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir","reason":"Focused packed-i4 dequantize artifact fixture and stale evidence mirror coverage."}
+{"file":"test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir","reason":"Focused packed-i4 dequant-clamp artifact fixture and stale evidence mirror coverage."}
+{"file":"test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-add.mlir","reason":"Focused signed product-reduction payload carry-through regression coverage."}
+{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir","reason":"Focused explicit signed product-reduction payload carry-through regression coverage."}
+{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir","reason":"Focused explicit unsigned product-reduction payload carry-through regression coverage."}
+{"file":"include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h","reason":"Changed packed-i4 resource_cost_blocker from a no-win/campaign conclusion string to a stable loop/budget resource-cost boundary string."}
+{"file":"lib/Plugin/RVV/RVVGearboxSchedules.cpp","reason":"Separated packed-i4 Gearbox diagnostics into resource-planning facts, resource-cost facts, and measurement-disposition evidence facts."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp","reason":"Split packed-i4 resource selection validation from measurement-disposition evidence/handoff validation in provider-owned route planning."}
+{"file":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","reason":"Moved packed-i4 performance/admission/remediation evidence checks out of resource provider fact validation into a separate measurement-disposition evidence mirror helper."}
+{"file":"scripts/rvv_generated_bundle_abi_e2e.py","reason":"Updated generated-bundle ABI evidence validation to expect the stable packed-i4 resource-cost blocker string."}
+{"file":"artifacts/gate4-packed-i4-scalar-epilogue-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json","reason":"Synchronized tracked dequant source-backed artifact/evidence mirrors so resource_cost_blocker no longer carries no-win/campaign wording."}
+{"file":"artifacts/gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json","reason":"Synchronized tracked dequant-clamp source-backed artifact/evidence mirrors so resource_cost_blocker no longer carries no-win/campaign wording."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Recorded the executable convention that packed-i4 resource_cost_blocker is a stable resource-cost boundary, not measurement-disposition evidence."}

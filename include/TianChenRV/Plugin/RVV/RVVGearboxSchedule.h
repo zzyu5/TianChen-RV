@@ -667,7 +667,7 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4CostContract(
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4CostModel(
     "high-nibble-vwmacc-loop-11-peak-live-5of32-scalar-epilogue-two-region-vsetvl.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4CostBlocker(
-    "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win");
+    "packed-i4-loop-11-budget-5of32-resource-cost-boundary");
 constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision(
         "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker");

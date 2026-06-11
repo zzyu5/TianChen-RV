@@ -73,6 +73,72 @@ measurement-disposition slice backed by fresh same-target RVV evidence.
 
 Final coherent commit is created after this journal entry.
 
+## Session 592: Packed-i4 dequant/dequant-clamp resource/evidence boundary cleanup
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed one packed-i4
+dequantize/dequant-clamp carry-through cleanup slice. The route/resource path
+now keeps stable compiler facts in typed/realized/provider/target validation
+surfaces, while performance feedback, admission, remediation handoff, maturity,
+and same-target measurement facts are validated through explicit
+measurement-disposition evidence/policy helpers.
+
+### Main Changes
+
+- Split provider-side packed-i4 validation so resource selection and
+  resource-cost checks are separate from measurement-disposition evidence and
+  policy handoff checks.
+- Split target artifact validation into packed-i4 resource provider facts and
+  packed-i4 measurement-disposition evidence mirror validation.
+- Tightened Gearbox diagnostics to say `resource-planning`, `resource-cost`, or
+  `measurement-disposition evidence` instead of grouping admission/evidence
+  facts as route-support prerequisites.
+- Renamed the packed-i4 resource-cost blocker value to
+  `packed-i4-loop-11-budget-5of32-resource-cost-boundary` and synchronized
+  tracked dequant/dequant-clamp artifact/evidence mirrors plus the ABI evidence
+  script expectation.
+- Updated the RVV plugin spec to record that `resource_cost_blocker` is a
+  stable resource-cost boundary diagnostic and must not encode no-win,
+  admission, or campaign outcome conclusions.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4|explicit-selected-body-artifact-widening-product-reduce-add|explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8|pre-realized-selected-body-artifact-widening-product-reduce-add|pre-realized-selected-body-artifact-widening-product-reduce-add-unsigned-u8|rvv-generated-bundle-same-target-measure-gate4-dry-run'` from `build/test`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface`
+- [OK] bounded scans for old packed-i4 no-win resource-cost blocker, merged resource/evidence diagnostics, and resource_cost_blocker admission/no-win/campaign residue
+- [OK] `git diff --check`
+
+### Self-Repair
+
+- The first C++ test run exposed stale test expectations for
+  `remediation diagnosis`; assertions were updated to the new
+  `measurement-disposition diagnosis` label.
+- Target artifact validation initially failed because source-backed evidence
+  JSON still carried the old no-win-shaped `resource_cost_blocker`; the tracked
+  dequant/dequant-clamp evidence and generated-bundle mirrors were synchronized
+  without changing measurement/admission conclusions.
+- The first lit run failed because the ABI evidence script still expected the
+  old blocker string; only that resource-cost constant was updated.
+
+### Status
+
+[OPEN MACRO TASK] The packed-i4 dequant/dequant-clamp carry-through boundary
+cleanup slice is complete. The macro task remains active for adjacent
+packed-i4 primitive-surface cleanup and any future measurement-disposition work
+that has fresh source-backed same-target evidence.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 601: Stage2 RVV Gate 3 product-reduction carry-through boundary
 
 **Date**: 2026-06-11

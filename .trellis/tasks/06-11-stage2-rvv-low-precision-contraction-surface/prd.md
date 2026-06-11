@@ -49,30 +49,39 @@ EmitC semantics.
   or diagnostics, where it can imply route, schedule, support, or admission
   authority rather than a project milestone or measurement-disposition record.
 
-## Current Round Slice: Outcome-Language And Measurement-Disposition Boundary Cleanup
+## Current Round Slice: Packed-I4 Dequant/Dequant-Clamp Carry-Through Cleanup
 
-The current bounded slice normalizes milestone language and authority
-boundaries after the first provider/artifact carry-through payload slice.
-Compiler authority remains:
+The current bounded slice cleans the adjacent packed-i4
+dequantize/dequant-clamp carry-through boundary. Compiler authority remains:
 
 ```text
 selected tcrv.exec RVV variant
-  -> typed pre-realized low-precision product-reduction body
-     carrying source_signedness plus source/product/accumulator/result config
+  -> typed packed-i4 low-precision pre-realized body/config/runtime facts
   -> RVV contraction selected-body realization owner
-  -> realized tcrv_rvv setvl/with_vl/load/widening_product/standalone_reduce/store body
-  -> RVV provider-owned primitive route payload
+  -> realized tcrv_rvv unpack/product/reduction/dequant or dequant-clamp body
+  -> RVV provider-owned primitive/resource route payload
   -> TCRVEmitCLowerableRoute / neutral EmitC metadata mirrors
-  -> support-bundle export / target artifact validation exact mirror checks
+  -> support-bundle export / target artifact validation of compiler facts
 ```
 
-The cleanup must remove or quarantine stale numbered-milestone authority from the
-active task/spec and the directly related low-precision production
-provider/artifact surfaces. Measurement results, no-win conclusions, source
+The cleanup must inspect the directly related packed-i4 dequantize and
+dequant-clamp production route, Gearbox handoff, policy, and target-validation
+surfaces. Stable primitive/config/resource facts must remain owned by the typed
+body, selected-body realization, provider payload, and target artifact
+compiler-fact validation. Measurement results, no-win conclusions, source
 evidence IDs, and admission conclusions may remain only as
-measurement-disposition or policy evidence. They must not become route support,
-schedule authority, dtype/config authority, artifact-name authority, or
+measurement-disposition or policy evidence. They must not be consumed as route
+support, schedule authority, dtype/config authority, artifact-name authority, or
 selected-body authority.
+
+The concrete blocker found for this round is that the target packed-i4 provider
+fact validator and Gearbox handoff diagnostics still group performance,
+admission, and remediation evidence with provider resource facts. That grouping
+keeps the evidence exact, but it makes the code read as though measured no-win
+or admission status participates in route acceptance. This slice must split or
+rename that consumption so artifact/resource acceptance remains tied to
+typed/realized/provider facts, while measurement-disposition mirrors are
+validated only under a separate evidence/policy boundary.
 
 This round must not add q8/q4 route authority, artifact-name authority,
 helper-only wrappers, source-front-door positive routes, Common EmitC semantic
@@ -81,29 +90,32 @@ inference, or measured-win/admission claims.
 ## Acceptance Criteria For This Slice
 
 - Active task metadata, PRD, implementation/check context, and RVV
-  low-precision spec sections use outcome/milestone language:
-  foundation outcome, selected-body realization outcome,
-  provider/artifact carry-through outcome, and measurement-disposition outcome.
-- Production low-precision helper names, diagnostics, and target validation
-  labels touched in this slice no longer use numbered-milestone terminology
-  where that name implies route, schedule, support, artifact, or admission
-  authority.
-- Provider payload and target validation exactness from `65f67e38` remains
-  intact: signed and unsigned product-reduction route descriptions still carry
-  a provider-owned low-precision primitive route payload, and target artifact
-  validation still compares candidate mirrors against that payload before
-  artifact acceptance.
+  low-precision spec sections identify the packed-i4
+  dequantize/dequant-clamp carry-through milestone under the same macro task.
+- Target artifact validation separates packed-i4 resource/compiler-fact
+  validation from measurement-disposition evidence mirror validation.
+- Gearbox handoff verification no longer diagnoses packed-i4 remediation,
+  performance admission, or beyond-local admission evidence as facts required
+  as route-support prerequisites. Route-support diagnostics remain reserved for
+  typed/realized/provider resource facts.
+- Provider payload and target validation exactness remains intact for
+  primitive/config/resource facts: signed packed-i4 dequantize and
+  dequant-clamp route descriptions still carry provider-owned resource facts,
+  primitive payloads, realization facts, runtime ABI facts, and target mirrors
+  before artifact acceptance.
 - Measurement evidence and no-win/admission conclusions remain preserved as
   measurement-disposition or policy evidence only; no useful evidence is
   deleted.
 - Common EmitC remains neutral and only carries provider-built payloads and
   mirrors.
-- A bounded scan over the active task, RVV low-precision spec sections, touched
-  production files, and directly affected tests finds no uppercase
-  numbered-milestone terminology except immutable historical evidence path
-  strings or archived text outside this active slice.
-- Focused signed and unsigned product-reduction artifact lit coverage remains
-  passing.
+- A bounded scan over touched production files, active task text, directly
+  affected packed-i4 fixtures, and the RVV low-precision spec sections finds no
+  Gate/admission/result/support wording that implies compiler authority outside
+  explicit measurement-disposition or policy/evidence contexts. Immutable
+  historical evidence path strings may remain only as evidence IDs.
+- Focused packed-i4 dequantize/dequant-clamp lit coverage remains passing,
+  alongside the signed/unsigned product-reduction payload coverage needed to
+  guard the existing provider payload exactness.
 - `tcrv-opt`, `tcrv-translate`, `tianchenrv-rvv-extension-plugin-test`, and
   `tianchenrv-target-artifact-export-test` build; the two C++ test binaries run.
 - `python3 ./.trellis/scripts/task.py validate
@@ -156,3 +168,9 @@ source-backed same-target measurement evidence is explicitly introduced. The
 macro task remains open after this cleanup slice for any adjacent
 low-precision primitive-surface gaps or a future measurement-disposition slice
 that has real RVV target evidence.
+
+The packed-i4 dequantize/dequant-clamp carry-through boundary remains open at
+the start of this round because performance/admission/remediation evidence is
+still grouped with resource-fact validation in the target packed-i4 path and in
+Gearbox handoff diagnostics. This round completes a bounded cleanup of that
+boundary without claiming new runtime, correctness, or performance evidence.

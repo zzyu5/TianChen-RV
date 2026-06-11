@@ -660,7 +660,7 @@ artifact[0]:
     value: "11"
   artifact_metadata[200]:
     key: "tcrv_rvv.low_precision_resource.resource_cost_blocker"
-    value: "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win"
+    value: "packed-i4-loop-11-budget-5of32-resource-cost-boundary"
   artifact_metadata[201]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_decision"
     value: "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker"
@@ -1370,7 +1370,7 @@ artifact[1]:
     value: "11"
   artifact_metadata[200]:
     key: "tcrv_rvv.low_precision_resource.resource_cost_blocker"
-    value: "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win"
+    value: "packed-i4-loop-11-budget-5of32-resource-cost-boundary"
   artifact_metadata[201]:
     key: "tcrv_rvv.low_precision_resource.performance_admission_decision"
     value: "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker"

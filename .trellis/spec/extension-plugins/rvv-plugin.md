@@ -7809,6 +7809,11 @@ performance-preferred
   evidence/admission consumers, but they are not route authority, schedule
   authority, artifact-name authority, or permanent
   `RVVGearboxSchedule` contract inputs.
+- Packed-i4 `resource_cost_blocker` values are stable resource-cost boundary
+  diagnostics only. They may name loop body steps, live-vector budget, and
+  resource pressure, but must not encode no-win/regression, performance
+  admission, or campaign outcome conclusions. Those conclusions stay in
+  measurement-disposition evidence/admission fields.
 - Target artifact validation must keep stable resource mirrors and
   measurement-disposition evidence/admission mirrors in separate consumer
   helpers. Stable resource mirrors include

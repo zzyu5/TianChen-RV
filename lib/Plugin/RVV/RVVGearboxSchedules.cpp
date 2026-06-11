@@ -1551,7 +1551,7 @@ validateLowPrecisionProductDequantGearboxBody(
       return handoff->emitError()
              << "RVV low-precision Gearbox resource candidate derivation "
                 "requires packed-i4 load/unpack fact '"
-             << attrName << "' before route support";
+             << attrName << "' before packed-i4 resource validation";
     if (attr.getValue() == expected)
       return mlir::success();
     return handoff->emitError()
@@ -1634,7 +1634,7 @@ validateLowPrecisionProductDequantGearboxBody(
       return handoff->emitError()
              << "RVV low-precision Gearbox resource candidate derivation "
                 "requires dequant-clamp fact '"
-             << attrName << "' before route support";
+             << attrName << "' before dequant-clamp resource validation";
     if (attr.getValue() == expected)
       return mlir::success();
     return handoff->emitError()
@@ -1660,7 +1660,7 @@ validateLowPrecisionProductDequantGearboxBody(
       return handoff->emitError()
              << "RVV low-precision Gearbox resource candidate derivation "
                 "requires dequant-clamp fact '"
-             << attrName << "' before route support";
+             << attrName << "' before dequant-clamp resource validation";
     if (attr.getInt() == expected)
       return mlir::success();
     return handoff->emitError()
@@ -1797,7 +1797,7 @@ validateLowPrecisionProductDequantGearboxBody(
               kRVVLowPrecisionResourcePrimitiveReductionStoreVL)))
     return mlir::failure();
 
-  auto requireOptionalRemediationFact =
+  auto requireOptionalResourcePlanningFact =
       [&](llvm::StringRef attrName,
           llvm::StringRef expected) -> mlir::LogicalResult {
     auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
@@ -1805,7 +1805,7 @@ validateLowPrecisionProductDequantGearboxBody(
       if (attr)
         return handoff->emitError()
                << "RVV low-precision Gearbox resource candidate derivation "
-                  "requires packed-i4 remediation fact '"
+                  "requires packed-i4 resource-planning fact '"
                << attrName
                << "' to be absent for unpacked-byte resource candidates";
       return mlir::success();
@@ -1813,72 +1813,73 @@ validateLowPrecisionProductDequantGearboxBody(
     if (!attr)
       return handoff->emitError()
              << "RVV low-precision Gearbox resource candidate derivation "
-                "requires packed-i4 remediation fact '"
-             << attrName << "' before route support";
+                "requires packed-i4 resource-planning fact '"
+             << attrName
+             << "' before packed-i4 resource validation";
     if (attr.getValue() == expected)
       return mlir::success();
     return handoff->emitError()
            << "RVV low-precision Gearbox resource candidate derivation "
-              "requires packed-i4 remediation fact '"
+              "requires packed-i4 resource-planning fact '"
            << attrName << "' to match provider-owned resource fact '"
            << expected << "' but found '" << attr.getValue() << "'";
   };
-  if (mlir::failed(requireOptionalRemediationFact(
+  if (mlir::failed(requireOptionalResourcePlanningFact(
           "remediation_plan_contract",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationPlanContract)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalRemediationFact(
+  if (mlir::failed(requireOptionalResourcePlanningFact(
           "remediation_plan",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationPlan)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalRemediationFact(
+  if (mlir::failed(requireOptionalResourcePlanningFact(
           "remediation_statement_strategy",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalRemediationFact(
+  if (mlir::failed(requireOptionalResourcePlanningFact(
           "remediation_vector_budget",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationVectorBudget)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalRemediationFact(
+  if (mlir::failed(requireOptionalResourcePlanningFact(
           "remediation_schedule_contract",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationScheduleContract)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalRemediationFact(
+  if (mlir::failed(requireOptionalResourcePlanningFact(
           "remediation_unpack_plan",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalRemediationFact(
+  if (mlir::failed(requireOptionalResourcePlanningFact(
           "remediation_product_plan",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationProductPlan)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalRemediationFact(
+  if (mlir::failed(requireOptionalResourcePlanningFact(
           "remediation_reduction_plan",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationReductionPlan)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalRemediationFact(
+  if (mlir::failed(requireOptionalResourcePlanningFact(
           "remediation_vl_plan",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationVLPlan)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalRemediationFact(
+  if (mlir::failed(requireOptionalResourcePlanningFact(
           "schedule_decision_contract",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalRemediationFact(
+  if (mlir::failed(requireOptionalResourcePlanningFact(
           "schedule_decision",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4ScheduleDecision)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalRemediationFact(
+  if (mlir::failed(requireOptionalResourcePlanningFact(
           "schedule_decision_reason",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason)))
@@ -1901,7 +1902,7 @@ validateLowPrecisionProductDequantGearboxBody(
       return handoff->emitError()
              << "RVV low-precision Gearbox resource candidate derivation "
                 "requires packed-i4 resource-cost fact '"
-             << attrName << "' before route support";
+             << attrName << "' before resource-cost mirror validation";
     if (attr.getValue() == expected)
       return mlir::success();
     return handoff->emitError()
@@ -1927,7 +1928,7 @@ validateLowPrecisionProductDequantGearboxBody(
       return handoff->emitError()
              << "RVV low-precision Gearbox resource candidate derivation "
                 "requires packed-i4 resource-cost fact '"
-             << attrName << "' before route support";
+             << attrName << "' before resource-cost mirror validation";
     if (attr.getInt() == expected)
       return mlir::success();
     return handoff->emitError()
@@ -1955,27 +1956,54 @@ validateLowPrecisionProductDequantGearboxBody(
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4CostBlocker)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalResourceCostStringFact(
+
+  auto requireOptionalMeasurementDispositionStringFact =
+      [&](llvm::StringRef attrName,
+          llvm::StringRef expected) -> mlir::LogicalResult {
+    auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return handoff->emitError()
+               << "RVV low-precision Gearbox resource candidate derivation "
+                  "requires packed-i4 measurement-disposition evidence fact '"
+               << attrName
+               << "' to be absent for unpacked-byte resource candidates";
+      return mlir::success();
+    }
+    if (!attr)
+      return handoff->emitError()
+             << "RVV low-precision Gearbox resource candidate derivation "
+                "requires packed-i4 measurement-disposition evidence fact '"
+             << attrName << "' before evidence mirror validation";
+    if (attr.getValue() == expected)
+      return mlir::success();
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires packed-i4 measurement-disposition evidence fact '"
+           << attrName << "' to match policy/evidence fact '" << expected
+           << "' but found '" << attr.getValue() << "'";
+  };
+  if (mlir::failed(requireOptionalMeasurementDispositionStringFact(
           "performance_admission_decision",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalResourceCostStringFact(
+  if (mlir::failed(requireOptionalMeasurementDispositionStringFact(
           "beyond_local_repair_admission_contract",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalResourceCostStringFact(
+  if (mlir::failed(requireOptionalMeasurementDispositionStringFact(
           "beyond_local_repair_admission_decision",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalResourceCostStringFact(
+  if (mlir::failed(requireOptionalMeasurementDispositionStringFact(
           "beyond_local_repair_admission_blocker",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalResourceCostStringFact(
+  if (mlir::failed(requireOptionalMeasurementDispositionStringFact(
           "beyond_local_repair_admission_reopen_requirement",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement)))

@@ -4049,67 +4049,6 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
           selection.providerSupportedMirror, contract.providerSupportedMirror))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 performance feedback",
-          selection.performanceFeedback,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceFeedback))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 performance baseline",
-          selection.performanceBaseline,
-          plugin::rvv::
-              getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
-                  selection.selectedCandidateID)))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 performance best-speedup range",
-          selection.performanceBestSpeedupRange,
-          plugin::rvv::
-              kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 performance action",
-          selection.performanceAction,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceAction))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation handoff contract",
-          selection.remediationHandoffContract,
-          plugin::rvv::
-              kRVVLowPrecisionResourcePackedI4RemediationHandoffContract))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation diagnosis",
-          selection.remediationDiagnosis,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationDiagnosis))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation measurement evidence",
-          selection.remediationMeasurementEvidenceID,
-          plugin::rvv::
-              getRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceIDForCandidate(
-                  selection.selectedCandidateID)))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation decision",
-          selection.remediationDecision,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationDecision))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation action",
-          selection.remediationAction,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceAction))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation dispatch preference",
-          selection.remediationDispatchPreference,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4DispatchPreference))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation blocker",
-          selection.remediationBlocker,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationBlocker))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 remediation plan contract",
           selection.remediationPlanContract,
           plugin::rvv::
@@ -4194,78 +4133,167 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
           selection.resourceCostBlocker,
           plugin::rvv::kRVVLowPrecisionResourcePackedI4CostBlocker))
     return error;
+  return llvm::Error::success();
+}
+
+llvm::Error validateRVVPackedI4MeasurementDispositionEvidenceMirrors(
+    const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
+  const plugin::rvv::RVVLowPrecisionContractionResourceSelection &selection =
+      contract.lowPrecisionResourceSelection;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 performance admission decision",
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition performance feedback",
+          selection.performanceFeedback,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceFeedback))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition performance baseline",
+          selection.performanceBaseline,
+          plugin::rvv::
+              getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
+                  selection.selectedCandidateID)))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition best-speedup evidence range",
+          selection.performanceBestSpeedupRange,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition performance action",
+          selection.performanceAction,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceAction))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition handoff contract",
+          selection.remediationHandoffContract,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationHandoffContract))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition diagnosis",
+          selection.remediationDiagnosis,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationDiagnosis))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition evidence id",
+          selection.remediationMeasurementEvidenceID,
+          plugin::rvv::
+              getRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceIDForCandidate(
+                  selection.selectedCandidateID)))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition remediation decision",
+          selection.remediationDecision,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationDecision))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition remediation action",
+          selection.remediationAction,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceAction))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition remediation dispatch preference",
+          selection.remediationDispatchPreference,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4DispatchPreference))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition remediation blocker",
+          selection.remediationBlocker,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationBlocker))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition performance admission decision",
           selection.performanceAdmissionDecision,
           plugin::rvv::
               kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 performance admission closure",
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition performance admission closure",
           selection.performanceAdmissionClosure,
           plugin::rvv::
               kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
-          "packed-i4 performance admission reopen requirement",
+          "packed-i4 measurement-disposition performance admission reopen "
+          "requirement",
           selection.performanceAdmissionReopenRequirement,
           plugin::rvv::
               kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
-          "packed-i4 beyond-local repair admission contract",
+          "packed-i4 measurement-disposition beyond-local admission contract",
           selection.beyondLocalRepairAdmissionContract,
           plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
-          "packed-i4 beyond-local repair admission decision",
+          "packed-i4 measurement-disposition beyond-local admission decision",
           selection.beyondLocalRepairAdmissionDecision,
           plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
-          "packed-i4 beyond-local repair admission blocker",
+          "packed-i4 measurement-disposition beyond-local admission blocker",
           selection.beyondLocalRepairAdmissionBlocker,
           plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
-          "packed-i4 beyond-local repair admission reopen requirement",
+          "packed-i4 measurement-disposition beyond-local admission reopen "
+          "requirement",
           selection.beyondLocalRepairAdmissionReopenRequirement,
           plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 performance maturity",
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition performance maturity",
           selection.performanceMaturity,
           plugin::rvv::kRVVLowPrecisionResourcePackedI4PerformanceMaturity))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 performance maturity evidence",
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition performance maturity evidence",
           selection.performanceMaturityEvidence,
           plugin::rvv::
               kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 performance maturity outcome",
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition performance maturity outcome",
           selection.performanceMaturityOutcome,
           plugin::rvv::
               kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 performance selection eligibility",
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition performance selection "
+          "eligibility",
           selection.performanceSelectionEligible,
           plugin::rvv::
               kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible))
     return error;
   return requireRVVWideningDotContractStringField(
-      contract.consumerLabel, "packed-i4 dispatch preference",
+      contract.consumerLabel,
+      "packed-i4 measurement-disposition dispatch preference",
       selection.dispatchPreference,
       plugin::rvv::kRVVLowPrecisionResourcePackedI4DispatchPreference);
 }
@@ -4628,6 +4656,9 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
             validateRVVPackedI4LowPrecisionResourceProviderFacts(contract))
       return error;
   if (usesPackedI4LowPrecisionProductReduction) {
+    if (llvm::Error error =
+            validateRVVPackedI4MeasurementDispositionEvidenceMirrors(contract))
+      return error;
     std::string context =
         (llvm::Twine(contract.consumerLabel) +
          " dispatch/performance policy")

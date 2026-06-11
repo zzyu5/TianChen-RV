@@ -5289,7 +5289,7 @@ void populateRVVLowPrecisionContractionResourceRouteFacts(
         plan.lowPrecisionPrimitiveSourceExtensionKind.str();
 }
 
-void populateRVVLowPrecisionContractionResourceRemediationHandoff(
+void populateRVVLowPrecisionContractionMeasurementDispositionHandoff(
     RVVLowPrecisionContractionResourceSelection &selection) {
   if (!isRVVLowPrecisionResourcePackedI4CandidateID(
           selection.selectedCandidateID))
@@ -5438,7 +5438,7 @@ void populateRVVLowPrecisionContractionResourceRealizationSchedule(
         kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible.str();
     selection.dispatchPreference =
         kRVVLowPrecisionResourcePackedI4DispatchPreference.str();
-    populateRVVLowPrecisionContractionResourceRemediationHandoff(selection);
+    populateRVVLowPrecisionContractionMeasurementDispositionHandoff(selection);
   }
 }
 
@@ -7766,7 +7766,7 @@ llvm::Error verifyRVVLowPrecisionContractionRealizationScheduleSelection(
           selection.selectedCandidateID));
 }
 
-llvm::Error verifyRVVLowPrecisionContractionResourceRemediationHandoff(
+llvm::Error verifyRVVLowPrecisionContractionMeasurementDispositionHandoff(
     llvm::StringRef context,
     const RVVLowPrecisionContractionResourceSelection &selection) {
   if (!isRVVLowPrecisionResourcePackedI4CandidateID(
@@ -7799,48 +7799,53 @@ llvm::Error verifyRVVLowPrecisionContractionResourceRemediationHandoff(
   llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput> policyInput =
       buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
           selection, measurementRecord,
-          (llvm::Twine(context) + " resource-remediation handoff").str());
+          (llvm::Twine(context) +
+           " measurement-disposition evidence handoff")
+              .str());
   if (!policyInput)
     return policyInput.takeError();
   llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
       evaluateRVVLowPrecisionPerformancePolicy(
           selection, *policyInput,
-          (llvm::Twine(context) + " resource-remediation handoff").str());
+          (llvm::Twine(context) +
+           " measurement-disposition evidence handoff")
+              .str());
   if (!decision)
     return decision.takeError();
 
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "remediation handoff contract",
+          context, selection, "measurement-disposition handoff contract",
           selection.remediationHandoffContract,
           decision->handoff.handoffContract))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "remediation diagnosis",
+          context, selection, "measurement-disposition diagnosis",
           selection.remediationDiagnosis,
           kRVVLowPrecisionResourcePackedI4RemediationDiagnosis))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "remediation measurement evidence",
+          context, selection, "measurement-disposition evidence id",
           selection.remediationMeasurementEvidenceID,
           measurementRecord.measurementEvidenceID))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "remediation decision",
+          context, selection, "measurement-disposition remediation decision",
           selection.remediationDecision,
           kRVVLowPrecisionResourcePackedI4RemediationDecision))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "remediation action",
+          context, selection, "measurement-disposition remediation action",
           selection.remediationAction,
           kRVVLowPrecisionResourcePackedI4PerformanceAction))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "remediation dispatch preference",
+          context, selection,
+          "measurement-disposition remediation dispatch preference",
           selection.remediationDispatchPreference,
           decision->handoff.dispatchPreference))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "remediation blocker",
+          context, selection, "measurement-disposition remediation blocker",
           selection.remediationBlocker,
           kRVVLowPrecisionResourcePackedI4RemediationBlocker))
     return error;
@@ -7915,46 +7920,129 @@ llvm::Error verifyRVVLowPrecisionContractionResourceRemediationHandoff(
           selection.resourceCostBlocker,
           kRVVLowPrecisionResourcePackedI4CostBlocker))
     return error;
+  return requireRVVLowPrecisionResourceStringField(
+      context, selection, "schedule decision reason",
+      selection.scheduleDecisionReason,
+      kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason);
+}
+
+llvm::Error verifyRVVLowPrecisionContractionMeasurementDispositionEvidence(
+    llvm::StringRef context,
+    const RVVLowPrecisionContractionResourceSelection &selection) {
+  if (!isRVVLowPrecisionResourcePackedI4CandidateID(
+          selection.selectedCandidateID))
+    return llvm::Error::success();
+
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "performance admission decision",
+          context, selection, "measurement-disposition performance feedback",
+          selection.performanceFeedback,
+          kRVVLowPrecisionResourcePackedI4PerformanceFeedback))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "measurement-disposition performance baseline",
+          selection.performanceBaseline,
+          getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
+              selection.selectedCandidateID)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection,
+          "measurement-disposition best-speedup evidence range",
+          selection.performanceBestSpeedupRange,
+          kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "measurement-disposition performance action",
+          selection.performanceAction,
+          kRVVLowPrecisionResourcePackedI4PerformanceAction))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection,
+          "measurement-disposition performance admission decision",
           selection.performanceAdmissionDecision,
           kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "performance admission closure",
+          context, selection,
+          "measurement-disposition performance admission closure",
           selection.performanceAdmissionClosure,
           kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "performance admission reopen requirement",
+          context, selection,
+          "measurement-disposition performance admission reopen requirement",
           selection.performanceAdmissionReopenRequirement,
           kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "beyond-local repair admission contract",
+          context, selection,
+          "measurement-disposition beyond-local admission contract",
           selection.beyondLocalRepairAdmissionContract,
           kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "beyond-local repair admission decision",
+          context, selection,
+          "measurement-disposition beyond-local admission decision",
           selection.beyondLocalRepairAdmissionDecision,
           kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-          context, selection, "beyond-local repair admission blocker",
+          context, selection,
+          "measurement-disposition beyond-local admission blocker",
           selection.beyondLocalRepairAdmissionBlocker,
           kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection,
-          "beyond-local repair admission reopen requirement",
+          "measurement-disposition beyond-local admission reopen requirement",
           selection.beyondLocalRepairAdmissionReopenRequirement,
           kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement))
     return error;
-  return requireRVVLowPrecisionResourceStringField(
-      context, selection, "schedule decision reason",
-      selection.scheduleDecisionReason,
-      kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason);
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "measurement-disposition performance maturity",
+          selection.performanceMaturity,
+          kRVVLowPrecisionResourcePackedI4PerformanceMaturity))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection,
+          "measurement-disposition performance maturity evidence",
+          selection.performanceMaturityEvidence,
+          kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection,
+          "measurement-disposition performance maturity outcome",
+          selection.performanceMaturityOutcome,
+          kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection,
+          "measurement-disposition performance selection eligibility",
+          selection.performanceSelectionEligible,
+          kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "measurement-disposition dispatch preference",
+          selection.dispatchPreference,
+          kRVVLowPrecisionResourcePackedI4DispatchPreference))
+    return error;
+
+  std::string policyContext =
+      (llvm::Twine(context) +
+       " packed-i4 measurement-disposition policy evidence")
+          .str();
+  RVVLowPrecisionSameTargetMeasurementRecord measurementRecord =
+      buildRVVPackedI4MeasurementDispositionSameTargetRecord(selection);
+  llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput> policyInput =
+      buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
+          selection, measurementRecord, policyContext);
+  if (!policyInput)
+    return policyInput.takeError();
+  if (llvm::Error error =
+          verifyRVVLowPrecisionPerformancePolicy(selection, *policyInput,
+                                                 policyContext))
+    return error;
+  return verifyRVVLowPrecisionContractionMeasurementDispositionHandoff(
+      context, selection);
 }
 
 bool isRVVLowPrecisionResourceSelectionEqual(
@@ -8697,27 +8785,6 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
   if (isRVVLowPrecisionResourcePackedI4CandidateID(
           selection.selectedCandidateID)) {
     if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection, "performance feedback",
-            selection.performanceFeedback,
-            kRVVLowPrecisionResourcePackedI4PerformanceFeedback))
-      return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection, "performance baseline",
-            selection.performanceBaseline,
-            getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
-                selection.selectedCandidateID)))
-      return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection, "performance best-speedup range",
-            selection.performanceBestSpeedupRange,
-            kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange))
-      return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection, "performance action",
-            selection.performanceAction,
-            kRVVLowPrecisionResourcePackedI4PerformanceAction))
-      return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
             context, selection, "remediation schedule contract",
             selection.remediationScheduleContract,
             kRVVLowPrecisionResourcePackedI4RemediationScheduleContract))
@@ -8776,85 +8843,8 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
             selection.resourceCostBlocker,
             kRVVLowPrecisionResourcePackedI4CostBlocker))
       return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection, "performance admission decision",
-            selection.performanceAdmissionDecision,
-            kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision))
-      return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection, "performance admission closure",
-            selection.performanceAdmissionClosure,
-            kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure))
-      return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection, "performance admission reopen requirement",
-            selection.performanceAdmissionReopenRequirement,
-            kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement))
-      return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection, "beyond-local repair admission contract",
-            selection.beyondLocalRepairAdmissionContract,
-            kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract))
-      return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection, "beyond-local repair admission decision",
-            selection.beyondLocalRepairAdmissionDecision,
-            kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision))
-      return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection, "beyond-local repair admission blocker",
-            selection.beyondLocalRepairAdmissionBlocker,
-            kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker))
-      return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection,
-            "beyond-local repair admission reopen requirement",
-            selection.beyondLocalRepairAdmissionReopenRequirement,
-            kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement))
-      return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection, "performance maturity",
-            selection.performanceMaturity,
-            kRVVLowPrecisionResourcePackedI4PerformanceMaturity))
-      return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection, "performance maturity evidence",
-            selection.performanceMaturityEvidence,
-            kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence))
-      return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection, "performance maturity outcome",
-            selection.performanceMaturityOutcome,
-            kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome))
-      return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection, "performance selection eligibility",
-            selection.performanceSelectionEligible,
-            kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible))
-      return error;
-    if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
-            context, selection, "dispatch preference",
-            selection.dispatchPreference,
-            kRVVLowPrecisionResourcePackedI4DispatchPreference))
-      return error;
-    std::string policyContext =
-        (llvm::Twine(context) +
-         " packed-i4 dispatch/performance policy")
-            .str();
-    RVVLowPrecisionSameTargetMeasurementRecord measurementRecord =
-        buildRVVPackedI4MeasurementDispositionSameTargetRecord(selection);
-    llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput>
-        policyInput =
-        buildRVVLowPrecisionSameTargetMeasurementPolicyInput(selection,
-                                                             measurementRecord,
-                                                             policyContext);
-    if (!policyInput)
-      return policyInput.takeError();
-    if (llvm::Error error = verifyRVVLowPrecisionPerformancePolicy(
-            selection, *policyInput, policyContext))
-      return error;
     if (llvm::Error error =
-            verifyRVVLowPrecisionContractionResourceRemediationHandoff(
+            verifyRVVLowPrecisionContractionMeasurementDispositionEvidence(
                 context, selection))
       return error;
   }
@@ -9153,7 +9143,7 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
               context, selection))
     return error;
   if (llvm::Error error =
-          verifyRVVLowPrecisionContractionResourceRemediationHandoff(
+          verifyRVVLowPrecisionContractionMeasurementDispositionHandoff(
               context, selection))
     return error;
   if (selection.targetCapabilityProviderMirror.empty() ||

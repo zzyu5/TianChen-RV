@@ -1,13 +1,20 @@
-{"file":".trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface/prd.md","reason":"Verify active macro PRD uses outcome/milestone language and keeps the macro task open."}
-{"file":".trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface/task.json","reason":"Verify task metadata no longer records stale numbered-milestone terminology as current authority."}
+{"file":".trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface/prd.md","reason":"Verify the active macro PRD names the packed-i4 carry-through milestone and keeps the macro task open."}
+{"file":".trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface/task.json","reason":"Verify task metadata reflects packed-i4 evidence/authority cleanup, not a new standalone task."}
 {"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Check RVV low-precision spec sections keep compiler facts separate from measurement-disposition evidence."}
 {"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Check Common EmitC remains neutral and provider payloads are carried, not inferred."}
-{"file":"include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h","reason":"Review renamed public measurement-disposition helper API."}
-{"file":"lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp","reason":"Review measurement-disposition constants, helper implementation, and diagnostics."}
-{"file":"lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp","reason":"Review low-precision provider diagnostic wording without changing route support behavior."}
-{"file":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","reason":"Review target artifact evidence/admission mirror validation helper rename and diagnostics."}
-{"file":"test/Plugin/RVVExtensionPluginTest.cpp","reason":"Check C++ provider/policy tests compile against renamed helper and updated context strings."}
-{"file":"test/Target/TargetArtifactExportTest.cpp","reason":"Check target artifact tests compile against renamed helper and updated context strings."}
-{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir","reason":"Run focused signed product-reduction artifact coverage."}
-{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir","reason":"Run focused unsigned product-reduction artifact coverage."}
-{"file":"test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-add.mlir","reason":"Run focused pre-realized product-reduction artifact coverage."}
+{"file":"lib/Plugin/RVV/RVVGearboxSchedules.cpp","reason":"Review packed-i4 handoff diagnostics so evidence/admission mirrors are not described as route-support authority."}
+{"file":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","reason":"Review split packed-i4 validation between compiler facts and evidence/policy mirrors."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp","reason":"Review metadata emission remains mirror-only for measurement-disposition fields."}
+{"file":"lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp","reason":"Review measurement-disposition policy verification remains evidence-only and conservative."}
+{"file":"test/Plugin/RVVExtensionPluginTest.cpp","reason":"Run focused C++ provider/policy coverage through tianchenrv-rvv-extension-plugin-test."}
+{"file":"test/Target/TargetArtifactExportTest.cpp","reason":"Run focused target artifact validation coverage through tianchenrv-target-artifact-export-test."}
+{"file":"test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir","reason":"Run focused packed-i4 dequantize artifact coverage."}
+{"file":"test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir","reason":"Run focused packed-i4 dequant-clamp artifact coverage."}
+{"file":"test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-add.mlir","reason":"Run focused pre-realized product-reduction payload carry-through coverage."}
+{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir","reason":"Run focused explicit signed product-reduction payload carry-through coverage."}
+{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir","reason":"Run focused explicit unsigned product-reduction payload carry-through coverage."}
+{"file":"build/bin/tianchenrv-rvv-extension-plugin-test","reason":"Passed after updating measurement-disposition diagnostics and packed-i4 resource-cost blocker mirrors."}
+{"file":"build/bin/tianchenrv-target-artifact-export-test","reason":"Passed after updating target artifact assertions and source-backed evidence mirrors to the split resource/evidence boundary."}
+{"file":"test/Scripts/rvv-generated-bundle-same-target-measure-gate4-dry-run.test","reason":"Passed through build/test lit site config after updating generated-bundle ABI evidence expectations for the stable resource-cost blocker."}
+{"file":".trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface/check.jsonl","reason":"Bounded scans confirmed no touched production/test/artifact path keeps the old packed-i4 campaign/no-win resource_cost_blocker or resource/evidence merged diagnostic wording; remaining before-route-support hits are structural RVV spec rules."}
+{"file":".trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface/check.jsonl","reason":"git diff --check passed before staging."}

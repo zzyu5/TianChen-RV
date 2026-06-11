@@ -836,7 +836,7 @@ WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_LOOP_BODY_STEPS =
     "11"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_COST_BLOCKER = (
-    "packed-i4-campaign-no-further-repair-loop-11-budget-5of32-no-win"
+    "packed-i4-loop-11-budget-5of32-resource-cost-boundary"
 )
 WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_PERFORMANCE_ADMISSION_DECISION = (
     "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker"
