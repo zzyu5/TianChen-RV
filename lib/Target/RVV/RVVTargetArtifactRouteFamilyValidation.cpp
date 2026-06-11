@@ -3744,6 +3744,26 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
           selection.unpackIntent,
           plugin::rvv::kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles))
     return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 load/unpack contract",
+          selection.packedLoadUnpackContract,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4LoadUnpackContract))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 storage load",
+          selection.packedStorageLoad,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4StorageLoad))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 unpack plan",
+          selection.packedUnpackPlan,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4UnpackPlan))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel, "packed-i4 unpacked source",
+          selection.packedUnpackedSource,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4UnpackedSource))
+    return error;
   if (llvm::Error error = requireRVVWideningDotContractIntField(
           contract.consumerLabel, "packed-i4 unroll factor",
           selection.unrollFactor,
@@ -6026,6 +6046,25 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
           "tcrv_rvv.low_precision_resource.unpack_intent",
           selection.unpackIntent, "unpack intent"))
     return error;
+  if (!selection.packedLoadUnpackContract.empty()) {
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.packed_load_unpack_contract",
+            selection.packedLoadUnpackContract,
+            "packed-i4 load/unpack contract"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.packed_storage_load",
+            selection.packedStorageLoad, "packed-i4 storage load"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.packed_unpack_plan",
+            selection.packedUnpackPlan, "packed-i4 unpack plan"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.packed_unpacked_source",
+            selection.packedUnpackedSource, "packed-i4 unpacked source"))
+      return error;
+  }
   if (llvm::Error error = requireResourceMirror(
           "tcrv_rvv.low_precision_resource.product_dtype",
           selection.productElementTypeName, "product dtype"))

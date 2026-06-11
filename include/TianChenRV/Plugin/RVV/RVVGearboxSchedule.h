@@ -75,6 +75,16 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackingLayoutAttrName(
     "tcrv_rvv.low_precision_resource.packing_layout");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceUnpackIntentAttrName(
     "tcrv_rvv.low_precision_resource.unpack_intent");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedLoadUnpackContractAttrName(
+        "tcrv_rvv.low_precision_resource.packed_load_unpack_contract");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedStorageLoadAttrName(
+    "tcrv_rvv.low_precision_resource.packed_storage_load");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedUnpackPlanAttrName(
+    "tcrv_rvv.low_precision_resource.packed_unpack_plan");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedUnpackedSourceAttrName(
+        "tcrv_rvv.low_precision_resource.packed_unpacked_source");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductDTypeAttrName(
     "tcrv_rvv.low_precision_resource.product_dtype");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductSEWAttrName(
@@ -720,6 +730,15 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourceUnpackIntentNone(
     "none-direct-widening-product");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles(
     "sign-extend-i4-nibbles-before-widening-product");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourcePackedI4LoadUnpackContract(
+        "rvv-packed-i4-load-unpack-resource-facts.v1");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4StorageLoad(
+    "unit-stride-vle8-i8mf4-packed-i4x2");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4UnpackPlan(
+    "low-high-i4-sign-extend-to-i8mf4");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourcePackedI4UnpackedSource(
+    "signed-i8mf4-logical-lanes-from-packed-i4x2");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePrimitiveContract(
     "rvv-low-precision-widening-primitive-facts.v1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePrimitiveChainContract(
@@ -790,6 +809,10 @@ struct RVVLowPrecisionContractionResourceCandidate {
   std::int64_t effectiveElementWidth = 0;
   llvm::StringRef packingLayout;
   llvm::StringRef unpackIntent;
+  llvm::StringRef packedLoadUnpackContract;
+  llvm::StringRef packedStorageLoad;
+  llvm::StringRef packedUnpackPlan;
+  llvm::StringRef packedUnpackedSource;
   llvm::StringRef productElementTypeName;
   std::int64_t productSEW = 0;
   llvm::StringRef productLMUL;
@@ -1326,6 +1349,14 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
       kRVVLowPrecisionResourcePackingLayoutPackedI4Nibbles;
   packedI4Candidate.unpackIntent =
       kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles;
+  packedI4Candidate.packedLoadUnpackContract =
+      kRVVLowPrecisionResourcePackedI4LoadUnpackContract;
+  packedI4Candidate.packedStorageLoad =
+      kRVVLowPrecisionResourcePackedI4StorageLoad;
+  packedI4Candidate.packedUnpackPlan =
+      kRVVLowPrecisionResourcePackedI4UnpackPlan;
+  packedI4Candidate.packedUnpackedSource =
+      kRVVLowPrecisionResourcePackedI4UnpackedSource;
   packedI4Candidate.unrollFactor = kRVVLowPrecisionResourcePackedI4Unroll;
   packedI4Candidate.accumulatorCount =
       kRVVLowPrecisionResourcePackedI4AccumulatorCount;
@@ -1546,6 +1577,11 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name == kRVVLowPrecisionResourceEffectiveElementWidthAttrName ||
          name == kRVVLowPrecisionResourcePackingLayoutAttrName ||
          name == kRVVLowPrecisionResourceUnpackIntentAttrName ||
+         name ==
+             kRVVLowPrecisionResourcePackedLoadUnpackContractAttrName ||
+         name == kRVVLowPrecisionResourcePackedStorageLoadAttrName ||
+         name == kRVVLowPrecisionResourcePackedUnpackPlanAttrName ||
+         name == kRVVLowPrecisionResourcePackedUnpackedSourceAttrName ||
          name == kRVVLowPrecisionResourceProductDTypeAttrName ||
          name == kRVVLowPrecisionResourceProductSEWAttrName ||
          name == kRVVLowPrecisionResourceProductLMULAttrName ||

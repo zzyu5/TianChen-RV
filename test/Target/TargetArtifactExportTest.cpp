@@ -856,6 +856,9 @@ module {
     position += primitiveResourceInsertionPoint.size();
     source.insert(position, primitiveResourceFacts.str());
     position += primitiveResourceFacts.size();
+    constexpr llvm::StringLiteral packedI4LoadUnpackResourceFacts = R"mlir(, tcrv_rvv.low_precision_resource.packed_load_unpack_contract = "rvv-packed-i4-load-unpack-resource-facts.v1", tcrv_rvv.low_precision_resource.packed_storage_load = "unit-stride-vle8-i8mf4-packed-i4x2", tcrv_rvv.low_precision_resource.packed_unpack_plan = "low-high-i4-sign-extend-to-i8mf4", tcrv_rvv.low_precision_resource.packed_unpacked_source = "signed-i8mf4-logical-lanes-from-packed-i4x2")mlir";
+    source.insert(position, packedI4LoadUnpackResourceFacts.str());
+    position += packedI4LoadUnpackResourceFacts.size();
     source.insert(position, resourceCostFacts.str());
     return mlir::parseSourceString<mlir::ModuleOp>(source, &context);
   }
@@ -14645,6 +14648,19 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-only-packed-i4-unpack-plan"}))
     return false;
 
+  RVVRouteDescription stalePackedI4UnpackPlan =
+      packedI4ProductDequantDescription;
+  stalePackedI4UnpackPlan.lowPrecisionResourceSelection.packedUnpackPlan =
+      "metadata-only-packed-i4-unpack-plan";
+  if (!expectWideningDotProviderFailure(
+          packedI4ProductDequantFixture.candidate,
+          packedI4ProductDequantRoute, stalePackedI4UnpackPlan,
+          "packed-i4 product-reduction registry rejects stale packed-i4 "
+          "load/unpack provider fact",
+          {"packed-i4 unpack plan", "low-high-i4-sign-extend-to-i8mf4",
+           "metadata-only-packed-i4-unpack-plan"}))
+    return false;
+
   RVVRouteDescription stalePackedI4RemediationProductPlan =
       packedI4ProductDequantDescription;
   stalePackedI4RemediationProductPlan.lowPrecisionResourceSelection
@@ -14762,6 +14778,25 @@ bool expectRVVTargetArtifactExporterShape(
           "metadata",
           {"unpack intent", "sign-extend-i4-nibbles-before-widening-product",
            "metadata-derived-unpack"}))
+    return false;
+
+  TargetArtifactCandidate stalePackedI4UnpackPlanMirror =
+      packedI4ProductDequantFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          stalePackedI4UnpackPlanMirror,
+          "tcrv_rvv.low_precision_resource.packed_unpack_plan",
+          "metadata-only-packed-i4-unpack-plan")) {
+    llvm::errs() << "packed-i4 test fixture did not contain packed unpack "
+                    "plan metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          stalePackedI4UnpackPlanMirror, packedI4ProductDequantRoute,
+          packedI4ProductDequantDescription,
+          "packed-i4 product-reduction registry rejects stale packed-i4 "
+          "unpack plan metadata",
+          {"packed-i4 unpack plan", "low-high-i4-sign-extend-to-i8mf4",
+           "metadata-only-packed-i4-unpack-plan"}))
     return false;
 
   TargetArtifactCandidate stalePackedI4PerformanceFeedbackMirror =

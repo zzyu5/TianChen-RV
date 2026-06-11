@@ -22,11 +22,20 @@
   "parent": null,
   "relatedFiles": [
     "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h",
+    "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h",
+    "lib/Dialect/RVV/IR/RVVDialect.cpp",
+    "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp",
+    "lib/Plugin/RVV/RVVGearboxSchedules.cpp",
     "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp",
-    "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir",
-    "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir",
+    "lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp",
+    "lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp",
+    "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp",
+    "lib/Target/RVV/RVVTargetSupportBundle.cpp",
+    "test/Plugin/RVVExtensionPluginTest.cpp",
+    "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir",
+    "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir",
     "test/Target/TargetArtifactExportTest.cpp"
   ],
-  "notes": "Current slice hardened Gate 2 plain product-reduction resource-fact consumption in route-planning and target validation. Macro task remains active for direct Gearbox selected-body consumption and packed-i4 load/unpack gates.",
+  "notes": "Current slice completed the Gate 2 packed-i4 load/unpack resource-fact spine: producer facts, selected-body realization, route planning, target metadata mirrors, support-bundle mirrors, and stale-fact rejection now agree. Macro task remains active for widening-product/reduction resource candidates and later Gate 3/Gate 4 campaign gates.",
   "meta": {}
 }

@@ -617,6 +617,23 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
     return mlir::failure();
   if (isRVVLowPrecisionResourcePackedI4CandidateID(selected->candidateID)) {
     if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourcePackedLoadUnpackContractAttrName,
+            selected->packedLoadUnpackContract)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourcePackedStorageLoadAttrName,
+            selected->packedStorageLoad)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourcePackedUnpackPlanAttrName,
+            selected->packedUnpackPlan)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourcePackedUnpackedSourceAttrName,
+            selected->packedUnpackedSource)))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
             op, builder, kRVVLowPrecisionResourcePerformanceFeedbackAttrName,
             kRVVLowPrecisionResourcePackedI4PerformanceFeedback)))
       return mlir::failure();
@@ -1431,6 +1448,54 @@ validateLowPrecisionProductDequantGearboxBody(
            << "RVV low-precision Gearbox resource candidate derivation "
               "requires handoff operand form, packing layout, and unpack "
               "intent to match the selected resource candidate";
+
+  auto requireOptionalPackedI4LoadUnpackFact =
+      [&](llvm::StringRef attrName,
+          llvm::StringRef expected) -> mlir::LogicalResult {
+    auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return handoff->emitError()
+               << "RVV low-precision Gearbox resource candidate derivation "
+                  "requires packed-i4 load/unpack fact '"
+               << attrName
+               << "' to be absent for unpacked-byte resource candidates";
+      return mlir::success();
+    }
+    if (!attr)
+      return handoff->emitError()
+             << "RVV low-precision Gearbox resource candidate derivation "
+                "requires packed-i4 load/unpack fact '"
+             << attrName << "' before route support";
+    if (attr.getValue() == expected)
+      return mlir::success();
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires packed-i4 load/unpack fact '"
+           << attrName << "' to match provider-owned resource fact '"
+           << expected << "' but found '" << attr.getValue() << "'";
+  };
+  if (mlir::failed(requireOptionalPackedI4LoadUnpackFact(
+          "packed_load_unpack_contract",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4LoadUnpackContract)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalPackedI4LoadUnpackFact(
+          "packed_storage_load",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4StorageLoad)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalPackedI4LoadUnpackFact(
+          "packed_unpack_plan",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4UnpackPlan)))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalPackedI4LoadUnpackFact(
+          "packed_unpacked_source",
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4UnpackedSource)))
+    return mlir::failure();
+
   if (static_cast<std::int64_t>(handoff.getPeakLiveVectorGroups()) !=
       tianchenrv::plugin::rvv::
           getRVVLowPrecisionResourceExpectedPeakLiveVectorGroups(

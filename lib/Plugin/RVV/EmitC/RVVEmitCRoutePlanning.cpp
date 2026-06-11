@@ -17744,6 +17744,48 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
         "low-precision product-reduction dequantization RVV route requires "
         "tcrv_rvv.gearbox_cross_region_handoff operand form, packing layout, "
         "and unpack intent to match the selected resource candidate");
+
+  auto requireOptionalPackedI4LoadUnpackFact =
+      [&](llvm::StringRef attrName, llvm::StringRef expected) -> llvm::Error {
+    auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine("low-precision product-reduction dequantization RVV "
+                        "route requires packed-i4 load/unpack fact '") +
+            attrName + "' to be absent for unpacked-byte resource candidates");
+      return llvm::Error::success();
+    }
+    if (!attr)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine("low-precision product-reduction dequantization RVV "
+                      "route requires tcrv_rvv.gearbox_cross_region_handoff "
+                      "packed-i4 load/unpack fact '") +
+          attrName + "' before route support");
+    if (attr.getValue() == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine("low-precision product-reduction dequantization RVV "
+                    "route requires tcrv_rvv.gearbox_cross_region_handoff "
+                    "packed-i4 load/unpack fact '") +
+        attrName + "' to match provider-owned resource fact '" + expected +
+        "' but found '" + attr.getValue() + "'");
+  };
+  if (llvm::Error error = requireOptionalPackedI4LoadUnpackFact(
+          "packed_load_unpack_contract",
+          kRVVLowPrecisionResourcePackedI4LoadUnpackContract))
+    return error;
+  if (llvm::Error error = requireOptionalPackedI4LoadUnpackFact(
+          "packed_storage_load", kRVVLowPrecisionResourcePackedI4StorageLoad))
+    return error;
+  if (llvm::Error error = requireOptionalPackedI4LoadUnpackFact(
+          "packed_unpack_plan", kRVVLowPrecisionResourcePackedI4UnpackPlan))
+    return error;
+  if (llvm::Error error = requireOptionalPackedI4LoadUnpackFact(
+          "packed_unpacked_source",
+          kRVVLowPrecisionResourcePackedI4UnpackedSource))
+    return error;
+
   if (static_cast<std::int64_t>(handoff.getPeakLiveVectorGroups()) !=
       getRVVLowPrecisionResourceExpectedPeakLiveVectorGroups(
           handoff.getResourceSelectedCandidate()))
@@ -43435,6 +43477,20 @@ getRVVSelectedBodyConfigArtifactMetadata(
                         selection.packingLayout});
     metadata.push_back({"tcrv_rvv.low_precision_resource.unpack_intent",
                         selection.unpackIntent});
+    if (!selection.packedLoadUnpackContract.empty()) {
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.packed_load_unpack_contract",
+           selection.packedLoadUnpackContract});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.packed_storage_load",
+           selection.packedStorageLoad});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.packed_unpack_plan",
+           selection.packedUnpackPlan});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.packed_unpacked_source",
+           selection.packedUnpackedSource});
+    }
     metadata.push_back({"tcrv_rvv.low_precision_resource.product_dtype",
                         selection.productElementTypeName});
     metadata.push_back({"tcrv_rvv.low_precision_resource.product_sew",

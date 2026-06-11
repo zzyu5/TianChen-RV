@@ -156,6 +156,10 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::int64_t effectiveElementWidth = 0;
   std::string packingLayout;
   std::string unpackIntent;
+  std::string packedLoadUnpackContract;
+  std::string packedStorageLoad;
+  std::string packedUnpackPlan;
+  std::string packedUnpackedSource;
   std::string productElementTypeName;
   std::int64_t productSEW = 0;
   std::string productLMUL;

@@ -4924,6 +4924,11 @@ void populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
   selection.effectiveElementWidth = candidate.effectiveElementWidth;
   selection.packingLayout = candidate.packingLayout.str();
   selection.unpackIntent = candidate.unpackIntent.str();
+  selection.packedLoadUnpackContract =
+      candidate.packedLoadUnpackContract.str();
+  selection.packedStorageLoad = candidate.packedStorageLoad.str();
+  selection.packedUnpackPlan = candidate.packedUnpackPlan.str();
+  selection.packedUnpackedSource = candidate.packedUnpackedSource.str();
   selection.productElementTypeName = candidate.productElementTypeName.str();
   selection.productSEW = candidate.productSEW;
   selection.productLMUL = candidate.productLMUL.str();
@@ -5482,6 +5487,31 @@ llvm::Error requireRVVLowPrecisionResourceRealizationFacts(
     if (llvm::Error error =
             requireRVVLowPrecisionResourceRealizationStringFact(
                 op, context, selection,
+                kRVVLowPrecisionResourcePackedLoadUnpackContractAttrName,
+                "packed-i4 load/unpack contract",
+                selection.packedLoadUnpackContract))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourcePackedStorageLoadAttrName,
+                "packed-i4 storage load", selection.packedStorageLoad))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourcePackedUnpackPlanAttrName,
+                "packed-i4 unpack plan", selection.packedUnpackPlan))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
+                kRVVLowPrecisionResourcePackedUnpackedSourceAttrName,
+                "packed-i4 unpacked source", selection.packedUnpackedSource))
+      return error;
+    if (llvm::Error error =
+            requireRVVLowPrecisionResourceRealizationStringFact(
+                op, context, selection,
                 kRVVLowPrecisionResourceCostContractAttrName,
                 "resource cost contract", selection.resourceCostContract))
       return error;
@@ -5925,6 +5955,54 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
   if (llvm::Error error = requireHandoffResourceFact(
           "unpack_intent", handoff.getUnpackIntent(), selection.unpackIntent))
     return error;
+  auto requireHandoffPackedI4LoadUnpackFact =
+      [&](llvm::StringRef attrName, llvm::StringRef field,
+          llvm::StringRef expected) -> llvm::Error {
+    auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
+    const bool isPackedI4Resource =
+        isRVVLowPrecisionResourcePackedI4CandidateID(
+            selection.selectedCandidateID);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " selected-body realization low-precision direct-contraction "
+            "structure requires packed-i4 Gearbox handoff load/unpack fact '" +
+            attrName +
+            "' to be absent for unpacked-byte resource candidates");
+      return llvm::Error::success();
+    }
+    if (!attr)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " selected-body realization low-precision direct-contraction "
+          "structure requires packed-i4 Gearbox handoff load/unpack fact '" +
+          attrName + "' before route acceptance");
+    if (attr.getValue() == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires packed-i4 Gearbox handoff load/unpack fact '" +
+        field + "' to match selected resource facts '" + expected +
+        "' but found '" + attr.getValue() + "'");
+  };
+  if (llvm::Error error = requireHandoffPackedI4LoadUnpackFact(
+          "packed_load_unpack_contract", "packed-i4 load/unpack contract",
+          selection.packedLoadUnpackContract))
+    return error;
+  if (llvm::Error error = requireHandoffPackedI4LoadUnpackFact(
+          "packed_storage_load", "packed-i4 storage load",
+          selection.packedStorageLoad))
+    return error;
+  if (llvm::Error error = requireHandoffPackedI4LoadUnpackFact(
+          "packed_unpack_plan", "packed-i4 unpack plan",
+          selection.packedUnpackPlan))
+    return error;
+  if (llvm::Error error = requireHandoffPackedI4LoadUnpackFact(
+          "packed_unpacked_source", "packed-i4 unpacked source",
+          selection.packedUnpackedSource))
+    return error;
   if (llvm::Error error = requireHandoffResourceIntegerFact(
           "peak_live_vector_groups", handoff.getPeakLiveVectorGroups(),
           selection.peakLiveVectorGroups))
@@ -6311,6 +6389,29 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     selection.unpackIntent = *value;
   else
     return value.takeError();
+  if (isRVVLowPrecisionResourcePackedI4CandidateID(
+          selection.selectedCandidateID)) {
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourcePackedLoadUnpackContractAttrName))
+      selection.packedLoadUnpackContract = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourcePackedStorageLoadAttrName))
+      selection.packedStorageLoad = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourcePackedUnpackPlanAttrName))
+      selection.packedUnpackPlan = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourcePackedUnpackedSourceAttrName))
+      selection.packedUnpackedSource = *value;
+    else
+      return value.takeError();
+  }
   if (llvm::Expected<std::string> value =
           readString(kRVVLowPrecisionResourceProductDTypeAttrName))
     selection.productElementTypeName = *value;
@@ -7223,6 +7324,27 @@ llvm::Error verifyRVVLowPrecisionContractionResourceRemediationHandoff(
           selection.selectedCandidateID))
     return llvm::Error::success();
 
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "packed-i4 load/unpack contract",
+          selection.packedLoadUnpackContract,
+          kRVVLowPrecisionResourcePackedI4LoadUnpackContract))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "packed-i4 storage load",
+          selection.packedStorageLoad,
+          kRVVLowPrecisionResourcePackedI4StorageLoad))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "packed-i4 unpack plan",
+          selection.packedUnpackPlan,
+          kRVVLowPrecisionResourcePackedI4UnpackPlan))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "packed-i4 unpacked source",
+          selection.packedUnpackedSource,
+          kRVVLowPrecisionResourcePackedI4UnpackedSource))
+    return error;
+
   RVVLowPrecisionSameTargetMeasurementRecord measurementRecord =
       buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
   llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput> policyInput =
@@ -7403,6 +7525,11 @@ bool isRVVLowPrecisionResourceSelectionEqual(
          lhs.effectiveElementWidth == rhs.effectiveElementWidth &&
          lhs.packingLayout == rhs.packingLayout &&
          lhs.unpackIntent == rhs.unpackIntent &&
+         lhs.packedLoadUnpackContract ==
+             rhs.packedLoadUnpackContract &&
+         lhs.packedStorageLoad == rhs.packedStorageLoad &&
+         lhs.packedUnpackPlan == rhs.packedUnpackPlan &&
+         lhs.packedUnpackedSource == rhs.packedUnpackedSource &&
          lhs.productElementTypeName == rhs.productElementTypeName &&
          lhs.productSEW == rhs.productSEW &&
          lhs.productLMUL == rhs.productLMUL &&

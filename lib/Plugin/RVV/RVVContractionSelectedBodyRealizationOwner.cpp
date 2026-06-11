@@ -491,6 +491,23 @@ materializeLowPrecisionResourceRealizationAttrs(
       isRVVLowPrecisionResourcePackedI4CandidateID(selected->candidateID);
   if (isPackedI4Resource) {
     if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source,
+            kRVVLowPrecisionResourcePackedLoadUnpackContractAttrName,
+            selected->packedLoadUnpackContract))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourcePackedStorageLoadAttrName,
+            selected->packedStorageLoad))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourcePackedUnpackPlanAttrName,
+            selected->packedUnpackPlan))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+            source, kRVVLowPrecisionResourcePackedUnpackedSourceAttrName,
+            selected->packedUnpackedSource))
+      return std::move(error);
+    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
             source, kRVVLowPrecisionResourcePerformanceFeedbackAttrName,
             kRVVLowPrecisionResourcePackedI4PerformanceFeedback))
       return std::move(error);
@@ -781,6 +798,18 @@ materializeLowPrecisionResourceRealizationAttrs(
       kRVVLowPrecisionResourceRealizedPeakLiveVectorGroupsAttrName,
       builder.getI64IntegerAttr(selected->peakLiveVectorGroups));
   if (isPackedI4Resource) {
+    destination->setAttr(
+        kRVVLowPrecisionResourcePackedLoadUnpackContractAttrName,
+        builder.getStringAttr(selected->packedLoadUnpackContract));
+    destination->setAttr(
+        kRVVLowPrecisionResourcePackedStorageLoadAttrName,
+        builder.getStringAttr(selected->packedStorageLoad));
+    destination->setAttr(
+        kRVVLowPrecisionResourcePackedUnpackPlanAttrName,
+        builder.getStringAttr(selected->packedUnpackPlan));
+    destination->setAttr(
+        kRVVLowPrecisionResourcePackedUnpackedSourceAttrName,
+        builder.getStringAttr(selected->packedUnpackedSource));
     destination->setAttr(
         kRVVLowPrecisionResourcePerformanceFeedbackAttrName,
         builder.getStringAttr(kRVVLowPrecisionResourcePackedI4PerformanceFeedback));
@@ -1079,6 +1108,16 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
       builder.getI64IntegerAttr(selectedCandidate.vectorRegisterBudget));
   if (isRVVLowPrecisionResourcePackedI4CandidateID(
           selectedCandidate.candidateID)) {
+    state.addAttribute(
+        "packed_load_unpack_contract",
+        builder.getStringAttr(selectedCandidate.packedLoadUnpackContract));
+    state.addAttribute("packed_storage_load",
+                       builder.getStringAttr(selectedCandidate.packedStorageLoad));
+    state.addAttribute("packed_unpack_plan",
+                       builder.getStringAttr(selectedCandidate.packedUnpackPlan));
+    state.addAttribute(
+        "packed_unpacked_source",
+        builder.getStringAttr(selectedCandidate.packedUnpackedSource));
     state.addAttribute("resource_cost_contract",
                        builder.getStringAttr(
                            selectedCandidate.resourceCostContract));

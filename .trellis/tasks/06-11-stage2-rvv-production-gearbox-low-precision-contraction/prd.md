@@ -41,39 +41,50 @@ The first Gate 2 slice added the plain product-reduction resource spine.
 primitive facts, including unsigned u8/u16/u32 route planning, resource
 selection, and target artifact validation.
 
-The current bounded Gate 2 slice consumes those facts as route-planning and
-target-validation authority. The plain product-reduction consumer path must not
-let the resource selection pick its own signed/unsigned primitive fact family
-before it is checked against the provider-derived route description/plan.
-Missing, stale, or inconsistent product-reduction resource facts must fail
-closed before target artifact acceptance.
+The second Gate 2 slice completed the packed-i4 load/unpack resource-fact
+spine. Packed-i4 candidates now carry an explicit load/unpack contract,
+storage-load fact, unpack-plan fact, and unpacked-source fact. Gearbox
+materializes those facts, selected-body realization consumes and mirrors them,
+route planning rejects stale handoff facts before route construction, and target
+artifact validation rejects stale provider or metadata mirrors. The authority
+remains typed `tcrv_rvv` body/config/runtime facts plus RVV-owned resource
+candidates, not q8/q4 labels, artifact names, route IDs, helper names, or common
+EmitC semantics.
 
-## Current Slice
+## Completed Slice
 
-Implement the current Gate 2 consumption slice:
+The current round implemented the Gate 2 packed-i4 load/unpack slice:
 
-- Make plain product-reduction route-planning validation choose signed/unsigned
-  widening-reduction primitive facts from provider-derived plan/description
-  signedness, not from the untrusted resource selection being validated.
-- Keep resource selection comparison against provider primitive/source/product,
-  accumulator/result, widening-product role, extension-policy, route-family,
-  producer/consumer, target capability, and mirror facts fail closed.
-- Add focused negative coverage for a stale plain product-reduction resource
-  signedness selection and a stale product-reduction resource chain mirror.
-- Keep existing signed/unsigned product-reduction and product-reduction
-  dequant/dequant-clamp paths passing.
+- Add explicit packed-i4 load/unpack resource facts to the low-precision
+  contraction resource candidate/selection surface, including a contract,
+  storage-load fact, unpack-plan fact, and unpacked-source fact.
+- Produce those facts from the RVV-owned Gearbox/resource candidate path when
+  the selected candidate is packed-i4.
+- Consume the same facts in selected-body realization and route-planning
+  validation before `TCRVEmitCLowerableRoute` construction, including the
+  realized `with_vl` and Gearbox cross-region handoff path.
+- Mirror the facts through route metadata/target artifact validation and reject
+  stale provider facts or stale target metadata before artifact acceptance.
+- Keep existing packed-i4 dequant/dequant-clamp, signed/unsigned
+  product-reduction, and dequant/dequant-clamp resource paths passing.
 
 ## Acceptance Criteria For This Slice
 
-- Plain product-reduction resource validation consumes provider-derived
-  primitive signedness when selecting the expected signed/unsigned
-  widening-reduction fact family.
-- A stale plain product-reduction resource signedness selection fails in the
-  production target-validation/provider-fact consumer path.
-- A stale target artifact mirror for the product-reduction resource chain
-  relation fails before target export.
-- Existing signed product-reduction, unsigned product-reduction,
-  dequantize-f32, and dequant-clamp-f32 focused plan/header paths still pass.
+- Packed-i4 load/unpack facts are explicit fields in the production
+  low-precision resource candidate/selection surface, not only text inside
+  remediation strings.
+- Gearbox/resource candidate materialization produces the packed-i4
+  load/unpack facts and selected-body realization consumes them before route
+  construction.
+- Route planning and target validation compare packed-i4 load/unpack provider
+  facts and target mirrors exactly.
+- A stale provider-side packed-i4 load/unpack fact fails in the production
+  provider/target validation path.
+- A stale target artifact mirror for a packed-i4 load/unpack fact fails before
+  target export.
+- Existing packed-i4 dequant/dequant-clamp, signed product-reduction, unsigned
+  product-reduction, dequantize-f32, and dequant-clamp-f32 focused plan/header
+  paths still pass.
 - `tianchenrv-rvv-extension-plugin-test` and
   `tianchenrv-target-artifact-export-test` pass.
 
@@ -88,10 +99,11 @@ Implement the current Gate 2 consumption slice:
 
 ## Status After Current Slice
 
-Gate 2 will be advanced but not complete. The macro task remains active.
+Gate 2 is advanced but not complete. The packed-i4 load/unpack fact slice is
+complete; widening-product/reduction resource candidate facts remain open. The
+macro task remains active.
 
 Continuation point: extend the same production resource/primitive spine toward
 the next low-precision contraction primitive gap that Gearbox selected-body
-realization consumes directly, especially packed-i4 load/unpack and
-widening-product/reduction resource candidates without relying on q8/q4 labels
-or artifact names.
+realization consumes directly, especially widening-product/reduction resource
+candidates without relying on q8/q4 labels or artifact names.

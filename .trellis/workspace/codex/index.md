@@ -57,6 +57,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 581 | 2026-06-11 | Stage2 RVV packed-i4 load/unpack resource facts | this commit | `main` |
 | 580 | 2026-06-11 | Stage2 RVV Gate 4 packed-i4 scalar-epilogue repair | this commit | `main` |
 | 579 | 2026-06-10 | Gate 4 primitive provenance through Gearbox measurement | final-commit-see-git-log | `main` |
 | 578 | 2026-06-10 | Stage2 RVV Gearbox Gate 1 pressure-profile admission | `469a69ac` | `main` |

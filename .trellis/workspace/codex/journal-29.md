@@ -1989,3 +1989,50 @@ resource candidates remain open.
 Continue with Gearbox selected-body realization consuming the next
 low-precision resource candidate directly, especially packed-i4 load/unpack
 facts, without q8/q4 labels or artifact-name authority.
+
+## Session 581: Stage2 RVV packed-i4 load/unpack resource facts
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV production-kernel Gearbox resource-aware low-precision contraction campaign
+**Branch**: `main`
+
+### Summary
+
+Completed the Gate 2 packed-i4 load/unpack resource-fact slice. The packed-i4
+candidate now carries explicit load/unpack facts, selected-body realization
+requires and mirrors them, route planning validates stale handoff facts, target
+artifact validation checks provider and metadata mirrors, and support-bundle
+metadata exports include the same facts.
+
+### Main Changes
+
+- Added provider-owned packed-i4 load/unpack fact constants and selection fields.
+- Materialized and consumed those facts through Gearbox, selected-body
+  realization, route planning, target validation, and support bundle export.
+- Added stale provider and target mirror negative coverage for packed-i4
+  unpack-plan drift.
+- Repaired C++ and MLIR fixtures so the stricter selected-body contract is
+  exercised by production-like packed-i4 facts.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] manual FileCheck RUNs for packed-i4 dequantize REALIZED, PLAN, HEADER,
+  STALE-PACKED-HANDOFF-UNPACK-PLAN, and STALE-ARTIFACT-PACKED-UNPACK-PLAN
+- [OK] manual FileCheck RUNs for packed-i4 dequant-clamp REALIZED, PLAN, and
+  HEADER
+
+### Status
+
+[MACRO ACTIVE] Gate 2 packed-i4 load/unpack resource fact slice complete. The
+macro campaign remains active; not all campaign gates are complete.
+
+### Continuation
+
+Continue with Gate 2 widening-product/reduction resource candidate facts, then
+Gate 3 selected-body realization consumption. Do not move to Gate 4
+performance-preferred dispatch without same-target measured wins.

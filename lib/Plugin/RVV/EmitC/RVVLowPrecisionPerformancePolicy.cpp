@@ -1110,6 +1110,24 @@ llvm::Error verifyPackedI4SelectionFacts(
           kRVVLowPrecisionResourceUnpackIntentPackedI4Nibbles))
     return error;
   if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 load/unpack contract",
+          selection.packedLoadUnpackContract,
+          kRVVLowPrecisionResourcePackedI4LoadUnpackContract))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 storage load", selection.packedStorageLoad,
+          kRVVLowPrecisionResourcePackedI4StorageLoad))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 unpack plan", selection.packedUnpackPlan,
+          kRVVLowPrecisionResourcePackedI4UnpackPlan))
+    return error;
+  if (llvm::Error error = requirePolicyString(
+          context, "packed-i4 unpacked source",
+          selection.packedUnpackedSource,
+          kRVVLowPrecisionResourcePackedI4UnpackedSource))
+    return error;
+  if (llvm::Error error = requirePolicyString(
           context, "packed-i4 realization producer",
           selection.realizationProducer,
           kRVVLowPrecisionResourceRealizationProducer))

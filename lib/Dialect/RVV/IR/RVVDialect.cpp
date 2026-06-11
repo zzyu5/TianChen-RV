@@ -125,6 +125,14 @@ constexpr llvm::StringLiteral kResourceSelectedCandidateAttrName(
 constexpr llvm::StringLiteral kOperandFormAttrName("operand_form");
 constexpr llvm::StringLiteral kPackingLayoutAttrName("packing_layout");
 constexpr llvm::StringLiteral kUnpackIntentAttrName("unpack_intent");
+constexpr llvm::StringLiteral kPackedLoadUnpackContractAttrName(
+    "packed_load_unpack_contract");
+constexpr llvm::StringLiteral kPackedStorageLoadAttrName(
+    "packed_storage_load");
+constexpr llvm::StringLiteral kPackedUnpackPlanAttrName(
+    "packed_unpack_plan");
+constexpr llvm::StringLiteral kPackedUnpackedSourceAttrName(
+    "packed_unpacked_source");
 constexpr llvm::StringLiteral kPeakLiveVectorGroupsAttrName(
     "peak_live_vector_groups");
 constexpr llvm::StringLiteral kVectorRegisterBudgetAttrName(
@@ -335,6 +343,10 @@ bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
          name == kResourceSelectedCandidateAttrName ||
          name == kOperandFormAttrName || name == kPackingLayoutAttrName ||
          name == kUnpackIntentAttrName ||
+         name == kPackedLoadUnpackContractAttrName ||
+         name == kPackedStorageLoadAttrName ||
+         name == kPackedUnpackPlanAttrName ||
+         name == kPackedUnpackedSourceAttrName ||
          name == kPeakLiveVectorGroupsAttrName ||
          name == kVectorRegisterBudgetAttrName ||
          name == kResourceCostContractAttrName ||
