@@ -19,29 +19,34 @@ measurement evidence agree.
 - [x] Gate 2: one concrete RVV low-precision or contraction pressure path carries
   policy output into selected-dispatch/fallback behavior without artifact
   metadata, route id, q8/q4 label, or test-name authority.
-- [ ] Gate 3: same-target measured-win or no-win records can update
+- [x] Gate 3: same-target measured-win or no-win records can update
   admission/reopen facts through provider-owned contracts and target mirrors,
   with fail-closed stale-provenance diagnostics.
-- [ ] Gate 4: focused executable or measurement evidence demonstrates the
+- [x] Gate 4: focused executable or measurement evidence demonstrates the
   policy-to-dispatch workflow on `ssh rvv` only when the production compiler
   path claims runtime, correctness, or performance behavior.
 
 ## Current Round Slice
 
-Implement Gate 3 for the current packed-i4 selected-dispatch pressure path. The
+Implement Gate 4 for the current packed-i4 selected-dispatch pressure path. The
 bounded slice is:
 
-- Add an explicit same-target measurement-record admission path for
-  selected-dispatch policy-output facts, so accepted no-win or measured-win
-  records can update the `RVVLowPrecisionPerformancePolicy` decision and
-  selected-dispatch mirrors through provider-owned C++ contracts.
-- Keep the current no-win path as `correctness-fallback` /
-  `not-performance-preferred` unless the selected provider resource facts,
-  admission closure/reopen facts, maturity fields, same-target record, and real
-  `tcrv.exec.dispatch` case/fallback facts all agree on a measured-win update.
-- Reject stale target, capability/resource, workload/runtime ABI, selected-body,
-  policy-output, mirror-handoff, or measurement-root facts before target
-  artifact/header mirrors can claim dispatch preference.
+- Bind the existing source-backed `ssh rvv` packed-i4 same-target measurement
+  evidence roots to the record-aware selected-dispatch policy-output path, so a
+  record parsed from generated evidence JSON, not a helper-built representative
+  alone, drives `RVVLowPrecisionPerformancePolicy`,
+  `populateRVVLowPrecisionSelectedDispatchPolicyOutput`, selected-dispatch
+  case/fallback facts, provider policy-output mirrors, and target artifact/header
+  mirrors.
+- Preserve the current no-win path as `correctness-fallback` /
+  `not-performance-preferred` unless provider resource facts, campaign
+  no-further-repair admission closure/reopen facts, maturity fields, source
+  evidence root, same-target record, and real `tcrv.exec.dispatch`
+  case/fallback facts all agree on a measured-win update.
+- Reject stale evidence-root result/schedule/admission facts, stale target,
+  capability/resource, workload/runtime ABI, selected-body, policy-output,
+  mirror-handoff, or measurement-root facts before target artifact/header mirrors
+  can claim dispatch preference.
 
 ## What I Already Know
 
@@ -130,6 +135,14 @@ selection-only helper rather than the measured-record admission handoff.
 - [x] Target artifact tests cover record-derived selected-dispatch
   policy-output mirrors and stale policy-output mirror rejection before artifact
   acceptance.
+- [x] Gate 4 C++ policy tests feed source-backed same-target evidence JSON roots
+  through the evidence-root overload and preserve correctness fallback while
+  denying performance-preferred dispatch.
+- [x] Gate 4 C++ policy tests feed a record parsed from generated evidence JSON
+  through the record-aware selected-dispatch policy-output overload.
+- [x] Gate 4 target artifact/header mirror tests consume policy-output facts
+  populated from an evidence-root parsed record and reject stale evidence-root,
+  target, runtime, dispatch, or metadata-only mirror promotion.
 - [x] Focused build/tests for `tcrv-opt`, `tcrv-translate`,
   `tianchenrv-rvv-extension-plugin-test`, and
   `tianchenrv-target-artifact-export-test` pass.
@@ -168,7 +181,8 @@ selection-only helper rather than the measured-record admission handoff.
 ## Current Status
 
 Gate 1 current slice is complete. Gate 2 current slice is complete. Gate 3
-current slice is complete. Gate 4 remains open, so the macro task stays active.
+current slice is complete. Gate 4 current slice is complete. All campaign gates
+are complete, so the macro task is ready to finish/archive.
 
 Completed in Gate 1:
 
@@ -314,9 +328,51 @@ selected-dispatch policy-output mirrors, target validation coverage, and specs.
 It does not change generated RVV runtime behavior or make fresh correctness or
 performance claims.
 
+## Current Gate 4 Slice
+
+In this round, the existing source-backed `ssh rvv` packed-i4 same-target
+measurement evidence roots were bound to the selected-dispatch
+performance-admission workflow:
+
+- parsed the dequant and dequant-clamp
+  `same_target_measurement_evidence.json` roots through
+  `buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceRoot`;
+- proved the parsed records, not only helper-built representatives, feed
+  `populateRVVLowPrecisionSelectedDispatchPolicyOutput(selection, record,
+  boundary, context)` and produce provider-owned
+  `correctness-fallback` / `not-performance-preferred` policy-output mirrors;
+- proved target artifact mirror validation consumes policy-output facts
+  populated from the dequant evidence-root parsed record;
+- preserved correctness execution and denied performance-preferred dispatch for
+  the current no-win evidence;
+- rejected stale evidence-root speedup/admission/schedule facts, stale target,
+  runtime, primitive, dispatch, and metadata-only policy-output mirrors before
+  target/header acceptance.
+
+Checks for Gate 4:
+
+- `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test -j2` passed.
+- `build/bin/tianchenrv-rvv-extension-plugin-test` passed.
+- `build/bin/tianchenrv-target-artifact-export-test` passed.
+- `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter
+  'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|selected-dispatch'`
+  from `build/test` passed 2/2.
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-11-stage2-rvv-production-selected-dispatch-admission`
+  passed.
+- `git diff --check` and `git diff --cached --check` passed.
+- Bounded old-authority scan over added diff lines found no new legacy RVV
+  authority strings.
+
+No fresh `ssh rvv` run was required in this round: the slice consumes existing
+source-backed `ssh rvv` same-target evidence roots and changes only policy/test
+handoff coverage, not generated runtime behavior or timing values.
+
 ## Continuation Point
 
-Keep this macro task active. Gate 4 is the next campaign gate: focused
-executable or measurement evidence must demonstrate the selected-dispatch
-performance-admission behavior end to end only when the production path claims
-runtime, correctness, or performance behavior.
+No campaign gate remains open. Future performance-preferred packed-i4 dispatch
+requires new provider/resource repair, updated campaign admission/reopen facts,
+fresh source-backed same-target measured-win evidence, and matching target
+mirrors before the policy can select `performance-preferred`.

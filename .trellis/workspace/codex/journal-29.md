@@ -1808,3 +1808,70 @@ claims.
 [UPDATED] `.trellis/spec/extension-plugins/rvv-plugin.md` records the
 record-aware selected-dispatch policy-output population API and required
 positive/stale record coverage.
+
+## Session 594: Stage2 RVV Gate 4 evidence-root selected-dispatch admission closure
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV production-kernel selected-dispatch performance-admission campaign
+**Branch**: `main`
+
+### Summary
+
+Closed Gate 4 for the active macro task by binding existing source-backed
+`ssh rvv` packed-i4 same-target measurement evidence roots into the
+record-aware selected-dispatch policy-output and target mirror path. The
+current accepted outcome remains no-win/correctness-fallback, not
+performance-preferred.
+
+### Main Changes
+
+- Repaired the active macro PRD so Gate 3 is complete and Gate 4 is the current
+  completed slice.
+- Added RVV plugin coverage that parses dequant and dequant-clamp
+  `same_target_measurement_evidence.json` roots, feeds the parsed records into
+  `populateRVVLowPrecisionSelectedDispatchPolicyOutput`, and verifies
+  provider-owned correctness-fallback policy-output mirrors.
+- Added target artifact coverage that reads the dequant evidence root, parses a
+  source-backed record, uses that record to populate selected-dispatch
+  policy-output mirrors, and validates target artifact mirrors.
+- Added stale evidence-root speedup rejection in the target mirror test and
+  kept stale target/runtime/primitive/dispatch/metadata-only rejection on the
+  parsed-record path.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter
+  'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|selected-dispatch'`
+  from `build/test` passed 2/2
+- [OK] `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-11-stage2-rvv-production-selected-dispatch-admission`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded old-authority scan over added diff lines found no new legacy RVV
+  authority strings.
+
+### Status
+
+[READY TO ARCHIVE] Gates 1-4 are complete. No fresh `ssh rvv` run was required
+in this final slice because it consumes existing source-backed `ssh rvv`
+same-target evidence roots and changes only policy/test handoff coverage, not
+generated runtime behavior or timing values.
+
+### Continuation
+
+No campaign gate remains open. Future performance-preferred packed-i4 dispatch
+requires new provider/resource repair, updated campaign admission/reopen facts,
+fresh source-backed same-target measured-win evidence, and matching target
+mirrors before the policy can select `performance-preferred`.
+
+### Spec Update Decision
+
+[NO UPDATE] The RVV plugin and testing specs already require evidence-root
+parsed records to feed selected-dispatch policy-output and target mirror
+coverage. This round implemented that existing contract without adding new API
+fields, commands, or cross-layer conventions.

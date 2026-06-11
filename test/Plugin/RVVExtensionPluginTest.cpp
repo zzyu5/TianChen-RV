@@ -11346,6 +11346,40 @@ module {
           "packed-i4 dequant Gate 4 policy consumes the full source-backed "
           "evidence root and preserves correctness fallback"))
     return result;
+  auto parsedDequantRootPolicyOutputBoundary =
+      clearSelectedDispatchPolicyOutput(packedI4SelectedDispatchBoundary);
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::
+              populateRVVLowPrecisionSelectedDispatchPolicyOutput(
+                  packedI4ResourceSelection,
+                  *parsedPackedI4DequantRootRecord,
+                  parsedDequantRootPolicyOutputBoundary,
+                  "selected-dispatch packed-i4 Gate 4 dequant evidence-root "
+                  "record-derived policy-output"),
+          "packed-i4 Gate 4 dequant evidence-root record populates "
+          "selected-dispatch policy-output"))
+    return result;
+  if (int result = expect(
+          parsedDequantRootPolicyOutputBoundary
+              .hasSelectedDispatchPolicyOutput &&
+              parsedDequantRootPolicyOutputBoundary
+                      .selectedDispatchPolicyPath ==
+                  "correctness-fallback" &&
+              parsedDequantRootPolicyOutputBoundary
+                      .selectedDispatchPreference ==
+                  "not-performance-preferred" &&
+              parsedDequantRootPolicyOutputBoundary
+                  .selectedDispatchCorrectnessFallbackPathSelected &&
+              !parsedDequantRootPolicyOutputBoundary
+                   .selectedDispatchPerformancePreferredPathSelected &&
+              !parsedDequantRootPolicyOutputBoundary
+                   .selectedDispatchPerformanceWinClaimAllowed &&
+              parsedDequantRootPolicyOutputBoundary
+                      .selectedDispatchPerformanceDenialReason ==
+                  "same-target-measurement-no-win-or-regression",
+          "packed-i4 dequant Gate 4 evidence-root parsed record drives "
+          "provider-owned selected-dispatch policy-output mirrors"))
+    return result;
   llvm::json::Object staleDequantEvidenceRoot = *dequantEvidenceRoot;
   llvm::json::Object *staleDequantResult =
       staleDequantEvidenceRoot["result_classification"].getAsObject();
@@ -11994,6 +12028,40 @@ module {
                       .remediationMeasurementEvidenceID,
           "packed-i4 dequant-clamp Gate 4 policy consumes source-backed "
           "same-target evidence and denies performance-preferred dispatch"))
+    return result;
+  auto parsedDequantClampRootPolicyOutputBoundary =
+      clearSelectedDispatchPolicyOutput(dequantClampSelectedDispatchBoundary);
+  if (int result = expectSuccess(
+          tianchenrv::plugin::rvv::
+              populateRVVLowPrecisionSelectedDispatchPolicyOutput(
+                  dequantClampPackedI4ResourceSelection,
+                  *parsedPackedI4DequantClampRecord,
+                  parsedDequantClampRootPolicyOutputBoundary,
+                  "selected-dispatch packed-i4 dequant-clamp Gate 4 "
+                  "evidence-root record-derived policy-output"),
+          "packed-i4 dequant-clamp Gate 4 evidence-root record populates "
+          "selected-dispatch policy-output"))
+    return result;
+  if (int result = expect(
+          parsedDequantClampRootPolicyOutputBoundary
+              .hasSelectedDispatchPolicyOutput &&
+              parsedDequantClampRootPolicyOutputBoundary
+                      .selectedDispatchPolicyPath ==
+                  "correctness-fallback" &&
+              parsedDequantClampRootPolicyOutputBoundary
+                      .selectedDispatchPreference ==
+                  "not-performance-preferred" &&
+              parsedDequantClampRootPolicyOutputBoundary
+                  .selectedDispatchCorrectnessFallbackPathSelected &&
+              !parsedDequantClampRootPolicyOutputBoundary
+                   .selectedDispatchPerformancePreferredPathSelected &&
+              !parsedDequantClampRootPolicyOutputBoundary
+                   .selectedDispatchPerformanceWinClaimAllowed &&
+              parsedDequantClampRootPolicyOutputBoundary
+                      .selectedDispatchPerformanceDenialReason ==
+                  "same-target-measurement-no-win-or-regression",
+          "packed-i4 dequant-clamp Gate 4 evidence-root parsed record drives "
+          "provider-owned selected-dispatch policy-output mirrors"))
     return result;
   auto parsedPackedI4DequantClampPressureProfile =
       tianchenrv::plugin::rvv::buildRVVLowPrecisionProductionPressureProfile(
