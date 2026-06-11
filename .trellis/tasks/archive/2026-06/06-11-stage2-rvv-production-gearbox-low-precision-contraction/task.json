@@ -3,7 +3,7 @@
   "name": "stage2-rvv-production-gearbox-low-precision-contraction",
   "title": "Stage2 RVV production-kernel Gearbox resource-aware low-precision contraction campaign",
   "description": "Macro campaign for Stage2 RVV production-kernel capability: Gearbox/resource-aware selected-body realization plus low-precision contraction primitive/resource fact spine and same-target measurement admission.",
-  "status": "in_progress",
+  "status": "completed",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "codex",
   "assignee": "codex",
   "createdAt": "2026-06-11",
-  "completedAt": null,
+  "completedAt": "2026-06-11",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -44,6 +44,6 @@
     "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir",
     "test/Target/TargetArtifactExportTest.cpp"
   ],
-  "notes": "Gate 4 admission-boundary cleanup slice completed for the packed-i4 low-precision resource/schedule/target validation path. Stable compiler/resource facts are candidate selection, planning contract, dtype/SEW/LMUL, packed-i4 load/unpack, primitive product/reduction, resource cost, schedule decision, realization/region/live-vector facts, target capability mirrors, legality, and rejection reason. Generic policy-output facts are selected-dispatch case/fallback mirrors plus RVVLowPrecisionPerformancePolicyDecision route/correctness/performance/path outputs. Campaign evidence/admission facts are performance feedback/baseline/speedup/action, remediation narratives and measurement evidence, performance admission closure/reopen, beyond-local repair admission, performance maturity, and same-target measurement records. Production cleanup removed Gate 4 admission-field dependency from the packed-i4 stable Gearbox schedule-decision helper and split target artifact validation into stable resource-mirror consumption plus Gate 4 evidence/admission mirror consumption. Accepted dequant and dequant-clamp no-win records still preserve correctness fallback, route support, and correctness execution while denying performance-preferred path selection and performance-win claims. Macro task remains active for remaining Gate 4 measured-win admission and final provider, selected-dispatch, target mirror, and dispatch/fallback closure.",
+  "notes": "Gate 4 final admission/consumer closure is complete for the current packed-i4 low-precision Gearbox campaign representatives. The current source-backed same-target evidence remains no-win/regression, so no performance-preferred dispatch or performance-win claim was admitted. The final slice added target-artifact consumer coverage proving parsed source-backed dequant evidence-root records drive selected-dispatch policy-output mirrors into no-win target validation, while synthetic measured-win promotion remains fail-closed at target validation without fresh source-backed measured-win target admission. Existing provider policy, selected-dispatch case/fallback facts, policy-output mirrors, target artifact mirrors, and dispatch/fallback consumers now agree on correctness-fallback / not-performance-preferred for dequant and dequant-clamp. Campaign gates 1-4 are complete for this macro scope; future measured-win work requires a new evidence/admission update with fresh source-backed measurement and synchronized provider-owned facts.",
   "meta": {}
 }

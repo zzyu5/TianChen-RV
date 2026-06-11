@@ -494,3 +494,82 @@ performance-preferred selection and performance-win claims remain denied. The
 macro task stays active for remaining Gate 4 measured-win admission and final
 end-to-end provider, selected-dispatch, target mirror, and dispatch/fallback
 closure.
+
+## Current Gate 4 Final Admission/Consumer Closure Slice
+
+This round owns the final Gate 4 admission/consumer consistency audit for the
+packed-i4 low-precision representatives already used by the campaign:
+`widening_product_reduce_dequantize_f32` and
+`widening_product_reduce_dequant_clamp_f32`.
+
+The current source-backed same-target evidence remains no-win/regression, so no
+new performance-preferred dispatch may be admitted in this slice. The production
+path must continue to prove the conservative no-win chain end to end:
+source-backed same-target record -> accepted
+`RVVLowPrecisionPerformancePolicyDecision` -> selected-dispatch case/fallback
+facts -> selected-dispatch policy-output mirrors -> target artifact mirrors ->
+correctness fallback. The same target consumer boundary must also prove that a
+future measured-win path cannot be faked from metadata: synthetic
+`performance-preferred` provider fields and target mirrors remain rejected
+until a fresh source-backed measured-win record can be consumed through the same
+provider-owned policy and target-validation chain.
+
+Code inspection before implementation found that production source already has
+the required Gate 4 owner layering for this bounded slice:
+
+- `RVVLowPrecisionPerformancePolicy` has evidence-root, record, policy-input,
+  selected-dispatch-boundary, and policy-output population overloads.
+- Route analysis uses the provider-owned no-win default record for the current
+  packed-i4 path, while tests can feed parsed source-backed evidence-root
+  records through the explicit record overload.
+- Target artifact validation already has separate stable resource mirror,
+  Gate 4 evidence/admission mirror, selected-dispatch case/fallback mirror, and
+  selected-dispatch policy-output mirror consumers, including a
+  `performance-preferred` branch guarded by provider policy-output facts.
+
+Therefore the intended production movement for this slice is focused coverage
+at the real target consumer boundary rather than adding new compiler semantics.
+
+## Acceptance Criteria For Gate 4 Final Admission/Consumer Closure Slice
+
+- No fresh source-backed measured-win evidence is admitted; the current dequant
+  and dequant-clamp source-backed records remain `correctness-fallback` /
+  `not-performance-preferred`.
+- Target artifact coverage feeds a parsed source-backed dequant evidence-root
+  record through `populateRVVLowPrecisionSelectedDispatchPolicyOutput` and
+  validates that no-win selected-dispatch mirrors are consumed by target
+  artifact validation.
+- Target artifact coverage proves a synthetic measured-win fixture remains
+  blocked at the current no-win target admission boundary, even if provider
+  maturity, selection eligibility, performance admission closure/reopen,
+  beyond-local repair admission, selected-dispatch case/fallback facts, and
+  policy-output mirrors are rewritten together without fresh source-backed
+  target evidence.
+- Target artifact validation rejects measured-win promotion when the target
+  artifact metadata is rewritten without the provider-owned policy-output
+  boundary matching it, including stale `dispatch_policy_path`,
+  `selected_dispatch_preference`, or `performance_win_claim_allowed`.
+- Existing stale no-win, metadata-only policy-output, selected-dispatch
+  case/fallback, and evidence-root rejection coverage remains passing.
+- The macro task may close Gate 4 for the current campaign if the no-win
+  fallback closure and stale measured-win promotion rejection are proven across
+  provider, selected-dispatch, target, and dispatch/fallback consumers. A later
+  real measured-win round must update source-backed evidence and provider-owned
+  admission facts before changing dispatch preference.
+
+## Status After Gate 4 Final Admission/Consumer Closure Slice
+
+Gate 4 final no-win admission/consumer closure is complete for the current
+packed-i4 dequant and dequant-clamp campaign representatives. The source-backed
+same-target evidence remains no-win/regression, so no performance-preferred
+dispatch or performance-win claim was admitted. The dequant evidence-root record
+continues to drive selected-dispatch policy-output mirrors through the explicit
+record overload, target artifact validation consumes those no-win mirrors, and
+synthetic measured-win promotion remains fail-closed at target validation unless
+a future fresh source-backed measured-win evidence/admission chain replaces the
+current no-win default.
+
+All four campaign gates are complete for the current packed-i4 low-precision
+Gearbox campaign scope. Future measured-win work, if new evidence appears, is a
+new evidence/admission update on top of this closed no-win boundary rather than
+an open blocker for this macro task.

@@ -14116,6 +14116,319 @@ bool expectRVVTargetArtifactExporterShape(
                       "select the performance-preferred dispatch path\n";
     return false;
   }
+  auto measuredWinTargetDispatchBoundary = packedI4TargetDispatchBoundary;
+  measuredWinTargetDispatchBoundary.hasSelectedDispatchPolicyOutput = false;
+  measuredWinTargetDispatchBoundary.selectedDispatchPolicyContract.clear();
+  measuredWinTargetDispatchBoundary.selectedDispatchPolicyPath.clear();
+  measuredWinTargetDispatchBoundary.selectedDispatchPreference.clear();
+  measuredWinTargetDispatchBoundary.selectedDispatchPerformanceDenialReason
+      .clear();
+  measuredWinTargetDispatchBoundary.selectedDispatchFallbackReason.clear();
+  measuredWinTargetDispatchBoundary.selectedDispatchRouteSupportAllowed = false;
+  measuredWinTargetDispatchBoundary
+      .selectedDispatchCorrectnessExecutionAllowed = false;
+  measuredWinTargetDispatchBoundary
+      .selectedDispatchPerformanceSelectionAllowed = false;
+  measuredWinTargetDispatchBoundary
+      .selectedDispatchPerformanceWinClaimAllowed = false;
+  measuredWinTargetDispatchBoundary
+      .selectedDispatchCorrectnessFallbackPathSelected = false;
+  measuredWinTargetDispatchBoundary
+      .selectedDispatchPerformancePreferredPathSelected = false;
+  if (auto error =
+          tianchenrv::plugin::rvv::
+              populateRVVLowPrecisionSelectedDispatchPolicyOutput(
+                  measuredWinTargetSelection, measuredWinTargetMeasurementRecord,
+                  measuredWinTargetDispatchBoundary,
+                  "packed-i4 target artifact measured-win selected-dispatch "
+                  "policy-output facts")) {
+    llvm::errs() << "packed-i4 target artifact measured-win policy-output "
+                    "facts failed: "
+                 << llvm::toString(std::move(error)) << "\n";
+    return false;
+  }
+  if (!measuredWinTargetDispatchBoundary.hasSelectedDispatchPolicyOutput ||
+      measuredWinTargetDispatchBoundary.selectedDispatchPolicyPath !=
+          "performance-preferred" ||
+      measuredWinTargetDispatchBoundary.selectedDispatchPreference !=
+          "performance-preferred" ||
+      !measuredWinTargetDispatchBoundary
+           .selectedDispatchPerformanceSelectionAllowed ||
+      !measuredWinTargetDispatchBoundary
+           .selectedDispatchPerformanceWinClaimAllowed ||
+      !measuredWinTargetDispatchBoundary
+           .selectedDispatchPerformancePreferredPathSelected ||
+      measuredWinTargetDispatchBoundary
+          .selectedDispatchCorrectnessFallbackPathSelected) {
+    llvm::errs() << "packed-i4 target artifact measured-win policy-output "
+                    "facts did not select performance-preferred mirrors\n";
+    return false;
+  }
+
+  auto upsertArtifactMetadataValue =
+      [](TargetArtifactCandidate &candidate, llvm::StringRef key,
+         llvm::StringRef value) {
+        if (rewriteArtifactMetadataValue(candidate, key, value))
+          return;
+        candidate.artifactMetadata.push_back({key.str(), value.str()});
+      };
+  TargetArtifactCandidate measuredWinTargetCandidate =
+      selectedDispatchPackedI4Candidate;
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.performance_feedback",
+      measuredWinTargetSelection.performanceFeedback);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
+      measuredWinTargetSelection.performanceBestSpeedupRange);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.performance_action",
+      measuredWinTargetSelection.performanceAction);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.remediation_diagnosis",
+      measuredWinTargetSelection.remediationDiagnosis);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.remediation_measurement_evidence",
+      measuredWinTargetSelection.remediationMeasurementEvidenceID);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.remediation_decision",
+      measuredWinTargetSelection.remediationDecision);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.remediation_action",
+      measuredWinTargetSelection.remediationAction);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.remediation_dispatch_preference",
+      measuredWinTargetSelection.remediationDispatchPreference);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.remediation_blocker",
+      measuredWinTargetSelection.remediationBlocker);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.performance_admission_decision",
+      measuredWinTargetSelection.performanceAdmissionDecision);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.performance_admission_closure",
+      measuredWinTargetSelection.performanceAdmissionClosure);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource."
+      "performance_admission_reopen_requirement",
+      measuredWinTargetSelection.performanceAdmissionReopenRequirement);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource."
+      "beyond_local_repair_admission_decision",
+      measuredWinTargetSelection.beyondLocalRepairAdmissionDecision);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource."
+      "beyond_local_repair_admission_blocker",
+      measuredWinTargetSelection.beyondLocalRepairAdmissionBlocker);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource."
+      "beyond_local_repair_admission_reopen_requirement",
+      measuredWinTargetSelection.beyondLocalRepairAdmissionReopenRequirement);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.performance_maturity",
+      measuredWinTargetSelection.performanceMaturity);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
+      measuredWinTargetSelection.performanceMaturityEvidence);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
+      measuredWinTargetSelection.performanceMaturityOutcome);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.performance_selection_eligible",
+      measuredWinTargetSelection.performanceSelectionEligible);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.dispatch_preference",
+      measuredWinTargetSelection.dispatchPreference);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.realization_admission_contract",
+      measuredWinTargetSelection.realizationAdmissionContract);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.realization_admission_decision",
+      measuredWinTargetSelection.realizationAdmissionDecision);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.realization_admission_evidence",
+      measuredWinTargetSelection.realizationAdmissionEvidence);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.realization_admission_dispatch_policy",
+      measuredWinTargetSelection.realizationAdmissionDispatchPolicy);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource."
+      "realization_admission_schedule_decision_contract",
+      measuredWinTargetSelection.realizationAdmissionScheduleDecisionContract);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision",
+      measuredWinTargetSelection.realizationAdmissionScheduleDecision);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource."
+      "realization_admission_schedule_decision_reason",
+      measuredWinTargetSelection.realizationAdmissionScheduleDecisionReason);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.selected_dispatch_policy_contract",
+      measuredWinTargetDispatchBoundary.selectedDispatchPolicyContract);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.dispatch_policy_path",
+      measuredWinTargetDispatchBoundary.selectedDispatchPolicyPath);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.selected_dispatch_preference",
+      measuredWinTargetDispatchBoundary.selectedDispatchPreference);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.performance_preference_denial_reason",
+      measuredWinTargetDispatchBoundary
+          .selectedDispatchPerformanceDenialReason);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.fallback_reason",
+      measuredWinTargetDispatchBoundary.selectedDispatchFallbackReason);
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.route_support_allowed",
+      boolPolicyOutputMetadata(
+          measuredWinTargetDispatchBoundary
+              .selectedDispatchRouteSupportAllowed));
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.correctness_execution_allowed",
+      boolPolicyOutputMetadata(
+          measuredWinTargetDispatchBoundary
+              .selectedDispatchCorrectnessExecutionAllowed));
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.performance_selection_allowed",
+      boolPolicyOutputMetadata(
+          measuredWinTargetDispatchBoundary
+              .selectedDispatchPerformanceSelectionAllowed));
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.performance_win_claim_allowed",
+      boolPolicyOutputMetadata(
+          measuredWinTargetDispatchBoundary
+              .selectedDispatchPerformanceWinClaimAllowed));
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.correctness_fallback_path_selected",
+      boolPolicyOutputMetadata(
+          measuredWinTargetDispatchBoundary
+              .selectedDispatchCorrectnessFallbackPathSelected));
+  upsertArtifactMetadataValue(
+      measuredWinTargetCandidate,
+      "tcrv_rvv.low_precision_resource.performance_preferred_path_selected",
+      boolPolicyOutputMetadata(
+          measuredWinTargetDispatchBoundary
+              .selectedDispatchPerformancePreferredPathSelected));
+  RVVRouteDescription measuredWinTargetDescription =
+      selectedDispatchPackedI4Description;
+  measuredWinTargetDescription.lowPrecisionResourceSelection =
+      measuredWinTargetSelection;
+  measuredWinTargetDescription.lowPrecisionSelectedDispatchPolicyBoundary =
+      measuredWinTargetDispatchBoundary;
+  measuredWinTargetDescription.selectedDispatchCaseMirror =
+      measuredWinTargetDispatchBoundary.selectedDispatchCaseMirror;
+  measuredWinTargetDescription.selectedDispatchFallbackMirror =
+      measuredWinTargetDispatchBoundary.selectedDispatchFallbackMirror;
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  RVVRouteValidationContext{measuredWinTargetCandidate,
+                                            packedI4ProductDequantRoute,
+                                            measuredWinTargetDescription}),
+          "packed-i4 target artifact rejects measured-win promotion without "
+          "fresh source-backed target admission",
+          {"policy handoff diagnosis", "stale-measurement",
+           "provider realization admission evidence",
+           "gate4-packed-i4-scalar-epilogue-dequant-ssh/"
+           "widening_product_reduce_dequantize_f32/"
+           "same_target_measurement_evidence.json",
+           "gate4-packed-i4-measured-win-ssh/"
+           "widening_product_reduce_dequantize_f32/"
+           "same_target_measurement_evidence.json"}))
+    return false;
+
+  TargetArtifactCandidate staleProviderDispatchPolicyPathCandidate =
+      selectedDispatchPackedI4Candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleProviderDispatchPolicyPathCandidate,
+          "tcrv_rvv.low_precision_resource.dispatch_policy_path",
+          "performance-preferred")) {
+    llvm::errs() << "selected-dispatch packed-i4 target test did not contain "
+                    "dispatch policy path metadata for stale provider "
+                    "policy-output test\n";
+    return false;
+  }
+  RVVRouteDescription staleProviderDispatchPolicyPathDescription =
+      selectedDispatchPackedI4Description;
+  staleProviderDispatchPolicyPathDescription
+      .lowPrecisionSelectedDispatchPolicyBoundary.selectedDispatchPolicyPath =
+      "performance-preferred";
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  RVVRouteValidationContext{
+                      staleProviderDispatchPolicyPathCandidate,
+                      packedI4ProductDequantRoute,
+                      staleProviderDispatchPolicyPathDescription}),
+          "packed-i4 target artifact rejects stale provider dispatch policy "
+          "path even when candidate metadata matches it",
+          {"selected-dispatch policy-output dispatch policy path",
+           "correctness-fallback", "performance-preferred"}))
+    return false;
+
+  TargetArtifactCandidate staleProviderWinClaimCandidate =
+      selectedDispatchPackedI4Candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleProviderWinClaimCandidate,
+          "tcrv_rvv.low_precision_resource.performance_win_claim_allowed",
+          "true")) {
+    llvm::errs() << "selected-dispatch packed-i4 target test did not contain "
+                    "performance win-claim metadata for stale provider "
+                    "policy-output test\n";
+    return false;
+  }
+  RVVRouteDescription staleProviderWinClaimDescription =
+      selectedDispatchPackedI4Description;
+  staleProviderWinClaimDescription.lowPrecisionSelectedDispatchPolicyBoundary
+      .selectedDispatchPerformanceWinClaimAllowed = true;
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  RVVRouteValidationContext{staleProviderWinClaimCandidate,
+                                            packedI4ProductDequantRoute,
+                                            staleProviderWinClaimDescription}),
+          "packed-i4 target artifact rejects stale provider win-claim "
+          "allowance even when candidate metadata matches it",
+          {"selected-dispatch policy-output performance win-claim allowance",
+           "false", "true"}))
+    return false;
+
   auto stalePackedI4TargetProfileRecord =
       *parsedPackedI4TargetEvidenceRecord;
   stalePackedI4TargetProfileRecord.targetProfile = "local-x86";

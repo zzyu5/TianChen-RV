@@ -71,6 +71,77 @@ selected-dispatch, target mirror, and dispatch/fallback closure.
 
 Final coherent commit is created after this journal entry.
 
+## Session 598: Stage2 RVV Gate 4 final no-win admission consumer closure
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV production-kernel Gearbox resource-aware low-precision contraction campaign
+**Branch**: `main`
+
+### Summary
+
+Completed the final Gate 4 admission/consumer closure slice for the current
+packed-i4 low-precision Gearbox campaign. Current source-backed same-target
+evidence remains no-win/regression, so this round did not admit
+performance-preferred dispatch. The closure proves the conservative path at the
+target consumer boundary and rejects synthetic measured-win promotion without a
+fresh source-backed measured-win target admission chain.
+
+### Main Changes
+
+- Added target-artifact consumer coverage showing parsed dequant evidence-root
+  records populate selected-dispatch policy-output mirrors through the explicit
+  record overload before target validation consumes no-win mirrors.
+- Added target validation coverage for synthetic measured-win promotion:
+  provider maturity/admission fields, selected-dispatch policy-output mirrors,
+  and target metadata rewritten together still fail closed because the current
+  target admission boundary remains source-backed no-win.
+- Added stale no-win provider policy-output cases for
+  `dispatch_policy_path = performance-preferred` and
+  `performance_win_claim_allowed = true` where candidate metadata mirrors the
+  stale provider value.
+- Recorded the durable spec rule that target validation using the default
+  packed-i4 helper is a current no-win/fallback consumer, not a measured-win
+  admission seam.
+- Updated PRD/task notes to mark Gate 4 and the current macro campaign scope
+  complete.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-generated-bundle-same-target-measure-gate4-dry-run|pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4'`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-production-gearbox-low-precision-contraction`
+- [OK] `rtk git diff --check`
+- [OK] bounded old-authority scan returned only archived PRD
+  negative/non-authority boundary text for q8/q4 labels, artifact names, route
+  IDs, helper names, and helper-op authority; production/test/spec added lines
+  returned no matches.
+
+### Self-Repair
+
+- The first target test run failed because a measured-win fixture reused a
+  boundary already populated with no-win policy-output facts. The test now
+  clears provider-owned policy-output before record-derived population.
+- The next target test run showed production target validation still consumes
+  the default current no-win record at the target boundary. The test was
+  corrected from a synthetic measured-win target-positive to an explicit
+  fail-closed measured-win-promotion rejection, matching the no-fresh-win PRD.
+
+### Status
+
+[READY TO FINISH] Gate 1 resource/primitive fact spine, Gate 2 packed-i4
+primitive/resource surface, Gate 3 resource-aware selected-body realization,
+and Gate 4 same-target no-win admission/consumer closure are complete for the
+current macro campaign scope. Future measured-win work requires new
+source-backed same-target evidence and synchronized provider-owned admission
+facts before dispatch preference may change.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 596: Stage2 RVV Gearbox Gate 4 dispatch/fallback consumption audit
 
 **Date**: 2026-06-11

@@ -7597,6 +7597,12 @@ performance-preferred
   from the accepted `RVVLowPrecisionPerformancePolicyDecision`. The older
   selection-only helper may construct the current accepted no-win record for
   the default packed-i4 path, but it is not the measured-record admission seam.
+- Target artifact validation that still uses the default packed-i4 helper is a
+  current no-win/fallback consumer. It must reject synthetic measured-win
+  promotion even when provider maturity fields, selected-dispatch policy-output
+  fields, and target mirrors are rewritten together, unless a fresh
+  source-backed measured-win record is admitted through the explicit
+  record/evidence-root policy path.
 - The current accepted Gate 4 packed-i4 regression/no-win outcome must set:
 
   ```text
