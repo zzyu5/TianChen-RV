@@ -10308,6 +10308,38 @@ module {
           "packed-i4 stable Gearbox schedule decision ignores stale "
           "measurement-disposition admission/remediation evidence fields"))
     return result;
+  const auto stablePackedI4CompilerFacts =
+      tianchenrv::plugin::rvv::
+          makeRVVLowPrecisionStableResourceCompilerFacts(
+              packedI4ResourceSelection);
+  auto stalePolicyEvidenceSelection = packedI4ResourceSelection;
+  stalePolicyEvidenceSelection.performanceFeedback =
+      "metadata-only-performance-feedback";
+  stalePolicyEvidenceSelection.remediationDecision =
+      "metadata-only-remediation-decision";
+  stalePolicyEvidenceSelection.dispatchPreference =
+      "metadata-only-dispatch-preference";
+  const auto stableFactsFromStalePolicyEvidence =
+      tianchenrv::plugin::rvv::
+          makeRVVLowPrecisionStableResourceCompilerFacts(
+              stalePolicyEvidenceSelection);
+  if (int result = expect(
+          stableFactsFromStalePolicyEvidence.hasSelection &&
+              stableFactsFromStalePolicyEvidence.selectedCandidateID ==
+                  stablePackedI4CompilerFacts.selectedCandidateID &&
+              stableFactsFromStalePolicyEvidence.planningContract ==
+                  stablePackedI4CompilerFacts.planningContract &&
+              stableFactsFromStalePolicyEvidence.resourceCostBlocker ==
+                  stablePackedI4CompilerFacts.resourceCostBlocker &&
+              stableFactsFromStalePolicyEvidence.scheduleDecision ==
+                  stablePackedI4CompilerFacts.scheduleDecision &&
+              stableFactsFromStalePolicyEvidence.primitiveReductionIntrinsic ==
+                  stablePackedI4CompilerFacts.primitiveReductionIntrinsic &&
+              stableFactsFromStalePolicyEvidence.targetCapabilityProviderMirror ==
+                  stablePackedI4CompilerFacts.targetCapabilityProviderMirror,
+          "low-precision stable resource compiler-fact view ignores stale "
+          "policy/evidence admission, remediation, and dispatch fields"))
+    return result;
   if (int result = expectSuccess(
           verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
               *packedI4ProductDequantAnalysis,

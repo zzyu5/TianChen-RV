@@ -6400,6 +6400,20 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   mirrors of the provider-owned resource selection, stable schedule, and
   resource-cost facts. It is not a resource decision, schedule decision, or
   measurement-disposition admission fact by itself.
+- Route planning and target artifact stable resource mirror validation must
+  consume a policy-free compiler-fact view such as
+  `RVVLowPrecisionStableResourceCompilerFacts`, derived from the provider-owned
+  `RVVLowPrecisionContractionResourceSelection` before metadata emission or
+  target validation. The view may contain typed body/config/runtime facts,
+  selected resource candidate facts, packed load/unpack facts, selected-body
+  realization producer/decision facts, stable schedule/resource-cost facts,
+  provider primitive payload facts, target capability mirrors, legality, and
+  rejection reason. It must not contain realization-admission proof,
+  remediation plans, performance feedback/admission, same-target measurement
+  IDs, maturity/no-win outcomes, selected-dispatch policy output, or dispatch
+  preference. Those fields may be serialized only by explicitly named
+  policy/evidence blocks and validated by measurement-disposition or
+  selected-dispatch policy helpers.
 - The resource-owner mirror-source marker key, expected source value, header
   label, and diagnostic authority label must come from the shared
   `RVVLowPrecisionMirrorTransportContract` returned by

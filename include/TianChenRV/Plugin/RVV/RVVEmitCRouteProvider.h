@@ -275,6 +275,210 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::string rejectionReason;
 };
 
+struct RVVLowPrecisionStableResourceCompilerFacts {
+  bool hasSelection = false;
+  llvm::StringRef candidateSetID;
+  llvm::StringRef selectedCandidateID;
+  llvm::StringRef selectionReason;
+  llvm::StringRef planningContract;
+  llvm::StringRef legalityScope;
+
+  llvm::StringRef sourceElementTypeName;
+  std::int64_t sourceSEW = 0;
+  llvm::StringRef sourceLMUL;
+  llvm::StringRef operandForm;
+  llvm::StringRef sourceSignedness;
+  std::int64_t storageElementWidth = 0;
+  std::int64_t effectiveElementWidth = 0;
+  llvm::StringRef packingLayout;
+  llvm::StringRef unpackIntent;
+  llvm::StringRef packedLoadUnpackContract;
+  llvm::StringRef packedStorageLoad;
+  llvm::StringRef packedUnpackPlan;
+  llvm::StringRef packedUnpackedSource;
+  llvm::StringRef productElementTypeName;
+  std::int64_t productSEW = 0;
+  llvm::StringRef productLMUL;
+  llvm::StringRef productEMUL;
+  llvm::StringRef accumulatorElementTypeName;
+  std::int64_t accumulatorSEW = 0;
+  llvm::StringRef accumulatorLMUL;
+  llvm::StringRef accumulatorEMUL;
+  llvm::StringRef resultElementTypeName;
+  std::int64_t resultSEW = 0;
+  llvm::StringRef resultLMUL;
+
+  llvm::StringRef memoryForm;
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  std::int64_t unrollFactor = 0;
+  std::int64_t accumulatorCount = 0;
+  llvm::StringRef reductionLayout;
+  std::int64_t vsetvlRegionCount = 0;
+  std::int64_t peakLiveVectorGroups = 0;
+  std::int64_t vectorRegisterBudget = 0;
+  llvm::StringRef resourceCostContract;
+  llvm::StringRef resourceCostModel;
+  std::int64_t resourceCostLoopBodySteps = 0;
+  llvm::StringRef resourceCostBlocker;
+
+  llvm::StringRef runtimeAVLSource;
+  llvm::StringRef producerScope;
+  llvm::StringRef consumerScope;
+  llvm::StringRef runtimeABIOrder;
+  llvm::StringRef routeFamilyPlanID;
+  llvm::StringRef providerSupportedMirror;
+
+  llvm::StringRef realizationProducer;
+  llvm::StringRef realizationDecision;
+  std::int64_t realizedUnrollFactor = 0;
+  std::int64_t realizedVSetVLRegionCount = 0;
+  std::int64_t realizedPeakLiveVectorGroups = 0;
+  std::int64_t productRegionIndex = 0;
+  std::int64_t dequantRegionIndex = 0;
+  llvm::StringRef productPhase;
+  llvm::StringRef dequantPhase;
+  std::int64_t clampRegionIndex = 0;
+  llvm::StringRef clampPhase;
+  llvm::StringRef clampCompareSelectPhase;
+  llvm::StringRef clampSelectLayout;
+  llvm::StringRef scheduleDecisionContract;
+  llvm::StringRef scheduleDecision;
+  llvm::StringRef scheduleDecisionReason;
+
+  llvm::StringRef primitiveContractID;
+  llvm::StringRef primitiveKind;
+  llvm::StringRef primitiveChainContractID;
+  llvm::StringRef primitiveChainKind;
+  llvm::StringRef wideningProductMultiplicandRoleSummary;
+  llvm::StringRef wideningProductExtensionPolicy;
+  llvm::StringRef wideningProductCandidateFact;
+  llvm::StringRef reductionCandidateFact;
+  llvm::StringRef primitiveSourceLoadKind;
+  llvm::StringRef primitiveSourceExtensionKind;
+  llvm::StringRef primitiveWideningProductRelation;
+  llvm::StringRef primitiveProductReductionChainRelation;
+  llvm::StringRef primitiveWideningProductIntrinsic;
+  llvm::StringRef primitiveReductionIntrinsic;
+  llvm::StringRef primitiveScalarSeedSplatIntrinsic;
+  llvm::StringRef primitiveAccumulatorLayout;
+  llvm::StringRef primitiveResultLayout;
+  llvm::StringRef primitiveReductionStoreVL;
+
+  llvm::StringRef targetCapabilityProviderMirror;
+  llvm::StringRef targetCapabilityLegalityMirror;
+
+  bool isLegal = false;
+  llvm::StringRef rejectionReason;
+};
+
+inline RVVLowPrecisionStableResourceCompilerFacts
+makeRVVLowPrecisionStableResourceCompilerFacts(
+    const RVVLowPrecisionContractionResourceSelection &selection) {
+  RVVLowPrecisionStableResourceCompilerFacts facts;
+  facts.hasSelection = selection.hasSelection;
+  facts.candidateSetID = selection.candidateSetID;
+  facts.selectedCandidateID = selection.selectedCandidateID;
+  facts.selectionReason = selection.selectionReason;
+  facts.planningContract = selection.planningContract;
+  facts.legalityScope = selection.legalityScope;
+
+  facts.sourceElementTypeName = selection.sourceElementTypeName;
+  facts.sourceSEW = selection.sourceSEW;
+  facts.sourceLMUL = selection.sourceLMUL;
+  facts.operandForm = selection.operandForm;
+  facts.sourceSignedness = selection.sourceSignedness;
+  facts.storageElementWidth = selection.storageElementWidth;
+  facts.effectiveElementWidth = selection.effectiveElementWidth;
+  facts.packingLayout = selection.packingLayout;
+  facts.unpackIntent = selection.unpackIntent;
+  facts.packedLoadUnpackContract = selection.packedLoadUnpackContract;
+  facts.packedStorageLoad = selection.packedStorageLoad;
+  facts.packedUnpackPlan = selection.packedUnpackPlan;
+  facts.packedUnpackedSource = selection.packedUnpackedSource;
+  facts.productElementTypeName = selection.productElementTypeName;
+  facts.productSEW = selection.productSEW;
+  facts.productLMUL = selection.productLMUL;
+  facts.productEMUL = selection.productEMUL;
+  facts.accumulatorElementTypeName = selection.accumulatorElementTypeName;
+  facts.accumulatorSEW = selection.accumulatorSEW;
+  facts.accumulatorLMUL = selection.accumulatorLMUL;
+  facts.accumulatorEMUL = selection.accumulatorEMUL;
+  facts.resultElementTypeName = selection.resultElementTypeName;
+  facts.resultSEW = selection.resultSEW;
+  facts.resultLMUL = selection.resultLMUL;
+
+  facts.memoryForm = selection.memoryForm;
+  facts.tailPolicy = selection.tailPolicy;
+  facts.maskPolicy = selection.maskPolicy;
+  facts.unrollFactor = selection.unrollFactor;
+  facts.accumulatorCount = selection.accumulatorCount;
+  facts.reductionLayout = selection.reductionLayout;
+  facts.vsetvlRegionCount = selection.vsetvlRegionCount;
+  facts.peakLiveVectorGroups = selection.peakLiveVectorGroups;
+  facts.vectorRegisterBudget = selection.vectorRegisterBudget;
+  facts.resourceCostContract = selection.resourceCostContract;
+  facts.resourceCostModel = selection.resourceCostModel;
+  facts.resourceCostLoopBodySteps = selection.resourceCostLoopBodySteps;
+  facts.resourceCostBlocker = selection.resourceCostBlocker;
+
+  facts.runtimeAVLSource = selection.runtimeAVLSource;
+  facts.producerScope = selection.producerScope;
+  facts.consumerScope = selection.consumerScope;
+  facts.runtimeABIOrder = selection.runtimeABIOrder;
+  facts.routeFamilyPlanID = selection.routeFamilyPlanID;
+  facts.providerSupportedMirror = selection.providerSupportedMirror;
+
+  facts.realizationProducer = selection.realizationProducer;
+  facts.realizationDecision = selection.realizationDecision;
+  facts.realizedUnrollFactor = selection.realizedUnrollFactor;
+  facts.realizedVSetVLRegionCount = selection.realizedVSetVLRegionCount;
+  facts.realizedPeakLiveVectorGroups = selection.realizedPeakLiveVectorGroups;
+  facts.productRegionIndex = selection.productRegionIndex;
+  facts.dequantRegionIndex = selection.dequantRegionIndex;
+  facts.productPhase = selection.productPhase;
+  facts.dequantPhase = selection.dequantPhase;
+  facts.clampRegionIndex = selection.clampRegionIndex;
+  facts.clampPhase = selection.clampPhase;
+  facts.clampCompareSelectPhase = selection.clampCompareSelectPhase;
+  facts.clampSelectLayout = selection.clampSelectLayout;
+  facts.scheduleDecisionContract = selection.scheduleDecisionContract;
+  facts.scheduleDecision = selection.scheduleDecision;
+  facts.scheduleDecisionReason = selection.scheduleDecisionReason;
+
+  facts.primitiveContractID = selection.primitiveContractID;
+  facts.primitiveKind = selection.primitiveKind;
+  facts.primitiveChainContractID = selection.primitiveChainContractID;
+  facts.primitiveChainKind = selection.primitiveChainKind;
+  facts.wideningProductMultiplicandRoleSummary =
+      selection.wideningProductMultiplicandRoleSummary;
+  facts.wideningProductExtensionPolicy =
+      selection.wideningProductExtensionPolicy;
+  facts.wideningProductCandidateFact = selection.wideningProductCandidateFact;
+  facts.reductionCandidateFact = selection.reductionCandidateFact;
+  facts.primitiveSourceLoadKind = selection.primitiveSourceLoadKind;
+  facts.primitiveSourceExtensionKind = selection.primitiveSourceExtensionKind;
+  facts.primitiveWideningProductRelation =
+      selection.primitiveWideningProductRelation;
+  facts.primitiveProductReductionChainRelation =
+      selection.primitiveProductReductionChainRelation;
+  facts.primitiveWideningProductIntrinsic =
+      selection.primitiveWideningProductIntrinsic;
+  facts.primitiveReductionIntrinsic = selection.primitiveReductionIntrinsic;
+  facts.primitiveScalarSeedSplatIntrinsic =
+      selection.primitiveScalarSeedSplatIntrinsic;
+  facts.primitiveAccumulatorLayout = selection.primitiveAccumulatorLayout;
+  facts.primitiveResultLayout = selection.primitiveResultLayout;
+  facts.primitiveReductionStoreVL = selection.primitiveReductionStoreVL;
+
+  facts.targetCapabilityProviderMirror =
+      selection.targetCapabilityProviderMirror;
+  facts.targetCapabilityLegalityMirror = selection.targetCapabilityLegalityMirror;
+  facts.isLegal = selection.isLegal;
+  facts.rejectionReason = selection.rejectionReason;
+  return facts;
+}
+
 struct RVVCompositeGatherMAccScatterResourceSelection {
   bool hasSelection = false;
   std::string candidateSetID;

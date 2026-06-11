@@ -4921,6 +4921,18 @@ reduction store VL = 1
   must come from
   `getRVVLowPrecisionResourceOwnerMirrorTransportContract()`, and header
   evidence for this marker must check the exact provider-owned source value.
+- Common EmitC/export must serialize stable low-precision resource mirrors from
+  a policy-free provider compiler-fact view such as
+  `RVVLowPrecisionStableResourceCompilerFacts`, not directly from a
+  policy-bearing resource aggregate. The stable view is allowed to feed route
+  planning metadata and target artifact stable resource mirror validation for
+  dtype/SEW/LMUL, runtime ABI, resource selection, realization decision,
+  resource-cost/schedule, primitive payload, and target legality mirrors.
+  Realization admission, remediation, performance, measurement, no-win/maturity,
+  selected-dispatch policy output, and dispatch preference are policy/evidence
+  mirrors; they must remain in separately named metadata blocks and validation
+  helpers and must not satisfy primitive payload, stable resource, schedule,
+  route, support-bundle, or artifact acceptance.
 - Emission-plan metadata for low-precision primitive source/product/
   accumulator/result SEW/LMUL, product-reduction relation, widening-product
   intrinsic, widening-reduction intrinsic, scalar seed splat, layout, and

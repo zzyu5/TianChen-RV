@@ -216,16 +216,16 @@ selected typed low-precision body/config/runtime facts
   -> target artifact validation against the provider resource selection
 ```
 
-## Current Slice: Low-Precision Mirror Transport Contract Consolidation
+## Completed Slice: Low-Precision Mirror Transport Contract Consolidation
 
-This bounded slice consolidates the primitive/resource mirror transport boundary
-after the adjacent payload and resource-owner marker slices. The current drift
-is not a missing fact; it is that route planning, target support-bundle/header
-evidence, target artifact validation, and C++ fixtures still each spell the same
-provider-owned mirror-source keys and values locally. That makes the marker look
-like another production fact instead of one shared transport contract.
+The previous bounded slice consolidated the primitive/resource mirror transport
+boundary after the adjacent payload and resource-owner marker slices. Primitive
+payload and resource-owner marker key/source/header/diagnostic labels are now
+provided by one shared RVV transport contract and consumed by route planning,
+target support-bundle/header evidence, target artifact validation, and focused
+C++ tests.
 
-The cleanup owner for this round is:
+The completed cleanup owner was:
 
 ```text
 provider-built low-precision primitive payload / resource selection
@@ -236,26 +236,49 @@ provider-built low-precision primitive payload / resource selection
   -> target artifact validation using the same contract before mirror checks
 ```
 
+## Current Slice: Resource-Selection Policy/Evidence Quarantine
+
+This bounded slice cleans the boundary inside and around
+`RVVLowPrecisionContractionResourceSelection`. That aggregate intentionally
+carries a broad resource-selection record today, but production route planning
+and target resource mirror validation should consume only stable compiler facts:
+selected typed body/config/runtime facts, Gearbox resource candidate facts,
+stable schedule/resource-cost facts, selected-body realization facts,
+provider-owned primitive facts, target capability mirrors, and legality facts.
+Realization admission, remediation planning, performance feedback/admission,
+same-target/no-win measurement evidence, selected-dispatch policy output, and
+dispatch preference remain explicit policy/evidence records.
+
+The cleanup owner for this round is:
+
+```text
+selected typed low-precision tcrv_rvv body/config/runtime facts
+  -> Gearbox stable resource and schedule facts
+  -> RVVLowPrecisionStableResourceCompilerFacts view
+  -> route-planning stable resource metadata mirrors
+  -> target artifact stable resource mirror validation
+  -> separate measurement-disposition and selected-dispatch policy/evidence helpers
+```
+
 Source-backed field classification for this slice:
 
 - Compiler authority: selected typed `tcrv_rvv` body/config/runtime facts,
   Gearbox/resource candidate selection, stable packed-i4 schedule/resource-cost
-  facts, selected-body realization facts, provider-owned
-  `RVVLowPrecisionContractionResourceSelection`, provider primitive payloads,
-  the primitive payload mirror transport contract, the resource-owner mirror
-  transport contract, and target provider-fact validation contracts.
-- Mirror/test facts: `tcrv_rvv.low_precision_primitive.*` and
-  `tcrv_rvv.low_precision_resource.*` emission metadata, candidate metadata,
-  support-bundle/header comments, lit `PLAN`/`HEADER` checks, and C++ fixture
-  metadata mutations. These may prove exact carry-through only after the
-  provider primitive payload or provider resource selection exists and the shared
-  transport contract marker is present.
+  facts, selected-body realization facts, provider-owned primitive payloads,
+  target capability provider/legality mirrors, route-family provider support,
+  and the `RVVLowPrecisionStableResourceCompilerFacts` view derived from the
+  provider selection before route planning or target stable resource validation.
+- Mirror/test facts: `tcrv_rvv.low_precision_resource.*` emission metadata,
+  candidate metadata, support-bundle/header comments, lit `PLAN`/`HEADER`
+  checks, and C++ fixture mutations. These may prove exact carry-through only
+  after the stable compiler-fact view exists and the shared resource-owner
+  mirror-source marker is present.
 - Policy/evidence facts: realization admission proof, remediation plans,
   performance feedback/admission, same-target measurement evidence IDs,
   maturity/no-win outcomes, selected-dispatch policy output, and dispatch
-  preference. These remain in the measurement-disposition policy/evidence
-  boundary and must not satisfy primitive payload, stable resource, schedule,
-  route, support-bundle, or artifact acceptance.
+  preference. These remain in measurement-disposition or selected-dispatch
+  helper boundaries and must not satisfy primitive payload, stable resource,
+  schedule, route, support-bundle, or artifact acceptance.
 
 This round must not add q8/q4 route authority, artifact-name authority,
 helper-only wrappers, source-front-door positive routes, Common EmitC semantic
@@ -263,45 +286,37 @@ inference, or measured-win/admission claims.
 
 ## Acceptance Criteria For This Slice
 
-- Active task metadata, PRD, implementation/check context, and RVV
-  low-precision spec sections identify low-precision mirror transport contract
-  consolidation under the same macro task.
-- Source-backed field classification is recorded for compiler authority,
-  mirror/test facts, and policy/evidence facts at the emission-plan,
-  candidate-metadata, support-bundle/header, and target primitive/resource mirror
-  boundary.
-- Primitive payload and resource-owner mirror-source marker keys, expected source
-  values, header labels, and diagnostic authority labels are provided through a
-  shared RVV mirror transport contract consumed by route planning, target
-  support-bundle/header evidence, target artifact validation, and focused C++
-  tests.
-- Emission metadata for routes with `RVVLowPrecisionPrimitiveRoutePayload` or
-  `RVVLowPrecisionContractionResourceSelection` appends the marker via that
-  shared transport contract instead of locally spelling the marker key/value.
-- Target artifact validation requires the primitive payload mirror-source and
-  resource-owner mirror-source markers through the same shared contract before
-  accepting `tcrv_rvv.low_precision_primitive.*` or stable
-  `tcrv_rvv.low_precision_resource.*` candidate mirrors.
-- Support-bundle/header evidence exposes both marker sources through the shared
-  transport contract and checks the exact provider-owned source value for marker
-  metadata, rather than allowing a dynamic marker string.
-- Stable packed-i4 schedule/resource-cost facts remain validated from the
-  shared resource owner/provider boundary; missing or stale schedule/resource
-  mirrors still fail closed against provider facts.
-- Measurement-disposition policy/evidence mirrors remain in their named
-  consumer helper; admission/remediation/performance/measurement/no-win/dispatch
-  fields do not satisfy primitive payload, stable resource, schedule, route,
-  support-bundle, or artifact acceptance.
+- Active task metadata, PRD, implementation/check context, and RVV low-precision
+  spec sections identify resource-selection policy/evidence quarantine under the
+  same macro task.
+- `RVVLowPrecisionStableResourceCompilerFacts` or an equivalent stable view
+  contains only compiler/resource/primitive/realization/target facts needed for
+  stable route-planning and target stable resource mirror validation; it excludes
+  admission/remediation/performance/measurement/no-win/dispatch fields.
+- Route planning emits stable `tcrv_rvv.low_precision_resource.*` metadata from
+  the stable compiler-fact view, while policy/evidence metadata remains in a
+  separately named admission/remediation/performance/dispatch block.
+- Target artifact stable resource mirror validation consumes the stable
+  compiler-fact view, not the policy-bearing aggregate. Measurement-disposition
+  evidence mirrors and selected-dispatch policy-output mirrors remain in their
+  existing explicit policy/evidence validators.
+- Missing or stale stable resource mirrors still fail closed against provider
+  stable facts, including signed/unsigned product-reduction and packed-i4
+  dequantize/dequant-clamp representatives where directly affected.
+- Missing, stale, or metadata-only policy/evidence fields do not satisfy
+  primitive payload, stable resource, schedule, route, support-bundle, or
+  artifact acceptance. If policy/evidence fields are present, their own helpers
+  continue to fail closed on stale mirrors.
 - Common EmitC remains neutral and only carries provider-built payloads,
-  shared mirror-source markers, and mirrors.
-- Focused C++ coverage uses the shared transport contract when checking accepted
-  primitive/resource markers and when mutating missing or stale marker metadata;
-  existing stale resource mirror rejection and positive signed/unsigned
-  product-reduction plus packed-i4 dequant/dequant-clamp fixtures remain covered.
+  stable resource mirrors, shared mirror-source markers, and explicit
+  policy/evidence mirrors.
+- Focused C++ coverage proves the stable resource compiler-fact view ignores
+  stale policy/evidence admission, remediation, and dispatch fields while
+  preserving stable resource/schedule/primitive/target facts.
 - A bounded scan over touched production files, active task text, directly
   affected fixtures, and RVV low-precision spec sections finds no
   admission/remediation/performance/measurement/same-target/no-win/dispatch
-  wording used as primitive payload or stable resource-owner/compiler authority.
+  wording used as primitive payload or stable resource compiler authority.
 - `tcrv-opt`, `tcrv-translate`, `tianchenrv-rvv-extension-plugin-test`, and
   `tianchenrv-target-artifact-export-test` build; the two C++ test binaries run.
 - Focused lit coverage for signed/unsigned product-reduction and packed-i4
@@ -379,22 +394,33 @@ provider-built payload mirrors.
 The resource-owner mirror-source cleanup is complete. Emission metadata,
 candidate metadata, support-bundle/header evidence, and target validation now
 carry and require the provider-owned low-precision resource-selection marker.
-The remaining open boundary for this round is consolidation: the primitive
-payload marker and resource-owner marker still have duplicated key/source/header
-strings across route planning, support-bundle/header evidence, target artifact
-validation, and C++ fixtures.
-
-## Expected Status After This Round
-
 The low-precision mirror transport contract consolidation slice is complete.
 Primitive payload and resource-owner marker key/source/header/diagnostic labels
 are provided by one shared RVV transport contract and consumed by route planning,
 target support-bundle/header evidence, target artifact validation, and focused
-C++ tests. Support-bundle/header marker evidence checks exact provider-owned
-source values. The macro campaign remains in progress for any adjacent
-low-precision primitive/resource cleanup and for future measurement-disposition
-work only when fresh source-backed same-target RVV evidence exists. The next
-continuation point is to inspect whether any remaining low-precision
-primitive/resource facts still pass through route descriptions, emission-plan
-metadata, support bundles, or target artifacts without using the shared
-provider-payload/resource-owner transport contract.
+C++ tests. The remaining open boundary for this round is that stable
+resource/primitive compiler facts still sit beside policy/evidence/admission
+and result records in `RVVLowPrecisionContractionResourceSelection`; production
+route planning and stable target resource validation need a policy-free
+compiler-fact view.
+
+## Expected Status After This Round
+
+The resource-selection policy/evidence quarantine slice is complete. The RVV
+provider exposes a stable low-precision resource compiler-fact view derived from
+provider-owned resource selection but excluding realization-admission,
+remediation, performance, measurement, no-win, and dispatch-preference policy
+fields. Route planning emits stable `tcrv_rvv.low_precision_resource.*`
+metadata through that view, while admission/remediation/performance/dispatch
+metadata remains in a separately guarded policy/evidence block. Target artifact
+stable resource mirror validation consumes the stable compiler-fact view instead
+of the policy-bearing aggregate, while measurement-disposition and selected
+dispatch policy validators remain explicit policy/evidence boundaries.
+
+The macro campaign remains in progress for adjacent low-precision
+primitive/resource cleanup and for future measurement-disposition work only when
+fresh source-backed same-target RVV evidence exists. The next continuation point
+is to inspect whether any remaining low-precision primitive/resource support
+bundle or artifact acceptance paths still consume the broad provider aggregate
+instead of stable compiler-fact views or explicitly named policy/evidence
+validators.

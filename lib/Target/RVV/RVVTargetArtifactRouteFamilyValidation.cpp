@@ -6243,8 +6243,7 @@ llvm::Error requireEmptyWideningDotReductionStaleMirror(
 
 llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
     const TargetArtifactCandidate &candidate,
-    const plugin::rvv::RVVLowPrecisionContractionResourceSelection
-        &selection) {
+    const plugin::rvv::RVVLowPrecisionStableResourceCompilerFacts &selection) {
   if (!selection.hasSelection)
     return makeRVVTargetRouteError(
         "widening dot-reduction target artifact consumer requires "
@@ -7555,7 +7554,9 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
     return error;
   if (contract->lowPrecisionResourceSelection.hasSelection)
     if (llvm::Error error = validateRVVLowPrecisionResourceCandidateMirrors(
-            candidate, contract->lowPrecisionResourceSelection))
+            candidate,
+            plugin::rvv::makeRVVLowPrecisionStableResourceCompilerFacts(
+                contract->lowPrecisionResourceSelection)))
       return error;
   if (contract->lowPrecisionResourceSelection.hasSelection)
     if (llvm::Error error =

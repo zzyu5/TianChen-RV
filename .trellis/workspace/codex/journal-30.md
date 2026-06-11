@@ -73,6 +73,73 @@ source-backed same-target RVV evidence.
 
 Final coherent commit is created after this journal entry.
 
+## Session 593: Stage2 RVV low-precision resource-selection policy/evidence quarantine
+
+**Date**: 2026-06-12
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed a bounded cleanup slice at the
+boundary between stable low-precision resource/primitive compiler facts and
+policy/evidence/admission/result records. The route-planning and target stable
+resource validation paths now consume a policy-free
+`RVVLowPrecisionStableResourceCompilerFacts` view derived from the provider-owned
+resource selection, while realization-admission, remediation, performance,
+measurement, no-win/maturity, and dispatch-preference mirrors remain explicitly
+policy/evidence data.
+
+### Main Changes
+
+- Added `RVVLowPrecisionStableResourceCompilerFacts` and
+  `makeRVVLowPrecisionStableResourceCompilerFacts` for typed body/config/runtime,
+  resource candidate, stable schedule/resource-cost, realization, primitive
+  payload, and target legality facts.
+- Moved route-planning stable `tcrv_rvv.low_precision_resource.*` metadata into
+  a stable compiler-fact metadata helper.
+- Kept realization-admission and performance/remediation/dispatch metadata in
+  separate guarded policy/evidence blocks.
+- Changed target artifact stable low-precision resource mirror validation to
+  consume the stable compiler-fact view while leaving measurement-disposition
+  and selected-dispatch validation on explicit policy/evidence helpers.
+- Added focused C++ coverage proving stale performance/remediation/dispatch
+  policy/evidence mutations do not change the stable compiler-fact view.
+- Updated the packed-i4 dequantize artifact fixture to check stable
+  resource-cost/schedule/target mirrors and policy/evidence mirrors without
+  relying on the old aggregate metadata order.
+- Recorded the stable fact view contract in RVV plugin and Common EmitC specs.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-add|pre-realized-selected-body-artifact-widening-product-reduce-add-unsigned-u8|explicit-selected-body-artifact-widening-product-reduce-add\\.mlir|explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8'` from `build/test`: 6/6 passed
+
+### Self-Repair
+
+- The first focused lit run failed because the dequantize packed-i4 fixture still
+  expected the old policy-bearing aggregate metadata order. The production
+  output now emits stable realization/resource-cost/schedule/target mirrors from
+  the stable compiler-fact helper before the realization-admission and
+  performance/remediation/dispatch policy blocks. The fixture was updated to
+  assert metadata presence and the focused lit was rerun successfully.
+
+### Status
+
+[OPEN MACRO TASK] The resource-selection policy/evidence quarantine slice is
+complete. The macro task stays active for adjacent low-precision
+primitive/resource cleanup and future measurement-disposition work only with
+fresh source-backed same-target evidence. The next continuation point is to
+inspect whether any remaining low-precision support-bundle or artifact
+acceptance paths still consume the broad resource-selection aggregate instead of
+stable compiler-fact views or explicitly named policy/evidence validators.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 596: Stage2 RVV low-precision mirror transport contract consolidation
 
 **Date**: 2026-06-12
