@@ -5502,6 +5502,30 @@ llvm::Error requireRVVLowPrecisionResourceRealizationFacts(
           selection.realizedPeakLiveVectorGroups,
           selection.peakLiveVectorGroups))
     return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceRealizationIntegerFact(
+          op, context, selection,
+          kRVVLowPrecisionResourceProductRegionIndexAttrName,
+          "product region index", selection.productRegionIndex,
+          getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
+              expectedResourceDecision)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceRealizationIntegerFact(
+          op, context, selection,
+          kRVVLowPrecisionResourceDequantRegionIndexAttrName,
+          "dequant region index", selection.dequantRegionIndex,
+          getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+              expectedResourceDecision)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceRealizationStringFact(
+          op, context, selection,
+          kRVVLowPrecisionResourceProductPhaseAttrName, "product phase",
+          selection.productPhase))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceRealizationStringFact(
+          op, context, selection,
+          kRVVLowPrecisionResourceDequantPhaseAttrName, "dequant phase",
+          selection.dequantPhase))
+    return error;
   if (isRVVLowPrecisionResourcePackedI4CandidateID(
           selection.selectedCandidateID)) {
     if (llvm::Error error =
@@ -6335,11 +6359,13 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
   selection.hasSelection = true;
 
   auto readString = [&](llvm::StringRef attrName) -> llvm::Expected<std::string> {
-    return requireRVVLowPrecisionResourcePassStringFact(op, context, attrName);
+    return requireRVVLowPrecisionResourceRealizationStringFact(op, context,
+                                                               attrName);
   };
   auto readInteger =
       [&](llvm::StringRef attrName) -> llvm::Expected<std::int64_t> {
-    return requireRVVLowPrecisionResourcePassIntegerFact(op, context, attrName);
+    return requireRVVLowPrecisionResourceRealizationIntegerFact(op, context,
+                                                                attrName);
   };
   auto readOptionalString =
       [&](llvm::StringRef attrName) -> std::optional<std::string> {
@@ -6679,17 +6705,26 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     selection.realizedPeakLiveVectorGroups = *value;
   else
     return value.takeError();
-  selection.productRegionIndex =
-      getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
-          selection.realizationDecision);
-  selection.dequantRegionIndex =
-      getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
-          selection.realizationDecision);
-  selection.productPhase =
-      getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
-          selection.realizationDecision)
-          .str();
-  selection.dequantPhase = kRVVLowPrecisionResourceDequantStorePhase.str();
+  if (llvm::Expected<std::int64_t> value =
+          readInteger(kRVVLowPrecisionResourceProductRegionIndexAttrName))
+    selection.productRegionIndex = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::int64_t> value =
+          readInteger(kRVVLowPrecisionResourceDequantRegionIndexAttrName))
+    selection.dequantRegionIndex = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceProductPhaseAttrName))
+    selection.productPhase = *value;
+  else
+    return value.takeError();
+  if (llvm::Expected<std::string> value =
+          readString(kRVVLowPrecisionResourceDequantPhaseAttrName))
+    selection.dequantPhase = *value;
+  else
+    return value.takeError();
   if (llvm::Expected<std::string> value =
           readString(kRVVLowPrecisionResourceLegalityAttrName))
     selection.isLegal = *value == kRVVLowPrecisionResourceLegal;

@@ -5,6 +5,8 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"/tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i32m1_i32m1"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-PROVIDER-PRIMITIVE-RESOURCE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | sed 's/tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"/tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i32m1_i32m1"/' | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=STALE-SCHEDULE-PRIMITIVE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 3 : i64/tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 1 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZATION-RESOURCE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '0,/tcrv_rvv.low_precision_resource.product_phase = "tail-product-reduce"/s//tcrv_rvv.low_precision_resource.product_phase = "artifact-metadata-region"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZATION-PRODUCT-PHASE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '0,/tcrv_rvv.low_precision_resource.dequant_region_index = 3 : i64/s//tcrv_rvv.low_precision_resource.dequant_region_index = 1 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZATION-DEQUANT-REGION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules | sed '0,/tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64/s//tcrv_rvv.low_precision_resource.vector_register_budget = 3 : i64/' | not tcrv-opt --tcrv-materialize-selected-lowering-boundaries 2>&1 | FileCheck %s --check-prefix=PRUNED-RESOURCE-BUDGET
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/phase = "dequant-store"/phase = "artifact-metadata-region"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-REALIZED-REGION
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed 's/tcrv_rvv.dequantize %[^,]*/tcrv_rvv.dequantize %10/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-CONSUMER
@@ -62,7 +64,11 @@ module {
 // REALIZED: %[[VL:.*]] = tcrv_rvv.setvl %{{.*}} {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: selected_variant = @pre_realized_body_rvv_product_reduce_dequantize
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.dequant_phase = "dequant-store"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.dequant_region_index = 3 : i64
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.product_phase = "tail-product-reduce"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.product_region_index = 2 : i64
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.realization_decision = "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.realization_producer = "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups = 7 : i64
@@ -234,6 +240,12 @@ module {
 
 // STALE-REALIZATION-RESOURCE: low-precision direct-contraction resource selection requires realized vsetvl region count 3
 // STALE-REALIZATION-RESOURCE-SAME: but found 1
+
+// STALE-REALIZATION-PRODUCT-PHASE: low-precision direct-contraction resource selection requires product phase 'tail-product-reduce'
+// STALE-REALIZATION-PRODUCT-PHASE-SAME: artifact-metadata-region
+
+// STALE-REALIZATION-DEQUANT-REGION: low-precision direct-contraction resource selection requires dequant region index 3
+// STALE-REALIZATION-DEQUANT-REGION-SAME: but found 1
 
 // PRUNED-RESOURCE-BUDGET: cannot consume stale or unsupported low-precision direct-contraction resource fact
 // PRUNED-RESOURCE-BUDGET-SAME: tcrv_rvv.low_precision_resource.legality

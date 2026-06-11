@@ -6024,6 +6024,9 @@ struct RVVLowPrecisionContractionResourceSelection {
   selected candidate id;
   selected resource candidate;
   selected widening-product and widening-reduction candidate facts;
+  selected-body realization producer and decision;
+  realized unroll, vsetvl region count, and peak live-vector groups;
+  realized product/dequant region indexes and product/dequant phases;
   selected-body realization or provider-consumed owner plan;
   runtime AVL/VL and ABI parameter mapping;
   target capability/profile facts used by the selector;
@@ -6129,6 +6132,17 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   planning contract and resource decision from the selected candidate and reject
   stale marker/handoff/resource facts before constructing
   `TCRVEmitCLowerableRoute`.
+- For Gate 3 low-precision product-reduction realization consumption, producer
+  and consumer realized `tcrv_rvv.with_vl` ops must carry the provider-verifiable
+  realization facts `realization_producer`, `realization_decision`,
+  `realized_unroll_factor`, `realized_vsetvl_region_count`,
+  `realized_peak_live_vector_groups`, `product_region_index`,
+  `dequant_region_index`, `product_phase`, and `dequant_phase`. The route
+  planner must read these fields from the realized body before route
+  construction and compare them with the selected candidate/resource decision.
+  It must not rebuild accepted product/dequant region indexes or phases solely
+  from route ids, artifact metadata, helper names, intrinsic strings, or Common
+  EmitC inference.
 - For low-precision product-reduction Gearbox markers,
   `tcrv_rvv.vsetvl_region_marker` must carry `planning_contract =
   "rvv-low-precision-production-resource-planning-contract.v1"` when
@@ -6263,6 +6277,11 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   low-precision resource decision but has missing or stale `planning_contract`
   -> fail closed in the RVV marker verifier or provider marker-structure
   validation before route construction.
+- A realized product-reduction `with_vl` reaches route planning with missing or
+  stale realization producer/decision, realized unroll/region/peak-live facts,
+  product/dequant region indexes, or product/dequant phases -> fail closed
+  before `TCRVEmitCLowerableRoute` construction; do not accept a planner-local
+  reconstruction as the source of truth.
 - Target artifact export sees a stale planning-contract metadata mirror ->
   fail closed by comparing the mirror to provider-owned resource facts; do not
   use the mirror to repair the provider selection.
@@ -6340,6 +6359,10 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   the selected RVV resource candidate into the realized body and route
   selection; provider and target validators compare the same provider-owned
   contract before route or artifact acceptance.
+- Good: selected-body realization consumes the grouped or packed-i4
+  low-precision candidate, writes product/dequant region indexes and phases to
+  both realized producer/consumer `with_vl` scopes, and route planning rejects a
+  stale `product_phase` or `dequant_region_index` before route construction.
 - Base: existing MAcc, widening dot-reduce, dequant, and Gearbox MVP routes keep
   their current route-support contracts without claiming performance parity.
 - Bad: q8_0_q8_0 appears in a test or artifact name -> route provider emits a
@@ -6379,6 +6402,10 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   mismatch, including stale `vsetvl` region placement structure when `vsetvl`
   placement or region count is part of the selected low-precision Gearbox
   candidate.
+- Focused selected-body/provider tests proving route planning consumes
+  realization-produced `with_vl` facts for product/dequant region indexes and
+  phases, including stale `product_phase` and stale `dequant_region_index`
+  negative cases before route construction.
 - Focused selected-body/provider tests proving realized Gearbox handoff carries
   the selected primitive-chain contract/kind/relation/intrinsic/layout/store-VL
   fields and selected widening-product/reduction candidate facts, plus stale

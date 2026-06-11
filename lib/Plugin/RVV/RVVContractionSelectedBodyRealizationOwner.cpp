@@ -818,6 +818,23 @@ materializeLowPrecisionResourceRealizationAttrs(
   destination->setAttr(
       kRVVLowPrecisionResourceRealizedPeakLiveVectorGroupsAttrName,
       builder.getI64IntegerAttr(selected->peakLiveVectorGroups));
+  destination->setAttr(
+      kRVVLowPrecisionResourceProductRegionIndexAttrName,
+      builder.getI64IntegerAttr(
+          getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
+              realizationDecision)));
+  destination->setAttr(
+      kRVVLowPrecisionResourceDequantRegionIndexAttrName,
+      builder.getI64IntegerAttr(
+          getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+              realizationDecision)));
+  destination->setAttr(
+      kRVVLowPrecisionResourceProductPhaseAttrName,
+      builder.getStringAttr(
+          getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
+              realizationDecision)));
+  destination->setAttr(kRVVLowPrecisionResourceDequantPhaseAttrName,
+                       builder.getStringAttr("dequant-store"));
   if (isPackedI4Resource) {
     destination->setAttr(
         kRVVLowPrecisionResourcePackedLoadUnpackContractAttrName,

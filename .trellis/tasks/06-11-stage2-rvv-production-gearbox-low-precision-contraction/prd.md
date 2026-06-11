@@ -51,10 +51,10 @@ remains typed `tcrv_rvv` body/config/runtime facts plus RVV-owned resource
 candidates, not q8/q4 labels, artifact names, route IDs, helper names, or common
 EmitC semantics.
 
-## Completed Slice
+## Completed Gate 2 Slices
 
-The current round completed the Gate 2 widening-product/reduction
-resource-candidate fact slice:
+The prior rounds completed the Gate 2 widening-product/reduction
+resource-candidate fact spine:
 
 - Add explicit widening-product and widening-reduction resource-candidate facts
   to the production low-precision resource candidate/selection surface, separate
@@ -69,24 +69,45 @@ resource-candidate fact slice:
 - Keep existing packed-i4 load/unpack, signed/unsigned product-reduction, and
   dequant/dequant-clamp resource paths passing.
 
-## Acceptance Criteria For This Slice
+## Current Gate 3A Slice
 
-- Widening-product and widening-reduction candidate facts are explicit fields in
-  the production low-precision resource candidate/selection surface, not only
-  implied by primitive strings, route IDs, artifact names, or generated C
-  spelling.
-- Gearbox/resource candidate materialization produces those candidate facts and
-  selected-body realization consumes and mirrors them before route construction.
-- Route planning and target validation compare the provider-selected candidate
-  facts and target mirrors exactly.
-- A stale provider-side candidate widening-product or reduction fact fails in
-  the production provider/route-planning path before `TCRVEmitCLowerableRoute`
-  construction.
-- A stale target artifact mirror for a candidate widening-product or reduction
-  fact fails before target export.
-- Existing packed-i4 dequant/dequant-clamp, signed product-reduction, unsigned
-  product-reduction, dequantize-f32, and dequant-clamp-f32 focused plan/header
-  paths still pass.
+The current round owns selected-body realization consumption for the completed
+low-precision resource fact spine. The bounded target is the
+`widening_product_reduce_dequantize_f32` / product-reduce-add-adjacent spine,
+including packed-i4 load/unpack and widening-product/reduction candidate facts.
+
+Selected-body realization must consume the selected low-precision resource
+candidate before route construction and materialize resource-aware realized
+body structure. The realized producer/consumer `with_vl` scopes,
+`tcrv_rvv.vsetvl_region_marker` ops, and
+`tcrv_rvv.gearbox_cross_region_handoff` must carry provider-verifiable resource
+facts derived from the selected candidate: realization decision, unroll,
+region count, peak live-vector pressure, product/dequant region indices,
+product/dequant phases, packed-i4 load/unpack facts when selected, and
+widening-product/reduction primitive/candidate facts. Route planning must read
+and compare those realized-body facts before constructing a
+`TCRVEmitCLowerableRoute`; it must not reconstruct acceptance from route IDs,
+artifact names, helper names, primitive strings alone, or common EmitC logic.
+
+## Acceptance Criteria For Gate 3A
+
+- Production source movement happens in RVV selected-body realization or its
+  direct route-planning consumers, not in common EmitC semantic inference.
+- Realized product/reduction/dequant producer and consumer scopes carry
+  resource-aware schedule facts from the selected candidate, including
+  product/dequant region index and phase facts in addition to the existing
+  realized unroll, region count, peak-live, packed-i4, and primitive/candidate
+  fields.
+- Route planning consumes the realized-body schedule facts and rejects missing
+  or stale producer/consumer `with_vl`, marker, or Gearbox handoff facts before
+  `TCRVEmitCLowerableRoute` construction.
+- Packed-i4 load/unpack facts and widening-product/reduction candidate facts
+  remain required when selected and continue to fail closed when stale at the
+  provider/handoff/target boundary.
+- Focused lit/FileCheck fixtures prove realized-body fact consumption and stale
+  realized-body/handoff/target fact rejection for the dequantize-f32
+  product-reduction representative, with adjacent packed-i4 and dequant-clamp
+  coverage kept passing.
 - `tianchenrv-rvv-extension-plugin-test` and
   `tianchenrv-target-artifact-export-test` pass.
 
@@ -99,9 +120,9 @@ resource-candidate fact slice:
 - No runtime `ssh rvv` claim in this slice; this is a provider/target resource
   fact-spine slice.
 
-## Status After Current Slice
+## Status Before Current Slice
 
-Gate 2 is now complete for the current low-precision resource fact spine:
+Gate 2 is complete for the current low-precision resource fact spine:
 packed-i4 load/unpack facts and widening-product/reduction candidate facts are
 explicit, provider-produced, selected-body consumed, route-planning mirrored,
 target-artifact mirrored, and stale-rejected in focused signed/unsigned and
@@ -113,3 +134,22 @@ the completed resource fact spine to build resource-aware executable bodies
 without changing computation semantics, ABI roles, dispatch, fallback, or
 runtime AVL. Do not move to Gate 4 performance-preferred dispatch without fresh
 source-backed same-target measured-win evidence.
+
+## Status After Gate 3A Slice
+
+Gate 3A is complete for the current product-reduction/dequantize-f32
+realization-consumption slice. RVV selected-body realization and Gearbox
+schedule materialization now write provider-verifiable realization
+producer/decision, realized unroll, realized `vsetvl` region count, realized
+peak-live vector pressure, product/dequant region indexes, and product/dequant
+phases onto realized producer/consumer `with_vl` scopes. Route planning reads
+those realization-produced facts before constructing a
+`TCRVEmitCLowerableRoute` and rejects stale product/dequant fact values before
+route acceptance.
+
+Gate 3 is not fully complete for the macro campaign. Remaining Gate 3 work is
+to extend the same resource-aware realized-body consumption pattern across the
+next low-precision body-family representative, keeping packed-i4 load/unpack
+facts and widening-product/reduction candidate facts as producer-owned inputs.
+Gate 4 remains later work and still requires fresh source-backed same-target
+measured-win evidence before any performance-preferred dispatch admission.

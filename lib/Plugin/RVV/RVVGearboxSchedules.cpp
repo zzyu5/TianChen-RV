@@ -568,6 +568,14 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
   if (mlir::failed(validateLowPrecisionResourceCandidatePrimitiveSurface(
           op, *operation, *selected)))
     return mlir::failure();
+  const llvm::StringRef realizationDecision =
+      getRVVLowPrecisionContractionResourceRealizationDecision(
+          selected->candidateID);
+  if (realizationDecision.empty())
+    return op->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "cannot derive a selected-body realization decision for "
+           << selected->candidateID;
 
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceCandidateSetAttrName,
@@ -853,6 +861,47 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
   if (mlir::failed(requireIntegerAttr(
           op, builder, kRVVLowPrecisionResourceVectorRegisterBudgetAttrName,
           selected->vectorRegisterBudget)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceRealizationProducerAttrName,
+          kRVVLowPrecisionResourceRealizationProducer)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceRealizationDecisionAttrName,
+          realizationDecision)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceRealizedUnrollFactorAttrName,
+          selected->unrollFactor)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder,
+          kRVVLowPrecisionResourceRealizedVSetVLRegionCountAttrName,
+          selected->vsetvlRegionCount)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder,
+          kRVVLowPrecisionResourceRealizedPeakLiveVectorGroupsAttrName,
+          selected->peakLiveVectorGroups)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceProductRegionIndexAttrName,
+          getRVVLowPrecisionResourceProductRegionIndexForRealizationDecision(
+              realizationDecision))))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceDequantRegionIndexAttrName,
+          getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+              realizationDecision))))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceProductPhaseAttrName,
+          getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
+              realizationDecision))))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder, kRVVLowPrecisionResourceDequantPhaseAttrName,
+          kLowPrecisionCrossRegionHandoffToPhase)))
     return mlir::failure();
   if (isRVVLowPrecisionResourcePackedI4CandidateID(selected->candidateID)) {
     if (mlir::failed(requireStringAttr(

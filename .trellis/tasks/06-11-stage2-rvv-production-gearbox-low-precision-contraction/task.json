@@ -43,6 +43,6 @@
     "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir",
     "test/Target/TargetArtifactExportTest.cpp"
   ],
-  "notes": "Current slice completed the Gate 2 widening-product/reduction resource-candidate fact spine: explicit widening-product and widening-reduction candidate facts are produced from RVV-owned resource/primitive facts, consumed by selected-body realization and Gearbox handoff validation, mirrored through EmitC route metadata and target artifacts, and stale provider/target facts are rejected. The RVV plugin code-spec was updated for the new cross-layer candidate fact contract. Macro task remains active for Gate 3 selected-body realization consumption and later Gate 4 measured-dispatch admission.",
+  "notes": "Gate 3A selected-body realization consumption slice completed for the current low-precision product-reduction/dequantize spine: RVV selected-body realization and Gearbox schedule materialization now write realization producer/decision, realized unroll/region/peak-live, and product/dequant region/phase facts onto realized with_vl scopes; route planning reads those realization-produced facts before route construction and rejects stale product/dequant facts. Gate 1 and Gate 2 remain complete for the current fact spine. Macro task remains active for the next Gate 3 resource-aware body-family continuation and later Gate 4 source-backed same-target measured-dispatch admission.",
   "meta": {}
 }

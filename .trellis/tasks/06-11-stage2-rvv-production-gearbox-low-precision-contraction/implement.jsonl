@@ -44,3 +44,13 @@
 {"file":"test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir","reason":"Aligned stale resource diagnostic expectations after stricter candidate-fact and legality validation."}
 {"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Recorded the new cross-layer widening-product/reduction resource-candidate fact contract, handoff fields, target stale-mirror behavior, and focused test requirements."}
 {"file":".trellis/workspace/codex/journal-30.md","reason":"Recorded this Gate 2 candidate-fact slice, self-repair, checks, macro-open status, and Gate 3 continuation point."}
+{"file":"include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h","reason":"Added low-precision product/dequant region index and phase attr constants to the RVV resource fact surface."}
+{"file":"lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp","reason":"Materialized product/dequant region and phase facts on realized producer/consumer with_vl scopes during selected-body realization."}
+{"file":"lib/Plugin/RVV/RVVGearboxSchedules.cpp","reason":"Materialized or stale-validated realization producer/decision, realized unroll/region/peak-live, and product/dequant region/phase facts in the Gearbox schedule materialization path."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp","reason":"Changed low-precision route planning to consume realization-produced product/dequant region and phase facts before route construction."}
+{"file":"test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir","reason":"Added focused stale product_phase and dequant_region_index rejection coverage for realized-body fact consumption."}
+{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir","reason":"Updated missing-resource diagnostic expectation after route planning now reads realization-produced resource facts."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Recorded the Gate 3A realization fact consumption contract for product/dequant region and phase facts."}
+{"file":".trellis/tasks/06-11-stage2-rvv-production-gearbox-low-precision-contraction/prd.md","reason":"Marked Gate 3A complete for the current realization-consumption slice while keeping the macro campaign active."}
+{"file":".trellis/tasks/06-11-stage2-rvv-production-gearbox-low-precision-contraction/task.json","reason":"Updated active macro task notes with Gate 3A completion and remaining Gate 3/Gate 4 continuation state."}
+{"file":".trellis/workspace/codex/journal-30.md","reason":"Recorded this Gate 3A realization fact consumption slice, self-repair, focused checks, and open macro-task continuation point."}

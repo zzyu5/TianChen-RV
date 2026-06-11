@@ -115,7 +115,7 @@ module {
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,accumulator:signed-e32m1,dequant-splat:float-e32m1,scale:float
 // HEADER: void tcrv_emitc_explicit_selected_body_product_reduce_dequantize_kernel_explicit_selected_body_rvv_product_reduce_dequantize(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float *out, size_t n);
 
-// MISSING-RESOURCE-PASS: requires pass-produced low-precision direct-contraction resource fact
+// MISSING-RESOURCE-PASS: requires selected-body realization-produced low-precision direct-contraction resource fact
 // MISSING-RESOURCE-PASS-SAME: tcrv_rvv.low_precision_resource.candidate_set
 
 // STALE-PROVIDER-RESOURCE: low-precision direct-contraction resource selection requires a selected product-reduction candidate

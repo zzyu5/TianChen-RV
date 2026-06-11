@@ -216,6 +216,16 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceRealizedPeakLiveVectorGroupsAttrName(
         "tcrv_rvv.low_precision_resource.realized_peak_live_vector_groups");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceProductRegionIndexAttrName(
+        "tcrv_rvv.low_precision_resource.product_region_index");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceDequantRegionIndexAttrName(
+        "tcrv_rvv.low_precision_resource.dequant_region_index");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductPhaseAttrName(
+    "tcrv_rvv.low_precision_resource.product_phase");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantPhaseAttrName(
+    "tcrv_rvv.low_precision_resource.dequant_phase");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePerformanceFeedbackAttrName(
         "tcrv_rvv.low_precision_resource.performance_feedback");
 constexpr llvm::StringLiteral
@@ -1666,6 +1676,10 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
              kRVVLowPrecisionResourceRealizedVSetVLRegionCountAttrName ||
          name ==
              kRVVLowPrecisionResourceRealizedPeakLiveVectorGroupsAttrName ||
+         name == kRVVLowPrecisionResourceProductRegionIndexAttrName ||
+         name == kRVVLowPrecisionResourceDequantRegionIndexAttrName ||
+         name == kRVVLowPrecisionResourceProductPhaseAttrName ||
+         name == kRVVLowPrecisionResourceDequantPhaseAttrName ||
          name == kRVVLowPrecisionResourcePerformanceFeedbackAttrName ||
          name == kRVVLowPrecisionResourcePerformanceBaselineAttrName ||
          name ==
