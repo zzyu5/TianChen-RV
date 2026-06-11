@@ -1,5 +1,62 @@
 > Continuation from `journal-29.md` (archived at more than 2000 lines)
 
+## Session 607: Stage2 RVV support-bundle stable-resource acceptance cleanup
+
+**Date**: 2026-06-12
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the target support-bundle/artifact
+acceptance cleanup slice after stable resource compiler facts were extracted.
+This round kept route/artifact acceptance on policy-free stable resource facts
+and renamed transported policy/evidence header labels so they cannot read as
+support-bundle or route authority.
+
+### Main Changes
+
+- Changed target artifact stable low-precision provider-fact validators to
+  consume `RVVLowPrecisionStableResourceCompilerFacts` instead of the wider
+  `RVVLowPrecisionContractionResourceSelection`.
+- Left measurement-disposition and selected-dispatch validators as explicit
+  policy/evidence consumers.
+- Relabeled support-bundle/header policy transports under
+  `measurement_disposition_evidence_mirror.*` and
+  `selected_dispatch_policy_output_mirror.*`, while preserving candidate
+  metadata keys for provider-owned validation.
+- Updated packed-i4 target artifact fixtures and RVV/Common EmitC specs with
+  the stable-resource acceptance boundary.
+- Updated the macro PRD and task metadata while keeping the task active.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv /home/kingdom/phdworks/TianchenRV/build/test --filter 'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-add\.mlir|pre-realized-selected-body-artifact-widening-product-reduce-add-unsigned-u8|explicit-selected-body-artifact-widening-product-reduce-add\.mlir|explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8'`
+- [OK] Bounded scans confirmed touched support-bundle/header policy labels are
+  explicit mirrors and target stable provider-fact validators consume
+  `RVVLowPrecisionStableResourceCompilerFacts`.
+- [OK] `rtk git diff --check`
+
+### Self-Repair
+
+- Direct lit invocations from the repository root and source `test` directory
+  lacked the configured site context. The same focused filter was rerun from
+  `build/test` and passed 6/6 tests.
+
+### Status
+
+[OPEN MACRO TASK] The support-bundle/artifact acceptance boundary now keeps
+stable compiler facts separate from policy/evidence transports. The macro task
+remains active for remaining provider/route-planning low-precision resource
+consumer cleanup or later primitive-surface work.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 606: Provider primitive route-payload canonicalization
 
 **Date**: 2026-06-12

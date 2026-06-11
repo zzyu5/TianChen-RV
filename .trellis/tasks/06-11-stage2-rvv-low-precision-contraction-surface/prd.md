@@ -424,3 +424,47 @@ is to inspect whether any remaining low-precision primitive/resource support
 bundle or artifact acceptance paths still consume the broad provider aggregate
 instead of stable compiler-fact views or explicitly named policy/evidence
 validators.
+
+## Completed Slice: Support-Bundle/Artifact Acceptance Stable-Resource Cleanup
+
+This bounded follow-up slice completed the consumer-side cleanup after the
+stable compiler-fact view extraction. Stable low-precision artifact acceptance
+now uses the same policy-free compiler-fact boundary through the target
+provider-fact checks, target candidate mirror checks, and support-bundle/header
+evidence labels:
+
+```text
+selected typed low-precision body/config/runtime facts
+  -> provider-owned RVVLowPrecisionContractionResourceSelection
+  -> RVVLowPrecisionStableResourceCompilerFacts
+  -> route-planning stable resource metadata
+  -> target artifact stable provider/candidate validation
+  -> support-bundle/header stable-resource mirrors plus explicit
+     measurement-disposition and selected-dispatch policy mirror labels
+```
+
+The target artifact validators for stable primitive/resource/realization facts
+take `RVVLowPrecisionStableResourceCompilerFacts` when checking stable
+acceptance prerequisites. The wide
+`RVVLowPrecisionContractionResourceSelection` remains only for explicitly named
+measurement-disposition evidence/admission validation and selected-dispatch
+policy-output validation.
+
+Support-bundle/header comments no longer present performance, remediation,
+admission, measurement, maturity/no-win, selected-dispatch policy output, or
+dispatch-preference fields as bare `low_precision_resource.*` header facts.
+They now use
+`low_precision_resource.measurement_disposition_evidence_mirror.*` or
+`low_precision_resource.selected_dispatch_policy_output_mirror.*` labels while
+leaving candidate metadata keys as `tcrv_rvv.low_precision_resource.*` for
+target artifact validators.
+
+The macro campaign remains open. Remaining milestones are adjacent
+low-precision primitive/resource cleanup only where live consumers still blur
+stable compiler facts with mirror/policy state, and future
+measurement-disposition work only if fresh source-backed same-target RVV
+evidence is introduced. The next continuation point is to inspect route
+planning/provider-side low-precision resource consumers outside the target
+support-bundle/artifact acceptance path, then return to selected-body
+realization or primitive-surface coverage only after no remaining acceptance
+consumer promotes policy/evidence fields.

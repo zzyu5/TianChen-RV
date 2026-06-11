@@ -4933,6 +4933,22 @@ reduction store VL = 1
   mirrors; they must remain in separately named metadata blocks and validation
   helpers and must not satisfy primitive payload, stable resource, schedule,
   route, support-bundle, or artifact acceptance.
+- Target support-bundle/header comments must expose those policy/evidence
+  transports with explicit mirror labels, not bare stable-resource labels.
+  Measurement-disposition/admission/remediation/performance fields use
+  `low_precision_resource.measurement_disposition_evidence_mirror.*` header
+  labels. Selected-dispatch policy-output fields use
+  `low_precision_resource.selected_dispatch_policy_output_mirror.*` header
+  labels. Candidate metadata keys remain `tcrv_rvv.low_precision_resource.*`
+  so target artifact validators can compare them against provider-owned
+  policy/evidence helpers; the header labels do not create support-bundle or
+  dispatch authority.
+- Target artifact provider-fact checks that decide stable low-precision
+  primitive/resource/realization acceptance must consume the policy-free stable
+  compiler-fact view. Only explicitly named measurement-disposition and
+  selected-dispatch policy validators may consume the wide resource aggregate
+  fields carrying admission, remediation, performance, measurement, no-win, or
+  dispatch-preference records.
 - Emission-plan metadata for low-precision primitive source/product/
   accumulator/result SEW/LMUL, product-reduction relation, widening-product
   intrinsic, widening-reduction intrinsic, scalar seed splat, layout, and

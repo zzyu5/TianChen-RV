@@ -1055,29 +1055,34 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       {"low_precision_resource.realization_decision",
        "tcrv_rvv.low_precision_resource.realization_decision", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.realization_admission_contract",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "realization_admission_contract",
        "tcrv_rvv.low_precision_resource.realization_admission_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.realization_admission_decision",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "realization_admission_decision",
        "tcrv_rvv.low_precision_resource.realization_admission_decision", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.realization_admission_evidence",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "realization_admission_evidence",
        "tcrv_rvv.low_precision_resource.realization_admission_evidence", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.realization_admission_dispatch_policy",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "realization_admission_dispatch_policy",
        "tcrv_rvv.low_precision_resource."
        "realization_admission_dispatch_policy",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource."
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
        "realization_admission_schedule_decision_contract",
        "tcrv_rvv.low_precision_resource."
        "realization_admission_schedule_decision_contract",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.realization_admission_schedule_decision",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "realization_admission_schedule_decision",
        "tcrv_rvv.low_precision_resource."
        "realization_admission_schedule_decision",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource."
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
        "realization_admission_schedule_decision_reason",
        "tcrv_rvv.low_precision_resource."
        "realization_admission_schedule_decision_reason",
@@ -1115,64 +1120,84 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       {"low_precision_resource.clamp_select_layout",
        "tcrv_rvv.low_precision_resource.clamp_select_layout", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.performance_feedback",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_feedback",
        "tcrv_rvv.low_precision_resource.performance_feedback", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.performance_baseline",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_baseline",
        "tcrv_rvv.low_precision_resource.performance_baseline", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.performance_best_speedup_range",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_best_speedup_range",
        "tcrv_rvv.low_precision_resource.performance_best_speedup_range", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.performance_action",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_action",
        "tcrv_rvv.low_precision_resource.performance_action", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_handoff_contract",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_handoff_contract",
        "tcrv_rvv.low_precision_resource.remediation_handoff_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_diagnosis",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_diagnosis",
        "tcrv_rvv.low_precision_resource.remediation_diagnosis", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_measurement_evidence",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_measurement_evidence",
        "tcrv_rvv.low_precision_resource.remediation_measurement_evidence", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_decision",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_decision",
        "tcrv_rvv.low_precision_resource.remediation_decision", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_action",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_action",
        "tcrv_rvv.low_precision_resource.remediation_action", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_dispatch_preference",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_dispatch_preference",
        "tcrv_rvv.low_precision_resource.remediation_dispatch_preference", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_blocker",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_blocker",
        "tcrv_rvv.low_precision_resource.remediation_blocker", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_plan_contract",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_plan_contract",
        "tcrv_rvv.low_precision_resource.remediation_plan_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_plan",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_plan",
        "tcrv_rvv.low_precision_resource.remediation_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_statement_strategy",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_statement_strategy",
        "tcrv_rvv.low_precision_resource.remediation_statement_strategy", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_vector_budget",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_vector_budget",
        "tcrv_rvv.low_precision_resource.remediation_vector_budget", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_schedule_contract",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_schedule_contract",
        "tcrv_rvv.low_precision_resource.remediation_schedule_contract", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_unpack_plan",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_unpack_plan",
        "tcrv_rvv.low_precision_resource.remediation_unpack_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_product_plan",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_product_plan",
        "tcrv_rvv.low_precision_resource.remediation_product_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_reduction_plan",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_reduction_plan",
        "tcrv_rvv.low_precision_resource.remediation_reduction_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.remediation_vl_plan",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "remediation_vl_plan",
        "tcrv_rvv.low_precision_resource.remediation_vl_plan", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.schedule_decision_contract",
@@ -1196,79 +1221,102 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       {"low_precision_resource.resource_cost_blocker",
        "tcrv_rvv.low_precision_resource.resource_cost_blocker", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.performance_admission_decision",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_admission_decision",
        "tcrv_rvv.low_precision_resource.performance_admission_decision", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.performance_admission_closure",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_admission_closure",
        "tcrv_rvv.low_precision_resource.performance_admission_closure", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.performance_admission_reopen_requirement",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_admission_reopen_requirement",
        "tcrv_rvv.low_precision_resource."
        "performance_admission_reopen_requirement",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.beyond_local_repair_admission_contract",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "beyond_local_repair_admission_contract",
        "tcrv_rvv.low_precision_resource."
        "beyond_local_repair_admission_contract",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.beyond_local_repair_admission_decision",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "beyond_local_repair_admission_decision",
        "tcrv_rvv.low_precision_resource."
        "beyond_local_repair_admission_decision",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.beyond_local_repair_admission_blocker",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "beyond_local_repair_admission_blocker",
        "tcrv_rvv.low_precision_resource."
        "beyond_local_repair_admission_blocker",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.beyond_local_repair_admission_reopen_requirement",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "beyond_local_repair_admission_reopen_requirement",
        "tcrv_rvv.low_precision_resource."
        "beyond_local_repair_admission_reopen_requirement",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.performance_maturity",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_maturity",
        "tcrv_rvv.low_precision_resource.performance_maturity", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.performance_maturity_evidence",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_maturity_evidence",
        "tcrv_rvv.low_precision_resource.performance_maturity_evidence", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.performance_maturity_outcome",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_maturity_outcome",
        "tcrv_rvv.low_precision_resource.performance_maturity_outcome", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.performance_selection_eligible",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "performance_selection_eligible",
        "tcrv_rvv.low_precision_resource.performance_selection_eligible", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.selected_dispatch_policy_contract",
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "selected_dispatch_policy_contract",
        "tcrv_rvv.low_precision_resource.selected_dispatch_policy_contract",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.dispatch_policy_path",
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "dispatch_policy_path",
        "tcrv_rvv.low_precision_resource.dispatch_policy_path", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.selected_dispatch_preference",
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "selected_dispatch_preference",
        "tcrv_rvv.low_precision_resource.selected_dispatch_preference", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.performance_preference_denial_reason",
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "performance_preference_denial_reason",
        "tcrv_rvv.low_precision_resource."
        "performance_preference_denial_reason",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.fallback_reason",
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "fallback_reason",
        "tcrv_rvv.low_precision_resource.fallback_reason", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.route_support_allowed",
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "route_support_allowed",
        "tcrv_rvv.low_precision_resource.route_support_allowed", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.correctness_execution_allowed",
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "correctness_execution_allowed",
        "tcrv_rvv.low_precision_resource.correctness_execution_allowed", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.performance_selection_allowed",
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "performance_selection_allowed",
        "tcrv_rvv.low_precision_resource.performance_selection_allowed", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.performance_win_claim_allowed",
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "performance_win_claim_allowed",
        "tcrv_rvv.low_precision_resource.performance_win_claim_allowed", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.correctness_fallback_path_selected",
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "correctness_fallback_path_selected",
        "tcrv_rvv.low_precision_resource.correctness_fallback_path_selected",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.performance_preferred_path_selected",
+      {"low_precision_resource.selected_dispatch_policy_output_mirror."
+       "performance_preferred_path_selected",
        "tcrv_rvv.low_precision_resource.performance_preferred_path_selected",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
-      {"low_precision_resource.dispatch_preference",
+      {"low_precision_resource.measurement_disposition_evidence_mirror."
+       "dispatch_preference",
        "tcrv_rvv.low_precision_resource.dispatch_preference", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.target_capability_provider_mirror",

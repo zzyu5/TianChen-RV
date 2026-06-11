@@ -6414,6 +6414,22 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   preference. Those fields may be serialized only by explicitly named
   policy/evidence blocks and validated by measurement-disposition or
   selected-dispatch policy helpers.
+- Target artifact provider-fact validators for stable low-precision primitive,
+  resource, and selected-body realization checks must also consume the stable
+  compiler-fact view when they are deciding artifact acceptance prerequisites.
+  The wide `RVVLowPrecisionContractionResourceSelection` may still be passed to
+  explicitly named measurement-disposition and selected-dispatch policy
+  validators, but it must not be the stable resource/primitive acceptance
+  contract.
+- Support-bundle/header evidence must label policy/evidence fields with
+  explicit mirror roles while keeping candidate metadata keys unchanged for
+  target validation. Measurement-disposition/admission/remediation/performance
+  fields use header labels under
+  `low_precision_resource.measurement_disposition_evidence_mirror.*`.
+  Selected-dispatch policy-output fields use header labels under
+  `low_precision_resource.selected_dispatch_policy_output_mirror.*`.
+  These header labels are evidence transport only; they must not become route
+  support, artifact acceptance, schedule, or dispatch-preference authority.
 - The resource-owner mirror-source marker key, expected source value, header
   label, and diagnostic authority label must come from the shared
   `RVVLowPrecisionMirrorTransportContract` returned by

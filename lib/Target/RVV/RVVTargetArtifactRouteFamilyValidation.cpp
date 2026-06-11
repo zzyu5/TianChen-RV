@@ -3836,9 +3836,9 @@ llvm::Error validateRVVLowPrecisionWideningReductionPrimitiveProviderFacts(
 }
 
 llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
-    const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
-  const plugin::rvv::RVVLowPrecisionContractionResourceSelection &selection =
-      contract.lowPrecisionResourceSelection;
+    const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract,
+    const plugin::rvv::RVVLowPrecisionStableResourceCompilerFacts
+        &selection) {
   if (!selection.hasSelection ||
       !plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
           selection.selectedCandidateID))
@@ -4333,9 +4333,9 @@ llvm::Error validateRVVPackedI4MeasurementDispositionEvidenceMirrors(
 }
 
 llvm::Error validateRVVLowPrecisionPrimitiveChainResourceProviderFacts(
-    const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
-  const plugin::rvv::RVVLowPrecisionContractionResourceSelection &selection =
-      contract.lowPrecisionResourceSelection;
+    const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract,
+    const plugin::rvv::RVVLowPrecisionStableResourceCompilerFacts
+        &selection) {
   const plugin::rvv::RVVLowPrecisionWideningReductionPrimitiveFacts
       &primitive = contract.lowPrecisionWideningReductionPrimitiveFacts;
   if (!selection.hasSelection || !primitive.hasFacts)
@@ -4474,9 +4474,9 @@ llvm::Error validateRVVLowPrecisionPrimitiveChainResourceProviderFacts(
 }
 
 llvm::Error validateRVVLowPrecisionProductReductionRealizationProviderFacts(
-    const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract) {
-  const plugin::rvv::RVVLowPrecisionContractionResourceSelection &selection =
-      contract.lowPrecisionResourceSelection;
+    const plugin::rvv::RVVWideningDotReduceRouteValidationContract &contract,
+    const plugin::rvv::RVVLowPrecisionStableResourceCompilerFacts
+        &selection) {
   if (!selection.hasSelection)
     return makeRVVTargetRouteError(
         llvm::Twine(contract.consumerLabel) +
@@ -4674,20 +4674,25 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
       isProductReductionDequantization &&
       plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
           contract.lowPrecisionResourceSelection.selectedCandidateID);
+  const plugin::rvv::RVVLowPrecisionStableResourceCompilerFacts
+      stableResourceFacts =
+          plugin::rvv::makeRVVLowPrecisionStableResourceCompilerFacts(
+              contract.lowPrecisionResourceSelection);
   if (isProductReductionChain &&
-      contract.lowPrecisionResourceSelection.hasSelection)
+      stableResourceFacts.hasSelection)
     if (llvm::Error error =
             validateRVVLowPrecisionPrimitiveChainResourceProviderFacts(
-                contract))
+                contract, stableResourceFacts))
       return error;
   if (isProductReductionDequantization)
     if (llvm::Error error =
             validateRVVLowPrecisionProductReductionRealizationProviderFacts(
-                contract))
+                contract, stableResourceFacts))
       return error;
   if (usesPackedI4LowPrecisionProductReduction)
     if (llvm::Error error =
-            validateRVVPackedI4LowPrecisionResourceProviderFacts(contract))
+            validateRVVPackedI4LowPrecisionResourceProviderFacts(
+                contract, stableResourceFacts))
       return error;
   if (usesPackedI4LowPrecisionProductReduction) {
     if (llvm::Error error =
