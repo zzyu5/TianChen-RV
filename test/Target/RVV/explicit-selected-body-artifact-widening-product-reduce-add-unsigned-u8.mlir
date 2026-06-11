@@ -3,6 +3,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/__riscv_vwredsumu_vs_u16mf2_u32m1/s//__riscv_vwredsum_vs_i16mf2_i32m1/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-VWREDSUM
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.source_signedness\", value = \"unsigned\"/s//tcrv_rvv.low_precision_primitive.source_signedness\", value = \"signed\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SIGN
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.source_signedness\", value = \"unsigned\"/s//tcrv_rvv.low_precision_resource.source_signedness\", value = \"signed\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE-SIGN
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation\", value = \"unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32\"/s//tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation\", value = \"metadata-derived-product-reduction\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE-CHAIN
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.accumulator_dtype\", value = \"u32\"/s//tcrv_rvv.low_precision_primitive.accumulator_dtype\", value = \"i32\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIM-ACC
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.source_extension\", value = \"zero-extend-u8-to-u16-product\"/s//tcrv_rvv.low_precision_primitive.source_extension\", value = \"sign-extend-i8-to-i16-product\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-EXT
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.c_type_mapping\", value = \"vl:size_t,source:unsigned-e8mf4,product:unsigned-e16mf2,seed:unsigned-u32,result:unsigned-e32m1\"/s//tcrv_rvv.c_type_mapping\", value = \"vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,result:signed-e32m1\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CTYPE
@@ -118,6 +119,9 @@ module {
 
 // STALE-RESOURCE-SIGN: candidate tcrv_rvv.low_precision_resource.source_signedness provenance must mirror provider-selected low-precision direct-contraction resource source signedness 'unsigned'
 // STALE-RESOURCE-SIGN-SAME: but was 'signed'
+
+// STALE-RESOURCE-CHAIN: candidate tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation provenance must mirror provider-selected low-precision direct-contraction resource primitive product-reduction chain relation 'unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32'
+// STALE-RESOURCE-CHAIN-SAME: but was 'metadata-derived-product-reduction'
 
 // STALE-PRIM-ACC: candidate tcrv_rvv.low_precision_primitive.accumulator_dtype provenance must mirror selected typed RVV product-reduction low-precision widening-reduction primitive accumulator dtype 'u32'
 // STALE-PRIM-ACC-SAME: but was 'i32'

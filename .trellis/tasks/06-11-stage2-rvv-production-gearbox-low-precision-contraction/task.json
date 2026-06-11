@@ -27,6 +27,6 @@
     "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir",
     "test/Target/TargetArtifactExportTest.cpp"
   ],
-  "notes": "Current slice completed Gate 2 submodule for plain signed/unsigned product-reduction resource facts. Macro task remains active for packed-i4 load/unpack and Gearbox consumption gates.",
+  "notes": "Current slice hardened Gate 2 plain product-reduction resource-fact consumption in route-planning and target validation. Macro task remains active for direct Gearbox selected-body consumption and packed-i4 load/unpack gates.",
   "meta": {}
 }

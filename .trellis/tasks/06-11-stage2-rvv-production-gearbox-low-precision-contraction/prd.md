@@ -36,39 +36,44 @@ resource/primitive and selected-dispatch campaigns:
 - Target artifact validation already verifies resource/primitive mirrors when
   a low-precision resource selection is present.
 
-The missing bounded Gate 2 slice is the plain product-reduction resource spine.
-`WideningProductReduceAdd` already supports signed and unsigned low-precision
-primitive facts, including unsigned u8/u16/u32 route and target artifact
-validation, but it did not participate in low-precision resource selection.
-The non-dequant resource-selection path also carried signed-only assumptions
-for source signedness, product roles, extension policy, and accumulator/result
-type expectations.
+The first Gate 2 slice added the plain product-reduction resource spine.
+`WideningProductReduceAdd` now supports signed and unsigned low-precision
+primitive facts, including unsigned u8/u16/u32 route planning, resource
+selection, and target artifact validation.
+
+The current bounded Gate 2 slice consumes those facts as route-planning and
+target-validation authority. The plain product-reduction consumer path must not
+let the resource selection pick its own signed/unsigned primitive fact family
+before it is checked against the provider-derived route description/plan.
+Missing, stale, or inconsistent product-reduction resource facts must fail
+closed before target artifact acceptance.
 
 ## Current Slice
 
-Implement the first Gate 2 production slice:
+Implement the current Gate 2 consumption slice:
 
-- Add provider-owned plain product-reduction low-precision resource candidates
-  for signed i8 and unsigned u8 widening-product reduction.
-- Admit `WideningProductReduceAdd` into low-precision resource selection.
-- Populate resource selection from provider primitive facts, including source
-  signedness, source/product/accumulator/result dtype, widening-product roles,
-  extension policy, primitive chain contract/kind, widening/reduction
-  intrinsics, and target mirrors.
-- Keep existing dequant/dequant-clamp and strided low-precision representatives
-  working with their current resource contracts.
-- Prove unsigned u8 stale resource facts fail closed at target export.
+- Make plain product-reduction route-planning validation choose signed/unsigned
+  widening-reduction primitive facts from provider-derived plan/description
+  signedness, not from the untrusted resource selection being validated.
+- Keep resource selection comparison against provider primitive/source/product,
+  accumulator/result, widening-product role, extension-policy, route-family,
+  producer/consumer, target capability, and mirror facts fail closed.
+- Add focused negative coverage for a stale plain product-reduction resource
+  signedness selection and a stale product-reduction resource chain mirror.
+- Keep existing signed/unsigned product-reduction and product-reduction
+  dequant/dequant-clamp paths passing.
 
 ## Acceptance Criteria For This Slice
 
-- The unsigned u8 product-reduction route emits `tcrv_rvv.low_precision_resource`
-  candidate, selected candidate, source signedness, u32 accumulator/result,
-  primitive chain, intrinsic, and target mirror metadata.
-- Target header artifact mirrors the new resource facts.
-- Stale `tcrv_rvv.low_precision_resource.source_signedness` is rejected before
-  target export.
-- Existing signed product-reduction, dequantize-f32, and dequant-clamp-f32
-  focused plan/header paths still pass.
+- Plain product-reduction resource validation consumes provider-derived
+  primitive signedness when selecting the expected signed/unsigned
+  widening-reduction fact family.
+- A stale plain product-reduction resource signedness selection fails in the
+  production target-validation/provider-fact consumer path.
+- A stale target artifact mirror for the product-reduction resource chain
+  relation fails before target export.
+- Existing signed product-reduction, unsigned product-reduction,
+  dequantize-f32, and dequant-clamp-f32 focused plan/header paths still pass.
 - `tianchenrv-rvv-extension-plugin-test` and
   `tianchenrv-target-artifact-export-test` pass.
 
@@ -83,10 +88,10 @@ Implement the first Gate 2 production slice:
 
 ## Status After Current Slice
 
-Gate 2 is advanced but not complete. The macro task remains active.
+Gate 2 will be advanced but not complete. The macro task remains active.
 
 Continuation point: extend the same production resource/primitive spine toward
-the next low-precision contraction primitive gap, especially packed-i4
-load/unpack and widening-product/reduction resource candidates that Gearbox
-selected-body realization can consume without relying on q8/q4 labels or
-artifact names.
+the next low-precision contraction primitive gap that Gearbox selected-body
+realization consumes directly, especially packed-i4 load/unpack and
+widening-product/reduction resource candidates without relying on q8/q4 labels
+or artifact names.

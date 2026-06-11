@@ -522,6 +522,11 @@ from the selected typed body/config/runtime facts before route construction.
   choose the unsigned product/reduction chain relation, unsigned widening
   product intrinsic, unsigned widening reduction intrinsic, unsigned scalar seed
   splat, and unsigned accumulator/result vector C types.
+- Route-planning and target-validation consumers must choose the expected
+  signed or unsigned primitive fact family from provider-derived typed
+  plan/description facts before validating a resource selection. The resource
+  selection being validated, target metadata, candidate IDs, route IDs, or
+  artifact names must not choose their own primitive fact family.
 - Target artifact metadata may carry these fields only as exact mirrors. A
   stale mirror must fail target validation before candidate acceptance.
 - Common EmitC may materialize only the provider-built route payload. It must
@@ -542,6 +547,10 @@ from the selected typed body/config/runtime facts before route construction.
   candidate acceptance.
 - Primitive facts use stale accumulator/result dtype, SEW, LMUL, layout, seed
   splat, reduction intrinsic, or store VL -> provider fail-closed diagnostic.
+- Resource selection source signedness disagrees with the provider-derived
+  primitive signedness used by the route plan/description -> provider or target
+  validation error before the selection can choose a different signed/unsigned
+  primitive fact family.
 - Target candidate mirror disagrees with any primitive fact -> target
   validation error before artifact acceptance.
 - Common EmitC or target validation locally reconstructs primitive facts from
@@ -573,6 +582,8 @@ from the selected typed body/config/runtime facts before route construction.
   u8 product-reduction chains.
 - Provider negative coverage for stale or unsupported primitive facts before
   route construction.
+- Provider/target negative coverage for a stale resource selection signedness
+  that would otherwise select the wrong signed/unsigned primitive fact family.
 - Target artifact coverage proving exact mirror acceptance and stale source
   signedness, source load, source extension,
   source/product/accumulator/result dtype, SEW/LMUL, intrinsic, seed, layout,

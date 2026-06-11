@@ -1932,3 +1932,60 @@ Continue inside the same macro task with the next low-precision contraction
 primitive/resource gap, especially packed-i4 load/unpack and resource
 candidates consumable by Gearbox selected-body realization without q8/q4 labels
 or artifact-name authority.
+
+## Session 596: Stage2 RVV product-reduction resource consumption hardening
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV production-kernel Gearbox resource-aware low-precision contraction campaign
+**Branch**: `main`
+
+### Summary
+
+Completed a Gate 2 consumption-hardening slice for plain product-reduction
+resource facts. Route-planning validation now chooses the expected signed or
+unsigned widening-reduction primitive fact family from provider-derived
+plan/description signedness before validating the resource selection, instead
+of letting the selection pick its own fact family.
+
+### Main Changes
+
+- Repaired the active macro PRD from the prior fact-spine slice to the current
+  route-planning/target-validation consumption slice.
+- Hardened `verifyRVVLowPrecisionResourcePrimitiveChainSelection` and the
+  route-description variant to reject stale resource source signedness before
+  selecting signed/unsigned primitive facts.
+- Added a C++ target-validation negative case for stale plain
+  product-reduction resource signedness.
+- Added unsigned u8 lit coverage for stale
+  `tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation`
+  mirror rejection before target export.
+- Updated the RVV plugin spec with the provider-derived primitive fact-family
+  selection rule for resource-selection validation.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] lit filters for signed and unsigned product-reduction artifact fixtures
+- [OK] lit filter for dequant-clamp product-reduction fixture
+- [OK] manual dequantize-f32 REALIZED, GEARBOX-SCHEDULE-PRIMITIVE, PLAN, and
+  HEADER FileCheck subsets
+- [KNOWN RESIDUAL] full dequantize-f32 lit filter still has an existing stale
+  `STALE-REALIZATION-RESOURCE` check-string mismatch outside this slice.
+- [OK] bounded old-authority scan over touched code/test added lines
+- [OK] `git diff --check`
+
+### Status
+
+[MACRO ACTIVE] Gate 2 consumption hardening slice complete. Keep the macro task
+active; direct Gearbox selected-body consumption and packed-i4 load/unpack
+resource candidates remain open.
+
+### Continuation
+
+Continue with Gearbox selected-body realization consuming the next
+low-precision resource candidate directly, especially packed-i4 load/unpack
+facts, without q8/q4 labels or artifact-name authority.

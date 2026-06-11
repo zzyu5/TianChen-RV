@@ -6939,11 +6939,17 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainSelection(
   if (!plan.usesProductReductionChain &&
       !plan.usesProductReductionDequantization)
     return llvm::Error::success();
+  llvm::StringRef expectedSourceSignedness =
+      getExpectedRVVLowPrecisionResourceSourceSignedness(plan);
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive source signedness",
+          selection.sourceSignedness, expectedSourceSignedness))
+    return error;
   std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
       primitiveFacts =
           getRVVLowPrecisionWideningReductionPrimitiveFacts(
               plan.operation,
-              selection.sourceSignedness ==
+              expectedSourceSignedness ==
                   kRVVLowPrecisionResourceSourceSignednessUnsigned);
   if (!primitiveFacts || !primitiveFacts->hasFacts)
     return makeRVVEmitCRouteProviderError(
@@ -7048,11 +7054,17 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainDescriptionSelection(
       isProductReductionDequantization;
   if (!isProductReductionChain)
     return llvm::Error::success();
+  llvm::StringRef expectedSourceSignedness =
+      getExpectedRVVLowPrecisionResourceSourceSignedness(description);
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "primitive source signedness",
+          selection.sourceSignedness, expectedSourceSignedness))
+    return error;
   std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
       primitiveFacts =
           getRVVLowPrecisionWideningReductionPrimitiveFacts(
               description.operation,
-              selection.sourceSignedness ==
+              expectedSourceSignedness ==
                   kRVVLowPrecisionResourceSourceSignednessUnsigned);
   if (!primitiveFacts || !primitiveFacts->hasFacts)
     return makeRVVEmitCRouteProviderError(

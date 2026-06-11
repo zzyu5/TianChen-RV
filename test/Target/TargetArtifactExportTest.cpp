@@ -14499,6 +14499,18 @@ bool expectRVVTargetArtifactExporterShape(
           {"resource primitive source dtype", "u8", "i8"}))
     return false;
 
+  RVVRouteDescription staleProductReductionResourceSignedness =
+      productReductionDescription;
+  staleProductReductionResourceSignedness.lowPrecisionResourceSelection
+      .sourceSignedness = "unsigned";
+  if (!expectWideningDotProviderFailure(
+          productReductionFixture.candidate, productReductionRoute,
+          staleProductReductionResourceSignedness,
+          "product-reduction registry rejects stale resource source "
+          "signedness",
+          {"primitive source signedness", "signed", "unsigned"}))
+    return false;
+
   TargetArtifactCandidate staleProductReductionProductLMULMirror =
       productReductionFixture.candidate;
   if (!rewriteArtifactMetadataValue(staleProductReductionProductLMULMirror,
