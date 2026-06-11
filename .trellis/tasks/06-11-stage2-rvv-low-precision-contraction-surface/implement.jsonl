@@ -1,13 +1,14 @@
-{"file":".trellis/spec/index.md","reason":"Project-wide architecture invariants and RVV Stage order for the new macro campaign."}
-{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV plugin authority, typed body ownership, low-precision widening-product primitive facts, and Stage2 route-provider requirements."}
-{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Common EmitC neutrality and provider-owned route payload boundaries."}
-{"file":".trellis/spec/testing/index.md","reason":"Focused lit/FileCheck and C++ test expectations for RVV compiler behavior."}
-{"file":".trellis/tasks/archive/2026-06/06-11-stage2-rvv-production-gearbox-low-precision-contraction/prd.md","reason":"Prior archived Gearbox/resource and Gate4 no-win closure state; prevents reopening an evidence-only owner."}
-{"file":"include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h","reason":"Route description and contraction route-family plan fields for low-precision primitive facts."}
-{"file":"lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp","reason":"RVV provider validation and route description construction for widening-product/reduction primitive facts."}
-{"file":"lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp","reason":"Emission-plan metadata mirrors emitted from provider route descriptions."}
-{"file":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","reason":"Target artifact validation mirrors for low-precision primitive facts and stale rejection."}
-{"file":"lib/Target/RVV/RVVTargetSupportBundle.cpp","reason":"Target support-bundle metadata export mapping for new primitive mirrors."}
-{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir","reason":"Signed i8 product-reduction positive and stale-mirror FileCheck coverage."}
-{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir","reason":"Unsigned u8 product-reduction positive and stale-mirror FileCheck coverage."}
-{"file":"test/Target/TargetArtifactExportTest.cpp","reason":"C++ target artifact validation coverage if lit coverage is insufficient for mirror failures."}
+{"file":".trellis/spec/index.md","reason":"Project-wide authority chain and mirror-only invariants for outcome-language cleanup."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV low-precision primitive outcomes, selected-body realization, provider/artifact carry-through, and measurement-disposition boundary wording."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Common EmitC neutrality and provider-owned payload/mirror boundaries."}
+{"file":".trellis/spec/testing/index.md","reason":"Focused C++/lit evidence expectations for production-path compiler changes."}
+{"file":".trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface/prd.md","reason":"Active macro PRD repaired from stale numbered-milestone terminology to outcome/milestone language."}
+{"file":"include/TianChenRV/Plugin/RVV/RVVLowPrecisionPerformancePolicy.h","reason":"Public measurement-disposition same-target record helper name after numbered-milestone production API cleanup."}
+{"file":"lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp","reason":"Measurement-disposition helper constants, diagnostics, and no-win policy wording."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp","reason":"Low-precision provider diagnostic cleanup for bounded plain product-reduction support."}
+{"file":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","reason":"Target artifact measurement-disposition evidence/admission mirror helper and diagnostic cleanup."}
+{"file":"test/Plugin/RVVExtensionPluginTest.cpp","reason":"C++ policy/provider test call sites and context strings for renamed measurement-disposition helper."}
+{"file":"test/Target/TargetArtifactExportTest.cpp","reason":"Target artifact C++ test call sites and diagnostics for renamed measurement-disposition helper."}
+{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir","reason":"Focused signed product-reduction artifact coverage to keep provider payload validation intact."}
+{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir","reason":"Focused unsigned product-reduction artifact coverage to keep provider payload validation intact."}
+{"file":"test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-add.mlir","reason":"Focused pre-realized signed/unsigned product-reduction coverage to keep selected-body realization and payload carry-through intact."}

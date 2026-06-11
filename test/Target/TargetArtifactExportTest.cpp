@@ -13280,9 +13280,9 @@ bool expectRVVTargetArtifactExporterShape(
     return false;
   }
   tianchenrv::plugin::rvv::RVVLowPrecisionSameTargetMeasurementRecord
-      acceptedPackedI4Gate4MeasurementRecord =
+      acceptedPackedI4MeasurementDispositionRecord =
           tianchenrv::plugin::rvv::
-              buildRVVPackedI4Gate4SameTargetMeasurementRecord(
+              buildRVVPackedI4MeasurementDispositionSameTargetRecord(
                   packedI4ProductDequantDescription
                       .lowPrecisionResourceSelection);
   constexpr llvm::StringLiteral kPackedI4DequantEvidencePath(
@@ -13299,7 +13299,7 @@ bool expectRVVTargetArtifactExporterShape(
         llvm::MemoryBuffer::getFile(fallbackPath);
   }
   if (!packedI4DequantEvidenceBuffer) {
-    llvm::errs() << "packed-i4 target artifact test failed to read Gate 4 "
+    llvm::errs() << "packed-i4 target artifact test failed to read measurement-disposition "
                     "dequant evidence JSON: "
                  << packedI4DequantEvidenceBuffer.getError().message()
                  << "\n";
@@ -13308,7 +13308,7 @@ bool expectRVVTargetArtifactExporterShape(
   llvm::Expected<llvm::json::Value> packedI4DequantEvidence =
       llvm::json::parse((*packedI4DequantEvidenceBuffer)->getBuffer());
   if (!packedI4DequantEvidence) {
-    llvm::errs() << "packed-i4 target artifact test failed to parse Gate 4 "
+    llvm::errs() << "packed-i4 target artifact test failed to parse measurement-disposition "
                     "dequant evidence JSON: "
                  << llvm::toString(packedI4DequantEvidence.takeError())
                  << "\n";
@@ -13317,7 +13317,7 @@ bool expectRVVTargetArtifactExporterShape(
   const llvm::json::Object *packedI4DequantEvidenceRoot =
       packedI4DequantEvidence->getAsObject();
   if (!packedI4DequantEvidenceRoot) {
-    llvm::errs() << "packed-i4 target artifact Gate 4 dequant evidence JSON "
+    llvm::errs() << "packed-i4 target artifact measurement-disposition dequant evidence JSON "
                     "root is not an object\n";
     return false;
   }
@@ -13325,9 +13325,9 @@ bool expectRVVTargetArtifactExporterShape(
       tianchenrv::plugin::rvv::
           buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceRoot(
               *packedI4DequantEvidenceRoot,
-              "packed-i4 target artifact Gate 4 evidence-root record");
+              "packed-i4 target artifact measurement-disposition evidence-root record");
   if (!parsedPackedI4TargetEvidenceRecord) {
-    llvm::errs() << "packed-i4 target artifact Gate 4 evidence-root record "
+    llvm::errs() << "packed-i4 target artifact measurement-disposition evidence-root record "
                     "failed: "
                  << llvm::toString(
                         parsedPackedI4TargetEvidenceRecord.takeError())
@@ -13335,16 +13335,16 @@ bool expectRVVTargetArtifactExporterShape(
     return false;
   }
   if (parsedPackedI4TargetEvidenceRecord->measurementEvidenceID !=
-          acceptedPackedI4Gate4MeasurementRecord.measurementEvidenceID ||
+          acceptedPackedI4MeasurementDispositionRecord.measurementEvidenceID ||
       parsedPackedI4TargetEvidenceRecord->measurementBestSpeedupRange !=
-          acceptedPackedI4Gate4MeasurementRecord.measurementBestSpeedupRange ||
+          acceptedPackedI4MeasurementDispositionRecord.measurementBestSpeedupRange ||
       parsedPackedI4TargetEvidenceRecord->measurementSummaryRecordCount !=
-          acceptedPackedI4Gate4MeasurementRecord
+          acceptedPackedI4MeasurementDispositionRecord
               .measurementSummaryRecordCount ||
       parsedPackedI4TargetEvidenceRecord->measurementRecordCount !=
-          acceptedPackedI4Gate4MeasurementRecord.measurementRecordCount ||
+          acceptedPackedI4MeasurementDispositionRecord.measurementRecordCount ||
       parsedPackedI4TargetEvidenceRecord->correctnessRecordCount !=
-          acceptedPackedI4Gate4MeasurementRecord.correctnessRecordCount ||
+          acceptedPackedI4MeasurementDispositionRecord.correctnessRecordCount ||
       parsedPackedI4TargetEvidenceRecord->providerResourceSelectedCandidate !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .selectedCandidateID ||
@@ -13355,7 +13355,7 @@ bool expectRVVTargetArtifactExporterShape(
               ->providerBeyondLocalRepairAdmissionDecision !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .beyondLocalRepairAdmissionDecision) {
-    llvm::errs() << "packed-i4 target artifact Gate 4 parsed evidence record "
+    llvm::errs() << "packed-i4 target artifact measurement-disposition parsed evidence record "
                     "did not match provider resource, schedule, admission, "
                     "and measurement facts\n";
     return false;
@@ -13365,7 +13365,7 @@ bool expectRVVTargetArtifactExporterShape(
   llvm::json::Object *stalePackedI4ResultClassification =
       stalePackedI4EvidenceRoot["result_classification"].getAsObject();
   if (!stalePackedI4ResultClassification) {
-    llvm::errs() << "packed-i4 target artifact Gate 4 stale evidence root "
+    llvm::errs() << "packed-i4 target artifact measurement-disposition stale evidence root "
                     "lacks result_classification\n";
     return false;
   }
@@ -13375,88 +13375,88 @@ bool expectRVVTargetArtifactExporterShape(
       tianchenrv::plugin::rvv::
           buildRVVLowPrecisionSameTargetMeasurementRecordFromEvidenceRoot(
               stalePackedI4EvidenceRoot,
-              "packed-i4 target artifact Gate 4 rejects stale evidence root");
+              "packed-i4 target artifact measurement-disposition rejects stale evidence root");
   if (stalePackedI4EvidenceRecord) {
-    llvm::errs() << "packed-i4 target artifact Gate 4 stale evidence root "
+    llvm::errs() << "packed-i4 target artifact measurement-disposition stale evidence root "
                     "unexpectedly parsed\n";
     return false;
   }
   if (!expectErrorContains(
           stalePackedI4EvidenceRecord.takeError(),
-          "packed-i4 target artifact Gate 4 rejects stale evidence root",
+          "packed-i4 target artifact measurement-disposition rejects stale evidence root",
           {"same-target measurement evidence",
            "result_classification.best_speedup_range",
            "metadata-only-speedup-range"}))
     return false;
-  auto acceptedPackedI4Gate4Outcome =
+  auto acceptedPackedI4MeasurementDispositionOutcome =
       tianchenrv::plugin::rvv::
           buildRVVLowPrecisionPerformanceMeasurementOutcomeFromSameTargetRecord(
               packedI4ProductDequantDescription.lowPrecisionResourceSelection,
-              acceptedPackedI4Gate4MeasurementRecord,
-              "packed-i4 target artifact Gate 1 source-backed measurement "
+              acceptedPackedI4MeasurementDispositionRecord,
+              "packed-i4 target artifact foundation source-backed measurement "
               "record outcome");
-  if (!acceptedPackedI4Gate4Outcome) {
-    llvm::errs() << "packed-i4 target artifact Gate 1 measurement record did "
+  if (!acceptedPackedI4MeasurementDispositionOutcome) {
+    llvm::errs() << "packed-i4 target artifact foundation measurement record did "
                     "not build an accepted outcome: "
-                 << llvm::toString(acceptedPackedI4Gate4Outcome.takeError())
+                 << llvm::toString(acceptedPackedI4MeasurementDispositionOutcome.takeError())
                  << "\n";
     return false;
   }
-  auto acceptedPackedI4Gate4PolicyInput =
+  auto acceptedPackedI4MeasurementDispositionPolicyInput =
       tianchenrv::plugin::rvv::
           buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
               packedI4ProductDequantDescription.lowPrecisionResourceSelection,
-              acceptedPackedI4Gate4MeasurementRecord,
-              "packed-i4 target artifact Gate 1 source-backed policy input");
-  if (!acceptedPackedI4Gate4PolicyInput) {
-    llvm::errs() << "packed-i4 target artifact Gate 1 measurement record did "
+              acceptedPackedI4MeasurementDispositionRecord,
+              "packed-i4 target artifact foundation source-backed policy input");
+  if (!acceptedPackedI4MeasurementDispositionPolicyInput) {
+    llvm::errs() << "packed-i4 target artifact foundation measurement record did "
                     "not build policy input: "
-                 << llvm::toString(acceptedPackedI4Gate4PolicyInput.takeError())
+                 << llvm::toString(acceptedPackedI4MeasurementDispositionPolicyInput.takeError())
                  << "\n";
     return false;
   }
-  if (acceptedPackedI4Gate4PolicyInput->providerPrimitiveChainKind !=
+  if (acceptedPackedI4MeasurementDispositionPolicyInput->providerPrimitiveChainKind !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .primitiveChainKind ||
-      acceptedPackedI4Gate4PolicyInput->providerPrimitiveContract !=
+      acceptedPackedI4MeasurementDispositionPolicyInput->providerPrimitiveContract !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .primitiveContractID ||
-      acceptedPackedI4Gate4PolicyInput->providerPrimitiveReductionIntrinsic !=
+      acceptedPackedI4MeasurementDispositionPolicyInput->providerPrimitiveReductionIntrinsic !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .primitiveReductionIntrinsic ||
-      acceptedPackedI4Gate4PolicyInput->providerPrimitiveProductSEW !=
+      acceptedPackedI4MeasurementDispositionPolicyInput->providerPrimitiveProductSEW !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .productSEW ||
-      acceptedPackedI4Gate4PolicyInput->providerResourcePlanningContract !=
+      acceptedPackedI4MeasurementDispositionPolicyInput->providerResourcePlanningContract !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .planningContract ||
-      acceptedPackedI4Gate4PolicyInput->providerResourceOperandForm !=
+      acceptedPackedI4MeasurementDispositionPolicyInput->providerResourceOperandForm !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .operandForm ||
-      acceptedPackedI4Gate4PolicyInput->providerResourceVSetVLRegionCount !=
+      acceptedPackedI4MeasurementDispositionPolicyInput->providerResourceVSetVLRegionCount !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .vsetvlRegionCount ||
-      acceptedPackedI4Gate4PolicyInput->providerRuntimeAVLSource !=
+      acceptedPackedI4MeasurementDispositionPolicyInput->providerRuntimeAVLSource !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .runtimeAVLSource ||
-      acceptedPackedI4Gate4PolicyInput->providerScheduleDecision !=
+      acceptedPackedI4MeasurementDispositionPolicyInput->providerScheduleDecision !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .scheduleDecision ||
-      acceptedPackedI4Gate4PolicyInput
+      acceptedPackedI4MeasurementDispositionPolicyInput
               ->providerBeyondLocalRepairAdmissionDecision !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .beyondLocalRepairAdmissionDecision ||
-      acceptedPackedI4Gate4PolicyInput
+      acceptedPackedI4MeasurementDispositionPolicyInput
               ->providerBeyondLocalRepairAdmissionBlocker !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .beyondLocalRepairAdmissionBlocker ||
-      acceptedPackedI4Gate4PolicyInput->targetCapabilityProviderMirror !=
+      acceptedPackedI4MeasurementDispositionPolicyInput->targetCapabilityProviderMirror !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .targetCapabilityProviderMirror ||
-      acceptedPackedI4Gate4PolicyInput->targetCapabilityLegalityMirror !=
+      acceptedPackedI4MeasurementDispositionPolicyInput->targetCapabilityLegalityMirror !=
           packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .targetCapabilityLegalityMirror) {
-    llvm::errs() << "packed-i4 target artifact Gate 3 policy input did not "
+    llvm::errs() << "packed-i4 target artifact provider-proof-consumption policy input did not "
                     "carry provider planning, resource, runtime, primitive, "
                     "schedule, and target facts\n";
     return false;
@@ -13465,12 +13465,12 @@ bool expectRVVTargetArtifactExporterShape(
       tianchenrv::plugin::rvv::
           evaluateRVVLowPrecisionPerformancePolicy(
               packedI4ProductDequantDescription.lowPrecisionResourceSelection,
-              *acceptedPackedI4Gate4PolicyInput,
-              "packed-i4 target artifact Gate 4 dispatch/performance policy "
+              *acceptedPackedI4MeasurementDispositionPolicyInput,
+              "packed-i4 target artifact measurement-disposition dispatch/performance policy "
               "input");
   if (!packedI4Policy) {
     llvm::errs() << "packed-i4 target artifact policy did not accept the "
-                    "Gate 4 regression/no-win outcome: "
+                    "measurement-disposition regression/no-win outcome: "
                  << llvm::toString(packedI4Policy.takeError()) << "\n";
     return false;
   }
@@ -13661,7 +13661,7 @@ bool expectRVVTargetArtifactExporterShape(
           buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
               selectedDispatchPackedI4Description.lowPrecisionResourceSelection,
               *parsedPackedI4TargetEvidenceRecord,
-              "selected-dispatch packed-i4 target artifact Gate 1 "
+              "selected-dispatch packed-i4 target artifact foundation "
               "evidence-root source-backed policy input");
   if (!selectedDispatchPackedI4PolicyInput) {
     llvm::errs() << "selected-dispatch packed-i4 target artifact policy input "
@@ -13676,7 +13676,7 @@ bool expectRVVTargetArtifactExporterShape(
               selectedDispatchPackedI4Description.lowPrecisionResourceSelection,
               *selectedDispatchPackedI4PolicyInput,
               packedI4TargetDispatchBoundary,
-              "packed-i4 target artifact Gate 3 selected-dispatch policy "
+              "packed-i4 target artifact provider-proof-consumption selected-dispatch policy "
               "input");
   if (!selectedDispatchPackedI4Policy ||
       !selectedDispatchPackedI4Policy->routeSupportAllowed ||
@@ -13929,7 +13929,7 @@ bool expectRVVTargetArtifactExporterShape(
           buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
               selectedDispatchPackedI4Description.lowPrecisionResourceSelection,
               staleRuntimeABIPackedI4MeasurementRecord,
-              "packed-i4 target artifact Gate 3 policy input rejects stale "
+              "packed-i4 target artifact provider-proof-consumption policy input rejects stale "
               "runtime ABI tie-back");
   if (!expectErrorContains(
           staleRuntimeABIPackedI4PolicyInput.takeError(),
@@ -13947,7 +13947,7 @@ bool expectRVVTargetArtifactExporterShape(
           buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
               selectedDispatchPackedI4Description.lowPrecisionResourceSelection,
               stalePlanningPackedI4MeasurementRecord,
-              "packed-i4 target artifact Gate 3 policy input rejects stale "
+              "packed-i4 target artifact provider-proof-consumption policy input rejects stale "
               "planning contract");
   if (!expectErrorContains(
           stalePlanningPackedI4PolicyInput.takeError(),
@@ -13967,7 +13967,7 @@ bool expectRVVTargetArtifactExporterShape(
           buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
               selectedDispatchPackedI4Description.lowPrecisionResourceSelection,
               stalePrimitiveIntrinsicPackedI4MeasurementRecord,
-              "packed-i4 target artifact Gate 3 policy input rejects stale "
+              "packed-i4 target artifact provider-proof-consumption policy input rejects stale "
               "primitive intrinsic");
   if (!expectErrorContains(
           stalePrimitiveIntrinsicPackedI4PolicyInput.takeError(),
@@ -14054,7 +14054,7 @@ bool expectRVVTargetArtifactExporterShape(
   tianchenrv::plugin::rvv::RVVLowPrecisionSameTargetMeasurementRecord
       measuredWinTargetMeasurementRecord =
           tianchenrv::plugin::rvv::
-              buildRVVPackedI4Gate4SameTargetMeasurementRecord(
+              buildRVVPackedI4MeasurementDispositionSameTargetRecord(
                   measuredWinTargetSelection);
   measuredWinTargetMeasurementRecord.measurementEvidenceID =
       measuredWinTargetSelection.remediationMeasurementEvidenceID;
@@ -14093,7 +14093,7 @@ bool expectRVVTargetArtifactExporterShape(
       tianchenrv::plugin::rvv::
           evaluateRVVLowPrecisionPerformancePolicy(
               measuredWinTargetSelection, *measuredWinTargetPolicyInput,
-              "packed-i4 target artifact Gate 4 measured-win "
+              "packed-i4 target artifact measurement-disposition measured-win "
               "dispatch/performance policy input");
   if (!measuredWinTargetPolicy ||
       !measuredWinTargetPolicy->routeSupportAllowed ||
@@ -14437,11 +14437,11 @@ bool expectRVVTargetArtifactExporterShape(
           buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
               packedI4ProductDequantDescription.lowPrecisionResourceSelection,
               stalePackedI4TargetProfileRecord,
-              "packed-i4 target artifact Gate 4 dispatch/performance policy "
+              "packed-i4 target artifact measurement-disposition dispatch/performance policy "
               "rejects stale target profile");
   if (!expectErrorContains(
           stalePackedI4TargetProfileInput.takeError(),
-          "packed-i4 target artifact Gate 4 policy rejects stale target "
+          "packed-i4 target artifact measurement-disposition policy rejects stale target "
           "profile",
           {"target profile", "ssh rvv", "local-x86"}))
     return false;
@@ -14454,7 +14454,7 @@ bool expectRVVTargetArtifactExporterShape(
           buildRVVLowPrecisionPerformanceMeasurementOutcomeFromSameTargetRecord(
               packedI4ProductDequantDescription.lowPrecisionResourceSelection,
               stalePackedI4SpeedupRecord,
-              "packed-i4 target artifact Gate 4 dispatch/performance policy "
+              "packed-i4 target artifact measurement-disposition dispatch/performance policy "
               "rejects stale speedup evidence");
   if (!stalePackedI4SpeedupOutcome) {
     llvm::errs() << "packed-i4 target artifact stale speedup record failed "
@@ -14469,9 +14469,9 @@ bool expectRVVTargetArtifactExporterShape(
                   packedI4ProductDequantDescription
                       .lowPrecisionResourceSelection,
                   *stalePackedI4SpeedupOutcome,
-                  "packed-i4 target artifact Gate 4 dispatch/performance "
+                  "packed-i4 target artifact measurement-disposition dispatch/performance "
                   "policy rejects stale speedup evidence"),
-          "packed-i4 target artifact Gate 4 policy rejects stale speedup "
+          "packed-i4 target artifact measurement-disposition policy rejects stale speedup "
           "evidence",
           {"dispatch/performance policy", "measurement best-speedup range",
            "0.895307..1.027027", "0.689938..0.705891"}))

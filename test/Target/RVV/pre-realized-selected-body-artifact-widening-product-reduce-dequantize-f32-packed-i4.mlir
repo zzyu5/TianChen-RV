@@ -27,7 +27,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-rvv-emitc-to-cpp | FileCheck %s --check-prefix=CPP
 
-// Focused Gate 4 fixture for the same product-reduction-dequant op kind with
+// Focused measurement-disposition fixture for the same product-reduction-dequant op kind with
 // an explicit signed packed-i4 selected resource. The candidate is authority
 // only because it is carried in the typed pre-realized tcrv_rvv body and then
 // consumed by RVV selected-body realization/provider planning.
@@ -313,13 +313,13 @@ module {
 // STALE-ARTIFACT-REALIZATION-DECISION: low_precision_resource.realization_decision provenance must mirror provider-selected low-precision direct-contraction resource realization decision 'consume-low-precision-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-budget-5of32.v1'
 // STALE-ARTIFACT-REALIZATION-DECISION-SAME: artifact-name-derived-resource-decision
 
-// STALE-ARTIFACT-PERFORMANCE-FEEDBACK: low_precision_resource.performance_feedback provenance must mirror provider-selected low-precision Gate 4 evidence/admission performance feedback 'same-target-packed-i4-no-win.v1'
+// STALE-ARTIFACT-PERFORMANCE-FEEDBACK: low_precision_resource.performance_feedback provenance must mirror provider-selected low-precision measurement-disposition evidence/admission performance feedback 'same-target-packed-i4-no-win.v1'
 // STALE-ARTIFACT-PERFORMANCE-FEEDBACK-SAME: same-target-packed-i4-performance-win.v1
 
-// STALE-ARTIFACT-REMEDIATION-STATEMENT-STRATEGY: low_precision_resource.remediation_statement_strategy provenance must mirror provider-selected low-precision Gate 4 evidence/admission remediation statement strategy 'low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue'
+// STALE-ARTIFACT-REMEDIATION-STATEMENT-STRATEGY: low_precision_resource.remediation_statement_strategy provenance must mirror provider-selected low-precision measurement-disposition evidence/admission remediation statement strategy 'low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue'
 // STALE-ARTIFACT-REMEDIATION-STATEMENT-STRATEGY-SAME: metadata-only-packed-i4-unpack-plan
 
-// STALE-ARTIFACT-REMEDIATION-PRODUCT-PLAN: low_precision_resource.remediation_product_plan provenance must mirror provider-selected low-precision Gate 4 evidence/admission remediation product plan 'low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1'
+// STALE-ARTIFACT-REMEDIATION-PRODUCT-PLAN: low_precision_resource.remediation_product_plan provenance must mirror provider-selected low-precision measurement-disposition evidence/admission remediation product plan 'low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1'
 // STALE-ARTIFACT-REMEDIATION-PRODUCT-PLAN-SAME: metadata-only-packed-i4-product-plan
 
 // STALE-ARTIFACT-PACKED-UNPACK-PLAN: low_precision_resource.packed_unpack_plan provenance must mirror provider-selected low-precision direct-contraction resource packed-i4 unpack plan 'low-high-i4-sign-extend-to-i8mf4'
@@ -330,19 +330,19 @@ module {
 // STALE-ARTIFACT-ADMISSION-SCHEDULE-DECISION: low_precision_resource.realization_admission_schedule_decision provenance must mirror provider-selected low-precision direct-contraction resource realization admission schedule decision 'select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1'
 // STALE-ARTIFACT-ADMISSION-SCHEDULE-DECISION-SAME: metadata-only-packed-i4-admission-schedule-decision
 
-// STALE-ARTIFACT-PERFORMANCE-SELECTION: low_precision_resource.performance_selection_eligible provenance must mirror provider-selected low-precision Gate 4 evidence/admission performance selection eligibility 'false'
+// STALE-ARTIFACT-PERFORMANCE-SELECTION: low_precision_resource.performance_selection_eligible provenance must mirror provider-selected low-precision measurement-disposition evidence/admission performance selection eligibility 'false'
 // STALE-ARTIFACT-PERFORMANCE-SELECTION-SAME: true
 
-// STALE-ARTIFACT-PERFORMANCE-OUTCOME: low_precision_resource.performance_maturity_outcome provenance must mirror provider-selected low-precision Gate 4 evidence/admission performance maturity outcome 'no-win'
+// STALE-ARTIFACT-PERFORMANCE-OUTCOME: low_precision_resource.performance_maturity_outcome provenance must mirror provider-selected low-precision measurement-disposition evidence/admission performance maturity outcome 'no-win'
 // STALE-ARTIFACT-PERFORMANCE-OUTCOME-SAME: win
 
-// STALE-ARTIFACT-PERFORMANCE-ADMISSION-CLOSURE: low_precision_resource.performance_admission_closure provenance must mirror provider-selected low-precision Gate 4 evidence/admission performance admission closure 'no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1'
+// STALE-ARTIFACT-PERFORMANCE-ADMISSION-CLOSURE: low_precision_resource.performance_admission_closure provenance must mirror provider-selected low-precision measurement-disposition evidence/admission performance admission closure 'no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1'
 // STALE-ARTIFACT-PERFORMANCE-ADMISSION-CLOSURE-SAME: metadata-only-no-safe-repair
 
-// STALE-ARTIFACT-BEYOND-LOCAL-BLOCKER: low_precision_resource.beyond_local_repair_admission_blocker provenance must mirror provider-selected low-precision Gate 4 evidence/admission beyond-local repair admission blocker 'packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win'
+// STALE-ARTIFACT-BEYOND-LOCAL-BLOCKER: low_precision_resource.beyond_local_repair_admission_blocker provenance must mirror provider-selected low-precision measurement-disposition evidence/admission beyond-local repair admission blocker 'packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win'
 // STALE-ARTIFACT-BEYOND-LOCAL-BLOCKER-SAME: metadata-only-beyond-local-blocker
 
-// STALE-ARTIFACT-DISPATCH-PREFERENCE: low_precision_resource.dispatch_preference provenance must mirror provider-selected low-precision Gate 4 evidence/admission dispatch preference 'not-performance-preferred'
+// STALE-ARTIFACT-DISPATCH-PREFERENCE: low_precision_resource.dispatch_preference provenance must mirror provider-selected low-precision measurement-disposition evidence/admission dispatch preference 'not-performance-preferred'
 // STALE-ARTIFACT-DISPATCH-PREFERENCE-SAME: performance-preferred
 
 // STALE-ARTIFACT-DISPATCH-CASE: selected_dispatch_case_mirror

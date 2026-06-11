@@ -20,15 +20,17 @@ constexpr llvm::StringLiteral kPackedI4MeasurementInputContract(
 constexpr llvm::StringLiteral kPackedI4MeasurementInputAuthority(
     "measurement-evidence-input-only; provider-owned low-precision resource "
     "facts and target artifact mirrors remain the maturity contract");
-constexpr llvm::StringLiteral kPackedI4Gate4MeasurementClassification(
+constexpr llvm::StringLiteral kPackedI4MeasurementDispositionClassification(
     "no-win");
-constexpr llvm::StringLiteral kPackedI4Gate4MeasurementOutcomeFamily("no-win");
-constexpr llvm::StringLiteral kPackedI4Gate4MeasurementBestSpeedupRange(
+constexpr llvm::StringLiteral
+    kPackedI4MeasurementDispositionOutcomeFamily("no-win");
+constexpr llvm::StringLiteral kPackedI4MeasurementDispositionBestSpeedupRange(
     "0.895307..1.027027");
 constexpr llvm::StringLiteral
-    kPackedI4DequantClampGate4MeasurementBestSpeedupRange(
+    kPackedI4DequantClampMeasurementDispositionBestSpeedupRange(
         "0.874735..1.061579");
-constexpr llvm::StringLiteral kPackedI4Gate4TargetProfile("ssh rvv");
+constexpr llvm::StringLiteral kPackedI4MeasurementDispositionTargetProfile(
+    "ssh rvv");
 constexpr llvm::StringLiteral kPackedI4PerformancePreferenceDenialReason(
     "same-target-measurement-no-win-or-regression");
 constexpr llvm::StringLiteral kPackedI4RouteSupportEffect(
@@ -75,13 +77,16 @@ constexpr llvm::StringLiteral kPackedI4MeasuredWinPerformanceOutcome("win");
 constexpr llvm::StringLiteral kPackedI4MeasuredWinRemediationDecision(
     "accepted-measured-win-performance-preferred.v1");
 constexpr llvm::StringLiteral kPackedI4MeasuredWinNoBlocker("none");
-constexpr std::int64_t kPackedI4Gate4MeasurementSummaryRecordCount = 12;
-constexpr std::int64_t kPackedI4Gate4MeasurementRecordCount = 60;
-constexpr std::int64_t kPackedI4Gate4CorrectnessRecordCount = 12;
+constexpr std::int64_t kPackedI4MeasurementDispositionSummaryRecordCount = 12;
+constexpr std::int64_t kPackedI4MeasurementDispositionRecordCount = 60;
 constexpr std::int64_t
-    kPackedI4DequantClampGate4MeasurementSummaryRecordCount = 24;
-constexpr std::int64_t kPackedI4DequantClampGate4MeasurementRecordCount = 120;
-constexpr std::int64_t kPackedI4DequantClampGate4CorrectnessRecordCount = 24;
+    kPackedI4MeasurementDispositionCorrectnessRecordCount = 12;
+constexpr std::int64_t
+    kPackedI4DequantClampMeasurementDispositionSummaryRecordCount = 24;
+constexpr std::int64_t
+    kPackedI4DequantClampMeasurementDispositionRecordCount = 120;
+constexpr std::int64_t
+    kPackedI4DequantClampMeasurementDispositionCorrectnessRecordCount = 24;
 
 llvm::Error makeRVVLowPrecisionPerformancePolicyError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -444,39 +449,41 @@ bool hasPackedI4SiblingRouteMeasurement(
 }
 
 llvm::StringRef
-getPackedI4Gate4MeasurementBestSpeedupRangeForCandidate(
+getPackedI4MeasurementDispositionBestSpeedupRangeForCandidate(
     llvm::StringRef candidateID) {
   if (candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate)
-    return kPackedI4DequantClampGate4MeasurementBestSpeedupRange;
+    return kPackedI4DequantClampMeasurementDispositionBestSpeedupRange;
   if (candidateID == kRVVLowPrecisionResourceDequantPackedI4Candidate)
-    return kPackedI4Gate4MeasurementBestSpeedupRange;
+    return kPackedI4MeasurementDispositionBestSpeedupRange;
   return {};
 }
 
-std::int64_t getPackedI4Gate4MeasurementSummaryRecordCountForCandidate(
+std::int64_t getPackedI4MeasurementDispositionSummaryRecordCountForCandidate(
     llvm::StringRef candidateID) {
   if (candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate)
-    return kPackedI4DequantClampGate4MeasurementSummaryRecordCount;
+    return kPackedI4DequantClampMeasurementDispositionSummaryRecordCount;
   if (candidateID == kRVVLowPrecisionResourceDequantPackedI4Candidate)
-    return kPackedI4Gate4MeasurementSummaryRecordCount;
+    return kPackedI4MeasurementDispositionSummaryRecordCount;
   return 0;
 }
 
 std::int64_t
-getPackedI4Gate4MeasurementRecordCountForCandidate(llvm::StringRef candidateID) {
+getPackedI4MeasurementDispositionRecordCountForCandidate(
+    llvm::StringRef candidateID) {
   if (candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate)
-    return kPackedI4DequantClampGate4MeasurementRecordCount;
+    return kPackedI4DequantClampMeasurementDispositionRecordCount;
   if (candidateID == kRVVLowPrecisionResourceDequantPackedI4Candidate)
-    return kPackedI4Gate4MeasurementRecordCount;
+    return kPackedI4MeasurementDispositionRecordCount;
   return 0;
 }
 
-std::int64_t getPackedI4Gate4CorrectnessRecordCountForCandidate(
+std::int64_t
+getPackedI4MeasurementDispositionCorrectnessRecordCountForCandidate(
     llvm::StringRef candidateID) {
   if (candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate)
-    return kPackedI4DequantClampGate4CorrectnessRecordCount;
+    return kPackedI4DequantClampMeasurementDispositionCorrectnessRecordCount;
   if (candidateID == kRVVLowPrecisionResourceDequantPackedI4Candidate)
-    return kPackedI4Gate4CorrectnessRecordCount;
+    return kPackedI4MeasurementDispositionCorrectnessRecordCount;
   return 0;
 }
 
@@ -1093,7 +1100,7 @@ llvm::Error verifyPackedI4SelectionFacts(
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
         " accepts only provider-selected packed-i4 resource facts before "
-        "applying the Gate 4 performance policy");
+        "applying the measurement-disposition performance policy");
   if (!selection.isLegal ||
       selection.rejectionReason != kRVVLowPrecisionResourceNoRejectionReason)
     return makeRVVLowPrecisionPerformancePolicyError(
@@ -1403,7 +1410,7 @@ llvm::Error verifyPackedI4SameTargetMeasurementPolicyInput(
     return error;
   if (llvm::Error error = requirePolicyString(
           context, "target profile", input.targetProfile,
-          kPackedI4Gate4TargetProfile))
+          kPackedI4MeasurementDispositionTargetProfile))
     return error;
   if (llvm::Error error =
           verifySourceBackedMeasurementRecordFacts(selection, input, context))
@@ -2069,7 +2076,7 @@ llvm::Error verifyPackedI4MeasurementOutcomeCommon(
     return error;
   if (llvm::Error error = requirePolicyString(
           context, "target profile", outcome.targetProfile,
-          kPackedI4Gate4TargetProfile))
+          kPackedI4MeasurementDispositionTargetProfile))
     return error;
   if (outcome.measurementClassification != "win" &&
       outcome.measurementClassification != "no-win" &&
@@ -2253,20 +2260,21 @@ llvm::Error verifyPackedI4MeasurementOutcome(
   if (llvm::Error error = requirePolicyString(
           context, "measurement classification",
           outcome.measurementClassification,
-          kPackedI4Gate4MeasurementClassification))
+          kPackedI4MeasurementDispositionClassification))
     return error;
   if (llvm::Error error = requirePolicyString(
           context, "measurement outcome family",
           outcome.measurementOutcomeFamily,
-          kPackedI4Gate4MeasurementOutcomeFamily))
+          kPackedI4MeasurementDispositionOutcomeFamily))
     return error;
   llvm::StringRef expectedBestSpeedupRange =
-      getPackedI4Gate4MeasurementBestSpeedupRangeForCandidate(
+      getPackedI4MeasurementDispositionBestSpeedupRangeForCandidate(
           selection.selectedCandidateID);
   if (expectedBestSpeedupRange.empty())
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
-        " requires candidate-sensitive Gate 4 same-target measurement range "
+        " requires candidate-sensitive measurement-disposition same-target "
+        "measurement range "
         "for selected packed-i4 candidate '" +
         selection.selectedCandidateID + "'");
   if (llvm::Error error = requirePolicyString(
@@ -2274,12 +2282,13 @@ llvm::Error verifyPackedI4MeasurementOutcome(
           outcome.measurementBestSpeedupRange, expectedBestSpeedupRange))
     return error;
   const std::int64_t expectedSummaryRecordCount =
-      getPackedI4Gate4MeasurementSummaryRecordCountForCandidate(
+      getPackedI4MeasurementDispositionSummaryRecordCountForCandidate(
           selection.selectedCandidateID);
   if (expectedSummaryRecordCount <= 0)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
-        " requires candidate-sensitive Gate 4 summary record count for "
+        " requires candidate-sensitive measurement-disposition summary record "
+        "count for "
         "selected packed-i4 candidate '" +
         selection.selectedCandidateID + "'");
   if (llvm::Error error = requirePolicyInt(
@@ -2287,12 +2296,13 @@ llvm::Error verifyPackedI4MeasurementOutcome(
           outcome.measurementSummaryRecordCount, expectedSummaryRecordCount))
     return error;
   const std::int64_t expectedMeasurementRecordCount =
-      getPackedI4Gate4MeasurementRecordCountForCandidate(
+      getPackedI4MeasurementDispositionRecordCountForCandidate(
           selection.selectedCandidateID);
   if (expectedMeasurementRecordCount <= 0)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
-        " requires candidate-sensitive Gate 4 measurement record count for "
+        " requires candidate-sensitive measurement-disposition measurement "
+        "record count for "
         "selected packed-i4 candidate '" +
         selection.selectedCandidateID + "'");
   if (llvm::Error error = requirePolicyInt(
@@ -2300,12 +2310,13 @@ llvm::Error verifyPackedI4MeasurementOutcome(
           outcome.measurementRecordCount, expectedMeasurementRecordCount))
     return error;
   const std::int64_t expectedCorrectnessRecordCount =
-      getPackedI4Gate4CorrectnessRecordCountForCandidate(
+      getPackedI4MeasurementDispositionCorrectnessRecordCountForCandidate(
           selection.selectedCandidateID);
   if (expectedCorrectnessRecordCount <= 0)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
-        " requires candidate-sensitive Gate 4 correctness record count for "
+        " requires candidate-sensitive measurement-disposition correctness "
+        "record count for "
         "selected packed-i4 candidate '" +
         selection.selectedCandidateID + "'");
   if (llvm::Error error = requirePolicyInt(
@@ -2494,14 +2505,15 @@ llvm::Error verifyPackedI4PolicyOutcomeConsistency(
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
         " requires provider maturity to remain executable-not-performance-"
-        "mature for the accepted Gate 4 regression/no-win outcome");
+        "mature for the accepted measurement-disposition regression/no-win "
+        "outcome");
   if (llvm::StringRef(selection.performanceMaturityOutcome) !=
       kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
         " requires provider maturity outcome '" +
         kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome +
-        "' for the accepted Gate 4 no-win measurement");
+        "' for the accepted measurement-disposition no-win measurement");
   if (llvm::StringRef(selection.performanceSelectionEligible) !=
       kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible)
     return makeRVVLowPrecisionPerformancePolicyError(
@@ -2513,56 +2525,63 @@ llvm::Error verifyPackedI4PolicyOutcomeConsistency(
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
         " requires dispatch preference 'not-performance-preferred' for the "
-        "accepted Gate 4 regression/no-win measurement");
+        "accepted measurement-disposition regression/no-win measurement");
   if (llvm::StringRef(selection.performanceAdmissionDecision) !=
       kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
         " requires provider performance admission decision '" +
         kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision +
-        "' for the accepted Gate 4 regression/no-win measurement");
+        "' for the accepted measurement-disposition regression/no-win "
+        "measurement");
   if (llvm::StringRef(selection.performanceAdmissionClosure) !=
       kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
         " requires provider performance admission closure '" +
         kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure +
-        "' for the accepted Gate 4 no-safe-repair no-win measurement");
+        "' for the accepted measurement-disposition no-safe-repair no-win "
+        "measurement");
   if (llvm::StringRef(selection.performanceAdmissionReopenRequirement) !=
       kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
         " requires provider performance admission reopen requirement '" +
         kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement +
-        "' before any future Gate 4 performance-preferred claim is reopened");
+        "' before any future measurement-disposition performance-preferred "
+        "claim is reopened");
   if (llvm::StringRef(selection.beyondLocalRepairAdmissionContract) !=
       kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
         " requires provider beyond-local repair admission contract '" +
         kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract +
-        "' for the accepted Gate 4 no-further-repair boundary");
+        "' for the accepted measurement-disposition no-further-repair "
+        "boundary");
   if (llvm::StringRef(selection.beyondLocalRepairAdmissionDecision) !=
       kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
         " requires provider beyond-local repair admission decision '" +
         kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision +
-        "' for the accepted Gate 4 no-further-repair boundary");
+        "' for the accepted measurement-disposition no-further-repair "
+        "boundary");
   if (llvm::StringRef(selection.beyondLocalRepairAdmissionBlocker) !=
       kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
         " requires provider beyond-local repair admission blocker '" +
         kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker +
-        "' for the accepted Gate 4 no-further-repair boundary");
+        "' for the accepted measurement-disposition no-further-repair "
+        "boundary");
   if (llvm::StringRef(selection.beyondLocalRepairAdmissionReopenRequirement) !=
       kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
         " requires provider beyond-local repair admission reopen requirement '" +
         kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement +
-        "' before any future Gate 4 beyond-local repair claim is reopened");
+        "' before any future measurement-disposition beyond-local repair "
+        "claim is reopened");
   return llvm::Error::success();
 }
 
@@ -3100,7 +3119,7 @@ llvm::Error verifyProductionPressureProfileAgainstCandidate(
         llvm::Twine(context) +
         " selected-body realization admission requires a source-backed "
         "packed-i4 low-precision production pressure profile for the current "
-        "Gate 1 boundary");
+        "foundation outcome boundary");
   if (llvm::Error error =
           requirePolicyString(context, "packed-i4 schedule decision contract",
                               candidate.scheduleDecisionContract,
@@ -3714,7 +3733,7 @@ makeSelectedBodyRealizationAdmission(
 } // namespace
 
 RVVLowPrecisionSameTargetMeasurementRecord
-buildRVVPackedI4Gate4SameTargetMeasurementRecord(
+buildRVVPackedI4MeasurementDispositionSameTargetRecord(
     const RVVLowPrecisionContractionResourceSelection &selection) {
   RVVLowPrecisionSameTargetMeasurementRecord record;
   record.contract = kPackedI4MeasurementInputContract.str();
@@ -3724,25 +3743,25 @@ buildRVVPackedI4Gate4SameTargetMeasurementRecord(
           selection.selectedCandidateID)
           .str();
   record.measurementClassification =
-      kPackedI4Gate4MeasurementClassification.str();
+      kPackedI4MeasurementDispositionClassification.str();
   record.measurementOutcomeFamily =
-      kPackedI4Gate4MeasurementOutcomeFamily.str();
+      kPackedI4MeasurementDispositionOutcomeFamily.str();
   record.measurementBestSpeedupRange =
-      getPackedI4Gate4MeasurementBestSpeedupRangeForCandidate(
+      getPackedI4MeasurementDispositionBestSpeedupRangeForCandidate(
           selection.selectedCandidateID)
           .str();
   record.measurementSummaryRecordCount =
-      getPackedI4Gate4MeasurementSummaryRecordCountForCandidate(
+      getPackedI4MeasurementDispositionSummaryRecordCountForCandidate(
           selection.selectedCandidateID);
   record.measurementRecordCount =
-      getPackedI4Gate4MeasurementRecordCountForCandidate(
+      getPackedI4MeasurementDispositionRecordCountForCandidate(
           selection.selectedCandidateID);
   record.correctnessRecordCount =
-      getPackedI4Gate4CorrectnessRecordCountForCandidate(
+      getPackedI4MeasurementDispositionCorrectnessRecordCountForCandidate(
           selection.selectedCandidateID);
   record.sameTargetMeasurement = true;
   record.sshEvidence = true;
-  record.targetProfile = kPackedI4Gate4TargetProfile.str();
+  record.targetProfile = kPackedI4MeasurementDispositionTargetProfile.str();
   record.sourceRecordContract = kSourceBackedMeasurementRecordContract.str();
   record.sourceSelectedVariant =
       getPackedI4SourceSelectedVariantForCandidate(selection.selectedCandidateID)
@@ -3764,7 +3783,7 @@ buildRVVPackedI4Gate4SameTargetMeasurementRecord(
       "generated-bundle-header:" + record.sourceGeneratedFunction;
   record.generatedArtifactHeaderSHA256 =
       "source-backed-header-sha256:" + selection.selectedCandidateID;
-  record.measurementTarget = kPackedI4Gate4TargetProfile.str();
+  record.measurementTarget = kPackedI4MeasurementDispositionTargetProfile.str();
   record.measurementTargetProvenance = kMeasurementTargetProvenance.str();
   record.measurementRuntimeCountSet = "257,4096,65536";
   record.measurementRuntimeCountProvenance =
@@ -4433,7 +4452,7 @@ llvm::Error populateRVVLowPrecisionSelectedDispatchPolicyOutput(
     return llvm::Error::success();
 
   RVVLowPrecisionSameTargetMeasurementRecord record =
-      buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
+      buildRVVPackedI4MeasurementDispositionSameTargetRecord(selection);
   return populateRVVLowPrecisionSelectedDispatchPolicyOutput(
       selection, record, dispatchBoundary, context);
 }
@@ -4493,7 +4512,7 @@ llvm::Error populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(
   };
 
   RVVLowPrecisionSameTargetMeasurementRecord record =
-      buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
+      buildRVVPackedI4MeasurementDispositionSameTargetRecord(selection);
   const std::string measurementEvidenceID =
       selection.remediationMeasurementEvidenceID.empty()
           ? record.measurementEvidenceID
@@ -4539,7 +4558,7 @@ llvm::Error populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(
   if (!dispatchBoundary.hasFacts())
     return llvm::Error::success();
 
-  record = buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
+  record = buildRVVPackedI4MeasurementDispositionSameTargetRecord(selection);
   llvm::Expected<RVVLowPrecisionPerformancePolicyDecision> decision =
       evaluateRVVLowPrecisionPerformancePolicy(selection, record,
                                                dispatchBoundary, context);
@@ -4551,7 +4570,7 @@ llvm::Error populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(
                       decision->dispatchPolicyPath))
     return error;
 
-  record = buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
+  record = buildRVVPackedI4MeasurementDispositionSameTargetRecord(selection);
   llvm::Expected<RVVLowPrecisionProductionPressureProfile> profile =
       buildRVVLowPrecisionProductionPressureProfile(selection, record,
                                                    dispatchBoundary, context);
@@ -5305,12 +5324,14 @@ llvm::Error verifyRVVLowPrecisionPerformancePolicy(
   if (!decision->routeSupportAllowed)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
-        " must preserve executable route support for the accepted Gate 4 "
+        " must preserve executable route support for the accepted "
+        "measurement-disposition "
         "regression/no-win outcome");
   if (!decision->correctnessExecutionAllowed)
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
-        " must preserve correctness execution for the accepted Gate 4 "
+        " must preserve correctness execution for the accepted "
+        "measurement-disposition "
         "regression/no-win outcome");
   if (decision->performancePreferredPathSelected) {
     if (decision->dispatchPolicyPath != kPackedI4PerformancePreferredPolicyPath)
@@ -5327,7 +5348,7 @@ llvm::Error verifyRVVLowPrecisionPerformancePolicy(
     return makeRVVLowPrecisionPerformancePolicyError(
         llvm::Twine(context) +
         " must deny performance selection and win claims for the accepted "
-        "Gate 4 regression/no-win outcome");
+        "measurement-disposition regression/no-win outcome");
   return llvm::Error::success();
 }
 

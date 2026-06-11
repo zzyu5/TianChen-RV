@@ -7,7 +7,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-rvv-emitc-to-cpp | FileCheck %s --check-prefix=CPP
 
-// Focused Gate 3 packed-i4 clamp representative. The selected candidate is
+// Focused dequant-clamp realized-body consumption representative. The selected candidate is
 // authority only because it is present on the typed RVV body and consumed by
 // the RVV provider/resource planner; artifact names and measurement metadata
 // are mirrors that must match the provider facts.

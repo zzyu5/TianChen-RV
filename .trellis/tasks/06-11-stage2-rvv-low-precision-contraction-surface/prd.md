@@ -12,61 +12,48 @@ q8/q4 examples are production pressure tests only. They must not become route
 ids, artifact names, helper wrappers, source-front-door authority, or common
 EmitC semantics.
 
-## Campaign Gates
+## Campaign Outcomes
 
-1. Typed low-precision primitive surface contract exists and is consumed by RVV
-   plugin validation for i8/u8 element/config, low-precision loads,
-   signed/unsigned extension, widening product, widening accumulation or
-   reduction facts, policy, runtime AVL/VL, and fail-closed unsupported
-   combinations.
-2. Plugin-local selected-body realization can materialize one representative
-   low-precision contraction body from that primitive surface without q8/q4
-   route authority.
-3. Route provider and artifact/export consumers carry the primitive facts
-   through `TCRVEmitCLowerableRoute` and target validation without common EmitC
+1. Foundation outcome: the typed low-precision primitive surface contract
+   exists and is consumed by RVV plugin validation for i8/u8 element/config,
+   low-precision loads, signed/unsigned extension, widening product, widening
+   accumulation or reduction facts, policy, runtime AVL/VL, and fail-closed
+   unsupported combinations.
+2. Selected-body realization outcome: the RVV plugin can materialize
+   representative signed and unsigned low-precision product-reduction bodies
+   from that primitive surface without q8/q4 route authority.
+3. Provider/artifact carry-through outcome: the route provider and
+   artifact/export consumers carry primitive facts through
+   `TCRVEmitCLowerableRoute` and target validation without Common EmitC
    semantic inference.
-4. Measured same-target comparison or dispatch admission, if later claimed, uses
-   only fresh source-backed evidence and the conservative no-win boundary from
-   the previous campaign.
+4. Measurement-disposition outcome: measured same-target comparison or
+   dispatch preference, if later claimed, uses only fresh source-backed
+   evidence and the conservative no-win boundary from the previous campaign.
 
 ## Repository Findings
 
 - The previous Gearbox/resource-aware campaign is archived and complete for its
-  scope. It closed Gate 4 no-win admission and dispatch/fallback consumption
-  boundaries.
+  scope. It recorded no-win measurement disposition and dispatch/fallback
+  consumption boundaries, but those evidence outcomes must not act as route,
+  dtype/config, schedule, or artifact-name authority.
 - Existing production code already has route-supported signed i8 and unsigned
   u8 widening product/reduction representatives, dequant/dequant-clamp
   resource paths, MAcc paths, low-precision resource selections, and target
   stale-mirror rejection.
-- The current Gate 1 gap is not a missing q8 wrapper. It is that low-precision
-  primitive facts are validated partly as ordinary `tcrv_rvv.*` route fields
-  and partly as `tcrv_rvv.low_precision_primitive.*` mirrors. The primitive
-  namespace does not yet carry its own source/product/accumulator/result
-  SEW/LMUL plus policy/runtime AVL/VL mirror set, even though those facts are
-  required by the primitive contract and already exist in provider-derived route
-  facts.
+- Commit `65f67e38` concentrated the signed/unsigned product-reduction dtype,
+  signedness, SEW/LMUL, policy, runtime control, product/reduction relation,
+  intrinsic, seed splat, layout, and store-VL facts into a provider-owned
+  primitive route payload consumed by target artifact validation.
+- The current gap is language and ownership drift: stale numbered-milestone terminology still
+  appears in the active task/spec and in production low-precision helper names
+  or diagnostics, where it can imply route, schedule, support, or admission
+  authority rather than a project milestone or measurement-disposition record.
 
-## Current Round Slice: Gate 3 Product-Reduction Route/Artifact Carry-Through Boundary Cleanup
+## Current Round Slice: Outcome-Language And Measurement-Disposition Boundary Cleanup
 
-Gate 1 is complete for the typed low-precision primitive mirror/validation
-foundation. The prior bounded Gate 2 slice made the signed i8
-widening-product plus i16-to-i32 widening-reduction representative enter
-production through RVV plugin-local selected-body realization instead of
-arriving only as an already realized explicit `setvl` / `with_vl` body.
-
-The Gate 2 signedness boundary is also complete for the bounded signed i8 and
-unsigned u8 representatives: both pass through the same signedness-aware typed
-pre-realized surface, RVV dialect verification, RVV plugin-local realization,
-provider primitive validation, and target/header export path.
-
-The current bounded slice is Gate 3. It tightens the compiler boundary after
-realization so signed/unsigned product-reduction primitive facts are carried as
-provider-owned route payload facts through `TCRVEmitCLowerableRoute`,
-emission-plan mirrors, target support-bundle export, and target artifact
-validation. The target may compare exact mirrors, but it must not infer route
-support, signedness, dtype/config, policy, runtime AVL/VL, product relation, or
-reduction-chain facts from artifact names, q8/q4 labels, result/admission
-records, or Common EmitC.
+The current bounded slice normalizes milestone language and authority
+boundaries after the first provider/artifact carry-through payload slice.
+Compiler authority remains:
 
 ```text
 selected tcrv.exec RVV variant
@@ -79,33 +66,51 @@ selected tcrv.exec RVV variant
   -> support-bundle export / target artifact validation exact mirror checks
 ```
 
+The cleanup must remove or quarantine stale numbered-milestone authority from the
+active task/spec and the directly related low-precision production
+provider/artifact surfaces. Measurement results, no-win conclusions, source
+evidence IDs, and admission conclusions may remain only as
+measurement-disposition or policy evidence. They must not become route support,
+schedule authority, dtype/config authority, artifact-name authority, or
+selected-body authority.
+
 This round must not add q8/q4 route authority, artifact-name authority,
 helper-only wrappers, source-front-door positive routes, Common EmitC semantic
 inference, or measured-win/admission claims.
 
 ## Acceptance Criteria For This Slice
 
-- Production source movement happens in the RVV provider route payload,
-  route-family validation, emission-plan mirror generation, support-bundle
-  export mapping, and target artifact validation surfaces. Common EmitC remains
-  neutral and only carries provider payloads.
-- The signed i8 and unsigned u8 product-reduction route descriptions carry a
-  single provider-owned low-precision primitive route payload containing
-  contract/kind, source signedness/load/extension, source/product/accumulator
-  and result dtype and SEW/LMUL, policy, runtime control/AVL source, product
-  and reduction relations, intrinsics, scalar seed, layouts, and store-VL facts.
-- Provider validation fails closed if that route payload is stale or missing
-  before provider materialization or target artifact acceptance.
-- Emission-plan metadata and target support-bundle export mirror the provider
-  payload only. If a surface is only a result/admission/evidence/report field,
-  it remains outside route authority.
-- Focused positive lit/FileCheck coverage proves signed and unsigned
-  product-reduction primitive route payload facts reach emission-plan and
-  target-header export.
-- Focused negative coverage proves stale or missing primitive/config/runtime
-  mirror facts are rejected before target artifact acceptance.
-- Existing pre-realized and explicit signed i8 plus unsigned u8
-  product-reduction target artifact coverage remains passing.
+- Active task metadata, PRD, implementation/check context, and RVV
+  low-precision spec sections use outcome/milestone language:
+  foundation outcome, selected-body realization outcome,
+  provider/artifact carry-through outcome, and measurement-disposition outcome.
+- Production low-precision helper names, diagnostics, and target validation
+  labels touched in this slice no longer use numbered-milestone terminology
+  where that name implies route, schedule, support, artifact, or admission
+  authority.
+- Provider payload and target validation exactness from `65f67e38` remains
+  intact: signed and unsigned product-reduction route descriptions still carry
+  a provider-owned low-precision primitive route payload, and target artifact
+  validation still compares candidate mirrors against that payload before
+  artifact acceptance.
+- Measurement evidence and no-win/admission conclusions remain preserved as
+  measurement-disposition or policy evidence only; no useful evidence is
+  deleted.
+- Common EmitC remains neutral and only carries provider-built payloads and
+  mirrors.
+- A bounded scan over the active task, RVV low-precision spec sections, touched
+  production files, and directly affected tests finds no uppercase
+  numbered-milestone terminology except immutable historical evidence path
+  strings or archived text outside this active slice.
+- Focused signed and unsigned product-reduction artifact lit coverage remains
+  passing.
+- `tcrv-opt`, `tcrv-translate`, `tianchenrv-rvv-extension-plugin-test`, and
+  `tianchenrv-target-artifact-export-test` build; the two C++ test binaries run.
+- `python3 ./.trellis/scripts/task.py validate
+  .trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface` passes.
+- `git diff --check` and `git diff --cached --check` pass.
+- One coherent commit is created for the cleanup slice. The macro task remains
+  active unless all campaign outcomes are genuinely complete.
 
 ## Non-Goals
 
@@ -113,71 +118,41 @@ inference, or measured-win/admission claims.
   positive routes.
 - No high-level Linalg/Vector/StableHLO frontend work.
 - No broad dtype/LMUL clone batch.
-- No measured-win or performance-preferred admission without fresh source-backed
-  same-target evidence.
+- No measured-win or performance-preferred admission without fresh
+  source-backed same-target evidence.
 - No dashboard, report-only, metadata-only, IME, Offload, TensorExt, Scalar, or
   future-plugin work.
 - No runtime/correctness/performance claim and therefore no required `ssh rvv`
   evidence in this slice.
+- No broad repository rename. Historical archived text and immutable evidence
+  path identifiers may remain outside the bounded active cleanup surface.
 
-## Definition Of Done
+## Status Before This Round
 
-- PRD and task context reflect the macro campaign, completed Gate 1 foundation,
-  completed Gate 2 signed/unsigned selected-body realization boundary, and
-  current Gate 3 provider/artifact/export carry-through boundary cleanup.
-- Compiler source diff is in RVV provider route payload / route validation /
-  metadata export / target validation consumers and any directly necessary
-  adjacent tests.
-- Focused target tests pass or any missing toolchain is reported explicitly.
-- `git diff --check` and `git diff --cached --check` pass.
-- Macro task remains active with Gate 1 complete, Gate 2 product-reduction
-  signedness boundary recorded, Gate 3 progress recorded for the current
-  product-reduction carry-through slice, and remaining Gate 4 continuation
-  state.
-- One coherent commit is created for the slice.
-
-## Status After Previous Gate 2 Signed Slice
-
-Gate 1 foundation is complete for the current product-reduction primitive
-contract hardening slice. RVV provider route metadata now mirrors
+The foundation outcome is complete for the current product-reduction primitive
+contract hardening slice. RVV provider route metadata mirrors
 source/product/accumulator/result SEW/LMUL plus tail policy, mask policy,
 runtime control plan, and runtime AVL source under
 `tcrv_rvv.low_precision_primitive.*` whenever a low-precision primitive
 contract is present.
 
-Target support-bundle export maps those primitive mirrors, and target artifact
-validation rejects stale primitive typed-config/runtime mirrors before artifact
-acceptance. Focused signed i8 and unsigned u8 product-reduction lit coverage
-checks positive primitive mirrors and stale runtime AVL/policy rejection.
+The selected-body realization outcome is complete for the bounded signed i8 and
+unsigned u8 product-reduction representatives. The shared pre-realized typed
+surface carries explicit `source_signedness`, the verifier accepts only
+signedness-consistent signed or unsigned product-reduction contracts, and the
+RVV contraction selected-body realization owner materializes explicit
+`tcrv_rvv` structure before route construction.
 
-The current Gate 2 signed representative slice is complete. The RVV dialect now
-has `tcrv_rvv.typed_widening_product_reduce_pre_realized_body` for a signed i8
-widening-product plus i16-to-i32 widening-reduction selected body. The RVV
-contraction selected-body realization owner validates that pre-realized body
-against provider-owned signed low-precision widening-reduction primitive facts,
-materializes explicit `setvl` / `with_vl` / load / `widening_product` /
-`standalone_reduce` / store structure, and then lets the existing route
-provider, emission-plan mirrors, and target artifact validation consume the
-realized body. Focused target coverage proves the pre-realized body is removed,
-the realized structure is emitted, primitive mirrors reach emission-plan/header
-export, stale source SEW is rejected before route construction, and existing
-explicit signed i8 plus unsigned u8 product-reduction fixtures remain passing.
+The provider/artifact carry-through outcome is complete for the plain
+signed/unsigned product-reduction representative slice. Product-reduction route
+descriptions carry `RVVLowPrecisionPrimitiveRoutePayload`; emission metadata
+serializes `tcrv_rvv.low_precision_primitive.*` only from that provider payload;
+target support-bundle export maps those mirrors; and target artifact validation
+rejects missing or stale primitive route payload mirrors before artifact
+acceptance.
 
-## Status After Current Gate 2 Signedness Boundary Slice
-
-The Gate 2 product-reduction signedness boundary is complete for the bounded
-representatives in this macro task. `tcrv_rvv.typed_widening_product_reduce_pre_realized_body`
-now carries explicit `source_signedness` and the RVV dialect verifier accepts
-only signedness-consistent signed i8/i16/i32 or unsigned u8/u16/u32
-product-reduction contracts. The RVV contraction selected-body realization
-owner derives unsigned load/vector types, `unsigned_widening_product`,
-`unsigned_widening_reduce_add`, and unsigned provider primitive facts from that
-typed boundary, then materializes the explicit `tcrv_rvv` structure before
-route construction. Focused signed and unsigned pre-realized lit coverage proves
-the pre-realized op is removed and provider/target mirrors survive artifact
-export; existing explicit signed and unsigned fixtures remain passing.
-
-The macro task remains open. Gate 3 is the next continuation point: route
-provider and artifact/export carry-through beyond this plain product-reduction
-realization foundation. Gate 4 remains later measured same-target evidence or
-admission only if fresh source-backed measurements exist.
+The measurement-disposition outcome remains later work unless fresh
+source-backed same-target measurement evidence is explicitly introduced. The
+macro task remains open after this cleanup slice for any adjacent
+low-precision primitive-surface gaps or a future measurement-disposition slice
+that has real RVV target evidence.

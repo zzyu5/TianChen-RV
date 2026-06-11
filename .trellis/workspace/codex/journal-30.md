@@ -1,5 +1,78 @@
 > Continuation from `journal-29.md` (archived at more than 2000 lines)
 
+## Session 602: Stage2 RVV outcome-language and measurement-disposition cleanup
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the bounded
+outcome-language/measurement-disposition cleanup slice after the
+provider/artifact carry-through payload work. The active PRD, task context, RVV
+low-precision spec sections, and directly related low-precision production
+helpers now use foundation, selected-body realization, provider/artifact
+carry-through, and measurement-disposition language instead of numbered
+milestone terms that could be mistaken for compiler authority.
+
+### Main Changes
+
+- Repaired the active macro PRD/task metadata and implement/check context around
+  campaign outcomes, current cleanup acceptance, completed payload carry-through
+  state, and the still-open measurement-disposition continuation boundary.
+- Updated RVV low-precision spec wording so primitive payload, selected-body
+  realization, realization-admission proof, resource-aware realized-body
+  consumption, and packed-i4 policy sections keep compiler facts separate from
+  measurement-disposition evidence.
+- Renamed the public packed-i4 helper from
+  `buildRVVPackedI4Gate4SameTargetMeasurementRecord` to
+  `buildRVVPackedI4MeasurementDispositionSameTargetRecord`.
+- Renamed measurement-disposition constants/helpers in
+  `RVVLowPrecisionPerformancePolicy.cpp`, updated policy diagnostics, and kept
+  the existing no-win measurement record values unchanged.
+- Renamed target artifact evidence/admission mirror helpers and diagnostics to
+  measurement-disposition wording while preserving exact provider/candidate
+  mirror validation.
+- Updated C++ test call sites/context strings and packed-i4 fixture comments.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-add|explicit-selected-body-artifact-widening-product-reduce-add\\.mlir|explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8'` from `build/test`
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface`
+- [OK] `rtk git diff --check`
+- [OK] `rtk git diff --cached --check`
+- [OK] bounded uppercase scan over active task, RVV low-precision spec, touched
+  production files, directly affected C++ tests, and focused lit fixtures found
+  no `Gate`/`Gate1`/`Gate2`/`Gate3`/`Gate4` matches.
+
+### Self-Repair
+
+- The first production rename left long C++ diagnostic lines; these were wrapped
+  manually before the build/check pass.
+- The initial active-task scan still matched self-referential cleanup language in
+  the PRD/context files. The PRD now calls those terms numbered-milestone
+  terminology so the active task no longer reintroduces the searched tokens.
+- Lowercase `gate4-...` strings remain only as historical same-target evidence
+  paths or evidence IDs; they are measurement-disposition evidence identifiers,
+  not route, schedule, dtype/config, artifact-name, or selected-body authority.
+
+### Status
+
+[OPEN MACRO TASK] The outcome-language and measurement-disposition boundary
+cleanup milestone is complete. Foundation, selected-body realization, and the
+plain signed/unsigned provider/artifact carry-through outcomes remain recorded
+as complete for this representative slice. The macro task stays active for
+adjacent low-precision primitive-surface gaps or a future
+measurement-disposition slice backed by fresh same-target RVV evidence.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 601: Stage2 RVV Gate 3 product-reduction carry-through boundary
 
 **Date**: 2026-06-11

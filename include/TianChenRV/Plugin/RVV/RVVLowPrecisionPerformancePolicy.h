@@ -490,7 +490,7 @@ struct RVVLowPrecisionSelectedBodyRealizationAdmission {
 };
 
 RVVLowPrecisionSameTargetMeasurementRecord
-buildRVVPackedI4Gate4SameTargetMeasurementRecord(
+buildRVVPackedI4MeasurementDispositionSameTargetRecord(
     const RVVLowPrecisionContractionResourceSelection &selection);
 
 llvm::Expected<RVVLowPrecisionSameTargetMeasurementRecord>

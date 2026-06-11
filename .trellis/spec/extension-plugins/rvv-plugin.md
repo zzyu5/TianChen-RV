@@ -139,7 +139,7 @@ Then the body uses them through `setvl`, loads/stores, compute ops, masks,
 reductions, or movement ops. `tcrv.exec` must not infer add/mul/reduce/dtype
 from ABI role names, C type strings, or artifact metadata.
 
-## Stage Gates
+## RVV Stage Outcomes
 
 ### Stage 1: RVV Route-Authority Reset
 
@@ -534,8 +534,9 @@ struct RVVLowPrecisionPrimitiveRoutePayload {
 
 Exact C++ names may differ, but those facts must be derived by the RVV provider
 from the selected typed body/config/runtime facts before route construction.
-The payload is the Gate 3 carry-through surface from provider route planning to
-emission metadata, target support-bundle export, and target artifact validation.
+The payload is the provider/artifact carry-through outcome surface from provider
+route planning to emission metadata, target support-bundle export, and target
+artifact validation.
 
 ### 3. Contracts
 
@@ -722,7 +723,7 @@ low-precision product-reduction body:
 tcrv_rvv.typed_widening_product_reduce_pre_realized_body
 ```
 
-This is a Gate 2 selected-body realization surface. It exists so the RVV plugin
+This is a selected-body realization outcome surface. It exists so the RVV plugin
 can materialize the bounded signed i8 widening product plus i16-to-i32
 widening reduction chain, or the bounded unsigned u8 widening product plus
 u16-to-u32 widening reduction chain, from typed primitive facts before route
@@ -6355,9 +6356,10 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   planning contract and resource decision from the selected candidate and reject
   stale marker/handoff/resource facts before constructing
   `TCRVEmitCLowerableRoute`.
-- For Gate 3 low-precision product-reduction realization consumption, producer
-  and consumer realized `tcrv_rvv.with_vl` ops must carry the provider-verifiable
-  realization facts `realization_producer`, `realization_decision`,
+- For the low-precision product-reduction realized-body consumption milestone,
+  producer and consumer realized `tcrv_rvv.with_vl` ops must carry the
+  provider-verifiable realization facts `realization_producer`,
+  `realization_decision`,
   `realized_unroll_factor`, `realized_vsetvl_region_count`,
   `realized_peak_live_vector_groups`, `product_region_index`,
   `dequant_region_index`, `product_phase`, and `dequant_phase`. The route
@@ -6366,7 +6368,7 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   It must not rebuild accepted product/dequant region indexes or phases solely
   from route ids, artifact metadata, helper names, intrinsic strings, or Common
   EmitC inference.
-- For Gate 3B dequant-clamp realization consumption, a selected
+- For the dequant-clamp realized-body consumption milestone, a selected
   `product-reduction-dequant-clamp-f32` candidate must additionally carry
   `clamp_region_index`, `clamp_phase`,
   `clamp_compare_select_phase`, and `clamp_select_layout` on the realized
@@ -6603,7 +6605,8 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   facts, resource estimates, correctness checks, or timing evidence.
 - Bad: packed-i4 selected candidate -> provider accepts mirrors -> statement
   planner silently reuses `unpacked-byte-elements` widening-product statements
-  or target artifact export claims executability before Gate 4 validation.
+  or target artifact export claims executability before measurement-disposition
+  validation.
 - Bad: artifact metadata names
   `rvv-low-precision-production-resource-planning-contract.v1`, but the selected
   RVV resource selection is missing or carries a different planning contract;
@@ -6629,8 +6632,8 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   widening reduction, and provider-built lowerable route eligibility without
   target artifact/runtime claims.
 - Focused target/export coverage proving selected packed-i4 statement routes
-  remain fail-closed at the Gate 4 artifact boundary until provider-payload
-  validation and runtime evidence exist.
+  remain fail-closed at the measurement-disposition artifact boundary until
+  provider-payload validation and runtime evidence exist.
 - Focused selected-body/provider tests for resource-fact and realized-structure
   mismatch, including stale `vsetvl` region placement structure when `vsetvl`
   placement or region count is part of the selected low-precision Gearbox
@@ -6690,8 +6693,9 @@ typed low-precision tcrv_rvv body
 Use this contract when a source-backed production pressure profile is used to
 admit RVV low-precision selected-body realization and the selected packed-i4
 Gearbox/resource schedule must be consumed by the contraction realization owner.
-This is a Gate 2 selected-body realization boundary. It is not a route id,
-artifact metadata, q4/q8 label, Common EmitC decision, or performance claim.
+This is a source-backed selected-body realization-admission boundary. It is not
+a route id, artifact metadata, q4/q8 label, Common EmitC decision, or
+performance claim.
 
 ### 2. Signatures
 
@@ -6764,7 +6768,7 @@ tcrv_rvv.low_precision_resource.realization_admission_schedule_decision_reason
   realization -> admission carries the same schedule contract/decision/reason
   -> realized `with_vl` and Gearbox handoff expose admission schedule mirrors.
 - Base: low-precision realization without a production pressure profile can
-  still use the older non-admission owner entry, but it must not claim Gate 2
+  still use the older non-admission owner entry, but it must not claim
   source-backed schedule admission.
 - Bad: schedule decision appears only in artifact metadata, a route id, or a
   q4/q8 benchmark label, then realization treats it as accepted.
@@ -6803,17 +6807,18 @@ selected packed-i4 resource candidate
   -> provider validates before route construction
 ```
 
-## Low-Precision Gate 3 Realization Admission Proof Consumption
+## Low-Precision Realization Admission Proof Consumption
 
 ### 1. Scope / Trigger
 
 Use this contract when the realized packed-i4 low-precision contraction body
-has Gate 2 realization-admission schedule mirrors and the RVV route/provider,
-target artifact, and same-target measurement policy path must prove that those
-mirrors still match provider-owned resource facts and source-backed same-target
-records. This is a Gate 3 proof-consumption boundary. It is not artifact
-metadata authority, route-id authority, helper-name authority, q4/q8 label
-authority, or Common EmitC schedule inference.
+has source-backed realization-admission schedule mirrors and the RVV
+route/provider, target artifact, and same-target measurement policy path must
+prove that those mirrors still match provider-owned resource facts and
+source-backed same-target records. This is a provider-proof-consumption
+boundary. It is not artifact metadata authority, route-id authority,
+helper-name authority, q4/q8 label authority, or Common EmitC schedule
+inference.
 
 ### 2. Signatures
 
@@ -6895,7 +6900,7 @@ llvm::Error populateRVVLowPrecisionSelectedBodyRealizationAdmissionProof(
 
 ### 5. Good/Base/Bad Cases
 
-- Good: realized `with_vl`/Gearbox handoff carries Gate 2 admitted schedule
+- Good: realized `with_vl`/Gearbox handoff carries source-backed admitted schedule
   mirrors -> route selection imports them as provider-owned proof -> same-target
   record/policy input and target artifact validation prove the same evidence
   and schedule before accepting the artifact path.
@@ -7333,7 +7338,7 @@ tcrv_rvv.low_precision_resource.dispatch_preference =
   defines them.
 - Bad: target artifact metadata is edited to
   `performance_selection_eligible = "true"` while provider-owned packed-i4
-  facts still record Gate 6 regression.
+  facts still record the accepted same-target regression/no-win disposition.
 - Bad: a script or fixture path claims dispatch preference because a filename
   contains packed-i4, without matching provider/header metadata.
 
@@ -7482,17 +7487,17 @@ fields that are not part of `RVVLowPrecisionSameTargetMeasurementRecord`.
   classification and the current evidence path.
 - `provider_*` fields must be copied from provider-owned route/resource facts or
   generated object/header metadata mirrors after target artifact validation.
-- Gate 3 measurement records must tie the parsed measurement back to the Gate
-  1/2 resource boundary by carrying the exact planning contract,
-  packed-resource operand form, signedness, storage/effective element widths,
-  packing layout, unpack intent, vsetvl region count, runtime AVL source, and
-  runtime ABI order from validated provider/resource facts. These fields are
-  evidence tie-backs only; they do not make artifact metadata, fixture names, or
-  raw stdout route authority.
+- Measurement-disposition records must tie the parsed measurement back to the
+  foundation and selected-resource boundary by carrying the exact planning
+  contract, packed-resource operand form, signedness, storage/effective element
+  widths, packing layout, unpack intent, vsetvl region count, runtime AVL
+  source, and runtime ABI order from validated provider/resource facts. These
+  fields are evidence tie-backs only; they do not make artifact metadata,
+  fixture names, or raw stdout route authority.
 - `same_target_measurement_record` is an exact record-shaped subset of the
   validated evidence input. It feeds the C++ record boundary before policy input
   is built; it must not carry reporting-only alignment fields as policy facts.
-- Source-backed record fields are mandatory for Gate 2 production pressure
+- Source-backed record fields are mandatory for production pressure
   profile construction:
   `source_record_contract =
   rvv-low-precision-source-backed-artifact-measurement-record.v1`,
@@ -7507,8 +7512,8 @@ fields that are not part of `RVVLowPrecisionSameTargetMeasurementRecord`.
   primitive/resource, artifact identity, target, or runtime-count provenance.
 - C++ record consumption must fail closed for missing or type-mismatched record
   fields before policy input is materialized.
-- Gate 4 policy input must carry the Gate 2b provider-owned schedule-decision
-  fields: `provider_schedule_decision_contract`,
+- Measurement-disposition policy input must carry the provider-owned
+  schedule-decision fields: `provider_schedule_decision_contract`,
   `provider_schedule_decision`, and `provider_schedule_decision_reason`.
 - The script may report alignment or conflicts, but must not rewrite
   `RVVLowPrecisionContractionResourceSelection` maturity fields.
@@ -7590,7 +7595,7 @@ fields that are not part of `RVVLowPrecisionSameTargetMeasurementRecord`.
   that object, and fail-closed missing measurement id, missing/stale planning
   contract, stale packed resource form, stale target, stale runtime AVL/ABI, and
   stale primitive-chain cases.
-- C++ provider/policy tests must also assert the Gate 2 source-backed fields
+- C++ provider/policy tests must also assert the source-backed fields
   reach `RVVLowPrecisionProductionPressureProfile`, and must reject missing
   source record contract, stale selected boundary, marker-only generated
   artifact identity, wrong measurement target, stale runtime-count provenance,
@@ -7632,10 +7637,10 @@ same-target parsed classification
 
 Use this contract when RVV low-precision packed-i4 same-target measurement
 evidence is consumed by production dispatch/performance policy. This is the
-Gate 4 policy surface after provider/resource facts, target artifact mirrors,
-and Gate 3 evidence input have already been structured. It is not a route id,
-artifact-name policy, report status, script rewrite, q4/q8 benchmark label, or
-Common EmitC decision.
+measurement-disposition policy surface after provider/resource facts, target
+artifact mirrors, and provider-proof evidence input have already been
+structured. It is not a route id, artifact-name policy, report status, script
+rewrite, q4/q8 benchmark label, or Common EmitC decision.
 
 ### 2. Signatures
 
@@ -7746,7 +7751,7 @@ performance-preferred
 - `evaluateRVVLowPrecisionPerformancePolicy` is the strict accepted-policy
   entry. It succeeds only when the selected packed-i4 provider resource facts
   and the measurement outcome form a complete accepted policy handoff.
-- The Gate 3 selected-dispatch policy seam must prefer the
+- The selected-dispatch policy seam must prefer the
   `RVVLowPrecisionSameTargetMeasurementRecord` overload when source-backed
   measurement evidence is available. The record overload first builds and
   validates the same-target policy input from the record, then produces the
@@ -7794,23 +7799,26 @@ performance-preferred
   policy decision, but it is not a standalone selected-dispatch policy-output
   key.
 - Stable low-precision resource and Gearbox schedule acceptance must not depend
-  on Gate 4 campaign evidence or admission fields. Packed-i4 schedule decisions
-  are accepted from stable candidate legality, dtype/resource facts, register
-  budget, resource-cost facts, and packed-i4 schedule facts. Performance
-  feedback, remediation narratives, performance admission closure/reopen,
-  beyond-local repair admission, maturity outcome, and same-target measurement
-  records are Gate 4 evidence/admission facts. They may be validated by policy
-  and target evidence/admission consumers, but they are not route authority,
-  schedule authority, artifact-name authority, or permanent
+  on measurement-disposition campaign evidence or admission fields. Packed-i4
+  schedule decisions are accepted from stable candidate legality, dtype/resource
+  facts, register budget, resource-cost facts, and packed-i4 schedule facts.
+  Performance feedback, remediation narratives, performance admission
+  closure/reopen, beyond-local repair admission, maturity outcome, and
+  same-target measurement records are measurement-disposition
+  evidence/admission facts. They may be validated by policy and target
+  evidence/admission consumers, but they are not route authority, schedule
+  authority, artifact-name authority, or permanent
   `RVVGearboxSchedule` contract inputs.
-- Target artifact validation must keep stable resource mirrors and Gate 4
-  evidence/admission mirrors in separate consumer helpers. Stable resource
-  mirrors include planning/resource-cost/schedule-decision/target-capability
-  facts. Gate 4 evidence/admission mirrors include performance feedback,
-  remediation, admission closure/reopen, beyond-local admission, maturity,
-  performance-selection eligibility, and dispatch preference. Stale Gate 4
-  mirrors still fail closed when provider policy/evidence facts are present;
-  metadata-only Gate 4 mirrors must not be accepted as provider-owned facts.
+- Target artifact validation must keep stable resource mirrors and
+  measurement-disposition evidence/admission mirrors in separate consumer
+  helpers. Stable resource mirrors include
+  planning/resource-cost/schedule-decision/target-capability facts.
+  Measurement-disposition evidence/admission mirrors include performance
+  feedback, remediation, admission closure/reopen, beyond-local admission,
+  maturity, performance-selection eligibility, and dispatch preference. Stale
+  measurement-disposition mirrors still fail closed when provider policy/evidence
+  facts are present; metadata-only measurement-disposition mirrors must not be
+  accepted as provider-owned facts.
 - When source-backed same-target measurement evidence is available, the
   selected-dispatch policy-output population path must use the
   `RVVLowPrecisionSameTargetMeasurementRecord` overload. The overload first
@@ -7826,7 +7834,7 @@ performance-preferred
   fields, and target mirrors are rewritten together, unless a fresh
   source-backed measured-win record is admitted through the explicit
   record/evidence-root policy path.
-- The current accepted Gate 4 packed-i4 regression/no-win outcome must set:
+- The current accepted measurement-disposition packed-i4 regression/no-win outcome must set:
 
   ```text
   measurementEvidenceID =
@@ -7859,7 +7867,7 @@ performance-preferred
     new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1
   ```
 
-- The strict Gate 4 no-win/regression verifier must derive the accepted
+- The strict measurement-disposition no-win/regression verifier must derive the accepted
   `measurementEvidenceID`, `measurementBestSpeedupRange`,
   `measurementSummaryRecordCount`, `measurementRecordCount`, and
   `correctnessRecordCount` from the selected provider resource candidate. A
@@ -8028,7 +8036,7 @@ performance-preferred
 
 ### 5. Good/Base/Bad Cases
 
-- Good: accepted Gate 4 regression/no-win measurement -> provider no-win
+- Good: accepted measurement-disposition regression/no-win measurement -> provider no-win
   maturity mirrors match -> policy selects `correctness-fallback` while keeping
   correctness execution allowed.
 - Good: future provider/resource repair plus new same-target measured win ->
@@ -8055,15 +8063,15 @@ performance-preferred
   `populateRVVLowPrecisionSelectedDispatchPolicyOutput(selection, record,
   boundary, context)`, and stale target/runtime/provider facts fail before any
   target/header mirror is accepted.
-- Gate 4 final-audit coverage must also feed a record parsed from the generated
+- Measurement-disposition final-audit coverage must also feed a record parsed from the generated
   evidence JSON object through that same selected-dispatch record overload; a
   helper-built representative record alone is not enough to prove the
   source-backed record ingestion boundary.
-- Gate 4 root-ingestion coverage must feed both current source-backed dequant
+- Measurement-disposition root-ingestion coverage must feed both current source-backed dequant
   and dequant-clamp same-target evidence JSON roots through the evidence-root
   overload and assert correctness fallback, performance-preference denial, and
   stale root-level result/schedule rejection.
-- Gate 4 root-ingestion coverage must include stale root-level
+- Measurement-disposition root-ingestion coverage must include stale root-level
   performance-admission closure/reopen mirrors in `measurement_harness`,
   `measurement_schedule_decision_evidence`, and `packed_i4_reference_oracle`,
   proving the policy verifier does not rely only on the nested measurement
@@ -8071,7 +8079,7 @@ performance-preferred
 - Focused provider/target/script coverage must assert stale, missing, or
   metadata-derived beyond-local repair admission fields are rejected at the
   selected-body, route/target mirror, evidence-root, and policy boundaries.
-- Candidate-sensitive Gate 4 coverage must feed the current dequant-clamp
+- Candidate-sensitive measurement-disposition coverage must feed the current dequant-clamp
   source-backed `same_target_measurement_record` through the record overload
   and assert correctness fallback, performance-preference denial, stale
   schedule-decision rejection, and correctness-disabled rejection.
@@ -8353,14 +8361,14 @@ tcrv_rvv.widening_product
 - Provider fail-closed evidence for missing handoff, stale dequantize consumer,
   stale scope facts, stale or missing marker/handoff `planning_contract`, and
   stale realized region/resource facts after schedule/resource facts exist.
-- Gate 3B dequant-clamp evidence showing full clamp realization facts on
+- Dequant-clamp realized-body evidence showing full clamp realization facts on
   producer and consumer `with_vl` scopes, short clamp handoff attrs on
   `tcrv_rvv.gearbox_cross_region_handoff`, route-plan metadata mirrors, and
   target header mirrors.
-- Gate 3B negative evidence for stale realized-body clamp phase, stale handoff
+- Dequant-clamp negative evidence for stale realized-body clamp phase, stale handoff
   clamp select layout, and stale target clamp select layout before route or
   artifact acceptance.
-- Gate 3C family completion/audit evidence must prove the same provider-owned
+- Provider/artifact carry-through family completion/audit evidence must prove the same provider-owned
   realization-decision mapping drives Gearbox schedule validation,
   selected-body realization, handoff verification, route planning, and target
   validation. It must also prove non-clamp product-dequant siblings reject

@@ -1261,7 +1261,7 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
          " selected-dispatch low-precision policy boundary")
             .str();
     RVVLowPrecisionSameTargetMeasurementRecord measurementRecord =
-        buildRVVPackedI4Gate4SameTargetMeasurementRecord(
+        buildRVVPackedI4MeasurementDispositionSameTargetRecord(
             plan.lowPrecisionResourceSelection);
     if (llvm::Error error = verifyRVVLowPrecisionPerformancePolicy(
             plan.lowPrecisionResourceSelection, measurementRecord,
@@ -5316,7 +5316,7 @@ void populateRVVLowPrecisionContractionResourceRemediationHandoff(
   }
 
   RVVLowPrecisionSameTargetMeasurementRecord measurementRecord =
-      buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
+      buildRVVPackedI4MeasurementDispositionSameTargetRecord(selection);
   RVVLowPrecisionPerformancePolicyHandoff handoff =
       diagnoseRVVLowPrecisionPerformancePolicyHandoff(
           selection, measurementRecord,
@@ -7795,7 +7795,7 @@ llvm::Error verifyRVVLowPrecisionContractionResourceRemediationHandoff(
     return error;
 
   RVVLowPrecisionSameTargetMeasurementRecord measurementRecord =
-      buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
+      buildRVVPackedI4MeasurementDispositionSameTargetRecord(selection);
   llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput> policyInput =
       buildRVVLowPrecisionSameTargetMeasurementPolicyInput(
           selection, measurementRecord,
@@ -8842,7 +8842,7 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
          " packed-i4 dispatch/performance policy")
             .str();
     RVVLowPrecisionSameTargetMeasurementRecord measurementRecord =
-        buildRVVPackedI4Gate4SameTargetMeasurementRecord(selection);
+        buildRVVPackedI4MeasurementDispositionSameTargetRecord(selection);
     llvm::Expected<RVVLowPrecisionSameTargetMeasurementPolicyInput>
         policyInput =
         buildRVVLowPrecisionSameTargetMeasurementPolicyInput(selection,
@@ -10193,7 +10193,8 @@ deriveRVVSelectedBodyContractionRouteFamilyPlan(
         "product-reduction contraction route-family plan requires source, "
         "product, accumulator, and result facts to form either a signed "
         "i8/i16/i32 chain or a plain unsigned u8/u16/u32 chain; unsigned "
-        "dequantization/clamp is not part of this Gate 3 slice");
+        "dequantization/clamp is not part of this bounded plain "
+        "product-reduction support path");
   plan.usesScalarSeed = plan.usesDotReduction;
   plan.usesVectorAccumulator = plan.usesWideningMAcc;
   plan.runtimeControlPlan = std::move(*runtimeControlPlan);
