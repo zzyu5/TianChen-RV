@@ -445,6 +445,28 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantMemoryForm(
     "unit-stride-widening-product-reduce-dequantize-f32");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantClampMemoryForm(
     "unit-stride-widening-product-reduce-dequant-clamp-f32");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductReductionMemoryForm(
+    "unit-stride-widening-product-reduce-add");
+constexpr llvm::StringLiteral kRVVLowPrecisionProductReductionResourceCandidateSet(
+    "rvv-low-precision-product-reduction-resource-candidate-set.v1["
+    "signed-i8mf4-i16mf2-i32m1:u1-vector-carry,"
+    "unsigned-u8mf4-u16mf2-u32m1:u1-vector-carry]");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceProductReductionAddSignedCandidate(
+        "rvv-low-precision-direct-contraction-resource-candidate.v1["
+        "product-reduction-add,signed-i8mf4-i16mf2-i32m1,u1]");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceProductReductionAddUnsignedCandidate(
+        "rvv-low-precision-direct-contraction-resource-candidate.v1["
+        "product-reduction-add,unsigned-u8mf4-u16mf2-u32m1,u1]");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceProductReductionAddSignedSelectionReason(
+        "static-bounded-product-reduction-add-signed-i8mf4-i16mf2-i32m1-"
+        "runtime-avl");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceProductReductionAddUnsignedSelectionReason(
+        "static-bounded-product-reduction-add-unsigned-u8mf4-u16mf2-u32m1-"
+        "runtime-avl");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantCandidate(
     "rvv-low-precision-direct-contraction-resource-candidate.v1["
     "product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u1]");
@@ -934,6 +956,11 @@ getRVVLowPrecisionResourceOperationForMemoryForm(llvm::StringRef memoryForm) {
 
 inline bool isRVVLowPrecisionResourceCandidateSetMember(
     llvm::StringRef candidateSetID, llvm::StringRef candidateID) {
+  if (candidateSetID == kRVVLowPrecisionProductReductionResourceCandidateSet)
+    return candidateID ==
+               kRVVLowPrecisionResourceProductReductionAddSignedCandidate ||
+           candidateID ==
+               kRVVLowPrecisionResourceProductReductionAddUnsignedCandidate;
   if (candidateSetID != kRVVLowPrecisionResourceCandidateSet)
     return false;
   return candidateID == kRVVLowPrecisionResourceDequantCandidate ||
@@ -947,7 +974,11 @@ inline bool isRVVLowPrecisionResourceCandidateSetMember(
 
 inline bool isRVVLowPrecisionResourceSelectedLegalCandidateID(
     llvm::StringRef candidateID) {
-  return candidateID == kRVVLowPrecisionResourceDequantCandidate ||
+  return candidateID ==
+             kRVVLowPrecisionResourceProductReductionAddSignedCandidate ||
+         candidateID ==
+             kRVVLowPrecisionResourceProductReductionAddUnsignedCandidate ||
+         candidateID == kRVVLowPrecisionResourceDequantCandidate ||
          candidateID == kRVVLowPrecisionResourceDequantClampCandidate ||
          candidateID == kRVVLowPrecisionResourceDequantGroupedCandidate ||
          candidateID == kRVVLowPrecisionResourceDequantClampGroupedCandidate ||

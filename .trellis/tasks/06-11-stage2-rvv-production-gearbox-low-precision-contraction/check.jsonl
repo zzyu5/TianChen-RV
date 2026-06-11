@@ -1,0 +1,11 @@
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Verify typed RVV body, plugin-owned resource facts, fail-closed diagnostics, and target mirror behavior."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Verify common EmitC remains neutral and RVV semantics stay provider-owned."}
+{"file":".trellis/spec/testing/index.md","reason":"Focused test and evidence expectations for changed compiler behavior."}
+{"command":"rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test","result":"passed"}
+{"command":"rtk build/bin/tianchenrv-rvv-extension-plugin-test","result":"passed from repository root after dequant result-dtype self-repair"}
+{"command":"rtk build/bin/tianchenrv-target-artifact-export-test","result":"passed from repository root after stale source fact expectation self-repair"}
+{"command":"manual FileCheck RUNs for explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir","result":"passed PLAN, HEADER, STALE-VWREDSUM, STALE-SIGN, STALE-RESOURCE-SIGN, STALE-PRIM-ACC, STALE-EXT, STALE-CTYPE"}
+{"command":"manual FileCheck RUNs for explicit-selected-body-artifact-widening-product-reduce-add.mlir","result":"passed PLAN, HEADER, STALE-VWREDSUM, STALE-PRIM-ACC, STALE-PRIM-LOAD, STALE-PRIM-EXT"}
+{"command":"manual FileCheck subset for pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir","result":"passed REALIZED, GEARBOX-SCHEDULE-PRIMITIVE, PLAN, HEADER"}
+{"command":"manual FileCheck subset for pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32.mlir","result":"passed REALIZED, GEARBOX-CONSUME, PLAN, HEADER"}
+{"command":"rtk cmake --build build --target check-tianchenrv","result":"failed 526/542 passed; residual failures include stale construction-protocol role count, build/test cwd evidence-root lookup in C++ lit wrappers, stale standalone-reduction and old rvv-first-slice FileCheck strings, stale explicit dequant fixture handoff attrs, and TensorExtLite unsupported-message drift"}

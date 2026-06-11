@@ -1,0 +1,12 @@
+{"file":".trellis/spec/index.md","reason":"Project spec index and relevant layer routing for the macro campaign."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV plugin ownership, selected-body realization, resource facts, and route provider boundaries."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Common EmitC route neutrality and provider-owned route payload boundaries."}
+{"file":".trellis/spec/variant-pipeline/generation-selection-tuning.md","reason":"Selected dispatch and measured-performance admission boundaries for later gates."}
+{"file":".trellis/tasks/archive/2026-06/06-10-stage2-rvv-low-precision-contraction-primitive-surface-gate1/prd.md","reason":"Prior low-precision primitive surface gates and existing u8 widening-product/reduction coverage."}
+{"file":".trellis/tasks/archive/2026-06/06-10-stage2-rvv-production-kernel-gearbox-resource-realization-campaign/prd.md","reason":"Prior resource-planning contract, Gearbox realization, and measurement handoff closure."}
+{"file":".trellis/tasks/archive/2026-06/06-11-stage2-rvv-production-selected-dispatch-admission/prd.md","reason":"Prior selected-dispatch performance admission closure and correctness-fallback/no-win evidence state."}
+{"file":"include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h","reason":"Added plain product-reduction resource candidate-set/candidate constants and legality membership for signed i8 and unsigned u8 widening-product reductions."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp","reason":"Admitted WideningProductReduceAdd into low-precision resource selection, populated primitive/resource facts from typed body facts, and preserved dequant result-dtype expectations."}
+{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir","reason":"Added unsigned u8 product-reduction resource fact mirrors and stale resource source-signedness rejection coverage."}
+{"file":"test/Target/TargetArtifactExportTest.cpp","reason":"Aligned product-reduction stale source fact smoke expectation with target-side primitive source dtype rejection."}
+{"file":"test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir","reason":"Kept adjacent dequant Gearbox resource fact check order aligned with actual stable attribute order."}

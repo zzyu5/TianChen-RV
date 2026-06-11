@@ -1,0 +1,32 @@
+{
+  "id": "stage2-rvv-production-gearbox-low-precision-contraction",
+  "name": "stage2-rvv-production-gearbox-low-precision-contraction",
+  "title": "Stage2 RVV production-kernel Gearbox resource-aware low-precision contraction campaign",
+  "description": "Macro campaign for Stage2 RVV production-kernel capability: Gearbox/resource-aware selected-body realization plus low-precision contraction primitive/resource fact spine and same-target measurement admission.",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "codex",
+  "assignee": "codex",
+  "createdAt": "2026-06-11",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h",
+    "lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp",
+    "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir",
+    "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir",
+    "test/Target/TargetArtifactExportTest.cpp"
+  ],
+  "notes": "Current slice completed Gate 2 submodule for plain signed/unsigned product-reduction resource facts. Macro task remains active for packed-i4 load/unpack and Gearbox consumption gates.",
+  "meta": {}
+}

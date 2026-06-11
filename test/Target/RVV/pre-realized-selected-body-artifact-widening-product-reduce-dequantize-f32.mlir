@@ -149,10 +149,10 @@ module {
 
 // GEARBOX-SCHEDULE-PRIMITIVE: tcrv_rvv.typed_widening_product_reduce_dequantize_pre_realized_body
 // GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_chain_contract = "rvv-low-precision-widening-reduction-primitive-facts.v1"
-// GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_source_extension = "sign-extend-i8-to-i16-product"
-// GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_source_load = "unit-stride-byte-load"
 // GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation = "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32"
 // GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
+// GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_source_extension = "sign-extend-i8-to-i16-product"
+// GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_source_load = "unit-stride-byte-load"
 // GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
 // GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.widening_product_extension_policy = "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2"
 // GEARBOX-SCHEDULE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles = "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"

@@ -4596,6 +4596,11 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceCandidate(
   if (isRVVStridedInputWideningDotLowPrecisionResourceOperation(
           plan.operation))
     return kRVVLowPrecisionResourceStridedInputWideningDotCandidate;
+  if (plan.operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd)
+    return plan.lowPrecisionPrimitiveSourceSignedness ==
+                   kRVVLowPrecisionResourceSourceSignednessUnsigned
+               ? kRVVLowPrecisionResourceProductReductionAddUnsignedCandidate
+               : kRVVLowPrecisionResourceProductReductionAddSignedCandidate;
   if (plan.usesProductReductionDequantClamp)
     return kRVVLowPrecisionResourceDequantClampCandidate;
   if (plan.usesProductReductionDequantization)
@@ -4605,6 +4610,8 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceCandidate(
 
 llvm::StringRef getExpectedRVVLowPrecisionResourceCandidateSet(
     RVVSelectedBodyOperationKind operation) {
+  if (operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd)
+    return kRVVLowPrecisionProductReductionResourceCandidateSet;
   if (isRVVComputedMaskStridedInputWideningDotLowPrecisionResourceOperation(
           operation))
     return kRVVLowPrecisionResourceComputedMaskStridedInputWideningDotCandidateSet;
@@ -4621,6 +4628,11 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceSelectionReason(
   if (isRVVStridedInputWideningDotLowPrecisionResourceOperation(
           plan.operation))
     return kRVVLowPrecisionResourceStridedInputWideningDotSelectionReason;
+  if (plan.operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd)
+    return plan.lowPrecisionPrimitiveSourceSignedness ==
+                   kRVVLowPrecisionResourceSourceSignednessUnsigned
+               ? kRVVLowPrecisionResourceProductReductionAddUnsignedSelectionReason
+               : kRVVLowPrecisionResourceProductReductionAddSignedSelectionReason;
   if (plan.usesProductReductionDequantClamp)
     return kRVVLowPrecisionResourceDequantClampSelectionReason;
   if (plan.usesProductReductionDequantization)
@@ -4661,6 +4673,8 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceMemoryForm(
   if (isRVVStridedInputWideningDotLowPrecisionResourceOperation(
           plan.operation))
     return kRVVPreRealizedStridedInputWideningDotReduceMemoryForm;
+  if (plan.operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd)
+    return kRVVLowPrecisionResourceProductReductionMemoryForm;
   if (plan.usesProductReductionDequantClamp)
     return kRVVPreRealizedWideningProductReduceDequantClampF32MemoryForm;
   if (plan.usesProductReductionDequantization)
@@ -4670,6 +4684,8 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceMemoryForm(
 
 llvm::StringRef getExpectedRVVLowPrecisionResourceMemoryForm(
     RVVSelectedBodyOperationKind operation) {
+  if (operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd)
+    return kRVVLowPrecisionResourceProductReductionMemoryForm;
   if (isRVVComputedMaskStridedInputWideningDotLowPrecisionResourceOperation(
           operation))
     return kRVVPreRealizedComputedMaskStridedInputWideningDotReduceMemoryForm;
@@ -4686,7 +4702,8 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceMemoryForm(
 
 bool expectsRVVLowPrecisionContractionResourceSelection(
     RVVSelectedBodyOperationKind operation) {
-  return operation ==
+  return operation == RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
+         operation ==
              RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
          operation ==
              RVVSelectedBodyOperationKind::
@@ -4704,7 +4721,23 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceProductElementType(
   if (isRVVStridedInputWideningDotLowPrecisionResourceOperation(
           plan.operation))
     return getContractionIntegerElementTypeName(plan.sew);
+  if (!plan.lowPrecisionPrimitiveProductElementTypeName.empty())
+    return plan.lowPrecisionPrimitiveProductElementTypeName;
   return plan.productElementTypeName;
+}
+
+llvm::StringRef getExpectedRVVLowPrecisionResourceSourceSignedness(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  if (!plan.lowPrecisionPrimitiveSourceSignedness.empty())
+    return plan.lowPrecisionPrimitiveSourceSignedness;
+  return kRVVLowPrecisionResourceSourceSignednessSigned;
+}
+
+llvm::StringRef getExpectedRVVLowPrecisionResourceAccumulatorElementType(
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  if (!plan.lowPrecisionPrimitiveAccumulatorElementTypeName.empty())
+    return plan.lowPrecisionPrimitiveAccumulatorElementTypeName;
+  return getContractionIntegerElementTypeName(plan.sew);
 }
 
 std::int64_t getExpectedRVVLowPrecisionResourceProductSEW(
@@ -4734,6 +4767,8 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceResultElementType(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
   if (plan.usesProductReductionDequantization)
     return getContractionFloatElementTypeName(plan.sew);
+  if (!plan.lowPrecisionPrimitiveResultElementTypeName.empty())
+    return plan.lowPrecisionPrimitiveResultElementTypeName;
   return getContractionIntegerElementTypeName(plan.sew);
 }
 
@@ -4750,7 +4785,30 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceProductElementType(
   if (isRVVStridedInputWideningDotLowPrecisionResourceOperation(
           description.operation))
     return getContractionIntegerElementTypeName(description.sew);
+  if (!description.lowPrecisionPrimitiveProductElementTypeName.empty())
+    return description.lowPrecisionPrimitiveProductElementTypeName;
   return getContractionIntegerElementTypeName(description.productSEW);
+}
+
+llvm::StringRef getExpectedRVVLowPrecisionResourceSourceElementType(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  if (!description.lowPrecisionPrimitiveSourceElementTypeName.empty())
+    return description.lowPrecisionPrimitiveSourceElementTypeName;
+  return getContractionIntegerElementTypeName(description.sourceSEW);
+}
+
+llvm::StringRef getExpectedRVVLowPrecisionResourceSourceSignedness(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  if (!description.lowPrecisionPrimitiveSourceSignedness.empty())
+    return description.lowPrecisionPrimitiveSourceSignedness;
+  return kRVVLowPrecisionResourceSourceSignednessSigned;
+}
+
+llvm::StringRef getExpectedRVVLowPrecisionResourceAccumulatorElementType(
+    const RVVSelectedBodyEmitCRouteDescription &description) {
+  if (!description.lowPrecisionPrimitiveAccumulatorElementTypeName.empty())
+    return description.lowPrecisionPrimitiveAccumulatorElementTypeName;
+  return getContractionIntegerElementTypeName(description.sew);
 }
 
 std::int64_t getExpectedRVVLowPrecisionResourceProductSEW(
@@ -4776,6 +4834,8 @@ llvm::StringRef getExpectedRVVLowPrecisionResourceResultElementType(
       description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32)
     return getContractionFloatElementTypeName(description.sew);
+  if (!description.lowPrecisionPrimitiveResultElementTypeName.empty())
+    return description.lowPrecisionPrimitiveResultElementTypeName;
   return getContractionIntegerElementTypeName(description.sew);
 }
 
@@ -4961,6 +5021,55 @@ void populateRVVLowPrecisionContractionResourceRouteFacts(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
   selection.routeFamilyPlanID = plan.familyPlanID.str();
   selection.providerSupportedMirror = plan.providerSupportedMirror.str();
+  if (selection.primitiveContractID.empty() &&
+      !plan.lowPrecisionPrimitiveContractID.empty())
+    selection.primitiveContractID = plan.lowPrecisionPrimitiveContractID.str();
+  if (selection.primitiveKind.empty() &&
+      !plan.lowPrecisionPrimitiveKind.empty())
+    selection.primitiveKind = plan.lowPrecisionPrimitiveKind.str();
+  if (plan.usesProductReductionChain) {
+    const bool isUnsignedPrimitive =
+        getExpectedRVVLowPrecisionResourceSourceSignedness(plan) ==
+        kRVVLowPrecisionResourceSourceSignednessUnsigned;
+    std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
+        primitiveFacts =
+            getRVVLowPrecisionWideningReductionPrimitiveFacts(
+                plan.operation, isUnsignedPrimitive);
+    if (primitiveFacts) {
+      if (selection.primitiveChainContractID.empty())
+        selection.primitiveChainContractID = primitiveFacts->contractID;
+      if (selection.primitiveChainKind.empty())
+        selection.primitiveChainKind = primitiveFacts->kind;
+    }
+    if (selection.primitiveWideningProductRelation.empty() &&
+        !plan.wideningProductRelation.empty())
+      selection.primitiveWideningProductRelation =
+          plan.wideningProductRelation.str();
+    if (selection.primitiveProductReductionChainRelation.empty() &&
+        !plan.productReductionChainRelation.empty())
+      selection.primitiveProductReductionChainRelation =
+          plan.productReductionChainRelation.str();
+    if (selection.primitiveWideningProductIntrinsic.empty() &&
+        !plan.wideningProductIntrinsic.empty())
+      selection.primitiveWideningProductIntrinsic =
+          plan.wideningProductIntrinsic.str();
+    if (selection.primitiveReductionIntrinsic.empty() &&
+        !plan.contractionComputeIntrinsic.empty())
+      selection.primitiveReductionIntrinsic =
+          plan.contractionComputeIntrinsic.str();
+    if (selection.primitiveScalarSeedSplatIntrinsic.empty() &&
+        !plan.scalarSeedSplatIntrinsic.empty())
+      selection.primitiveScalarSeedSplatIntrinsic =
+          plan.scalarSeedSplatIntrinsic.str();
+    if (selection.primitiveAccumulatorLayout.empty() &&
+        !plan.accumulatorLayout.empty())
+      selection.primitiveAccumulatorLayout = plan.accumulatorLayout.str();
+    if (selection.primitiveResultLayout.empty() && !plan.resultLayout.empty())
+      selection.primitiveResultLayout = plan.resultLayout.str();
+    if (selection.primitiveReductionStoreVL.empty() &&
+        !plan.reductionStoreVL.empty())
+      selection.primitiveReductionStoreVL = plan.reductionStoreVL.str();
+  }
   if (selection.wideningProductMultiplicandRoleSummary.empty() &&
       !plan.wideningProductMultiplicandRoleSummary.empty())
     selection.wideningProductMultiplicandRoleSummary =
@@ -5162,7 +5271,7 @@ deriveRVVLowPrecisionContractionResourceSelection(
   selection.operandForm =
       getExpectedRVVLowPrecisionResourceOperandForm(plan.sourceSEW).str();
   selection.sourceSignedness =
-      kRVVLowPrecisionResourceSourceSignednessSigned.str();
+      getExpectedRVVLowPrecisionResourceSourceSignedness(plan).str();
   selection.storageElementWidth = plan.sourceSEW;
   selection.effectiveElementWidth = plan.sourceSEW;
   selection.packingLayout =
@@ -5176,7 +5285,7 @@ deriveRVVLowPrecisionContractionResourceSelection(
   selection.productEMUL =
       getExpectedRVVLowPrecisionResourceProductEMUL(plan.operation).str();
   selection.accumulatorElementTypeName =
-      getContractionIntegerElementTypeName(plan.sew).str();
+      getExpectedRVVLowPrecisionResourceAccumulatorElementType(plan).str();
   selection.accumulatorSEW = plan.sew;
   selection.accumulatorLMUL = plan.lmul.str();
   selection.accumulatorEMUL = kRVVLowPrecisionResourceAccumulatorEMUL.str();
@@ -6749,15 +6858,26 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveSurfaceSelection(
           selection.primitiveSourceExtensionKind,
           primitiveFacts.sourceExtensionKind))
     return error;
+  const bool isUnsignedPrimitive =
+      primitiveFacts.sourceSignedness ==
+      kRVVLowPrecisionResourceSourceSignednessUnsigned;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "widening product multiplicand roles",
           selection.wideningProductMultiplicandRoleSummary,
-          kRVVLowPrecisionResourceWideningProductMultiplicandRoles))
+          isUnsignedPrimitive
+              ? llvm::StringRef(
+                    kRVVLowPrecisionUnsignedWideningProductMultiplicandRoles)
+              : llvm::StringRef(
+                    kRVVLowPrecisionSignedWideningProductMultiplicandRoles)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "widening product extension policy",
           selection.wideningProductExtensionPolicy,
-          kRVVLowPrecisionResourceWideningProductExtensionPolicy))
+          isUnsignedPrimitive
+              ? llvm::StringRef(
+                    kRVVLowPrecisionUnsignedWideningProductExtensionPolicy)
+              : llvm::StringRef(
+                    kRVVLowPrecisionSignedWideningProductExtensionPolicy)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "primitive source SEW", selection.sourceSEW,
@@ -6821,7 +6941,10 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainSelection(
     return llvm::Error::success();
   std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
       primitiveFacts =
-          getRVVLowPrecisionWideningReductionPrimitiveFacts(plan.operation);
+          getRVVLowPrecisionWideningReductionPrimitiveFacts(
+              plan.operation,
+              selection.sourceSignedness ==
+                  kRVVLowPrecisionResourceSourceSignednessUnsigned);
   if (!primitiveFacts || !primitiveFacts->hasFacts)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -6928,7 +7051,9 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainDescriptionSelection(
   std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
       primitiveFacts =
           getRVVLowPrecisionWideningReductionPrimitiveFacts(
-              description.operation);
+              description.operation,
+              selection.sourceSignedness ==
+                  kRVVLowPrecisionResourceSourceSignednessUnsigned);
   if (!primitiveFacts || !primitiveFacts->hasFacts)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
@@ -7615,7 +7740,7 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "source signedness",
           selection.sourceSignedness,
-          kRVVLowPrecisionResourceSourceSignednessSigned))
+          getExpectedRVVLowPrecisionResourceSourceSignedness(plan)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "storage element width",
@@ -7657,7 +7782,7 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "accumulator dtype",
           selection.accumulatorElementTypeName,
-          getContractionIntegerElementTypeName(plan.sew)))
+          getExpectedRVVLowPrecisionResourceAccumulatorElementType(plan)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "accumulator SEW", selection.accumulatorSEW,
@@ -7998,6 +8123,9 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
                 selection.selectedCandidateID)))
       return error;
   } else {
+    const bool isPlainProductReduction =
+        description.operation ==
+        RVVSelectedBodyOperationKind::WideningProductReduceAdd;
     if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
             context, selection, "selected candidate",
             selection.selectedCandidateID,
@@ -8007,6 +8135,11 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
             : isRVVStridedInputWideningDotLowPrecisionResourceOperation(
                   description.operation)
                 ? kRVVLowPrecisionResourceStridedInputWideningDotCandidate
+            : isPlainProductReduction
+                ? (description.lowPrecisionPrimitiveSourceSignedness ==
+                           kRVVLowPrecisionResourceSourceSignednessUnsigned
+                       ? kRVVLowPrecisionResourceProductReductionAddUnsignedCandidate
+                       : kRVVLowPrecisionResourceProductReductionAddSignedCandidate)
                 : isClamp
                       ? kRVVLowPrecisionResourceDequantClampCandidate
                       : kRVVLowPrecisionResourceDequantCandidate))
@@ -8019,6 +8152,11 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
             : isRVVStridedInputWideningDotLowPrecisionResourceOperation(
                   description.operation)
                 ? kRVVLowPrecisionResourceStridedInputWideningDotSelectionReason
+            : isPlainProductReduction
+                ? (description.lowPrecisionPrimitiveSourceSignedness ==
+                           kRVVLowPrecisionResourceSourceSignednessUnsigned
+                       ? kRVVLowPrecisionResourceProductReductionAddUnsignedSelectionReason
+                       : kRVVLowPrecisionResourceProductReductionAddSignedSelectionReason)
                 : isClamp
                       ? kRVVLowPrecisionResourceDequantClampSelectionReason
                       : kRVVLowPrecisionResourceDequantSelectionReason))
@@ -8039,7 +8177,7 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "source dtype", selection.sourceElementTypeName,
-          getContractionIntegerElementTypeName(description.sourceSEW)))
+          getExpectedRVVLowPrecisionResourceSourceElementType(description)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "source SEW", selection.sourceSEW,
@@ -8057,7 +8195,7 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "source signedness",
           selection.sourceSignedness,
-          kRVVLowPrecisionResourceSourceSignednessSigned))
+          getExpectedRVVLowPrecisionResourceSourceSignedness(description)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "storage element width",
@@ -8099,7 +8237,7 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "accumulator dtype",
           selection.accumulatorElementTypeName,
-          getContractionIntegerElementTypeName(description.sew)))
+          getExpectedRVVLowPrecisionResourceAccumulatorElementType(description)))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "accumulator SEW", selection.accumulatorSEW,

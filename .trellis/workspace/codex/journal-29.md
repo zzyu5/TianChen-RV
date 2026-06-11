@@ -1875,3 +1875,60 @@ mirrors before the policy can select `performance-preferred`.
 parsed records to feed selected-dispatch policy-output and target mirror
 coverage. This round implemented that existing contract without adding new API
 fields, commands, or cross-layer conventions.
+
+## Session 595: Stage2 RVV product-reduction resource fact spine
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV production-kernel Gearbox resource-aware low-precision contraction campaign
+**Branch**: `main`
+
+### Summary
+
+Started the new macro campaign and completed the current Gate 2 slice for
+plain signed/unsigned product-reduction resource facts. The macro task remains
+active for packed-i4 load/unpack resource surface and Gearbox consumption
+gates.
+
+### Main Changes
+
+- Created the active macro Trellis task and PRD for the Gearbox/resource-aware
+  low-precision contraction campaign.
+- Added signed i8 and unsigned u8 product-reduction resource candidate
+  constants and legality membership.
+- Admitted `WideningProductReduceAdd` into provider-owned low-precision
+  resource selection and populated selection facts from primitive/source facts
+  instead of signed-only defaults.
+- Added unsigned u8 target artifact mirror and stale resource signedness
+  rejection coverage.
+- Preserved dequant/dequant-clamp result dtype behavior and aligned the
+  adjacent dequant resource fact check order with printed attributes.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate
+  tianchenrv-rvv-extension-plugin-test
+  tianchenrv-target-artifact-export-test`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test` from repo root
+- [OK] `build/bin/tianchenrv-target-artifact-export-test` from repo root
+- [OK] focused FileCheck RUNs for unsigned and signed product-reduction target
+  artifact fixtures
+- [OK] focused FileCheck positive subsets for dequantize-f32 and
+  dequant-clamp-f32 Gearbox/resource target fixtures
+- [OK] bounded old-authority scan over touched code/test added lines
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [KNOWN RESIDUAL] `cmake --build build --target check-tianchenrv` remains
+  526/542 passed with existing stale role-count/check-string/cwd fixture
+  failures outside this slice.
+
+### Status
+
+[MACRO ACTIVE] Current slice committed. Do not archive this task; Gate 2 is
+advanced but not complete.
+
+### Continuation
+
+Continue inside the same macro task with the next low-precision contraction
+primitive/resource gap, especially packed-i4 load/unpack and resource
+candidates consumable by Gearbox selected-body realization without q8/q4 labels
+or artifact-name authority.

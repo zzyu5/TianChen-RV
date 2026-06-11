@@ -14496,8 +14496,7 @@ bool expectRVVTargetArtifactExporterShape(
           staleProductReductionPrimitiveSignedness,
           "product-reduction registry rejects stale primitive source "
           "signedness",
-          {"provider-derived runtime ABI parameter 0",
-           "provider-owned parameter 'lhs'", "const uint8_t *"}))
+          {"resource primitive source dtype", "u8", "i8"}))
     return false;
 
   TargetArtifactCandidate staleProductReductionProductLMULMirror =
