@@ -7153,14 +7153,16 @@ tcrv_rvv.low_precision_resource.remediation_vector_budget =
 - The Gearbox resource pass must attach the four performance feedback attrs to
   the selected packed-i4 pre-realized body; selected-body realization must copy
   them into the realized `with_vl` structure before provider planning.
-- The selected packed-i4 candidate must also carry the remediation plan attrs
-  above as provider-owned resource-planning facts. These facts state the
-  concrete production repair boundary: packed signed i4-in-i8 low/high nibble
-  unpack, low-product rescale, high-nibble vwmacc pair-sum, single `vwredsum`,
-  and a 5-of-32 vector-group
-  budget. They are not artifact metadata, benchmark labels, or route ids.
-- The route-family provider must parse, verify, and retain the fields as part
-  of `RVVLowPrecisionContractionResourceSelection` before route construction.
+- The selected packed-i4 candidate may carry the remediation plan attrs above
+  only as measurement-disposition remediation planning facts. These facts
+  record the evaluated production repair boundary: packed signed i4-in-i8
+  low/high nibble unpack, low-product rescale, high-nibble vwmacc pair-sum,
+  single `vwredsum`, and a 5-of-32 vector-group budget. They are not resource
+  schedule authority, artifact metadata, benchmark labels, or route ids.
+- The route-family provider must parse, verify, and retain the fields only
+  through the measurement-disposition policy/evidence boundary, while route
+  support and resource acceptance remain tied to typed body/config,
+  realization, stable schedule, resource-cost, runtime ABI, and target facts.
 - The statement-plan owner must compare provider and family-plan copies before
   constructing the packed-i4 statement payload and must require the exact
   remediation statement strategy before emitting packed-i4 load/unpack/product/

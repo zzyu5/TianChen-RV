@@ -3914,58 +3914,6 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
           selection.realizationDecision,
           plugin::rvv::kRVVLowPrecisionResourcePackedI4RealizationDecision))
     return error;
-  if (selection.realizationAdmissionContract.empty() ||
-      selection.realizationAdmissionEvidence.empty() ||
-      selection.realizationAdmissionDispatchPolicy.empty())
-    return makeRVVTargetRouteError(
-        llvm::Twine(contract.consumerLabel) +
-        " requires provider-owned packed-i4 realization admission proof "
-        "before artifact export");
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 realization admission contract",
-          selection.realizationAdmissionContract,
-          "rvv-low-precision-selected-body-realization-admission.v1"))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 realization admission decision",
-          selection.realizationAdmissionDecision,
-          plugin::rvv::stringifyRVVLowPrecisionRealizationAdmissionDecision(
-              plugin::rvv::RVVLowPrecisionRealizationAdmissionDecision::
-                  Realize)))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 realization admission evidence",
-          selection.realizationAdmissionEvidence,
-          selection.remediationMeasurementEvidenceID))
-    return error;
-  const llvm::StringRef expectedAdmissionDispatchPolicy =
-      llvm::StringRef(selection.dispatchPreference) == "performance-preferred"
-          ? llvm::StringRef("performance-preferred")
-          : llvm::StringRef("correctness-fallback");
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel,
-          "packed-i4 realization admission dispatch policy",
-          selection.realizationAdmissionDispatchPolicy,
-          expectedAdmissionDispatchPolicy))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel,
-          "packed-i4 realization admission schedule decision contract",
-          selection.realizationAdmissionScheduleDecisionContract,
-          selection.scheduleDecisionContract))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel,
-          "packed-i4 realization admission schedule decision",
-          selection.realizationAdmissionScheduleDecision,
-          selection.scheduleDecision))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel,
-          "packed-i4 realization admission schedule decision reason",
-          selection.realizationAdmissionScheduleDecisionReason,
-          selection.scheduleDecisionReason))
-    return error;
   if (llvm::Error error = requireRVVWideningDotContractIntField(
           contract.consumerLabel, "packed-i4 realized unroll factor",
           selection.realizedUnrollFactor,
@@ -4047,56 +3995,6 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 provider-supported mirror",
           selection.providerSupportedMirror, contract.providerSupportedMirror))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation plan contract",
-          selection.remediationPlanContract,
-          plugin::rvv::
-              kRVVLowPrecisionResourcePackedI4RemediationPlanContract))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation plan",
-          selection.remediationPlan,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationPlan))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation statement strategy",
-          selection.remediationStatementStrategy,
-          plugin::rvv::
-              kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation vector budget",
-          selection.remediationVectorBudget,
-          plugin::rvv::
-              kRVVLowPrecisionResourcePackedI4RemediationVectorBudget))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation schedule contract",
-          selection.remediationScheduleContract,
-          plugin::rvv::
-              kRVVLowPrecisionResourcePackedI4RemediationScheduleContract))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation unpack plan",
-          selection.remediationUnpackPlan,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation product plan",
-          selection.remediationProductPlan,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationProductPlan))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation reduction plan",
-          selection.remediationReductionPlan,
-          plugin::rvv::
-              kRVVLowPrecisionResourcePackedI4RemediationReductionPlan))
-    return error;
-  if (llvm::Error error = requireRVVWideningDotContractStringField(
-          contract.consumerLabel, "packed-i4 remediation VL plan",
-          selection.remediationVLPlan,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationVLPlan))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 schedule decision contract",
@@ -4188,6 +4086,65 @@ llvm::Error validateRVVPackedI4MeasurementDispositionEvidenceMirrors(
               getRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceIDForCandidate(
                   selection.selectedCandidateID)))
     return error;
+  if (selection.realizationAdmissionContract.empty() ||
+      selection.realizationAdmissionEvidence.empty() ||
+      selection.realizationAdmissionDispatchPolicy.empty())
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned packed-i4 measurement-disposition "
+        "realization admission proof before artifact export");
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition realization admission contract",
+          selection.realizationAdmissionContract,
+          "rvv-low-precision-selected-body-realization-admission.v1"))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition realization admission decision",
+          selection.realizationAdmissionDecision,
+          plugin::rvv::stringifyRVVLowPrecisionRealizationAdmissionDecision(
+              plugin::rvv::RVVLowPrecisionRealizationAdmissionDecision::
+                  Realize)))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition realization admission evidence",
+          selection.realizationAdmissionEvidence,
+          selection.remediationMeasurementEvidenceID))
+    return error;
+  const llvm::StringRef expectedAdmissionDispatchPolicy =
+      llvm::StringRef(selection.dispatchPreference) == "performance-preferred"
+          ? llvm::StringRef("performance-preferred")
+          : llvm::StringRef("correctness-fallback");
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition realization admission dispatch "
+          "policy",
+          selection.realizationAdmissionDispatchPolicy,
+          expectedAdmissionDispatchPolicy))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition realization admission schedule "
+          "decision contract",
+          selection.realizationAdmissionScheduleDecisionContract,
+          selection.scheduleDecisionContract))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition realization admission schedule "
+          "decision",
+          selection.realizationAdmissionScheduleDecision,
+          selection.scheduleDecision))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition realization admission schedule "
+          "decision reason",
+          selection.realizationAdmissionScheduleDecisionReason,
+          selection.scheduleDecisionReason))
+    return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "packed-i4 measurement-disposition remediation decision",
@@ -4211,6 +4168,65 @@ llvm::Error validateRVVPackedI4MeasurementDispositionEvidenceMirrors(
           "packed-i4 measurement-disposition remediation blocker",
           selection.remediationBlocker,
           plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationBlocker))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition remediation plan contract",
+          selection.remediationPlanContract,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationPlanContract))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition remediation plan",
+          selection.remediationPlan,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationPlan))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition remediation statement strategy",
+          selection.remediationStatementStrategy,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition remediation vector budget",
+          selection.remediationVectorBudget,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationVectorBudget))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition remediation schedule contract",
+          selection.remediationScheduleContract,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationScheduleContract))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition remediation unpack plan",
+          selection.remediationUnpackPlan,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition remediation product plan",
+          selection.remediationProductPlan,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationProductPlan))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition remediation reduction plan",
+          selection.remediationReductionPlan,
+          plugin::rvv::
+              kRVVLowPrecisionResourcePackedI4RemediationReductionPlan))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "packed-i4 measurement-disposition remediation VL plan",
+          selection.remediationVLPlan,
+          plugin::rvv::kRVVLowPrecisionResourcePackedI4RemediationVLPlan))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
@@ -6518,50 +6534,6 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
             "tcrv_rvv.low_precision_resource.realization_decision",
             selection.realizationDecision, "realization decision"))
       return error;
-    if (!selection.realizationAdmissionContract.empty()) {
-      if (llvm::Error error = requireResourceMirror(
-              "tcrv_rvv.low_precision_resource."
-              "realization_admission_contract",
-              selection.realizationAdmissionContract,
-              "realization admission contract"))
-        return error;
-      if (llvm::Error error = requireResourceMirror(
-              "tcrv_rvv.low_precision_resource."
-              "realization_admission_decision",
-              selection.realizationAdmissionDecision,
-              "realization admission decision"))
-        return error;
-      if (llvm::Error error = requireResourceMirror(
-              "tcrv_rvv.low_precision_resource."
-              "realization_admission_evidence",
-              selection.realizationAdmissionEvidence,
-              "realization admission evidence"))
-        return error;
-      if (llvm::Error error = requireResourceMirror(
-              "tcrv_rvv.low_precision_resource."
-              "realization_admission_dispatch_policy",
-              selection.realizationAdmissionDispatchPolicy,
-              "realization admission dispatch policy"))
-        return error;
-      if (llvm::Error error = requireResourceMirror(
-              "tcrv_rvv.low_precision_resource."
-              "realization_admission_schedule_decision_contract",
-              selection.realizationAdmissionScheduleDecisionContract,
-              "realization admission schedule decision contract"))
-        return error;
-      if (llvm::Error error = requireResourceMirror(
-              "tcrv_rvv.low_precision_resource."
-              "realization_admission_schedule_decision",
-              selection.realizationAdmissionScheduleDecision,
-              "realization admission schedule decision"))
-        return error;
-      if (llvm::Error error = requireResourceMirror(
-              "tcrv_rvv.low_precision_resource."
-              "realization_admission_schedule_decision_reason",
-              selection.realizationAdmissionScheduleDecisionReason,
-              "realization admission schedule decision reason"))
-        return error;
-    }
     if (llvm::Error error = requireResourceMirror(
             "tcrv_rvv.low_precision_resource.realized_unroll_factor",
             llvm::Twine(selection.realizedUnrollFactor).str(),
@@ -6673,6 +6645,7 @@ bool hasRVVLowPrecisionMeasurementDispositionEvidenceFacts(
          !selection.performanceAdmissionDecision.empty() ||
          !selection.beyondLocalRepairAdmissionContract.empty() ||
          !selection.performanceMaturity.empty() ||
+         !selection.realizationAdmissionContract.empty() ||
          !selection.remediationHandoffContract.empty();
 }
 
@@ -6696,6 +6669,15 @@ llvm::Error validateRVVLowPrecisionMeasurementDispositionEvidenceMirrors(
       "tcrv_rvv.low_precision_resource.performance_baseline",
       "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
       "tcrv_rvv.low_precision_resource.performance_action",
+      "tcrv_rvv.low_precision_resource.realization_admission_contract",
+      "tcrv_rvv.low_precision_resource.realization_admission_decision",
+      "tcrv_rvv.low_precision_resource.realization_admission_evidence",
+      "tcrv_rvv.low_precision_resource.realization_admission_dispatch_policy",
+      "tcrv_rvv.low_precision_resource."
+      "realization_admission_schedule_decision_contract",
+      "tcrv_rvv.low_precision_resource.realization_admission_schedule_decision",
+      "tcrv_rvv.low_precision_resource."
+      "realization_admission_schedule_decision_reason",
       "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
       "tcrv_rvv.low_precision_resource.remediation_diagnosis",
       "tcrv_rvv.low_precision_resource.remediation_measurement_evidence",
@@ -6757,6 +6739,45 @@ llvm::Error validateRVVLowPrecisionMeasurementDispositionEvidenceMirrors(
   if (llvm::Error error = requireMeasurementDispositionMirror(
           "tcrv_rvv.low_precision_resource.performance_action",
           selection.performanceAction, "performance action"))
+    return error;
+  if (llvm::Error error = requireMeasurementDispositionMirror(
+          "tcrv_rvv.low_precision_resource.realization_admission_contract",
+          selection.realizationAdmissionContract,
+          "realization admission contract"))
+    return error;
+  if (llvm::Error error = requireMeasurementDispositionMirror(
+          "tcrv_rvv.low_precision_resource.realization_admission_decision",
+          selection.realizationAdmissionDecision,
+          "realization admission decision"))
+    return error;
+  if (llvm::Error error = requireMeasurementDispositionMirror(
+          "tcrv_rvv.low_precision_resource.realization_admission_evidence",
+          selection.realizationAdmissionEvidence,
+          "realization admission evidence"))
+    return error;
+  if (llvm::Error error = requireMeasurementDispositionMirror(
+          "tcrv_rvv.low_precision_resource."
+          "realization_admission_dispatch_policy",
+          selection.realizationAdmissionDispatchPolicy,
+          "realization admission dispatch policy"))
+    return error;
+  if (llvm::Error error = requireMeasurementDispositionMirror(
+          "tcrv_rvv.low_precision_resource."
+          "realization_admission_schedule_decision_contract",
+          selection.realizationAdmissionScheduleDecisionContract,
+          "realization admission schedule decision contract"))
+    return error;
+  if (llvm::Error error = requireMeasurementDispositionMirror(
+          "tcrv_rvv.low_precision_resource."
+          "realization_admission_schedule_decision",
+          selection.realizationAdmissionScheduleDecision,
+          "realization admission schedule decision"))
+    return error;
+  if (llvm::Error error = requireMeasurementDispositionMirror(
+          "tcrv_rvv.low_precision_resource."
+          "realization_admission_schedule_decision_reason",
+          selection.realizationAdmissionScheduleDecisionReason,
+          "realization admission schedule decision reason"))
     return error;
   if (llvm::Error error = requireMeasurementDispositionMirror(
             "tcrv_rvv.low_precision_resource.remediation_handoff_contract",

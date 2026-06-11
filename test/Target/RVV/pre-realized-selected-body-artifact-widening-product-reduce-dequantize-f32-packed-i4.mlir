@@ -296,19 +296,19 @@ module {
 
 // STALE-PACKED-FROM-PHASE: requires from_phase 'load-product-reduce'
 
-// STALE-PACKED-HANDOFF-REMEDIATION: requires packed-i4 remediation attribute 'remediation_statement_strategy' to match provider-owned resource fact 'low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue'
+// STALE-PACKED-HANDOFF-REMEDIATION: requires packed-i4 measurement-disposition remediation planning fact 'remediation_statement_strategy' to match policy/evidence fact 'low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue'
 // STALE-PACKED-HANDOFF-REMEDIATION-SAME: metadata-only-packed-i4-unpack-plan
 
-// STALE-PACKED-HANDOFF-REMEDIATION-PRODUCT-PLAN: requires packed-i4 remediation attribute 'remediation_product_plan' to match provider-owned resource fact 'low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1'
+// STALE-PACKED-HANDOFF-REMEDIATION-PRODUCT-PLAN: requires packed-i4 measurement-disposition remediation planning fact 'remediation_product_plan' to match policy/evidence fact 'low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1'
 // STALE-PACKED-HANDOFF-REMEDIATION-PRODUCT-PLAN-SAME: metadata-only-packed-i4-product-plan
 
 // STALE-PACKED-HANDOFF-UNPACK-PLAN: requires tcrv_rvv.gearbox_cross_region_handoff packed-i4 load/unpack fact 'packed_unpack_plan' to match provider-owned resource fact 'low-high-i4-sign-extend-to-i8mf4'
 // STALE-PACKED-HANDOFF-UNPACK-PLAN-SAME: metadata-only-packed-i4-unpack-plan
 
-// STALE-PACKED-HANDOFF-SCHEDULE-DECISION: requires packed-i4 remediation attribute 'schedule_decision' to match provider-owned resource fact 'select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1'
+// STALE-PACKED-HANDOFF-SCHEDULE-DECISION: requires packed-i4 resource schedule fact 'schedule_decision' to match provider-owned resource fact 'select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1'
 // STALE-PACKED-HANDOFF-SCHEDULE-DECISION-SAME: metadata-only-packed-i4-schedule-decision
 
-// MISSING-PACKED-HANDOFF-REMEDIATION: requires packed-i4 remediation attribute 'remediation_vector_budget' on the selected resource handoff
+// MISSING-PACKED-HANDOFF-REMEDIATION: requires packed-i4 measurement-disposition remediation planning fact 'remediation_vector_budget' before evidence mirror validation
 
 // STALE-ARTIFACT-REALIZATION-DECISION: low_precision_resource.realization_decision provenance must mirror provider-selected low-precision direct-contraction resource realization decision 'consume-low-precision-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-budget-5of32.v1'
 // STALE-ARTIFACT-REALIZATION-DECISION-SAME: artifact-name-derived-resource-decision
@@ -327,7 +327,7 @@ module {
 
 // STALE-ARTIFACT-SCHEDULE-DECISION: low_precision_resource.schedule_decision provenance must mirror provider-selected low-precision direct-contraction resource schedule decision 'select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1'
 // STALE-ARTIFACT-SCHEDULE-DECISION-SAME: metadata-only-packed-i4-schedule-decision
-// STALE-ARTIFACT-ADMISSION-SCHEDULE-DECISION: low_precision_resource.realization_admission_schedule_decision provenance must mirror provider-selected low-precision direct-contraction resource realization admission schedule decision 'select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1'
+// STALE-ARTIFACT-ADMISSION-SCHEDULE-DECISION: low_precision_resource.realization_admission_schedule_decision provenance must mirror provider-selected low-precision measurement-disposition evidence/admission realization admission schedule decision 'select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1'
 // STALE-ARTIFACT-ADMISSION-SCHEDULE-DECISION-SAME: metadata-only-packed-i4-admission-schedule-decision
 
 // STALE-ARTIFACT-PERFORMANCE-SELECTION: low_precision_resource.performance_selection_eligible provenance must mirror provider-selected low-precision measurement-disposition evidence/admission performance selection eligibility 'false'

@@ -4398,94 +4398,117 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
            << "requires peak_live_vector_groups to fit inside "
               "vector_register_budget";
 
-  auto requireOptionalPackedI4StringFact =
+  auto requireOptionalPackedI4ResourceCostStringFact =
       [&](llvm::StringRef attrName, llvm::StringRef label,
           llvm::StringRef expected) -> mlir::LogicalResult {
     auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
     if (!isPackedI4Resource) {
       if (attr)
         return emitOpError()
-               << "requires packed-i4 resource-cost attribute '" << attrName
+               << "requires packed-i4 resource-cost fact '" << attrName
                << "' to be absent for unpacked-byte resource candidates";
       return mlir::success();
     }
     if (!attr)
       return emitOpError()
-             << "requires packed-i4 resource-cost attribute '" << attrName
-             << "' on the selected resource handoff";
+             << "requires packed-i4 resource-cost fact '" << attrName
+             << "' before resource-cost validation";
     if (attr.getValue() != expected)
       return emitOpError()
-             << "requires packed-i4 resource-cost attribute '" << attrName
+             << "requires packed-i4 resource-cost fact '" << attrName
              << "' to match provider-owned " << label << " '" << expected
              << "' but found '" << attr.getValue() << "'";
     return verifyBoundedMetadata(op, attrName, attr.getValue());
   };
-  auto requireOptionalPackedI4IntegerFact =
+  auto requireOptionalPackedI4ResourceCostIntegerFact =
       [&](llvm::StringRef attrName, llvm::StringRef label,
           std::int64_t expected) -> mlir::LogicalResult {
     auto attr = op->getAttrOfType<mlir::IntegerAttr>(attrName);
     if (!isPackedI4Resource) {
       if (attr)
         return emitOpError()
-               << "requires packed-i4 resource-cost attribute '" << attrName
+               << "requires packed-i4 resource-cost fact '" << attrName
                << "' to be absent for unpacked-byte resource candidates";
       return mlir::success();
     }
     if (!attr)
       return emitOpError()
-             << "requires packed-i4 resource-cost attribute '" << attrName
-             << "' on the selected resource handoff";
+             << "requires packed-i4 resource-cost fact '" << attrName
+             << "' before resource-cost validation";
     if (attr.getInt() != expected)
       return emitOpError()
-             << "requires packed-i4 resource-cost attribute '" << attrName
+             << "requires packed-i4 resource-cost fact '" << attrName
              << "' to match provider-owned " << label << " " << expected
              << " but found " << attr.getInt();
     return mlir::success();
   };
-  if (mlir::failed(requireOptionalPackedI4StringFact(
+  if (mlir::failed(requireOptionalPackedI4ResourceCostStringFact(
           kResourceCostContractAttrName, "resource cost contract",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4CostContract)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalPackedI4StringFact(
+  if (mlir::failed(requireOptionalPackedI4ResourceCostStringFact(
           kResourceCostModelAttrName, "resource cost model",
           tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePackedI4CostModel)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalPackedI4IntegerFact(
+  if (mlir::failed(requireOptionalPackedI4ResourceCostIntegerFact(
           kResourceCostLoopBodyStepsAttrName, "resource cost loop-body steps",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4CostLoopBodySteps)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalPackedI4StringFact(
+  if (mlir::failed(requireOptionalPackedI4ResourceCostStringFact(
           kResourceCostBlockerAttrName, "resource cost blocker",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4CostBlocker)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalPackedI4StringFact(
+  auto requireOptionalMeasurementDispositionAdmissionFact =
+      [&](llvm::StringRef attrName, llvm::StringRef label,
+          llvm::StringRef expected) -> mlir::LogicalResult {
+    auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return emitOpError()
+               << "requires packed-i4 measurement-disposition admission fact '"
+               << attrName
+               << "' to be absent for unpacked-byte resource candidates";
+      return mlir::success();
+    }
+    if (!attr)
+      return emitOpError()
+             << "requires packed-i4 measurement-disposition admission fact '"
+             << attrName << "' before evidence mirror validation";
+    if (attr.getValue() != expected)
+      return emitOpError()
+             << "requires packed-i4 measurement-disposition admission fact '"
+             << attrName << "' to match policy/evidence " << label << " '"
+             << expected << "' but found '" << attr.getValue() << "'";
+    return verifyBoundedMetadata(op, attrName, attr.getValue());
+  };
+  if (mlir::failed(requireOptionalMeasurementDispositionAdmissionFact(
           kPerformanceAdmissionDecisionAttrName,
           "performance admission decision",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalPackedI4StringFact(
+  if (mlir::failed(requireOptionalMeasurementDispositionAdmissionFact(
           kBeyondLocalRepairAdmissionContractAttrName,
           "beyond-local repair admission contract",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalPackedI4StringFact(
+  if (mlir::failed(requireOptionalMeasurementDispositionAdmissionFact(
           kBeyondLocalRepairAdmissionDecisionAttrName,
           "beyond-local repair admission decision",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalPackedI4StringFact(
+  if (mlir::failed(requireOptionalMeasurementDispositionAdmissionFact(
           kBeyondLocalRepairAdmissionBlockerAttrName,
           "beyond-local repair admission blocker",
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalPackedI4StringFact(
+  if (mlir::failed(requireOptionalMeasurementDispositionAdmissionFact(
           kBeyondLocalRepairAdmissionReopenRequirementAttrName,
           "beyond-local repair admission reopen requirement",
           tianchenrv::plugin::rvv::
@@ -4584,18 +4607,22 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     if (!isPackedI4Resource) {
       if (attr)
         return emitOpError()
-               << "requires packed-i4 remediation attribute '" << attrName
+               << "requires packed-i4 measurement-disposition remediation "
+                  "planning fact '"
+               << attrName
                << "' to be absent for unpacked-byte resource candidates";
       return mlir::success();
     }
     if (!attr)
       return emitOpError()
-             << "requires packed-i4 remediation attribute '" << attrName
-             << "' on the selected resource handoff";
+             << "requires packed-i4 measurement-disposition remediation "
+                "planning fact '"
+             << attrName << "' before evidence mirror validation";
     if (attr.getValue() != expected)
       return emitOpError()
-             << "requires packed-i4 remediation attribute '" << attrName
-             << "' to match provider-owned resource fact '" << expected
+             << "requires packed-i4 measurement-disposition remediation "
+                "planning fact '"
+             << attrName << "' to match policy/evidence fact '" << expected
              << "' but found '" << attr.getValue() << "'";
     return verifyBoundedMetadata(op, attrName, attr.getValue());
   };
@@ -4644,17 +4671,39 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4RemediationVLPlan)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalRemediationFact(
+  auto requireOptionalResourceScheduleFact =
+      [&](llvm::StringRef attrName, llvm::StringRef expected)
+      -> mlir::LogicalResult {
+    auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return emitOpError()
+               << "requires packed-i4 resource schedule fact '" << attrName
+               << "' to be absent for unpacked-byte resource candidates";
+      return mlir::success();
+    }
+    if (!attr)
+      return emitOpError()
+             << "requires packed-i4 resource schedule fact '" << attrName
+             << "' before packed-i4 resource validation";
+    if (attr.getValue() != expected)
+      return emitOpError()
+             << "requires packed-i4 resource schedule fact '" << attrName
+             << "' to match provider-owned resource fact '" << expected
+             << "' but found '" << attr.getValue() << "'";
+    return verifyBoundedMetadata(op, attrName, attr.getValue());
+  };
+  if (mlir::failed(requireOptionalResourceScheduleFact(
           kScheduleDecisionContractAttrName,
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalRemediationFact(
+  if (mlir::failed(requireOptionalResourceScheduleFact(
           kScheduleDecisionAttrName,
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4ScheduleDecision)))
     return mlir::failure();
-  if (mlir::failed(requireOptionalRemediationFact(
+  if (mlir::failed(requireOptionalResourceScheduleFact(
           kScheduleDecisionReasonAttrName,
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason)))

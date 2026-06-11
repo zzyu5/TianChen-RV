@@ -174,3 +174,32 @@ the start of this round because performance/admission/remediation evidence is
 still grouped with resource-fact validation in the target packed-i4 path and in
 Gearbox handoff diagnostics. This round completes a bounded cleanup of that
 boundary without claiming new runtime, correctness, or performance evidence.
+
+## Status After This Round
+
+The packed-i4 measurement-disposition policy-boundary cleanup slice is complete.
+Gearbox handoff diagnostics now distinguish measurement-disposition remediation
+planning facts from stable resource schedule and resource-cost facts. Provider
+route planning validates load/unpack, realization, schedule, and resource-cost
+facts through resource helpers, then validates realization-admission,
+remediation, performance feedback, admission, maturity, dispatch preference,
+and same-target evidence only through an explicit
+measurement-disposition policy/evidence boundary.
+
+Target artifact validation now keeps packed-i4 provider resource facts separate
+from measurement-disposition evidence/admission mirrors. Remediation planning
+and realization-admission mirrors moved out of the packed-i4 resource provider
+fact helper and out of the generic resource-metadata mirror helper; stale or
+metadata-only copies still fail closed under the measurement-disposition
+evidence helper. The RVV plugin spec records that remediation planning facts are
+policy/evidence facts, not resource schedule authority.
+
+The `tcrv_rvv.gearbox_cross_region_handoff` verifier uses the same boundary:
+resource-cost fields fail as resource-cost facts, `schedule_decision*` fields
+fail as resource schedule facts, and remediation/admission fields fail as
+measurement-disposition policy/evidence facts.
+
+The macro campaign remains in progress. The next continuation point is any
+adjacent low-precision primitive-surface gap or a future
+measurement-disposition slice with fresh source-backed same-target RVV evidence
+before any performance-preferred or measured-win claim.

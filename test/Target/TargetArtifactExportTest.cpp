@@ -15041,7 +15041,7 @@ bool expectRVVTargetArtifactExporterShape(
           stalePackedI4RemediationStatementStrategy,
           "packed-i4 product-reduction registry rejects stale remediation "
           "statement strategy",
-          {"packed-i4 remediation statement strategy",
+          {"packed-i4 measurement-disposition remediation statement strategy",
            "low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue",
            "metadata-only-packed-i4-unpack-plan"}))
     return false;
@@ -15069,7 +15069,7 @@ bool expectRVVTargetArtifactExporterShape(
           stalePackedI4RemediationProductPlan,
           "packed-i4 product-reduction registry rejects stale remediation "
           "product plan",
-          {"packed-i4 remediation product plan",
+          {"packed-i4 measurement-disposition remediation product plan",
            "low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1",
            "metadata-only-packed-i4-product-plan"}))
     return false;
@@ -15083,7 +15083,7 @@ bool expectRVVTargetArtifactExporterShape(
           packedI4ProductDequantRoute, stalePackedI4ScheduleDecision,
           "packed-i4 product-reduction registry rejects stale resource-aware "
           "schedule decision proof",
-          {"realization admission schedule decision",
+          {"packed-i4 schedule decision",
            "select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-"
            "u1-two-region-budget-5of32.v1",
            "metadata-only-packed-i4-schedule-decision"}))
@@ -15099,7 +15099,8 @@ bool expectRVVTargetArtifactExporterShape(
           packedI4ProductDequantRoute, stalePackedI4AdmissionDispatchProof,
           "packed-i4 product-reduction registry rejects stale realization "
           "admission dispatch proof",
-          {"realization admission dispatch policy", "correctness-fallback",
+          {"measurement-disposition realization admission dispatch policy",
+           "correctness-fallback",
            "metadata-only-packed-i4-admission-dispatch"}))
     return false;
 

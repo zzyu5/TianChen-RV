@@ -73,6 +73,74 @@ measurement-disposition slice backed by fresh same-target RVV evidence.
 
 Final coherent commit is created after this journal entry.
 
+## Session 603: Stage2 RVV packed-i4 measurement-disposition policy boundary cleanup
+
+**Date**: 2026-06-12
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the packed-i4
+measurement-disposition policy-boundary cleanup slice. This round separated
+stable packed-i4 compiler/resource facts from realization-admission,
+remediation, admission, maturity, dispatch-preference, and same-target evidence
+facts in Gearbox diagnostics, provider planning, target artifact validation,
+focused tests, and the RVV plugin spec.
+
+### Main Changes
+
+- Kept packed-i4 load/unpack, realization, schedule, resource-cost, runtime
+  ABI, and target facts in resource validation helpers.
+- Moved remediation planning and realization-admission checks into explicitly
+  named measurement-disposition policy/evidence helpers.
+- Updated target artifact validation so resource provider mirrors no longer
+  accept or validate remediation and realization-admission mirrors as compiler
+  facts.
+- Split the `tcrv_rvv.gearbox_cross_region_handoff` verifier wording so
+  resource-cost, resource schedule, measurement-disposition remediation, and
+  measurement-disposition admission fields fail under their own labels.
+- Updated stale evidence/admission diagnostics in C++ and FileCheck coverage.
+- Recorded the policy/evidence-only ownership rule in the RVV plugin spec and
+  active macro PRD.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-add|explicit-selected-body-artifact-widening-product-reduce-add\\.mlir|explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8|rvv-generated-bundle-same-target-measure-gate4-dry-run'`
+- [OK] Bounded scans over touched production, spec, fixtures, script, and gate4
+  evidence surfaces for Gate/admission/result/support/no-win/remediation wording
+  that could imply compiler authority.
+- [OK] `git diff --check`
+
+### Self-Repair
+
+- The first root-level lit invocation did not discover the built test suite, so
+  the focused lit command was rerun from `build/test`.
+- A stale schedule-decision assertion was initially moved under the evidence
+  label too broadly; it was restored to fail first as a stable packed-i4
+  resource schedule fact, while admission/remediation assertions now fail under
+  measurement-disposition labels.
+- A bounded scan exposed that the cross-region handoff verifier still labeled
+  remediation and admission fields as resource facts. The verifier now splits
+  resource-cost, resource schedule, remediation planning, and admission
+  diagnostics, and the affected packed-i4 lit fixture passes with the new
+  wording.
+
+### Status
+
+[OPEN MACRO TASK] The packed-i4 measurement-disposition policy-boundary cleanup
+slice is complete. The macro task remains active for adjacent low-precision
+primitive-surface cleanup or future measurement-disposition work with fresh
+source-backed same-target RVV evidence before any measured-win or
+performance-preferred admission claim.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 592: Packed-i4 dequant/dequant-clamp resource/evidence boundary cleanup
 
 **Date**: 2026-06-11
