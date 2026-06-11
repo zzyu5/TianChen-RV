@@ -76,3 +76,10 @@
 {"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Recorded the Gate 4 root-ingestion closure/reopen mirror contract and stale-root test requirements."}
 {"file":".trellis/tasks/06-11-stage2-rvv-production-gearbox-low-precision-contraction/task.json","reason":"Updated active macro task notes with the completed Gate 4 root-admission slice and remaining open campaign state."}
 {"file":".trellis/workspace/codex/journal-30.md","reason":"Recorded this Gate 4 evidence-root admission slice, checks, open macro-task status, and continuation point."}
+{"file":".trellis/tasks/06-11-stage2-rvv-production-gearbox-low-precision-contraction/prd.md","reason":"Extended the active macro PRD from Gate 4 root admission to the selected-dispatch policy-output mirror admission slice."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp","reason":"Emitted provider-owned selected_dispatch_preference as part of low-precision selected-dispatch policy-output route metadata only after policy output exists."}
+{"file":"lib/Target/RVV/RVVTargetSupportBundle.cpp","reason":"Added selected_dispatch_preference to target support-bundle metadata mapping so generated target artifacts can mirror the provider-owned policy-output field."}
+{"file":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","reason":"Required target artifact validation to reject metadata-only or stale selected_dispatch_preference policy-output mirrors before artifact acceptance."}
+{"file":"test/Target/TargetArtifactExportTest.cpp","reason":"Added C++ positive, stale, and metadata-only target validation coverage for selected_dispatch_preference policy-output mirrors."}
+{"file":"test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir","reason":"Added focused plan/header FileCheck coverage and stale selected_dispatch_preference target-export rejection for packed-i4 no-win policy output."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Recorded selected_dispatch_preference as an explicit Gate 4 stale policy-output mirror validation and test requirement."}

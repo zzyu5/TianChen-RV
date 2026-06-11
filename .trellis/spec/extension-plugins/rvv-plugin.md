@@ -7768,7 +7768,8 @@ performance-preferred
   validation rejects it as a metadata-only selected-dispatch policy-output
   mirror before export.
 - A selected-dispatch policy-output mirror disagrees with the accepted policy
-  decision, such as `dispatch_policy_path = performance-preferred` or
+  decision, such as `dispatch_policy_path = performance-preferred`,
+  `selected_dispatch_preference = performance-preferred`, or
   `performance_win_claim_allowed = true` while provider facts select
   correctness fallback/no-win -> provider or target validation fails before the
   artifact/header can claim performance-preferred dispatch.
@@ -7837,9 +7838,9 @@ performance-preferred
   exactly.
 - Target artifact tests must assert selected-dispatch policy-output mirrors are
   exported only after provider-owned policy-output facts exist, and that stale
-  `dispatch_policy_path`, `performance_win_claim_allowed`, route-support,
-  correctness-execution, performance-selection, and path-selection mirrors fail
-  closed.
+  `dispatch_policy_path`, `selected_dispatch_preference`,
+  `performance_win_claim_allowed`, route-support, correctness-execution,
+  performance-selection, and path-selection mirrors fail closed.
 - Script self-tests and dry-run lit coverage must keep evidence-input reporting
   mirror-only and must not allow no-win/regression/not-measured evidence to
   authorize performance dispatch.

@@ -1,5 +1,63 @@
 > Continuation from `journal-29.md` (archived at more than 2000 lines)
 
+## Session 595: Stage2 RVV Gearbox Gate 4 policy-output mirror admission
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV production-kernel Gearbox resource-aware low-precision contraction campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed a bounded Gate 4 selected-dispatch
+/ target artifact policy-output mirror admission slice. The production gap was
+that `selected_dispatch_preference` was specified as a provider-owned
+policy-output field, but was not yet emitted and target-validated as its own
+mirror alongside the existing low-precision `dispatch_preference` mirror.
+
+### Main Changes
+
+- Extended the active macro PRD from the completed Gate 4 root-admission slice
+  into the current policy-output mirror admission slice.
+- Emitted `tcrv_rvv.low_precision_resource.selected_dispatch_preference` from
+  RVV provider-owned route metadata only when
+  `hasSelectedDispatchPolicyOutput` is true.
+- Added the same key to the RVV target support-bundle metadata mapping.
+- Required target artifact validation to reject metadata-only or stale
+  `selected_dispatch_preference` mirrors before artifact acceptance.
+- Added focused C++ target validation coverage for positive source-backed
+  no-win policy output, stale `performance-preferred` preference promotion, and
+  metadata-only selected-dispatch preference mirrors.
+- Added lit/FileCheck plan/header checks and stale target-export rejection for
+  the packed-i4 dequant representative.
+- Updated the RVV plugin code-spec so future Gate 4 target tests must cover
+  stale `selected_dispatch_preference` policy-output mirrors explicitly.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-generated-bundle-same-target-measure-gate4-dry-run|pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4'`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-production-gearbox-low-precision-contraction`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded old-authority scan over production/test diff lines returned no
+  matches; docs-inclusive scan returned only negative PRD/spec boundary text.
+
+### Status
+
+[OPEN MACRO TASK] Gate 4 selected-dispatch policy-output mirror admission is
+complete for the `selected_dispatch_preference` target mirror slice. The
+accepted packed-i4 evidence remains no-win, so dispatch stays
+`correctness-fallback` / `not-performance-preferred`. The macro task remains
+active for the rest of Gate 4: full same-target measured-win/no-win provider,
+selected-dispatch, target mirror, and fallback/dispatch behavior audit.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 594: Stage2 RVV Gearbox Gate 4 evidence-root admission closure
 
 **Date**: 2026-06-11

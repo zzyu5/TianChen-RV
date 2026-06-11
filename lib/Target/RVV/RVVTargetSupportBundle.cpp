@@ -1198,6 +1198,9 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
       {"low_precision_resource.dispatch_policy_path",
        "tcrv_rvv.low_precision_resource.dispatch_policy_path", "",
        /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.selected_dispatch_preference",
+       "tcrv_rvv.low_precision_resource.selected_dispatch_preference", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.performance_preference_denial_reason",
        "tcrv_rvv.low_precision_resource."
        "performance_preference_denial_reason",

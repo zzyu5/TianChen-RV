@@ -22,6 +22,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.dispatch_preference", value = "not-performance-preferred"/s//tcrv_rvv.low_precision_resource.dispatch_preference", value = "performance-preferred"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-DISPATCH-PREFERENCE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequantize/s//selected_dispatch_case_mirror:@metadata_only_dispatch_case/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-DISPATCH-CASE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback/s//selected_dispatch_fallback_mirror:@metadata_only_scalar_fallback/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-DISPATCH-FALLBACK
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.selected_dispatch_preference", value = "not-performance-preferred"/s//tcrv_rvv.low_precision_resource.selected_dispatch_preference", value = "performance-preferred"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-POLICY-DISPATCH-PREFERENCE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_win_claim_allowed", value = "false"/s//tcrv_rvv.low_precision_resource.performance_win_claim_allowed", value = "true"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-POLICY-WIN-CLAIM
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-rvv-emitc-to-cpp | FileCheck %s --check-prefix=CPP
@@ -148,6 +149,7 @@ module {
 // PLAN: {key = "tcrv_rvv.selected_dispatch_fallback_mirror", value = "selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-fallback-envelope"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.selected_dispatch_policy_contract", value = "rvv-low-precision-packed-i4-dispatch-performance-policy.v1"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.dispatch_policy_path", value = "correctness-fallback"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.selected_dispatch_preference", value = "not-performance-preferred"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.performance_preference_denial_reason", value = "same-target-measurement-no-win-or-regression"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.fallback_reason", value = "same-target-measurement-no-win-or-regression"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.route_support_allowed", value = "true"}
@@ -256,6 +258,7 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_selection_eligible: false
 // HEADER-DAG: tianchenrv.rvv.low_precision_resource.selected_dispatch_policy_contract: rvv-low-precision-packed-i4-dispatch-performance-policy.v1
 // HEADER-DAG: tianchenrv.rvv.low_precision_resource.dispatch_policy_path: correctness-fallback
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.selected_dispatch_preference: not-performance-preferred
 // HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_preference_denial_reason: same-target-measurement-no-win-or-regression
 // HEADER-DAG: tianchenrv.rvv.low_precision_resource.fallback_reason: same-target-measurement-no-win-or-regression
 // HEADER-DAG: tianchenrv.rvv.low_precision_resource.route_support_allowed: true
@@ -349,6 +352,9 @@ module {
 // STALE-ARTIFACT-DISPATCH-FALLBACK: selected_dispatch_fallback_mirror
 // STALE-ARTIFACT-DISPATCH-FALLBACK-SAME: provider-owned selected-dispatch low-precision policy boundary fallback mirror
 // STALE-ARTIFACT-DISPATCH-FALLBACK-SAME: metadata_only_scalar_fallback
+
+// STALE-POLICY-DISPATCH-PREFERENCE: selected_dispatch_preference provenance must mirror provider-owned selected-dispatch preference 'not-performance-preferred'
+// STALE-POLICY-DISPATCH-PREFERENCE-SAME: performance-preferred
 
 // STALE-POLICY-WIN-CLAIM: performance_win_claim_allowed provenance must mirror provider-owned selected-dispatch performance win-claim allowance 'false'
 // STALE-POLICY-WIN-CLAIM-SAME: true

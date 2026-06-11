@@ -42858,6 +42858,9 @@ getRVVSelectedBodyConfigArtifactMetadata(
         {"tcrv_rvv.low_precision_resource.dispatch_policy_path",
          dispatchBoundary.selectedDispatchPolicyPath});
     metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.selected_dispatch_preference",
+         dispatchBoundary.selectedDispatchPreference});
+    metadata.push_back(
         {"tcrv_rvv.low_precision_resource.performance_preference_denial_reason",
          dispatchBoundary.selectedDispatchPerformanceDenialReason});
     metadata.push_back({"tcrv_rvv.low_precision_resource.fallback_reason",

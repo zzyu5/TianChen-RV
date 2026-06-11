@@ -13575,6 +13575,9 @@ bool expectRVVTargetArtifactExporterShape(
       {"tcrv_rvv.low_precision_resource.dispatch_policy_path",
        packedI4TargetDispatchBoundary.selectedDispatchPolicyPath});
   selectedDispatchPackedI4Candidate.artifactMetadata.push_back(
+      {"tcrv_rvv.low_precision_resource.selected_dispatch_preference",
+       packedI4TargetDispatchBoundary.selectedDispatchPreference});
+  selectedDispatchPackedI4Candidate.artifactMetadata.push_back(
       {"tcrv_rvv.low_precision_resource.performance_preference_denial_reason",
        packedI4TargetDispatchBoundary
            .selectedDispatchPerformanceDenialReason});
@@ -13714,6 +13717,29 @@ bool expectRVVTargetArtifactExporterShape(
           {"dispatch_policy_path",
            "provider-owned selected-dispatch policy path",
            "correctness-fallback", "performance-preferred"}))
+    return false;
+
+  TargetArtifactCandidate staleSelectedDispatchPreference =
+      selectedDispatchPackedI4Candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleSelectedDispatchPreference,
+          "tcrv_rvv.low_precision_resource.selected_dispatch_preference",
+          "performance-preferred")) {
+    llvm::errs() << "selected-dispatch packed-i4 target test did not contain "
+                    "selected dispatch preference metadata\n";
+    return false;
+  }
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  RVVRouteValidationContext{staleSelectedDispatchPreference,
+                                            packedI4ProductDequantRoute,
+                                            selectedDispatchPackedI4Description}),
+          "packed-i4 target artifact rejects stale selected-dispatch "
+          "preference mirror",
+          {"selected_dispatch_preference",
+           "provider-owned selected-dispatch preference",
+           "not-performance-preferred", "performance-preferred"}))
     return false;
 
   RVVRouteDescription missingSelectedDispatchPolicyOutput =
@@ -15046,6 +15072,15 @@ bool expectRVVTargetArtifactExporterShape(
           "dispatch policy path",
           {"metadata-only selected-dispatch policy-output mirror",
            "dispatch_policy_path",
+           "provider-owned selected-dispatch policy-output facts"}))
+    return false;
+  if (!expectPackedI4MetadataOnlyClaimFailure(
+          "tcrv_rvv.low_precision_resource.selected_dispatch_preference",
+          "performance-preferred",
+          "packed-i4 product-reduction registry rejects metadata-only "
+          "selected-dispatch preference",
+          {"metadata-only selected-dispatch policy-output mirror",
+           "selected_dispatch_preference",
            "provider-owned selected-dispatch policy-output facts"}))
     return false;
   if (!expectPackedI4MetadataOnlyClaimFailure(

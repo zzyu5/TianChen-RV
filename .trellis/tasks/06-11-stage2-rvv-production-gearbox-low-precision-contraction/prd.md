@@ -295,3 +295,51 @@ admission closure or reopen requirement must fail closed even if the nested
 - The macro task remains active after this slice unless Gate 4 campaign-level
   acceptance is fully satisfied; a committed slice with the task still open is
   valid.
+
+## Status After Gate 4 Root Admission Slice
+
+Gate 4 root-admission closure/reopen validation is complete for the current
+packed-i4 source-backed evidence-root slice. The accepted measurement result
+remains no-win, so dispatch stays `correctness-fallback` /
+`not-performance-preferred`. The macro task remains active for remaining Gate 4
+campaign-level measurement/admission audit and any future measured-win
+admission only after fresh source-backed same-target evidence plus matching
+provider admission facts exist.
+
+## Current Gate 4 Policy-Output Mirror Admission Slice
+
+This round owns the selected-dispatch / target-artifact policy-output mirror
+admission boundary for packed-i4 `widening_product_reduce_dequantize_f32` and
+the sibling `widening_product_reduce_dequant_clamp_f32` audit path. The goal is
+to ensure the source-backed same-target no-win policy decision is carried
+through provider-owned selected-dispatch policy-output fields and target
+artifact mirrors without allowing artifact metadata, route IDs, helper names,
+or Common EmitC logic to choose dispatch preference.
+
+The bounded production gap is the selected-dispatch preference mirror:
+`selected_dispatch_preference` is part of the provider-owned policy-output
+contract and must be emitted and validated as its own exact mirror, in addition
+to the existing low-precision resource `dispatch_preference` mirror. It must
+come from the accepted `RVVLowPrecisionPerformancePolicyDecision`, not from
+target metadata or artifact names.
+
+## Acceptance Criteria For Gate 4 Policy-Output Mirror Admission Slice
+
+- Production source movement happens in RVV provider-owned route metadata,
+  target support-bundle mapping, and target artifact validation; Common EmitC
+  still only carries provider-built mirrors.
+- `selected_dispatch_preference` is emitted into target metadata only when
+  `hasSelectedDispatchPolicyOutput` is true, and it mirrors the accepted
+  `RVVLowPrecisionPerformancePolicyDecision::dispatchPreference` exactly.
+- Target artifact validation rejects a metadata-only
+  `selected_dispatch_preference` mirror when provider-owned policy-output facts
+  are absent.
+- Target artifact validation rejects stale `selected_dispatch_preference`
+  mirrors, including attempted `performance-preferred` promotion while the
+  accepted packed-i4 source-backed evidence remains no-win.
+- Existing accepted packed-i4 dequant and dequant-clamp source-backed no-win
+  records continue to populate selected-dispatch policy-output facts, preserve
+  `correctness-fallback`, and deny performance-preferred dispatch.
+- The macro task remains active after this slice unless all Gate 4
+  campaign-level measured-win/no-win, provider, selected-dispatch, target, and
+  stale-mirror gates are actually complete.
