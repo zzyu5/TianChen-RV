@@ -1,5 +1,70 @@
 > Continuation from `journal-29.md` (archived at more than 2000 lines)
 
+## Session 601: Stage2 RVV Gate 3 product-reduction carry-through boundary
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed a Gate 3 carry-through cleanup for
+the bounded signed i8 and unsigned u8 product-reduction representatives. The
+provider now concentrates the low-precision primitive route facts into a single
+route payload before route construction. Emission metadata and target artifact
+validation consume that payload as mirrors only, instead of treating artifact
+names, q8/q4 labels, result/admission wording, or Common EmitC defaults as route
+authority.
+
+### Main Changes
+
+- Added `RVVLowPrecisionPrimitiveRoutePayload` to the selected-body contraction
+  route description and widening-dot/reduce target validation contract.
+- Populated and verified the payload from the provider route-family plan,
+  including source/product/accumulator/result dtype, signedness, SEW/LMUL,
+  policy, runtime control/AVL, widening-product relation, product-reduction
+  relation, intrinsics, seed splat, layouts, and store VL.
+- Made emission metadata serialize
+  `tcrv_rvv.low_precision_primitive.*` from the provider route payload.
+- Tightened target artifact validation so product-reduction primitive metadata
+  mirrors are compared against the provider payload before candidate acceptance.
+- Added focused signed and unsigned explicit artifact negative checks for
+  missing primitive runtime-control and product-SEW mirrors.
+- Updated the RVV plugin code-spec and macro PRD/task notes for Gate 3.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-add|explicit-selected-body-artifact-widening-product-reduce-add\\.mlir|explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8'` from `build/test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-add|explicit-selected-body-artifact-widening-product-reduce-add'` from `build/test`
+
+### Self-Repair
+
+- Repaired the active PRD from the previous Gate 2 slice to the current Gate 3
+  route/provider/artifact-export carry-through goal before implementation.
+- Manually inspected and wrapped the new C++ snippets after adding the provider
+  route-payload checks.
+- A too-narrow final lit filter matched only 2 tests; the final verification used
+  the product-reduction filename fragments above and passed the intended 4-test
+  explicit/pre-realized signed/unsigned set.
+- The build still reports pre-existing unused/switch warnings in target artifact
+  validation and export test code; they do not come from this slice's new
+  payload fields.
+
+### Status
+
+[OPEN MACRO TASK] Gate 3 product-reduction carry-through is complete for this
+plain signed/unsigned representative slice. The macro task remains active. The
+next continuation point is any remaining Gate 3 expansion that is truly needed
+for adjacent low-precision product-reduction carry-through, otherwise Gate 4
+fresh source-backed same-target evidence/admission only if later claimed.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 600: Stage2 RVV Gate 2 product-reduction signedness boundary
 
 **Date**: 2026-06-11

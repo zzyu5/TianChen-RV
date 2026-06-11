@@ -344,6 +344,44 @@ struct RVVLowPrecisionSelectedDispatchPolicyBoundary {
   }
 };
 
+struct RVVLowPrecisionPrimitiveRoutePayload {
+  bool hasPayload = false;
+  bool isProductReductionChain = false;
+
+  llvm::StringRef contractID;
+  llvm::StringRef kind;
+  llvm::StringRef sourceElementTypeName;
+  llvm::StringRef sourceSignedness;
+  llvm::StringRef sourceLoadKind;
+  llvm::StringRef sourceExtensionKind;
+  llvm::StringRef productElementTypeName;
+  llvm::StringRef accumulatorElementTypeName;
+  llvm::StringRef resultElementTypeName;
+
+  std::int64_t sourceSEW = 0;
+  llvm::StringRef sourceLMUL;
+  std::int64_t productSEW = 0;
+  llvm::StringRef productLMUL;
+  std::int64_t accumulatorSEW = 0;
+  llvm::StringRef accumulatorLMUL;
+  std::int64_t resultSEW = 0;
+  llvm::StringRef resultLMUL;
+
+  llvm::StringRef tailPolicy;
+  llvm::StringRef maskPolicy;
+  llvm::StringRef runtimeControlPlanID;
+  llvm::StringRef runtimeAVLASource;
+
+  llvm::StringRef wideningProductRelation;
+  llvm::StringRef productReductionChainRelation;
+  llvm::StringRef wideningProductIntrinsic;
+  llvm::StringRef reductionIntrinsic;
+  llvm::StringRef scalarSeedSplatIntrinsic;
+  llvm::StringRef accumulatorLayout;
+  llvm::StringRef resultLayout;
+  llvm::StringRef reductionStoreVL;
+};
+
 struct RVVSelectedBodyEmitCRouteDescription {
   RVVSelectedBodyOperationKind operation = RVVSelectedBodyOperationKind::Add;
   RVVSelectedBodyMemoryForm memoryForm = RVVSelectedBodyMemoryForm::VectorRHSLoad;
@@ -491,6 +529,7 @@ struct RVVSelectedBodyEmitCRouteDescription {
   llvm::StringRef lowPrecisionPrimitiveProductElementTypeName;
   llvm::StringRef lowPrecisionPrimitiveAccumulatorElementTypeName;
   llvm::StringRef lowPrecisionPrimitiveResultElementTypeName;
+  RVVLowPrecisionPrimitiveRoutePayload lowPrecisionPrimitiveRoutePayload;
   llvm::StringRef maskedWideningProductIntrinsic;
   llvm::StringRef dequantizeConvertIntrinsic;
   llvm::StringRef dequantizeScaleIntrinsic;
@@ -3121,6 +3160,7 @@ struct RVVWideningDotReduceRouteValidationContract {
       lowPrecisionSelectedDispatchPolicyBoundary;
   RVVLowPrecisionWideningReductionPrimitiveFacts
       lowPrecisionWideningReductionPrimitiveFacts;
+  RVVLowPrecisionPrimitiveRoutePayload lowPrecisionPrimitiveRoutePayload;
   llvm::SmallVector<tianchenrv::support::RuntimeABIParameter, 9>
       runtimeABIParameters;
   RVVRuntimeAVLVLSelectedBoundaryContract runtimeAVLVLContract;

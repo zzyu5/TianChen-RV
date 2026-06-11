@@ -493,8 +493,49 @@ struct RVVLowPrecisionWideningReductionPrimitiveFacts {
 };
 ```
 
+The provider must also carry the route-construction/export boundary through a
+single product-reduction primitive route payload equivalent to:
+
+```c++
+struct RVVLowPrecisionPrimitiveRoutePayload {
+  bool hasPayload;
+  bool isProductReductionChain;
+  StringRef contractID;
+  StringRef kind;
+  StringRef sourceElementTypeName;
+  StringRef sourceSignedness;
+  StringRef sourceLoadKind;
+  StringRef sourceExtensionKind;
+  StringRef productElementTypeName;
+  StringRef accumulatorElementTypeName;
+  StringRef resultElementTypeName;
+  int sourceSEW;
+  StringRef sourceLMUL;
+  int productSEW;
+  StringRef productLMUL;
+  int accumulatorSEW;
+  StringRef accumulatorLMUL;
+  int resultSEW;
+  StringRef resultLMUL;
+  StringRef tailPolicy;
+  StringRef maskPolicy;
+  StringRef runtimeControlPlanID;
+  StringRef runtimeAVLASource;
+  StringRef wideningProductRelation;
+  StringRef productReductionChainRelation;
+  StringRef wideningProductIntrinsic;
+  StringRef reductionIntrinsic;
+  StringRef scalarSeedSplatIntrinsic;
+  StringRef accumulatorLayout;
+  StringRef resultLayout;
+  StringRef reductionStoreVL;
+};
+```
+
 Exact C++ names may differ, but those facts must be derived by the RVV provider
 from the selected typed body/config/runtime facts before route construction.
+The payload is the Gate 3 carry-through surface from provider route planning to
+emission metadata, target support-bundle export, and target artifact validation.
 
 ### 3. Contracts
 
@@ -529,6 +570,20 @@ from the selected typed body/config/runtime facts before route construction.
   artifact names must not choose their own primitive fact family.
 - Target artifact metadata may carry these fields only as exact mirrors. A
   stale mirror must fail target validation before candidate acceptance.
+- Product-reduction `TCRVEmitCLowerableRoute` construction must require a
+  provider-owned primitive route payload. The payload must mirror the validated
+  route-family plan before route construction; a generic contraction route
+  without low-precision primitive facts must reject the payload.
+- Emission-plan metadata and target support-bundle export may serialize
+  `tcrv_rvv.low_precision_primitive.*` fields only from the provider route
+  payload. They must not recompute signedness, dtype, SEW/LMUL, policy, runtime
+  AVL/VL, widening-product relation, or widening-reduction relation from
+  description defaults, artifact names, result/admission fields, or Common EmitC
+  helpers.
+- Target artifact validation must consume the provider validation contract plus
+  primitive route payload before accepting candidate metadata mirrors. Candidate
+  metadata proves only that the export mirrored the payload exactly; it never
+  authorizes route support by itself.
 - Common EmitC may materialize only the provider-built route payload. It must
   not choose dtype/sign/SEW/LMUL, `vwmul`, `vwredsum`, seed splat, layout, or
   store-VL semantics itself.
@@ -553,6 +608,15 @@ from the selected typed body/config/runtime facts before route construction.
   primitive fact family.
 - Target candidate mirror disagrees with any primitive fact -> target
   validation error before artifact acceptance.
+- Product-reduction route description lacks the provider primitive route
+  payload, carries a payload whose signedness/SEW/LMUL/policy/runtime/relation
+  fields disagree with the validated provider plan, or exports primitive
+  metadata without that payload -> provider or target fail-closed diagnostic
+  before target artifact acceptance.
+- Target artifact validation sees missing or stale primitive route payload
+  fields such as runtime control plan, runtime AVL source, product SEW/LMUL,
+  product-reduction relation, reduction intrinsic, seed splat, layout, or store
+  VL -> fail before accepting artifact metadata mirrors.
 - Common EmitC or target validation locally reconstructs primitive facts from
   metadata or intrinsic spellings -> invalid architecture; move the derivation
   back to the RVV provider contract.
@@ -566,10 +630,16 @@ from the selected typed body/config/runtime facts before route construction.
   product and widening-reduction primitive facts, including unsigned
   accumulator/result dtype and unsigned intrinsics -> route validation consumes
   them -> target mirrors compare exactly.
+- Good: realized product-reduction route plan -> provider primitive route
+  payload -> emission metadata/support-bundle mirrors -> target validation
+  compares each mirror against the payload before accepting the artifact.
 - Base: standalone signed or unsigned widening-product routes keep their own
   product facts without claiming a widening-reduction primitive chain.
 - Bad: artifact metadata says `vwredsum`, so the target accepts the candidate
   even though the provider contract lacks accumulator/result facts.
+- Bad: emission/export recomputes `tcrv_rvv.low_precision_primitive.*` from
+  description defaults, q8/q4 labels, result records, or artifact names instead
+  of serializing the provider route payload.
 - Bad: the final dequantized `f32` result is treated as the primitive reduction
   result and replaces the required `i32/m1` accumulator/reduction boundary.
 
@@ -588,6 +658,9 @@ from the selected typed body/config/runtime facts before route construction.
   signedness, source load, source extension,
   source/product/accumulator/result dtype, SEW/LMUL, intrinsic, seed, layout,
   C type mapping, or store-VL rejection.
+- Provider route-payload coverage proving the payload mirrors the validated
+  plan for signed i8 and unsigned u8 product-reduction, plus negative coverage
+  for missing/stale payload fields before route or artifact acceptance.
 - Focused lit coverage for the selected product-reduction artifact path when
   metadata mirror diagnostics are user-visible.
 - Runtime `ssh rvv` evidence is required only when the task claims executable
@@ -607,8 +680,8 @@ Correct:
 ```text
 typed product-reduction tcrv_rvv body
   -> RVV provider derives signed or unsigned widening-reduction primitive facts
-  -> route/provider validation consumes those facts
-  -> target metadata mirrors those facts exactly or fails closed
+  -> provider route payload carries those facts through route/export boundaries
+  -> target metadata mirrors the payload exactly or fails closed
 ```
 
 ### Stage 2 Performance Layer

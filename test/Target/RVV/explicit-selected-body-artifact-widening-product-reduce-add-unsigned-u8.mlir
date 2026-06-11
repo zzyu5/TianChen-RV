@@ -9,6 +9,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.source_extension\", value = \"zero-extend-u8-to-u16-product\"/s//tcrv_rvv.low_precision_primitive.source_extension\", value = \"sign-extend-i8-to-i16-product\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-EXT
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.c_type_mapping\", value = \"vl:size_t,source:unsigned-e8mf4,product:unsigned-e16mf2,seed:unsigned-u32,result:unsigned-e32m1\"/s//tcrv_rvv.c_type_mapping\", value = \"vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,result:signed-e32m1\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CTYPE
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.tail_policy\", value = \"agnostic\"/s//tcrv_rvv.low_precision_primitive.tail_policy\", value = \"undisturbed\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIM-TAIL
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.product_sew\", value = \"16\"/s//tcrv_rvv.low_precision_primitive.product_sew_missing\", value = \"16\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-PRIM-PRODUCT-SEW
 
 // Explicit selected-body input for one bounded Stage 2 unsigned low-precision
 // product-reduction chain. The typed tcrv_rvv body carries u8 source loads,
@@ -159,3 +160,5 @@ module {
 
 // STALE-PRIM-TAIL: candidate tcrv_rvv.low_precision_primitive.tail_policy provenance must mirror selected typed RVV product-reduction low-precision widening-reduction primitive tail policy 'agnostic'
 // STALE-PRIM-TAIL-SAME: but was 'undisturbed'
+
+// MISSING-PRIM-PRODUCT-SEW: candidate metadata must carry tcrv_rvv.low_precision_primitive.product_sew provenance for selected typed RVV product-reduction low-precision widening-reduction primitive product SEW

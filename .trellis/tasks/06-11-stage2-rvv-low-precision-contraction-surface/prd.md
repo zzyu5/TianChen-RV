@@ -46,7 +46,7 @@ EmitC semantics.
   required by the primitive contract and already exist in provider-derived route
   facts.
 
-## Current Round Slice: Gate 2 Product-Reduction Selected-Body Signedness Boundary Cleanup
+## Current Round Slice: Gate 3 Product-Reduction Route/Artifact Carry-Through Boundary Cleanup
 
 Gate 1 is complete for the typed low-precision primitive mirror/validation
 foundation. The prior bounded Gate 2 slice made the signed i8
@@ -54,11 +54,19 @@ widening-product plus i16-to-i32 widening-reduction representative enter
 production through RVV plugin-local selected-body realization instead of
 arriving only as an already realized explicit `setvl` / `with_vl` body.
 
-The current bounded slice closes the remaining product-reduction signedness
-boundary by carrying the unsigned u8 widening-product plus u16-to-u32 widening
-reduction representative through the same typed pre-realized surface. Signed
-and unsigned product-reduction selected bodies must share one signedness-aware
-contract:
+The Gate 2 signedness boundary is also complete for the bounded signed i8 and
+unsigned u8 representatives: both pass through the same signedness-aware typed
+pre-realized surface, RVV dialect verification, RVV plugin-local realization,
+provider primitive validation, and target/header export path.
+
+The current bounded slice is Gate 3. It tightens the compiler boundary after
+realization so signed/unsigned product-reduction primitive facts are carried as
+provider-owned route payload facts through `TCRVEmitCLowerableRoute`,
+emission-plan mirrors, target support-bundle export, and target artifact
+validation. The target may compare exact mirrors, but it must not infer route
+support, signedness, dtype/config, policy, runtime AVL/VL, product relation, or
+reduction-chain facts from artifact names, q8/q4 labels, result/admission
+records, or Common EmitC.
 
 ```text
 selected tcrv.exec RVV variant
@@ -66,53 +74,38 @@ selected tcrv.exec RVV variant
      carrying source_signedness plus source/product/accumulator/result config
   -> RVV contraction selected-body realization owner
   -> realized tcrv_rvv setvl/with_vl/load/widening_product/standalone_reduce/store body
-  -> existing route provider / primitive facts / target artifact validation
+  -> RVV provider-owned primitive route payload
+  -> TCRVEmitCLowerableRoute / neutral EmitC metadata mirrors
+  -> support-bundle export / target artifact validation exact mirror checks
 ```
 
 This round must not add q8/q4 route authority, artifact-name authority,
-helper-only wrappers, source-front-door positive routes, or common EmitC
-semantic inference. If unsigned u8 realization had required clone-style route
-authority or wrong-layer mirrors, the correct outcome would have been a
-production fail-closed explicit-body-only boundary. The implemented direction
-is the preferred one: unsigned u8 uses the same typed pre-realized op,
-verifier/provider validation, RVV plugin-local realization, and downstream
-provider/target carry-through as signed i8.
+helper-only wrappers, source-front-door positive routes, Common EmitC semantic
+inference, or measured-win/admission claims.
 
 ## Acceptance Criteria For This Slice
 
-- Production source movement happens in the RVV dialect and RVV plugin-local
-  selected-body realization owner, with downstream consumption by the existing
-  route provider/target validation surfaces. Common EmitC remains neutral.
-- A selected typed low-precision product-reduction body can be materialized by
-  the contraction realization owner into explicit `tcrv_rvv` structure before
-  route-family facts, route-control plans, statement plans, or
-  `TCRVEmitCLowerableRoute` construction.
-- The realization validates the representative body against provider-owned
-  low-precision widening-reduction primitive facts for source signedness,
-  source load/extension, source/product/accumulator/result SEW/LMUL,
-  product-reduction relation, accumulator/result layout, policy, and runtime
-  AVL/VL facts, failing closed with targeted diagnostics for stale or missing
-  primitive facts.
-- The same pre-realized op accepts the bounded signed i8 and unsigned u8
-  product-reduction representatives via explicit `source_signedness`; the RVV
-  dialect verifier checks signedness-consistent ABI C types, product relation,
-  reduction-chain relation, source/product/accumulator/result SEW/LMUL, and
-  policy before realization.
-- The RVV selected-body realization owner derives realized signed or unsigned
-  load element types, widening-product kind, standalone-reduction kind,
-  reduction result vector type, and provider primitive-fact lookup from the
-  typed pre-realized signedness boundary. It does not add a separate u8 route
-  clone and does not infer signedness from target mirrors, artifact names, or
-  q8/q4 labels.
-- Focused lit/FileCheck coverage proves the pre-realized representative body is
-  removed, realized `setvl` / `with_vl` / load / `widening_product` /
-  `standalone_reduce` / store structure is produced for signed i8 and unsigned
-  u8, and existing provider primitive/resource mirrors reach emission-plan and
-  target artifact checks.
-- Focused negative coverage proves stale selected-body primitive facts are
-  rejected before provider route construction or target artifact acceptance.
-- Existing explicit signed i8 and unsigned u8 product-reduction target artifact
-  coverage remains passing.
+- Production source movement happens in the RVV provider route payload,
+  route-family validation, emission-plan mirror generation, support-bundle
+  export mapping, and target artifact validation surfaces. Common EmitC remains
+  neutral and only carries provider payloads.
+- The signed i8 and unsigned u8 product-reduction route descriptions carry a
+  single provider-owned low-precision primitive route payload containing
+  contract/kind, source signedness/load/extension, source/product/accumulator
+  and result dtype and SEW/LMUL, policy, runtime control/AVL source, product
+  and reduction relations, intrinsics, scalar seed, layouts, and store-VL facts.
+- Provider validation fails closed if that route payload is stale or missing
+  before provider materialization or target artifact acceptance.
+- Emission-plan metadata and target support-bundle export mirror the provider
+  payload only. If a surface is only a result/admission/evidence/report field,
+  it remains outside route authority.
+- Focused positive lit/FileCheck coverage proves signed and unsigned
+  product-reduction primitive route payload facts reach emission-plan and
+  target-header export.
+- Focused negative coverage proves stale or missing primitive/config/runtime
+  mirror facts are rejected before target artifact acceptance.
+- Existing pre-realized and explicit signed i8 plus unsigned u8
+  product-reduction target artifact coverage remains passing.
 
 ## Non-Goals
 
@@ -130,14 +123,17 @@ provider/target carry-through as signed i8.
 ## Definition Of Done
 
 - PRD and task context reflect the macro campaign, completed Gate 1 foundation,
-  prior signed Gate 2 realization slice, and current Gate 2 signedness boundary
-  cleanup slice.
-- Compiler source diff is in RVV dialect/plugin selected-body realization and
-  any directly necessary provider/target consumers.
+  completed Gate 2 signed/unsigned selected-body realization boundary, and
+  current Gate 3 provider/artifact/export carry-through boundary cleanup.
+- Compiler source diff is in RVV provider route payload / route validation /
+  metadata export / target validation consumers and any directly necessary
+  adjacent tests.
 - Focused target tests pass or any missing toolchain is reported explicitly.
 - `git diff --check` and `git diff --cached --check` pass.
 - Macro task remains active with Gate 1 complete, Gate 2 product-reduction
-  signedness boundary recorded, and remaining Gate 3/Gate 4 continuation state.
+  signedness boundary recorded, Gate 3 progress recorded for the current
+  product-reduction carry-through slice, and remaining Gate 4 continuation
+  state.
 - One coherent commit is created for the slice.
 
 ## Status After Previous Gate 2 Signed Slice

@@ -7173,6 +7173,18 @@ llvm::Error validateRVVLowPrecisionWideningReductionPrimitiveCandidateMirrors(
         llvm::Twine(contract.consumerLabel) +
         " requires provider-owned low-precision widening-reduction primitive "
         "facts before validating artifact mirrors");
+  const plugin::rvv::RVVLowPrecisionPrimitiveRoutePayload &payload =
+      contract.lowPrecisionPrimitiveRoutePayload;
+  if (!payload.hasPayload)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires provider-owned low-precision primitive route payload "
+        "before validating artifact mirrors");
+  if (!payload.isProductReductionChain)
+    return makeRVVTargetRouteError(
+        llvm::Twine(contract.consumerLabel) +
+        " requires a product-reduction low-precision primitive route payload "
+        "before validating artifact mirrors");
 
   auto requirePrimitiveMirror =
       [&](llvm::StringRef key, llvm::StringRef expected,
@@ -7187,150 +7199,149 @@ llvm::Error validateRVVLowPrecisionWideningReductionPrimitiveCandidateMirrors(
 
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.contract",
-          primitive.lowPrecisionPrimitiveContractID, "contract"))
+          payload.contractID, "contract"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.kind",
-          primitive.lowPrecisionPrimitiveKind, "kind"))
+          payload.kind, "kind"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.source_dtype",
-          primitive.sourceElementTypeName, "source dtype"))
+          payload.sourceElementTypeName, "source dtype"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.source_signedness",
-          primitive.sourceSignedness, "source signedness"))
+          payload.sourceSignedness, "source signedness"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.source_load",
-          primitive.sourceLoadKind, "source load"))
+          payload.sourceLoadKind, "source load"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.source_extension",
-          primitive.sourceExtensionKind, "source extension"))
+          payload.sourceExtensionKind, "source extension"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.product_dtype",
-          primitive.productElementTypeName, "product dtype"))
+          payload.productElementTypeName, "product dtype"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.accumulator_dtype",
-          primitive.accumulatorElementTypeName, "accumulator dtype"))
+          payload.accumulatorElementTypeName, "accumulator dtype"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.result_dtype",
-          primitive.finalResultElementTypeName, "final result dtype"))
+          payload.resultElementTypeName, "final result dtype"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
-          "tcrv_rvv.low_precision_primitive.tail_policy", contract.tailPolicy,
+          "tcrv_rvv.low_precision_primitive.tail_policy", payload.tailPolicy,
           "tail policy"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
-          "tcrv_rvv.low_precision_primitive.mask_policy", contract.maskPolicy,
+          "tcrv_rvv.low_precision_primitive.mask_policy", payload.maskPolicy,
           "mask policy"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.runtime_control_plan",
-          contract.runtimeControlPlanID, "runtime control plan"))
+          payload.runtimeControlPlanID, "runtime control plan"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.runtime_avl_source",
-          contract.runtimeAVLVLContract.runtimeAVLASource,
-          "runtime AVL source"))
+          payload.runtimeAVLASource, "runtime AVL source"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.source_sew",
-          llvm::Twine(primitive.sourceSEW).str(), "source SEW"))
+          llvm::Twine(payload.sourceSEW).str(), "source SEW"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.source_lmul",
-          primitive.sourceLMUL, "source LMUL"))
+          payload.sourceLMUL, "source LMUL"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.product_sew",
-          llvm::Twine(primitive.productSEW).str(), "product SEW"))
+          llvm::Twine(payload.productSEW).str(), "product SEW"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.product_lmul",
-          primitive.productLMUL, "product LMUL"))
+          payload.productLMUL, "product LMUL"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.accumulator_sew",
-          llvm::Twine(primitive.accumulatorSEW).str(), "accumulator SEW"))
+          llvm::Twine(payload.accumulatorSEW).str(), "accumulator SEW"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.accumulator_lmul",
-          primitive.accumulatorLMUL, "accumulator LMUL"))
+          payload.accumulatorLMUL, "accumulator LMUL"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.result_sew",
-          llvm::Twine(primitive.reductionResultSEW).str(), "result SEW"))
+          llvm::Twine(payload.resultSEW).str(), "result SEW"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.result_lmul",
-          primitive.reductionResultLMUL, "result LMUL"))
+          payload.resultLMUL, "result LMUL"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
-          "tcrv_rvv.source_sew", llvm::Twine(primitive.sourceSEW).str(),
+          "tcrv_rvv.source_sew", llvm::Twine(payload.sourceSEW).str(),
           "source SEW"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
-          "tcrv_rvv.source_lmul", primitive.sourceLMUL, "source LMUL"))
+          "tcrv_rvv.source_lmul", payload.sourceLMUL, "source LMUL"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
-          "tcrv_rvv.product_sew", llvm::Twine(primitive.productSEW).str(),
+          "tcrv_rvv.product_sew", llvm::Twine(payload.productSEW).str(),
           "product SEW"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
-          "tcrv_rvv.product_lmul", primitive.productLMUL, "product LMUL"))
+          "tcrv_rvv.product_lmul", payload.productLMUL, "product LMUL"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.accumulator_sew",
-          llvm::Twine(primitive.accumulatorSEW).str(), "accumulator SEW"))
+          llvm::Twine(payload.accumulatorSEW).str(), "accumulator SEW"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
-          "tcrv_rvv.accumulator_lmul", primitive.accumulatorLMUL,
+          "tcrv_rvv.accumulator_lmul", payload.accumulatorLMUL,
           "accumulator LMUL"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.result_sew",
-          llvm::Twine(primitive.reductionResultSEW).str(), "result SEW"))
+          llvm::Twine(payload.resultSEW).str(), "result SEW"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
-          "tcrv_rvv.result_lmul", primitive.reductionResultLMUL,
+          "tcrv_rvv.result_lmul", payload.resultLMUL,
           "result LMUL"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.widening_product_relation",
-          primitive.wideningProductRelation, "widening product relation"))
+          payload.wideningProductRelation, "widening product relation"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.product_reduction_chain_relation",
-          primitive.productReductionChainRelation,
+          payload.productReductionChainRelation,
           "product-reduction relation"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.widening_product_intrinsic",
-          primitive.wideningProductIntrinsic, "widening product intrinsic"))
+          payload.wideningProductIntrinsic, "widening product intrinsic"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.widening_reduction_intrinsic",
-          primitive.reductionIntrinsic, "widening reduction intrinsic"))
+          payload.reductionIntrinsic, "widening reduction intrinsic"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.scalar_seed_splat_intrinsic",
-          primitive.scalarSeedSplatIntrinsic, "scalar seed splat intrinsic"))
+          payload.scalarSeedSplatIntrinsic, "scalar seed splat intrinsic"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.reduction_accumulator_layout",
-          primitive.accumulatorLayout, "accumulator layout"))
+          payload.accumulatorLayout, "accumulator layout"))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
-          "tcrv_rvv.reduction_result_layout", primitive.resultLayout,
+          "tcrv_rvv.reduction_result_layout", payload.resultLayout,
           "result layout"))
     return error;
   return requirePrimitiveMirror("tcrv_rvv.reduction_store_vl",
-                                primitive.reductionStoreVL, "store VL");
+                                payload.reductionStoreVL, "store VL");
 }
 
 llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(

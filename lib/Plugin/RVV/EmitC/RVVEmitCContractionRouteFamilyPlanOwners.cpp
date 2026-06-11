@@ -24,6 +24,11 @@ bool isRVVLowPrecisionResourceSelectionEqual(
     const RVVLowPrecisionContractionResourceSelection &lhs,
     const RVVLowPrecisionContractionResourceSelection &rhs);
 
+llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromPlan(
+    const RVVLowPrecisionPrimitiveRoutePayload &payload,
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan,
+    llvm::StringRef context);
+
 namespace {
 
 constexpr llvm::StringLiteral kRVVWideningMAccOperandBindingPlanID(
@@ -1212,6 +1217,10 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
         llvm::Twine(context) + " " + familyName +
         " route-family mirrors must be populated from the validated family "
         "plan before provider materialization");
+  if (llvm::Error error = verifyRVVLowPrecisionPrimitiveRoutePayloadFromPlan(
+          analysis.description.lowPrecisionPrimitiveRoutePayload, plan,
+          context))
+    return error;
   if (!support::runtimeABIParametersEqual(
           analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
     return makeRVVEmitCRouteProviderError(
@@ -3293,6 +3302,8 @@ static void populateRVVWideningDotValidationContract(
       description.lowPrecisionSelectedDispatchPolicyBoundary;
   contract.lowPrecisionWideningReductionPrimitiveFacts =
       facts.lowPrecisionWideningReductionPrimitiveFacts;
+  contract.lowPrecisionPrimitiveRoutePayload =
+      description.lowPrecisionPrimitiveRoutePayload;
   populateRVVWideningDotDynamicDescriptionPayload(contract, description);
   if (std::optional<RVVRuntimeAVLVLSelectedBoundaryContract> runtimeContract =
           getRVVRuntimeAVLVLSelectedBoundaryContract(
@@ -8238,6 +8249,212 @@ void populateRVVLowPrecisionPrimitiveFacts(
       getRVVWideningProductExtensionPolicy(plan);
 }
 
+void populateRVVLowPrecisionPrimitiveRoutePayload(
+    RVVLowPrecisionPrimitiveRoutePayload &payload,
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan) {
+  payload = RVVLowPrecisionPrimitiveRoutePayload();
+  if (plan.lowPrecisionPrimitiveContractID.empty())
+    return;
+
+  payload.hasPayload = true;
+  payload.isProductReductionChain = plan.usesProductReductionChain;
+  payload.contractID = plan.lowPrecisionPrimitiveContractID;
+  payload.kind = plan.lowPrecisionPrimitiveKind;
+  payload.sourceElementTypeName =
+      plan.lowPrecisionPrimitiveSourceElementTypeName;
+  payload.sourceSignedness = plan.lowPrecisionPrimitiveSourceSignedness;
+  payload.sourceLoadKind = plan.lowPrecisionPrimitiveSourceLoadKind;
+  payload.sourceExtensionKind = plan.lowPrecisionPrimitiveSourceExtensionKind;
+  payload.productElementTypeName =
+      plan.lowPrecisionPrimitiveProductElementTypeName;
+  payload.accumulatorElementTypeName =
+      plan.lowPrecisionPrimitiveAccumulatorElementTypeName;
+  payload.resultElementTypeName =
+      plan.lowPrecisionPrimitiveResultElementTypeName;
+
+  payload.sourceSEW = plan.sourceSEW;
+  payload.sourceLMUL = plan.sourceLMUL;
+  payload.productSEW =
+      plan.usesProductReductionChain ? plan.productSEW : plan.sew;
+  payload.productLMUL =
+      plan.usesProductReductionChain ? plan.productLMUL : plan.lmul;
+  if (!plan.lowPrecisionPrimitiveAccumulatorElementTypeName.empty()) {
+    payload.accumulatorSEW = plan.sew;
+    payload.accumulatorLMUL = plan.lmul;
+  }
+  payload.resultSEW = plan.sew;
+  payload.resultLMUL = plan.lmul;
+
+  payload.tailPolicy = plan.tailPolicy;
+  payload.maskPolicy = plan.maskPolicy;
+  payload.runtimeControlPlanID = plan.runtimeControlPlan.controlPlanID;
+  payload.runtimeAVLASource = plan.runtimeControlPlan.runtimeAVLASource;
+
+  payload.wideningProductRelation = plan.wideningProductRelation;
+  payload.wideningProductIntrinsic = plan.wideningProductIntrinsic;
+  if (!plan.usesProductReductionChain)
+    return;
+
+  payload.productReductionChainRelation = plan.productReductionChainRelation;
+  payload.reductionIntrinsic = plan.contractionComputeIntrinsic;
+  payload.scalarSeedSplatIntrinsic = plan.scalarSeedSplatIntrinsic;
+  payload.accumulatorLayout = plan.accumulatorLayout;
+  payload.resultLayout = plan.resultLayout;
+  payload.reductionStoreVL = plan.reductionStoreVL;
+}
+
+llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromPlan(
+    const RVVLowPrecisionPrimitiveRoutePayload &payload,
+    const RVVSelectedBodyContractionRouteFamilyPlan &plan,
+    llvm::StringRef context) {
+  const bool expectsPayload = !plan.lowPrecisionPrimitiveContractID.empty();
+  if (!expectsPayload) {
+    if (!payload.hasPayload)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " rejects low-precision primitive route payload on a contraction "
+        "route without provider-owned low-precision primitive facts");
+  }
+  if (!payload.hasPayload)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires provider-owned low-precision primitive route payload "
+        "before route construction");
+
+  auto requireString =
+      [&](llvm::StringRef field, llvm::StringRef actual,
+          llvm::StringRef expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision primitive route payload field '" + field +
+        "' must mirror the validated provider route-family plan; expected '" +
+        expected + "' but saw '" + actual + "'");
+  };
+  auto requireInteger =
+      [&](llvm::StringRef field, std::int64_t actual,
+          std::int64_t expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision primitive route payload field '" + field +
+        "' must mirror the validated provider route-family plan; expected " +
+        llvm::Twine(expected) + " but saw " + llvm::Twine(actual));
+  };
+
+  if (payload.isProductReductionChain != plan.usesProductReductionChain)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision primitive route payload product-reduction boundary "
+        "must mirror the validated provider route-family plan");
+
+#define TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(FIELD, ACTUAL, EXPECTED)         \
+  if (llvm::Error error = requireString((FIELD), (ACTUAL), (EXPECTED)))        \
+    return error
+#define TCRV_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER(FIELD, ACTUAL, EXPECTED)        \
+  if (llvm::Error error = requireInteger((FIELD), (ACTUAL), (EXPECTED)))       \
+    return error
+
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "contract", payload.contractID, plan.lowPrecisionPrimitiveContractID);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "kind", payload.kind, plan.lowPrecisionPrimitiveKind);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "source dtype", payload.sourceElementTypeName,
+      plan.lowPrecisionPrimitiveSourceElementTypeName);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "source signedness", payload.sourceSignedness,
+      plan.lowPrecisionPrimitiveSourceSignedness);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "source load", payload.sourceLoadKind,
+      plan.lowPrecisionPrimitiveSourceLoadKind);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "source extension", payload.sourceExtensionKind,
+      plan.lowPrecisionPrimitiveSourceExtensionKind);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "product dtype", payload.productElementTypeName,
+      plan.lowPrecisionPrimitiveProductElementTypeName);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "accumulator dtype", payload.accumulatorElementTypeName,
+      plan.lowPrecisionPrimitiveAccumulatorElementTypeName);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "result dtype", payload.resultElementTypeName,
+      plan.lowPrecisionPrimitiveResultElementTypeName);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER("source SEW", payload.sourceSEW,
+                                         plan.sourceSEW);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING("source LMUL", payload.sourceLMUL,
+                                        plan.sourceLMUL);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER(
+      "product SEW", payload.productSEW,
+      plan.usesProductReductionChain ? plan.productSEW : plan.sew);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "product LMUL", payload.productLMUL,
+      plan.usesProductReductionChain ? plan.productLMUL : plan.lmul);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER(
+      "accumulator SEW", payload.accumulatorSEW,
+      plan.lowPrecisionPrimitiveAccumulatorElementTypeName.empty()
+          ? 0
+          : plan.sew);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "accumulator LMUL", payload.accumulatorLMUL,
+      plan.lowPrecisionPrimitiveAccumulatorElementTypeName.empty()
+          ? llvm::StringRef()
+          : plan.lmul);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER("result SEW", payload.resultSEW,
+                                         plan.sew);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING("result LMUL", payload.resultLMUL,
+                                        plan.lmul);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING("tail policy", payload.tailPolicy,
+                                        plan.tailPolicy);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING("mask policy", payload.maskPolicy,
+                                        plan.maskPolicy);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "runtime control plan", payload.runtimeControlPlanID,
+      plan.runtimeControlPlan.controlPlanID);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "runtime AVL source", payload.runtimeAVLASource,
+      plan.runtimeControlPlan.runtimeAVLASource);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "widening product relation", payload.wideningProductRelation,
+      plan.wideningProductRelation);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "widening product intrinsic", payload.wideningProductIntrinsic,
+      plan.wideningProductIntrinsic);
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "product-reduction chain relation",
+      payload.productReductionChainRelation,
+      plan.usesProductReductionChain ? plan.productReductionChainRelation
+                                     : llvm::StringRef());
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "reduction intrinsic", payload.reductionIntrinsic,
+      plan.usesProductReductionChain ? plan.contractionComputeIntrinsic
+                                     : llvm::StringRef());
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "scalar seed splat intrinsic", payload.scalarSeedSplatIntrinsic,
+      plan.usesProductReductionChain ? plan.scalarSeedSplatIntrinsic
+                                     : llvm::StringRef());
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "accumulator layout", payload.accumulatorLayout,
+      plan.usesProductReductionChain ? plan.accumulatorLayout
+                                     : llvm::StringRef());
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "result layout", payload.resultLayout,
+      plan.usesProductReductionChain ? plan.resultLayout
+                                     : llvm::StringRef());
+  TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(
+      "reduction store VL", payload.reductionStoreVL,
+      plan.usesProductReductionChain ? plan.reductionStoreVL
+                                     : llvm::StringRef());
+
+#undef TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING
+#undef TCRV_REQUIRE_PRIMITIVE_PAYLOAD_INTEGER
+
+  return llvm::Error::success();
+}
+
 llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan,
     llvm::StringRef context) {
@@ -10331,6 +10548,8 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
       plan.lowPrecisionPrimitiveAccumulatorElementTypeName;
   description.lowPrecisionPrimitiveResultElementTypeName =
       plan.lowPrecisionPrimitiveResultElementTypeName;
+  populateRVVLowPrecisionPrimitiveRoutePayload(
+      description.lowPrecisionPrimitiveRoutePayload, plan);
   description.lowPrecisionResourceSelection =
       plan.lowPrecisionResourceSelection;
   description.runtimeABIParameters.clear();
@@ -10451,6 +10670,17 @@ llvm::Error requireRVVSelectedBodyContractionDescriptionField(
   return makeRVVEmitCRouteProviderError(
       llvm::Twine(context) + " contraction route description requires " +
       field + " '" + expected + "' but found '" + actual + "'");
+}
+
+llvm::Error requireRVVSelectedBodyContractionDescriptionIntegerField(
+    llvm::StringRef context, llvm::StringRef field, std::int64_t actual,
+    std::int64_t expected) {
+  if (actual == expected)
+    return llvm::Error::success();
+  return makeRVVEmitCRouteProviderError(
+      llvm::Twine(context) + " contraction route description requires " +
+      field + " " + llvm::Twine(expected) + " but found " +
+      llvm::Twine(actual));
 }
 
 llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
@@ -10692,6 +10922,154 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
             description.lowPrecisionPrimitiveResultElementTypeName, ""))
       return error;
   }
+
+  const RVVLowPrecisionPrimitiveRoutePayload &primitivePayload =
+      description.lowPrecisionPrimitiveRoutePayload;
+  if (usesWideningProduct || usesProductReductionChain) {
+    if (!primitivePayload.hasPayload)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " contraction route description requires provider-owned "
+          "low-precision primitive route payload before route construction");
+    if (primitivePayload.isProductReductionChain != usesProductReductionChain)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " contraction route description low-precision primitive route "
+          "payload must mirror the selected product-reduction boundary");
+
+    auto requirePayloadField =
+        [&](llvm::StringRef field, llvm::StringRef actual,
+            llvm::StringRef expected) -> llvm::Error {
+      return requireRVVSelectedBodyContractionDescriptionField(
+          context,
+          (llvm::Twine("low-precision primitive route payload ") + field)
+              .str(),
+          actual, expected);
+    };
+    auto requirePayloadIntegerField =
+        [&](llvm::StringRef field, std::int64_t actual,
+            std::int64_t expected) -> llvm::Error {
+      return requireRVVSelectedBodyContractionDescriptionIntegerField(
+          context,
+          (llvm::Twine("low-precision primitive route payload ") + field)
+              .str(),
+          actual, expected);
+    };
+
+#define TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(FIELD, ACTUAL, EXPECTED)    \
+  if (llvm::Error error = requirePayloadField((FIELD), (ACTUAL), (EXPECTED)))  \
+    return error
+#define TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER(FIELD, ACTUAL, EXPECTED)   \
+  if (llvm::Error error =                                                       \
+          requirePayloadIntegerField((FIELD), (ACTUAL), (EXPECTED)))           \
+    return error
+
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "contract", primitivePayload.contractID,
+        description.lowPrecisionPrimitiveContractID);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "kind", primitivePayload.kind,
+        description.lowPrecisionPrimitiveKind);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "source dtype", primitivePayload.sourceElementTypeName,
+        description.lowPrecisionPrimitiveSourceElementTypeName);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "source signedness", primitivePayload.sourceSignedness,
+        description.lowPrecisionPrimitiveSourceSignedness);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "source load", primitivePayload.sourceLoadKind,
+        description.lowPrecisionPrimitiveSourceLoadKind);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "source extension", primitivePayload.sourceExtensionKind,
+        description.lowPrecisionPrimitiveSourceExtensionKind);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "product dtype", primitivePayload.productElementTypeName,
+        description.lowPrecisionPrimitiveProductElementTypeName);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "accumulator dtype", primitivePayload.accumulatorElementTypeName,
+        description.lowPrecisionPrimitiveAccumulatorElementTypeName);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "result dtype", primitivePayload.resultElementTypeName,
+        description.lowPrecisionPrimitiveResultElementTypeName);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER(
+        "source SEW", primitivePayload.sourceSEW, description.sourceSEW);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "source LMUL", primitivePayload.sourceLMUL, description.sourceLMUL);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER(
+        "product SEW", primitivePayload.productSEW,
+        usesProductReductionChain ? description.productSEW : description.sew);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "product LMUL", primitivePayload.productLMUL,
+        usesProductReductionChain ? description.productLMUL
+                                  : description.lmul);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER(
+        "accumulator SEW", primitivePayload.accumulatorSEW,
+        description.lowPrecisionPrimitiveAccumulatorElementTypeName.empty()
+            ? 0
+            : description.sew);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "accumulator LMUL", primitivePayload.accumulatorLMUL,
+        description.lowPrecisionPrimitiveAccumulatorElementTypeName.empty()
+            ? llvm::StringRef()
+            : description.lmul);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER(
+        "result SEW", primitivePayload.resultSEW, description.sew);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "result LMUL", primitivePayload.resultLMUL, description.lmul);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "tail policy", primitivePayload.tailPolicy, description.tailPolicy);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "mask policy", primitivePayload.maskPolicy, description.maskPolicy);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "runtime control plan", primitivePayload.runtimeControlPlanID,
+        description.runtimeControlPlanID);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "runtime AVL source", primitivePayload.runtimeAVLASource,
+        description.runtimeAVLASource);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "widening product relation",
+        primitivePayload.wideningProductRelation,
+        description.wideningProductRelation);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "widening product intrinsic",
+        primitivePayload.wideningProductIntrinsic,
+        description.wideningProductIntrinsic);
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "product-reduction chain relation",
+        primitivePayload.productReductionChainRelation,
+        usesProductReductionChain ? description.productReductionChainRelation
+                                  : llvm::StringRef());
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "reduction intrinsic", primitivePayload.reductionIntrinsic,
+        usesProductReductionChain ? description.intrinsic
+                                  : llvm::StringRef());
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "scalar seed splat intrinsic",
+        primitivePayload.scalarSeedSplatIntrinsic,
+        usesProductReductionChain ? description.scalarSeedSplatIntrinsic
+                                  : llvm::StringRef());
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "accumulator layout", primitivePayload.accumulatorLayout,
+        usesProductReductionChain ? description.reductionAccumulatorLayout
+                                  : llvm::StringRef());
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "result layout", primitivePayload.resultLayout,
+        usesProductReductionChain ? description.reductionResultLayout
+                                  : llvm::StringRef());
+    TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING(
+        "reduction store VL", primitivePayload.reductionStoreVL,
+        usesProductReductionChain ? description.reductionStoreVL
+                                  : llvm::StringRef());
+
+#undef TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_STRING
+#undef TCRV_REQUIRE_DESC_PRIMITIVE_PAYLOAD_INTEGER
+  } else if (primitivePayload.hasPayload) {
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " contraction route description rejects low-precision primitive "
+        "route payload without a low-precision primitive route");
+  }
+
   if (llvm::Error error = requireRVVSelectedBodyContractionDescriptionField(
           context, "source vector type", description.sourceVectorTypeName,
           usesWideningProduct

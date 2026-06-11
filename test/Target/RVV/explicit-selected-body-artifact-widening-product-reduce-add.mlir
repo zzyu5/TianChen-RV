@@ -5,6 +5,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.source_load\", value = \"unit-stride-byte-load\"/s//tcrv_rvv.low_precision_primitive.source_load\", value = \"metadata-only-byte-load\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIM-LOAD
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.source_extension\", value = \"sign-extend-i8-to-i16-product\"/s//tcrv_rvv.low_precision_primitive.source_extension\", value = \"zero-extend-u8-to-u16-product\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIM-EXT
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.runtime_avl_source\", value = \"runtime_abi:n\"/s//tcrv_rvv.low_precision_primitive.runtime_avl_source\", value = \"metadata-only-avl\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIM-AVL
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.runtime_control_plan\", value = \"rvv-runtime-avl-vl-control-plan.v1\"/s//tcrv_rvv.low_precision_primitive.runtime_control_plan_missing\", value = \"rvv-runtime-avl-vl-control-plan.v1\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=MISSING-PRIM-RUNTIME
 
 // Explicit selected-body input for one bounded Stage 2 signed low-precision
 // product-reduction chain. The typed tcrv_rvv body carries i8 source loads,
@@ -123,3 +124,5 @@ module {
 
 // STALE-PRIM-AVL: candidate tcrv_rvv.low_precision_primitive.runtime_avl_source provenance must mirror selected typed RVV product-reduction low-precision widening-reduction primitive runtime AVL source 'runtime_abi:n'
 // STALE-PRIM-AVL-SAME: but was 'metadata-only-avl'
+
+// MISSING-PRIM-RUNTIME: candidate metadata must carry tcrv_rvv.low_precision_primitive.runtime_control_plan provenance for selected typed RVV product-reduction low-precision widening-reduction primitive runtime control plan

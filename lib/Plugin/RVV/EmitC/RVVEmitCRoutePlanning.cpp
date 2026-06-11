@@ -43430,64 +43430,61 @@ getRVVSelectedBodyConfigArtifactMetadata(
       }
     }
   }
-  if (!description.lowPrecisionPrimitiveContractID.empty()) {
+  const RVVLowPrecisionPrimitiveRoutePayload &primitivePayload =
+      description.lowPrecisionPrimitiveRoutePayload;
+  if (primitivePayload.hasPayload) {
     metadata.push_back({"tcrv_rvv.low_precision_primitive.contract",
-                        description.lowPrecisionPrimitiveContractID});
+                        primitivePayload.contractID});
     metadata.push_back({"tcrv_rvv.low_precision_primitive.kind",
-                        description.lowPrecisionPrimitiveKind});
+                        primitivePayload.kind});
     metadata.push_back({"tcrv_rvv.low_precision_primitive.source_dtype",
-                        description.lowPrecisionPrimitiveSourceElementTypeName});
+                        primitivePayload.sourceElementTypeName});
     metadata.push_back(
         {"tcrv_rvv.low_precision_primitive.source_signedness",
-         description.lowPrecisionPrimitiveSourceSignedness});
+         primitivePayload.sourceSignedness});
     metadata.push_back({"tcrv_rvv.low_precision_primitive.source_load",
-                        description.lowPrecisionPrimitiveSourceLoadKind});
+                        primitivePayload.sourceLoadKind});
     metadata.push_back(
         {"tcrv_rvv.low_precision_primitive.source_extension",
-         description.lowPrecisionPrimitiveSourceExtensionKind});
+         primitivePayload.sourceExtensionKind});
     metadata.push_back(
         {"tcrv_rvv.low_precision_primitive.product_dtype",
-         description.lowPrecisionPrimitiveProductElementTypeName});
-    if (!description.lowPrecisionPrimitiveAccumulatorElementTypeName.empty())
+         primitivePayload.productElementTypeName});
+    if (!primitivePayload.accumulatorElementTypeName.empty())
       metadata.push_back(
           {"tcrv_rvv.low_precision_primitive.accumulator_dtype",
-           description.lowPrecisionPrimitiveAccumulatorElementTypeName});
+           primitivePayload.accumulatorElementTypeName});
     metadata.push_back(
         {"tcrv_rvv.low_precision_primitive.result_dtype",
-         description.lowPrecisionPrimitiveResultElementTypeName});
+         primitivePayload.resultElementTypeName});
     metadata.push_back(
         {"tcrv_rvv.low_precision_primitive.source_sew",
-         llvm::Twine(description.sourceSEW).str()});
+         llvm::Twine(primitivePayload.sourceSEW).str()});
     metadata.push_back({"tcrv_rvv.low_precision_primitive.source_lmul",
-                        description.sourceLMUL});
-    const std::int64_t primitiveProductSEW =
-        description.productSEW != 0 ? description.productSEW : description.sew;
-    llvm::StringRef primitiveProductLMUL =
-        !description.productLMUL.empty() ? description.productLMUL
-                                         : description.lmul;
+                        primitivePayload.sourceLMUL});
     metadata.push_back({"tcrv_rvv.low_precision_primitive.product_sew",
-                        llvm::Twine(primitiveProductSEW).str()});
+                        llvm::Twine(primitivePayload.productSEW).str()});
     metadata.push_back({"tcrv_rvv.low_precision_primitive.product_lmul",
-                        primitiveProductLMUL});
-    if (!description.lowPrecisionPrimitiveAccumulatorElementTypeName.empty()) {
+                        primitivePayload.productLMUL});
+    if (!primitivePayload.accumulatorElementTypeName.empty()) {
       metadata.push_back(
           {"tcrv_rvv.low_precision_primitive.accumulator_sew",
-           llvm::Twine(description.sew).str()});
+           llvm::Twine(primitivePayload.accumulatorSEW).str()});
       metadata.push_back({"tcrv_rvv.low_precision_primitive.accumulator_lmul",
-                          description.lmul});
+                          primitivePayload.accumulatorLMUL});
     }
     metadata.push_back({"tcrv_rvv.low_precision_primitive.result_sew",
-                        llvm::Twine(description.sew).str()});
+                        llvm::Twine(primitivePayload.resultSEW).str()});
     metadata.push_back({"tcrv_rvv.low_precision_primitive.result_lmul",
-                        description.lmul});
+                        primitivePayload.resultLMUL});
     metadata.push_back({"tcrv_rvv.low_precision_primitive.tail_policy",
-                        description.tailPolicy});
+                        primitivePayload.tailPolicy});
     metadata.push_back({"tcrv_rvv.low_precision_primitive.mask_policy",
-                        description.maskPolicy});
+                        primitivePayload.maskPolicy});
     metadata.push_back({"tcrv_rvv.low_precision_primitive.runtime_control_plan",
-                        description.runtimeControlPlanID});
+                        primitivePayload.runtimeControlPlanID});
     metadata.push_back({"tcrv_rvv.low_precision_primitive.runtime_avl_source",
-                        description.runtimeAVLASource});
+                        primitivePayload.runtimeAVLASource});
   }
   if (description.lowPrecisionResourceSelection.hasSelection) {
     const RVVLowPrecisionContractionResourceSelection &selection =
