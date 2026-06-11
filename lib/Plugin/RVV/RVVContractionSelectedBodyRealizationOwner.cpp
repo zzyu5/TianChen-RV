@@ -902,8 +902,14 @@ materializeLowPrecisionResourceRealizationAttrs(
 }
 
 mlir::Type getGenericVectorType(mlir::OpBuilder &builder, std::int64_t sew,
-                                llvm::StringRef lmul) {
-  mlir::Type elementType = builder.getIntegerType(sew);
+                                llvm::StringRef lmul,
+                                bool isUnsigned = false) {
+  mlir::Type elementType =
+      isUnsigned
+          ? mlir::IntegerType::get(
+                builder.getContext(), sew,
+                mlir::IntegerType::SignednessSemantics::Unsigned)
+          : builder.getIntegerType(sew);
   return tcrv::rvv::VectorType::get(builder.getContext(), elementType, lmul);
 }
 
@@ -932,10 +938,11 @@ mlir::Operation *createRealizedGenericLoad(mlir::OpBuilder &builder,
                                            mlir::Location loc,
                                            mlir::Value buffer,
                                            mlir::Value vl, std::int64_t sew,
-                                           llvm::StringRef lmul) {
+                                           llvm::StringRef lmul,
+                                           bool isUnsigned = false) {
   mlir::OperationState state(loc, "tcrv_rvv.load");
   state.addOperands({buffer, vl});
-  state.addTypes(getGenericVectorType(builder, sew, lmul));
+  state.addTypes(getGenericVectorType(builder, sew, lmul, isUnsigned));
   return builder.create(state);
 }
 
@@ -945,10 +952,11 @@ mlir::Operation *createRealizedGenericStridedLoad(mlir::OpBuilder &builder,
                                                   mlir::Value stride,
                                                   mlir::Value vl,
                                                   std::int64_t sew,
-                                                  llvm::StringRef lmul) {
+                                                  llvm::StringRef lmul,
+                                                  bool isUnsigned = false) {
   mlir::OperationState state(loc, "tcrv_rvv.strided_load");
   state.addOperands({buffer, stride, vl});
-  state.addTypes(getGenericVectorType(builder, sew, lmul));
+  state.addTypes(getGenericVectorType(builder, sew, lmul, isUnsigned));
   return builder.create(state);
 }
 
@@ -1032,13 +1040,15 @@ createRealizedGenericMaskedWideningDotReduceCompute(
 mlir::Operation *createRealizedGenericWideningProductCompute(
     mlir::OpBuilder &builder, mlir::Location loc, llvm::StringRef opKind,
     llvm::StringRef productRelation, mlir::Value lhs, mlir::Value rhs,
-    mlir::Value vl, std::int64_t productSEW, llvm::StringRef productLMUL) {
+    mlir::Value vl, std::int64_t productSEW, llvm::StringRef productLMUL,
+    bool isUnsigned = false) {
   mlir::OperationState state(loc, "tcrv_rvv.widening_product");
   state.addOperands({lhs, rhs, vl});
   state.addAttribute("kind", builder.getStringAttr(opKind));
   state.addAttribute("product_relation",
                      builder.getStringAttr(productRelation));
-  state.addTypes(getGenericVectorType(builder, productSEW, productLMUL));
+  state.addTypes(
+      getGenericVectorType(builder, productSEW, productLMUL, isUnsigned));
   return builder.create(state);
 }
 
@@ -1046,15 +1056,19 @@ mlir::Operation *createRealizedGenericStandaloneWideningReduceCompute(
     mlir::OpBuilder &builder, mlir::Location loc,
     llvm::StringRef accumulatorLayout, llvm::StringRef resultLayout,
     mlir::Value input, mlir::Value accumulatorSeed, mlir::Value vl,
-    std::int64_t resultSEW, llvm::StringRef resultLMUL) {
+    std::int64_t resultSEW, llvm::StringRef resultLMUL,
+    bool isUnsigned = false) {
   mlir::OperationState state(loc, "tcrv_rvv.standalone_reduce");
   state.addOperands({input, accumulatorSeed, vl});
-  state.addAttribute("kind",
-                     builder.getStringAttr("signed_widening_reduce_add"));
+  state.addAttribute(
+      "kind",
+      builder.getStringAttr(isUnsigned ? "unsigned_widening_reduce_add"
+                                       : "signed_widening_reduce_add"));
   state.addAttribute("accumulator_layout",
                      builder.getStringAttr(accumulatorLayout));
   state.addAttribute("result_layout", builder.getStringAttr(resultLayout));
-  state.addTypes(getGenericVectorType(builder, resultSEW, resultLMUL));
+  state.addTypes(
+      getGenericVectorType(builder, resultSEW, resultLMUL, isUnsigned));
   return builder.create(state);
 }
 
@@ -1354,6 +1368,7 @@ struct RVVSelectedBodyContractionRealizationPlan {
   bool usesProductReductionChain = false;
   bool usesProductReductionDequantization = false;
   bool usesProductReductionDequantClamp = false;
+  bool isUnsignedProductReduction = false;
   bool usesComputedMask = false;
   bool usesStridedInputs = false;
 
@@ -1507,15 +1522,27 @@ llvm::Error validateLowPrecisionPrimitiveFactsForRealization(
           primitiveFacts.scalarSeedSplatIntrinsic))
     return std::move(error);
 
+  llvm::StringRef expectedProductKind =
+      plan.isUnsignedProductReduction ? "unsigned_widening_product"
+                                      : "signed_widening_product";
+  llvm::StringRef expectedSourceSignedness =
+      plan.isUnsignedProductReduction
+          ? llvm::StringRef(kRVVLowPrecisionResourceSourceSignednessUnsigned)
+          : llvm::StringRef(kRVVLowPrecisionResourceSourceSignednessSigned);
+  llvm::StringRef expectedSourceExtension =
+      plan.isUnsignedProductReduction
+          ? "zero-extend-u8-to-u16-product"
+          : llvm::StringRef(kRVVLowPrecisionResourcePrimitiveSourceExtension);
+
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "product kind", plan.productKind, "signed_widening_product"))
+          "product kind", plan.productKind, expectedProductKind))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "source LMUL", primitiveFacts.sourceLMUL, plan.sourceLMUL))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "source signedness", primitiveFacts.sourceSignedness,
-          kRVVLowPrecisionResourceSourceSignednessSigned))
+          expectedSourceSignedness))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "primitive source load", primitiveFacts.sourceLoadKind,
@@ -1523,7 +1550,7 @@ llvm::Error validateLowPrecisionPrimitiveFactsForRealization(
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "primitive source extension", primitiveFacts.sourceExtensionKind,
-          kRVVLowPrecisionResourcePrimitiveSourceExtension))
+          expectedSourceExtension))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveIntegerField(
           "source SEW", primitiveFacts.sourceSEW, plan.sourceSEW))
@@ -1756,7 +1783,10 @@ makeContractionRealizationPlan(
   plan.preRealizedBody = body.getOperation();
   plan.usesProductReductionChain = true;
   plan.opKind = body.getOpKind();
-  plan.productKind = "signed_widening_product";
+  plan.isUnsignedProductReduction = body.getSourceSignedness() == "unsigned";
+  plan.productKind = plan.isUnsignedProductReduction
+                         ? "unsigned_widening_product"
+                         : "signed_widening_product";
   plan.accumulatorLayout = body.getAccumulatorLayout();
   plan.resultLayout = body.getResultLayout();
   plan.contractionRelation = body.getProductReductionChainRelation();
@@ -1873,7 +1903,8 @@ realizePreRealizedRVVSelectedContractionFamily(
           "a provider-owned product-reduction operation before consuming "
           "low-precision primitive facts");
     std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts> facts =
-        getRVVLowPrecisionWideningReductionPrimitiveFacts(*operation);
+        getRVVLowPrecisionWideningReductionPrimitiveFacts(
+            *operation, plan.isUnsignedProductReduction);
     if (!facts)
       return makeRVVPluginError(
           "pre-realized RVV contraction selected-body realization requires "
@@ -1980,12 +2011,13 @@ realizePreRealizedRVVSelectedContractionFamily(
       auto load = llvm::cast<tcrv::rvv::StridedLoadOp>(
           createRealizedGenericStridedLoad(builder, loc, buffer, stride,
                                            setvl.getVl(), plan.sourceSEW,
-                                           plan.sourceLMUL));
+                                           plan.sourceLMUL,
+                                           plan.isUnsignedProductReduction));
       return load.getLoaded();
     }
     auto load = llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
         builder, loc, buffer, setvl.getVl(), plan.sourceSEW,
-        plan.sourceLMUL));
+        plan.sourceLMUL, plan.isUnsignedProductReduction));
     return load.getLoaded();
   };
 
@@ -2026,11 +2058,13 @@ realizePreRealizedRVVSelectedContractionFamily(
     auto product = llvm::cast<tcrv::rvv::WideningProductOp>(
         createRealizedGenericWideningProductCompute(
             builder, loc, plan.productKind, productRelation, lhsValue,
-            rhsValue, setvl.getVl(), plan.productSEW, plan.productLMUL));
+            rhsValue, setvl.getVl(), plan.productSEW, plan.productLMUL,
+            plan.isUnsignedProductReduction));
     auto reduced = llvm::cast<tcrv::rvv::StandaloneReduceOp>(
         createRealizedGenericStandaloneWideningReduceCompute(
             builder, loc, accumulatorLayout, resultLayout, product.getResult(),
-            plan.acc, setvl.getVl(), plan.resultSEW, plan.resultLMUL));
+            plan.acc, setvl.getVl(), plan.resultSEW, plan.resultLMUL,
+            plan.isUnsignedProductReduction));
     if (!plan.usesProductReductionDequantization) {
       createRealizedGenericStore(builder, loc, plan.out, reduced.getResult(),
                                  setvl.getVl());

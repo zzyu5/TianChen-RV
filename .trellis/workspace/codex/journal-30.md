@@ -1,5 +1,76 @@
 > Continuation from `journal-29.md` (archived at more than 2000 lines)
 
+## Session 600: Stage2 RVV Gate 2 product-reduction signedness boundary
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and closed the Gate 2 plain
+product-reduction selected-body signedness boundary. The signed i8
+pre-realized path remains supported, and unsigned u8 now goes through the same
+typed pre-realized op, RVV dialect verification, provider-side validation,
+RVV plugin-local selected-body realization, route provider facts, and
+target/header export path. The slice avoids a separate u8 route clone and does
+not use q8/q4 labels, artifact names, target mirrors, or Common EmitC logic as
+signedness authority.
+
+### Main Changes
+
+- Added explicit `source_signedness` to
+  `tcrv_rvv.typed_widening_product_reduce_pre_realized_body`.
+- Extended the RVV dialect verifier to accept only signedness-consistent signed
+  i8/i16/i32 or unsigned u8/u16/u32 product-reduction configs, ABI C types,
+  product relations, reduction-chain relations, SEW/LMUL facts, and policy.
+- Made the RVV contraction selected-body realization owner derive unsigned
+  source/product/result vector types, `unsigned_widening_product`,
+  `unsigned_widening_reduce_add`, and unsigned provider primitive facts from
+  the typed signedness boundary.
+- Updated the provider-side pre-realized validator to validate signed or
+  unsigned C ABI and provider-derived relations before route construction.
+- Added focused unsigned u8 pre-realized lit coverage proving the pre-realized
+  op is removed and explicit `setvl` / `with_vl` / ui8 load /
+  unsigned widening product / unsigned widening standalone reduction / u32
+  store structure is produced.
+- Updated the RVV plugin spec, active PRD, and task notes with the completed
+  Gate 2 signedness-boundary slice and Gate 3 continuation point.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-add|explicit-selected-body-artifact-widening-product-reduce-add\\.mlir|explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8'` from `build/test`
+
+### Self-Repair
+
+- The first focused lit attempt from the repository root with path `.` did not
+  discover tests; the second attempt against `test` lacked the CMake-provided
+  `tianchenrv_obj_root`. The working invocation is from `build/test`, where
+  `lit.site.cfg.py` resolves the configured suite correctly.
+- The first focused lit run from `build/test` failed only because the signed
+  stale-source FileCheck diagnostic still expected the old signed-only wording.
+  The check was updated to the new signed/unsigned verifier diagnostic and the
+  same filtered lit run passed 4/4.
+- The environment has no `clang-format` binary; the changed C++ snippets were
+  manually inspected and line-wrapped.
+
+### Status
+
+[OPEN MACRO TASK] Gate 2 product-reduction selected-body signedness boundary is
+complete for the bounded signed i8 and unsigned u8 representatives. The macro
+task remains active. The next continuation point is Gate 3 route
+provider/artifact/export carry-through beyond this plain product-reduction
+realization foundation. Gate 4 remains later work and requires fresh
+source-backed same-target evidence before any runtime/performance/admission
+claim.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 597: Stage2 RVV Gate 4 admission boundary cleanup
 
 **Date**: 2026-06-11

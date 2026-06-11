@@ -802,14 +802,16 @@ bool isPreRealizedWideningProductReduceSignature(
     llvm::StringRef productLMUL, std::int64_t accumulatorSEW,
     llvm::StringRef accumulatorLMUL, std::int64_t resultSEW,
     llvm::StringRef resultLMUL, llvm::StringRef productRelation,
-    llvm::StringRef productReductionChainRelation) {
+    llvm::StringRef productReductionChainRelation,
+    bool isUnsignedProductReduction = false) {
   llvm::StringRef expectedProductRelation =
       getContractionWideningProductRelation(sourceSEW, sourceLMUL, productSEW,
-                                            productLMUL);
+                                            productLMUL,
+                                            isUnsignedProductReduction);
   llvm::StringRef expectedChainRelation =
       getContractionProductReductionChainRelation(
           sourceSEW, sourceLMUL, productSEW, productLMUL, accumulatorSEW,
-          accumulatorLMUL);
+          accumulatorLMUL, isUnsignedProductReduction);
   return opKind == kRVVPreRealizedWideningProductReduceOpKind &&
          !expectedProductRelation.empty() &&
          productRelation == expectedProductRelation &&
@@ -4287,6 +4289,15 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceBody(
         "pre-realized RVV selected widening product reduction body currently "
         "supports only result_layout "
         "'store-standalone-reduction-lane0-to-output-scalar'");
+  const bool isUnsignedProductReduction =
+      body.getSourceSignedness() ==
+      kRVVLowPrecisionResourceSourceSignednessUnsigned;
+  if (body.getSourceSignedness() !=
+          kRVVLowPrecisionResourceSourceSignednessSigned &&
+      !isUnsignedProductReduction)
+    return makeRVVEmitCRouteProviderError(
+        "pre-realized RVV selected widening product reduction body currently "
+        "supports only source_signedness 'signed' or 'unsigned'");
   if (!isPreRealizedWideningProductReduceSignature(
           body.getOpKind(), static_cast<std::int64_t>(body.getSourceSew()),
           body.getSourceLmul(),
@@ -4295,12 +4306,14 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceBody(
           static_cast<std::int64_t>(body.getAccumulatorSew()),
           body.getAccumulatorLmul(),
           static_cast<std::int64_t>(body.getResultSew()), body.getResultLmul(),
-          body.getProductRelation(), body.getProductReductionChainRelation()))
+          body.getProductRelation(), body.getProductReductionChainRelation(),
+          isUnsignedProductReduction))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction config/relation "
         "must match op_kind 'widening_product_reduce_add' with source SEW8 "
         "LMUL mf4, product SEW16 LMUL mf2, accumulator/result SEW32 LMUL m1, "
-        "and provider-derived signed product and reduction relations");
+        "and provider-derived signed or unsigned product and reduction "
+        "relations");
   if (!tcrv::rvv::isRVVAgnosticPolicy(body.getPolicy()))
     return makeRVVEmitCRouteProviderError(
         "pre-realized RVV selected widening product reduction body requires "
@@ -4334,14 +4347,28 @@ llvm::Error validatePreRealizedRVVSelectedWideningProductReduceBody(
           support::RuntimeABIParameterRole::OutputBuffer);
   if (!out)
     return out.takeError();
-  if ((*lhs).getCType() != kRVVContractionI8PointerCType ||
-      (*rhs).getCType() != kRVVContractionI8PointerCType ||
-      (*acc).getCType() != kRVVContractionI32PointerCType ||
-      (*out).getCType() != kRVVContractionOutputI32PointerCType)
+  llvm::StringRef expectedInputCType =
+      isUnsignedProductReduction
+          ? llvm::StringRef(kRVVContractionU8PointerCType)
+          : llvm::StringRef(kRVVContractionI8PointerCType);
+  llvm::StringRef expectedAccumulatorCType =
+      isUnsignedProductReduction
+          ? llvm::StringRef(kRVVContractionU32PointerCType)
+          : llvm::StringRef(kRVVContractionI32PointerCType);
+  llvm::StringRef expectedOutputCType =
+      isUnsignedProductReduction
+          ? llvm::StringRef(kRVVContractionOutputU32PointerCType)
+          : llvm::StringRef(kRVVContractionOutputI32PointerCType);
+  if ((*lhs).getCType() != expectedInputCType ||
+      (*rhs).getCType() != expectedInputCType ||
+      (*acc).getCType() != expectedAccumulatorCType ||
+      (*out).getCType() != expectedOutputCType)
     return makeRVVEmitCRouteProviderError(
-        "pre-realized RVV selected widening product reduction body requires "
-        "lhs/rhs const int8_t *, accumulator seed const int32_t *, and out "
-        "int32_t * runtime ABI bindings");
+        llvm::Twine("pre-realized RVV selected widening product reduction "
+                    "body requires lhs/rhs ") +
+        expectedInputCType + ", accumulator seed " +
+        expectedAccumulatorCType + ", and out " + expectedOutputCType +
+        " runtime ABI bindings");
   llvm::Expected<tcrv::rvv::RuntimeABIValueOp> n =
       requirePreRealizedContractionRuntimeABIValue(
           body.getN(),

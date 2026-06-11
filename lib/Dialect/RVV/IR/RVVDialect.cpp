@@ -88,6 +88,7 @@ constexpr llvm::StringLiteral kAccumulatorLayoutAttrName(
 constexpr llvm::StringLiteral kResultLayoutAttrName("result_layout");
 constexpr llvm::StringLiteral kSourceSEWAttrName("source_sew");
 constexpr llvm::StringLiteral kSourceLMULAttrName("source_lmul");
+constexpr llvm::StringLiteral kSourceSignednessAttrName("source_signedness");
 constexpr llvm::StringLiteral kDestSEWAttrName("dest_sew");
 constexpr llvm::StringLiteral kDestLMULAttrName("dest_lmul");
 constexpr llvm::StringLiteral kConversionRelationAttrName(
@@ -639,8 +640,9 @@ bool isAllowedTypedWideningProductReducePreRealizedBodyAttr(
          name == kAccumulatorRoleAttrName ||
          name == kAccumulatorLayoutAttrName || name == kResultLayoutAttrName ||
          name == kSourceSEWAttrName || name == kSourceLMULAttrName ||
-         name == kProductSEWAttrName || name == kProductLMULAttrName ||
-         name == kAccumulatorSEWAttrName || name == kAccumulatorLMULAttrName ||
+         name == kSourceSignednessAttrName || name == kProductSEWAttrName ||
+         name == kProductLMULAttrName || name == kAccumulatorSEWAttrName ||
+         name == kAccumulatorLMULAttrName ||
          name == kResultSEWAttrName || name == kResultLMULAttrName ||
          name == kProductRelationAttrName ||
          name == kProductReductionChainRelationAttrName ||
@@ -8208,10 +8210,11 @@ TypedWideningProductReducePreRealizedBodyOp::verify() {
              << kAccumulatorRoleAttrName << "', '"
              << kAccumulatorLayoutAttrName << "', '" << kResultLayoutAttrName
              << "', '" << kSourceSEWAttrName << "', '"
-             << kSourceLMULAttrName << "', '" << kProductSEWAttrName << "', '"
-             << kProductLMULAttrName << "', '" << kAccumulatorSEWAttrName
-             << "', '" << kAccumulatorLMULAttrName << "', '"
-             << kResultSEWAttrName << "', '" << kResultLMULAttrName << "', '"
+             << kSourceLMULAttrName << "', '" << kSourceSignednessAttrName
+             << "', '" << kProductSEWAttrName << "', '" << kProductLMULAttrName
+             << "', '" << kAccumulatorSEWAttrName << "', '"
+             << kAccumulatorLMULAttrName << "', '" << kResultSEWAttrName
+             << "', '" << kResultLMULAttrName << "', '"
              << kProductRelationAttrName << "', '"
              << kProductReductionChainRelationAttrName << "', and '"
              << kPolicyAttrName << "'; unexpected attribute '"
@@ -8259,14 +8262,44 @@ TypedWideningProductReducePreRealizedBodyOp::verify() {
   if (!isSupportedGenericWideningProductRelation(getProductRelation()))
     return emitOpError()
            << "currently supports only product_relation "
-              "\"signed-i8mf4xi8mf4-to-i16mf2\" for the bounded selected-body "
-              "product-reduction hook";
+              "\"signed-i8mf4xi8mf4-to-i16mf2\" or "
+              "\"unsigned-u8mf4xu8mf4-to-u16mf2\" for the bounded "
+              "selected-body product-reduction hook";
   if (!isSupportedTypedWideningProductReductionChainRelation(
           getProductReductionChainRelation()))
     return emitOpError()
            << "currently supports only product_reduction_chain_relation "
               "\"signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32\" "
+              "or "
+              "\"unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32\" "
               "for the bounded selected-body product-reduction hook";
+
+  const bool isSignedSource = getSourceSignedness() == "signed";
+  const bool isUnsignedSource = getSourceSignedness() == "unsigned";
+  if (!isSignedSource && !isUnsignedSource)
+    return emitOpError()
+           << "currently supports only source_signedness \"signed\" or "
+              "\"unsigned\" for the bounded selected-body product-reduction "
+              "hook";
+
+  llvm::StringRef expectedProductRelation =
+      isUnsignedSource ? "unsigned-u8mf4xu8mf4-to-u16mf2"
+                       : "signed-i8mf4xi8mf4-to-i16mf2";
+  llvm::StringRef expectedProductReductionRelation =
+      isUnsignedSource
+          ? "unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32"
+          : "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32";
+  if (getProductRelation() != expectedProductRelation)
+    return emitOpError()
+           << "requires product_relation \"" << expectedProductRelation
+           << "\" when source_signedness is \"" << getSourceSignedness()
+           << "\" for the bounded selected-body product-reduction hook";
+  if (getProductReductionChainRelation() != expectedProductReductionRelation)
+    return emitOpError()
+           << "requires product_reduction_chain_relation \""
+           << expectedProductReductionRelation
+           << "\" when source_signedness is \"" << getSourceSignedness()
+           << "\" for the bounded selected-body product-reduction hook";
 
   if (static_cast<std::int64_t>(getSourceSew()) != getRVVSEW8Bits() ||
       getSourceLmul() != getRVVLMULMF4() ||
@@ -8277,15 +8310,12 @@ TypedWideningProductReducePreRealizedBodyOp::verify() {
       getAccumulatorLmul() != getRVVLMULM1() ||
       static_cast<std::int64_t>(getResultSew()) !=
           getRVVFirstSliceSEWBits() ||
-      getResultLmul() != getRVVLMULM1() ||
-      getProductRelation() != "signed-i8mf4xi8mf4-to-i16mf2" ||
-      getProductReductionChainRelation() !=
-          "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32")
+      getResultLmul() != getRVVLMULM1())
     return emitOpError()
-           << "requires typed product-reduction config to match signed source "
+           << "requires typed product-reduction config to match "
+              "signed/unsigned source "
               "SEW8 LMUL mf4, product SEW16 LMUL mf2, accumulator/result "
-              "SEW32 LMUL m1, and the signed i8 widening-product reduction "
-              "primitive relation";
+              "SEW32 LMUL m1";
   if (!isRVVAgnosticPolicy(getPolicy()))
     return emitOpError()
            << "requires tail agnostic, mask agnostic policy for the bounded "
@@ -8313,22 +8343,36 @@ TypedWideningProductReducePreRealizedBodyOp::verify() {
   RuntimeABIValueOp rhsBinding = getRhs().getDefiningOp<RuntimeABIValueOp>();
   RuntimeABIValueOp accBinding = getAcc().getDefiningOp<RuntimeABIValueOp>();
   RuntimeABIValueOp outBinding = getOut().getDefiningOp<RuntimeABIValueOp>();
-  if (!lhsBinding || lhsBinding.getCType() != "const int8_t *")
+  llvm::StringRef expectedInputCType =
+      isUnsignedSource ? "const uint8_t *" : "const int8_t *";
+  llvm::StringRef expectedAccumulatorCType =
+      isUnsignedSource ? "const uint32_t *" : "const int32_t *";
+  llvm::StringRef expectedOutputCType =
+      isUnsignedSource ? "uint32_t *" : "int32_t *";
+  llvm::StringRef expectedSourceDType =
+      isUnsignedSource ? "unsigned u8" : "signed i8";
+  llvm::StringRef expectedReductionDType =
+      isUnsignedSource ? "u32" : "i32";
+  if (!lhsBinding || lhsBinding.getCType() != expectedInputCType)
     return emitOpError()
-           << "requires lhs operand C type 'const int8_t *' to match typed "
-              "signed i8 product source dtype";
-  if (!rhsBinding || rhsBinding.getCType() != "const int8_t *")
+           << "requires lhs operand C type '" << expectedInputCType
+           << "' to match typed " << expectedSourceDType
+           << " product source dtype";
+  if (!rhsBinding || rhsBinding.getCType() != expectedInputCType)
     return emitOpError()
-           << "requires rhs operand C type 'const int8_t *' to match typed "
-              "signed i8 product source dtype";
-  if (!accBinding || accBinding.getCType() != "const int32_t *")
+           << "requires rhs operand C type '" << expectedInputCType
+           << "' to match typed " << expectedSourceDType
+           << " product source dtype";
+  if (!accBinding || accBinding.getCType() != expectedAccumulatorCType)
     return emitOpError()
-           << "requires accumulator seed operand C type 'const int32_t *' to "
-              "match typed i32 reduction boundary";
-  if (!outBinding || outBinding.getCType() != "int32_t *")
+           << "requires accumulator seed operand C type '"
+           << expectedAccumulatorCType << "' to match typed "
+           << expectedReductionDType << " reduction boundary";
+  if (!outBinding || outBinding.getCType() != expectedOutputCType)
     return emitOpError()
-           << "requires out operand C type 'int32_t *' to match typed i32 "
-              "store boundary";
+           << "requires out operand C type '" << expectedOutputCType
+           << "' to match typed " << expectedReductionDType
+           << " store boundary";
   return verifyRuntimeElementCountOperand(op, getN());
 }
 

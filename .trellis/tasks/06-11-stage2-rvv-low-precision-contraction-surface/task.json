@@ -2,7 +2,7 @@
   "id": "stage2-rvv-low-precision-contraction-surface",
   "name": "stage2-rvv-low-precision-contraction-surface",
   "title": "Stage2 RVV low-precision contraction primitive-surface campaign",
-  "description": "Macro campaign for Stage2 RVV low-precision contraction primitive-surface maturity. Current slice completed Gate 2 signed selected-body realization for product-reduction representatives.",
+  "description": "Macro campaign for Stage2 RVV low-precision contraction primitive-surface maturity. Current slice completed Gate 2 product-reduction selected-body signedness boundary cleanup for signed i8 and unsigned u8 representatives.",
   "status": "in_progress",
   "dev_type": null,
   "scope": null,
@@ -37,6 +37,6 @@
     "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir",
     "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir"
   ],
-  "notes": "Gate 1 foundation slice completed. Gate 2 signed representative slice completed: added tcrv_rvv.typed_widening_product_reduce_pre_realized_body, verifier coverage for signed i8/i16/i32 primitive typed/runtime facts, provider-side pre-realized validator, and RVV contraction selected-body realization that materializes setvl/with_vl/load/widening_product/standalone_reduce/store before route construction. Focused pre-realized lit coverage proves realization, emission-plan/header primitive mirrors, stale source SEW rejection, and existing explicit signed i8 plus unsigned u8 product-reduction fixtures remain passing. Macro task remains open for Gate 2 unsigned u8 selected-body realization or a bounded explicit-body-only decision, Gate 3 route/artifact carry-through beyond this realization foundation, and Gate 4 fresh source-backed same-target evidence/admission if later claimed.",
+  "notes": "Gate 1 foundation slice completed. Gate 2 signed representative slice completed earlier: added tcrv_rvv.typed_widening_product_reduce_pre_realized_body, verifier coverage for signed i8/i16/i32 primitive typed/runtime facts, provider-side pre-realized validator, and RVV contraction selected-body realization that materializes setvl/with_vl/load/widening_product/standalone_reduce/store before route construction. Current Gate 2 signedness boundary cleanup completed: the same pre-realized body now carries source_signedness, verifier/provider validation accepts only signedness-consistent signed i8/i16/i32 or unsigned u8/u16/u32 product-reduction contracts, realization derives unsigned ui8/ui16/ui32 vector types plus unsigned_widening_product/unsigned_widening_reduce_add and unsigned provider primitive facts, and focused signed/unsigned pre-realized lit coverage proves realization plus emission-plan/header carry-through. Existing explicit signed i8 and unsigned u8 product-reduction fixtures remain passing. Macro task remains open for Gate 3 route/provider/artifact/export carry-through beyond this plain product-reduction realization foundation and Gate 4 fresh source-backed same-target evidence/admission if later claimed.",
   "meta": {}
 }

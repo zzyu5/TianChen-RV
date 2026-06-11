@@ -1516,12 +1516,13 @@ def TypedWideningProductReducePreRealizedBodyOp
       "generic typed pre-realized RVV widening product reduction body";
   let description = [{
     Carries one bounded RVV plugin-local pre-realized selected body for the
-    signed low-precision contraction chain. The op is nested directly in a
-    selected tcrv.exec.variant and binds explicit runtime ABI values for
-    signed i8 lhs/rhs inputs, an i32 accumulator seed, an i32 scalar output,
-    and runtime n/AVL. It also carries source, product, accumulator, and result
-    SEW+LMUL facts, product/reduction relations, memory form, accumulator
-    layout, result layout, and policy.
+    signed or unsigned low-precision contraction chain. The op is nested
+    directly in a selected tcrv.exec.variant and binds explicit runtime ABI
+    values for i8/u8 lhs/rhs inputs, an i32/u32 accumulator seed, an i32/u32
+    scalar output, and runtime n/AVL. It also carries source signedness,
+    source, product, accumulator, and result SEW+LMUL facts,
+    product/reduction relations, memory form, accumulator layout, result
+    layout, and policy.
 
     This op is not a q8/q4 route, matmul framework, high-level frontend,
     dtype-prefixed helper namespace, descriptor, source-front-door marker,
@@ -1545,6 +1546,7 @@ def TypedWideningProductReducePreRealizedBodyOp
     StrAttr:$result_layout,
     I64Attr:$source_sew,
     StrAttr:$source_lmul,
+    StrAttr:$source_signedness,
     I64Attr:$product_sew,
     StrAttr:$product_lmul,
     I64Attr:$accumulator_sew,
