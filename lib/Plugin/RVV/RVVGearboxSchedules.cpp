@@ -1873,6 +1873,10 @@ validateLowPrecisionProductDequantGearboxBody(
               kRVVLowPrecisionResourcePackedI4RemediationVLPlan)))
     return mlir::failure();
 
+  const tianchenrv::plugin::rvv::
+      RVVLowPrecisionPackedI4StableResourceScheduleFacts stableScheduleFacts =
+          tianchenrv::plugin::rvv::
+              getRVVLowPrecisionPackedI4StableResourceScheduleFacts();
   auto requireOptionalResourceScheduleFact =
       [&](llvm::StringRef attrName,
           llvm::StringRef expected) -> mlir::LogicalResult {
@@ -1901,18 +1905,14 @@ validateLowPrecisionProductDequantGearboxBody(
   };
   if (mlir::failed(requireOptionalResourceScheduleFact(
           "schedule_decision_contract",
-          tianchenrv::plugin::rvv::
-              kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract)))
+          stableScheduleFacts.scheduleDecisionContract)))
     return mlir::failure();
   if (mlir::failed(requireOptionalResourceScheduleFact(
-          "schedule_decision",
-          tianchenrv::plugin::rvv::
-              kRVVLowPrecisionResourcePackedI4ScheduleDecision)))
+          "schedule_decision", stableScheduleFacts.scheduleDecision)))
     return mlir::failure();
   if (mlir::failed(requireOptionalResourceScheduleFact(
           "schedule_decision_reason",
-          tianchenrv::plugin::rvv::
-              kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason)))
+          stableScheduleFacts.scheduleDecisionReason)))
     return mlir::failure();
 
   auto requireOptionalResourceCostStringFact =
@@ -1968,23 +1968,17 @@ validateLowPrecisionProductDequantGearboxBody(
            << expected << " but found " << attr.getInt();
   };
   if (mlir::failed(requireOptionalResourceCostStringFact(
-          "resource_cost_contract",
-          tianchenrv::plugin::rvv::
-              kRVVLowPrecisionResourcePackedI4CostContract)))
+          "resource_cost_contract", stableScheduleFacts.resourceCostContract)))
     return mlir::failure();
   if (mlir::failed(requireOptionalResourceCostStringFact(
-          "resource_cost_model",
-          tianchenrv::plugin::rvv::kRVVLowPrecisionResourcePackedI4CostModel)))
+          "resource_cost_model", stableScheduleFacts.resourceCostModel)))
     return mlir::failure();
   if (mlir::failed(requireOptionalResourceCostIntegerFact(
           "resource_cost_loop_body_steps",
-          tianchenrv::plugin::rvv::
-              kRVVLowPrecisionResourcePackedI4CostLoopBodySteps)))
+          stableScheduleFacts.resourceCostLoopBodySteps)))
     return mlir::failure();
   if (mlir::failed(requireOptionalResourceCostStringFact(
-          "resource_cost_blocker",
-          tianchenrv::plugin::rvv::
-              kRVVLowPrecisionResourcePackedI4CostBlocker)))
+          "resource_cost_blocker", stableScheduleFacts.resourceCostBlocker)))
     return mlir::failure();
 
   auto requireOptionalMeasurementDispositionStringFact =

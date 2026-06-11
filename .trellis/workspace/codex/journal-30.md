@@ -141,6 +141,76 @@ performance-preferred admission claim.
 
 Final coherent commit is created after this journal entry.
 
+## Session 604: Gearbox low-precision resource-schedule canonicalization
+
+**Date**: 2026-06-12
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the Gearbox low-precision
+resource-schedule canonicalization slice. This round concentrated the accepted
+packed-i4 stable schedule/resource-cost facts into a single RVV plugin-local
+helper and made Gearbox candidate selection, provider route validation, handoff
+schedule validation, and target artifact resource validation consume that same
+compiler-owned contract.
+
+### Main Changes
+
+- Added `RVVLowPrecisionPackedI4StableResourceScheduleFacts` for the accepted
+  packed-i4 schedule-decision, unroll/accumulator/region/live-vector budget,
+  and resource-cost facts.
+- Removed remediation plan, performance admission, beyond-local admission,
+  dispatch preference, no-win classification, same-target evidence IDs, and
+  campaign outcome strings from stable schedule acceptance.
+- Reused the canonical stable schedule facts in Gearbox handoff schedule/cost
+  verification, provider route planning validation, selected-body handoff
+  checks, and target artifact packed-i4 resource validation.
+- Split provider handoff diagnostics so performance/beyond-local admission
+  fields fail as measurement-disposition admission facts, resource-cost fields
+  fail as resource-cost facts, and `schedule_decision*` fields fail as stable
+  resource schedule facts.
+- Extended the RVV plugin C++ test so stale measurement-disposition
+  admission/remediation fields no longer affect stable schedule acceptance.
+- Updated the active PRD/task metadata and RVV plugin spec for the stable
+  schedule/resource-cost ownership rule.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk ./build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk ./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-add|explicit-selected-body-artifact-widening-product-reduce-add\\.mlir|explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8|rvv-generated-bundle-same-target-measure-gate4-dry-run'` from `build/test`
+- [OK] Bounded scans confirmed the stable packed-i4 schedule helper no longer
+  references remediation/admission fields and provider handoff diagnostics no
+  longer route admission through resource-cost or schedule through remediation
+  labels.
+- [OK] `rtk git diff --check`
+
+### Self-Repair
+
+- The first implementation still left `schedule_decision*` checks in a
+  provider-side remediation handoff helper and performance/beyond-local
+  admission fields in a resource-cost helper. These were split into stable
+  resource schedule, resource-cost, and measurement-disposition admission
+  helpers before the final build/check pass.
+- The first canonicalization pass updated provider and target consumers but
+  left the Gearbox schedule owner using local schedule/resource-cost constants.
+  `RVVGearboxSchedules.cpp` now consumes the same canonical stable facts.
+
+### Status
+
+[OPEN MACRO TASK] The Gearbox low-precision resource-schedule canonicalization
+slice is complete. The macro task remains active for adjacent low-precision
+primitive-surface cleanup or future measurement-disposition work with fresh
+source-backed same-target RVV evidence before any measured-win or
+performance-preferred admission claim.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 592: Packed-i4 dequant/dequant-clamp resource/evidence boundary cleanup
 
 **Date**: 2026-06-11

@@ -5391,20 +5391,20 @@ void populateRVVLowPrecisionContractionResourceRealizationSchedule(
   }
   if (isRVVLowPrecisionResourcePackedI4CandidateID(
           selection.selectedCandidateID)) {
+    const RVVLowPrecisionPackedI4StableResourceScheduleFacts
+        stableScheduleFacts =
+            getRVVLowPrecisionPackedI4StableResourceScheduleFacts();
     selection.scheduleDecisionContract =
-        kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract.str();
-    selection.scheduleDecision =
-        kRVVLowPrecisionResourcePackedI4ScheduleDecision.str();
+        stableScheduleFacts.scheduleDecisionContract.str();
+    selection.scheduleDecision = stableScheduleFacts.scheduleDecision.str();
     selection.scheduleDecisionReason =
-        kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason.str();
+        stableScheduleFacts.scheduleDecisionReason.str();
     selection.resourceCostContract =
-        kRVVLowPrecisionResourcePackedI4CostContract.str();
-    selection.resourceCostModel =
-        kRVVLowPrecisionResourcePackedI4CostModel.str();
+        stableScheduleFacts.resourceCostContract.str();
+    selection.resourceCostModel = stableScheduleFacts.resourceCostModel.str();
     selection.resourceCostLoopBodySteps =
-        kRVVLowPrecisionResourcePackedI4CostLoopBodySteps;
-    selection.resourceCostBlocker =
-        kRVVLowPrecisionResourcePackedI4CostBlocker.str();
+        stableScheduleFacts.resourceCostLoopBodySteps;
+    selection.resourceCostBlocker = stableScheduleFacts.resourceCostBlocker.str();
     selection.performanceAdmissionDecision =
         kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision.str();
     selection.performanceAdmissionClosure =
@@ -6274,7 +6274,7 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
         " selected-body realization low-precision direct-contraction "
         "structure requires Gearbox cross-region handoff peak live "
              "vector-group estimate to fit inside vector register budget");
-  auto requireHandoffPackedI4StringFact =
+  auto requireHandoffPackedI4ResourceCostStringFact =
       [&](llvm::StringRef attrName, llvm::StringRef field,
           llvm::StringRef expected) -> llvm::Error {
     auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
@@ -6306,7 +6306,7 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
         field + "' to match selected resource facts '" + expected +
         "' but found '" + attr.getValue() + "'");
   };
-  auto requireHandoffPackedI4IntegerFact =
+  auto requireHandoffPackedI4ResourceCostIntegerFact =
       [&](llvm::StringRef attrName, llvm::StringRef field,
           std::int64_t expected) -> llvm::Error {
     auto attr = handoff->getAttrOfType<mlir::IntegerAttr>(attrName);
@@ -6338,51 +6338,93 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
         field + "' to match selected resource fact " + llvm::Twine(expected) +
         " but found " + llvm::Twine(attr.getInt()));
   };
-  if (llvm::Error error = requireHandoffPackedI4StringFact(
+  if (llvm::Error error = requireHandoffPackedI4ResourceCostStringFact(
           "resource_cost_contract", "resource cost contract",
           selection.resourceCostContract))
     return error;
-  if (llvm::Error error = requireHandoffPackedI4StringFact(
+  if (llvm::Error error = requireHandoffPackedI4ResourceCostStringFact(
           "resource_cost_model", "resource cost model",
           selection.resourceCostModel))
     return error;
-  if (llvm::Error error = requireHandoffPackedI4IntegerFact(
+  if (llvm::Error error = requireHandoffPackedI4ResourceCostIntegerFact(
           "resource_cost_loop_body_steps", "resource cost loop-body steps",
           selection.resourceCostLoopBodySteps))
     return error;
-  if (llvm::Error error = requireHandoffPackedI4StringFact(
+  if (llvm::Error error = requireHandoffPackedI4ResourceCostStringFact(
           "resource_cost_blocker", "resource cost blocker",
           selection.resourceCostBlocker))
     return error;
-  if (llvm::Error error = requireHandoffPackedI4StringFact(
+  auto requireHandoffPackedI4MeasurementDispositionAdmissionFact =
+      [&](llvm::StringRef attrName, llvm::StringRef field,
+          llvm::StringRef expected) -> llvm::Error {
+    auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
+    const bool isPackedI4Resource =
+        isRVVLowPrecisionResourcePackedI4CandidateID(
+            selection.selectedCandidateID);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " selected-body realization low-precision direct-contraction "
+            "structure requires packed-i4 Gearbox handoff "
+            "measurement-disposition admission fact '" +
+            attrName +
+            "' to be absent for unpacked-byte resource candidates");
+      return llvm::Error::success();
+    }
+    if (!attr)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " selected-body realization low-precision direct-contraction "
+          "structure requires packed-i4 Gearbox handoff "
+          "measurement-disposition admission fact '" +
+          attrName + "' before policy/evidence validation");
+    if (attr.getValue() == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires packed-i4 Gearbox handoff "
+        "measurement-disposition admission fact '" +
+        field + "' to match policy/evidence fact '" + expected +
+        "' but found '" + attr.getValue() + "'");
+  };
+  if (llvm::Error error =
+          requireHandoffPackedI4MeasurementDispositionAdmissionFact(
           "performance_admission_decision", "performance admission decision",
           selection.performanceAdmissionDecision))
     return error;
-  if (llvm::Error error = requireHandoffPackedI4StringFact(
+  if (llvm::Error error =
+          requireHandoffPackedI4MeasurementDispositionAdmissionFact(
           "performance_admission_closure", "performance admission closure",
           selection.performanceAdmissionClosure))
     return error;
-  if (llvm::Error error = requireHandoffPackedI4StringFact(
+  if (llvm::Error error =
+          requireHandoffPackedI4MeasurementDispositionAdmissionFact(
           "performance_admission_reopen_requirement",
           "performance admission reopen requirement",
           selection.performanceAdmissionReopenRequirement))
     return error;
-  if (llvm::Error error = requireHandoffPackedI4StringFact(
+  if (llvm::Error error =
+          requireHandoffPackedI4MeasurementDispositionAdmissionFact(
           "beyond_local_repair_admission_contract",
           "beyond-local repair admission contract",
           selection.beyondLocalRepairAdmissionContract))
     return error;
-  if (llvm::Error error = requireHandoffPackedI4StringFact(
+  if (llvm::Error error =
+          requireHandoffPackedI4MeasurementDispositionAdmissionFact(
           "beyond_local_repair_admission_decision",
           "beyond-local repair admission decision",
           selection.beyondLocalRepairAdmissionDecision))
     return error;
-  if (llvm::Error error = requireHandoffPackedI4StringFact(
+  if (llvm::Error error =
+          requireHandoffPackedI4MeasurementDispositionAdmissionFact(
           "beyond_local_repair_admission_blocker",
           "beyond-local repair admission blocker",
           selection.beyondLocalRepairAdmissionBlocker))
     return error;
-  if (llvm::Error error = requireHandoffPackedI4StringFact(
+  if (llvm::Error error =
+          requireHandoffPackedI4MeasurementDispositionAdmissionFact(
           "beyond_local_repair_admission_reopen_requirement",
           "beyond-local repair admission reopen requirement",
           selection.beyondLocalRepairAdmissionReopenRequirement))
@@ -6620,16 +6662,54 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
           "remediation_vl_plan", "remediation VL plan",
           selection.remediationVLPlan))
     return error;
-  if (llvm::Error error = requireOptionalRemediationFact(
+  auto requireHandoffPackedI4ResourceScheduleFact =
+      [&](llvm::StringRef attrName, llvm::StringRef field,
+          llvm::StringRef expected) -> llvm::Error {
+    auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
+    const bool isPackedI4Resource =
+        isRVVLowPrecisionResourcePackedI4CandidateID(
+            selection.selectedCandidateID);
+    if (!isPackedI4Resource) {
+      if (attr)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " selected-body realization low-precision direct-contraction "
+            "structure requires packed-i4 Gearbox handoff resource schedule "
+            "fact '" +
+            attrName +
+            "' to be absent for unpacked-byte resource candidates");
+      return llvm::Error::success();
+    }
+    if (!attr)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " selected-body realization low-precision direct-contraction "
+          "structure requires packed-i4 Gearbox handoff resource schedule "
+          "fact '" +
+          attrName + "' before route acceptance");
+    if (attr.getValue() == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires packed-i4 Gearbox handoff resource schedule fact '" +
+        field + "' to match compiler-owned stable schedule fact '" + expected +
+        "' but found '" + attr.getValue() + "'");
+  };
+  const RVVLowPrecisionPackedI4StableResourceScheduleFacts
+      stableScheduleFacts =
+          getRVVLowPrecisionPackedI4StableResourceScheduleFacts();
+  if (llvm::Error error = requireHandoffPackedI4ResourceScheduleFact(
           "schedule_decision_contract", "schedule decision contract",
-          selection.scheduleDecisionContract))
+          stableScheduleFacts.scheduleDecisionContract))
     return error;
-  if (llvm::Error error = requireOptionalRemediationFact(
-          "schedule_decision", "schedule decision", selection.scheduleDecision))
+  if (llvm::Error error = requireHandoffPackedI4ResourceScheduleFact(
+          "schedule_decision", "schedule decision",
+          stableScheduleFacts.scheduleDecision))
     return error;
-  if (llvm::Error error = requireOptionalRemediationFact(
+  if (llvm::Error error = requireHandoffPackedI4ResourceScheduleFact(
           "schedule_decision_reason", "schedule decision reason",
-          selection.scheduleDecisionReason))
+          stableScheduleFacts.scheduleDecisionReason))
     return error;
 
   return llvm::Error::success();
@@ -7821,38 +7901,35 @@ llvm::Error verifyRVVLowPrecisionContractionPackedI4ResourceCostScheduleSelectio
           selection.selectedCandidateID))
     return llvm::Error::success();
 
+  const RVVLowPrecisionPackedI4StableResourceScheduleFacts facts =
+      getRVVLowPrecisionPackedI4StableResourceScheduleFacts();
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "resource schedule decision contract",
-          selection.scheduleDecisionContract,
-          kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract))
+          selection.scheduleDecisionContract, facts.scheduleDecisionContract))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "resource schedule decision",
-          selection.scheduleDecision,
-          kRVVLowPrecisionResourcePackedI4ScheduleDecision))
+          selection.scheduleDecision, facts.scheduleDecision))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "resource schedule decision reason",
-          selection.scheduleDecisionReason,
-          kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason))
+          selection.scheduleDecisionReason, facts.scheduleDecisionReason))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "resource cost contract",
-          selection.resourceCostContract,
-          kRVVLowPrecisionResourcePackedI4CostContract))
+          selection.resourceCostContract, facts.resourceCostContract))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "resource cost model", selection.resourceCostModel,
-          kRVVLowPrecisionResourcePackedI4CostModel))
+          facts.resourceCostModel))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
           context, selection, "resource cost loop-body steps",
-          selection.resourceCostLoopBodySteps,
-          kRVVLowPrecisionResourcePackedI4CostLoopBodySteps))
+          selection.resourceCostLoopBodySteps, facts.resourceCostLoopBodySteps))
     return error;
   return requireRVVLowPrecisionResourceStringField(
       context, selection, "resource cost blocker", selection.resourceCostBlocker,
-      kRVVLowPrecisionResourcePackedI4CostBlocker);
+      facts.resourceCostBlocker);
 }
 
 llvm::Error verifyRVVLowPrecisionContractionMeasurementDispositionHandoff(

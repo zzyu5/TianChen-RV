@@ -49,14 +49,16 @@ EmitC semantics.
   or diagnostics, where it can imply route, schedule, support, or admission
   authority rather than a project milestone or measurement-disposition record.
 
-## Current Round Slice: Packed-I4 Dequant/Dequant-Clamp Carry-Through Cleanup
+## Current Round Slice: Gearbox Low-Precision Resource-Schedule Canonicalization
 
-The current bounded slice cleans the adjacent packed-i4
-dequantize/dequant-clamp carry-through boundary. Compiler authority remains:
+The current bounded slice follows the packed-i4 measurement-disposition
+quarantine by canonicalizing the stable Gearbox/resource schedule facts that
+survive as compiler authority. Compiler authority remains:
 
 ```text
 selected tcrv.exec RVV variant
   -> typed packed-i4 low-precision pre-realized body/config/runtime facts
+  -> RVV Gearbox resource candidate and stable resource-schedule facts
   -> RVV contraction selected-body realization owner
   -> realized tcrv_rvv unpack/product/reduction/dequant or dequant-clamp body
   -> RVV provider-owned primitive/resource route payload
@@ -65,23 +67,24 @@ selected tcrv.exec RVV variant
 ```
 
 The cleanup must inspect the directly related packed-i4 dequantize and
-dequant-clamp production route, Gearbox handoff, policy, and target-validation
-surfaces. Stable primitive/config/resource facts must remain owned by the typed
-body, selected-body realization, provider payload, and target artifact
-compiler-fact validation. Measurement results, no-win conclusions, source
-evidence IDs, and admission conclusions may remain only as
-measurement-disposition or policy evidence. They must not be consumed as route
-support, schedule authority, dtype/config authority, artifact-name authority, or
-selected-body authority.
+dequant-clamp production route, Gearbox handoff, selected-body realization,
+provider route planning, and target-validation surfaces. Stable schedule and
+resource-cost facts must have one plugin-local compiler contract sourced from
+typed body/config/resource facts. Measurement results, no-win conclusions,
+source evidence IDs, remediation plans, performance admission, and dispatch
+preference may remain only as measurement-disposition or policy evidence. They
+must not participate in the stable schedule decision or target artifact
+resource acceptance.
 
-The concrete blocker found for this round is that the target packed-i4 provider
-fact validator and Gearbox handoff diagnostics still group performance,
-admission, and remediation evidence with provider resource facts. That grouping
-keeps the evidence exact, but it makes the code read as though measured no-win
-or admission status participates in route acceptance. This slice must split or
-rename that consumption so artifact/resource acceptance remains tied to
-typed/realized/provider facts, while measurement-disposition mirrors are
-validated only under a separate evidence/policy boundary.
+The concrete blocker found for this round is that
+`isRVVLowPrecisionResourceAcceptedPackedI4StableScheduleDecision` still depends
+on packed-i4 remediation plan fields while claiming to decide a stable schedule.
+That can make measurement-disposition remediation facts look like permanent
+schedule authority. This slice must concentrate the stable packed-i4 schedule
+facts into a canonical helper/API consumed by the Gearbox candidate selector,
+selected-body realization/provider route validation, and target artifact
+resource validation. Measurement-disposition helpers must remain separate and
+continue to fail closed for stale evidence/admission mirrors.
 
 This round must not add q8/q4 route authority, artifact-name authority,
 helper-only wrappers, source-front-door positive routes, Common EmitC semantic
@@ -90,29 +93,30 @@ inference, or measured-win/admission claims.
 ## Acceptance Criteria For This Slice
 
 - Active task metadata, PRD, implementation/check context, and RVV
-  low-precision spec sections identify the packed-i4
-  dequantize/dequant-clamp carry-through milestone under the same macro task.
-- Target artifact validation separates packed-i4 resource/compiler-fact
-  validation from measurement-disposition evidence mirror validation.
-- Gearbox handoff verification no longer diagnoses packed-i4 remediation,
-  performance admission, or beyond-local admission evidence as facts required
-  as route-support prerequisites. Route-support diagnostics remain reserved for
-  typed/realized/provider resource facts.
-- Provider payload and target validation exactness remains intact for
+  low-precision spec sections identify the Gearbox low-precision
+  resource-schedule canonicalization milestone under the same macro task.
+- The packed-i4 stable schedule decision no longer depends on remediation,
+  performance admission, beyond-local admission, dispatch preference, same-target
+  evidence, or no-win/campaign outcome fields.
+- A plugin-local compiler helper/API defines the accepted packed-i4 stable
+  resource-schedule facts and is consumed by Gearbox candidate selection,
+  provider route planning validation, and target artifact resource validation.
+- Selected-body realization and provider payload exactness remains intact for
   primitive/config/resource facts: signed packed-i4 dequantize and
   dequant-clamp route descriptions still carry provider-owned resource facts,
-  primitive payloads, realization facts, runtime ABI facts, and target mirrors
-  before artifact acceptance.
-- Measurement evidence and no-win/admission conclusions remain preserved as
-  measurement-disposition or policy evidence only; no useful evidence is
-  deleted.
+  primitive payloads, realization facts, runtime ABI facts, stable schedule
+  facts, and target mirrors before artifact acceptance.
+- Measurement evidence and no-win/admission/remediation conclusions remain
+  preserved as measurement-disposition or policy evidence only; no useful
+  evidence is deleted.
 - Common EmitC remains neutral and only carries provider-built payloads and
   mirrors.
 - A bounded scan over touched production files, active task text, directly
   affected packed-i4 fixtures, and the RVV low-precision spec sections finds no
-  Gate/admission/result/support wording that implies compiler authority outside
-  explicit measurement-disposition or policy/evidence contexts. Immutable
-  historical evidence path strings may remain only as evidence IDs.
+  Gate/admission/result/support/remediation wording that implies stable
+  schedule/resource authority outside explicit measurement-disposition or
+  policy/evidence contexts. Immutable historical evidence path strings may
+  remain only as evidence IDs.
 - Focused packed-i4 dequantize/dequant-clamp lit coverage remains passing,
   alongside the signed/unsigned product-reduction payload coverage needed to
   guard the existing provider payload exactness.
@@ -169,37 +173,37 @@ macro task remains open after this cleanup slice for any adjacent
 low-precision primitive-surface gaps or a future measurement-disposition slice
 that has real RVV target evidence.
 
-The packed-i4 dequantize/dequant-clamp carry-through boundary remains open at
-the start of this round because performance/admission/remediation evidence is
-still grouped with resource-fact validation in the target packed-i4 path and in
-Gearbox handoff diagnostics. This round completes a bounded cleanup of that
-boundary without claiming new runtime, correctness, or performance evidence.
+The previous packed-i4 measurement-disposition policy-boundary cleanup is
+complete. Gearbox handoff diagnostics, provider route planning, and target
+artifact validation now distinguish stable resource facts from
+measurement-disposition evidence/admission mirrors. The remaining open boundary
+for this round is the stable schedule decision itself: the current accepted
+packed-i4 schedule helper still requires remediation planning facts, which
+keeps policy/evidence fields too close to schedule authority. This round
+completes a bounded canonicalization of that stable schedule/resource contract
+without claiming new runtime, correctness, or performance evidence.
 
 ## Status After This Round
 
-The packed-i4 measurement-disposition policy-boundary cleanup slice is complete.
-Gearbox handoff diagnostics now distinguish measurement-disposition remediation
-planning facts from stable resource schedule and resource-cost facts. Provider
-route planning validates load/unpack, realization, schedule, and resource-cost
-facts through resource helpers, then validates realization-admission,
-remediation, performance feedback, admission, maturity, dispatch preference,
-and same-target evidence only through an explicit
-measurement-disposition policy/evidence boundary.
+The Gearbox low-precision resource-schedule canonicalization slice is complete.
+The accepted packed-i4 stable schedule decision now uses a single RVV
+plugin-local `RVVLowPrecisionPackedI4StableResourceScheduleFacts` helper for
+schedule-decision, unroll/accumulator/region/live-vector budget, and
+resource-cost facts. That stable helper is consumed by Gearbox candidate
+selection, Gearbox handoff/resource schedule verification, provider route
+planning validation, and target artifact resource validation.
 
-Target artifact validation now keeps packed-i4 provider resource facts separate
-from measurement-disposition evidence/admission mirrors. Remediation planning
-and realization-admission mirrors moved out of the packed-i4 resource provider
-fact helper and out of the generic resource-metadata mirror helper; stale or
-metadata-only copies still fail closed under the measurement-disposition
-evidence helper. The RVV plugin spec records that remediation planning facts are
-policy/evidence facts, not resource schedule authority.
+The stable schedule decision no longer depends on remediation plan,
+performance admission, beyond-local admission, dispatch preference, no-win
+classification, same-target evidence IDs, or campaign outcome strings.
+Measurement-disposition admission/remediation evidence remains preserved and
+validated through explicitly named policy/evidence helpers, including the
+provider handoff structure checks and target artifact evidence/admission mirror
+checks.
 
-The `tcrv_rvv.gearbox_cross_region_handoff` verifier uses the same boundary:
-resource-cost fields fail as resource-cost facts, `schedule_decision*` fields
-fail as resource schedule facts, and remediation/admission fields fail as
-measurement-disposition policy/evidence facts.
-
-The macro campaign remains in progress. The next continuation point is any
-adjacent low-precision primitive-surface gap or a future
-measurement-disposition slice with fresh source-backed same-target RVV evidence
-before any performance-preferred or measured-win claim.
+Focused C++ and lit coverage confirms packed-i4 dequantize/dequant-clamp,
+signed/unsigned product-reduction payload exactness, and the generated-bundle
+dry-run evidence boundary still pass. The macro campaign remains in progress.
+The next continuation point is any adjacent low-precision primitive-surface gap
+or a future measurement-disposition slice with fresh source-backed same-target
+RVV evidence before any performance-preferred or measured-win claim.

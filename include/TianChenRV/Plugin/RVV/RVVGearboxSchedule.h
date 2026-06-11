@@ -736,6 +736,38 @@ constexpr std::int64_t kRVVLowPrecisionResourcePackedI4VSetVLRegions = 2;
 constexpr std::int64_t kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups = 5;
 constexpr std::int64_t kRVVLowPrecisionResourcePackedI4CostLoopBodySteps = 11;
 constexpr std::int64_t kRVVLowPrecisionResourceVectorRegisterBudget = 32;
+
+struct RVVLowPrecisionPackedI4StableResourceScheduleFacts {
+  llvm::StringRef scheduleDecisionContract;
+  llvm::StringRef scheduleDecision;
+  llvm::StringRef scheduleDecisionReason;
+  std::int64_t unrollFactor = 0;
+  std::int64_t accumulatorCount = 0;
+  std::int64_t vsetvlRegionCount = 0;
+  std::int64_t peakLiveVectorGroups = 0;
+  std::int64_t vectorRegisterBudget = 0;
+  llvm::StringRef resourceCostContract;
+  llvm::StringRef resourceCostModel;
+  std::int64_t resourceCostLoopBodySteps = 0;
+  llvm::StringRef resourceCostBlocker;
+};
+
+inline RVVLowPrecisionPackedI4StableResourceScheduleFacts
+getRVVLowPrecisionPackedI4StableResourceScheduleFacts() {
+  return {kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract,
+          kRVVLowPrecisionResourcePackedI4ScheduleDecision,
+          kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason,
+          kRVVLowPrecisionResourcePackedI4Unroll,
+          kRVVLowPrecisionResourcePackedI4AccumulatorCount,
+          kRVVLowPrecisionResourcePackedI4VSetVLRegions,
+          kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups,
+          kRVVLowPrecisionResourceVectorRegisterBudget,
+          kRVVLowPrecisionResourcePackedI4CostContract,
+          kRVVLowPrecisionResourcePackedI4CostModel,
+          kRVVLowPrecisionResourcePackedI4CostLoopBodySteps,
+          kRVVLowPrecisionResourcePackedI4CostBlocker};
+}
+
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceOperandFormUnpackedByte(
     "unpacked-byte-elements");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceOperandFormPackedI4Nibbles(
@@ -1100,43 +1132,20 @@ getRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceIDForCandidate(
 
 inline bool isRVVLowPrecisionResourceAcceptedPackedI4StableScheduleDecision(
     const RVVLowPrecisionContractionResourceCandidate &candidate) {
+  const RVVLowPrecisionPackedI4StableResourceScheduleFacts facts =
+      getRVVLowPrecisionPackedI4StableResourceScheduleFacts();
   return isRVVLowPrecisionResourcePackedI4CandidateID(candidate.candidateID) &&
          candidate.isLegal &&
-         candidate.remediationPlanContract ==
-             kRVVLowPrecisionResourcePackedI4RemediationPlanContract &&
-         candidate.remediationPlan ==
-             kRVVLowPrecisionResourcePackedI4RemediationPlan &&
-         candidate.remediationStatementStrategy ==
-             kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy &&
-         candidate.remediationVectorBudget ==
-             kRVVLowPrecisionResourcePackedI4RemediationVectorBudget &&
-         candidate.remediationScheduleContract ==
-             kRVVLowPrecisionResourcePackedI4RemediationScheduleContract &&
-         candidate.remediationUnpackPlan ==
-             kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan &&
-         candidate.remediationProductPlan ==
-             kRVVLowPrecisionResourcePackedI4RemediationProductPlan &&
-         candidate.remediationReductionPlan ==
-             kRVVLowPrecisionResourcePackedI4RemediationReductionPlan &&
-         candidate.remediationVLPlan ==
-             kRVVLowPrecisionResourcePackedI4RemediationVLPlan &&
-         candidate.unrollFactor == kRVVLowPrecisionResourcePackedI4Unroll &&
-         candidate.accumulatorCount ==
-             kRVVLowPrecisionResourcePackedI4AccumulatorCount &&
-         candidate.vsetvlRegionCount ==
-             kRVVLowPrecisionResourcePackedI4VSetVLRegions &&
-         candidate.peakLiveVectorGroups ==
-             kRVVLowPrecisionResourcePackedI4PeakLiveVectorGroups &&
-         candidate.vectorRegisterBudget ==
-             kRVVLowPrecisionResourceVectorRegisterBudget &&
-         candidate.resourceCostContract ==
-             kRVVLowPrecisionResourcePackedI4CostContract &&
-         candidate.resourceCostModel ==
-             kRVVLowPrecisionResourcePackedI4CostModel &&
+         candidate.unrollFactor == facts.unrollFactor &&
+         candidate.accumulatorCount == facts.accumulatorCount &&
+         candidate.vsetvlRegionCount == facts.vsetvlRegionCount &&
+         candidate.peakLiveVectorGroups == facts.peakLiveVectorGroups &&
+         candidate.vectorRegisterBudget == facts.vectorRegisterBudget &&
+         candidate.resourceCostContract == facts.resourceCostContract &&
+         candidate.resourceCostModel == facts.resourceCostModel &&
          candidate.resourceCostLoopBodySteps ==
-             kRVVLowPrecisionResourcePackedI4CostLoopBodySteps &&
-         candidate.resourceCostBlocker ==
-             kRVVLowPrecisionResourcePackedI4CostBlocker &&
+             facts.resourceCostLoopBodySteps &&
+         candidate.resourceCostBlocker == facts.resourceCostBlocker &&
          candidate.peakLiveVectorGroups <= candidate.vectorRegisterBudget;
 }
 
@@ -1145,13 +1154,13 @@ inline void populateRVVLowPrecisionResourcePackedI4ScheduleDecision(
   if (!isRVVLowPrecisionResourcePackedI4CandidateID(candidate.candidateID))
     return;
 
-  candidate.scheduleDecisionContract =
-      kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract;
+  const RVVLowPrecisionPackedI4StableResourceScheduleFacts facts =
+      getRVVLowPrecisionPackedI4StableResourceScheduleFacts();
+  candidate.scheduleDecisionContract = facts.scheduleDecisionContract;
   if (isRVVLowPrecisionResourceAcceptedPackedI4StableScheduleDecision(
           candidate)) {
-    candidate.scheduleDecision = kRVVLowPrecisionResourcePackedI4ScheduleDecision;
-    candidate.scheduleDecisionReason =
-        kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason;
+    candidate.scheduleDecision = facts.scheduleDecision;
+    candidate.scheduleDecisionReason = facts.scheduleDecisionReason;
     return;
   }
 

@@ -7816,6 +7816,14 @@ performance-preferred
   resource pressure, but must not encode no-win/regression, performance
   admission, or campaign outcome conclusions. Those conclusions stay in
   measurement-disposition evidence/admission fields.
+- The accepted packed-i4 stable schedule decision must be derived from one
+  RVV-plugin-local stable schedule/resource-cost contract shared by Gearbox
+  candidate selection, selected-body/provider validation, and target artifact
+  resource validation. That contract includes schedule-decision fields,
+  unroll/accumulator/region/live-vector budget facts, and resource-cost facts;
+  it must not require remediation plan fields, performance admission fields,
+  beyond-local admission fields, dispatch preference, same-target evidence IDs,
+  no-win/regression classification, or campaign outcome strings.
 - Target artifact validation must keep stable resource mirrors and
   measurement-disposition evidence/admission mirrors in separate consumer
   helpers. Stable resource mirrors include

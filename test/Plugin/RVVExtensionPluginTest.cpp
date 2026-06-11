@@ -10291,6 +10291,13 @@ module {
   staleMeasurementDispositionAdmissionScheduleCandidate.beyondLocalRepairAdmissionDecision =
       "metadata-only-beyond-local-admission-decision";
   staleMeasurementDispositionAdmissionScheduleCandidate.beyondLocalRepairAdmissionBlocker = "";
+  staleMeasurementDispositionAdmissionScheduleCandidate.remediationPlanContract =
+      "metadata-only-remediation-plan-contract";
+  staleMeasurementDispositionAdmissionScheduleCandidate.remediationPlan = "";
+  staleMeasurementDispositionAdmissionScheduleCandidate.remediationScheduleContract =
+      "metadata-only-remediation-schedule-contract";
+  staleMeasurementDispositionAdmissionScheduleCandidate.remediationProductPlan =
+      "metadata-only-remediation-product-plan";
   if (int result = expect(
           tianchenrv::plugin::rvv::
               isRVVLowPrecisionResourceAcceptedPackedI4StableScheduleDecision(
@@ -10298,8 +10305,8 @@ module {
               staleMeasurementDispositionAdmissionScheduleCandidate.scheduleDecision ==
                   tianchenrv::plugin::rvv::
                       kRVVLowPrecisionResourcePackedI4ScheduleDecision,
-          "packed-i4 stable Gearbox schedule decision ignores stale measurement-disposition "
-          "admission evidence fields"))
+          "packed-i4 stable Gearbox schedule decision ignores stale "
+          "measurement-disposition admission/remediation evidence fields"))
     return result;
   if (int result = expectSuccess(
           verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(

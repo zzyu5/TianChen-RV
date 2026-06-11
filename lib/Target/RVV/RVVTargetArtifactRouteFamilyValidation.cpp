@@ -3996,40 +3996,41 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
           contract.consumerLabel, "packed-i4 provider-supported mirror",
           selection.providerSupportedMirror, contract.providerSupportedMirror))
     return error;
+  const plugin::rvv::RVVLowPrecisionPackedI4StableResourceScheduleFacts
+      stableScheduleFacts =
+          plugin::rvv::getRVVLowPrecisionPackedI4StableResourceScheduleFacts();
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 schedule decision contract",
           selection.scheduleDecisionContract,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract))
+          stableScheduleFacts.scheduleDecisionContract))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 schedule decision",
-          selection.scheduleDecision,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4ScheduleDecision))
+          selection.scheduleDecision, stableScheduleFacts.scheduleDecision))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 schedule decision reason",
           selection.scheduleDecisionReason,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason))
+          stableScheduleFacts.scheduleDecisionReason))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 resource cost contract",
           selection.resourceCostContract,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4CostContract))
+          stableScheduleFacts.resourceCostContract))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 resource cost model",
-          selection.resourceCostModel,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4CostModel))
+          selection.resourceCostModel, stableScheduleFacts.resourceCostModel))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractIntField(
           contract.consumerLabel, "packed-i4 resource cost loop-body steps",
           selection.resourceCostLoopBodySteps,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4CostLoopBodySteps))
+          stableScheduleFacts.resourceCostLoopBodySteps))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 resource cost blocker",
           selection.resourceCostBlocker,
-          plugin::rvv::kRVVLowPrecisionResourcePackedI4CostBlocker))
+          stableScheduleFacts.resourceCostBlocker))
     return error;
   return llvm::Error::success();
 }
