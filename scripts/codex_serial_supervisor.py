@@ -1406,7 +1406,7 @@ def write_review_input(run_dir: Path, before: dict[str, Any], after: dict[str, A
         "",
         "- Did Codex stay on the TianchenRV capability-driven MLIR execution-layer mainline and respect the red lines?",
         "- Was the milestone right-bigsize, or did it shrink into metadata/test/status/report-only work?",
-        "- If it used TianchenRV Trellis, did it either finish/archive a completed normal task or keep an incomplete macro-task active with completed gates, remaining gates, and a precise continuation point?",
+        "- If it used TianchenRV Trellis, did it either finish/archive a completed normal task or keep an incomplete macro-task active with completed outcomes, remaining outcomes, and a precise continuation point?",
         "- Did it produce active code/schema/build/RVV evidence, not just docs or scaffolding labels?",
         "- Did it keep `tcrv.exec` compute-free and extension-specific behavior plugin-local?",
         "- Did any RVV correctness/performance claim rely on real `ssh rvv` evidence?",
@@ -1415,7 +1415,7 @@ def write_review_input(run_dir: Path, before: dict[str, Any], after: dict[str, A
         "- Did it avoid treating legacy `RVVI32M1*` route-table expansion as Stage 2 RVV progress?",
         "- Did it keep source-front-door/source-artifact paths fail-closed by default and treat emission-plan result/status, manifests, route ids, and artifact metadata as mirrors only?",
         "- If recent rounds show metadata-only/no-production-source/evidence-closeout drift, did Hermes escalate to a macro production-capability owner rather than another adjacent artifact seam?",
-        "- If an active macro-task has incomplete campaign gates, did Hermes continue that same Trellis task and name the next unfinished milestone?",
+        "- If an active macro-task has incomplete campaign outcomes, did Hermes continue that same Trellis task and name the next unfinished milestone?",
         "- If continuing, Hermes must generate a focused Direction Brief from current evidence; the runner prepends the base prompt.",
     ]
     (run_dir / "review_input.md").write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
@@ -1823,6 +1823,27 @@ rg -n "<symbol-or-phrase>" <specific-file-or-directly-related-directory>
 
 Never modify files.
 
+## Boundary Drift Review
+
+Before choosing the next owner, classify the last round's contribution in plain
+engineering terms. This is an agentic review, not a gate checklist or state
+machine. Decide whether the work:
+
+```text
+made a real compiler path more structural;
+clarified which layer owns a fact;
+only spread mirrors, admission/evidence records, status fields, or tests;
+or moved a project-result concern into production compiler authority.
+```
+
+If recent work mostly added mirrors, evidence/admission fields, report wording,
+or adjacent tests, the next owner should usually reduce and concentrate that
+surface. Prefer cleanup/refactor that restores layer ownership over another
+small proof or another field. Result evidence, measured-win/no-win conclusions,
+remediation narratives, and campaign progress records may guide policy; they
+must not become route authority, schedule authority, artifact-name authority, or
+typed-body authority unless the live repo proves they are stable compiler facts.
+
 ## Active Human Steering
 
 Manual steering is a control-plane input for choosing the next owner. Treat it
@@ -1835,10 +1856,13 @@ as newer than the base prompt, but not as proof of repository state.
 ## Review Job
 
 Codex task completion is normal. Review the completed task's contribution to
-the current module direction. Decide exactly one next direction. Do not ask
-Codex to choose among candidate tasks. In `reason`, name the case and explain
-how the next owner will make a compiler path more real. If you cannot answer
-that, the task is too small and you must choose a larger owner.
+the current module direction, then decide exactly one next direction. Do not
+ask Codex to choose among candidate tasks. Do not reward a round merely because
+it changed production files or passed tests; first check whether the changed
+facts belong in those layers. In `reason`, name the case and explain how the
+next owner will make a compiler path more real or reduce architectural drift.
+If you cannot answer that, the task is too small or too indirect and you must
+choose a larger owner, a cleanup/refactor owner, or stop for human steering.
 
 ```text
 continue same direction: current owner is still the right bottleneck
@@ -1868,41 +1892,48 @@ changes, wrapper-only work, status/report work, and standalone evidence
 packaging are not valid default owners. Use them only when they are the single
 named blocker for the chosen module.
 
-## Macro-Owner Task Discovery Algorithm
+## Agentic Owner Selection Heuristics
 
-Apply this algorithm before choosing the next owner:
+Apply these questions before choosing the next owner. They are judgment aids,
+not a state machine:
 
-1. If the current Trellis task is active, has macro/campaign markers, and its
-   campaign-level checklist has remaining items, default to continuing that
-   same Trellis task. Name the next unfinished milestone and the bounded slice
-   for the next Codex round. Do not reinterpret the just-finished slice as a
-   complete module and switch to a neighboring artifact/evidence seam.
-2. Inspect the Recent Round Drift Summary below. If the last three rounds are
-   metadata-only, no-production-source-change, archive/journal-heavy, or
-   repeated generated-bundle / `ssh rvv` evidence closeouts, the next owner
-   must be a macro production-capability owner or `continue=false` for human
-   steering. Do not select another adjacent route-family evidence seam by
-   default.
-3. After one generated-bundle / `ssh rvv` evidence closeout for a module, the
-   next owner must normally upgrade to production compiler surface,
-   selected-body realization, resource-aware planning, typed primitive
-   coverage, or a measured performance path. A second evidence closeout is
-   valid only when it validates production code changed in the same or
-   immediately previous round, or when it is explicitly the named blocker for
-   an active macro-owner milestone.
-4. Enforce a size floor after drift: the owner must not be one op variant, one
-   generated-bundle ABI fixture, one fail-closed case, one provider test, or
-   one adjacent route-family seam. It must advance a named production
-   capability family, pass pipeline, primitive surface, selected-body
-   realization surface, or performance-comparison workflow with milestone
-   gates.
-5. The Codex-visible Trellis task should also be macro-sized when the owner is
-   macro-sized. The next prompt must tell Codex to create or repair one macro
-   PRD with campaign gates, implement the current slice, commit a coherent
-   slice when appropriate, and leave the task active until macro-level gates are
-   actually complete.
+1. What real compiler path becomes more direct after the next round?
+   Prefer owners that move selected typed bodies, plugin-owned realization,
+   route planning, target validation, or measured runtime evidence forward.
+2. Which layer owns the new fact?
+   Dtype/config/control facts belong in typed body/config/realization/provider
+   surfaces. Runtime evidence and admission conclusions belong in policy or
+   evidence records. If Hermes cannot name the correct owner layer, choose a
+   cleanup/refactor owner rather than adding another field.
+3. Did recent work spread the same fact across route payloads, target bundles,
+   artifacts, task prose, and tests?
+   If yes, the next owner should shrink or consolidate that surface unless live
+   repo evidence proves each copy is production authority.
+4. Is the active Trellis task a macro/campaign owner with unfinished outcomes?
+   Continue that same task and name the next unfinished milestone. Do not spin
+   off a neighboring small task just because the current slice is bounded.
+5. Have the last few rounds been evidence-only, mirror-only, report-heavy, or
+   test-only?
+   Choose a cleanup/refactor or macro production-capability owner. Do not pick
+   another adjacent evidence seam unless it is the single named blocker for a
+   production path changed in the same or immediately previous round.
+6. Is the candidate owner only one op variant, one ABI fixture, one negative
+   test, one metadata field, or one route-family seam?
+   Usually reject it. The owner should advance a named primitive surface,
+   selected-body realization surface, pass pipeline, production capability
+   family, cleanup/refactor boundary, or performance-comparison workflow.
+7. Is a result/admission/performance claim being promoted into compiler
+   authority?
+   Redirect to policy/evidence boundary cleanup unless it is consumed as a real
+   typed-body/resource/route fact by production code.
 
-Stage 2 priority ladder after Stage 1 gates are clean:
+When the owner is macro-sized, the Codex-visible Trellis task should be
+macro-sized too, with explicit outcomes and current milestone. The next prompt
+should tell Codex to repair the PRD if needed, implement one coherent slice,
+commit it when valid, and keep the macro task active until the actual outcomes
+are complete.
+
+Stage 2 priority ladder after Stage 1 evidence conditions are clean:
 
 ```text
 1. RVV production-kernel capability campaign:
@@ -2002,16 +2033,16 @@ executable:
 Use live repo evidence plus any human steering to decide the stage. Keep the
 review bounded, but do not throw away the stage context.
 
-Stage 1 exits only when both gates are satisfied:
+Stage 1 exits only when both evidence conditions are satisfied:
 
 ```text
-Gate A: no active production/default RVV path uses old i32m1 route authority:
+Condition A: no active production/default RVV path uses old i32m1 route authority:
   RVVI32M1*, rvv-i32m1 route ids, finite tcrv_rvv.i32_* ops,
   !tcrv_rvv.i32m* types, exact __riscv_*_i32m1 spellings,
   source-front-door/source-artifact patterns, artifact names,
   emission-plan metadata, descriptor residue, or common/export RVV branches.
 
-Gate B: the repo has a minimal corrected generic typed low-level tcrv_rvv
+Condition B: the repo has a minimal corrected generic typed low-level tcrv_rvv
 route-surface skeleton or equivalent:
   typed vector value/config carries elem type, SEW, LMUL, policy;
   generic setvl/load/store/binary{{kind}} or equivalent vector-level ops exist;
@@ -2037,7 +2068,7 @@ fail-closed rejection of legacy i32/helper/metadata/source-front-door paths
 common EmitC/export neutrality
 ```
 
-Stage 2 begins only after Gate A and Gate B both have focused repo evidence.
+Stage 2 begins only after Condition A and Condition B both have focused repo evidence.
 When Hermes is about to switch to Stage 2, inspect or require Codex to provide:
 
 ```bash
@@ -2101,21 +2132,21 @@ Stage 3 and later are plugin generality, later plugin mainlines, future
 frontend lowering, cross-plugin tuning, global multi-candidate autotuning,
 tuning/profile databases, and other broader performance systems. These are
 valid project directions only after they do not bypass or distract from the
-RVV-first gate, or when the specific work directly repairs the shared interface
-needed by the current RVV owner. Do not move Stage 2 selected-body realization
-into Stage 3.
+RVV-first maturity path, or when the specific work directly repairs the shared
+interface needed by the current RVV owner. Do not move Stage 2 selected-body
+realization into Stage 3.
 
 ## Owner Selection Rules
 
 Choose exactly one next owner:
 
-- continue the active macro-task if it has incomplete campaign-level gates;
+- continue the active macro-task if it has incomplete campaign-level outcomes;
 - continue the current owner if it is still the real bottleneck;
 - expand it if the previous round was too small for the module boundary;
 - switch only when the module converged or Stage 1 evidence says the workflow
   should enter Stage 2;
 - redirect when the worker drifted from specs, human steering, or the current
-  stage gate.
+  stage condition.
 
 Do not choose reports, dashboards, broad test matrices, artifact indexes,
 loop-health bookkeeping, helper-only changes, prompt-only churn, or repeated
@@ -2181,8 +2212,8 @@ Read first:
   specific specs, task files, and code directories
 What Codex should turn into a Trellis PRD:
   module goal, boundary, and acceptance criteria, not detailed implementation steps
-Macro campaign gates, when applicable:
-  campaign-level acceptance gates and the current unfinished milestone
+Macro campaign outcomes, when applicable:
+  campaign-level outcomes and the current unfinished milestone
 Current round slice:
   one coherent bounded slice under the macro-owner
 Continuation rule:
@@ -2202,7 +2233,7 @@ tell Codex to repair the PRD first rather than choosing a different direction.
 If the module is too large, tell Codex to finish one coherent submodule and
 keep the task state truthful for the next Hermes round. For a macro-task, a
 clean committed slice with `.trellis/.current-task` still active is valid and
-expected until campaign-level gates are complete.
+expected until campaign-level outcomes are complete.
 
 ## Stop Conditions
 

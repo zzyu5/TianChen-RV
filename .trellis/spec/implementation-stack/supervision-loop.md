@@ -263,13 +263,43 @@ set `continue=false` for human steering. The default after three such rounds is
 not another adjacent route-family evidence seam. A valid post-drift owner must
 advance a named production capability family, pass pipeline, primitive surface,
 selected-body realization surface, or measured performance-comparison workflow
-with milestone gates.
+with explicit outcomes and milestones.
 
 If an active Trellis task is a macro-task or campaign and its campaign-level
-acceptance gates remain incomplete, Hermes should continue that same Trellis
+acceptance outcomes remain incomplete, Hermes should continue that same Trellis
 task by naming the next unfinished milestone. It must not treat one completed
 slice as completion of the macro-owner and then select a neighboring small
 task.
+
+### Agentic Owner Selection Contract
+
+Hermes task discovery is an agentic review contract, not a milestone state
+machine. The review prompt may use outcomes and milestones to keep long-running
+work truthful, but it must choose the next owner by inspecting current repo
+evidence and layer ownership:
+
+- Did the last round make a real compiler path more structural?
+- Did it put dtype/config/runtime/control/evidence facts in the right layer?
+- Did it spread project-result evidence, admission records, remediation notes,
+  or status mirrors into route/schedule/artifact authority?
+- Would the next owner reduce architectural drift or only add another adjacent
+  mirror/test/evidence fixture?
+
+When recent rounds mostly add mirrors, report wording, generated-bundle
+evidence, or one-off negative tests, Hermes should normally choose a cleanup,
+refactor, selected-body realization, primitive-surface, pass-pipeline, or
+performance-comparison owner. It should not choose another tiny artifact seam
+unless that seam is the single named blocker for production code changed in the
+same or immediately previous round.
+
+Result evidence and admission conclusions may guide policy. They must not
+become route authority, schedule authority, artifact-name authority, typed-body
+authority, or permanent support-bundle contract fields unless production code
+consumes them as stable compiler facts. Good owner prompts name one layer owner,
+one current slice, expected checks, and a continuation point. Bad owner prompts
+offer several candidate tasks, encode a rigid state machine, or treat
+"production files changed plus tests passed" as sufficient without checking
+layer ownership.
 
 For migration and architecture cleanup tasks, Hermes must also ask whether the
 production/default path actually changed. Adding a replacement helper,
@@ -508,7 +538,7 @@ Worker prompts must preserve these rules:
 - read the current Trellis task, PRD, relevant specs, and workspace journal;
 - if no current task exists, create or repair a Trellis task from the Hermes
   brief before editing source files;
-- continue the active macro-task when campaign-level gates are incomplete
+- continue the active macro-task when campaign-level outcomes are incomplete
   rather than creating a neighboring small Trellis task;
 - follow one Trellis round: brainstorm/research, PRD repair if needed,
   implementation, check/self-repair, minimal validation, task status update,

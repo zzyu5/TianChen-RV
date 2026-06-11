@@ -31,10 +31,10 @@ brief before changing source files. If the task has no clear PRD, write or fix
 the PRD first; do not choose an unrelated direction.
 
 If `.trellis/.current-task` points at an in-progress macro-task or campaign and
-its PRD still has incomplete campaign-level acceptance criteria, continue that
+its PRD still has incomplete campaign-level outcomes, continue that
 same Trellis task. Do not create a neighboring small task just because the next
 slice is bounded. Read the current macro PRD, identify the next unfinished
-milestone, and keep the task active unless the macro-level gates are actually
+milestone, and keep the task active unless the macro-level outcomes are actually
 met.
 
 ## Stack And Red Lines
@@ -88,6 +88,27 @@ production path in the same round. For current TianChen-RV migration work,
 prefer extension family ops -> common EmitC route -> generated
 intrinsic/runtime C/C++ over descriptor -> direct C exporter.
 
+Before editing, classify any new fact you are about to add:
+
+```text
+compiler authority:
+  typed body/config, resource facts, selected-body realization, provider route,
+  target validation, runtime ABI carried through IR
+
+policy/evidence:
+  measured-win/no-win conclusions, same-target evidence IDs, remediation notes,
+  experiment admission records, campaign progress
+
+mirror/test:
+  generated artifacts, headers, emission-plan diagnostics, task prose, fixtures
+```
+
+Do not promote policy/evidence or mirror/test facts into route authority,
+schedule authority, artifact-name authority, or typed-body authority. When a
+recent sequence has spread the same fact through several mirrors, prefer a
+cleanup/refactor slice that shrinks or clarifies ownership over another
+metadata/test-only increment.
+
 ## Current Architecture Steering
 
 Hermes' Direction Brief is the task source. Do not replace it with your own
@@ -97,10 +118,14 @@ that bounded module owner.
 
 Hermes may intentionally select a macro-owner or campaign that spans multiple
 Codex rounds. In that mode, the current round's slice must be bounded, but the
-Trellis PRD should stay macro-sized with campaign gates. If the Direction Brief
-or existing PRD is too small after recent evidence-only drift, repair it into
-the named macro-task instead of completing and archiving another one-fixture,
-one-provider-test, or generated-bundle-only task.
+Trellis PRD should stay macro-sized with explicit outcomes and milestones. If
+the Direction Brief or existing PRD is too small after recent evidence-only
+drift, repair it into the named macro-task instead of completing and archiving
+another one-fixture, one-provider-test, or generated-bundle-only task.
+
+This prompt is not a task-state machine. Use milestones to keep long work
+truthful, but keep choosing engineering owners by asking what real compiler
+path becomes clearer, more structural, or less drifted after this round.
 
 Human grill notes under `artifacts/` are interpretation notes only. Durable
 rules must live in `.trellis/spec/` or this prompt. If the brief and specs
@@ -167,16 +192,16 @@ RVV Stage 1 is route-authority replacement:
 replace or fail-close bounded i32m1-as-route-authority.
 ```
 
-Stage 1 exits only when both gates are satisfied:
+Stage 1 exits only when both evidence conditions are satisfied:
 
 ```text
-Gate A: no active production/default RVV path uses old i32m1 route authority:
+Condition A: no active production/default RVV path uses old i32m1 route authority:
   RVVI32M1*, rvv-i32m1 route ids, finite tcrv_rvv.i32_* ops,
   !tcrv_rvv.i32m* types, exact __riscv_*_i32m1 spellings,
   source-front-door/source-artifact patterns, artifact names,
   emission-plan metadata, descriptor residue, or common/export RVV branches.
 
-Gate B: the repo has a minimal corrected generic typed low-level tcrv_rvv
+Condition B: the repo has a minimal corrected generic typed low-level tcrv_rvv
 route-surface skeleton or equivalent:
   typed vector value/config carries elem type, SEW, LMUL, policy;
   generic setvl/load/store/binary{kind} or equivalent vector-level ops exist;
@@ -185,7 +210,7 @@ route-surface skeleton or equivalent:
   route/type/header/intrinsic or fails closed with targeted diagnostics.
 ```
 
-If Gate A is satisfied but Gate B is not, Stage 1 is not complete. The next
+If Condition A is satisfied but Condition B is not, Stage 1 is not complete. The next
 owner is `Stage1 generic typed RVV body-surface replacement`, not Stage 2.
 Deleting/fail-closing old authority without the corrected generic typed surface
 is not enough. During Stage 1, delete, rewrite, or fail-close obsolete paths
@@ -274,7 +299,7 @@ artifact-name authority, and not a request to hand-write one q8 wrapper.
 
 Some correct worker rounds intentionally finish only one milestone slice of a
 larger Trellis task. For a PRD that names a macro-task, macro-owner, campaign,
-campaign-level gates, production-kernel capability campaign, or multi-milestone
+campaign-level outcomes, production-kernel capability campaign, or multi-milestone
 owner:
 
 - Keep one Trellis task as the owner across rounds.
@@ -283,12 +308,12 @@ owner:
   milestone(s), and the exact next continuation point.
 - Create a clean coherent commit for the slice when the slice is valid to land.
 - Do not finish/archive the macro-task after a partial milestone.
-- Leave `.trellis/.current-task` active until the macro-level acceptance gates
+- Leave `.trellis/.current-task` active until the macro-level acceptance outcomes
   are met or human steering redirects the task.
 
 If a macro-task PRD is undersized, repair it before implementation. The repair
-should add campaign gates and make the current slice explicit; it should not
-expand into a vague architecture essay.
+should add explicit outcomes/milestones and make the current slice explicit; it
+should not expand into a vague architecture essay.
 
 ## One-Round Trellis Flow
 
