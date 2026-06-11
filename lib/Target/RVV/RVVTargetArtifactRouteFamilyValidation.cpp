@@ -4670,14 +4670,14 @@ llvm::Error validateRVVWideningDotReductionDescriptionAgainstContract(
       contract.kind == plugin::rvv::RVVWideningDotReduceRouteValidationKind::
                            ProductReductionChain ||
       isProductReductionDequantization;
-  const bool usesPackedI4LowPrecisionProductReduction =
-      isProductReductionDequantization &&
-      plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
-          contract.lowPrecisionResourceSelection.selectedCandidateID);
   const plugin::rvv::RVVLowPrecisionStableResourceCompilerFacts
       stableResourceFacts =
           plugin::rvv::makeRVVLowPrecisionStableResourceCompilerFacts(
               contract.lowPrecisionResourceSelection);
+  const bool usesPackedI4LowPrecisionProductReduction =
+      isProductReductionDequantization &&
+      plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
+          stableResourceFacts.selectedCandidateID);
   if (isProductReductionChain &&
       stableResourceFacts.hasSelection)
     if (llvm::Error error =
@@ -5256,14 +5256,18 @@ llvm::Error validateRVVWideningDotReductionRouteStatementPlan(
       contract.kind == plugin::rvv::
                            RVVWideningDotReduceRouteValidationKind::
                                ComputedMaskStridedInput;
+  const plugin::rvv::RVVLowPrecisionStableResourceCompilerFacts
+      stableResourceFacts =
+          plugin::rvv::makeRVVLowPrecisionStableResourceCompilerFacts(
+              contract.lowPrecisionResourceSelection);
   const bool usesGroupedLowPrecisionProductReduction =
       isProductReductionDequantization &&
       plugin::rvv::isRVVLowPrecisionResourceGroupedCandidateID(
-          contract.lowPrecisionResourceSelection.selectedCandidateID);
+          stableResourceFacts.selectedCandidateID);
   const bool usesPackedI4LowPrecisionProductReduction =
       isProductReductionDequantization &&
       plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
-          contract.lowPrecisionResourceSelection.selectedCandidateID);
+          stableResourceFacts.selectedCandidateID);
   if (description.runtimeABIParameters.empty())
     return makeRVVTargetRouteError(
         llvm::Twine(consumerLabel) +
@@ -6245,6 +6249,11 @@ llvm::Error requireEmptyWideningDotReductionStaleMirror(
     llvm::StringRef label) {
   return requireCandidateMetadataMirror(candidate, key, "", label);
 }
+
+llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
+    const TargetArtifactCandidate &,
+    const plugin::rvv::RVVLowPrecisionContractionResourceSelection
+        &) = delete;
 
 llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
     const TargetArtifactCandidate &candidate,
@@ -7557,11 +7566,13 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
           candidate, "tcrv_rvv.result_lmul", contract->resultLMUL,
           "selected typed RVV widening dot result LMUL"))
     return error;
-  if (contract->lowPrecisionResourceSelection.hasSelection)
+  const plugin::rvv::RVVLowPrecisionStableResourceCompilerFacts
+      stableResourceFacts =
+          plugin::rvv::makeRVVLowPrecisionStableResourceCompilerFacts(
+              contract->lowPrecisionResourceSelection);
+  if (stableResourceFacts.hasSelection)
     if (llvm::Error error = validateRVVLowPrecisionResourceCandidateMirrors(
-            candidate,
-            plugin::rvv::makeRVVLowPrecisionStableResourceCompilerFacts(
-                contract->lowPrecisionResourceSelection)))
+            candidate, stableResourceFacts))
       return error;
   if (contract->lowPrecisionResourceSelection.hasSelection)
     if (llvm::Error error =
@@ -7588,7 +7599,7 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
     return error;
   if (isProductReductionDequantization &&
       plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
-          contract->lowPrecisionResourceSelection.selectedCandidateID)) {
+          stableResourceFacts.selectedCandidateID)) {
     std::string context =
         (llvm::Twine(contract->consumerLabel) +
          " target artifact dispatch/performance policy")

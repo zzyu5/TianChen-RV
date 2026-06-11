@@ -1,5 +1,79 @@
 > Continuation from `journal-29.md` (archived at more than 2000 lines)
 
+## Session 609: Stage2 RVV remaining resource-consumer stable-fact guard cleanup
+
+**Date**: 2026-06-12
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the remaining-consumer cleanup
+slice for low-precision broad resource-selection quarantine. This round moved
+the remaining route/statement/artifact stable consumers that were still reading
+stable facts through `RVVLowPrecisionContractionResourceSelection` onto
+`RVVLowPrecisionStableResourceCompilerFacts`, while keeping measurement,
+admission, remediation, maturity/no-win, selected-dispatch, and dispatch
+preference records confined to explicit policy/evidence helpers or mirror
+transport.
+
+### Main Changes
+
+- Changed provider route-family stable mirror equality to accept
+  `RVVLowPrecisionStableResourceCompilerFacts` directly.
+- Changed provider route-family target-capability mirror checks to read from
+  the stable compiler-fact view before provider route construction.
+- Changed direct contraction route-construction selected-candidate/legal/
+  live-vector budget preflight to consume the stable compiler-fact view.
+- Changed direct statement-plan packed/grouped low-precision candidate
+  detection to read selected candidate facts from the stable view.
+- Added a deleted `RVVLowPrecisionContractionResourceSelection` overload for
+  target stable resource candidate mirror validation, so accidental
+  broad-aggregate stable validation fails at compile time.
+- Updated RVV plugin and Common EmitC specs plus the active PRD/task metadata
+  with the remaining-consumer inventory and stable-fact guard convention.
+
+### Remaining-Consumer Inventory
+
+- Stable authority consumers now use `RVVLowPrecisionStableResourceCompilerFacts`
+  for provider-plan equality, route-construction selected candidate/legal/
+  budget preflight, statement-plan packed/grouped preflight, and target stable
+  resource candidate mirrors.
+- Broad aggregate consumers remain only in derivation/verification,
+  measurement-disposition helpers, selected-dispatch policy-output helpers,
+  metadata-only policy claim guards, and mirror transport.
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] Focused scan for direct broad aggregate selected-candidate/legal/budget
+  gates and broad aggregate stable mirror validator calls.
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused lit from `build/test` with the packed-i4 dequantize,
+  packed-i4 dequant-clamp, signed/unsigned pre-realized product-reduction, and
+  signed/unsigned explicit product-reduction filters.
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface`
+
+### Self-Repair
+
+- The first focused lit invocation passed source test paths directly and missed
+  the generated `lit.site.cfg.py` object-root context. Reran the same focused
+  filter from `build/test` through the suite entry; 6 selected tests passed.
+
+### Status
+
+[OPEN MACRO TASK] Remaining-consumer stable-fact guard cleanup is complete for
+this slice. The macro task remains active for adjacent low-precision
+primitive/resource coverage or selected-body realization/resource-aware
+coverage, and for measurement-disposition work only if fresh source-backed
+same-target RVV evidence is introduced.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 608: Stage2 RVV provider stable-resource consumer cleanup
 
 **Date**: 2026-06-12

@@ -4949,6 +4949,14 @@ reduction store VL = 1
   selected-dispatch policy validators may consume the wide resource aggregate
   fields carrying admission, remediation, performance, measurement, no-win, or
   dispatch-preference records.
+- Stable resource mirror validator signatures must preserve that boundary. A
+  target artifact helper that validates stable
+  `tcrv_rvv.low_precision_resource.*` candidate mirrors should accept
+  `RVVLowPrecisionStableResourceCompilerFacts`; broad
+  `RVVLowPrecisionContractionResourceSelection` inputs belong only to
+  derivation, policy/evidence validation, or policy mirror transport. A deleted
+  broad-aggregate overload or equivalent compile-time guard is the expected
+  regression barrier for stable artifact acceptance helpers.
 - Route-family provider-plan mirror checks and direct-contraction
   statement-plan preflight must also consume the policy-free stable compiler
   fact view when deciding whether low-precision resource mirrors are coherent

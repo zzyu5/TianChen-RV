@@ -515,3 +515,57 @@ uses the broad resource aggregate outside explicit policy/evidence helpers. If
 that scan is clean, return to adjacent low-precision primitive/resource surface
 coverage or future measurement-disposition work only when fresh source-backed
 same-target RVV evidence is introduced.
+
+## Completed Slice: Remaining-Consumer Stable-Fact Guard Cleanup
+
+This bounded follow-up slice completed the remaining-consumer cleanup named by
+the previous continuation point. The targeted inventory found the remaining
+production consumers of `RVVLowPrecisionContractionResourceSelection` in these
+categories:
+
+- Stable compiler authority: provider plan/description mirror equality, direct
+  contraction route-construction preflight, direct statement-plan preflight,
+  and target stable resource candidate mirror validation. These now consume
+  `RVVLowPrecisionStableResourceCompilerFacts` for selected candidate,
+  legality, live-vector budget, target capability mirrors, resource-cost/
+  schedule, primitive, and realization facts.
+- Derivation/verification: construction of the broad provider aggregate from
+  typed body/config/runtime/pass facts, provider-owned resource verification,
+  and stable view construction. These may still touch the broad aggregate
+  because they create or verify the source record before stable view extraction.
+- Policy/evidence helpers: measurement-disposition, selected-dispatch
+  policy-output validation, no-win/maturity, admission, remediation, and
+  metadata-only performance-claim rejection. These remain explicitly named
+  policy/evidence boundaries and do not decide route, statement, stable
+  schedule, support-bundle, or artifact acceptance.
+- Mirror transport: route-planning metadata emission and support-bundle/header
+  export still serialize stable resource mirrors from the stable view and
+  serialize admission/remediation/performance/dispatch fields only in named
+  policy/evidence mirror blocks.
+
+The production cleanup removed the last direct stable-route consumers of the
+policy-bearing aggregate in the focused surface:
+
+```text
+RVVLowPrecisionContractionResourceSelection
+  -> RVVLowPrecisionStableResourceCompilerFacts
+  -> provider-plan stable mirror equality
+  -> direct route-construction selected-candidate/legal/budget preflight
+  -> direct statement-plan packed/grouped candidate preflight
+  -> target stable resource candidate mirror validation
+```
+
+The target stable resource candidate mirror validator now has a deleted broad
+aggregate overload, so a future call that tries to validate stable
+`tcrv_rvv.low_precision_resource.*` candidate mirrors directly from
+`RVVLowPrecisionContractionResourceSelection` fails at compile time. Broad
+aggregate usage remains valid only for derivation, explicit
+measurement-disposition or selected-dispatch policy/evidence validators, and
+policy/evidence mirror transport.
+
+The macro campaign remains open. The remaining macro milestones are adjacent
+low-precision primitive/resource surface coverage and future
+measurement-disposition work only if fresh source-backed same-target RVV
+evidence is introduced. The next continuation point is to return to adjacent
+primitive/resource coverage or selected-body realization/resource-aware coverage
+only after preserving this stable-fact guard in focused scans.

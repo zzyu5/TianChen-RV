@@ -649,6 +649,15 @@ artifact validation.
   measurement, no-win/maturity, selected-dispatch policy output, and dispatch
   preference. Those excluded fields may be retained only through explicit
   measurement-disposition or selected-dispatch policy/evidence helpers.
+- Stable acceptance or mirror-validation APIs must make the boundary visible in
+  the signature: route/provider equality helpers, direct-contraction
+  materialization preflight, route-construction packed/grouped candidate
+  checks, and target stable resource candidate mirror validation consume
+  `RVVLowPrecisionStableResourceCompilerFacts`, not
+  `RVVLowPrecisionContractionResourceSelection`. Target stable resource mirror
+  validators should reject accidental broad-aggregate calls at compile time,
+  for example through a deleted overload, so future policy/evidence fields
+  cannot silently become route, statement, or artifact acceptance inputs.
 - Direct-contraction statement-plan materialization for packed-i4 resources may
   require stable packed-i4 operand, unpack, realization, resource-cost, and
   schedule facts. It must not require remediation statement strategy,

@@ -37350,25 +37350,26 @@ getRVVSelectedBodyDirectContractionRouteProviderPlan(
   const bool needsLowPrecisionResourceSelection =
       isProductReductionDequantization || (isDotReduction && isStridedInput);
   if (needsLowPrecisionResourceSelection) {
-    const RVVLowPrecisionContractionResourceSelection &selection =
-        materializationFacts.contractionPlan->lowPrecisionResourceSelection;
-    if (!selection.hasSelection || !selection.isLegal ||
-        selection.selectedCandidateID.empty())
+    const RVVLowPrecisionStableResourceCompilerFacts stableFacts =
+        makeRVVLowPrecisionStableResourceCompilerFacts(
+            materializationFacts.contractionPlan->lowPrecisionResourceSelection);
+    if (!stableFacts.hasSelection || !stableFacts.isLegal ||
+        stableFacts.selectedCandidateID.empty())
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " direct contraction provider plan requires a selected legal "
           "low-precision direct-contraction resource candidate before route "
           "construction for operation '" +
           stringifyRVVSelectedBodyOperationKind(description.operation) + "'");
-    if (selection.peakLiveVectorGroups > selection.vectorRegisterBudget)
+    if (stableFacts.peakLiveVectorGroups > stableFacts.vectorRegisterBudget)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " direct contraction provider plan rejects low-precision "
           "direct-contraction resource candidate peak live vector-group "
           "estimate " +
-          llvm::Twine(selection.peakLiveVectorGroups) +
+          llvm::Twine(stableFacts.peakLiveVectorGroups) +
           " above vector register budget " +
-          llvm::Twine(selection.vectorRegisterBudget));
+          llvm::Twine(stableFacts.vectorRegisterBudget));
   }
 
   plan.contractionPlan = materializationFacts.contractionPlan;

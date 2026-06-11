@@ -24,9 +24,9 @@ llvm::Error verifyRVVLowPrecisionContractionMeasurementDispositionEvidence(
     llvm::StringRef context,
     const RVVLowPrecisionContractionResourceSelection &selection);
 
-bool isRVVLowPrecisionResourceSelectionStableCompilerFactsEqual(
-    const RVVLowPrecisionContractionResourceSelection &lhs,
-    const RVVLowPrecisionContractionResourceSelection &rhs);
+bool areRVVLowPrecisionStableCompilerFactMirrorsEqual(
+    const RVVLowPrecisionStableResourceCompilerFacts &lhs,
+    const RVVLowPrecisionStableResourceCompilerFacts &rhs);
 
 llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromPlan(
     const RVVLowPrecisionPrimitiveRoutePayload &payload,
@@ -1231,30 +1231,33 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
                   .str(),
               plan.lowPrecisionResourceSelection))
     return error;
-  if (!isRVVLowPrecisionResourceSelectionStableCompilerFactsEqual(
-          analysis.description.lowPrecisionResourceSelection,
-          plan.lowPrecisionResourceSelection))
+  const RVVLowPrecisionStableResourceCompilerFacts descriptionStableFacts =
+      makeRVVLowPrecisionStableResourceCompilerFacts(
+          analysis.description.lowPrecisionResourceSelection);
+  const RVVLowPrecisionStableResourceCompilerFacts planStableFacts =
+      makeRVVLowPrecisionStableResourceCompilerFacts(
+          plan.lowPrecisionResourceSelection);
+  if (!areRVVLowPrecisionStableCompilerFactMirrorsEqual(descriptionStableFacts,
+                                                       planStableFacts))
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) + " " + familyName +
         " stable low-precision direct-contraction compiler-fact mirrors must "
         "come from the validated family plan before provider route "
         "construction");
-  if (plan.lowPrecisionResourceSelection.hasSelection) {
-    if (analysis.description.lowPrecisionResourceSelection
-                .targetCapabilityProviderMirror !=
+  if (planStableFacts.hasSelection) {
+    if (descriptionStableFacts.targetCapabilityProviderMirror !=
             analysis.selectedTargetCapabilityFacts.providerMirror ||
-        analysis.description.lowPrecisionResourceSelection
-                .targetCapabilityLegalityMirror !=
+        descriptionStableFacts.targetCapabilityLegalityMirror !=
             analysis.selectedTargetCapabilityFacts.legalityMirror)
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) + " " + familyName +
-          " low-precision direct-contraction resource selection target "
+          " low-precision direct-contraction stable compiler-fact target "
           "capability mirrors must come from the selected target facts before "
           "provider route construction");
   }
-  if (plan.lowPrecisionResourceSelection.hasSelection &&
+  if (planStableFacts.hasSelection &&
       isRVVLowPrecisionResourcePackedI4CandidateID(
-          plan.lowPrecisionResourceSelection.selectedCandidateID) &&
+          planStableFacts.selectedCandidateID) &&
       analysis.description.lowPrecisionSelectedDispatchPolicyBoundary
           .hasFacts()) {
     std::string policyContext =
@@ -3283,10 +3286,13 @@ static void populateRVVWideningDotValidationContract(
           RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32 ||
       facts.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  const RVVLowPrecisionStableResourceCompilerFacts stableResourceFacts =
+      makeRVVLowPrecisionStableResourceCompilerFacts(
+          description.lowPrecisionResourceSelection);
   const bool usesPackedI4LowPrecisionProductReduction =
       isProductReductionDequantization &&
       isRVVLowPrecisionResourcePackedI4CandidateID(
-          description.lowPrecisionResourceSelection.selectedCandidateID);
+          stableResourceFacts.selectedCandidateID);
   contract.expectedPreLoopStepCount =
       isProductReductionDequantization ? 2 : 3;
   contract.expectedLoopBodyStepCount =
@@ -8032,12 +8038,10 @@ llvm::Error verifyRVVLowPrecisionContractionMeasurementDispositionEvidence(
       context, selection);
 }
 
-bool isRVVLowPrecisionResourceSelectionStableCompilerFactsEqual(
-    const RVVLowPrecisionContractionResourceSelection &lhs,
-    const RVVLowPrecisionContractionResourceSelection &rhs) {
-  return isRVVLowPrecisionStableResourceCompilerFactsEqual(
-      makeRVVLowPrecisionStableResourceCompilerFacts(lhs),
-      makeRVVLowPrecisionStableResourceCompilerFacts(rhs));
+bool areRVVLowPrecisionStableCompilerFactMirrorsEqual(
+    const RVVLowPrecisionStableResourceCompilerFacts &lhs,
+    const RVVLowPrecisionStableResourceCompilerFacts &rhs) {
+  return isRVVLowPrecisionStableResourceCompilerFactsEqual(lhs, rhs);
 }
 
 llvm::StringRef getRVVLowPrecisionPrimitiveKind(

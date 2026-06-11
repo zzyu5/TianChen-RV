@@ -1115,14 +1115,17 @@ llvm::Error buildDirectContractionRouteStatementPlanFromProviderPlan(
           requireRVVDirectContractionStatementLowPrecisionResourceSelection(
               providerFacts, description, context))
     return error;
+  const RVVLowPrecisionStableResourceCompilerFacts providerStableFacts =
+      makeRVVLowPrecisionStableResourceCompilerFacts(
+          providerFacts.lowPrecisionResourceSelection);
   const bool usesGroupedLowPrecisionProductReduction =
       isProductReductionDequantization &&
       isRVVLowPrecisionResourceGroupedCandidateID(
-          providerFacts.lowPrecisionResourceSelection.selectedCandidateID);
+          providerStableFacts.selectedCandidateID);
   const bool usesPackedI4LowPrecisionProductReduction =
       isProductReductionDequantization &&
       isRVVLowPrecisionResourcePackedI4CandidateID(
-          providerFacts.lowPrecisionResourceSelection.selectedCandidateID);
+          providerStableFacts.selectedCandidateID);
   const support::RuntimeABIParameter *boundLHSABI = providerPlan.lhsABI;
   const support::RuntimeABIParameter *boundRHSABI = providerPlan.rhsABI;
   const support::RuntimeABIParameter *boundDotLHSABI =
@@ -2519,7 +2522,9 @@ llvm::Error verifyRVVSelectedBodyDirectContractionRouteProviderFacts(
   const bool usesPackedI4LowPrecisionProductReduction =
       providerPlan.plansProductReductionDequantization &&
       isRVVLowPrecisionResourcePackedI4CandidateID(
-          providerPlan.lowPrecisionResourceSelection.selectedCandidateID);
+          makeRVVLowPrecisionStableResourceCompilerFacts(
+              providerPlan.lowPrecisionResourceSelection)
+              .selectedCandidateID);
   auto selectionHasPostLoopAssignment = [&]() {
     for (const conversion::emitc::TCRVEmitCAssignStep &assignment :
          statementPlanOwnerSelection.postLoopAssignments)
