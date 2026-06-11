@@ -73,6 +73,69 @@ source-backed same-target RVV evidence.
 
 Final coherent commit is created after this journal entry.
 
+## Session 592: Stage2 RVV low-precision resource-owner mirror-source cleanup
+
+**Date**: 2026-06-12
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the low-precision resource-owner
+mirror-source cleanup slice. This round made `tcrv_rvv.low_precision_resource.*`
+candidate metadata explicitly declare that stable resource mirrors come from the
+provider-owned `RVVLowPrecisionContractionResourceSelection`, not from target
+metadata, support-bundle labels, policy/evidence records, or artifact names.
+
+### Main Changes
+
+- Repaired the active macro PRD for the resource-owner mirror-source milestone
+  and recorded source-backed classification of compiler authority, mirror/test
+  facts, and policy/evidence facts.
+- Added
+  `tcrv_rvv.low_precision_resource.resource_owner_mirror_source =
+  provider-owned-low-precision-contraction-resource-selection.v1` to emission
+  metadata when a provider-owned low-precision resource selection exists.
+- Required target candidate validation to reject missing or stale
+  `resource_owner_mirror_source` before accepting stable low-precision resource
+  mirrors.
+- Exposed the marker in support-bundle/header evidence as
+  `low_precision_resource.resource_owner_mirror.source` while leaving candidate
+  metadata keys unchanged.
+- Added C++ missing/stale marker target artifact rejection coverage and focused
+  lit PLAN/HEADER checks for unsigned product-reduction plus packed-i4
+  dequantize/dequant-clamp fixtures.
+- Updated RVV plugin and EmitC route specs with the executable marker contract.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv --filter 'explicit-selected-body-artifact-widening-product-reduce-add(\\.mlir|-unsigned-u8\\.mlir)|pre-realized-selected-body-artifact-widening-product-reduce-add(\\.mlir|-unsigned-u8\\.mlir)|pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4\\.mlir|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4\\.mlir' /home/kingdom/phdworks/TianchenRV/build/test`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface`
+- [OK] `git diff --check`
+
+### Self-Repair
+
+- The first target artifact C++ test run correctly failed on the new
+  missing-marker path, but the expected error fragments still required the
+  marker value. Missing-marker diagnostics only promise the key and label, while
+  stale-marker diagnostics include expected and actual values, so the negative
+  test was tightened and the test binary rebuilt before rerunning.
+
+### Status
+
+[OPEN MACRO TASK] The low-precision resource-owner mirror-source cleanup slice
+is complete. The macro task stays active for remaining adjacent
+primitive/resource/support-bundle/policy-owner mirror cleanup and for any later
+fresh source-backed same-target measurement-disposition work if performance or
+dispatch preference is claimed.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 607: Stage2 RVV low-precision primitive route-description/emission-plan mirror cleanup
 
 **Date**: 2026-06-12

@@ -94,6 +94,7 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.mask_policy", value = "agnostic"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.runtime_control_plan", value = "rvv-runtime-avl-vl-control-plan.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_primitive.runtime_avl_source", value = "runtime_abi:n"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.resource_owner_mirror_source", value = "provider-owned-low-precision-contraction-resource-selection.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.candidate_set", value = "rvv-low-precision-product-reduction-resource-candidate-set.v1[signed-i8mf4-i16mf2-i32m1:u1-vector-carry,unsigned-u8mf4-u16mf2-u32m1:u1-vector-carry]"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-add,unsigned-u8mf4-u16mf2-u32m1,u1]"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.source_dtype", value = "u8"}
@@ -124,6 +125,7 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_primitive.payload_mirror.product_lmul: mf2
 // HEADER: tianchenrv.rvv.low_precision_primitive.payload_mirror.tail_policy: agnostic
 // HEADER: tianchenrv.rvv.low_precision_primitive.payload_mirror.runtime_avl_source: runtime_abi:n
+// HEADER: tianchenrv.rvv.low_precision_resource.resource_owner_mirror.source: provider-owned-low-precision-contraction-resource-selection.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-add,unsigned-u8mf4-u16mf2-u32m1,u1]
 // HEADER: tianchenrv.rvv.low_precision_resource.source_signedness: unsigned
 // HEADER: tianchenrv.rvv.low_precision_resource.accumulator_dtype: u32

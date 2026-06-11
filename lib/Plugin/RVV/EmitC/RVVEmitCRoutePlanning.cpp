@@ -71,6 +71,12 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVLowPrecisionPrimitivePayloadMirrorSource(
         "provider-built-low-precision-primitive-route-payload.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceOwnerMirrorSourceKey(
+        "tcrv_rvv.low_precision_resource.resource_owner_mirror_source");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceOwnerMirrorSource(
+        "provider-owned-low-precision-contraction-resource-selection.v1");
 
 std::string joinRVVSelectedCapabilityProviderSymbols(
     llvm::ArrayRef<const support::CapabilityDescriptor *> providers) {
@@ -43554,6 +43560,8 @@ getRVVSelectedBodyConfigArtifactMetadata(
   if (description.lowPrecisionResourceSelection.hasSelection) {
     const RVVLowPrecisionContractionResourceSelection &selection =
         description.lowPrecisionResourceSelection;
+    metadata.push_back({kRVVLowPrecisionResourceOwnerMirrorSourceKey,
+                        kRVVLowPrecisionResourceOwnerMirrorSource});
     metadata.push_back({"tcrv_rvv.low_precision_resource.candidate_set",
                         selection.candidateSetID});
     metadata.push_back({"tcrv_rvv.low_precision_resource.selected_candidate",

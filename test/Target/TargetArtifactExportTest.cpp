@@ -15270,6 +15270,44 @@ bool expectRVVTargetArtifactExporterShape(
            "metadata-supported"}))
     return false;
 
+  TargetArtifactCandidate missingPackedI4ResourceOwnerMirrorSource =
+      packedI4ProductDequantFixture.candidate;
+  if (!eraseArtifactMetadataKey(
+          missingPackedI4ResourceOwnerMirrorSource,
+          "tcrv_rvv.low_precision_resource.resource_owner_mirror_source")) {
+    llvm::errs() << "packed-i4 test fixture did not contain resource-owner "
+                    "mirror source metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          missingPackedI4ResourceOwnerMirrorSource,
+          packedI4ProductDequantRoute, packedI4ProductDequantDescription,
+          "packed-i4 product-reduction registry rejects missing "
+          "resource-owner mirror source metadata",
+          {"resource_owner_mirror_source",
+           "resource owner mirror source"}))
+    return false;
+
+  TargetArtifactCandidate stalePackedI4ResourceOwnerMirrorSource =
+      packedI4ProductDequantFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          stalePackedI4ResourceOwnerMirrorSource,
+          "tcrv_rvv.low_precision_resource.resource_owner_mirror_source",
+          "artifact-derived-low-precision-resource-selection")) {
+    llvm::errs() << "packed-i4 test fixture did not contain resource-owner "
+                    "mirror source metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          stalePackedI4ResourceOwnerMirrorSource,
+          packedI4ProductDequantRoute, packedI4ProductDequantDescription,
+          "packed-i4 product-reduction registry rejects stale "
+          "resource-owner mirror source metadata",
+          {"resource_owner_mirror_source",
+           "provider-owned-low-precision-contraction-resource-selection.v1",
+           "artifact-derived-low-precision-resource-selection"}))
+    return false;
+
   TargetArtifactCandidate stalePackedI4PlanningContractMirror =
       packedI4ProductDequantFixture.candidate;
   if (!rewriteArtifactMetadataValue(

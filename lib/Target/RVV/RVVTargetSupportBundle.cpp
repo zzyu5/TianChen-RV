@@ -850,6 +850,9 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
   });
   appendRVVLowPrecisionPrimitivePayloadMirrorMetadataEvidence(evidence);
   evidence.append({
+      {"low_precision_resource.resource_owner_mirror.source",
+       "tcrv_rvv.low_precision_resource.resource_owner_mirror_source", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.candidate_set",
        "tcrv_rvv.low_precision_resource.candidate_set", "",
        /*allowDynamicValue=*/true, /*optional=*/true},

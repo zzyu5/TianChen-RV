@@ -6384,6 +6384,25 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   `TCRVEmitCLowerableRoute` construction. Target artifact validation may compare
   metadata mirrors against provider-owned facts, but metadata does not invent or
   repair the planning contract.
+- Emission-plan candidate metadata for any route with
+  `RVVLowPrecisionContractionResourceSelection` must carry
+  `tcrv_rvv.low_precision_resource.resource_owner_mirror_source =
+  provider-owned-low-precision-contraction-resource-selection.v1`. This marker
+  says the adjacent stable `tcrv_rvv.low_precision_resource.*` fields are
+  mirrors of the provider-owned resource selection, stable schedule, and
+  resource-cost facts. It is not a resource decision, schedule decision, or
+  measurement-disposition admission fact by itself.
+- Target artifact validation must require the resource-owner mirror-source
+  marker before accepting stable low-precision resource candidate mirrors
+  against the rebuilt provider description. Missing or stale marker values fail
+  before candidate metadata can be treated as resource evidence; stale
+  schedule/resource-cost fields still fail against the shared provider resource
+  contract.
+- Support-bundle/header evidence may expose the marker as
+  `tianchenrv.rvv.low_precision_resource.resource_owner_mirror.source` while
+  keeping candidate metadata keys as `tcrv_rvv.low_precision_resource.*`.
+  Header labels are transport evidence only and must not become a second
+  resource-selection namespace.
 - When the selected low-precision Gearbox candidate affects `vsetvl` placement
   or region count, selected-body realization must materialize provider-verifiable
   realized body structure for that placement. The provider must compare the
@@ -6416,6 +6435,11 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   Common EmitC semantics. Missing or stale primitive/resource combinations fail
   closed before route construction; Common EmitC and artifact metadata remain
   mirror consumers only.
+- Candidate metadata carries stable low-precision resource fields without
+  `tcrv_rvv.low_precision_resource.resource_owner_mirror_source`, or carries a
+  marker value other than
+  `provider-owned-low-precision-contraction-resource-selection.v1` -> fail
+  target validation before resource mirrors are accepted.
 - For bounded low-precision product-reduction Gearbox candidates, candidate
   build/prune/select semantics must be shared by the Gearbox pass,
   selected-body realization owner, and provider pre-route validator. Selection

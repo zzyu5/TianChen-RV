@@ -193,6 +193,46 @@ intrinsic spellings, admission/remediation/measurement/no-win, or dispatch
 fields. Common EmitC remains neutral and does not infer or choose any
 low-precision primitive semantics.
 
+## Current Slice: Resource-Owner Mirror-Source Cleanup
+
+This bounded slice cleans the adjacent low-precision resource mirror boundary.
+The route provider already owns `RVVLowPrecisionContractionResourceSelection`
+and the packed-i4 stable schedule/resource-cost facts, while target validation
+compares many `tcrv_rvv.low_precision_resource.*` candidate metadata fields
+against the rebuilt provider description. The remaining drift is that those
+candidate/export/header fields still travel as bare low-precision resource
+metadata without an explicit marker saying they are mirrors of the
+provider-owned resource selection.
+
+The cleanup owner for this round is:
+
+```text
+selected typed low-precision body/config/runtime facts
+  -> RVV Gearbox/resource candidate and stable schedule facts
+  -> RVVLowPrecisionContractionResourceSelection
+  -> emission metadata / candidate metadata resource-owner mirrors
+  -> support-bundle/header mirror-source transport evidence
+  -> target artifact validation against the provider resource selection
+```
+
+Source-backed field classification for this slice:
+
+- Compiler authority: selected typed `tcrv_rvv` body/config/runtime facts,
+  Gearbox/resource candidate selection, stable packed-i4 schedule/resource-cost
+  facts, selected-body realization facts, provider-owned
+  `RVVLowPrecisionContractionResourceSelection`, provider primitive payloads,
+  and target provider-fact validation contracts.
+- Mirror/test facts: `tcrv_rvv.low_precision_resource.*` emission metadata,
+  candidate metadata, support-bundle/header comments, lit `PLAN`/`HEADER`
+  checks, and C++ fixture metadata mutations. These may prove exact
+  carry-through only after the provider resource selection exists and the
+  resource-owner mirror-source marker is present.
+- Policy/evidence facts: realization admission proof, remediation plans,
+  performance feedback/admission, same-target measurement evidence IDs,
+  maturity/no-win outcomes, selected-dispatch policy output, and dispatch
+  preference. These remain in the measurement-disposition policy/evidence
+  boundary and must not satisfy stable resource, schedule, or route acceptance.
+
 This round must not add q8/q4 route authority, artifact-name authority,
 helper-only wrappers, source-front-door positive routes, Common EmitC semantic
 inference, or measured-win/admission claims.
@@ -200,41 +240,39 @@ inference, or measured-win/admission claims.
 ## Acceptance Criteria For This Slice
 
 - Active task metadata, PRD, implementation/check context, and RVV
-  low-precision spec sections identify route-description/emission-plan/candidate
-  primitive mirror-boundary cleanup under the same macro task.
+  low-precision spec sections identify low-precision resource-owner
+  mirror-source cleanup under the same macro task.
 - Source-backed field classification is recorded for compiler authority,
-  mirror/test facts, and policy/evidence facts at the route-description,
-  emission-plan, and candidate primitive mirror boundary.
-- Route-description scalar primitive mirrors are populated from the
-  provider-built `RVVLowPrecisionPrimitiveRoutePayload` and validated against
-  that payload before provider materialization.
-- Emission metadata serializes low-precision primitive fields through a single
-  payload-mirror helper and carries
-  `tcrv_rvv.low_precision_primitive.payload_mirror_source =
-  provider-built-low-precision-primitive-route-payload.v1`.
-- Product-reduction emission metadata for source/product/accumulator/result
-  SEW/LMUL, relation, intrinsics, seed/layout, and store-VL is sourced from the
-  provider payload rather than stale route-description scalar mirrors.
-- Target artifact validation continues to validate the provider payload first,
-  then consumes candidate primitive mirrors and the payload-mirror source marker
-  only as exact mirrors of that payload.
-- Missing, stale, or marker-less candidate primitive mirrors are rejected
-  without inventing primitive semantics from route ids, artifact names, intrinsic
-  spellings, admission/remediation/measurement/no-win, or dispatch fields.
-- Packed-i4 dequantize/dequant-clamp resource and policy/evidence boundaries
-  remain intact; packed-i4 policy/evidence fields stay outside primitive
-  compiler-fact validation.
-- Focused negative coverage proves stale or missing primitive candidate mirrors
-  and stale or missing payload-mirror source markers are rejected at the target
-  mirror boundary, alongside existing signed/unsigned product-reduction and
-  packed-i4 dequant/dequant-clamp positive fixtures.
-- Common EmitC remains neutral and only carries provider-built payloads and
-  mirrors.
+  mirror/test facts, and policy/evidence facts at the emission-plan,
+  candidate-metadata, support-bundle/header, and target resource mirror
+  boundary.
+- Emission metadata for routes with
+  `RVVLowPrecisionContractionResourceSelection` carries an explicit
+  `tcrv_rvv.low_precision_resource.resource_owner_mirror_source` marker whose
+  value names the provider-owned resource-selection boundary.
+- Target artifact validation requires the resource-owner mirror-source marker
+  before accepting stable `tcrv_rvv.low_precision_resource.*` candidate mirrors
+  against the rebuilt provider resource selection, and rejects missing or stale
+  marker values before resource metadata can act as evidence.
+- Support-bundle/header evidence exposes the resource-owner marker as an
+  explicit mirror-source transport label rather than presenting bare resource
+  metadata as a second authority.
+- Stable packed-i4 schedule/resource-cost facts remain validated from the
+  shared resource owner/provider boundary; missing or stale schedule/resource
+  mirrors still fail closed against provider facts.
+- Measurement-disposition policy/evidence mirrors remain in their named
+  consumer helper; admission/remediation/performance/measurement/no-win/dispatch
+  fields do not satisfy stable resource, schedule, route, or artifact acceptance.
+- Common EmitC remains neutral and only carries provider-built payloads,
+  resource-owner markers, and mirrors.
+- Focused negative coverage proves missing and stale resource-owner
+  mirror-source markers are rejected at the target mirror boundary, alongside
+  existing stale resource mirror rejection and positive signed/unsigned
+  product-reduction plus packed-i4 dequant/dequant-clamp fixtures.
 - A bounded scan over touched production files, active task text, directly
   affected fixtures, and RVV low-precision spec sections finds no
   admission/remediation/performance/measurement/same-target/no-win/dispatch
-  wording used as primitive route-description/emission-plan/candidate compiler
-  authority.
+  wording used as stable resource-owner/compiler authority.
 - `tcrv-opt`, `tcrv-translate`, `tianchenrv-rvv-extension-plugin-test`, and
   `tianchenrv-target-artifact-export-test` build; the two C++ test binaries run.
 - Focused lit coverage for signed/unsigned product-reduction and packed-i4

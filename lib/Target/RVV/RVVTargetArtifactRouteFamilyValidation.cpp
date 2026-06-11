@@ -34,6 +34,12 @@ constexpr llvm::StringLiteral
 constexpr llvm::StringLiteral
     kRVVLowPrecisionPrimitivePayloadMirrorSource(
         "provider-built-low-precision-primitive-route-payload.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceOwnerMirrorSourceKey(
+        "tcrv_rvv.low_precision_resource.resource_owner_mirror_source");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceOwnerMirrorSource(
+        "provider-owned-low-precision-contraction-resource-selection.v1");
 
 llvm::Error makeRVVTargetRouteError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -6266,6 +6272,11 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
     return requireCandidateMetadataMirror(
         candidate, key, expected, fullLabel);
   };
+  if (llvm::Error error =
+          requireResourceMirror(kRVVLowPrecisionResourceOwnerMirrorSourceKey,
+                                kRVVLowPrecisionResourceOwnerMirrorSource,
+                                "resource owner mirror source"))
+    return error;
   if (llvm::Error error = requireResourceMirror(
           "tcrv_rvv.low_precision_resource.candidate_set",
           selection.candidateSetID, "candidate set"))

@@ -4905,6 +4905,14 @@ reduction store VL = 1
   provider-built-low-precision-primitive-route-payload.v1`; a missing or stale
   marker fails target validation before primitive candidate mirrors are
   accepted.
+- Candidate metadata for a route with low-precision resource selection must
+  carry
+  `tcrv_rvv.low_precision_resource.resource_owner_mirror_source =
+  provider-owned-low-precision-contraction-resource-selection.v1`; a missing or
+  stale marker fails target validation before stable resource mirrors are
+  accepted. Common EmitC/export may serialize this marker and the adjacent
+  `tcrv_rvv.low_precision_resource.*` fields only as mirrors of the
+  provider-owned resource selection, schedule, and resource-cost facts.
 - Emission-plan metadata for low-precision primitive source/product/
   accumulator/result SEW/LMUL, product-reduction relation, widening-product
   intrinsic, widening-reduction intrinsic, scalar seed splat, layout, and

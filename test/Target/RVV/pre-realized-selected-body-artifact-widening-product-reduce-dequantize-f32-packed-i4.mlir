@@ -159,6 +159,7 @@ module {
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.performance_win_claim_allowed", value = "false"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.correctness_fallback_path_selected", value = "true"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.performance_preferred_path_selected", value = "false"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.resource_owner_mirror_source", value = "provider-owned-low-precision-contraction-resource-selection.v1"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.packed_load_unpack_contract", value = "rvv-packed-i4-load-unpack-resource-facts.v1"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.packed_storage_load", value = "unit-stride-vle8-i8mf4-packed-i4x2"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.packed_unpack_plan", value = "low-high-i4-sign-extend-to-i8mf4"}
@@ -205,6 +206,7 @@ module {
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_selection_eligible", value = "false"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.dispatch_preference", value = "not-performance-preferred"}
 
+// HEADER: tianchenrv.rvv.low_precision_resource.resource_owner_mirror.source: provider-owned-low-precision-contraction-resource-selection.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]
 // HEADER: tianchenrv.rvv.low_precision_resource.operand_form: packed-i4-nibbles
 // HEADER: tianchenrv.rvv.low_precision_resource.source_signedness: signed
