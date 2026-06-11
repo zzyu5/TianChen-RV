@@ -6464,107 +6464,7 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
         return error;
     }
   }
-  if (!selection.performanceFeedback.empty()) {
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.performance_feedback",
-            selection.performanceFeedback, "performance feedback"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.performance_baseline",
-            selection.performanceBaseline, "performance baseline"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
-            selection.performanceBestSpeedupRange,
-            "performance best-speedup range"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.performance_action",
-            selection.performanceAction, "performance action"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
-            selection.remediationHandoffContract,
-            "remediation handoff contract"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_diagnosis",
-            selection.remediationDiagnosis, "remediation diagnosis"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_measurement_evidence",
-            selection.remediationMeasurementEvidenceID,
-            "remediation measurement evidence"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_decision",
-            selection.remediationDecision, "remediation decision"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_action",
-            selection.remediationAction, "remediation action"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_dispatch_preference",
-            selection.remediationDispatchPreference,
-            "remediation dispatch preference"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_blocker",
-            selection.remediationBlocker, "remediation blocker"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_plan_contract",
-            selection.remediationPlanContract,
-            "remediation plan contract"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_plan",
-            selection.remediationPlan, "remediation plan"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_statement_strategy",
-            selection.remediationStatementStrategy,
-            "remediation statement strategy"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_vector_budget",
-            selection.remediationVectorBudget,
-            "remediation vector budget"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_schedule_contract",
-            selection.remediationScheduleContract,
-            "remediation schedule contract"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_unpack_plan",
-            selection.remediationUnpackPlan, "remediation unpack plan"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_product_plan",
-            selection.remediationProductPlan, "remediation product plan"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_reduction_plan",
-            selection.remediationReductionPlan, "remediation reduction plan"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.remediation_vl_plan",
-            selection.remediationVLPlan, "remediation VL plan"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.schedule_decision_contract",
-            selection.scheduleDecisionContract, "schedule decision contract"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.schedule_decision",
-            selection.scheduleDecision, "schedule decision"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.schedule_decision_reason",
-            selection.scheduleDecisionReason, "schedule decision reason"))
-      return error;
+  if (!selection.resourceCostContract.empty()) {
     if (llvm::Error error = requireResourceMirror(
             "tcrv_rvv.low_precision_resource.resource_cost_contract",
             selection.resourceCostContract, "resource cost contract"))
@@ -6582,67 +6482,19 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
             "tcrv_rvv.low_precision_resource.resource_cost_blocker",
             selection.resourceCostBlocker, "resource cost blocker"))
       return error;
+  }
+  if (!selection.scheduleDecisionContract.empty()) {
     if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.performance_admission_decision",
-            selection.performanceAdmissionDecision,
-            "performance admission decision"))
+            "tcrv_rvv.low_precision_resource.schedule_decision_contract",
+            selection.scheduleDecisionContract, "schedule decision contract"))
       return error;
     if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.performance_admission_closure",
-            selection.performanceAdmissionClosure,
-            "performance admission closure"))
+            "tcrv_rvv.low_precision_resource.schedule_decision",
+            selection.scheduleDecision, "schedule decision"))
       return error;
     if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource."
-            "performance_admission_reopen_requirement",
-            selection.performanceAdmissionReopenRequirement,
-            "performance admission reopen requirement"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource."
-            "beyond_local_repair_admission_contract",
-            selection.beyondLocalRepairAdmissionContract,
-            "beyond-local repair admission contract"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource."
-            "beyond_local_repair_admission_decision",
-            selection.beyondLocalRepairAdmissionDecision,
-            "beyond-local repair admission decision"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource."
-            "beyond_local_repair_admission_blocker",
-            selection.beyondLocalRepairAdmissionBlocker,
-            "beyond-local repair admission blocker"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource."
-            "beyond_local_repair_admission_reopen_requirement",
-            selection.beyondLocalRepairAdmissionReopenRequirement,
-            "beyond-local repair admission reopen requirement"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.performance_maturity",
-            selection.performanceMaturity, "performance maturity"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
-            selection.performanceMaturityEvidence,
-            "performance maturity evidence"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
-            selection.performanceMaturityOutcome, "performance maturity outcome"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.performance_selection_eligible",
-            selection.performanceSelectionEligible,
-            "performance selection eligibility"))
-      return error;
-    if (llvm::Error error = requireResourceMirror(
-            "tcrv_rvv.low_precision_resource.dispatch_preference",
-            selection.dispatchPreference, "dispatch preference"))
+            "tcrv_rvv.low_precision_resource.schedule_decision_reason",
+            selection.scheduleDecisionReason, "schedule decision reason"))
       return error;
   }
   if (llvm::Error error = requireResourceMirror(
@@ -6662,6 +6514,232 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
   return requireResourceMirror(
       "tcrv_rvv.low_precision_resource.rejection_reason",
       selection.rejectionReason, "rejection reason");
+}
+
+bool hasRVVLowPrecisionGate4AdmissionEvidenceFacts(
+    const plugin::rvv::RVVLowPrecisionContractionResourceSelection &selection) {
+  return !selection.performanceFeedback.empty() ||
+         !selection.performanceAdmissionDecision.empty() ||
+         !selection.beyondLocalRepairAdmissionContract.empty() ||
+         !selection.performanceMaturity.empty() ||
+         !selection.remediationHandoffContract.empty();
+}
+
+llvm::Error validateRVVLowPrecisionGate4AdmissionEvidenceMirrors(
+    const TargetArtifactCandidate &candidate,
+    const plugin::rvv::RVVLowPrecisionContractionResourceSelection
+        &selection) {
+  auto requireGate4Mirror =
+      [&](llvm::StringRef key, llvm::StringRef expected,
+          llvm::StringRef label) -> llvm::Error {
+    std::string fullLabel =
+        (llvm::Twine("provider-selected low-precision Gate 4 "
+                     "evidence/admission ")
+             + label)
+            .str();
+    return requireCandidateMetadataMirror(candidate, key, expected, fullLabel);
+  };
+
+  constexpr llvm::StringLiteral gate4MirrorKeys[] = {
+      "tcrv_rvv.low_precision_resource.performance_feedback",
+      "tcrv_rvv.low_precision_resource.performance_baseline",
+      "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
+      "tcrv_rvv.low_precision_resource.performance_action",
+      "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
+      "tcrv_rvv.low_precision_resource.remediation_diagnosis",
+      "tcrv_rvv.low_precision_resource.remediation_measurement_evidence",
+      "tcrv_rvv.low_precision_resource.remediation_decision",
+      "tcrv_rvv.low_precision_resource.remediation_action",
+      "tcrv_rvv.low_precision_resource.remediation_dispatch_preference",
+      "tcrv_rvv.low_precision_resource.remediation_blocker",
+      "tcrv_rvv.low_precision_resource.remediation_plan_contract",
+      "tcrv_rvv.low_precision_resource.remediation_plan",
+      "tcrv_rvv.low_precision_resource.remediation_statement_strategy",
+      "tcrv_rvv.low_precision_resource.remediation_vector_budget",
+      "tcrv_rvv.low_precision_resource.remediation_schedule_contract",
+      "tcrv_rvv.low_precision_resource.remediation_unpack_plan",
+      "tcrv_rvv.low_precision_resource.remediation_product_plan",
+      "tcrv_rvv.low_precision_resource.remediation_reduction_plan",
+      "tcrv_rvv.low_precision_resource.remediation_vl_plan",
+      "tcrv_rvv.low_precision_resource.performance_admission_decision",
+      "tcrv_rvv.low_precision_resource.performance_admission_closure",
+      "tcrv_rvv.low_precision_resource."
+      "performance_admission_reopen_requirement",
+      "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_contract",
+      "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision",
+      "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker",
+      "tcrv_rvv.low_precision_resource."
+      "beyond_local_repair_admission_reopen_requirement",
+      "tcrv_rvv.low_precision_resource.performance_maturity",
+      "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
+      "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
+      "tcrv_rvv.low_precision_resource.performance_selection_eligible",
+      "tcrv_rvv.low_precision_resource.dispatch_preference"};
+
+  if (!hasRVVLowPrecisionGate4AdmissionEvidenceFacts(selection)) {
+    for (llvm::StringRef key : gate4MirrorKeys)
+      if (!lookupCandidateMetadataValue(candidate, key).empty())
+        return makeRVVTargetRouteError(
+            llvm::Twine("widening dot-reduction target artifact consumer "
+                        "rejects metadata-only Gate 4 evidence/admission "
+                        "mirror ") +
+            key +
+            " before artifact export; provider-owned policy/evidence facts "
+            "are required");
+    return llvm::Error::success();
+  }
+
+  if (llvm::Error error = requireGate4Mirror(
+          "tcrv_rvv.low_precision_resource.performance_feedback",
+          selection.performanceFeedback, "performance feedback"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+          "tcrv_rvv.low_precision_resource.performance_baseline",
+          selection.performanceBaseline, "performance baseline"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+          "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
+          selection.performanceBestSpeedupRange,
+          "performance best-speedup range"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+          "tcrv_rvv.low_precision_resource.performance_action",
+          selection.performanceAction, "performance action"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
+            selection.remediationHandoffContract,
+            "remediation handoff contract"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_diagnosis",
+            selection.remediationDiagnosis, "remediation diagnosis"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_measurement_evidence",
+            selection.remediationMeasurementEvidenceID,
+            "remediation measurement evidence"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_decision",
+            selection.remediationDecision, "remediation decision"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_action",
+            selection.remediationAction, "remediation action"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_dispatch_preference",
+            selection.remediationDispatchPreference,
+            "remediation dispatch preference"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_blocker",
+            selection.remediationBlocker, "remediation blocker"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_plan_contract",
+            selection.remediationPlanContract,
+            "remediation plan contract"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_plan",
+            selection.remediationPlan, "remediation plan"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_statement_strategy",
+            selection.remediationStatementStrategy,
+            "remediation statement strategy"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_vector_budget",
+            selection.remediationVectorBudget,
+            "remediation vector budget"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_schedule_contract",
+            selection.remediationScheduleContract,
+            "remediation schedule contract"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_unpack_plan",
+            selection.remediationUnpackPlan, "remediation unpack plan"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_product_plan",
+            selection.remediationProductPlan, "remediation product plan"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_reduction_plan",
+            selection.remediationReductionPlan, "remediation reduction plan"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.remediation_vl_plan",
+            selection.remediationVLPlan, "remediation VL plan"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.performance_admission_decision",
+            selection.performanceAdmissionDecision,
+            "performance admission decision"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.performance_admission_closure",
+            selection.performanceAdmissionClosure,
+            "performance admission closure"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource."
+            "performance_admission_reopen_requirement",
+            selection.performanceAdmissionReopenRequirement,
+            "performance admission reopen requirement"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource."
+            "beyond_local_repair_admission_contract",
+            selection.beyondLocalRepairAdmissionContract,
+            "beyond-local repair admission contract"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource."
+            "beyond_local_repair_admission_decision",
+            selection.beyondLocalRepairAdmissionDecision,
+            "beyond-local repair admission decision"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource."
+            "beyond_local_repair_admission_blocker",
+            selection.beyondLocalRepairAdmissionBlocker,
+            "beyond-local repair admission blocker"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource."
+            "beyond_local_repair_admission_reopen_requirement",
+            selection.beyondLocalRepairAdmissionReopenRequirement,
+            "beyond-local repair admission reopen requirement"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.performance_maturity",
+            selection.performanceMaturity, "performance maturity"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
+            selection.performanceMaturityEvidence,
+            "performance maturity evidence"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
+            selection.performanceMaturityOutcome, "performance maturity outcome"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.performance_selection_eligible",
+            selection.performanceSelectionEligible,
+            "performance selection eligibility"))
+    return error;
+  if (llvm::Error error = requireGate4Mirror(
+            "tcrv_rvv.low_precision_resource.dispatch_preference",
+            selection.dispatchPreference, "dispatch preference"))
+    return error;
+  return llvm::Error::success();
 }
 
 llvm::Error validateRVVLowPrecisionSelectedDispatchCandidateMirrors(
@@ -7215,6 +7293,11 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
   if (contract->lowPrecisionResourceSelection.hasSelection)
     if (llvm::Error error = validateRVVLowPrecisionResourceCandidateMirrors(
             candidate, contract->lowPrecisionResourceSelection))
+      return error;
+  if (contract->lowPrecisionResourceSelection.hasSelection)
+    if (llvm::Error error =
+            validateRVVLowPrecisionGate4AdmissionEvidenceMirrors(
+                candidate, contract->lowPrecisionResourceSelection))
       return error;
   if (isProductReductionDequantization &&
       contract->lowPrecisionResourceSelection.hasSelection)

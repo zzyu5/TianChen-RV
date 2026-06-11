@@ -1,5 +1,76 @@
 > Continuation from `journal-29.md` (archived at more than 2000 lines)
 
+## Session 597: Stage2 RVV Gate 4 admission boundary cleanup
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV production-kernel Gearbox resource-aware low-precision contraction campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the first Gate 4 admission
+boundary cleanup slice for packed-i4 low-precision resource/schedule and target
+validation ownership. The cleanup separates stable compiler/resource facts from
+generic selected-dispatch policy-output facts and campaign evidence/admission
+facts without admitting a measured-win or changing fallback behavior.
+
+### Main Changes
+
+- Classified stable facts as candidate selection, planning contract,
+  dtype/SEW/LMUL, packed-i4 load/unpack, primitive product/reduction,
+  resource cost, schedule decision, realization/region/live-vector facts,
+  target capability mirrors, legality, and rejection reason.
+- Classified generic policy-output facts as selected-dispatch case/fallback
+  mirrors plus `RVVLowPrecisionPerformancePolicyDecision` route, correctness,
+  performance, win-claim, dispatch-path, and path-selection outputs.
+- Classified campaign evidence/admission facts as performance
+  feedback/baseline/speedup/action, remediation narrative/evidence,
+  performance admission closure/reopen, beyond-local repair admission,
+  performance maturity, and same-target measurement records.
+- Renamed the packed-i4 schedule-decision predicate to a stable Gearbox
+  schedule helper and removed Gate 4 admission/evidence fields from its
+  acceptance predicate.
+- Split target artifact validation into stable resource mirror validation and
+  Gate 4 evidence/admission mirror validation. Stale Gate 4 mirrors still fail
+  closed, but diagnostics now label them as evidence/admission ownership rather
+  than stable resource authority.
+- Added focused plugin coverage proving stale or missing Gate 4 admission
+  fields do not invalidate an otherwise stable packed-i4 schedule decision.
+- Updated the RVV plugin code-spec, macro PRD, task notes, and Trellis JSONL
+  logs with the completed cleanup slice and remaining macro continuation.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-generated-bundle-same-target-measure-gate4-dry-run|pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4'`
+- [OK] `rtk python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-production-gearbox-low-precision-contraction`
+- [OK] `rtk git diff --check`
+- [OK] bounded old-authority scan over added diff lines returned only
+  spec/PRD negative boundary text for artifact-name authority.
+
+### Self-Repair
+
+- The first focused lit run failed because `tcrv-translate` had not been
+  rebuilt after the target diagnostic-label split and still emitted the prior
+  stable-resource diagnostic label. Rebuilding `tcrv-translate` and rerunning
+  the same lit filter passed 3/3.
+
+### Status
+
+[OPEN MACRO TASK] Gate 4 admission-boundary cleanup is complete for the first
+packed-i4 production slice. Accepted dequant and dequant-clamp records remain
+no-win/regression, preserving route support and correctness execution while
+denying performance-preferred selection and performance-win claims. The macro
+task remains active for measured-win admission and final provider,
+selected-dispatch, target mirror, and dispatch/fallback closure.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 596: Stage2 RVV Gearbox Gate 4 dispatch/fallback consumption audit
 
 **Date**: 2026-06-11

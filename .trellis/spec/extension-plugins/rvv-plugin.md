@@ -7570,6 +7570,24 @@ performance-preferred
   low-precision resource mirror; it must agree with the selected-dispatch
   policy decision, but it is not a standalone selected-dispatch policy-output
   key.
+- Stable low-precision resource and Gearbox schedule acceptance must not depend
+  on Gate 4 campaign evidence or admission fields. Packed-i4 schedule decisions
+  are accepted from stable candidate legality, dtype/resource facts, register
+  budget, resource-cost facts, and packed-i4 schedule facts. Performance
+  feedback, remediation narratives, performance admission closure/reopen,
+  beyond-local repair admission, maturity outcome, and same-target measurement
+  records are Gate 4 evidence/admission facts. They may be validated by policy
+  and target evidence/admission consumers, but they are not route authority,
+  schedule authority, artifact-name authority, or permanent
+  `RVVGearboxSchedule` contract inputs.
+- Target artifact validation must keep stable resource mirrors and Gate 4
+  evidence/admission mirrors in separate consumer helpers. Stable resource
+  mirrors include planning/resource-cost/schedule-decision/target-capability
+  facts. Gate 4 evidence/admission mirrors include performance feedback,
+  remediation, admission closure/reopen, beyond-local admission, maturity,
+  performance-selection eligibility, and dispatch preference. Stale Gate 4
+  mirrors still fail closed when provider policy/evidence facts are present;
+  metadata-only Gate 4 mirrors must not be accepted as provider-owned facts.
 - When source-backed same-target measurement evidence is available, the
   selected-dispatch policy-output population path must use the
   `RVVLowPrecisionSameTargetMeasurementRecord` overload. The overload first

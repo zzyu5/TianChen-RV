@@ -407,3 +407,90 @@ dispatch/fallback consumers.
 - The macro task remains active unless the remaining Gate 4 campaign-level
   measured-win/no-win, provider, selected-dispatch, target, and
   dispatch/fallback gates are all proven complete.
+
+## Status After Gate 4 Dispatch/Fallback Consumption Slice
+
+Gate 4 dispatch/fallback consumption consistency is complete for the accepted
+packed-i4 dequant and dequant-clamp no-win evidence paths. Target artifact
+validation now rejects stale provider-owned selected-dispatch policy-output
+values even when candidate metadata mirrors the stale provider value exactly.
+The accepted no-win records still preserve route support and correctness
+execution while denying performance-preferred path selection and performance
+win claims.
+
+The macro task remains active. Gate 4 still needs an admission-boundary cleanup
+audit so stable Gearbox/resource schedule facts, provider/target mirrors,
+generic selected-dispatch policy-output facts, and campaign measurement or
+admission records stay in their correct owner layers.
+
+## Current Gate 4 Admission Boundary Cleanup Slice
+
+This round owns the authority boundary between stable RVV low-precision
+resource/schedule/selected-dispatch facts and Gate 4 experiment/admission
+evidence. The bounded production target is the packed-i4
+`widening_product_reduce_dequantize_f32` path recently hardened in target
+validation, with the packed-i4 dequant-clamp sibling preserved.
+
+The field inventory for this cleanup is:
+
+- Stable compiler/resource facts: candidate set, selected candidate, planning
+  contract, dtype/SEW/LMUL, packed-i4 load/unpack, primitive product/reduction,
+  resource cost, region count, live-vector pressure, realization decision,
+  product/dequant/clamp phases, route-family plan, provider-supported mirror,
+  target capability mirrors, legality and rejection reason.
+- Generic policy-output facts: selected-dispatch case/fallback mirrors and the
+  accepted `RVVLowPrecisionPerformancePolicyDecision` outputs
+  `selected_dispatch_policy_contract`, `dispatch_policy_path`,
+  `selected_dispatch_preference`, denial/fallback reason, route support,
+  correctness execution, performance selection, win-claim allowance, and path
+  selection booleans.
+- Campaign evidence/admission facts: performance feedback/baseline/speedup
+  range/action, remediation handoff and measurement evidence, remediation
+  diagnosis/action/plan, performance admission closure/reopen fields,
+  beyond-local repair admission fields, performance maturity fields, and
+  source-backed same-target measurement records.
+
+The cleanup must remove at least one real misplaced dependency where a stable
+compiler schedule or resource mirror accepts or rejects based on campaign
+evidence/admission fields. It may keep the current mirrored field names for
+artifact compatibility, but the production helpers and diagnostics must make
+the owner boundary explicit.
+
+## Acceptance Criteria For Gate 4 Admission Boundary Cleanup Slice
+
+- The packed-i4 Gearbox schedule decision is accepted from stable resource and
+  schedule facts, not from Gate 4 performance admission closure/reopen or
+  beyond-local repair admission fields.
+- Target artifact validation separates stable resource candidate mirror
+  validation from Gate 4 campaign evidence/admission mirror validation, while
+  still checking both for packed-i4 routes that carry those fields.
+- Accepted dequant and dequant-clamp no-win records still preserve
+  `correctness-fallback`, route support, and correctness execution while
+  denying performance-preferred path selection and performance win claims.
+- Stale Gate 4 admission/evidence mirrors still fail closed at the target or
+  policy boundary, but they are not route authority, schedule authority,
+  artifact-name authority, or permanent Gearbox schedule contract inputs.
+- Focused target or plugin tests prove the stable schedule-decision helper no
+  longer depends on stale/missing Gate 4 admission fields, and existing stale
+  selected-dispatch / no-win rejection coverage remains passing.
+- The macro task remains active after this cleanup unless the full Gate 4
+  measured-win/no-win, provider, selected-dispatch, target, and
+  dispatch/fallback campaign gates are actually complete.
+
+## Status After Gate 4 Admission Boundary Cleanup Slice
+
+Gate 4 admission-boundary cleanup is complete for the first packed-i4
+production slice. The packed-i4 stable Gearbox schedule-decision helper now
+accepts from stable resource/schedule facts and no longer accepts or rejects
+based on performance-admission closure/reopen or beyond-local repair admission
+fields. Target artifact validation now consumes stable resource mirrors and
+Gate 4 evidence/admission mirrors through separate helpers, with Gate 4 stale
+mirror diagnostics labeled as evidence/admission ownership rather than stable
+resource authority.
+
+The accepted dequant and dequant-clamp records remain no-win/regression:
+route support and correctness execution are preserved, while
+performance-preferred selection and performance-win claims remain denied. The
+macro task stays active for remaining Gate 4 measured-win admission and final
+end-to-end provider, selected-dispatch, target mirror, and dispatch/fallback
+closure.

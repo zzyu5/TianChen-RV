@@ -1098,7 +1098,7 @@ getRVVLowPrecisionResourcePackedI4RemediationMeasurementEvidenceIDForCandidate(
   return {};
 }
 
-inline bool isRVVLowPrecisionResourceAcceptedPackedI4ScheduleDecision(
+inline bool isRVVLowPrecisionResourceAcceptedPackedI4StableScheduleDecision(
     const RVVLowPrecisionContractionResourceCandidate &candidate) {
   return isRVVLowPrecisionResourcePackedI4CandidateID(candidate.candidateID) &&
          candidate.isLegal &&
@@ -1137,20 +1137,6 @@ inline bool isRVVLowPrecisionResourceAcceptedPackedI4ScheduleDecision(
              kRVVLowPrecisionResourcePackedI4CostLoopBodySteps &&
          candidate.resourceCostBlocker ==
              kRVVLowPrecisionResourcePackedI4CostBlocker &&
-         candidate.performanceAdmissionDecision ==
-             kRVVLowPrecisionResourcePackedI4PerformanceAdmissionDecision &&
-         candidate.performanceAdmissionClosure ==
-             kRVVLowPrecisionResourcePackedI4PerformanceAdmissionClosure &&
-         candidate.performanceAdmissionReopenRequirement ==
-             kRVVLowPrecisionResourcePackedI4PerformanceAdmissionReopenRequirement &&
-         candidate.beyondLocalRepairAdmissionContract ==
-             kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionContract &&
-         candidate.beyondLocalRepairAdmissionDecision ==
-             kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionDecision &&
-         candidate.beyondLocalRepairAdmissionBlocker ==
-             kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionBlocker &&
-         candidate.beyondLocalRepairAdmissionReopenRequirement ==
-             kRVVLowPrecisionResourcePackedI4BeyondLocalRepairAdmissionReopenRequirement &&
          candidate.peakLiveVectorGroups <= candidate.vectorRegisterBudget;
 }
 
@@ -1161,7 +1147,8 @@ inline void populateRVVLowPrecisionResourcePackedI4ScheduleDecision(
 
   candidate.scheduleDecisionContract =
       kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract;
-  if (isRVVLowPrecisionResourceAcceptedPackedI4ScheduleDecision(candidate)) {
+  if (isRVVLowPrecisionResourceAcceptedPackedI4StableScheduleDecision(
+          candidate)) {
     candidate.scheduleDecision = kRVVLowPrecisionResourcePackedI4ScheduleDecision;
     candidate.scheduleDecisionReason =
         kRVVLowPrecisionResourcePackedI4ScheduleDecisionReason;

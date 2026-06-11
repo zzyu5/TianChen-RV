@@ -10261,6 +10261,46 @@ module {
           "selected packed sub-byte resource candidate before statement "
           "planning"))
     return result;
+
+  auto packedI4StableScheduleCandidates =
+      tianchenrv::plugin::rvv::
+          buildRVVLowPrecisionProductReductionResourceCandidates(
+              tianchenrv::plugin::rvv::
+                  RVVLowPrecisionContractionResourceOperation::
+                      ProductReductionDequantizeF32,
+              "agnostic", "agnostic", 8, "mf4", 16, "mf2", 32, "m1", 32,
+              "m1",
+              tianchenrv::plugin::rvv::
+                  kRVVLowPrecisionResourceVectorRegisterBudget);
+  auto packedI4StableScheduleCandidate =
+      tianchenrv::plugin::rvv::
+          findRVVLowPrecisionProductReductionResourceCandidate(
+              packedI4StableScheduleCandidates,
+              tianchenrv::plugin::rvv::
+                  kRVVLowPrecisionResourceDequantPackedI4Candidate);
+  if (!packedI4StableScheduleCandidate)
+    return fail("packed-i4 stable schedule-decision fixture missing selected "
+                "packed resource candidate");
+  auto staleGate4AdmissionScheduleCandidate =
+      *packedI4StableScheduleCandidate;
+  staleGate4AdmissionScheduleCandidate.performanceAdmissionDecision =
+      "stale-gate4-performance-admission-decision";
+  staleGate4AdmissionScheduleCandidate.performanceAdmissionClosure = "";
+  staleGate4AdmissionScheduleCandidate
+      .performanceAdmissionReopenRequirement = "";
+  staleGate4AdmissionScheduleCandidate.beyondLocalRepairAdmissionDecision =
+      "metadata-only-beyond-local-admission-decision";
+  staleGate4AdmissionScheduleCandidate.beyondLocalRepairAdmissionBlocker = "";
+  if (int result = expect(
+          tianchenrv::plugin::rvv::
+              isRVVLowPrecisionResourceAcceptedPackedI4StableScheduleDecision(
+                  staleGate4AdmissionScheduleCandidate) &&
+              staleGate4AdmissionScheduleCandidate.scheduleDecision ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4ScheduleDecision,
+          "packed-i4 stable Gearbox schedule decision ignores stale Gate 4 "
+          "admission evidence fields"))
+    return result;
   if (int result = expectSuccess(
           verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
               *packedI4ProductDequantAnalysis,
