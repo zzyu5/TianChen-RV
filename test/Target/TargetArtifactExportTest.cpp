@@ -14981,6 +14981,25 @@ bool expectRVVTargetArtifactExporterShape(
            "unsigned"}))
     return false;
 
+  TargetArtifactCandidate missingProductReductionPrimitiveExportMirror =
+      productReductionFixture.candidate;
+  if (!eraseArtifactMetadataKey(
+          missingProductReductionPrimitiveExportMirror,
+          "tcrv_rvv.low_precision_primitive.runtime_control_plan")) {
+    llvm::errs() << "test fixture did not contain product-reduction primitive "
+                    "runtime-control metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          missingProductReductionPrimitiveExportMirror, productReductionRoute,
+          productReductionDescription,
+          "product-reduction registry rejects missing primitive export "
+          "payload mirror",
+          {"candidate metadata must carry "
+           "tcrv_rvv.low_precision_primitive.runtime_control_plan provenance",
+           "runtime control plan"}))
+    return false;
+
   RVVRouteDescription stalePackedI4OperandForm =
       packedI4ProductDequantDescription;
   stalePackedI4OperandForm.lowPrecisionResourceSelection.operandForm =

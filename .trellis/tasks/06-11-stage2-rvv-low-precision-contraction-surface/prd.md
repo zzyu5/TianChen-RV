@@ -102,19 +102,19 @@ with named measurement-disposition policy/evidence diagnostics, while stale
 target artifact mirrors remain handled by separate evidence/admission mirror
 validators.
 
-## Current Round Slice: Provider Primitive Route-Payload Canonicalization
+## Completed Slice: Provider Primitive Route-Payload Canonicalization
 
-This bounded slice canonicalizes stable low-precision primitive facts at the RVV
-provider route-payload boundary. The provider already creates
+The previous bounded slice canonicalized stable low-precision primitive facts at
+the RVV provider route-payload boundary. The provider already creates
 `RVVLowPrecisionWideningReductionPrimitiveFacts` and
 `RVVLowPrecisionPrimitiveRoutePayload`, but related fields still appear in the
-route-family plan, route description, emission metadata, and target artifact
-validation. This round must make that duplication explicitly mirror-only:
-typed `tcrv_rvv` body/config/runtime facts and provider primitive facts feed one
-validated primitive route payload; Common EmitC and target artifacts only carry
-or compare mirrors of that payload.
+route-family plan, route description, emission metadata, support-bundle export,
+and target artifact validation. That slice made provider validation the
+canonical primitive route-payload gate: typed `tcrv_rvv` body/config/runtime
+facts and provider primitive facts feed one validated primitive route payload;
+Common EmitC and target artifacts only carry or compare mirrors of that payload.
 
-The source-backed field classification for this slice is:
+The source-backed field classification remains:
 
 - Compiler authority: selected typed `tcrv_rvv` body/config/runtime facts,
   source dtype/signedness, source load/extension, product dtype/SEW/LMUL,
@@ -134,14 +134,44 @@ The source-backed field classification for this slice is:
   primitive compiler-fact boundary and must not satisfy primitive route-payload
   validation.
 
-Production behavior for this slice must fail closed when source dtype or
-signedness, load/extension, product/accumulator/result dtype, SEW/LMUL,
+Production behavior now fails closed when source dtype or signedness,
+load/extension, product/accumulator/result dtype, SEW/LMUL,
 product-reduction relation, intrinsic, policy, runtime AVL/VL,
 accumulator/result layout, or store-VL facts disagree with the provider-owned
-primitive payload. Target artifact validation may consume provider-built mirrors
+primitive payload. Target artifact validation consumes provider-built mirrors
 only after the provider payload contract is valid; it must not reconstruct a
 second primitive authority from artifact metadata, candidate IDs, route IDs,
 admission state, or exact intrinsic spellings.
+
+## Current Round Slice: Support-Bundle/Export Primitive Mirror-Boundary Cleanup
+
+This bounded slice cleans the adjacent support-bundle/export boundary for the
+same low-precision product-reduction and packed-i4 dequant/dequant-clamp
+representatives. The target support bundle may expose
+`tcrv_rvv.low_precision_primitive.*` fields to generated headers and bundle
+metadata, but those fields must be visibly and mechanically treated as
+provider-payload mirrors. The support-bundle surface must not look like a second
+source of dtype, signedness, SEW/LMUL, policy, runtime AVL/VL,
+product-reduction relation, intrinsics, seed/layout/store-VL, packed-i4
+resource, admission, or measurement authority.
+
+The cleanup owner is the path:
+
+```text
+selected typed low-precision body/config/runtime facts
+  -> RVV provider primitive facts
+  -> RVVLowPrecisionPrimitiveRoutePayload
+  -> emission metadata mirrors
+  -> support-bundle/header mirror transport
+  -> target artifact validation against the provider payload
+```
+
+Support-bundle/header evidence may copy primitive fields only as exact mirrors
+of candidate metadata that has already been validated against the rebuilt
+provider payload. Missing or stale primitive mirrors must fail at the
+target/export validation boundary, not be repaired from support-bundle metadata
+or candidate IDs. Common EmitC remains neutral and does not infer or choose any
+low-precision primitive semantics.
 
 This round must not add q8/q4 route authority, artifact-name authority,
 helper-only wrappers, source-front-door positive routes, Common EmitC semantic
@@ -150,36 +180,37 @@ inference, or measured-win/admission claims.
 ## Acceptance Criteria For This Slice
 
 - Active task metadata, PRD, implementation/check context, and RVV
-  low-precision spec sections identify provider primitive route-payload
-  canonicalization under the same macro task.
+  low-precision spec sections identify support-bundle/export primitive
+  mirror-boundary cleanup under the same macro task.
 - Source-backed field classification is recorded for compiler authority,
-  mirror/test facts, and policy/evidence facts at the primitive route-payload
-  boundary.
-- Provider-side primitive validation/payload construction is the single
-  compiler authority for the signed and unsigned product-reduction primitive
-  fields touched in this round.
-- Provider route construction fails closed before `TCRVEmitCLowerableRoute`
-  materialization when payload source dtype/signedness, load/extension,
-  product/accumulator/result dtype, SEW/LMUL, policy, runtime AVL/VL,
-  product-reduction relation, intrinsic, scalar seed splat, layout, or store-VL
-  facts do not mirror the validated provider plan and primitive facts.
-- Target artifact validation consumes provider-built primitive payload mirrors
-  and rejects missing or stale mirrors without inventing primitive semantics from
-  route ids, candidate metadata, artifact names, intrinsic spellings,
-  admission/remediation/measurement/no-win, or dispatch fields.
+  mirror/test facts, and policy/evidence facts at the support-bundle/export
+  primitive mirror boundary.
+- Support-bundle/header metadata evidence groups or labels
+  `tcrv_rvv.low_precision_primitive.*` fields as provider primitive route
+  payload mirrors, not independent support facts.
+- Emission metadata and support-bundle/header transport continue to serialize
+  low-precision primitive fields only from the provider-built
+  `RVVLowPrecisionPrimitiveRoutePayload`.
+- Target artifact validation continues to validate the provider payload first,
+  then consumes candidate/support-bundle primitive mirrors only as exact mirrors
+  of that payload.
+- Missing or stale support-bundle/export primitive mirrors are rejected without
+  inventing primitive semantics from route ids, candidate metadata, artifact
+  names, intrinsic spellings, admission/remediation/measurement/no-win, or
+  dispatch fields.
 - Packed-i4 dequantize/dequant-clamp resource and policy/evidence boundaries
   remain intact; packed-i4 policy/evidence fields stay outside primitive
   compiler-fact validation.
-- Focused negative coverage proves stale or missing primitive compiler facts are
-  rejected at the primitive payload/provider or target mirror boundary, alongside
-  existing signed/unsigned product-reduction and packed-i4 dequant/dequant-clamp
-  positive fixtures.
+- Focused negative coverage proves stale or missing primitive support-bundle or
+  export mirrors are rejected at the target mirror boundary, alongside existing
+  signed/unsigned product-reduction and packed-i4 dequant/dequant-clamp positive
+  fixtures.
 - Common EmitC remains neutral and only carries provider-built payloads and
   mirrors.
 - A bounded scan over touched production files, active task text, directly
   affected fixtures, and RVV low-precision spec sections finds no
   admission/remediation/performance/measurement/same-target/no-win/dispatch
-  wording used as primitive route-payload compiler authority.
+  wording used as primitive support-bundle/export compiler authority.
 - `tcrv-opt`, `tcrv-translate`, `tianchenrv-rvv-extension-plugin-test`, and
   `tianchenrv-target-artifact-export-test` build; the two C++ test binaries run.
 - Focused lit coverage for signed/unsigned product-reduction and packed-i4
@@ -248,18 +279,19 @@ resource-cost facts. That stable helper is consumed by Gearbox candidate
 selection, Gearbox handoff/resource schedule verification, provider route
 planning validation, and target artifact resource validation.
 
-The remaining open boundary for this round is provider primitive route-payload
-canonicalization. Signed/unsigned product-reduction and packed-i4
+The remaining open boundary for this round is support-bundle/export primitive
+mirror cleanup. Signed/unsigned product-reduction and packed-i4
 dequant/dequant-clamp paths carry low-precision primitive facts through the
 provider payload, emission metadata, support-bundle export, and target artifact
-validation, but this slice must reduce duplicate authority surfaces and ensure
-target validation consumes provider-built primitive mirrors instead of becoming
-a second primitive source of truth.
+validation, but this slice must make the support-bundle/header surface visibly
+mirror-only and keep target validation anchored on provider-built payload
+mirrors.
 
 ## Expected Status After This Round
 
-The provider primitive route-payload canonicalization slice should be complete
-for signed/unsigned product-reduction and packed-i4 dequant/dequant-clamp
-representatives. The macro campaign should remain in progress for any adjacent
-low-precision primitive-surface cleanup and for future measurement-disposition
-work only when fresh source-backed same-target RVV evidence exists.
+The support-bundle/export primitive mirror-boundary cleanup slice should be
+complete for signed/unsigned product-reduction and packed-i4
+dequant/dequant-clamp representatives. The macro campaign should remain in
+progress for any adjacent low-precision primitive-surface cleanup and for future
+measurement-disposition work only when fresh source-backed same-target RVV
+evidence exists.

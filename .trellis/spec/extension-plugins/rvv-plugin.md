@@ -593,6 +593,14 @@ artifact validation.
   AVL/VL, widening-product relation, or widening-reduction relation from
   description defaults, artifact names, result/admission fields, or Common EmitC
   helpers.
+- Support-bundle/header evidence must label these exported header comments as
+  provider payload mirrors, for example
+  `tianchenrv.rvv.low_precision_primitive.payload_mirror.source_signedness`,
+  while keeping the candidate metadata keys as
+  `tcrv_rvv.low_precision_primitive.*` so target validation can compare the
+  candidate mirrors against the rebuilt provider payload. The header label is
+  transport evidence only; it does not create a new support-bundle authority
+  namespace.
 - Target artifact validation must consume the provider validation contract plus
   primitive route payload through the same provider-owned payload gate before
   accepting candidate metadata mirrors. Candidate metadata proves only that the
@@ -685,6 +693,10 @@ artifact validation.
   itself, not only candidate metadata mirrors, for at least product-reduction
   chain relation, runtime AVL source, and a packed-i4 dequant/dequant-clamp
   primitive intrinsic/layout/store-VL field.
+- Support-bundle/header coverage must check the
+  `low_precision_primitive.payload_mirror.*` comment labels and at least one
+  missing or stale `tcrv_rvv.low_precision_primitive.*` export mirror rejection
+  at the target artifact boundary.
 - Focused lit coverage for the selected product-reduction artifact path when
   metadata mirror diagnostics are user-visible.
 - Runtime `ssh rvv` evidence is required only when the task claims executable

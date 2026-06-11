@@ -73,6 +73,75 @@ source-backed same-target RVV evidence.
 
 Final coherent commit is created after this journal entry.
 
+## Session 596: Stage2 RVV support-bundle primitive payload mirror boundary cleanup
+
+**Date**: 2026-06-12
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the bounded
+support-bundle/export primitive mirror-boundary cleanup slice. The provider
+payload canonicalization from the previous slice remains the compiler authority;
+this round made the target support-bundle/header surface visibly mirror-only for
+low-precision primitive fields.
+
+### Boundary Classification
+
+- Compiler authority remains selected typed `tcrv_rvv` body/config/runtime
+  facts, provider primitive facts, and `RVVLowPrecisionPrimitiveRoutePayload`.
+- Mirror/transport facts are emission metadata, target candidate metadata,
+  support-bundle/header comments, fixture `PLAN`/`HEADER` checks, and C++ mirror
+  mutation records.
+- Policy/evidence facts such as admission, remediation, measurement, no-win,
+  performance, and dispatch remain outside primitive support-bundle authority.
+
+### Main Changes
+
+- Replaced the inline support-bundle list of
+  `low_precision_primitive.*` header evidence with a dedicated provider payload
+  mirror helper.
+- Kept candidate metadata keys as `tcrv_rvv.low_precision_primitive.*` so target
+  validation still compares mirrors against the rebuilt provider payload.
+- Changed generated header evidence labels to
+  `low_precision_primitive.payload_mirror.*`, making the header/support-bundle
+  surface explicitly mirror-only.
+- Added C++ negative coverage proving a missing primitive export mirror
+  (`tcrv_rvv.low_precision_primitive.runtime_control_plan`) fails at target
+  mirror validation rather than being inferred from adjacent metadata.
+- Updated signed/unsigned product-reduction, pre-realized product-reduction,
+  and standalone widening-product header checks for the new payload-mirror
+  labels.
+- Updated the RVV plugin spec and active macro PRD/task metadata with the
+  support-bundle/export mirror-boundary contract.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'explicit-selected-body-artifact-widening-product\.mlir|explicit-selected-body-artifact-widening-product-unsigned-u8|pre-realized-selected-body-artifact-widening-product-reduce-add|explicit-selected-body-artifact-widening-product-reduce-add|pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4'` from `build/test`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface`
+- [OK] `git diff --check`
+
+### Self-Repair
+
+- The first lit invocation from the repo root did not discover the build-backed
+  test suite because the generated `lit.site.cfg.py` uses relative paths. The
+  focused lit command was rerun from `build/test` and passed 8 selected tests.
+
+### Status
+
+[OPEN MACRO TASK] The support-bundle/export primitive mirror-boundary cleanup is
+complete for this slice. The macro task remains active for adjacent
+low-precision primitive-surface cleanup and for future measurement-disposition
+work only if fresh source-backed same-target RVV evidence is introduced.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 605: Selected-body realization admission/evidence boundary cleanup
 
 **Date**: 2026-06-12

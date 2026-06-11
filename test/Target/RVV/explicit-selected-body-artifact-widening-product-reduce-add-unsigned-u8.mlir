@@ -120,10 +120,10 @@ module {
 // HEADER: tianchenrv.rvv.emitc_route_mapping: rvv-generic-typed-body-emitc-route-family
 // HEADER: tianchenrv.rvv.config_contract: rvv-selected-body-sew32-lmul-m1-tail-agnostic-mask-agnostic.v1
 // HEADER: tianchenrv.rvv.memory_form: vector-rhs-load
-// HEADER: tianchenrv.rvv.low_precision_primitive.source_sew: 8
-// HEADER: tianchenrv.rvv.low_precision_primitive.product_lmul: mf2
-// HEADER: tianchenrv.rvv.low_precision_primitive.tail_policy: agnostic
-// HEADER: tianchenrv.rvv.low_precision_primitive.runtime_avl_source: runtime_abi:n
+// HEADER: tianchenrv.rvv.low_precision_primitive.payload_mirror.source_sew: 8
+// HEADER: tianchenrv.rvv.low_precision_primitive.payload_mirror.product_lmul: mf2
+// HEADER: tianchenrv.rvv.low_precision_primitive.payload_mirror.tail_policy: agnostic
+// HEADER: tianchenrv.rvv.low_precision_primitive.payload_mirror.runtime_avl_source: runtime_abi:n
 // HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-add,unsigned-u8mf4-u16mf2-u32m1,u1]
 // HEADER: tianchenrv.rvv.low_precision_resource.source_signedness: unsigned
 // HEADER: tianchenrv.rvv.low_precision_resource.accumulator_dtype: u32

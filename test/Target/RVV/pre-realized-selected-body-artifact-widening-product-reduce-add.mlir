@@ -66,9 +66,9 @@ module {
 
 // HEADER: tianchenrv.rvv.selected_variant: @pre_realized_body_rvv_product_reduce_add
 // HEADER: tianchenrv.rvv.runtime_abi_name: rvv-generic-widening-product-reduce-add-callable-c-abi.v1
-// HEADER: tianchenrv.rvv.low_precision_primitive.source_signedness: signed
-// HEADER: tianchenrv.rvv.low_precision_primitive.source_extension: sign-extend-i8-to-i16-product
-// HEADER: tianchenrv.rvv.low_precision_primitive.runtime_avl_source: runtime_abi:n
+// HEADER: tianchenrv.rvv.low_precision_primitive.payload_mirror.source_signedness: signed
+// HEADER: tianchenrv.rvv.low_precision_primitive.payload_mirror.source_extension: sign-extend-i8-to-i16-product
+// HEADER: tianchenrv.rvv.low_precision_primitive.payload_mirror.runtime_avl_source: runtime_abi:n
 // HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-i8mf4-i16mf2-i32m1-product-reduction-contraction-leaf-profile.v1
 // HEADER: void tcrv_emitc_pre_realized_body_product_reduce_add_kernel_pre_realized_body_rvv_product_reduce_add(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, int32_t *out, size_t n);
 
