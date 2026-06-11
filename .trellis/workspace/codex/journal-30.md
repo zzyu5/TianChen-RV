@@ -73,6 +73,68 @@ source-backed same-target RVV evidence.
 
 Final coherent commit is created after this journal entry.
 
+## Session 596: Stage2 RVV low-precision mirror transport contract consolidation
+
+**Date**: 2026-06-12
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the low-precision
+primitive/resource mirror transport consolidation slice. This round did not add
+another mirror fact; it centralized the existing primitive payload and
+resource-owner marker key/source/header/diagnostic labels behind a shared
+`RVVLowPrecisionMirrorTransportContract`.
+
+### Main Changes
+
+- Added shared primitive-payload and resource-owner mirror transport contracts
+  in `RVVEmitCRouteProvider.h`.
+- Rewired route-planning marker metadata emission to use
+  `makeRVVLowPrecisionMirrorSourceMetadata`.
+- Rewired standalone widening-product, product-reduction primitive, and
+  low-precision resource target validation to require marker sources through
+  the shared contracts.
+- Rewired support-bundle/header marker evidence to use the same contracts and
+  check exact provider-owned source values instead of dynamic marker strings.
+- Updated focused C++ marker assertions and missing/stale marker mutations to
+  consume the same contracts.
+- Updated the active macro PRD plus RVV plugin and EmitC route specs with the
+  executable transport-contract convention.
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'explicit-selected-body-artifact-widening-product\\.mlir|explicit-selected-body-artifact-widening-product-unsigned-u8|explicit-selected-body-artifact-widening-product-reduce-add\\.mlir|explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8|pre-realized-selected-body-artifact-widening-product-reduce-add\\.mlir|pre-realized-selected-body-artifact-widening-product-reduce-add-unsigned-u8|pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4'` from `build/test` (8 selected tests passed)
+
+### Self-Repair
+
+- The first target-artifact test rebuild failed because standalone
+  widening-product candidate mirror validation still referenced the removed
+  local primitive marker constants. The fix made that path consume the shared
+  primitive payload transport contract too.
+- The first lit invocation from the repository root did not discover tests, and
+  the second invocation from the root parsed the build site config relative path
+  incorrectly. The focused lit run was rerun from `build/test`, where the site
+  config resolves the source `test/lit.cfg.py` correctly.
+
+### Status
+
+[OPEN MACRO TASK] The mirror transport contract consolidation slice is complete.
+The macro task stays active for any adjacent low-precision primitive/resource
+cleanup and future measurement-disposition work only with fresh source-backed
+same-target RVV evidence.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 592: Stage2 RVV low-precision resource-owner mirror-source cleanup
 
 **Date**: 2026-06-12

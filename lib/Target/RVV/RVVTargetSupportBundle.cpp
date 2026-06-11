@@ -654,12 +654,21 @@ void appendRVVConfigVLMetadataEvidence(
   }
 }
 
+void appendRVVLowPrecisionMirrorSourceMetadataEvidence(
+    llvm::SmallVectorImpl<MaterializedEmitCHeaderArtifactMetadataEvidence> &out,
+    plugin::rvv::RVVLowPrecisionMirrorTransportContract contract) {
+  out.push_back({contract.headerEvidenceName, contract.metadataKey,
+                 contract.sourceValue, /*allowDynamicValue=*/false,
+                 /*optional=*/true});
+}
+
 void appendRVVLowPrecisionPrimitivePayloadMirrorMetadataEvidence(
     llvm::SmallVectorImpl<MaterializedEmitCHeaderArtifactMetadataEvidence>
         &out) {
+  appendRVVLowPrecisionMirrorSourceMetadataEvidence(
+      out,
+      plugin::rvv::getRVVLowPrecisionPrimitivePayloadMirrorTransportContract());
   constexpr llvm::StringLiteral kPayloadMirrorMetadata[][2] = {
-      {"low_precision_primitive.payload_mirror.source",
-       "tcrv_rvv.low_precision_primitive.payload_mirror_source"},
       {"low_precision_primitive.payload_mirror.contract",
        "tcrv_rvv.low_precision_primitive.contract"},
       {"low_precision_primitive.payload_mirror.kind",
@@ -849,10 +858,10 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        /*allowDynamicValue=*/true, /*optional=*/true},
   });
   appendRVVLowPrecisionPrimitivePayloadMirrorMetadataEvidence(evidence);
+  appendRVVLowPrecisionMirrorSourceMetadataEvidence(
+      evidence,
+      plugin::rvv::getRVVLowPrecisionResourceOwnerMirrorTransportContract());
   evidence.append({
-      {"low_precision_resource.resource_owner_mirror.source",
-       "tcrv_rvv.low_precision_resource.resource_owner_mirror_source", "",
-       /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.candidate_set",
        "tcrv_rvv.low_precision_resource.candidate_set", "",
        /*allowDynamicValue=*/true, /*optional=*/true},

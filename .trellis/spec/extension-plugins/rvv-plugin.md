@@ -611,6 +611,14 @@ artifact validation.
   widening-product intrinsic, widening-reduction intrinsic, scalar seed splat,
   accumulator/result layout, and store VL must also be sourced from the payload,
   not from stale route-description scalar mirrors.
+- The primitive payload mirror-source marker key, expected source value, header
+  label, and diagnostic authority label must come from the shared
+  `RVVLowPrecisionMirrorTransportContract` returned by
+  `getRVVLowPrecisionPrimitivePayloadMirrorTransportContract()`. Route planning,
+  support-bundle/header evidence, target artifact validation, and C++ fixture
+  mutations must consume that contract instead of locally retyping the marker
+  key/value. Generated header evidence for the marker source must check the
+  exact provider-owned source value, not a dynamic marker string.
 - Support-bundle/header evidence must label these exported header comments as
   provider payload mirrors, for example
   `tianchenrv.rvv.low_precision_primitive.payload_mirror.source_signedness`,
@@ -6392,6 +6400,14 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   mirrors of the provider-owned resource selection, stable schedule, and
   resource-cost facts. It is not a resource decision, schedule decision, or
   measurement-disposition admission fact by itself.
+- The resource-owner mirror-source marker key, expected source value, header
+  label, and diagnostic authority label must come from the shared
+  `RVVLowPrecisionMirrorTransportContract` returned by
+  `getRVVLowPrecisionResourceOwnerMirrorTransportContract()`. Route planning,
+  support-bundle/header evidence, target artifact validation, and C++ fixture
+  mutations must consume that contract instead of locally retyping the marker
+  key/value. Generated header evidence for the marker source must check the
+  exact provider-owned source value, not a dynamic marker string.
 - Target artifact validation must require the resource-owner mirror-source
   marker before accepting stable low-precision resource candidate mirrors
   against the rebuilt provider description. Missing or stale marker values fail

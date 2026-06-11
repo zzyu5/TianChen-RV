@@ -14829,15 +14829,17 @@ bool expectRVVTargetArtifactExporterShape(
   staleProductReductionMetadataSource.intrinsic =
       "metadata-derived-reduction";
   staleProductReductionMetadataSource.reductionStoreVL = "2";
+  const auto primitiveMirrorTransport =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionPrimitivePayloadMirrorTransportContract();
   llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 16>
       productReductionMetadata =
           tianchenrv::plugin::rvv::
               getRVVSelectedBodyConfigArtifactMetadata(
                   staleProductReductionMetadataSource);
   if (lookupArtifactMetadataValue(
-          productReductionMetadata,
-          "tcrv_rvv.low_precision_primitive.payload_mirror_source") !=
-          "provider-built-low-precision-primitive-route-payload.v1" ||
+          productReductionMetadata, primitiveMirrorTransport.metadataKey) !=
+          primitiveMirrorTransport.sourceValue ||
       lookupArtifactMetadataValue(productReductionMetadata,
                                   "tcrv_rvv.source_sew") != "8" ||
       lookupArtifactMetadataValue(
@@ -15055,7 +15057,7 @@ bool expectRVVTargetArtifactExporterShape(
       productReductionFixture.candidate;
   if (!eraseArtifactMetadataKey(
           missingProductReductionPrimitiveMirrorSource,
-          "tcrv_rvv.low_precision_primitive.payload_mirror_source")) {
+          primitiveMirrorTransport.metadataKey)) {
     llvm::errs() << "test fixture did not contain product-reduction primitive "
                     "payload mirror source metadata\n";
     return false;
@@ -15065,16 +15067,15 @@ bool expectRVVTargetArtifactExporterShape(
           productReductionDescription,
           "product-reduction registry rejects missing primitive payload "
           "mirror-source marker",
-          {"tcrv_rvv.low_precision_primitive.payload_mirror_source "
-           "provenance",
-           "payload mirror source"}))
+          {primitiveMirrorTransport.metadataKey, "provenance",
+           primitiveMirrorTransport.authorityLabel}))
     return false;
 
   TargetArtifactCandidate staleProductReductionPrimitiveMirrorSource =
       productReductionFixture.candidate;
   if (!rewriteArtifactMetadataValue(
           staleProductReductionPrimitiveMirrorSource,
-          "tcrv_rvv.low_precision_primitive.payload_mirror_source",
+          primitiveMirrorTransport.metadataKey,
           "metadata-derived-low-precision-primitive")) {
     llvm::errs() << "test fixture did not contain product-reduction primitive "
                     "payload mirror source metadata\n";
@@ -15085,8 +15086,8 @@ bool expectRVVTargetArtifactExporterShape(
           productReductionDescription,
           "product-reduction registry rejects stale primitive payload "
           "mirror-source marker",
-          {"tcrv_rvv.low_precision_primitive.payload_mirror_source",
-           "provider-built-low-precision-primitive-route-payload.v1",
+          {primitiveMirrorTransport.metadataKey,
+           primitiveMirrorTransport.sourceValue,
            "metadata-derived-low-precision-primitive"}))
     return false;
 
@@ -15272,9 +15273,12 @@ bool expectRVVTargetArtifactExporterShape(
 
   TargetArtifactCandidate missingPackedI4ResourceOwnerMirrorSource =
       packedI4ProductDequantFixture.candidate;
+  const auto resourceMirrorTransport =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionResourceOwnerMirrorTransportContract();
   if (!eraseArtifactMetadataKey(
           missingPackedI4ResourceOwnerMirrorSource,
-          "tcrv_rvv.low_precision_resource.resource_owner_mirror_source")) {
+          resourceMirrorTransport.metadataKey)) {
     llvm::errs() << "packed-i4 test fixture did not contain resource-owner "
                     "mirror source metadata\n";
     return false;
@@ -15284,15 +15288,15 @@ bool expectRVVTargetArtifactExporterShape(
           packedI4ProductDequantRoute, packedI4ProductDequantDescription,
           "packed-i4 product-reduction registry rejects missing "
           "resource-owner mirror source metadata",
-          {"resource_owner_mirror_source",
-           "resource owner mirror source"}))
+          {resourceMirrorTransport.metadataKey, "provenance",
+           resourceMirrorTransport.authorityLabel}))
     return false;
 
   TargetArtifactCandidate stalePackedI4ResourceOwnerMirrorSource =
       packedI4ProductDequantFixture.candidate;
   if (!rewriteArtifactMetadataValue(
           stalePackedI4ResourceOwnerMirrorSource,
-          "tcrv_rvv.low_precision_resource.resource_owner_mirror_source",
+          resourceMirrorTransport.metadataKey,
           "artifact-derived-low-precision-resource-selection")) {
     llvm::errs() << "packed-i4 test fixture did not contain resource-owner "
                     "mirror source metadata\n";
@@ -15303,8 +15307,8 @@ bool expectRVVTargetArtifactExporterShape(
           packedI4ProductDequantRoute, packedI4ProductDequantDescription,
           "packed-i4 product-reduction registry rejects stale "
           "resource-owner mirror source metadata",
-          {"resource_owner_mirror_source",
-           "provider-owned-low-precision-contraction-resource-selection.v1",
+          {resourceMirrorTransport.metadataKey,
+           resourceMirrorTransport.sourceValue,
            "artifact-derived-low-precision-resource-selection"}))
     return false;
 

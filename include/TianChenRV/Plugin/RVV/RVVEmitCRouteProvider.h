@@ -382,6 +382,35 @@ struct RVVLowPrecisionPrimitiveRoutePayload {
   llvm::StringRef reductionStoreVL;
 };
 
+struct RVVLowPrecisionMirrorTransportContract {
+  llvm::StringRef metadataKey;
+  llvm::StringRef sourceValue;
+  llvm::StringRef headerEvidenceName;
+  llvm::StringRef authorityLabel;
+};
+
+inline RVVLowPrecisionMirrorTransportContract
+getRVVLowPrecisionPrimitivePayloadMirrorTransportContract() {
+  return {"tcrv_rvv.low_precision_primitive.payload_mirror_source",
+          "provider-built-low-precision-primitive-route-payload.v1",
+          "low_precision_primitive.payload_mirror.source",
+          "payload mirror source"};
+}
+
+inline RVVLowPrecisionMirrorTransportContract
+getRVVLowPrecisionResourceOwnerMirrorTransportContract() {
+  return {"tcrv_rvv.low_precision_resource.resource_owner_mirror_source",
+          "provider-owned-low-precision-contraction-resource-selection.v1",
+          "low_precision_resource.resource_owner_mirror.source",
+          "resource owner mirror source"};
+}
+
+inline tianchenrv::support::ArtifactMetadataEntry
+makeRVVLowPrecisionMirrorSourceMetadata(
+    const RVVLowPrecisionMirrorTransportContract &contract) {
+  return {contract.metadataKey, contract.sourceValue};
+}
+
 struct RVVSelectedBodyEmitCRouteDescription {
   RVVSelectedBodyOperationKind operation = RVVSelectedBodyOperationKind::Add;
   RVVSelectedBodyMemoryForm memoryForm = RVVSelectedBodyMemoryForm::VectorRHSLoad;

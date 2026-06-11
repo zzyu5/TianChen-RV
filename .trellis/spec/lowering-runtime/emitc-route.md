@@ -4904,7 +4904,11 @@ reduction store VL = 1
   `tcrv_rvv.low_precision_primitive.payload_mirror_source =
   provider-built-low-precision-primitive-route-payload.v1`; a missing or stale
   marker fails target validation before primitive candidate mirrors are
-  accepted.
+  accepted. Common EmitC/export must obtain the marker key, expected source
+  value, header label, and diagnostic authority label from
+  `getRVVLowPrecisionPrimitivePayloadMirrorTransportContract()` rather than
+  retyping local marker strings. Header evidence for this marker must check the
+  exact provider-owned source value.
 - Candidate metadata for a route with low-precision resource selection must
   carry
   `tcrv_rvv.low_precision_resource.resource_owner_mirror_source =
@@ -4912,7 +4916,11 @@ reduction store VL = 1
   stale marker fails target validation before stable resource mirrors are
   accepted. Common EmitC/export may serialize this marker and the adjacent
   `tcrv_rvv.low_precision_resource.*` fields only as mirrors of the
-  provider-owned resource selection, schedule, and resource-cost facts.
+  provider-owned resource selection, schedule, and resource-cost facts. The
+  marker key, expected source value, header label, and diagnostic authority label
+  must come from
+  `getRVVLowPrecisionResourceOwnerMirrorTransportContract()`, and header
+  evidence for this marker must check the exact provider-owned source value.
 - Emission-plan metadata for low-precision primitive source/product/
   accumulator/result SEW/LMUL, product-reduction relation, widening-product
   intrinsic, widening-reduction intrinsic, scalar seed splat, layout, and

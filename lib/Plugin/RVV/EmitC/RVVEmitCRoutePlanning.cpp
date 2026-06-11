@@ -65,19 +65,6 @@ constexpr llvm::StringLiteral kRequiredMaskPolicyPropertyName(
     "required_mask_policy");
 constexpr llvm::StringLiteral kGearboxHandoffPlanningContractAttrName(
     "planning_contract");
-constexpr llvm::StringLiteral
-    kRVVLowPrecisionPrimitivePayloadMirrorSourceKey(
-        "tcrv_rvv.low_precision_primitive.payload_mirror_source");
-constexpr llvm::StringLiteral
-    kRVVLowPrecisionPrimitivePayloadMirrorSource(
-        "provider-built-low-precision-primitive-route-payload.v1");
-constexpr llvm::StringLiteral
-    kRVVLowPrecisionResourceOwnerMirrorSourceKey(
-        "tcrv_rvv.low_precision_resource.resource_owner_mirror_source");
-constexpr llvm::StringLiteral
-    kRVVLowPrecisionResourceOwnerMirrorSource(
-        "provider-owned-low-precision-contraction-resource-selection.v1");
-
 std::string joinRVVSelectedCapabilityProviderSymbols(
     llvm::ArrayRef<const support::CapabilityDescriptor *> providers) {
   std::string symbols;
@@ -42786,8 +42773,8 @@ void appendRVVLowPrecisionPrimitivePayloadMirrorMetadata(
   if (!payload.hasPayload)
     return;
 
-  metadata.push_back({kRVVLowPrecisionPrimitivePayloadMirrorSourceKey,
-                      kRVVLowPrecisionPrimitivePayloadMirrorSource});
+  metadata.push_back(makeRVVLowPrecisionMirrorSourceMetadata(
+      getRVVLowPrecisionPrimitivePayloadMirrorTransportContract()));
   metadata.push_back(
       {"tcrv_rvv.low_precision_primitive.contract", payload.contractID});
   metadata.push_back({"tcrv_rvv.low_precision_primitive.kind", payload.kind});
@@ -43560,8 +43547,8 @@ getRVVSelectedBodyConfigArtifactMetadata(
   if (description.lowPrecisionResourceSelection.hasSelection) {
     const RVVLowPrecisionContractionResourceSelection &selection =
         description.lowPrecisionResourceSelection;
-    metadata.push_back({kRVVLowPrecisionResourceOwnerMirrorSourceKey,
-                        kRVVLowPrecisionResourceOwnerMirrorSource});
+    metadata.push_back(makeRVVLowPrecisionMirrorSourceMetadata(
+        getRVVLowPrecisionResourceOwnerMirrorTransportContract()));
     metadata.push_back({"tcrv_rvv.low_precision_resource.candidate_set",
                         selection.candidateSetID});
     metadata.push_back({"tcrv_rvv.low_precision_resource.selected_candidate",

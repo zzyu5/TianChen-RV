@@ -28,18 +28,6 @@ constexpr llvm::StringLiteral kRVVProductReductionOutCarryBoundary(
 constexpr llvm::StringLiteral
     kRVVProductReductionDequantVectorCarryBoundary(
         "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1");
-constexpr llvm::StringLiteral
-    kRVVLowPrecisionPrimitivePayloadMirrorSourceKey(
-        "tcrv_rvv.low_precision_primitive.payload_mirror_source");
-constexpr llvm::StringLiteral
-    kRVVLowPrecisionPrimitivePayloadMirrorSource(
-        "provider-built-low-precision-primitive-route-payload.v1");
-constexpr llvm::StringLiteral
-    kRVVLowPrecisionResourceOwnerMirrorSourceKey(
-        "tcrv_rvv.low_precision_resource.resource_owner_mirror_source");
-constexpr llvm::StringLiteral
-    kRVVLowPrecisionResourceOwnerMirrorSource(
-        "provider-owned-low-precision-contraction-resource-selection.v1");
 
 llvm::Error makeRVVTargetRouteError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -3469,9 +3457,10 @@ llvm::Error validateRVVWideningProductTargetArtifactCandidateMirrors(
           contract->wideningProductIntrinsic,
           "selected typed RVV widening product intrinsic"))
     return error;
+  const plugin::rvv::RVVLowPrecisionMirrorTransportContract transport =
+      plugin::rvv::getRVVLowPrecisionPrimitivePayloadMirrorTransportContract();
   if (llvm::Error error = requireCandidateMetadataMirror(
-          candidate, kRVVLowPrecisionPrimitivePayloadMirrorSourceKey,
-          kRVVLowPrecisionPrimitivePayloadMirrorSource,
+          candidate, transport.metadataKey, transport.sourceValue,
           "selected typed RVV widening product low-precision primitive "
           "payload mirror source"))
     return error;
@@ -6272,10 +6261,11 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
     return requireCandidateMetadataMirror(
         candidate, key, expected, fullLabel);
   };
+  const plugin::rvv::RVVLowPrecisionMirrorTransportContract transport =
+      plugin::rvv::getRVVLowPrecisionResourceOwnerMirrorTransportContract();
   if (llvm::Error error =
-          requireResourceMirror(kRVVLowPrecisionResourceOwnerMirrorSourceKey,
-                                kRVVLowPrecisionResourceOwnerMirrorSource,
-                                "resource owner mirror source"))
+          requireResourceMirror(transport.metadataKey, transport.sourceValue,
+                                transport.authorityLabel))
     return error;
   if (llvm::Error error = requireResourceMirror(
           "tcrv_rvv.low_precision_resource.candidate_set",
@@ -7283,11 +7273,12 @@ llvm::Error validateRVVLowPrecisionWideningReductionPrimitiveCandidateMirrors(
             .str();
     return requireCandidateMetadataMirror(candidate, key, expected, fullLabel);
   };
+  const plugin::rvv::RVVLowPrecisionMirrorTransportContract transport =
+      plugin::rvv::getRVVLowPrecisionPrimitivePayloadMirrorTransportContract();
 
   if (llvm::Error error = requirePrimitiveMirror(
-          kRVVLowPrecisionPrimitivePayloadMirrorSourceKey,
-          kRVVLowPrecisionPrimitivePayloadMirrorSource,
-          "payload mirror source"))
+          transport.metadataKey, transport.sourceValue,
+          transport.authorityLabel))
     return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.contract",
