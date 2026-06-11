@@ -377,7 +377,8 @@ def GearboxCrossRegionHandoffOp
     candidate, resource budget, operand packing/unpack policy, remediation plan
     facts when applicable, primitive-chain resource facts including source
     signedness/load/extension and widening-product multiplicand-role/extension
-    policy, and the producer/consumer region scopes structural before provider
+    policy plus widening-product/reduction candidate facts, and the
+    producer/consumer region scopes structural before provider
     route support. It is not a math op, intrinsic wrapper, descriptor, route
     id, artifact metadata, or executable proof.
   }];
@@ -433,6 +434,8 @@ def GearboxCrossRegionHandoffOp
     StrAttr:$primitive_source_extension,
     StrAttr:$widening_product_multiplicand_roles,
     StrAttr:$widening_product_extension_policy,
+    StrAttr:$widening_product_candidate_fact,
+    StrAttr:$reduction_candidate_fact,
     StrAttr:$primitive_widening_product_relation,
     StrAttr:$primitive_product_reduction_chain_relation,
     StrAttr:$primitive_widening_product_intrinsic,

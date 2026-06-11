@@ -4208,6 +4208,17 @@ llvm::Error validateRVVLowPrecisionPrimitiveChainResourceProviderFacts(
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
+          "resource widening product candidate fact",
+          selection.wideningProductCandidateFact,
+          primitive.wideningProductCandidateFact))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
+          "resource widening reduction candidate fact",
+          selection.reductionCandidateFact, primitive.reductionCandidateFact))
+    return error;
+  if (llvm::Error error = requireRVVWideningDotContractStringField(
+          contract.consumerLabel,
           "resource primitive widening product relation",
           selection.primitiveWideningProductRelation,
           primitive.wideningProductRelation))
@@ -6205,6 +6216,17 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
             "widening_product_extension_policy",
             selection.wideningProductExtensionPolicy,
             "widening product extension policy"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource."
+            "widening_product_candidate_fact",
+            selection.wideningProductCandidateFact,
+            "widening product candidate fact"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.reduction_candidate_fact",
+            selection.reductionCandidateFact,
+            "widening reduction candidate fact"))
       return error;
     if (llvm::Error error = requireResourceMirror(
             "tcrv_rvv.low_precision_resource.primitive_source_load",

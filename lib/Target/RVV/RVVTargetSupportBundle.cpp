@@ -966,6 +966,13 @@ buildRVVSelectedBodyHeaderMetadataEvidence() {
        "tcrv_rvv.low_precision_resource."
        "widening_product_extension_policy",
        "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.widening_product_candidate_fact",
+       "tcrv_rvv.low_precision_resource."
+       "widening_product_candidate_fact",
+       "", /*allowDynamicValue=*/true, /*optional=*/true},
+      {"low_precision_resource.reduction_candidate_fact",
+       "tcrv_rvv.low_precision_resource.reduction_candidate_fact", "",
+       /*allowDynamicValue=*/true, /*optional=*/true},
       {"low_precision_resource.primitive_source_load",
        "tcrv_rvv.low_precision_resource.primitive_source_load", "",
        /*allowDynamicValue=*/true, /*optional=*/true},

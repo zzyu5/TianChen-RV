@@ -418,6 +418,16 @@ mlir::LogicalResult validateLowPrecisionResourceCandidatePrimitiveSurface(
           candidate.wideningProductExtensionPolicy,
           kRVVLowPrecisionResourceWideningProductExtensionPolicy)))
     return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "widening product candidate fact",
+          candidate.wideningProductCandidateFact,
+          primitiveFacts->wideningProductCandidateFact)))
+    return mlir::failure();
+  if (mlir::failed(requireLowPrecisionPrimitiveStringField(
+          op, "widening reduction candidate fact",
+          candidate.reductionCandidateFact,
+          primitiveFacts->reductionCandidateFact)))
+    return mlir::failure();
   if (mlir::failed(requireLowPrecisionPrimitiveIntegerField(
           op, "source SEW", candidate.sourceSEW, primitiveFacts->sourceSEW)))
     return mlir::failure();
@@ -938,6 +948,16 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
           op, builder,
           kRVVLowPrecisionResourceWideningProductExtensionPolicyAttrName,
           selected->wideningProductExtensionPolicy)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder,
+          kRVVLowPrecisionResourceWideningProductCandidateFactAttrName,
+          selected->wideningProductCandidateFact)))
+    return mlir::failure();
+  if (mlir::failed(requireStringAttr(
+          op, builder,
+          kRVVLowPrecisionResourceReductionCandidateFactAttrName,
+          selected->reductionCandidateFact)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourcePrimitiveSourceLoadAttrName,
@@ -1576,6 +1596,17 @@ validateLowPrecisionProductDequantGearboxBody(
           handoff.getWideningProductExtensionPolicy(),
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourceWideningProductExtensionPolicy)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "widening_product_candidate_fact",
+          handoff.getWideningProductCandidateFact(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceWideningProductCandidateFact)))
+    return mlir::failure();
+  if (mlir::failed(requireHandoffPrimitiveFact(
+          "reduction_candidate_fact", handoff.getReductionCandidateFact(),
+          tianchenrv::plugin::rvv::
+              kRVVLowPrecisionResourceReductionCandidateFact)))
     return mlir::failure();
   if (mlir::failed(requireHandoffPrimitiveFact(
           "primitive_widening_product_relation",

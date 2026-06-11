@@ -222,6 +222,18 @@ llvm::Error validateLowPrecisionResourceCandidatePrimitiveFacts(
     return error;
   if (llvm::Error error =
           requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "widening product candidate fact",
+              candidate.wideningProductCandidateFact,
+              primitiveFacts.wideningProductCandidateFact))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
+              "widening reduction candidate fact",
+              candidate.reductionCandidateFact,
+              primitiveFacts.reductionCandidateFact))
+    return error;
+  if (llvm::Error error =
+          requireLowPrecisionResourceCandidatePrimitiveStringMatch(
               "primitive widening product relation",
               candidate.primitiveWideningProductRelation,
               primitiveFacts.wideningProductRelation))
@@ -720,6 +732,15 @@ materializeLowPrecisionResourceRealizationAttrs(
           source,
           kRVVLowPrecisionResourceWideningProductExtensionPolicyAttrName,
           selected->wideningProductExtensionPolicy))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source,
+          kRVVLowPrecisionResourceWideningProductCandidateFactAttrName,
+          selected->wideningProductCandidateFact))
+    return std::move(error);
+  if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
+          source, kRVVLowPrecisionResourceReductionCandidateFactAttrName,
+          selected->reductionCandidateFact))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourcePrimitiveSourceLoadAttrName,
@@ -1225,6 +1246,12 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
   state.addAttribute("widening_product_extension_policy",
                      builder.getStringAttr(
                          selectedCandidate.wideningProductExtensionPolicy));
+  state.addAttribute("widening_product_candidate_fact",
+                     builder.getStringAttr(
+                         selectedCandidate.wideningProductCandidateFact));
+  state.addAttribute("reduction_candidate_fact",
+                     builder.getStringAttr(
+                         selectedCandidate.reductionCandidateFact));
   state.addAttribute("primitive_widening_product_relation",
                      builder.getStringAttr(
                          selectedCandidate.primitiveWideningProductRelation));

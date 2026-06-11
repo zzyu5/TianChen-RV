@@ -202,6 +202,10 @@ constexpr llvm::StringLiteral kWideningProductMultiplicandRolesAttrName(
     "widening_product_multiplicand_roles");
 constexpr llvm::StringLiteral kWideningProductExtensionPolicyAttrName(
     "widening_product_extension_policy");
+constexpr llvm::StringLiteral kWideningProductCandidateFactAttrName(
+    "widening_product_candidate_fact");
+constexpr llvm::StringLiteral kReductionCandidateFactAttrName(
+    "reduction_candidate_fact");
 constexpr llvm::StringLiteral kPrimitiveWideningProductRelationAttrName(
     "primitive_widening_product_relation");
 constexpr llvm::StringLiteral
@@ -382,6 +386,8 @@ bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
          name == kPrimitiveSourceExtensionAttrName ||
          name == kWideningProductMultiplicandRolesAttrName ||
          name == kWideningProductExtensionPolicyAttrName ||
+         name == kWideningProductCandidateFactAttrName ||
+         name == kReductionCandidateFactAttrName ||
          name == kPrimitiveWideningProductRelationAttrName ||
          name == kPrimitiveProductReductionChainRelationAttrName ||
          name == kPrimitiveWideningProductIntrinsicAttrName ||

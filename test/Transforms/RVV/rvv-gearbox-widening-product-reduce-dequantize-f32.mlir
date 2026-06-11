@@ -3,6 +3,8 @@
 // RUN: sed '/typed_widening_product_reduce_dequantize_pre_realized_body/s/policy = /tcrv_rvv.low_precision_resource.planning_contract = "artifact-derived-resource-planning-contract", policy = /' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules 2>&1 | FileCheck %s --check-prefix=STALE-PLANNING
 // RUN: sed '/typed_widening_product_reduce_dequantize_pre_realized_body/s/policy = /tcrv_rvv.low_precision_resource.operand_form = "packed-i4-nibbles", policy = /' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-PACKED
 // RUN: sed '/typed_widening_product_reduce_dequantize_pre_realized_body/s/policy = /tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i32m1_i32m1", policy = /' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules 2>&1 | FileCheck %s --check-prefix=STALE-PRIMITIVE
+// RUN: sed '/typed_widening_product_reduce_dequantize_pre_realized_body/s/policy = /tcrv_rvv.low_precision_resource.widening_product_candidate_fact = "metadata-only-widening-product-candidate", policy = /' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules 2>&1 | FileCheck %s --check-prefix=STALE-WIDENING-CANDIDATE
+// RUN: sed '/typed_widening_product_reduce_dequantize_pre_realized_body/s/policy = /tcrv_rvv.low_precision_resource.reduction_candidate_fact = "metadata-only-reduction-candidate", policy = /' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules 2>&1 | FileCheck %s --check-prefix=STALE-REDUCTION-CANDIDATE
 // RUN: sed '/typed_widening_product_reduce_dequantize_pre_realized_body/s/policy = /tcrv_rvv.low_precision_resource.primitive_source_extension = "metadata-only-source-extension", policy = /' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules 2>&1 | FileCheck %s --check-prefix=STALE-SOURCE-EXTENSION
 // RUN: sed '/typed_widening_product_reduce_dequantize_pre_realized_body/s/source_sew = 8 : i64/source_sew = 16 : i64/' %s | not tcrv-opt --tcrv-rvv-materialize-gearbox-schedules 2>&1 | FileCheck %s --check-prefix=UNSUPPORTED-RESOURCE
 
@@ -20,6 +22,7 @@
 // CHECK-SAME: tcrv_rvv.low_precision_resource.primitive_source_extension = "sign-extend-i8-to-i16-product"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.primitive_source_load = "unit-stride-byte-load"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.product_dtype = "i16"
+// CHECK-SAME: tcrv_rvv.low_precision_resource.reduction_candidate_fact = "resource-candidate-widening-reduction:signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32:__riscv_vwredsum_vs_i16mf2_i32m1:store-vl=1"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.result_dtype = "f32"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.runtime_abi_order = "lhs,rhs,acc,scale,out,n"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
@@ -29,11 +32,13 @@
 // CHECK-SAME: tcrv_rvv.low_precision_resource.storage_element_width = 8 : i64
 // CHECK-SAME: tcrv_rvv.low_precision_resource.unpack_intent = "none-direct-widening-product"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64
+// CHECK-SAME: tcrv_rvv.low_precision_resource.widening_product_candidate_fact = "resource-candidate-widening-product:signed-i8mf4xi8mf4-to-i16mf2:__riscv_vwmul_vv_i16mf2"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.widening_product_extension_policy = "source=signed;extension=sign-extend-i8-to-i16-product;product=i16mf2"
 // CHECK-SAME: tcrv_rvv.low_precision_resource.widening_product_multiplicand_roles = "lhs=lhs-input-buffer:wprod-lhs:src-i8mf4;rhs=rhs-input-buffer:wprod-rhs:src-i8mf4"
 
-// STALE: RVV Gearbox pass found stale schedule fact
-// STALE-SAME: tcrv_rvv.low_precision_resource.selected_candidate
+// STALE: cannot match explicit selected candidate
+// STALE-SAME: artifact-name-derived-resource-candidate
+// STALE-SAME: provider-owned candidate set
 
 // STALE-PLANNING: RVV Gearbox pass found stale schedule fact
 // STALE-PLANNING-SAME: tcrv_rvv.low_precision_resource.planning_contract
@@ -49,6 +54,16 @@
 // STALE-PRIMITIVE-SAME: tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic
 // STALE-PRIMITIVE-SAME: expected '__riscv_vwredsum_vs_i16mf2_i32m1'
 // STALE-PRIMITIVE-SAME: __riscv_vwredsum_vs_i32m1_i32m1
+
+// STALE-WIDENING-CANDIDATE: RVV Gearbox pass found stale schedule fact
+// STALE-WIDENING-CANDIDATE-SAME: tcrv_rvv.low_precision_resource.widening_product_candidate_fact
+// STALE-WIDENING-CANDIDATE-SAME: resource-candidate-widening-product:signed-i8mf4xi8mf4-to-i16mf2:__riscv_vwmul_vv_i16mf2
+// STALE-WIDENING-CANDIDATE-SAME: metadata-only-widening-product-candidate
+
+// STALE-REDUCTION-CANDIDATE: RVV Gearbox pass found stale schedule fact
+// STALE-REDUCTION-CANDIDATE-SAME: tcrv_rvv.low_precision_resource.reduction_candidate_fact
+// STALE-REDUCTION-CANDIDATE-SAME: resource-candidate-widening-reduction:signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32:__riscv_vwredsum_vs_i16mf2_i32m1:store-vl=1
+// STALE-REDUCTION-CANDIDATE-SAME: metadata-only-reduction-candidate
 
 // STALE-SOURCE-EXTENSION: RVV Gearbox pass found stale schedule fact
 // STALE-SOURCE-EXTENSION-SAME: tcrv_rvv.low_precision_resource.primitive_source_extension

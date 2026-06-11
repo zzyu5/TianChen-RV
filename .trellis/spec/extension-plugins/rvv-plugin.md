@@ -6006,6 +6006,8 @@ struct RVVLowPrecisionContractionResourceCandidate {
   planning contract id;
   element/source/result dtype facts;
   product and accumulator dtype facts;
+  widening-product resource-candidate fact;
+  widening-reduction resource-candidate fact;
   SEW, LMUL, product EMUL, accumulator EMUL;
   operand form, source signedness, storage/effective element width;
   packing layout and unpack intent when storage differs from effective width;
@@ -6021,6 +6023,7 @@ struct RVVLowPrecisionContractionResourceSelection {
   planning contract id;
   selected candidate id;
   selected resource candidate;
+  selected widening-product and widening-reduction candidate facts;
   selected-body realization or provider-consumed owner plan;
   runtime AVL/VL and ABI parameter mapping;
   target capability/profile facts used by the selector;
@@ -6101,11 +6104,15 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   realized product/reduction/dequantize structure. The realization owner must
   compare typed source/product/accumulator/result dtype and SEW/LMUL, product
   and product-reduction relations, accumulator/result layout, scalar seed and
-  reduction-store facts, policy, memory form, runtime AVL/ABI ordering,
+  reduction-store facts, selected widening-product and widening-reduction
+  resource-candidate facts, policy, memory form, runtime AVL/ABI ordering,
   `vsetvl` region count, live-vector pressure, and selected resource decision
-  with the RVV-owned facts. Missing or stale primitive/resource combinations
-  fail closed before route construction; Common EmitC and artifact metadata
-  remain mirror consumers only.
+  with the RVV-owned facts. The candidate facts summarize the provider-selected
+  widening product and widening reduction resources after typed primitive facts
+  are chosen; they are not route ids, artifact names, helper-op names, or
+  Common EmitC semantics. Missing or stale primitive/resource combinations fail
+  closed before route construction; Common EmitC and artifact metadata remain
+  mirror consumers only.
 - For bounded low-precision product-reduction Gearbox candidates, candidate
   build/prune/select semantics must be shared by the Gearbox pass,
   selected-body realization owner, and provider pre-route validator. Selection
@@ -6139,13 +6146,15 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   `primitive_product_reduction_chain_relation`,
   `primitive_widening_product_intrinsic`, `primitive_reduction_intrinsic`,
   `primitive_scalar_seed_splat_intrinsic`, `primitive_accumulator_layout`,
-  `primitive_result_layout`, and `primitive_reduction_store_vl`. These fields
-  are derived from the selected RVV resource candidate and the typed
+  `primitive_result_layout`, `primitive_reduction_store_vl`,
+  `widening_product_candidate_fact`, and `reduction_candidate_fact`. These
+  fields are derived from the selected RVV resource candidate and the typed
   product/reduction body. The handoff verifier, selected-body owner validation,
   and route planning must reject missing or stale values before Common EmitC or
   target artifact export can accept the route. Good: realized handoff copies the
-  selected `vwredsum` primitive fact. Bad: a handoff keeps marker/resource
-  decision facts but carries a stale reduction intrinsic string.
+  selected `vwredsum` primitive fact and the selected reduction candidate fact.
+  Bad: a handoff keeps marker/resource decision facts but carries a stale
+  reduction intrinsic string or stale reduction candidate string.
 - For product-reduction dequant/dequant-clamp direct-contraction routes, the
   statement-plan owner must re-consume the provider-owned low-precision resource
   selection before constructing statement steps. It must compare the provider
@@ -6257,6 +6266,9 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
 - Target artifact export sees a stale planning-contract metadata mirror ->
   fail closed by comparing the mirror to provider-owned resource facts; do not
   use the mirror to repair the provider selection.
+- Target artifact export sees a stale widening-product or widening-reduction
+  candidate metadata mirror -> fail closed by comparing the mirror to
+  provider-owned resource selection facts before accepting the artifact.
 - A performance comparison omits baseline identity, target profile, compile
   flags, input sizes, correctness check, timing method, or raw `ssh rvv` evidence
   -> it is not performance evidence.
@@ -6369,8 +6381,9 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   candidate.
 - Focused selected-body/provider tests proving realized Gearbox handoff carries
   the selected primitive-chain contract/kind/relation/intrinsic/layout/store-VL
-  fields, plus a stale handoff primitive fact negative case before route or
-  artifact acceptance.
+  fields and selected widening-product/reduction candidate facts, plus stale
+  handoff primitive/candidate fact negative cases before route or artifact
+  acceptance.
 - A focused generated-bundle or benchmark harness for the first comparable
   low-precision direct-contraction kernel.
 - Packed-i4 executable harness coverage must assert the validated metadata

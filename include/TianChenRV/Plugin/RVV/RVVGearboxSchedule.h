@@ -317,6 +317,12 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceWideningProductExtensionPolicyAttrName(
         "tcrv_rvv.low_precision_resource.widening_product_extension_policy");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceWideningProductCandidateFactAttrName(
+        "tcrv_rvv.low_precision_resource.widening_product_candidate_fact");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceReductionCandidateFactAttrName(
+        "tcrv_rvv.low_precision_resource.reduction_candidate_fact");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePrimitiveSourceLoadAttrName(
         "tcrv_rvv.low_precision_resource.primitive_source_load");
 constexpr llvm::StringLiteral
@@ -761,6 +767,15 @@ constexpr llvm::StringLiteral
     kRVVLowPrecisionResourceWideningProductExtensionPolicy(
         "source=signed;extension=sign-extend-i8-to-i16-product;"
         "product=i16mf2");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceWideningProductCandidateFact(
+        "resource-candidate-widening-product:"
+        "signed-i8mf4xi8mf4-to-i16mf2:__riscv_vwmul_vv_i16mf2");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceReductionCandidateFact(
+        "resource-candidate-widening-reduction:"
+        "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32:"
+        "__riscv_vwredsum_vs_i16mf2_i32m1:store-vl=1");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePrimitiveSourceLoad(
     "unit-stride-byte-load");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePrimitiveSourceExtension(
@@ -857,6 +872,8 @@ struct RVVLowPrecisionContractionResourceCandidate {
   llvm::StringRef primitiveChainKind;
   llvm::StringRef wideningProductMultiplicandRoleSummary;
   llvm::StringRef wideningProductExtensionPolicy;
+  llvm::StringRef wideningProductCandidateFact;
+  llvm::StringRef reductionCandidateFact;
   llvm::StringRef primitiveSourceLoadKind;
   llvm::StringRef primitiveSourceExtensionKind;
   llvm::StringRef primitiveWideningProductRelation;
@@ -1260,6 +1277,10 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
       kRVVLowPrecisionResourceWideningProductMultiplicandRoles;
   candidate.wideningProductExtensionPolicy =
       kRVVLowPrecisionResourceWideningProductExtensionPolicy;
+  candidate.wideningProductCandidateFact =
+      kRVVLowPrecisionResourceWideningProductCandidateFact;
+  candidate.reductionCandidateFact =
+      kRVVLowPrecisionResourceReductionCandidateFact;
   candidate.primitiveSourceLoadKind =
       kRVVLowPrecisionResourcePrimitiveSourceLoad;
   candidate.primitiveSourceExtensionKind =
@@ -1686,6 +1707,8 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name ==
              kRVVLowPrecisionResourceWideningProductMultiplicandRolesAttrName ||
          name == kRVVLowPrecisionResourceWideningProductExtensionPolicyAttrName ||
+         name == kRVVLowPrecisionResourceWideningProductCandidateFactAttrName ||
+         name == kRVVLowPrecisionResourceReductionCandidateFactAttrName ||
          name == kRVVLowPrecisionResourcePrimitiveSourceLoadAttrName ||
          name == kRVVLowPrecisionResourcePrimitiveSourceExtensionAttrName ||
          name ==

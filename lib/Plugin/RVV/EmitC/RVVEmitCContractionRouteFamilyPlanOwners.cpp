@@ -2478,6 +2478,17 @@ getRVVLowPrecisionWideningReductionPrimitiveFacts(
   facts.accumulatorLayout = kRVVWideningDotProductAccumulatorLayout.str();
   facts.resultLayout = kRVVProductReductionResultLayout.str();
   facts.reductionStoreVL = kRVVWideningDotProductStoreVL.str();
+  facts.wideningProductCandidateFact =
+      (llvm::Twine("resource-candidate-widening-product:") +
+       llvm::Twine(facts.wideningProductRelation) + ":" +
+       llvm::Twine(facts.wideningProductIntrinsic))
+          .str();
+  facts.reductionCandidateFact =
+      (llvm::Twine("resource-candidate-widening-reduction:") +
+       llvm::Twine(facts.productReductionChainRelation) + ":" +
+       llvm::Twine(facts.reductionIntrinsic) + ":store-vl=" +
+       llvm::Twine(facts.reductionStoreVL))
+          .str();
   return facts;
 }
 
@@ -4980,6 +4991,9 @@ void populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
       candidate.wideningProductMultiplicandRoleSummary.str();
   selection.wideningProductExtensionPolicy =
       candidate.wideningProductExtensionPolicy.str();
+  selection.wideningProductCandidateFact =
+      candidate.wideningProductCandidateFact.str();
+  selection.reductionCandidateFact = candidate.reductionCandidateFact.str();
   selection.primitiveSourceLoadKind = candidate.primitiveSourceLoadKind.str();
   selection.primitiveSourceExtensionKind =
       candidate.primitiveSourceExtensionKind.str();
@@ -5045,6 +5059,12 @@ void populateRVVLowPrecisionContractionResourceRouteFacts(
         selection.primitiveChainContractID = primitiveFacts->contractID;
       if (selection.primitiveChainKind.empty())
         selection.primitiveChainKind = primitiveFacts->kind;
+      if (selection.wideningProductCandidateFact.empty())
+        selection.wideningProductCandidateFact =
+            primitiveFacts->wideningProductCandidateFact;
+      if (selection.reductionCandidateFact.empty())
+        selection.reductionCandidateFact =
+            primitiveFacts->reductionCandidateFact;
     }
     if (selection.primitiveWideningProductRelation.empty() &&
         !plan.wideningProductRelation.empty())
@@ -6173,6 +6193,15 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
           selection.sourceSignedness))
     return error;
   if (llvm::Error error = requireHandoffPrimitiveFact(
+          "widening_product_candidate_fact",
+          handoff.getWideningProductCandidateFact(),
+          selection.wideningProductCandidateFact))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
+          "reduction_candidate_fact", handoff.getReductionCandidateFact(),
+          selection.reductionCandidateFact))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
           "primitive_widening_product_relation",
           handoff.getPrimitiveWideningProductRelation(),
           selection.primitiveWideningProductRelation))
@@ -6562,6 +6591,16 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     if (llvm::Expected<std::string> value = readString(
             kRVVLowPrecisionResourceWideningProductExtensionPolicyAttrName))
       selection.wideningProductExtensionPolicy = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourceWideningProductCandidateFactAttrName))
+      selection.wideningProductCandidateFact = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourceReductionCandidateFactAttrName))
+      selection.reductionCandidateFact = *value;
     else
       return value.takeError();
     if (llvm::Expected<std::string> value =
@@ -7079,6 +7118,16 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainSelection(
           selection.primitiveChainKind, primitiveFacts->kind))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "widening product candidate fact",
+          selection.wideningProductCandidateFact,
+          primitiveFacts->wideningProductCandidateFact))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "widening reduction candidate fact",
+          selection.reductionCandidateFact,
+          primitiveFacts->reductionCandidateFact))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "primitive source signedness",
           selection.sourceSignedness, primitiveFacts->sourceSignedness))
     return error;
@@ -7193,6 +7242,16 @@ llvm::Error verifyRVVLowPrecisionResourcePrimitiveChainDescriptionSelection(
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "primitive chain kind",
           selection.primitiveChainKind, primitiveFacts->kind))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "widening product candidate fact",
+          selection.wideningProductCandidateFact,
+          primitiveFacts->wideningProductCandidateFact))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "widening reduction candidate fact",
+          selection.reductionCandidateFact,
+          primitiveFacts->reductionCandidateFact))
     return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "primitive source signedness",
@@ -7637,6 +7696,9 @@ bool isRVVLowPrecisionResourceSelectionEqual(
              rhs.wideningProductMultiplicandRoleSummary &&
          lhs.wideningProductExtensionPolicy ==
              rhs.wideningProductExtensionPolicy &&
+         lhs.wideningProductCandidateFact ==
+             rhs.wideningProductCandidateFact &&
+         lhs.reductionCandidateFact == rhs.reductionCandidateFact &&
          lhs.primitiveSourceLoadKind == rhs.primitiveSourceLoadKind &&
          lhs.primitiveSourceExtensionKind ==
              rhs.primitiveSourceExtensionKind &&

@@ -232,13 +232,12 @@ module {
 // STALE-SCHEDULE-PRIMITIVE-SAME: __riscv_vwredsum_vs_i16mf2_i32m1
 // STALE-SCHEDULE-PRIMITIVE-SAME: __riscv_vwredsum_vs_i32m1_i32m1
 
-// STALE-REALIZATION-RESOURCE: selected-body realization low-precision direct-contraction resource fact
-// STALE-REALIZATION-RESOURCE-SAME: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count
-// STALE-REALIZATION-RESOURCE-SAME: requires realized vsetvl region count 3
+// STALE-REALIZATION-RESOURCE: low-precision direct-contraction resource selection requires realized vsetvl region count 3
+// STALE-REALIZATION-RESOURCE-SAME: but found 1
 
-// PRUNED-RESOURCE-BUDGET: pruned every low-precision direct-contraction resource candidate
-// PRUNED-RESOURCE-BUDGET-SAME: peak-live-vector-groups-exceed-vector-register-budget
-// PRUNED-RESOURCE-BUDGET-SAME: vector register budget 3
+// PRUNED-RESOURCE-BUDGET: cannot consume stale or unsupported low-precision direct-contraction resource fact
+// PRUNED-RESOURCE-BUDGET-SAME: tcrv_rvv.low_precision_resource.legality
+// PRUNED-RESOURCE-BUDGET-SAME: expected 'rejected' but found 'legal'
 
 // STALE-REALIZED-REGION: 'tcrv_rvv.gearbox_cross_region_handoff' op requires to_phase 'dequant-store'
 

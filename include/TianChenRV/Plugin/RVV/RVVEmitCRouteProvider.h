@@ -251,6 +251,8 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::string primitiveChainKind;
   std::string wideningProductMultiplicandRoleSummary;
   std::string wideningProductExtensionPolicy;
+  std::string wideningProductCandidateFact;
+  std::string reductionCandidateFact;
   std::string primitiveSourceLoadKind;
   std::string primitiveSourceExtensionKind;
   std::string primitiveWideningProductRelation;
@@ -2873,6 +2875,8 @@ struct RVVLowPrecisionWideningReductionPrimitiveFacts {
 
   std::string wideningProductRelation;
   std::string productReductionChainRelation;
+  std::string wideningProductCandidateFact;
+  std::string reductionCandidateFact;
   std::string wideningProductIntrinsic;
   std::string reductionIntrinsic;
   std::string scalarSeedSplatIntrinsic;

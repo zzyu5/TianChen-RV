@@ -21,8 +21,11 @@
   "children": [],
   "parent": null,
   "relatedFiles": [
+    ".trellis/spec/extension-plugins/rvv-plugin.md",
+    ".trellis/workspace/codex/journal-30.md",
     "include/TianChenRV/Plugin/RVV/RVVGearboxSchedule.h",
     "include/TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h",
+    "include/TianChenRV/Dialect/RVV/IR/RVVOps.td",
     "lib/Dialect/RVV/IR/RVVDialect.cpp",
     "lib/Plugin/RVV/RVVContractionSelectedBodyRealizationOwner.cpp",
     "lib/Plugin/RVV/RVVGearboxSchedules.cpp",
@@ -32,10 +35,14 @@
     "lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp",
     "lib/Target/RVV/RVVTargetSupportBundle.cpp",
     "test/Plugin/RVVExtensionPluginTest.cpp",
+    "test/Transforms/RVV/rvv-gearbox-widening-product-reduce-dequantize-f32.mlir",
+    "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir",
+    "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir",
+    "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir",
     "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir",
     "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir",
     "test/Target/TargetArtifactExportTest.cpp"
   ],
-  "notes": "Current slice completed the Gate 2 packed-i4 load/unpack resource-fact spine: producer facts, selected-body realization, route planning, target metadata mirrors, support-bundle mirrors, and stale-fact rejection now agree. Macro task remains active for widening-product/reduction resource candidates and later Gate 3/Gate 4 campaign gates.",
+  "notes": "Current slice completed the Gate 2 widening-product/reduction resource-candidate fact spine: explicit widening-product and widening-reduction candidate facts are produced from RVV-owned resource/primitive facts, consumed by selected-body realization and Gearbox handoff validation, mirrored through EmitC route metadata and target artifacts, and stale provider/target facts are rejected. The RVV plugin code-spec was updated for the new cross-layer candidate fact contract. Macro task remains active for Gate 3 selected-body realization consumption and later Gate 4 measured-dispatch admission.",
   "meta": {}
 }

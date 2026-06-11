@@ -53,35 +53,37 @@ EmitC semantics.
 
 ## Completed Slice
 
-The current round implemented the Gate 2 packed-i4 load/unpack slice:
+The current round completed the Gate 2 widening-product/reduction
+resource-candidate fact slice:
 
-- Add explicit packed-i4 load/unpack resource facts to the low-precision
-  contraction resource candidate/selection surface, including a contract,
-  storage-load fact, unpack-plan fact, and unpacked-source fact.
-- Produce those facts from the RVV-owned Gearbox/resource candidate path when
-  the selected candidate is packed-i4.
-- Consume the same facts in selected-body realization and route-planning
-  validation before `TCRVEmitCLowerableRoute` construction, including the
-  realized `with_vl` and Gearbox cross-region handoff path.
-- Mirror the facts through route metadata/target artifact validation and reject
-  stale provider facts or stale target metadata before artifact acceptance.
-- Keep existing packed-i4 dequant/dequant-clamp, signed/unsigned
-  product-reduction, and dequant/dequant-clamp resource paths passing.
+- Add explicit widening-product and widening-reduction resource-candidate facts
+  to the production low-precision resource candidate/selection surface, separate
+  from but derived from the provider-owned primitive chain facts.
+- Produce those candidate facts in the RVV-owned Gearbox/resource candidate
+  path for product-reduction, dequantize, dequant-clamp, and packed-i4-adjacent
+  low-precision candidates.
+- Consume the same candidate facts in selected-body realization and Gearbox
+  cross-region handoff validation before route construction.
+- Carry the facts through `TCRVEmitCLowerableRoute` planning metadata and target
+  artifact mirrors, with stale provider and stale target rejection.
+- Keep existing packed-i4 load/unpack, signed/unsigned product-reduction, and
+  dequant/dequant-clamp resource paths passing.
 
 ## Acceptance Criteria For This Slice
 
-- Packed-i4 load/unpack facts are explicit fields in the production
-  low-precision resource candidate/selection surface, not only text inside
-  remediation strings.
-- Gearbox/resource candidate materialization produces the packed-i4
-  load/unpack facts and selected-body realization consumes them before route
-  construction.
-- Route planning and target validation compare packed-i4 load/unpack provider
+- Widening-product and widening-reduction candidate facts are explicit fields in
+  the production low-precision resource candidate/selection surface, not only
+  implied by primitive strings, route IDs, artifact names, or generated C
+  spelling.
+- Gearbox/resource candidate materialization produces those candidate facts and
+  selected-body realization consumes and mirrors them before route construction.
+- Route planning and target validation compare the provider-selected candidate
   facts and target mirrors exactly.
-- A stale provider-side packed-i4 load/unpack fact fails in the production
-  provider/target validation path.
-- A stale target artifact mirror for a packed-i4 load/unpack fact fails before
-  target export.
+- A stale provider-side candidate widening-product or reduction fact fails in
+  the production provider/route-planning path before `TCRVEmitCLowerableRoute`
+  construction.
+- A stale target artifact mirror for a candidate widening-product or reduction
+  fact fails before target export.
 - Existing packed-i4 dequant/dequant-clamp, signed product-reduction, unsigned
   product-reduction, dequantize-f32, and dequant-clamp-f32 focused plan/header
   paths still pass.
@@ -99,11 +101,15 @@ The current round implemented the Gate 2 packed-i4 load/unpack slice:
 
 ## Status After Current Slice
 
-Gate 2 is advanced but not complete. The packed-i4 load/unpack fact slice is
-complete; widening-product/reduction resource candidate facts remain open. The
-macro task remains active.
+Gate 2 is now complete for the current low-precision resource fact spine:
+packed-i4 load/unpack facts and widening-product/reduction candidate facts are
+explicit, provider-produced, selected-body consumed, route-planning mirrored,
+target-artifact mirrored, and stale-rejected in focused signed/unsigned and
+packed-i4-adjacent coverage. The macro task remains active because Gate 3 and
+Gate 4 campaign gates are not complete.
 
-Continuation point: extend the same production resource/primitive spine toward
-the next low-precision contraction primitive gap that Gearbox selected-body
-realization consumes directly, especially widening-product/reduction resource
-candidates without relying on q8/q4 labels or artifact names.
+Continuation point: move to Gate 3 selected-body realization consumption using
+the completed resource fact spine to build resource-aware executable bodies
+without changing computation semantics, ABI roles, dispatch, fallback, or
+runtime AVL. Do not move to Gate 4 performance-preferred dispatch without fresh
+source-backed same-target measured-win evidence.

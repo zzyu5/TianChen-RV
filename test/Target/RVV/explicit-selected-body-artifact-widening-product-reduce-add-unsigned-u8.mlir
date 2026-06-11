@@ -4,6 +4,7 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.source_signedness\", value = \"unsigned\"/s//tcrv_rvv.low_precision_primitive.source_signedness\", value = \"signed\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-SIGN
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.source_signedness\", value = \"unsigned\"/s//tcrv_rvv.low_precision_resource.source_signedness\", value = \"signed\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE-SIGN
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation\", value = \"unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32\"/s//tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation\", value = \"metadata-derived-product-reduction\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE-CHAIN
+// RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.reduction_candidate_fact\", value = \"resource-candidate-widening-reduction:unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32:__riscv_vwredsumu_vs_u16mf2_u32m1:store-vl=1\"/s//tcrv_rvv.low_precision_resource.reduction_candidate_fact\", value = \"target-metadata-unsigned-reduction\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-RESOURCE-REDUCTION-CANDIDATE
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.accumulator_dtype\", value = \"u32\"/s//tcrv_rvv.low_precision_primitive.accumulator_dtype\", value = \"i32\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIM-ACC
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_primitive.source_extension\", value = \"zero-extend-u8-to-u16-product\"/s//tcrv_rvv.low_precision_primitive.source_extension\", value = \"sign-extend-i8-to-i16-product\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-EXT
 // RUN: tcrv-opt %s --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.c_type_mapping\", value = \"vl:size_t,source:unsigned-e8mf4,product:unsigned-e16mf2,seed:unsigned-u32,result:unsigned-e32m1\"/s//tcrv_rvv.c_type_mapping\", value = \"vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,result:signed-e32m1\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-CTYPE
@@ -87,6 +88,8 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.result_dtype", value = "u32"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.memory_form", value = "unit-stride-widening-product-reduce-add"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.primitive_chain_kind", value = "unsigned-u8mf4xu8mf4-to-u16mf2-product-u32m1-vwredsumu.v1"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.widening_product_candidate_fact", value = "resource-candidate-widening-product:unsigned-u8mf4xu8mf4-to-u16mf2:__riscv_vwmulu_vv_u16mf2"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.reduction_candidate_fact", value = "resource-candidate-widening-reduction:unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32:__riscv_vwredsumu_vs_u16mf2_u32m1:store-vl=1"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic", value = "__riscv_vwredsumu_vs_u16mf2_u32m1"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.target_capability_provider_mirror", value = "selected_capability_provider_mirror:@rvv;id=rvv;kind=isa-vector;rvv=exact"}
 // PLAN-SAME: emission_kind = "materialized-emitc-cpp-rvv-intrinsic-object"
@@ -107,6 +110,8 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.source_signedness: unsigned
 // HEADER: tianchenrv.rvv.low_precision_resource.accumulator_dtype: u32
 // HEADER: tianchenrv.rvv.low_precision_resource.primitive_chain_kind: unsigned-u8mf4xu8mf4-to-u16mf2-product-u32m1-vwredsumu.v1
+// HEADER: tianchenrv.rvv.low_precision_resource.widening_product_candidate_fact: resource-candidate-widening-product:unsigned-u8mf4xu8mf4-to-u16mf2:__riscv_vwmulu_vv_u16mf2
+// HEADER: tianchenrv.rvv.low_precision_resource.reduction_candidate_fact: resource-candidate-widening-reduction:unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32:__riscv_vwredsumu_vs_u16mf2_u32m1:store-vl=1
 // HEADER: tianchenrv.rvv.target_leaf_profile: rvv-v1-u8mf4-u16mf2-u32m1-product-reduction-contraction-leaf-profile.v1
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:unsigned-e8mf4,product:unsigned-e16mf2,seed:unsigned-u32,result:unsigned-e32m1
 // HEADER: void tcrv_emitc_explicit_selected_body_unsigned_product_reduce_kernel_explicit_selected_body_rvv_unsigned_product_reduce(const uint8_t *lhs, const uint8_t *rhs, const uint32_t *acc, uint32_t *out, size_t n);
@@ -122,6 +127,9 @@ module {
 
 // STALE-RESOURCE-CHAIN: candidate tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation provenance must mirror provider-selected low-precision direct-contraction resource primitive product-reduction chain relation 'unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32'
 // STALE-RESOURCE-CHAIN-SAME: but was 'metadata-derived-product-reduction'
+
+// STALE-RESOURCE-REDUCTION-CANDIDATE: candidate tcrv_rvv.low_precision_resource.reduction_candidate_fact provenance must mirror provider-selected low-precision direct-contraction resource widening reduction candidate fact 'resource-candidate-widening-reduction:unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32:__riscv_vwredsumu_vs_u16mf2_u32m1:store-vl=1'
+// STALE-RESOURCE-REDUCTION-CANDIDATE-SAME: but was 'target-metadata-unsigned-reduction'
 
 // STALE-PRIM-ACC: candidate tcrv_rvv.low_precision_primitive.accumulator_dtype provenance must mirror selected typed RVV product-reduction low-precision widening-reduction primitive accumulator dtype 'u32'
 // STALE-PRIM-ACC-SAME: but was 'i32'

@@ -17857,6 +17857,15 @@ llvm::Error recordRVVSelectedBodyGearboxCrossRegionHandoff(
           kRVVLowPrecisionResourceWideningProductExtensionPolicy))
     return error;
   if (llvm::Error error = requireHandoffPrimitiveFact(
+          "widening_product_candidate_fact",
+          handoff.getWideningProductCandidateFact(),
+          kRVVLowPrecisionResourceWideningProductCandidateFact))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
+          "reduction_candidate_fact", handoff.getReductionCandidateFact(),
+          kRVVLowPrecisionResourceReductionCandidateFact))
+    return error;
+  if (llvm::Error error = requireHandoffPrimitiveFact(
           "primitive_widening_product_relation",
           handoff.getPrimitiveWideningProductRelation(),
           kRVVLowPrecisionResourcePrimitiveWideningProductRelation))
@@ -43564,6 +43573,12 @@ getRVVSelectedBodyConfigArtifactMetadata(
       metadata.push_back(
           {"tcrv_rvv.low_precision_resource.widening_product_extension_policy",
            selection.wideningProductExtensionPolicy});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.widening_product_candidate_fact",
+           selection.wideningProductCandidateFact});
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_resource.reduction_candidate_fact",
+           selection.reductionCandidateFact});
       metadata.push_back(
           {"tcrv_rvv.low_precision_resource.primitive_source_load",
            selection.primitiveSourceLoadKind});
