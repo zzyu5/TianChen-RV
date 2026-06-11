@@ -28,6 +28,12 @@ constexpr llvm::StringLiteral kRVVProductReductionOutCarryBoundary(
 constexpr llvm::StringLiteral
     kRVVProductReductionDequantVectorCarryBoundary(
         "vector-i32m1-carry-dot_acc_vec-across-runtime-vl-chunks-final-scalar-extract-f32-store.v1");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionPrimitivePayloadMirrorSourceKey(
+        "tcrv_rvv.low_precision_primitive.payload_mirror_source");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionPrimitivePayloadMirrorSource(
+        "provider-built-low-precision-primitive-route-payload.v1");
 
 llvm::Error makeRVVTargetRouteError(llvm::Twine message) {
   return llvm::make_error<llvm::StringError>(
@@ -3456,6 +3462,12 @@ llvm::Error validateRVVWideningProductTargetArtifactCandidateMirrors(
           candidate, "tcrv_rvv.widening_product_intrinsic",
           contract->wideningProductIntrinsic,
           "selected typed RVV widening product intrinsic"))
+    return error;
+  if (llvm::Error error = requireCandidateMetadataMirror(
+          candidate, kRVVLowPrecisionPrimitivePayloadMirrorSourceKey,
+          kRVVLowPrecisionPrimitivePayloadMirrorSource,
+          "selected typed RVV widening product low-precision primitive "
+          "payload mirror source"))
     return error;
   if (llvm::Error error = requireCandidateMetadataMirror(
           candidate, "tcrv_rvv.low_precision_primitive.contract",
@@ -7261,6 +7273,11 @@ llvm::Error validateRVVLowPrecisionWideningReductionPrimitiveCandidateMirrors(
     return requireCandidateMetadataMirror(candidate, key, expected, fullLabel);
   };
 
+  if (llvm::Error error = requirePrimitiveMirror(
+          kRVVLowPrecisionPrimitivePayloadMirrorSourceKey,
+          kRVVLowPrecisionPrimitivePayloadMirrorSource,
+          "payload mirror source"))
+    return error;
   if (llvm::Error error = requirePrimitiveMirror(
           "tcrv_rvv.low_precision_primitive.contract",
           payload.contractID, "contract"))

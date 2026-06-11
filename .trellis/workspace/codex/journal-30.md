@@ -73,6 +73,66 @@ source-backed same-target RVV evidence.
 
 Final coherent commit is created after this journal entry.
 
+## Session 607: Stage2 RVV low-precision primitive route-description/emission-plan mirror cleanup
+
+**Date**: 2026-06-12
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the route-description /
+emission-plan / candidate-metadata primitive mirror-boundary cleanup slice. The
+slice follows the previous support-bundle/export payload mirror cleanup and
+keeps compiler authority in selected typed `tcrv_rvv` body/config/runtime
+facts, provider primitive facts, and `RVVLowPrecisionPrimitiveRoutePayload`.
+
+### Main Changes
+
+- Route-description scalar primitive fields now populate from the
+  provider-built `RVVLowPrecisionPrimitiveRoutePayload` and validate as payload
+  mirrors before provider materialization.
+- Emission metadata now serializes low-precision primitive fields through one
+  payload-mirror helper and carries
+  `tcrv_rvv.low_precision_primitive.payload_mirror_source =
+  provider-built-low-precision-primitive-route-payload.v1`.
+- Product-reduction emission metadata for source/product/accumulator/result
+  SEW/LMUL, relation, intrinsics, seed/layout, and store-VL now comes from the
+  provider payload rather than route-description scalar mirrors.
+- Target validation rejects missing or stale payload-mirror source markers
+  before accepting primitive candidate mirrors.
+- Support-bundle/header evidence maps the marker as
+  `low_precision_primitive.payload_mirror.source`.
+- The RVV plugin and EmitC route specs record the new marker and
+  payload-sourced metadata contract.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'explicit-selected-body-artifact-widening-product($|-unsigned-u8|.*reduce-add)|pre-realized-selected-body-artifact-widening-product-reduce-(add|add-unsigned-u8|dequantize-f32-packed-i4|dequant-clamp-f32-packed-i4)'` from `build/test`
+
+### Self-Repair
+
+- The first rebuild failed because the new
+  `verifyRVVLowPrecisionPrimitiveDescriptionMirrorsFromPayload` declaration was
+  inside the anonymous namespace while the definition lived in the outer
+  plugin namespace. The declaration was moved to match the definition and the
+  build passed.
+
+### Status
+
+[OPEN MACRO TASK] The route-description/emission-plan/candidate primitive
+mirror-boundary cleanup slice is complete. The macro task stays active for
+adjacent primitive/resource mirror containment work and future
+measurement-disposition work only with fresh source-backed same-target RVV
+evidence.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 596: Stage2 RVV support-bundle primitive payload mirror boundary cleanup
 
 **Date**: 2026-06-12

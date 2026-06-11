@@ -658,6 +658,8 @@ void appendRVVLowPrecisionPrimitivePayloadMirrorMetadataEvidence(
     llvm::SmallVectorImpl<MaterializedEmitCHeaderArtifactMetadataEvidence>
         &out) {
   constexpr llvm::StringLiteral kPayloadMirrorMetadata[][2] = {
+      {"low_precision_primitive.payload_mirror.source",
+       "tcrv_rvv.low_precision_primitive.payload_mirror_source"},
       {"low_precision_primitive.payload_mirror.contract",
        "tcrv_rvv.low_precision_primitive.contract"},
       {"low_precision_primitive.payload_mirror.kind",

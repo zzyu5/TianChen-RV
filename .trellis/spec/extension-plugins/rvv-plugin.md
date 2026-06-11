@@ -587,12 +587,30 @@ artifact validation.
   Route-description scalar copies, emission-plan metadata, support-bundle
   fields, and target candidate metadata are mirrors after this helper; they must
   not act as a second primitive authority.
+- Legacy route-description scalar copies such as
+  `lowPrecisionPrimitiveSourceSignedness`,
+  `lowPrecisionPrimitiveProductElementTypeName`, and
+  `lowPrecisionPrimitiveResultElementTypeName` must be populated from the
+  provider-built `RVVLowPrecisionPrimitiveRoutePayload` after payload
+  construction. Provider materialization must validate these scalar copies as
+  route-description mirrors of the payload; they must not be populated directly
+  from the route-family plan as a parallel primitive authority.
 - Emission-plan metadata and target support-bundle export may serialize
   `tcrv_rvv.low_precision_primitive.*` fields only from the provider route
   payload. They must not recompute signedness, dtype, SEW/LMUL, policy, runtime
   AVL/VL, widening-product relation, or widening-reduction relation from
   description defaults, artifact names, result/admission fields, or Common EmitC
   helpers.
+- Emission-plan candidate metadata for any low-precision primitive payload must
+  carry
+  `tcrv_rvv.low_precision_primitive.payload_mirror_source =
+  provider-built-low-precision-primitive-route-payload.v1`. This marker says
+  the adjacent `tcrv_rvv.low_precision_primitive.*` candidate fields are mirrors
+  of the provider payload. Product-reduction emission metadata for
+  source/product/accumulator/result SEW/LMUL, product-reduction relation,
+  widening-product intrinsic, widening-reduction intrinsic, scalar seed splat,
+  accumulator/result layout, and store VL must also be sourced from the payload,
+  not from stale route-description scalar mirrors.
 - Support-bundle/header evidence must label these exported header comments as
   provider payload mirrors, for example
   `tianchenrv.rvv.low_precision_primitive.payload_mirror.source_signedness`,
@@ -606,6 +624,9 @@ artifact validation.
   accepting candidate metadata mirrors. Candidate metadata proves only that the
   export mirrored the payload exactly; it never authorizes route support by
   itself.
+- Target candidate mirror validation must require the payload-mirror source
+  marker and reject missing or stale marker values before accepting
+  `tcrv_rvv.low_precision_primitive.*` candidate mirrors.
 - Common EmitC may materialize only the provider-built route payload. It must
   not choose dtype/sign/SEW/LMUL, `vwmul`, `vwredsum`, seed splat, layout, or
   store-VL semantics itself.
@@ -645,6 +666,14 @@ artifact validation.
   fields such as runtime control plan, runtime AVL source, product SEW/LMUL,
   product-reduction relation, reduction intrinsic, seed splat, layout, or store
   VL -> fail before accepting artifact metadata mirrors.
+- Candidate metadata missing
+  `tcrv_rvv.low_precision_primitive.payload_mirror_source`, or carrying a value
+  other than `provider-built-low-precision-primitive-route-payload.v1` -> fail
+  target validation before primitive mirrors are accepted.
+- Emission metadata for product-reduction relation, widening/reduction
+  intrinsics, seed splat, layout, or store-VL follows stale route-description
+  scalar fields while the provider payload carries different values -> invalid;
+  metadata must mirror the payload.
 - Common EmitC or target validation locally reconstructs primitive facts from
   metadata or intrinsic spellings -> invalid architecture; move the derivation
   back to the RVV provider contract.
@@ -661,6 +690,9 @@ artifact validation.
 - Good: realized product-reduction route plan -> provider primitive route
   payload -> emission metadata/support-bundle mirrors -> target validation
   compares each mirror against the payload before accepting the artifact.
+- Good: provider payload -> route-description scalar mirror helper -> emission
+  metadata payload helper with `payload_mirror_source` -> target validation
+  rejects missing/stale marker or field mirrors before artifact acceptance.
 - Base: standalone signed or unsigned widening-product routes keep their own
   product facts without claiming a widening-reduction primitive chain.
 - Bad: artifact metadata says `vwredsum`, so the target accepts the candidate
@@ -668,6 +700,9 @@ artifact validation.
 - Bad: emission/export recomputes `tcrv_rvv.low_precision_primitive.*` from
   description defaults, q8/q4 labels, result records, or artifact names instead
   of serializing the provider route payload.
+- Bad: candidate metadata carries plausible primitive fields but lacks
+  `payload_mirror_source`, or the marker says the fields came from
+  metadata/artifact-derived primitive facts.
 - Bad: the final dequantized `f32` result is treated as the primitive reduction
   result and replaces the required `i32/m1` accumulator/reduction boundary.
 
@@ -697,6 +732,12 @@ artifact validation.
   `low_precision_primitive.payload_mirror.*` comment labels and at least one
   missing or stale `tcrv_rvv.low_precision_primitive.*` export mirror rejection
   at the target artifact boundary.
+- Target artifact coverage must reject missing and stale
+  `tcrv_rvv.low_precision_primitive.payload_mirror_source` marker values.
+- C++ metadata coverage must mutate route-description scalar primitive fields
+  while leaving the provider payload intact, then assert emission metadata still
+  serializes source SEW/signedness, product-reduction relation, reduction
+  intrinsic, and store-VL from the payload.
 - Focused lit coverage for the selected product-reduction artifact path when
   metadata mirror diagnostics are user-visible.
 - Runtime `ssh rvv` evidence is required only when the task claims executable

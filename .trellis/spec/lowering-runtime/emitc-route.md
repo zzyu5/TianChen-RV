@@ -4900,6 +4900,17 @@ reduction store VL = 1
   `tcrv_rvv.widening_reduction_intrinsic`,
   `tcrv_rvv.scalar_seed_splat_intrinsic`, layout, or
   `tcrv_rvv.reduction_store_vl` mirrors -> fail target validation.
+- Candidate metadata for a low-precision primitive payload must carry
+  `tcrv_rvv.low_precision_primitive.payload_mirror_source =
+  provider-built-low-precision-primitive-route-payload.v1`; a missing or stale
+  marker fails target validation before primitive candidate mirrors are
+  accepted.
+- Emission-plan metadata for low-precision primitive source/product/
+  accumulator/result SEW/LMUL, product-reduction relation, widening-product
+  intrinsic, widening-reduction intrinsic, scalar seed splat, layout, and
+  store-VL must be serialized from the provider-built
+  `RVVLowPrecisionPrimitiveRoutePayload`, not from mutable route-description
+  scalar mirrors or candidate metadata.
 - Candidate metadata omitting product source/destination memory form mirrors or
   carrying stale strided widening-dot memory mirrors -> fail target validation.
 

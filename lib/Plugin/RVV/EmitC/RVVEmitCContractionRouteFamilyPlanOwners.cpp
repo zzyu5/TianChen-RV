@@ -33,6 +33,10 @@ llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromPlan(
     const RVVSelectedBodyContractionRouteFamilyPlan &plan,
     llvm::StringRef context);
 
+llvm::Error verifyRVVLowPrecisionPrimitiveDescriptionMirrorsFromPayload(
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context);
+
 namespace {
 
 constexpr llvm::StringLiteral kRVVWideningMAccOperandBindingPlanID(
@@ -1198,25 +1202,7 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
       analysis.description.sourceVectorLoadIntrinsic !=
           plan.sourceVectorLoadIntrinsic ||
       analysis.description.stridedLoadIntrinsic != plan.stridedLoadIntrinsic ||
-      analysis.description.storeIntrinsic != plan.storeIntrinsic ||
-      analysis.description.lowPrecisionPrimitiveContractID !=
-          plan.lowPrecisionPrimitiveContractID ||
-      analysis.description.lowPrecisionPrimitiveKind !=
-          plan.lowPrecisionPrimitiveKind ||
-      analysis.description.lowPrecisionPrimitiveSourceElementTypeName !=
-          plan.lowPrecisionPrimitiveSourceElementTypeName ||
-      analysis.description.lowPrecisionPrimitiveSourceSignedness !=
-          plan.lowPrecisionPrimitiveSourceSignedness ||
-      analysis.description.lowPrecisionPrimitiveSourceLoadKind !=
-          plan.lowPrecisionPrimitiveSourceLoadKind ||
-      analysis.description.lowPrecisionPrimitiveSourceExtensionKind !=
-          plan.lowPrecisionPrimitiveSourceExtensionKind ||
-      analysis.description.lowPrecisionPrimitiveProductElementTypeName !=
-          plan.lowPrecisionPrimitiveProductElementTypeName ||
-      analysis.description.lowPrecisionPrimitiveAccumulatorElementTypeName !=
-          plan.lowPrecisionPrimitiveAccumulatorElementTypeName ||
-      analysis.description.lowPrecisionPrimitiveResultElementTypeName !=
-          plan.lowPrecisionPrimitiveResultElementTypeName)
+      analysis.description.storeIntrinsic != plan.storeIntrinsic)
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) + " " + familyName +
         " route-family mirrors must be populated from the validated family "
@@ -1224,6 +1210,10 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
   if (llvm::Error error = verifyRVVLowPrecisionPrimitiveRoutePayloadFromPlan(
           analysis.description.lowPrecisionPrimitiveRoutePayload, plan,
           context))
+    return error;
+  if (llvm::Error error =
+          verifyRVVLowPrecisionPrimitiveDescriptionMirrorsFromPayload(
+              analysis.description, context))
     return error;
   if (!support::runtimeABIParametersEqual(
           analysis.description.runtimeABIParameters, plan.runtimeABIParameters))
@@ -8388,6 +8378,134 @@ void populateRVVLowPrecisionPrimitiveRoutePayload(
   payload.reductionStoreVL = plan.reductionStoreVL;
 }
 
+void populateRVVLowPrecisionPrimitiveDescriptionMirrorsFromPayload(
+    RVVSelectedBodyEmitCRouteDescription &description) {
+  const RVVLowPrecisionPrimitiveRoutePayload &payload =
+      description.lowPrecisionPrimitiveRoutePayload;
+  if (!payload.hasPayload) {
+    description.lowPrecisionPrimitiveContractID = {};
+    description.lowPrecisionPrimitiveKind = {};
+    description.lowPrecisionPrimitiveSourceElementTypeName = {};
+    description.lowPrecisionPrimitiveSourceSignedness = {};
+    description.lowPrecisionPrimitiveSourceLoadKind = {};
+    description.lowPrecisionPrimitiveSourceExtensionKind = {};
+    description.lowPrecisionPrimitiveProductElementTypeName = {};
+    description.lowPrecisionPrimitiveAccumulatorElementTypeName = {};
+    description.lowPrecisionPrimitiveResultElementTypeName = {};
+    return;
+  }
+
+  description.lowPrecisionPrimitiveContractID = payload.contractID;
+  description.lowPrecisionPrimitiveKind = payload.kind;
+  description.lowPrecisionPrimitiveSourceElementTypeName =
+      payload.sourceElementTypeName;
+  description.lowPrecisionPrimitiveSourceSignedness = payload.sourceSignedness;
+  description.lowPrecisionPrimitiveSourceLoadKind = payload.sourceLoadKind;
+  description.lowPrecisionPrimitiveSourceExtensionKind =
+      payload.sourceExtensionKind;
+  description.lowPrecisionPrimitiveProductElementTypeName =
+      payload.productElementTypeName;
+  description.lowPrecisionPrimitiveAccumulatorElementTypeName =
+      payload.accumulatorElementTypeName;
+  description.lowPrecisionPrimitiveResultElementTypeName =
+      payload.resultElementTypeName;
+}
+
+llvm::Error verifyRVVLowPrecisionPrimitiveDescriptionMirrorsFromPayload(
+    const RVVSelectedBodyEmitCRouteDescription &description,
+    llvm::StringRef context) {
+  const RVVLowPrecisionPrimitiveRoutePayload &payload =
+      description.lowPrecisionPrimitiveRoutePayload;
+
+  auto requireMirror =
+      [&](llvm::StringRef field, llvm::StringRef actual,
+          llvm::StringRef expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision primitive route-description mirror '" + field +
+        "' must mirror the provider-built primitive route payload; expected '" +
+        expected + "' but saw '" + actual + "'");
+  };
+
+  if (!payload.hasPayload) {
+    if (llvm::Error error =
+            requireMirror("contract", description.lowPrecisionPrimitiveContractID,
+                          ""))
+      return error;
+    if (llvm::Error error =
+            requireMirror("kind", description.lowPrecisionPrimitiveKind, ""))
+      return error;
+    if (llvm::Error error = requireMirror(
+            "source dtype",
+            description.lowPrecisionPrimitiveSourceElementTypeName, ""))
+      return error;
+    if (llvm::Error error = requireMirror(
+            "source signedness",
+            description.lowPrecisionPrimitiveSourceSignedness, ""))
+      return error;
+    if (llvm::Error error = requireMirror(
+            "source load", description.lowPrecisionPrimitiveSourceLoadKind, ""))
+      return error;
+    if (llvm::Error error = requireMirror(
+            "source extension",
+            description.lowPrecisionPrimitiveSourceExtensionKind, ""))
+      return error;
+    if (llvm::Error error = requireMirror(
+            "product dtype",
+            description.lowPrecisionPrimitiveProductElementTypeName, ""))
+      return error;
+    if (llvm::Error error = requireMirror(
+            "accumulator dtype",
+            description.lowPrecisionPrimitiveAccumulatorElementTypeName, ""))
+      return error;
+    return requireMirror(
+        "result dtype", description.lowPrecisionPrimitiveResultElementTypeName,
+        "");
+  }
+
+  if (llvm::Error error = requireMirror(
+          "contract", description.lowPrecisionPrimitiveContractID,
+          payload.contractID))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "kind", description.lowPrecisionPrimitiveKind, payload.kind))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "source dtype",
+          description.lowPrecisionPrimitiveSourceElementTypeName,
+          payload.sourceElementTypeName))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "source signedness",
+          description.lowPrecisionPrimitiveSourceSignedness,
+          payload.sourceSignedness))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "source load", description.lowPrecisionPrimitiveSourceLoadKind,
+          payload.sourceLoadKind))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "source extension",
+          description.lowPrecisionPrimitiveSourceExtensionKind,
+          payload.sourceExtensionKind))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "product dtype",
+          description.lowPrecisionPrimitiveProductElementTypeName,
+          payload.productElementTypeName))
+    return error;
+  if (llvm::Error error = requireMirror(
+          "accumulator dtype",
+          description.lowPrecisionPrimitiveAccumulatorElementTypeName,
+          payload.accumulatorElementTypeName))
+    return error;
+  return requireMirror(
+      "result dtype", description.lowPrecisionPrimitiveResultElementTypeName,
+      payload.resultElementTypeName);
+}
+
 llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromWideningReductionFacts(
     const RVVLowPrecisionPrimitiveRoutePayload &payload,
     const RVVLowPrecisionWideningReductionPrimitiveFacts &primitiveFacts,
@@ -10628,25 +10746,9 @@ void applyRVVSelectedBodyContractionRouteFamilyPlan(
   description.sourceVectorCType = plan.sourceVectorCType;
   description.sourceVectorLoadIntrinsic = plan.sourceVectorLoadIntrinsic;
   description.storeIntrinsic = plan.storeIntrinsic;
-  description.lowPrecisionPrimitiveContractID =
-      plan.lowPrecisionPrimitiveContractID;
-  description.lowPrecisionPrimitiveKind = plan.lowPrecisionPrimitiveKind;
-  description.lowPrecisionPrimitiveSourceElementTypeName =
-      plan.lowPrecisionPrimitiveSourceElementTypeName;
-  description.lowPrecisionPrimitiveSourceSignedness =
-      plan.lowPrecisionPrimitiveSourceSignedness;
-  description.lowPrecisionPrimitiveSourceLoadKind =
-      plan.lowPrecisionPrimitiveSourceLoadKind;
-  description.lowPrecisionPrimitiveSourceExtensionKind =
-      plan.lowPrecisionPrimitiveSourceExtensionKind;
-  description.lowPrecisionPrimitiveProductElementTypeName =
-      plan.lowPrecisionPrimitiveProductElementTypeName;
-  description.lowPrecisionPrimitiveAccumulatorElementTypeName =
-      plan.lowPrecisionPrimitiveAccumulatorElementTypeName;
-  description.lowPrecisionPrimitiveResultElementTypeName =
-      plan.lowPrecisionPrimitiveResultElementTypeName;
   populateRVVLowPrecisionPrimitiveRoutePayload(
       description.lowPrecisionPrimitiveRoutePayload, plan);
+  populateRVVLowPrecisionPrimitiveDescriptionMirrorsFromPayload(description);
   description.lowPrecisionResourceSelection =
       plan.lowPrecisionResourceSelection;
   description.runtimeABIParameters.clear();

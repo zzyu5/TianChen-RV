@@ -65,6 +65,12 @@ constexpr llvm::StringLiteral kRequiredMaskPolicyPropertyName(
     "required_mask_policy");
 constexpr llvm::StringLiteral kGearboxHandoffPlanningContractAttrName(
     "planning_contract");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionPrimitivePayloadMirrorSourceKey(
+        "tcrv_rvv.low_precision_primitive.payload_mirror_source");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionPrimitivePayloadMirrorSource(
+        "provider-built-low-precision-primitive-route-payload.v1");
 
 std::string joinRVVSelectedCapabilityProviderSymbols(
     llvm::ArrayRef<const support::CapabilityDescriptor *> providers) {
@@ -42768,6 +42774,60 @@ llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
   return llvm::Error::success();
 }
 
+void appendRVVLowPrecisionPrimitivePayloadMirrorMetadata(
+    llvm::SmallVectorImpl<support::ArtifactMetadataEntry> &metadata,
+    const RVVLowPrecisionPrimitiveRoutePayload &payload) {
+  if (!payload.hasPayload)
+    return;
+
+  metadata.push_back({kRVVLowPrecisionPrimitivePayloadMirrorSourceKey,
+                      kRVVLowPrecisionPrimitivePayloadMirrorSource});
+  metadata.push_back(
+      {"tcrv_rvv.low_precision_primitive.contract", payload.contractID});
+  metadata.push_back({"tcrv_rvv.low_precision_primitive.kind", payload.kind});
+  metadata.push_back({"tcrv_rvv.low_precision_primitive.source_dtype",
+                      payload.sourceElementTypeName});
+  metadata.push_back({"tcrv_rvv.low_precision_primitive.source_signedness",
+                      payload.sourceSignedness});
+  metadata.push_back({"tcrv_rvv.low_precision_primitive.source_load",
+                      payload.sourceLoadKind});
+  metadata.push_back({"tcrv_rvv.low_precision_primitive.source_extension",
+                      payload.sourceExtensionKind});
+  metadata.push_back({"tcrv_rvv.low_precision_primitive.product_dtype",
+                      payload.productElementTypeName});
+  if (!payload.accumulatorElementTypeName.empty())
+    metadata.push_back({"tcrv_rvv.low_precision_primitive.accumulator_dtype",
+                        payload.accumulatorElementTypeName});
+  metadata.push_back({"tcrv_rvv.low_precision_primitive.result_dtype",
+                      payload.resultElementTypeName});
+  metadata.push_back({"tcrv_rvv.low_precision_primitive.source_sew",
+                      llvm::Twine(payload.sourceSEW).str()});
+  metadata.push_back(
+      {"tcrv_rvv.low_precision_primitive.source_lmul", payload.sourceLMUL});
+  metadata.push_back({"tcrv_rvv.low_precision_primitive.product_sew",
+                      llvm::Twine(payload.productSEW).str()});
+  metadata.push_back(
+      {"tcrv_rvv.low_precision_primitive.product_lmul", payload.productLMUL});
+  if (!payload.accumulatorElementTypeName.empty()) {
+    metadata.push_back({"tcrv_rvv.low_precision_primitive.accumulator_sew",
+                        llvm::Twine(payload.accumulatorSEW).str()});
+    metadata.push_back({"tcrv_rvv.low_precision_primitive.accumulator_lmul",
+                        payload.accumulatorLMUL});
+  }
+  metadata.push_back({"tcrv_rvv.low_precision_primitive.result_sew",
+                      llvm::Twine(payload.resultSEW).str()});
+  metadata.push_back(
+      {"tcrv_rvv.low_precision_primitive.result_lmul", payload.resultLMUL});
+  metadata.push_back(
+      {"tcrv_rvv.low_precision_primitive.tail_policy", payload.tailPolicy});
+  metadata.push_back(
+      {"tcrv_rvv.low_precision_primitive.mask_policy", payload.maskPolicy});
+  metadata.push_back({"tcrv_rvv.low_precision_primitive.runtime_control_plan",
+                      payload.runtimeControlPlanID});
+  metadata.push_back({"tcrv_rvv.low_precision_primitive.runtime_avl_source",
+                      payload.runtimeAVLASource});
+}
+
 llvm::SmallVector<support::ArtifactMetadataEntry, 16>
 getRVVSelectedBodyConfigArtifactMetadata(
     const RVVSelectedBodyEmitCRouteDescription &description) {
@@ -43296,6 +43356,8 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back(
         {"tcrv_rvv.macc_result_layout", description.maccResultLayout});
   }
+  const RVVLowPrecisionPrimitiveRoutePayload &primitivePayload =
+      description.lowPrecisionPrimitiveRoutePayload;
   if (description.operation == RVVSelectedBodyOperationKind::WideningMAccAdd) {
     metadata.push_back(
         {"tcrv_rvv.source_sew", llvm::Twine(description.sourceSEW).str()});
@@ -43321,23 +43383,39 @@ getRVVSelectedBodyConfigArtifactMetadata(
   }
   if (description.operation == RVVSelectedBodyOperationKind::WideningProduct) {
     metadata.push_back(
-        {"tcrv_rvv.source_sew", llvm::Twine(description.sourceSEW).str()});
-    metadata.push_back({"tcrv_rvv.source_lmul", description.sourceLMUL});
+        {"tcrv_rvv.source_sew",
+         llvm::Twine(primitivePayload.hasPayload ? primitivePayload.sourceSEW
+                                                 : 0)
+             .str()});
     metadata.push_back(
-        {"tcrv_rvv.result_sew", llvm::Twine(description.sew).str()});
-    metadata.push_back({"tcrv_rvv.result_lmul", description.lmul});
+        {"tcrv_rvv.source_lmul",
+         primitivePayload.hasPayload ? primitivePayload.sourceLMUL
+                                     : llvm::StringRef()});
+    metadata.push_back(
+        {"tcrv_rvv.result_sew",
+         llvm::Twine(primitivePayload.hasPayload ? primitivePayload.resultSEW
+                                                 : 0)
+             .str()});
+    metadata.push_back(
+        {"tcrv_rvv.result_lmul",
+         primitivePayload.hasPayload ? primitivePayload.resultLMUL
+                                     : llvm::StringRef()});
     metadata.push_back(
         {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
     metadata.push_back({"tcrv_rvv.destination_memory_form",
                         description.destinationMemoryForm});
-    metadata.push_back({"tcrv_rvv.widening_product_relation",
-                        description.wideningProductRelation});
+    metadata.push_back(
+        {"tcrv_rvv.widening_product_relation",
+         primitivePayload.hasPayload ? primitivePayload.wideningProductRelation
+                                     : llvm::StringRef()});
     metadata.push_back({"tcrv_rvv.widening_product_multiplicand_roles",
                         description.wideningProductMultiplicandRoleSummary});
     metadata.push_back({"tcrv_rvv.widening_product_extension_policy",
                         description.wideningProductExtensionPolicy});
-    metadata.push_back({"tcrv_rvv.widening_product_intrinsic",
-                        description.wideningProductIntrinsic});
+    metadata.push_back(
+        {"tcrv_rvv.widening_product_intrinsic",
+         primitivePayload.hasPayload ? primitivePayload.wideningProductIntrinsic
+                                     : llvm::StringRef()});
   }
   if (description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceAdd ||
@@ -43346,45 +43424,86 @@ getRVVSelectedBodyConfigArtifactMetadata(
       description.operation ==
           RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32) {
     metadata.push_back(
-        {"tcrv_rvv.source_sew", llvm::Twine(description.sourceSEW).str()});
-    metadata.push_back({"tcrv_rvv.source_lmul", description.sourceLMUL});
+        {"tcrv_rvv.source_sew",
+         llvm::Twine(primitivePayload.hasPayload ? primitivePayload.sourceSEW
+                                                 : 0)
+             .str()});
     metadata.push_back(
-        {"tcrv_rvv.product_sew", llvm::Twine(description.productSEW).str()});
-    metadata.push_back({"tcrv_rvv.product_lmul", description.productLMUL});
+        {"tcrv_rvv.source_lmul",
+         primitivePayload.hasPayload ? primitivePayload.sourceLMUL
+                                     : llvm::StringRef()});
+    metadata.push_back(
+        {"tcrv_rvv.product_sew",
+         llvm::Twine(primitivePayload.hasPayload ? primitivePayload.productSEW
+                                                 : 0)
+             .str()});
+    metadata.push_back(
+        {"tcrv_rvv.product_lmul",
+         primitivePayload.hasPayload ? primitivePayload.productLMUL
+                                     : llvm::StringRef()});
     metadata.push_back({"tcrv_rvv.product_vector_type",
                         description.productVectorTypeName});
     metadata.push_back({"tcrv_rvv.product_vector_c_type",
                         description.productVectorCType});
     metadata.push_back(
-        {"tcrv_rvv.accumulator_sew", llvm::Twine(description.sew).str()});
-    metadata.push_back({"tcrv_rvv.accumulator_lmul", description.lmul});
+        {"tcrv_rvv.accumulator_sew",
+         llvm::Twine(primitivePayload.hasPayload
+                         ? primitivePayload.accumulatorSEW
+                         : 0)
+             .str()});
     metadata.push_back(
-        {"tcrv_rvv.result_sew", llvm::Twine(description.sew).str()});
-    metadata.push_back({"tcrv_rvv.result_lmul", description.lmul});
+        {"tcrv_rvv.accumulator_lmul",
+         primitivePayload.hasPayload ? primitivePayload.accumulatorLMUL
+                                     : llvm::StringRef()});
+    metadata.push_back(
+        {"tcrv_rvv.result_sew",
+         llvm::Twine(primitivePayload.hasPayload ? primitivePayload.resultSEW
+                                                 : 0)
+             .str()});
+    metadata.push_back(
+        {"tcrv_rvv.result_lmul",
+         primitivePayload.hasPayload ? primitivePayload.resultLMUL
+                                     : llvm::StringRef()});
     metadata.push_back(
         {"tcrv_rvv.source_memory_form", description.sourceMemoryForm});
     metadata.push_back({"tcrv_rvv.destination_memory_form",
                         description.destinationMemoryForm});
-    metadata.push_back({"tcrv_rvv.reduction_accumulator_layout",
-                        description.reductionAccumulatorLayout});
-    metadata.push_back({"tcrv_rvv.reduction_result_layout",
-                        description.reductionResultLayout});
-    metadata.push_back({"tcrv_rvv.widening_product_relation",
-                        description.wideningProductRelation});
+    metadata.push_back(
+        {"tcrv_rvv.reduction_accumulator_layout",
+         primitivePayload.hasPayload ? primitivePayload.accumulatorLayout
+                                     : llvm::StringRef()});
+    metadata.push_back(
+        {"tcrv_rvv.reduction_result_layout",
+         primitivePayload.hasPayload ? primitivePayload.resultLayout
+                                     : llvm::StringRef()});
+    metadata.push_back(
+        {"tcrv_rvv.widening_product_relation",
+         primitivePayload.hasPayload ? primitivePayload.wideningProductRelation
+                                     : llvm::StringRef()});
     metadata.push_back({"tcrv_rvv.widening_product_multiplicand_roles",
                         description.wideningProductMultiplicandRoleSummary});
     metadata.push_back({"tcrv_rvv.widening_product_extension_policy",
                         description.wideningProductExtensionPolicy});
     metadata.push_back({"tcrv_rvv.product_reduction_chain_relation",
-                        description.productReductionChainRelation});
-    metadata.push_back({"tcrv_rvv.widening_product_intrinsic",
-                        description.wideningProductIntrinsic});
-    metadata.push_back({"tcrv_rvv.widening_reduction_intrinsic",
-                        description.intrinsic});
+                        primitivePayload.hasPayload
+                            ? primitivePayload.productReductionChainRelation
+                            : llvm::StringRef()});
+    metadata.push_back(
+        {"tcrv_rvv.widening_product_intrinsic",
+         primitivePayload.hasPayload ? primitivePayload.wideningProductIntrinsic
+                                     : llvm::StringRef()});
+    metadata.push_back(
+        {"tcrv_rvv.widening_reduction_intrinsic",
+         primitivePayload.hasPayload ? primitivePayload.reductionIntrinsic
+                                     : llvm::StringRef()});
     metadata.push_back({"tcrv_rvv.scalar_seed_splat_intrinsic",
-                        description.scalarSeedSplatIntrinsic});
-    metadata.push_back({"tcrv_rvv.reduction_store_vl",
-                        description.reductionStoreVL});
+                        primitivePayload.hasPayload
+                            ? primitivePayload.scalarSeedSplatIntrinsic
+                            : llvm::StringRef()});
+    metadata.push_back(
+        {"tcrv_rvv.reduction_store_vl",
+         primitivePayload.hasPayload ? primitivePayload.reductionStoreVL
+                                     : llvm::StringRef()});
     metadata.push_back(
         {"tcrv_rvv.scalar_result_runtime_boundary",
          description.standaloneReductionScalarResultRuntimeBoundary});
@@ -43430,62 +43549,8 @@ getRVVSelectedBodyConfigArtifactMetadata(
       }
     }
   }
-  const RVVLowPrecisionPrimitiveRoutePayload &primitivePayload =
-      description.lowPrecisionPrimitiveRoutePayload;
-  if (primitivePayload.hasPayload) {
-    metadata.push_back({"tcrv_rvv.low_precision_primitive.contract",
-                        primitivePayload.contractID});
-    metadata.push_back({"tcrv_rvv.low_precision_primitive.kind",
-                        primitivePayload.kind});
-    metadata.push_back({"tcrv_rvv.low_precision_primitive.source_dtype",
-                        primitivePayload.sourceElementTypeName});
-    metadata.push_back(
-        {"tcrv_rvv.low_precision_primitive.source_signedness",
-         primitivePayload.sourceSignedness});
-    metadata.push_back({"tcrv_rvv.low_precision_primitive.source_load",
-                        primitivePayload.sourceLoadKind});
-    metadata.push_back(
-        {"tcrv_rvv.low_precision_primitive.source_extension",
-         primitivePayload.sourceExtensionKind});
-    metadata.push_back(
-        {"tcrv_rvv.low_precision_primitive.product_dtype",
-         primitivePayload.productElementTypeName});
-    if (!primitivePayload.accumulatorElementTypeName.empty())
-      metadata.push_back(
-          {"tcrv_rvv.low_precision_primitive.accumulator_dtype",
-           primitivePayload.accumulatorElementTypeName});
-    metadata.push_back(
-        {"tcrv_rvv.low_precision_primitive.result_dtype",
-         primitivePayload.resultElementTypeName});
-    metadata.push_back(
-        {"tcrv_rvv.low_precision_primitive.source_sew",
-         llvm::Twine(primitivePayload.sourceSEW).str()});
-    metadata.push_back({"tcrv_rvv.low_precision_primitive.source_lmul",
-                        primitivePayload.sourceLMUL});
-    metadata.push_back({"tcrv_rvv.low_precision_primitive.product_sew",
-                        llvm::Twine(primitivePayload.productSEW).str()});
-    metadata.push_back({"tcrv_rvv.low_precision_primitive.product_lmul",
-                        primitivePayload.productLMUL});
-    if (!primitivePayload.accumulatorElementTypeName.empty()) {
-      metadata.push_back(
-          {"tcrv_rvv.low_precision_primitive.accumulator_sew",
-           llvm::Twine(primitivePayload.accumulatorSEW).str()});
-      metadata.push_back({"tcrv_rvv.low_precision_primitive.accumulator_lmul",
-                          primitivePayload.accumulatorLMUL});
-    }
-    metadata.push_back({"tcrv_rvv.low_precision_primitive.result_sew",
-                        llvm::Twine(primitivePayload.resultSEW).str()});
-    metadata.push_back({"tcrv_rvv.low_precision_primitive.result_lmul",
-                        primitivePayload.resultLMUL});
-    metadata.push_back({"tcrv_rvv.low_precision_primitive.tail_policy",
-                        primitivePayload.tailPolicy});
-    metadata.push_back({"tcrv_rvv.low_precision_primitive.mask_policy",
-                        primitivePayload.maskPolicy});
-    metadata.push_back({"tcrv_rvv.low_precision_primitive.runtime_control_plan",
-                        primitivePayload.runtimeControlPlanID});
-    metadata.push_back({"tcrv_rvv.low_precision_primitive.runtime_avl_source",
-                        primitivePayload.runtimeAVLASource});
-  }
+  appendRVVLowPrecisionPrimitivePayloadMirrorMetadata(metadata,
+                                                      primitivePayload);
   if (description.lowPrecisionResourceSelection.hasSelection) {
     const RVVLowPrecisionContractionResourceSelection &selection =
         description.lowPrecisionResourceSelection;

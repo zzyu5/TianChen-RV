@@ -143,17 +143,34 @@ only after the provider payload contract is valid; it must not reconstruct a
 second primitive authority from artifact metadata, candidate IDs, route IDs,
 admission state, or exact intrinsic spellings.
 
-## Current Round Slice: Support-Bundle/Export Primitive Mirror-Boundary Cleanup
+## Completed Slice: Support-Bundle/Export Primitive Mirror-Boundary Cleanup
 
-This bounded slice cleans the adjacent support-bundle/export boundary for the
-same low-precision product-reduction and packed-i4 dequant/dequant-clamp
-representatives. The target support bundle may expose
+The previous bounded slice cleaned the adjacent support-bundle/export boundary
+for the same low-precision product-reduction and packed-i4
+dequant/dequant-clamp representatives. The target support bundle exposes
 `tcrv_rvv.low_precision_primitive.*` fields to generated headers and bundle
-metadata, but those fields must be visibly and mechanically treated as
-provider-payload mirrors. The support-bundle surface must not look like a second
-source of dtype, signedness, SEW/LMUL, policy, runtime AVL/VL,
-product-reduction relation, intrinsics, seed/layout/store-VL, packed-i4
-resource, admission, or measurement authority.
+metadata only as `low_precision_primitive.payload_mirror.*` header labels.
+Candidate metadata keys remain `tcrv_rvv.low_precision_primitive.*` for target
+provider-payload validation, but generated header evidence no longer makes
+support-bundle metadata look like a second source of dtype, signedness,
+SEW/LMUL, policy, runtime AVL/VL, product-reduction relation, intrinsics,
+seed/layout/store-VL, packed-i4 resource, admission, or measurement authority.
+
+## Completed Slice: Route-Description/Emission-Plan Candidate Mirror-Boundary Cleanup
+
+This bounded slice cleaned the adjacent route-description, emission-plan, and
+candidate-metadata boundary for the same low-precision primitive payload. The
+legacy route-description scalar primitive fields now mirror the provider-built
+`RVVLowPrecisionPrimitiveRoutePayload` after payload construction instead of
+being populated directly from the route-family plan. Emission-plan primitive
+metadata is emitted through a single payload-mirror helper and now carries
+`tcrv_rvv.low_precision_primitive.payload_mirror_source =
+provider-built-low-precision-primitive-route-payload.v1`. Product-reduction
+metadata mirrors for source/product/accumulator/result SEW/LMUL, relation,
+intrinsics, seed/layout, and store-VL are sourced from the payload. Target
+candidate validation requires the payload-mirror source marker and still
+rejects stale or missing primitive field mirrors against the rebuilt provider
+payload.
 
 The cleanup owner is the path:
 
@@ -161,16 +178,19 @@ The cleanup owner is the path:
 selected typed low-precision body/config/runtime facts
   -> RVV provider primitive facts
   -> RVVLowPrecisionPrimitiveRoutePayload
-  -> emission metadata mirrors
-  -> support-bundle/header mirror transport
+  -> route-description scalar mirrors
+  -> emission metadata / candidate metadata payload mirrors
+  -> support-bundle/header mirror transport labels
   -> target artifact validation against the provider payload
 ```
 
-Support-bundle/header evidence may copy primitive fields only as exact mirrors
-of candidate metadata that has already been validated against the rebuilt
-provider payload. Missing or stale primitive mirrors must fail at the
-target/export validation boundary, not be repaired from support-bundle metadata
-or candidate IDs. Common EmitC remains neutral and does not infer or choose any
+Route-description scalar fields, emission-plan metadata, candidate metadata,
+support-bundle/header evidence, and C++/lit fixtures may copy primitive fields
+only as exact mirrors of the provider payload. Missing, stale, or marker-less
+primitive mirrors must fail at the provider/target mirror boundary, not be
+repaired from route ids, candidate IDs, artifact names, support-bundle metadata,
+intrinsic spellings, admission/remediation/measurement/no-win, or dispatch
+fields. Common EmitC remains neutral and does not infer or choose any
 low-precision primitive semantics.
 
 This round must not add q8/q4 route authority, artifact-name authority,
@@ -180,37 +200,41 @@ inference, or measured-win/admission claims.
 ## Acceptance Criteria For This Slice
 
 - Active task metadata, PRD, implementation/check context, and RVV
-  low-precision spec sections identify support-bundle/export primitive
-  mirror-boundary cleanup under the same macro task.
+  low-precision spec sections identify route-description/emission-plan/candidate
+  primitive mirror-boundary cleanup under the same macro task.
 - Source-backed field classification is recorded for compiler authority,
-  mirror/test facts, and policy/evidence facts at the support-bundle/export
-  primitive mirror boundary.
-- Support-bundle/header metadata evidence groups or labels
-  `tcrv_rvv.low_precision_primitive.*` fields as provider primitive route
-  payload mirrors, not independent support facts.
-- Emission metadata and support-bundle/header transport continue to serialize
-  low-precision primitive fields only from the provider-built
-  `RVVLowPrecisionPrimitiveRoutePayload`.
+  mirror/test facts, and policy/evidence facts at the route-description,
+  emission-plan, and candidate primitive mirror boundary.
+- Route-description scalar primitive mirrors are populated from the
+  provider-built `RVVLowPrecisionPrimitiveRoutePayload` and validated against
+  that payload before provider materialization.
+- Emission metadata serializes low-precision primitive fields through a single
+  payload-mirror helper and carries
+  `tcrv_rvv.low_precision_primitive.payload_mirror_source =
+  provider-built-low-precision-primitive-route-payload.v1`.
+- Product-reduction emission metadata for source/product/accumulator/result
+  SEW/LMUL, relation, intrinsics, seed/layout, and store-VL is sourced from the
+  provider payload rather than stale route-description scalar mirrors.
 - Target artifact validation continues to validate the provider payload first,
-  then consumes candidate/support-bundle primitive mirrors only as exact mirrors
-  of that payload.
-- Missing or stale support-bundle/export primitive mirrors are rejected without
-  inventing primitive semantics from route ids, candidate metadata, artifact
-  names, intrinsic spellings, admission/remediation/measurement/no-win, or
-  dispatch fields.
+  then consumes candidate primitive mirrors and the payload-mirror source marker
+  only as exact mirrors of that payload.
+- Missing, stale, or marker-less candidate primitive mirrors are rejected
+  without inventing primitive semantics from route ids, artifact names, intrinsic
+  spellings, admission/remediation/measurement/no-win, or dispatch fields.
 - Packed-i4 dequantize/dequant-clamp resource and policy/evidence boundaries
   remain intact; packed-i4 policy/evidence fields stay outside primitive
   compiler-fact validation.
-- Focused negative coverage proves stale or missing primitive support-bundle or
-  export mirrors are rejected at the target mirror boundary, alongside existing
-  signed/unsigned product-reduction and packed-i4 dequant/dequant-clamp positive
-  fixtures.
+- Focused negative coverage proves stale or missing primitive candidate mirrors
+  and stale or missing payload-mirror source markers are rejected at the target
+  mirror boundary, alongside existing signed/unsigned product-reduction and
+  packed-i4 dequant/dequant-clamp positive fixtures.
 - Common EmitC remains neutral and only carries provider-built payloads and
   mirrors.
 - A bounded scan over touched production files, active task text, directly
   affected fixtures, and RVV low-precision spec sections finds no
   admission/remediation/performance/measurement/same-target/no-win/dispatch
-  wording used as primitive support-bundle/export compiler authority.
+  wording used as primitive route-description/emission-plan/candidate compiler
+  authority.
 - `tcrv-opt`, `tcrv-translate`, `tianchenrv-rvv-extension-plugin-test`, and
   `tianchenrv-target-artifact-export-test` build; the two C++ test binaries run.
 - Focused lit coverage for signed/unsigned product-reduction and packed-i4
@@ -279,19 +303,25 @@ resource-cost facts. That stable helper is consumed by Gearbox candidate
 selection, Gearbox handoff/resource schedule verification, provider route
 planning validation, and target artifact resource validation.
 
-The remaining open boundary for this round is support-bundle/export primitive
-mirror cleanup. Signed/unsigned product-reduction and packed-i4
-dequant/dequant-clamp paths carry low-precision primitive facts through the
-provider payload, emission metadata, support-bundle export, and target artifact
-validation, but this slice must make the support-bundle/header surface visibly
-mirror-only and keep target validation anchored on provider-built payload
-mirrors.
+The support-bundle/export primitive mirror cleanup is complete. The remaining
+open boundary for this round was the adjacent route-description/emission-plan
+candidate metadata surface: signed/unsigned product-reduction and packed-i4
+dequant/dequant-clamp paths carried low-precision primitive facts through the
+provider payload, route-description scalar mirrors, emission metadata,
+candidate metadata, support-bundle export, and target artifact validation. This
+slice made route-description scalar mirrors and emission-plan candidate
+primitive metadata visibly payload-mirror-only and kept target validation
+anchored on provider-built payload mirrors.
 
 ## Expected Status After This Round
 
-The support-bundle/export primitive mirror-boundary cleanup slice should be
-complete for signed/unsigned product-reduction and packed-i4
-dequant/dequant-clamp representatives. The macro campaign should remain in
-progress for any adjacent low-precision primitive-surface cleanup and for future
+The route-description/emission-plan/candidate primitive mirror-boundary cleanup
+slice is complete for signed/unsigned product-reduction, standalone
+widening-product metadata affected by the shared payload helper, and packed-i4
+dequant/dequant-clamp representatives. The macro campaign remains in progress
+for any adjacent low-precision primitive-surface cleanup and for future
 measurement-disposition work only when fresh source-backed same-target RVV
-evidence exists.
+evidence exists. The next continuation point is to inspect whether any
+remaining low-precision primitive/resource facts still pass through route
+descriptions, emission-plan metadata, support bundles, or target artifacts
+without an explicit provider-payload/resource-owner mirror marker.

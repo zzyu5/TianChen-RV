@@ -423,6 +423,15 @@ bool rewriteArtifactMetadataValue(TargetArtifactCandidate &candidate,
   return false;
 }
 
+llvm::StringRef lookupArtifactMetadataValue(
+    llvm::ArrayRef<tianchenrv::support::ArtifactMetadataEntry> metadata,
+    llvm::StringRef key) {
+  for (const tianchenrv::support::ArtifactMetadataEntry &entry : metadata)
+    if (entry.key == key)
+      return entry.value;
+  return {};
+}
+
 bool expectRuntimeABIParametersEqual(
     llvm::ArrayRef<RuntimeABIParameter> actual,
     llvm::ArrayRef<RuntimeABIParameter> expected, llvm::StringRef context) {
@@ -14810,6 +14819,48 @@ bool expectRVVTargetArtifactExporterShape(
            "canonical route facts\n";
     return false;
   }
+  RVVRouteDescription staleProductReductionMetadataSource =
+      productReductionDescription;
+  staleProductReductionMetadataSource.sourceSEW = 16;
+  staleProductReductionMetadataSource.lowPrecisionPrimitiveSourceSignedness =
+      "metadata-derived-signedness";
+  staleProductReductionMetadataSource.productReductionChainRelation =
+      "metadata-derived-product-reduction";
+  staleProductReductionMetadataSource.intrinsic =
+      "metadata-derived-reduction";
+  staleProductReductionMetadataSource.reductionStoreVL = "2";
+  llvm::SmallVector<tianchenrv::support::ArtifactMetadataEntry, 16>
+      productReductionMetadata =
+          tianchenrv::plugin::rvv::
+              getRVVSelectedBodyConfigArtifactMetadata(
+                  staleProductReductionMetadataSource);
+  if (lookupArtifactMetadataValue(
+          productReductionMetadata,
+          "tcrv_rvv.low_precision_primitive.payload_mirror_source") !=
+          "provider-built-low-precision-primitive-route-payload.v1" ||
+      lookupArtifactMetadataValue(productReductionMetadata,
+                                  "tcrv_rvv.source_sew") != "8" ||
+      lookupArtifactMetadataValue(
+          productReductionMetadata,
+          "tcrv_rvv.low_precision_primitive.source_signedness") != "signed" ||
+      lookupArtifactMetadataValue(
+          productReductionMetadata,
+          "tcrv_rvv.product_reduction_chain_relation") !=
+          productReductionDescription.lowPrecisionPrimitiveRoutePayload
+              .productReductionChainRelation ||
+      lookupArtifactMetadataValue(productReductionMetadata,
+                                  "tcrv_rvv.widening_reduction_intrinsic") !=
+          productReductionDescription.lowPrecisionPrimitiveRoutePayload
+              .reductionIntrinsic ||
+      lookupArtifactMetadataValue(productReductionMetadata,
+                                  "tcrv_rvv.reduction_store_vl") !=
+          productReductionDescription.lowPrecisionPrimitiveRoutePayload
+              .reductionStoreVL) {
+    llvm::errs() << "low-precision product-reduction emission metadata must "
+                    "mirror the provider primitive route payload, not stale "
+                    "route-description scalar mirrors\n";
+    return false;
+  }
   if (!expectWideningDotCanonicalFacts(
           OperationKind::StridedInputWideningDotReduceAdd,
           stridedWideningDotDescription,
@@ -14998,6 +15049,45 @@ bool expectRVVTargetArtifactExporterShape(
           {"candidate metadata must carry "
            "tcrv_rvv.low_precision_primitive.runtime_control_plan provenance",
            "runtime control plan"}))
+    return false;
+
+  TargetArtifactCandidate missingProductReductionPrimitiveMirrorSource =
+      productReductionFixture.candidate;
+  if (!eraseArtifactMetadataKey(
+          missingProductReductionPrimitiveMirrorSource,
+          "tcrv_rvv.low_precision_primitive.payload_mirror_source")) {
+    llvm::errs() << "test fixture did not contain product-reduction primitive "
+                    "payload mirror source metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          missingProductReductionPrimitiveMirrorSource, productReductionRoute,
+          productReductionDescription,
+          "product-reduction registry rejects missing primitive payload "
+          "mirror-source marker",
+          {"tcrv_rvv.low_precision_primitive.payload_mirror_source "
+           "provenance",
+           "payload mirror source"}))
+    return false;
+
+  TargetArtifactCandidate staleProductReductionPrimitiveMirrorSource =
+      productReductionFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleProductReductionPrimitiveMirrorSource,
+          "tcrv_rvv.low_precision_primitive.payload_mirror_source",
+          "metadata-derived-low-precision-primitive")) {
+    llvm::errs() << "test fixture did not contain product-reduction primitive "
+                    "payload mirror source metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          staleProductReductionPrimitiveMirrorSource, productReductionRoute,
+          productReductionDescription,
+          "product-reduction registry rejects stale primitive payload "
+          "mirror-source marker",
+          {"tcrv_rvv.low_precision_primitive.payload_mirror_source",
+           "provider-built-low-precision-primitive-route-payload.v1",
+           "metadata-derived-low-precision-primitive"}))
     return false;
 
   RVVRouteDescription stalePackedI4OperandForm =
