@@ -1351,6 +1351,7 @@ struct RVVSelectedBodyContractionRealizationPlan {
 
   bool usesWideningMAcc = false;
   bool usesDotReduction = false;
+  bool usesProductReductionChain = false;
   bool usesProductReductionDequantization = false;
   bool usesProductReductionDequantClamp = false;
   bool usesComputedMask = false;
@@ -1422,12 +1423,13 @@ llvm::StringRef stringifyLowPrecisionRealizationMaskPolicy(
 std::optional<RVVSelectedBodyOperationKind>
 getLowPrecisionProductReductionRealizationOperation(
     const RVVSelectedBodyContractionRealizationPlan &plan) {
-  if (!plan.usesProductReductionDequantization)
+  if (!plan.usesProductReductionChain)
     return std::nullopt;
-  return plan.usesProductReductionDequantClamp
-             ? RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32
-             : RVVSelectedBodyOperationKind::
-                   WideningProductReduceDequantizeF32;
+  if (plan.usesProductReductionDequantClamp)
+    return RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32;
+  if (plan.usesProductReductionDequantization)
+    return RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32;
+  return RVVSelectedBodyOperationKind::WideningProductReduceAdd;
 }
 
 llvm::Error requireLowPrecisionPrimitiveStringField(
@@ -1509,54 +1511,52 @@ llvm::Error validateLowPrecisionPrimitiveFactsForRealization(
           "product kind", plan.productKind, "signed_widening_product"))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "source LMUL", plan.sourceLMUL, primitiveFacts.sourceLMUL))
+          "source LMUL", primitiveFacts.sourceLMUL, plan.sourceLMUL))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "source signedness",
-          kRVVLowPrecisionResourceSourceSignednessSigned,
-          primitiveFacts.sourceSignedness))
+          "source signedness", primitiveFacts.sourceSignedness,
+          kRVVLowPrecisionResourceSourceSignednessSigned))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "primitive source load", kRVVLowPrecisionResourcePrimitiveSourceLoad,
-          primitiveFacts.sourceLoadKind))
+          "primitive source load", primitiveFacts.sourceLoadKind,
+          kRVVLowPrecisionResourcePrimitiveSourceLoad))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "primitive source extension",
-          kRVVLowPrecisionResourcePrimitiveSourceExtension,
-          primitiveFacts.sourceExtensionKind))
+          "primitive source extension", primitiveFacts.sourceExtensionKind,
+          kRVVLowPrecisionResourcePrimitiveSourceExtension))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveIntegerField(
-          "source SEW", plan.sourceSEW, primitiveFacts.sourceSEW))
+          "source SEW", primitiveFacts.sourceSEW, plan.sourceSEW))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "product LMUL", plan.productLMUL, primitiveFacts.productLMUL))
+          "product LMUL", primitiveFacts.productLMUL, plan.productLMUL))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveIntegerField(
-          "product SEW", plan.productSEW, primitiveFacts.productSEW))
+          "product SEW", primitiveFacts.productSEW, plan.productSEW))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "reduction result LMUL", plan.resultLMUL,
-          primitiveFacts.reductionResultLMUL))
+          "reduction result LMUL", primitiveFacts.reductionResultLMUL,
+          plan.resultLMUL))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveIntegerField(
-          "reduction result SEW", plan.resultSEW,
-          primitiveFacts.reductionResultSEW))
+          "reduction result SEW", primitiveFacts.reductionResultSEW,
+          plan.resultSEW))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "widening product relation", plan.productRelation,
-          primitiveFacts.wideningProductRelation))
+          "widening product relation", primitiveFacts.wideningProductRelation,
+          plan.productRelation))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "product-reduction chain relation",
-          plan.productReductionChainRelation,
-          primitiveFacts.productReductionChainRelation))
+          primitiveFacts.productReductionChainRelation,
+          plan.productReductionChainRelation))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "accumulator layout", plan.accumulatorLayout,
-          primitiveFacts.accumulatorLayout))
+          "accumulator layout", primitiveFacts.accumulatorLayout,
+          plan.accumulatorLayout))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
-          "result layout", plan.resultLayout, primitiveFacts.resultLayout))
+          "result layout", primitiveFacts.resultLayout, plan.resultLayout))
     return std::move(error);
   if (llvm::Error error = requireLowPrecisionPrimitiveStringField(
           "reduction store VL", primitiveFacts.reductionStoreVL, "1"))
@@ -1701,6 +1701,7 @@ RVVSelectedBodyContractionRealizationPlan
 makeWideningProductReduceDequantClampF32RealizationPlan(BodyOp body) {
   RVVSelectedBodyContractionRealizationPlan plan;
   plan.preRealizedBody = body.getOperation();
+  plan.usesProductReductionChain = true;
   plan.usesProductReductionDequantization = true;
   plan.usesProductReductionDequantClamp = true;
   plan.opKind = body.getOpKind();
@@ -1750,9 +1751,38 @@ makeContractionRealizationPlan(
 
 RVVSelectedBodyContractionRealizationPlan
 makeContractionRealizationPlan(
+    tcrv::rvv::TypedWideningProductReducePreRealizedBodyOp body) {
+  RVVSelectedBodyContractionRealizationPlan plan;
+  plan.preRealizedBody = body.getOperation();
+  plan.usesProductReductionChain = true;
+  plan.opKind = body.getOpKind();
+  plan.productKind = "signed_widening_product";
+  plan.accumulatorLayout = body.getAccumulatorLayout();
+  plan.resultLayout = body.getResultLayout();
+  plan.contractionRelation = body.getProductReductionChainRelation();
+  plan.productRelation = body.getProductRelation();
+  plan.productReductionChainRelation = body.getProductReductionChainRelation();
+  plan.sourceSEW = static_cast<std::int64_t>(body.getSourceSew());
+  plan.sourceLMUL = body.getSourceLmul();
+  plan.productSEW = static_cast<std::int64_t>(body.getProductSew());
+  plan.productLMUL = body.getProductLmul();
+  plan.resultSEW = static_cast<std::int64_t>(body.getResultSew());
+  plan.resultLMUL = body.getResultLmul();
+  plan.policy = body.getPolicy();
+  plan.lhs = body.getLhs();
+  plan.rhs = body.getRhs();
+  plan.acc = body.getAcc();
+  plan.out = body.getOut();
+  plan.n = body.getN();
+  return plan;
+}
+
+RVVSelectedBodyContractionRealizationPlan
+makeContractionRealizationPlan(
     tcrv::rvv::TypedWideningProductReduceDequantizePreRealizedBodyOp body) {
   RVVSelectedBodyContractionRealizationPlan plan;
   plan.preRealizedBody = body.getOperation();
+  plan.usesProductReductionChain = true;
   plan.usesProductReductionDequantization = true;
   plan.opKind = body.getOpKind();
   plan.productKind = "signed_widening_product";
@@ -1791,21 +1821,25 @@ realizePreRealizedRVVSelectedContractionFamily(
         "pre-realized RVV contraction selected-body realization requires a "
         "contraction family pre-realized body op");
   if (!plan.usesWideningMAcc && !plan.usesDotReduction &&
-      !plan.usesProductReductionDequantization)
+      !plan.usesProductReductionChain)
     return makeRVVPluginError(
         "pre-realized RVV contraction selected-body realization requires a "
-        "widening macc, widening dot reduction, or product-reduction "
-        "dequantization family operation");
-  if (plan.usesProductReductionDequantization &&
-      (!plan.scale || plan.productRelation.empty() ||
-       plan.productReductionChainRelation.empty() ||
-       plan.dequantizationRelation.empty() || plan.scaleRole.empty() ||
-       plan.dequantStoreBoundary.empty()))
+        "widening macc, widening dot reduction, or product-reduction family "
+        "operation");
+  if (plan.usesProductReductionChain &&
+      (plan.productRelation.empty() ||
+       plan.productReductionChainRelation.empty()))
     return makeRVVPluginError(
         "pre-realized RVV contraction selected-body realization requires "
-        "runtime scale, product relation, reduction relation, "
-        "dequantization relation, scale role, and f32 store boundary for "
-        "product-reduction-dequantization routes");
+        "product relation and reduction relation for product-reduction "
+        "routes");
+  if (plan.usesProductReductionDequantization &&
+      (!plan.scale || plan.dequantizationRelation.empty() ||
+       plan.scaleRole.empty() || plan.dequantStoreBoundary.empty()))
+    return makeRVVPluginError(
+        "pre-realized RVV contraction selected-body realization requires "
+        "runtime scale, dequantization relation, scale role, and f32 store "
+        "boundary for product-reduction-dequantization routes");
   if (plan.usesProductReductionDequantClamp &&
       (!plan.lowerBound || !plan.upperBound || plan.lowerPredicateKind.empty() ||
        plan.upperPredicateKind.empty() || plan.boundOrder.empty() ||
@@ -1830,7 +1864,7 @@ realizePreRealizedRVVSelectedContractionFamily(
 
   std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
       lowPrecisionPrimitiveFacts;
-  if (plan.usesProductReductionDequantization) {
+  if (plan.usesProductReductionChain) {
     std::optional<RVVSelectedBodyOperationKind> operation =
         getLowPrecisionProductReductionRealizationOperation(plan);
     if (!operation)
@@ -1968,96 +2002,122 @@ realizePreRealizedRVVSelectedContractionFamily(
     compareMask = compare.getMask();
   }
 
-  if (plan.usesProductReductionDequantization) {
+  if (plan.usesProductReductionChain) {
+    if (!lowPrecisionPrimitiveFacts)
+      return makeRVVPluginError(
+          "pre-realized RVV contraction selected-body realization lost "
+          "provider-owned low-precision primitive facts before materializing "
+          "product-reduction structure");
+    llvm::StringRef productRelation =
+        selectedResourceCandidate
+            ? llvm::StringRef(
+                  selectedResourceCandidate->primitiveWideningProductRelation)
+            : llvm::StringRef(
+                  lowPrecisionPrimitiveFacts->wideningProductRelation);
+    llvm::StringRef accumulatorLayout =
+        selectedResourceCandidate
+            ? llvm::StringRef(
+                  selectedResourceCandidate->primitiveAccumulatorLayout)
+            : llvm::StringRef(lowPrecisionPrimitiveFacts->accumulatorLayout);
+    llvm::StringRef resultLayout =
+        selectedResourceCandidate
+            ? llvm::StringRef(selectedResourceCandidate->primitiveResultLayout)
+            : llvm::StringRef(lowPrecisionPrimitiveFacts->resultLayout);
     auto product = llvm::cast<tcrv::rvv::WideningProductOp>(
         createRealizedGenericWideningProductCompute(
-            builder, loc, plan.productKind,
-            selectedResourceCandidate->primitiveWideningProductRelation,
-            lhsValue, rhsValue, setvl.getVl(), plan.productSEW,
-            plan.productLMUL));
+            builder, loc, plan.productKind, productRelation, lhsValue,
+            rhsValue, setvl.getVl(), plan.productSEW, plan.productLMUL));
     auto reduced = llvm::cast<tcrv::rvv::StandaloneReduceOp>(
         createRealizedGenericStandaloneWideningReduceCompute(
-            builder, loc, selectedResourceCandidate->primitiveAccumulatorLayout,
-            selectedResourceCandidate->primitiveResultLayout,
-            product.getResult(), plan.acc, setvl.getVl(), plan.resultSEW,
-            plan.resultLMUL));
-    mlir::Value dequantSource = reduced.getResult();
-    tcrv::rvv::WithVLOp consumerWithVL;
-    auto handoff = llvm::cast<tcrv::rvv::GearboxCrossRegionHandoffOp>(
-        createRealizedGearboxCrossRegionHandoff(
-            builder, loc, reduced.getResult(), setvl.getVl(), plan.n,
-            *selectedResourceCandidate,
-            selectedAdmission ? &*selectedAdmission : nullptr));
-    dequantSource = handoff.getOutput();
-    consumerWithVL =
-        createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
-                             request.getRole(), requires, plan.resultSEW,
-                             plan.resultLMUL, plan.policy);
-    copyLowPrecisionResourceAttrs(plan.preRealizedBody,
-                                  consumerWithVL.getOperation());
-    llvm::Expected<RVVLowPrecisionContractionResourceCandidate>
-        consumerCandidate = materializeLowPrecisionResourceRealizationAttrs(
-            builder, plan.preRealizedBody, consumerWithVL.getOperation(),
-            plan.usesProductReductionDequantClamp, *lowPrecisionPrimitiveFacts,
-            stringifyLowPrecisionRealizationTailPolicy(plan.policy.getTail()),
-            stringifyLowPrecisionRealizationMaskPolicy(plan.policy.getMask()),
-            plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
-            plan.productLMUL, plan.resultSEW, plan.resultLMUL);
-    if (!consumerCandidate)
-      return consumerCandidate.takeError();
-    if (consumerCandidate->candidateID != selectedResourceCandidate->candidateID)
-      return makeRVVPluginError(
-          "pre-realized RVV contraction selected-body realization requires "
-          "producer and consumer scopes to consume the same selected "
-          "low-precision resource candidate");
-    if (selectedAdmission)
-      materializeLowPrecisionRealizationAdmissionAttrs(
-          builder, consumerWithVL.getOperation(), *selectedAdmission);
-    builder.setInsertionPointToStart(&consumerWithVL.getBody().front());
-    createRealizedVSetVLRegionMarker(
-        builder, loc, setvl.getVl(), "dequant-store",
-        consumerCandidate->planningContract,
-        getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
-            getRVVLowPrecisionContractionResourceRealizationDecision(
-                consumerCandidate->candidateID)),
-        consumerCandidate->vsetvlRegionCount,
-        getRVVLowPrecisionContractionResourceRealizationDecision(
-            consumerCandidate->candidateID));
-    auto dequantized = llvm::cast<tcrv::rvv::DequantizeOp>(
-        createRealizedGenericDequantizeCompute(
-            builder, loc, plan.dequantizationRelation, dequantSource,
-            plan.scale, setvl.getVl(), plan.resultLMUL));
-    mlir::Value valueToStore = dequantized.getResult();
-    if (plan.usesProductReductionDequantClamp) {
-      auto lowerSplat = llvm::cast<tcrv::rvv::SplatOp>(
-          createRealizedGenericF32Splat(builder, loc, plan.lowerBound,
-                                        setvl.getVl(), plan.resultLMUL));
-      auto upperSplat = llvm::cast<tcrv::rvv::SplatOp>(
-          createRealizedGenericF32Splat(builder, loc, plan.upperBound,
-                                        setvl.getVl(), plan.resultLMUL));
-      auto lowerCompare = llvm::cast<tcrv::rvv::CompareOp>(
-          createRealizedGenericCompare(builder, loc, dequantized.getResult(),
-                                       lowerSplat.getBroadcast(), setvl.getVl(),
-                                       plan.lowerPredicateKind));
-      auto lowerSelect = llvm::cast<tcrv::rvv::SelectOp>(
-          createRealizedGenericSelect(builder, loc, lowerCompare.getMask(),
-                                      lowerSplat.getBroadcast(),
-                                      dequantized.getResult(), setvl.getVl()));
-      auto upperCompare = llvm::cast<tcrv::rvv::CompareOp>(
-          createRealizedGenericCompare(builder, loc, upperSplat.getBroadcast(),
-                                       lowerSelect.getSelected(), setvl.getVl(),
-                                       plan.upperPredicateKind));
-      auto upperSelect = llvm::cast<tcrv::rvv::SelectOp>(
-          createRealizedGenericSelect(builder, loc, upperCompare.getMask(),
-                                      upperSplat.getBroadcast(),
-                                      lowerSelect.getSelected(),
-                                      setvl.getVl()));
-      valueToStore = upperSelect.getSelected();
+            builder, loc, accumulatorLayout, resultLayout, product.getResult(),
+            plan.acc, setvl.getVl(), plan.resultSEW, plan.resultLMUL));
+    if (!plan.usesProductReductionDequantization) {
+      createRealizedGenericStore(builder, loc, plan.out, reduced.getResult(),
+                                 setvl.getVl());
+    } else {
+      mlir::Value dequantSource = reduced.getResult();
+      tcrv::rvv::WithVLOp consumerWithVL;
+      auto handoff = llvm::cast<tcrv::rvv::GearboxCrossRegionHandoffOp>(
+          createRealizedGearboxCrossRegionHandoff(
+              builder, loc, reduced.getResult(), setvl.getVl(), plan.n,
+              *selectedResourceCandidate,
+              selectedAdmission ? &*selectedAdmission : nullptr));
+      dequantSource = handoff.getOutput();
+      consumerWithVL =
+          createRealizedWithVL(builder, loc, setvl.getVl(), kernel, variant,
+                               request.getRole(), requires, plan.resultSEW,
+                               plan.resultLMUL, plan.policy);
+      copyLowPrecisionResourceAttrs(plan.preRealizedBody,
+                                    consumerWithVL.getOperation());
+      llvm::Expected<RVVLowPrecisionContractionResourceCandidate>
+          consumerCandidate = materializeLowPrecisionResourceRealizationAttrs(
+              builder, plan.preRealizedBody, consumerWithVL.getOperation(),
+              plan.usesProductReductionDequantClamp, *lowPrecisionPrimitiveFacts,
+              stringifyLowPrecisionRealizationTailPolicy(plan.policy.getTail()),
+              stringifyLowPrecisionRealizationMaskPolicy(plan.policy.getMask()),
+              plan.sourceSEW, plan.sourceLMUL, plan.productSEW,
+              plan.productLMUL, plan.resultSEW, plan.resultLMUL);
+      if (!consumerCandidate)
+        return consumerCandidate.takeError();
+      if (consumerCandidate->candidateID !=
+          selectedResourceCandidate->candidateID)
+        return makeRVVPluginError(
+            "pre-realized RVV contraction selected-body realization requires "
+            "producer and consumer scopes to consume the same selected "
+            "low-precision resource candidate");
+      if (selectedAdmission)
+        materializeLowPrecisionRealizationAdmissionAttrs(
+            builder, consumerWithVL.getOperation(), *selectedAdmission);
+      builder.setInsertionPointToStart(&consumerWithVL.getBody().front());
+      createRealizedVSetVLRegionMarker(
+          builder, loc, setvl.getVl(), "dequant-store",
+          consumerCandidate->planningContract,
+          getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+              getRVVLowPrecisionContractionResourceRealizationDecision(
+                  consumerCandidate->candidateID)),
+          consumerCandidate->vsetvlRegionCount,
+          getRVVLowPrecisionContractionResourceRealizationDecision(
+              consumerCandidate->candidateID));
+      auto dequantized = llvm::cast<tcrv::rvv::DequantizeOp>(
+          createRealizedGenericDequantizeCompute(
+              builder, loc, plan.dequantizationRelation, dequantSource,
+              plan.scale, setvl.getVl(), plan.resultLMUL));
+      mlir::Value valueToStore = dequantized.getResult();
+      if (plan.usesProductReductionDequantClamp) {
+        auto lowerSplat = llvm::cast<tcrv::rvv::SplatOp>(
+            createRealizedGenericF32Splat(builder, loc, plan.lowerBound,
+                                          setvl.getVl(), plan.resultLMUL));
+        auto upperSplat = llvm::cast<tcrv::rvv::SplatOp>(
+            createRealizedGenericF32Splat(builder, loc, plan.upperBound,
+                                          setvl.getVl(), plan.resultLMUL));
+        auto lowerCompare = llvm::cast<tcrv::rvv::CompareOp>(
+            createRealizedGenericCompare(builder, loc, dequantized.getResult(),
+                                         lowerSplat.getBroadcast(),
+                                         setvl.getVl(),
+                                         plan.lowerPredicateKind));
+        auto lowerSelect = llvm::cast<tcrv::rvv::SelectOp>(
+            createRealizedGenericSelect(builder, loc, lowerCompare.getMask(),
+                                        lowerSplat.getBroadcast(),
+                                        dequantized.getResult(),
+                                        setvl.getVl()));
+        auto upperCompare = llvm::cast<tcrv::rvv::CompareOp>(
+            createRealizedGenericCompare(builder, loc,
+                                         upperSplat.getBroadcast(),
+                                         lowerSelect.getSelected(),
+                                         setvl.getVl(),
+                                         plan.upperPredicateKind));
+        auto upperSelect = llvm::cast<tcrv::rvv::SelectOp>(
+            createRealizedGenericSelect(builder, loc, upperCompare.getMask(),
+                                        upperSplat.getBroadcast(),
+                                        lowerSelect.getSelected(),
+                                        setvl.getVl()));
+        valueToStore = upperSelect.getSelected();
+      }
+      createRealizedGenericStore(builder, loc, plan.out, valueToStore,
+                                 setvl.getVl());
+      if (consumerWithVL)
+        builder.setInsertionPointAfter(consumerWithVL);
     }
-    createRealizedGenericStore(builder, loc, plan.out, valueToStore,
-                               setvl.getVl());
-    if (consumerWithVL)
-      builder.setInsertionPointAfter(consumerWithVL);
   } else if (plan.usesWideningMAcc) {
     auto accumulatorLoad =
         llvm::cast<tcrv::rvv::LoadOp>(createRealizedGenericLoad(
@@ -2108,6 +2168,7 @@ bool isPreRealizedRVVContractionClusterOp(mlir::Operation *op) {
       tcrv::rvv::TypedComputedMaskWideningDotReducePreRealizedBodyOp,
       tcrv::rvv::
           TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp,
+      tcrv::rvv::TypedWideningProductReducePreRealizedBodyOp,
       tcrv::rvv::TypedWideningProductReduceDequantizePreRealizedBodyOp,
       tcrv::rvv::
           TypedWideningProductReduceDequantClampF32PreRealizedBodyOp,
@@ -2195,6 +2256,17 @@ realizePreRealizedRVVContractionOwnerImpl(
     return realizePreRealizedRVVSelectedContractionFamily(
         request, requires,
         makeContractionRealizationPlan(maskedStridedDotReduceBody),
+        pressureProfile);
+  }
+
+  if (auto productReduceBody = llvm::dyn_cast<
+          tcrv::rvv::TypedWideningProductReducePreRealizedBodyOp>(bodyOp)) {
+    if (llvm::Error error =
+            validatePreRealizedRVVSelectedWideningProductReduceBody(
+                request, productReduceBody))
+      return std::move(error);
+    return realizePreRealizedRVVSelectedContractionFamily(
+        request, requires, makeContractionRealizationPlan(productReduceBody),
         pressureProfile);
   }
 

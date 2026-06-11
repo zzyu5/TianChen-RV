@@ -637,6 +637,127 @@ prefetch/software-pipeline structure
 accumulator/reduction layout
 ```
 
+## Plain Widening Product-Reduce Selected-Body Realization Boundary
+
+### 1. Scope / Trigger
+
+Use this contract when a selected RVV variant carries the bounded signed
+low-precision product-reduction body:
+
+```text
+tcrv_rvv.typed_widening_product_reduce_pre_realized_body
+```
+
+This is a Gate 2 selected-body realization surface. It exists so the RVV plugin
+can materialize one representative signed i8 widening product plus i16-to-i32
+widening reduction chain from typed primitive facts before route construction.
+It is not a route-name shortcut, artifact-name shortcut, Common EmitC semantic
+branch, or intrinsic wrapper.
+
+### 2. Signatures
+
+The pre-realized body signature is:
+
+```text
+tcrv_rvv.typed_widening_product_reduce_pre_realized_body
+  %lhs, %rhs, %acc, %out, %n
+  {
+    op_kind = "widening_product_reduce_add",
+    memory_form = "unit-stride-widening-product-reduce-add",
+    accumulator_role = "accumulator-input-buffer",
+    accumulator_layout = "scalar-i32-seed-lane0-from-accumulator-input",
+    result_layout = "store-standalone-reduction-lane0-to-output-scalar",
+    source_sew = 8, source_lmul = "mf4",
+    product_sew = 16, product_lmul = "mf2",
+    accumulator_sew = 32, accumulator_lmul = "m1",
+    result_sew = 32, result_lmul = "m1",
+    product_relation = "signed-i8mf4xi8mf4-to-i16mf2",
+    product_reduction_chain_relation =
+      "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32",
+    policy = tail agnostic, mask agnostic
+  }
+```
+
+The runtime ABI order remains:
+
+```text
+lhs, rhs, acc, out, n
+```
+
+### 3. Contracts
+
+- The op must be an immediate child of the selected `tcrv.exec.variant` body.
+- The RVV dialect verifier owns structural facts: operand count, ABI roles,
+  pointer C types, operation kind, memory form, policy, layout, signed primitive
+  relation, source/product/accumulator/result SEW, and LMUL.
+- The RVV contraction selected-body realization owner must call a provider-side
+  pre-realized validator before materializing operations.
+- Provider-owned primitive facts remain authoritative for source signedness,
+  byte load and extension, widening product relation, widening reduction chain,
+  accumulator/result layout, runtime control plan, and runtime AVL source.
+- Successful realization must replace the pre-realized body with explicit
+  `setvl`, `with_vl`, two source loads, `widening_product`,
+  `standalone_reduce`, and result store operations.
+- The realized body then flows through the existing route provider, emission
+  plan mirrors, and target artifact validation. Common EmitC remains neutral.
+
+### 4. Validation & Error Matrix
+
+- Missing immediate selected variant parent -> selected-body realization error.
+- Unsupported `op_kind` or `memory_form` -> verifier or provider validation
+  error before route construction.
+- Source/product/accumulator/result SEW or LMUL differs from the signed
+  primitive contract -> verifier or provider validation error.
+- Product or product-reduction relation disagrees with provider primitive facts
+  -> provider validation error before realization.
+- ABI role, C type, accumulator role/layout, result layout, policy, runtime
+  control plan, or runtime AVL source is stale or missing -> fail closed before
+  route construction or target acceptance.
+- Realized `setvl`, `with_vl`, load, product, reduction, or store operations are
+  mixed into the pre-realized body -> provider validation error.
+
+### 5. Good/Base/Bad Cases
+
+- Good: signed i8 pre-realized body -> provider validates signed primitive
+  facts -> realization materializes the explicit RVV body -> route/provider and
+  target validation consume the mirrored primitive facts.
+- Base: existing explicit signed i8 and unsigned u8 product-reduction bodies
+  remain accepted through their already-realized body path.
+- Bad: pre-realized body changes only `source_sew` or relation metadata while
+  operands and ABI names still look plausible -> verifier/provider rejects the
+  body before route construction.
+
+### 6. Tests Required
+
+- lit/FileCheck positive coverage proving the pre-realized op is removed and
+  the realized `setvl` / `with_vl` / load / `widening_product` /
+  `standalone_reduce` / store structure is emitted.
+- emission-plan and target-header coverage proving provider-derived primitive
+  mirrors survive realization and artifact export.
+- Negative coverage for at least one stale typed primitive fact, such as source
+  SEW, before provider route construction.
+- Existing explicit signed i8 and unsigned u8 product-reduction artifact tests
+  must remain passing.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+pre-realized op name says product-reduce-add
+  -> route provider trusts the name
+  -> target artifact is accepted
+```
+
+Correct:
+
+```text
+pre-realized signed typed body
+  -> provider-side primitive validator consumes typed/runtime facts
+  -> RVV selected-body owner materializes explicit tcrv_rvv structure
+  -> route provider and target validation consume mirrored primitive facts
+```
+
 ## Low-Precision No-Win Dispatch Preference Boundary
 
 ### 1. Scope / Trigger

@@ -71,6 +71,73 @@ selected-dispatch, target mirror, and dispatch/fallback closure.
 
 Final coherent commit is created after this journal entry.
 
+## Session 599: Stage2 RVV Gate 2 signed product-reduction realization closure
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and closed the interrupted dirty Gate 2 signed
+selected-body realization slice for the plain low-precision product-reduction
+representative. The slice adds a typed pre-realized signed i8 product-reduction
+body, validates it in the RVV dialect and provider boundary, and realizes it
+through the RVV contraction selected-body owner before existing route/provider,
+emission-plan, and target artifact validation consume the facts.
+
+### Main Changes
+
+- Added `tcrv_rvv.typed_widening_product_reduce_pre_realized_body` for the
+  bounded signed i8 -> i16 product -> i32 reduction body.
+- Added verifier checks for direct selected-variant nesting, runtime ABI roles
+  and C types, signed source/product/accumulator/result SEW/LMUL, policy,
+  memory form, product relation, and product-reduction chain relation.
+- Added provider-side pre-realized validation and wired the RVV contraction
+  selected-body realization owner to materialize `setvl`, `with_vl`, two
+  loads, `widening_product`, `standalone_reduce`, and store before route
+  construction.
+- Added focused lit coverage for the pre-realized signed path, emission-plan
+  mirrors, header export, stale source SEW rejection, and preservation of the
+  existing explicit signed and unsigned product-reduction fixtures.
+- Updated the RVV plugin spec and active macro PRD/task notes with the Gate 2
+  signed realization contract and continuation boundary.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-add|explicit-selected-body-artifact-widening-product-reduce-add\\.mlir|explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8'`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface`
+- [OK] `git diff --check`
+- [OK] bounded old-authority scan over added diff lines returned only negative
+  q8/q4/source-front-door/descriptor boundary text.
+
+### Self-Repair
+
+- Fixed a formatting issue left in the dirty realization branch after the
+  first successful build/lit pass.
+- Corrected primitive fact mismatch diagnostics so provider-owned stale facts
+  are reported as the found value against the selected typed body contract.
+- Corrected the new RVV plugin spec signature example to use the actual
+  verifier/provider attribute values for accumulator role/layout and result
+  layout.
+
+### Status
+
+[OPEN MACRO TASK] Gate 2 is complete for the signed i8
+product-reduction selected-body realization representative. The macro task
+remains active. The exact continuation point is unsigned u8 selected-body
+realization for the same product-reduction primitive surface, or a bounded
+decision to keep unsigned u8 as explicit-body-only until the next gate. Gate 3
+route/provider/artifact carry-through and Gate 4 measured same-target evidence
+remain future work only when those claims are made.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 592: Stage2 RVV low-precision primitive Gate 1 mirror hardening
 
 **Date**: 2026-06-11

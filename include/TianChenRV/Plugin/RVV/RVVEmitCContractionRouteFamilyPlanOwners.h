@@ -100,6 +100,10 @@ validatePreRealizedRVVSelectedComputedMaskStridedInputWideningDotReduceBody(
     tcrv::rvv::
         TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp body);
 
+llvm::Error validatePreRealizedRVVSelectedWideningProductReduceBody(
+    const VariantLoweringBoundaryRequest &request,
+    tcrv::rvv::TypedWideningProductReducePreRealizedBodyOp body);
+
 llvm::Error validatePreRealizedRVVSelectedWideningProductReduceDequantizeBody(
     const VariantLoweringBoundaryRequest &request,
     tcrv::rvv::TypedWideningProductReduceDequantizePreRealizedBodyOp body);

@@ -46,34 +46,55 @@ EmitC semantics.
   required by the primitive contract and already exist in provider-derived route
   facts.
 
-## Current Round Slice: Gate 1 Foundation
+## Current Round Slice: Gate 2 Selected-Body Realization
 
-Harden the existing production-owned low-precision primitive contract for
-product-reduction representatives. The bounded change is to carry and validate
-the primitive's typed config/runtime facts in the
-`tcrv_rvv.low_precision_primitive.*` mirror namespace, derived from the same
-selected typed body/config/runtime facts already used by the RVV provider.
+Gate 1 is complete for the typed low-precision primitive mirror/validation
+foundation. The current bounded Gate 2 slice is to make one representative
+low-precision product-reduction contraction body enter production through RVV
+plugin-local selected-body realization instead of arriving only as an already
+realized explicit `setvl` / `with_vl` body.
 
-This round does not add a new op family, q8/q4 route, artifact-name authority,
-or common EmitC inference. It reuses existing signed i8 and unsigned u8
-product-reduction representatives as positive/fail-closed Gate 1 evidence.
+The representative is the signed i8 widening-product plus i16-to-i32 widening
+reduction chain:
+
+```text
+selected tcrv.exec RVV variant
+  -> typed pre-realized low-precision product-reduction body
+  -> RVV contraction selected-body realization owner
+  -> realized tcrv_rvv setvl/with_vl/load/widening_product/standalone_reduce/store body
+  -> existing route provider / primitive facts / target artifact validation
+```
+
+This round must not add q8/q4 route authority, artifact-name authority,
+helper-only wrappers, source-front-door positive routes, or common EmitC
+semantic inference. If the full signed/unsigned realization surface is too
+large, this slice lands the signed i8 representative and leaves unsigned u8
+realization as the precise Gate 2 continuation point.
 
 ## Acceptance Criteria For This Slice
 
-- Production source movement happens in RVV provider route planning and target
-  validation/support-bundle consumers, not in common EmitC semantic inference.
-- Route metadata for low-precision widening-product/reduction primitives
-  includes provider-derived primitive source/product/accumulator/result
-  SEW/LMUL plus tail policy, mask policy, runtime control plan, and runtime AVL
-  source under `tcrv_rvv.low_precision_primitive.*`.
-- Target artifact validation compares those primitive mirrors against the
-  provider-owned contract before accepting the artifact.
-- Focused FileCheck coverage proves positive signed i8 and unsigned u8 mirrors
-  and at least one fail-closed stale runtime AVL/VL or policy/typed config
-  primitive mirror.
-- Existing stale source signedness, extension, product/reduction, accumulator,
-  resource, and Gate 4 no-win boundaries remain untouched unless directly
-  affected.
+- Production source movement happens in the RVV dialect and RVV plugin-local
+  selected-body realization owner, with downstream consumption by the existing
+  route provider/target validation surfaces. Common EmitC remains neutral.
+- A selected typed low-precision product-reduction body can be materialized by
+  the contraction realization owner into explicit `tcrv_rvv` structure before
+  route-family facts, route-control plans, statement plans, or
+  `TCRVEmitCLowerableRoute` construction.
+- The realization validates the representative body against provider-owned
+  low-precision widening-reduction primitive facts for source signedness,
+  source load/extension, source/product/accumulator/result SEW/LMUL,
+  product-reduction relation, accumulator/result layout, policy, and runtime
+  AVL/VL facts, failing closed with targeted diagnostics for stale or missing
+  primitive facts.
+- Focused lit/FileCheck coverage proves the pre-realized representative body is
+  removed, realized `setvl` / `with_vl` / load / `widening_product` /
+  `standalone_reduce` / store structure is produced, and existing provider
+  primitive/resource mirrors reach emission-plan and target artifact checks.
+- Focused negative coverage proves stale selected-body primitive facts are
+  rejected before provider route construction or target artifact acceptance.
+- Existing explicit signed i8 and unsigned u8 product-reduction target artifact
+  coverage remains passing; unsigned u8 selected-body realization may remain a
+  follow-up if not included in this slice.
 
 ## Non-Goals
 
@@ -90,15 +111,18 @@ product-reduction representatives as positive/fail-closed Gate 1 evidence.
 
 ## Definition Of Done
 
-- PRD and task context reflect the macro campaign and this Gate 1 slice.
-- Compiler source diff is in RVV provider/target path.
+- PRD and task context reflect the macro campaign, completed Gate 1 foundation,
+  and current Gate 2 selected-body realization slice.
+- Compiler source diff is in RVV dialect/plugin selected-body realization and
+  any directly necessary provider/target consumers.
 - Focused target tests pass or any missing toolchain is reported explicitly.
 - `git diff --check` and `git diff --cached --check` pass.
-- Macro task remains active with Gate 1 slice completion and Gate 2-4
+- Macro task remains active with Gate 1 complete, this Gate 2 slice recorded,
+  and remaining Gate 2/Gate 3/Gate 4
   continuation state.
 - One coherent commit is created for the slice.
 
-## Status After Current Gate 1 Slice
+## Status After Current Gate 2 Signed Slice
 
 Gate 1 foundation is complete for the current product-reduction primitive
 contract hardening slice. RVV provider route metadata now mirrors
@@ -112,9 +136,23 @@ validation rejects stale primitive typed-config/runtime mirrors before artifact
 acceptance. Focused signed i8 and unsigned u8 product-reduction lit coverage
 checks positive primitive mirrors and stale runtime AVL/policy rejection.
 
-The macro task remains open. Gate 2 should next move from this primitive mirror
-foundation to plugin-local selected-body realization of one representative
-low-precision contraction body from the primitive surface. Gate 3 remains route
-provider/artifact/export carry-through beyond this foundation, and Gate 4
-remains later measured same-target evidence/admission work only if fresh
-source-backed measurements exist.
+The current Gate 2 signed representative slice is complete. The RVV dialect now
+has `tcrv_rvv.typed_widening_product_reduce_pre_realized_body` for a signed i8
+widening-product plus i16-to-i32 widening-reduction selected body. The RVV
+contraction selected-body realization owner validates that pre-realized body
+against provider-owned signed low-precision widening-reduction primitive facts,
+materializes explicit `setvl` / `with_vl` / load / `widening_product` /
+`standalone_reduce` / store structure, and then lets the existing route
+provider, emission-plan mirrors, and target artifact validation consume the
+realized body. Focused target coverage proves the pre-realized body is removed,
+the realized structure is emitted, primitive mirrors reach emission-plan/header
+export, stale source SEW is rejected before route construction, and existing
+explicit signed i8 plus unsigned u8 product-reduction fixtures remain passing.
+
+The macro task remains open. The precise Gate 2 continuation point is unsigned
+u8 selected-body realization for the same product-reduction primitive surface,
+or a bounded decision to leave unsigned u8 as explicit-body-only until the next
+campaign gate. Gate 3 remains route provider/artifact/export carry-through
+beyond this realization foundation, and Gate 4 remains later measured
+same-target evidence/admission work only if fresh source-backed measurements
+exist.

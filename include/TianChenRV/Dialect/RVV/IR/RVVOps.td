@@ -1510,6 +1510,57 @@ def TypedComputedMaskStridedInputWideningDotReducePreRealizedBodyOp
   let hasVerifier = 1;
 }
 
+def TypedWideningProductReducePreRealizedBodyOp
+    : TCRVRVV_Op<"typed_widening_product_reduce_pre_realized_body"> {
+  let summary =
+      "generic typed pre-realized RVV widening product reduction body";
+  let description = [{
+    Carries one bounded RVV plugin-local pre-realized selected body for the
+    signed low-precision contraction chain. The op is nested directly in a
+    selected tcrv.exec.variant and binds explicit runtime ABI values for
+    signed i8 lhs/rhs inputs, an i32 accumulator seed, an i32 scalar output,
+    and runtime n/AVL. It also carries source, product, accumulator, and result
+    SEW+LMUL facts, product/reduction relations, memory form, accumulator
+    layout, result layout, and policy.
+
+    This op is not a q8/q4 route, matmul framework, high-level frontend,
+    dtype-prefixed helper namespace, descriptor, source-front-door marker,
+    direct-C exporter, route id, intrinsic wrapper, runtime artifact,
+    correctness evidence, or performance evidence. The RVV plugin must
+    realize it into explicit setvl/with_vl/load/load/widening_product/
+    standalone_reduce/store tcrv_rvv body structure before the provider may
+    construct a TCRVEmitCLowerableRoute.
+  }];
+
+  let arguments = (ins
+    AnyType:$lhs,
+    AnyType:$rhs,
+    AnyType:$acc,
+    AnyType:$out,
+    AnyType:$n,
+    StrAttr:$op_kind,
+    StrAttr:$memory_form,
+    StrAttr:$accumulator_role,
+    StrAttr:$accumulator_layout,
+    StrAttr:$result_layout,
+    I64Attr:$source_sew,
+    StrAttr:$source_lmul,
+    I64Attr:$product_sew,
+    StrAttr:$product_lmul,
+    I64Attr:$accumulator_sew,
+    StrAttr:$accumulator_lmul,
+    I64Attr:$result_sew,
+    StrAttr:$result_lmul,
+    StrAttr:$product_relation,
+    StrAttr:$product_reduction_chain_relation,
+    TCRVRVV_PolicyAttr:$policy
+  );
+
+  let assemblyFormat =
+    "$lhs `,` $rhs `,` $acc `,` $out `,` $n attr-dict `:` functional-type(operands, results)";
+  let hasVerifier = 1;
+}
+
 def TypedWideningProductReduceDequantizePreRealizedBodyOp
     : TCRVRVV_Op<"typed_widening_product_reduce_dequantize_pre_realized_body"> {
   let summary =
