@@ -13843,6 +13843,65 @@ bool expectRVVTargetArtifactExporterShape(
            "rvv_pre_route_product_reduce_dequantize_packed_i4_sibling"}))
     return false;
 
+  TargetArtifactCandidate staleProviderSelectedDispatchPreferenceCandidate =
+      selectedDispatchPackedI4Candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleProviderSelectedDispatchPreferenceCandidate,
+          "tcrv_rvv.low_precision_resource.selected_dispatch_preference",
+          "performance-preferred")) {
+    llvm::errs() << "selected-dispatch packed-i4 target test did not contain "
+                    "selected-dispatch preference metadata for stale provider "
+                    "policy-output test\n";
+    return false;
+  }
+  RVVRouteDescription staleProviderSelectedDispatchPreferenceDescription =
+      selectedDispatchPackedI4Description;
+  staleProviderSelectedDispatchPreferenceDescription
+      .lowPrecisionSelectedDispatchPolicyBoundary
+      .selectedDispatchPreference = "performance-preferred";
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  RVVRouteValidationContext{
+                      staleProviderSelectedDispatchPreferenceCandidate,
+                      packedI4ProductDequantRoute,
+                      staleProviderSelectedDispatchPreferenceDescription}),
+          "packed-i4 target artifact rejects stale provider "
+          "selected-dispatch preference even when candidate metadata matches it",
+          {"selected-dispatch policy-output preference",
+           "not-performance-preferred", "performance-preferred"}))
+    return false;
+
+  TargetArtifactCandidate staleProviderFallbackPathSelectedCandidate =
+      selectedDispatchPackedI4Candidate;
+  if (!rewriteArtifactMetadataValue(
+          staleProviderFallbackPathSelectedCandidate,
+          "tcrv_rvv.low_precision_resource.correctness_fallback_path_selected",
+          "false")) {
+    llvm::errs() << "selected-dispatch packed-i4 target test did not contain "
+                    "correctness fallback path metadata for stale provider "
+                    "policy-output test\n";
+    return false;
+  }
+  RVVRouteDescription staleProviderFallbackPathSelectedDescription =
+      selectedDispatchPackedI4Description;
+  staleProviderFallbackPathSelectedDescription
+      .lowPrecisionSelectedDispatchPolicyBoundary
+      .selectedDispatchCorrectnessFallbackPathSelected = false;
+  if (!expectErrorContains(
+          tianchenrv::target::rvv::
+              validateRVVTargetArtifactRouteFamilyCandidateMirrors(
+                  RVVRouteValidationContext{
+                      staleProviderFallbackPathSelectedCandidate,
+                      packedI4ProductDequantRoute,
+                      staleProviderFallbackPathSelectedDescription}),
+          "packed-i4 target artifact rejects stale provider correctness "
+          "fallback path selection even when candidate metadata matches it",
+          {"selected-dispatch policy-output correctness-fallback path "
+           "selection",
+           "true", "false"}))
+    return false;
+
   RVVRouteDescription missingSelectedDispatchFallbackBoundary =
       selectedDispatchPackedI4Description;
   missingSelectedDispatchFallbackBoundary

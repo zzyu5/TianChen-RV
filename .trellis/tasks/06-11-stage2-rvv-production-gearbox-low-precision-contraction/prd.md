@@ -343,3 +343,67 @@ target metadata or artifact names.
 - The macro task remains active after this slice unless all Gate 4
   campaign-level measured-win/no-win, provider, selected-dispatch, target, and
   stale-mirror gates are actually complete.
+
+## Status After Gate 4 Policy-Output Mirror Admission Slice
+
+Gate 4 policy-output mirror admission is complete for the current packed-i4
+source-backed no-win selected-dispatch/target boundary. The provider route
+metadata, target support bundle, and target artifact validation now carry
+`selected_dispatch_preference` as an explicit provider-owned policy-output
+mirror. Target validation rejects metadata-only policy-output mirrors and stale
+`performance-preferred` promotion while the accepted packed-i4 same-target
+records remain no-win/regression.
+
+The macro task remains active. Gate 4 still needs the final dispatch/fallback
+consumption consistency audit: source-backed same-target records, accepted
+`RVVLowPrecisionPerformancePolicyDecision`, selected-dispatch case/fallback
+facts, policy-output mirrors, target artifact mirrors, and conservative
+fallback intent must agree before any dispatch preference or win claim can be
+consumed.
+
+## Current Gate 4 Dispatch/Fallback Consumption Slice
+
+This round owns the selected-dispatch and fallback consumption consistency
+slice for packed-i4 `widening_product_reduce_dequantize_f32` and the sibling
+`widening_product_reduce_dequant_clamp_f32` audit path. The goal is to make the
+accepted no-win policy decision flow through the real consumer boundary:
+source-backed same-target evidence -> provider-owned
+`RVVLowPrecisionPerformancePolicyDecision` -> selected-dispatch case/fallback
+facts -> selected-dispatch policy-output mirrors -> target artifact mirrors ->
+conservative correctness fallback. No artifact metadata, route id, helper name,
+Common EmitC string, or selected-dispatch mirror may change dispatch preference
+or bypass fallback consumption.
+
+The current accepted records are no-win/regression. Therefore the production
+path must keep `routeSupportAllowed = true`, `correctnessExecutionAllowed =
+true`, `performanceSelectionAllowed = false`, `performanceWinClaimAllowed =
+false`, `dispatchPolicyPath = correctness-fallback`,
+`selected_dispatch_preference = not-performance-preferred`,
+`correctness_fallback_path_selected = true`, and
+`performance_preferred_path_selected = false` across provider, target, and
+dispatch/fallback consumers.
+
+## Acceptance Criteria For Gate 4 Dispatch/Fallback Consumption Slice
+
+- Production source movement happens in the RVV policy/selected-dispatch
+  boundary and target artifact consumer; Common EmitC still only carries
+  provider-built route metadata.
+- A packed-i4 selected-dispatch policy-output boundary is accepted only when it
+  is backed by complete selected-dispatch case facts, fallback facts, and the
+  accepted no-win `RVVLowPrecisionPerformancePolicyDecision`.
+- Accepted source-backed dequant and dequant-clamp no-win records preserve
+  route support and correctness execution while keeping correctness fallback
+  selected and denying performance-preferred path selection.
+- Target artifact validation rejects stale or metadata-only
+  `fallback_reason`, `correctness_fallback_path_selected`,
+  `performance_preferred_path_selected`, `performance_win_claim_allowed`,
+  selected-dispatch case mirror, selected-dispatch fallback mirror, or
+  policy-output mirrors before artifact/header export.
+- The dequant-clamp packed-i4 sibling fixture exposes and validates the same
+  selected-dispatch policy-output mirrors as the dequant representative.
+- No measured-win path is admitted in this slice unless it is already backed by
+  explicit source-backed measured-win evidence and synchronized provider/target
+  mirrors; otherwise measured-win admission remains blocked.
+- The macro task remains active unless the remaining Gate 4 campaign-level
+  measured-win/no-win, provider, selected-dispatch, target, and
+  dispatch/fallback gates are all proven complete.

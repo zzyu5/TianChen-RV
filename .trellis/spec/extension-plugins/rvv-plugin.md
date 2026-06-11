@@ -7773,6 +7773,11 @@ performance-preferred
   `performance_win_claim_allowed = true` while provider facts select
   correctness fallback/no-win -> provider or target validation fails before the
   artifact/header can claim performance-preferred dispatch.
+- Target artifact policy-output consumption must compare the provider-owned
+  selected-dispatch policy-output facts back to the provider resource selection
+  and same-target measurement decision. Candidate metadata that exactly mirrors
+  a stale provider policy-output value is still rejected when the selected
+  resource remains the current packed-i4 no-win/regression path.
 
 ### 5. Good/Base/Bad Cases
 
@@ -7841,6 +7846,10 @@ performance-preferred
   `dispatch_policy_path`, `selected_dispatch_preference`,
   `performance_win_claim_allowed`, route-support, correctness-execution,
   performance-selection, and path-selection mirrors fail closed.
+- Target artifact tests must include stale-provider policy-output cases where
+  the candidate metadata was also rewritten to the same stale value, proving the
+  consumer is anchored in resource-selection and measurement facts instead of
+  exact metadata equality.
 - Script self-tests and dry-run lit coverage must keep evidence-input reporting
   mirror-only and must not allow no-win/regression/not-measured evidence to
   authorize performance dispatch.

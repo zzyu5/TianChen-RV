@@ -6747,6 +6747,7 @@ llvm::Error validateRVVLowPrecisionSelectedDispatchCandidateMirrors(
 
 llvm::Error validateRVVLowPrecisionSelectedDispatchPolicyOutputMirrors(
     const TargetArtifactCandidate &candidate,
+    const plugin::rvv::RVVLowPrecisionContractionResourceSelection &selection,
     const plugin::rvv::RVVLowPrecisionSelectedDispatchPolicyBoundary
         &boundary) {
   struct PolicyOutputMirror {
@@ -6805,6 +6806,109 @@ llvm::Error validateRVVLowPrecisionSelectedDispatchPolicyOutputMirrors(
             " before artifact export; provider-owned selected-dispatch "
             "policy-output facts are required");
     return llvm::Error::success();
+  }
+
+  if (!boundary.hasSelectedDispatchCase || !boundary.hasSelectedDispatchFallback)
+    return makeRVVTargetRouteError(
+        "widening dot-reduction target artifact consumer requires complete "
+        "provider-owned selected-dispatch case and fallback facts before "
+        "consuming selected-dispatch policy-output mirrors");
+
+  if (selection.hasSelection &&
+      plugin::rvv::isRVVLowPrecisionResourcePackedI4CandidateID(
+          selection.selectedCandidateID)) {
+    auto requirePolicyOutputString =
+        [&](llvm::StringRef label, llvm::StringRef actual,
+            llvm::StringRef expected) -> llvm::Error {
+      if (actual == expected)
+        return llvm::Error::success();
+      return makeRVVTargetRouteError(
+          llvm::Twine("widening dot-reduction target artifact consumer "
+                      "requires provider-owned selected-dispatch policy-output ") +
+          label + " '" + expected + "' but was '" + actual + "'");
+    };
+    auto requirePolicyOutputBool =
+        [&](llvm::StringRef label, bool actual,
+            bool expected) -> llvm::Error {
+      if (actual == expected)
+        return llvm::Error::success();
+      return makeRVVTargetRouteError(
+          llvm::Twine("widening dot-reduction target artifact consumer "
+                      "requires provider-owned selected-dispatch policy-output ") +
+          label + " " + (expected ? "true" : "false") + " but was " +
+          (actual ? "true" : "false"));
+    };
+
+    if (llvm::Error error = requirePolicyOutputString(
+            "preference", boundary.selectedDispatchPreference,
+            selection.dispatchPreference))
+      return error;
+
+    if (selection.dispatchPreference ==
+        plugin::rvv::kRVVLowPrecisionResourcePackedI4DispatchPreference) {
+      constexpr llvm::StringLiteral kCorrectnessFallback(
+          "correctness-fallback");
+      constexpr llvm::StringLiteral kNoWinDenialReason(
+          "same-target-measurement-no-win-or-regression");
+      if (llvm::Error error = requirePolicyOutputString(
+              "dispatch policy path", boundary.selectedDispatchPolicyPath,
+              kCorrectnessFallback))
+        return error;
+      if (llvm::Error error = requirePolicyOutputString(
+              "performance-preference denial reason",
+              boundary.selectedDispatchPerformanceDenialReason,
+              kNoWinDenialReason))
+        return error;
+      if (llvm::Error error = requirePolicyOutputString(
+              "fallback reason", boundary.selectedDispatchFallbackReason,
+              kNoWinDenialReason))
+        return error;
+      if (llvm::Error error = requirePolicyOutputBool(
+              "route-support allowance",
+              boundary.selectedDispatchRouteSupportAllowed, true))
+        return error;
+      if (llvm::Error error = requirePolicyOutputBool(
+              "correctness-execution allowance",
+              boundary.selectedDispatchCorrectnessExecutionAllowed, true))
+        return error;
+      if (llvm::Error error = requirePolicyOutputBool(
+              "performance-selection allowance",
+              boundary.selectedDispatchPerformanceSelectionAllowed, false))
+        return error;
+      if (llvm::Error error = requirePolicyOutputBool(
+              "performance win-claim allowance",
+              boundary.selectedDispatchPerformanceWinClaimAllowed, false))
+        return error;
+      if (llvm::Error error = requirePolicyOutputBool(
+              "correctness-fallback path selection",
+              boundary.selectedDispatchCorrectnessFallbackPathSelected, true))
+        return error;
+      if (llvm::Error error = requirePolicyOutputBool(
+              "performance-preferred path selection",
+              boundary.selectedDispatchPerformancePreferredPathSelected, false))
+        return error;
+    } else if (selection.dispatchPreference == "performance-preferred") {
+      if (llvm::Error error = requirePolicyOutputString(
+              "dispatch policy path", boundary.selectedDispatchPolicyPath,
+              "performance-preferred"))
+        return error;
+      if (llvm::Error error = requirePolicyOutputBool(
+              "performance-selection allowance",
+              boundary.selectedDispatchPerformanceSelectionAllowed, true))
+        return error;
+      if (llvm::Error error = requirePolicyOutputBool(
+              "performance win-claim allowance",
+              boundary.selectedDispatchPerformanceWinClaimAllowed, true))
+        return error;
+      if (llvm::Error error = requirePolicyOutputBool(
+              "correctness-fallback path selection",
+              boundary.selectedDispatchCorrectnessFallbackPathSelected, false))
+        return error;
+      if (llvm::Error error = requirePolicyOutputBool(
+              "performance-preferred path selection",
+              boundary.selectedDispatchPerformancePreferredPathSelected, true))
+        return error;
+    }
   }
 
   for (const PolicyOutputMirror &mirror : mirrors)
@@ -7124,6 +7228,7 @@ llvm::Error validateRVVWideningDotReductionTargetArtifactCandidateMirrors(
     if (llvm::Error error =
             validateRVVLowPrecisionSelectedDispatchPolicyOutputMirrors(
                 candidate,
+                contract->lowPrecisionResourceSelection,
                 contract->lowPrecisionSelectedDispatchPolicyBoundary))
       return error;
   if (llvm::Error error = validateRVVPackedI4MetadataOnlyClaimMirrors(

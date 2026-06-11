@@ -2,6 +2,8 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.performance_baseline", value = "scalar-c-reference\/product-reduction-dequant-clamp-packed-i4-v1"/s//tcrv_rvv.low_precision_resource.performance_baseline", value = "scalar-c-reference\/product-reduction-dequant-packed-i4-v1"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-BASELINE
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.remediation_measurement_evidence", value = "gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh\/widening_product_reduce_dequant_clamp_f32\/same_target_measurement_evidence.json"/s//tcrv_rvv.low_precision_resource.remediation_measurement_evidence", value = "gate4-packed-i4-scalar-epilogue-dequant-ssh\/widening_product_reduce_dequantize_f32\/same_target_measurement_evidence.json"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-ARTIFACT-MEASUREMENT
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.selected_dispatch_preference", value = "not-performance-preferred"/s//tcrv_rvv.low_precision_resource.selected_dispatch_preference", value = "performance-preferred"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-POLICY-DISPATCH-PREFERENCE
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.correctness_fallback_path_selected", value = "true"/s//tcrv_rvv.low_precision_resource.correctness_fallback_path_selected", value = "false"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-POLICY-CORRECTNESS-FALLBACK
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-export-target-header-artifact | FileCheck %s --check-prefix=HEADER
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | tcrv-translate --tcrv-rvv-emitc-to-cpp | FileCheck %s --check-prefix=CPP
 
@@ -68,6 +70,19 @@ module {
 // REALIZED: tcrv_rvv.select
 
 // PLAN: {key = "tcrv_rvv.runtime_abi_order", value = "lhs,rhs,acc,scale,lower_bound,upper_bound,out,n"}
+// PLAN-DAG: {key = "tcrv_rvv.selected_dispatch_case_mirror", value = "selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequant_clamp;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-case"}
+// PLAN-DAG: {key = "tcrv_rvv.selected_dispatch_fallback_mirror", value = "selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-fallback-envelope"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.selected_dispatch_policy_contract", value = "rvv-low-precision-packed-i4-dispatch-performance-policy.v1"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.dispatch_policy_path", value = "correctness-fallback"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.selected_dispatch_preference", value = "not-performance-preferred"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.performance_preference_denial_reason", value = "same-target-measurement-no-win-or-regression"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.fallback_reason", value = "same-target-measurement-no-win-or-regression"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.route_support_allowed", value = "true"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.correctness_execution_allowed", value = "true"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.performance_selection_allowed", value = "false"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.performance_win_claim_allowed", value = "false"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.correctness_fallback_path_selected", value = "true"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.performance_preferred_path_selected", value = "false"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.operand_form", value = "packed-i4-nibbles"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.packed_load_unpack_contract", value = "rvv-packed-i4-load-unpack-resource-facts.v1"}
@@ -117,6 +132,20 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.beyond_local_repair_admission_decision: deny-performance-preferred-campaign-no-further-provider-repair
 // HEADER: tianchenrv.rvv.low_precision_resource.beyond_local_repair_admission_blocker: packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win
 // HEADER: tianchenrv.rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement: new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.selected_dispatch_policy_contract: rvv-low-precision-packed-i4-dispatch-performance-policy.v1
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.dispatch_policy_path: correctness-fallback
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.selected_dispatch_preference: not-performance-preferred
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_preference_denial_reason: same-target-measurement-no-win-or-regression
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.fallback_reason: same-target-measurement-no-win-or-regression
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.route_support_allowed: true
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.correctness_execution_allowed: true
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_selection_allowed: false
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_win_claim_allowed: false
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.correctness_fallback_path_selected: true
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.performance_preferred_path_selected: false
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.dispatch_preference: not-performance-preferred
+// HEADER-DAG: tianchenrv.rvv.selected_dispatch_case_mirror: selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequant_clamp;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-case
+// HEADER-DAG: tianchenrv.rvv.selected_dispatch_fallback_mirror: selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequant-clamp-f32-packed-i4-fallback-envelope
 // HEADER: void tcrv_emitc_pre_realized_body_product_reduce_dequant_clamp_kernel_pre_realized_body_rvv_product_reduce_dequant_clamp(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, float scale, float lower_bound, float upper_bound, float *out, size_t n);
 
 // CPP: __riscv_vle8_v_i8mf4
@@ -146,3 +175,9 @@ module {
 // STALE-ARTIFACT-MEASUREMENT: remediation_measurement_evidence provenance
 // STALE-ARTIFACT-MEASUREMENT-SAME: gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
 // STALE-ARTIFACT-MEASUREMENT-SAME: gate4-packed-i4-scalar-epilogue-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
+
+// STALE-POLICY-DISPATCH-PREFERENCE: selected_dispatch_preference provenance must mirror provider-owned selected-dispatch preference 'not-performance-preferred'
+// STALE-POLICY-DISPATCH-PREFERENCE-SAME: performance-preferred
+
+// STALE-POLICY-CORRECTNESS-FALLBACK: correctness_fallback_path_selected provenance must mirror provider-owned selected-dispatch correctness-fallback path selection 'true'
+// STALE-POLICY-CORRECTNESS-FALLBACK-SAME: false

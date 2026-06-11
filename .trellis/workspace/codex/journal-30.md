@@ -1,5 +1,78 @@
 > Continuation from `journal-29.md` (archived at more than 2000 lines)
 
+## Session 596: Stage2 RVV Gearbox Gate 4 dispatch/fallback consumption audit
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV production-kernel Gearbox resource-aware low-precision contraction campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed a bounded Gate 4 selected-dispatch
+/ fallback consumption consistency slice. The production gap was that target
+artifact validation could prove candidate metadata exactly matched provider
+policy-output mirrors, but still needed to reject a stale provider
+policy-output value that the candidate metadata had mirrored exactly. This
+round anchored target-artifact consumption back to provider-owned resource
+selection and same-target no-win/regression policy facts.
+
+### Main Changes
+
+- Extended the active macro PRD from policy-output mirror admission into the
+  current dispatch/fallback consumption slice.
+- Required target artifact validation to consume selected-dispatch
+  policy-output mirrors only with complete provider-owned selected-dispatch
+  case and fallback facts.
+- Added packed-i4 no-win/regression consumption checks that preserve
+  `correctness-fallback`, `not-performance-preferred`, route support,
+  correctness execution, no performance-selection allowance, no performance-win
+  claim, correctness fallback path selection, and no performance-preferred path
+  selection.
+- Rejected stale provider `selected_dispatch_preference` and
+  `correctness_fallback_path_selected` values even when candidate metadata was
+  rewritten to match those stale provider values exactly.
+- Added C++ target validation coverage for the stale-provider exact-mirror
+  cases.
+- Added dequant-clamp lit coverage for positive policy-output plan/header
+  mirrors and stale target-export rejection.
+- Updated the RVV plugin code-spec with the target-artifact consumption
+  contract that selected-dispatch policy-output mirrors must be anchored in
+  resource-selection and same-target measurement facts, not metadata equality.
+
+### Testing
+
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-target-artifact-export-test tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-generated-bundle-same-target-measure-gate4-dry-run|pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4'`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-production-gearbox-low-precision-contraction`
+- [OK] bounded old-authority scan over production/test/spec/PRD diff lines
+  returned only PRD negative boundary text forbidding artifact metadata, route
+  id, and helper-name authority.
+
+### Self-Repair
+
+- The first focused lit run failed because the new dequant-clamp `PLAN-DAG`
+  policy-output checks were placed after stable low-precision metadata that
+  appears later in the emission plan. The checks were moved to the actual plan
+  order and the same focused lit filter passed 3/3.
+
+### Status
+
+[OPEN MACRO TASK] Gate 4 dispatch/fallback consumption consistency is complete
+for the accepted packed-i4 dequant and dequant-clamp no-win evidence paths.
+The macro task remains active for the remaining Gate 4 measured-win admission
+and final end-to-end provider, selected-dispatch, target mirror, and
+dispatch/fallback closure. No performance-preferred dispatch is admitted by
+this slice.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 595: Stage2 RVV Gearbox Gate 4 policy-output mirror admission
 
 **Date**: 2026-06-11
