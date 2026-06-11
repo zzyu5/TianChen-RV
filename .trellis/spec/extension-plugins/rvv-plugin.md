@@ -7824,6 +7824,17 @@ performance-preferred
   it must not require remediation plan fields, performance admission fields,
   beyond-local admission fields, dispatch preference, same-target evidence IDs,
   no-win/regression classification, or campaign outcome strings.
+- Selected-body realization and provider route-family compiler-fact gates must
+  keep packed-i4 policy/evidence fields out of resource, schedule, and route
+  acceptance. Realization compiler-fact helpers consume only typed body/config,
+  runtime, resource candidate, packed load/unpack, primitive-chain,
+  realization producer/decision, Gearbox handoff, stable schedule, and
+  resource-cost facts. Realization admission proof, remediation plans,
+  performance feedback/admission, same-target evidence IDs, maturity/no-win
+  outcomes, and dispatch preference must be read and validated only by
+  explicitly named measurement-disposition policy/evidence helpers. Missing or
+  stale policy/evidence facts must fail with policy/evidence diagnostics, not
+  resource/schedule/route acceptance diagnostics.
 - Target artifact validation must keep stable resource mirrors and
   measurement-disposition evidence/admission mirrors in separate consumer
   helpers. Stable resource mirrors include

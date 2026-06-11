@@ -1,5 +1,76 @@
 > Continuation from `journal-29.md` (archived at more than 2000 lines)
 
+## Session 605: Selected-body realization admission/evidence boundary cleanup
+
+**Date**: 2026-06-12
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the selected-body realization
+admission/evidence boundary cleanup slice. This round made the provider
+realization handoff explicit: stable compiler facts remain in
+typed/resource/realization, Gearbox handoff, stable schedule, resource-cost,
+provider payload, and target resource validation surfaces, while packed-i4
+admission, remediation, performance, same-target measurement, no-win, and
+dispatch facts are read only through named measurement-disposition
+policy/evidence helpers.
+
+### Main Changes
+
+- Repaired the active macro PRD with a source-backed classification of stable
+  compiler authority versus policy/evidence fields for the realization handoff.
+- Split provider-side route-family validation so
+  `requireRVVLowPrecisionResourceRealizationCompilerFacts` checks only stable
+  realization/resource/schedule facts.
+- Added a named policy/evidence string reader for packed-i4
+  measurement-disposition attrs, keeping performance feedback, remediation,
+  admission, maturity, same-target evidence, no-win, and dispatch fields out of
+  resource, schedule, and route acceptance.
+- Retained existing target artifact separation between packed-i4 resource
+  provider facts and measurement-disposition evidence/admission mirrors.
+- Added focused missing-policy-evidence lit coverage for the packed-i4
+  dequantize fixture.
+- Updated the RVV plugin spec and active task metadata to preserve the helper
+  boundary as an executable convention.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-add|explicit-selected-body-artifact-widening-product-reduce-add\\.mlir|explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8'` from `build/test`
+- [OK] Bounded scans confirmed the realization compiler-fact helper does not
+  consume packed-i4 policy/evidence fields, and target validation keeps resource
+  facts separate from measurement-disposition evidence mirrors.
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface`
+- [OK] `rtk git diff --check`
+
+### Self-Repair
+
+- A root-level lit attempt did not discover the configured suite. The focused
+  lit command was rerun from `build/test`, where the generated lit site config
+  is valid.
+- The provider handoff diagnostic for remediation planning still used route
+  acceptance wording. It now names measurement-disposition remediation planning
+  and evidence mirror validation instead.
+- The first final task validation rejected a check-log entry that named the
+  task directory rather than a real file. The entry now points at `task.json`,
+  and task validation passes.
+
+### Status
+
+[OPEN MACRO TASK] The selected-body realization admission/evidence boundary
+cleanup slice is complete. The macro task remains active for adjacent
+low-precision primitive-surface cleanup or future measurement-disposition work
+with fresh source-backed same-target RVV evidence before any measured-win,
+performance-preferred, runtime, correctness, or performance claim.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 602: Stage2 RVV outcome-language and measurement-disposition cleanup
 
 **Date**: 2026-06-11

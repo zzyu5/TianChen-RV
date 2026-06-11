@@ -5623,6 +5623,25 @@ requireRVVLowPrecisionResourceRealizationIntegerFact(
   return attr.getInt();
 }
 
+llvm::Expected<std::string>
+requireRVVLowPrecisionResourcePolicyEvidenceStringFact(
+    mlir::Operation *op, llvm::StringRef context, llvm::StringRef attrName) {
+  if (!op)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires a selected RVV with_vl body carrying low-precision "
+        "measurement-disposition evidence/admission facts for the explicit "
+        "policy boundary");
+  auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+  if (!attr)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires low-precision measurement-disposition evidence/admission "
+        "fact '" +
+        attrName + "' before policy/evidence validation");
+  return attr.getValue().str();
+}
+
 llvm::Error requireRVVLowPrecisionResourceRealizationStringFact(
     mlir::Operation *op, llvm::StringRef context,
     const RVVLowPrecisionContractionResourceSelection &selection,
@@ -5666,7 +5685,7 @@ llvm::Error requireRVVLowPrecisionResourceRealizationIntegerFact(
       selection.selectedCandidateID + "'");
 }
 
-llvm::Error requireRVVLowPrecisionResourceRealizationFacts(
+llvm::Error requireRVVLowPrecisionResourceRealizationCompilerFacts(
     mlir::Operation *op, llvm::StringRef context,
     const RVVLowPrecisionContractionResourceSelection &selection) {
   const llvm::StringRef expectedResourceDecision = selection.realizationDecision;
@@ -5787,170 +5806,6 @@ llvm::Error requireRVVLowPrecisionResourceRealizationFacts(
     if (llvm::Error error =
             requireRVVLowPrecisionResourceRealizationStringFact(
                 op, context, selection,
-                kRVVLowPrecisionResourcePerformanceAdmissionDecisionAttrName,
-                "performance admission decision",
-                selection.performanceAdmissionDecision))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceBeyondLocalRepairAdmissionContractAttrName,
-                "beyond-local repair admission contract",
-                selection.beyondLocalRepairAdmissionContract))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceBeyondLocalRepairAdmissionDecisionAttrName,
-                "beyond-local repair admission decision",
-                selection.beyondLocalRepairAdmissionDecision))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceBeyondLocalRepairAdmissionBlockerAttrName,
-                "beyond-local repair admission blocker",
-                selection.beyondLocalRepairAdmissionBlocker))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceBeyondLocalRepairAdmissionReopenRequirementAttrName,
-                "beyond-local repair admission reopen requirement",
-                selection.beyondLocalRepairAdmissionReopenRequirement))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourcePerformanceFeedbackAttrName,
-                "performance feedback", selection.performanceFeedback))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourcePerformanceBaselineAttrName,
-                "performance baseline", selection.performanceBaseline))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourcePerformanceBestSpeedupRangeAttrName,
-                "performance best-speedup range",
-                selection.performanceBestSpeedupRange))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourcePerformanceActionAttrName,
-                "performance action", selection.performanceAction))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationHandoffContractAttrName,
-                "remediation handoff contract",
-                selection.remediationHandoffContract))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationDiagnosisAttrName,
-                "remediation diagnosis", selection.remediationDiagnosis))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationMeasurementEvidenceAttrName,
-                "remediation measurement evidence",
-                selection.remediationMeasurementEvidenceID))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationDecisionAttrName,
-                "remediation decision", selection.remediationDecision))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationActionAttrName,
-                "remediation action", selection.remediationAction))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationDispatchPreferenceAttrName,
-                "remediation dispatch preference",
-                selection.remediationDispatchPreference))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationBlockerAttrName,
-                "remediation blocker", selection.remediationBlocker))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationPlanContractAttrName,
-                "remediation plan contract",
-                selection.remediationPlanContract))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationPlanAttrName,
-                "remediation plan", selection.remediationPlan))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationStatementStrategyAttrName,
-                "remediation statement strategy",
-                selection.remediationStatementStrategy))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationVectorBudgetAttrName,
-                "remediation vector budget",
-                selection.remediationVectorBudget))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationScheduleContractAttrName,
-                "remediation schedule contract",
-                selection.remediationScheduleContract))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationUnpackPlanAttrName,
-                "remediation unpack plan", selection.remediationUnpackPlan))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationProductPlanAttrName,
-                "remediation product plan", selection.remediationProductPlan))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationReductionPlanAttrName,
-                "remediation reduction plan",
-                selection.remediationReductionPlan))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceRemediationVLPlanAttrName,
-                "remediation VL plan", selection.remediationVLPlan))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
                 kRVVLowPrecisionResourceScheduleDecisionContractAttrName,
                 "schedule decision contract",
                 selection.scheduleDecisionContract))
@@ -5966,39 +5821,6 @@ llvm::Error requireRVVLowPrecisionResourceRealizationFacts(
                 op, context, selection,
                 kRVVLowPrecisionResourceScheduleDecisionReasonAttrName,
                 "schedule decision reason", selection.scheduleDecisionReason))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourcePerformanceMaturityAttrName,
-                "performance maturity", selection.performanceMaturity))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourcePerformanceMaturityEvidenceAttrName,
-                "performance maturity evidence",
-                selection.performanceMaturityEvidence))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourcePerformanceMaturityOutcomeAttrName,
-                "performance maturity outcome",
-                selection.performanceMaturityOutcome))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourcePerformanceSelectionEligibleAttrName,
-                "performance selection eligibility",
-                selection.performanceSelectionEligible))
-      return error;
-    if (llvm::Error error =
-            requireRVVLowPrecisionResourceRealizationStringFact(
-                op, context, selection,
-                kRVVLowPrecisionResourceDispatchPreferenceAttrName,
-                "dispatch preference", selection.dispatchPreference))
       return error;
   }
   return llvm::Error::success();
@@ -6607,7 +6429,8 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
         return makeRVVEmitCRouteProviderError(
             llvm::Twine(context) +
             " selected-body realization low-precision direct-contraction "
-            "structure requires packed-i4 Gearbox handoff remediation fact '" +
+            "structure requires packed-i4 Gearbox handoff "
+            "measurement-disposition remediation planning fact '" +
             attrName +
             "' to be absent for unpacked-byte resource candidates");
       return llvm::Error::success();
@@ -6616,15 +6439,17 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
       return makeRVVEmitCRouteProviderError(
           llvm::Twine(context) +
           " selected-body realization low-precision direct-contraction "
-          "structure requires packed-i4 Gearbox handoff remediation fact '" +
-          attrName + "' before route acceptance");
+          "structure requires packed-i4 Gearbox handoff "
+          "measurement-disposition remediation planning fact '" +
+          attrName + "' before evidence mirror validation");
     if (attr.getValue() == expected)
       return llvm::Error::success();
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) +
         " selected-body realization low-precision direct-contraction "
-        "structure requires packed-i4 Gearbox handoff remediation fact '" +
-        field + "' to match selected resource facts '" + expected +
+        "structure requires packed-i4 Gearbox handoff "
+        "measurement-disposition remediation planning fact '" +
+        field + "' to match policy/evidence fact '" + expected +
         "' but found '" + attr.getValue() + "'");
   };
   if (llvm::Error error = requireOptionalRemediationFact(
@@ -6729,6 +6554,11 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
   auto readString = [&](llvm::StringRef attrName) -> llvm::Expected<std::string> {
     return requireRVVLowPrecisionResourceRealizationStringFact(op, context,
                                                                attrName);
+  };
+  auto readPolicyString =
+      [&](llvm::StringRef attrName) -> llvm::Expected<std::string> {
+    return requireRVVLowPrecisionResourcePolicyEvidenceStringFact(op, context,
+                                                                  attrName);
   };
   auto readInteger =
       [&](llvm::StringRef attrName) -> llvm::Expected<std::int64_t> {
@@ -7140,103 +6970,103 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
 
   if (isRVVLowPrecisionResourcePackedI4CandidateID(
           selection.selectedCandidateID)) {
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourcePerformanceFeedbackAttrName))
       selection.performanceFeedback = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourcePerformanceBaselineAttrName))
       selection.performanceBaseline = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourcePerformanceBestSpeedupRangeAttrName))
       selection.performanceBestSpeedupRange = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourcePerformanceActionAttrName))
       selection.performanceAction = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceRemediationHandoffContractAttrName))
       selection.remediationHandoffContract = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceRemediationDiagnosisAttrName))
       selection.remediationDiagnosis = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceRemediationMeasurementEvidenceAttrName))
       selection.remediationMeasurementEvidenceID = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceRemediationDecisionAttrName))
       selection.remediationDecision = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceRemediationActionAttrName))
       selection.remediationAction = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceRemediationDispatchPreferenceAttrName))
       selection.remediationDispatchPreference = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceRemediationBlockerAttrName))
       selection.remediationBlocker = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceRemediationPlanContractAttrName))
       selection.remediationPlanContract = *value;
     else
       return value.takeError();
     if (llvm::Expected<std::string> value =
-            readString(kRVVLowPrecisionResourceRemediationPlanAttrName))
+            readPolicyString(kRVVLowPrecisionResourceRemediationPlanAttrName))
       selection.remediationPlan = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceRemediationStatementStrategyAttrName))
       selection.remediationStatementStrategy = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceRemediationVectorBudgetAttrName))
       selection.remediationVectorBudget = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceRemediationScheduleContractAttrName))
       selection.remediationScheduleContract = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceRemediationUnpackPlanAttrName))
       selection.remediationUnpackPlan = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceRemediationProductPlanAttrName))
       selection.remediationProductPlan = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceRemediationReductionPlanAttrName))
       selection.remediationReductionPlan = *value;
     else
       return value.takeError();
     if (llvm::Expected<std::string> value =
-            readString(kRVVLowPrecisionResourceRemediationVLPlanAttrName))
+            readPolicyString(kRVVLowPrecisionResourceRemediationVLPlanAttrName))
       selection.remediationVLPlan = *value;
     else
       return value.takeError();
@@ -7275,37 +7105,37 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
       selection.resourceCostBlocker = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourcePerformanceAdmissionDecisionAttrName))
       selection.performanceAdmissionDecision = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourcePerformanceAdmissionClosureAttrName))
       selection.performanceAdmissionClosure = *value;
     else
       return value.takeError();
     if (llvm::Expected<std::string> value =
-            readString(kRVVLowPrecisionResourcePerformanceAdmissionReopenRequirementAttrName))
+            readPolicyString(kRVVLowPrecisionResourcePerformanceAdmissionReopenRequirementAttrName))
       selection.performanceAdmissionReopenRequirement = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceBeyondLocalRepairAdmissionContractAttrName))
       selection.beyondLocalRepairAdmissionContract = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceBeyondLocalRepairAdmissionDecisionAttrName))
       selection.beyondLocalRepairAdmissionDecision = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceBeyondLocalRepairAdmissionBlockerAttrName))
       selection.beyondLocalRepairAdmissionBlocker = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourceBeyondLocalRepairAdmissionReopenRequirementAttrName))
       selection.beyondLocalRepairAdmissionReopenRequirement = *value;
     else
@@ -7331,28 +7161,28 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     if (std::optional<std::string> value = readOptionalString(
             kRVVLowPrecisionResourceRealizationAdmissionScheduleDecisionReasonAttrName))
       selection.realizationAdmissionScheduleDecisionReason = *value;
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourcePerformanceMaturityAttrName))
       selection.performanceMaturity = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourcePerformanceMaturityEvidenceAttrName))
       selection.performanceMaturityEvidence = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourcePerformanceMaturityOutcomeAttrName))
       selection.performanceMaturityOutcome = *value;
     else
       return value.takeError();
-    if (llvm::Expected<std::string> value = readString(
+    if (llvm::Expected<std::string> value = readPolicyString(
             kRVVLowPrecisionResourcePerformanceSelectionEligibleAttrName))
       selection.performanceSelectionEligible = *value;
     else
       return value.takeError();
     if (llvm::Expected<std::string> value =
-            readString(kRVVLowPrecisionResourceDispatchPreferenceAttrName))
+            readPolicyString(kRVVLowPrecisionResourceDispatchPreferenceAttrName))
       selection.dispatchPreference = *value;
     else
       return value.takeError();
@@ -7379,7 +7209,7 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
                   .str(),
               validatedPlan.lowPrecisionResourceSelection))
     return std::move(error);
-  if (llvm::Error error = requireRVVLowPrecisionResourceRealizationFacts(
+  if (llvm::Error error = requireRVVLowPrecisionResourceRealizationCompilerFacts(
           op, context, selection))
     return std::move(error);
   if (llvm::Error error =
