@@ -243,3 +243,55 @@ measured same-target comparison, without archiving the macro task.
 - The PRD, task notes, and journal record whether Gate 3 is complete after this
   audit and keep Gate 4 blocked until fresh source-backed same-target measured
   wins exist.
+
+## Status After Gate 3C Slice
+
+Gate 3 is complete for the current campaign body-family audit. Gearbox schedule
+validation, selected-body realization, dialect handoff verification, route
+planning, and target validation now use the same provider-owned realization
+decision mapping for supported decisions, region count, product phase, and
+product/dequant handoff facts. Non-clamp product-dequant handoff coverage proves
+dequant-clamp-only facts are rejected before Common EmitC materialization.
+
+The macro task remains active because Gate 4 is not complete. Gate 4 must
+consume source-backed same-target measurement evidence before dispatch
+preference changes. The current accepted packed-i4 evidence is no-win/regression
+for the representative paths, so production dispatch must preserve
+`correctness-fallback` and `not-performance-preferred` unless a newer
+source-backed measured win and matching provider-owned admission facts arrive.
+
+## Current Gate 4 Slice
+
+This round owns Gate 4 source-backed same-target measurement admission at the
+evidence-root ingestion boundary for the packed-i4
+`widening_product_reduce_dequantize_f32` representative, with
+`widening_product_reduce_dequant_clamp_f32` kept as the sibling audit path.
+
+The existing same-target measurement script already emits root-level
+`measurement_harness` and `measurement_schedule_decision_evidence` objects that
+mirror provider-owned schedule/resource-cost/performance-admission facts. The
+production RVV low-precision performance policy must validate those root-level
+mirrors against the parsed source-backed measurement record before selected
+dispatch can consume the policy decision. A stale root-level performance
+admission closure or reopen requirement must fail closed even if the nested
+`same_target_measurement_record` still carries the accepted no-win record.
+
+## Acceptance Criteria For Gate 4 Root Admission Slice
+
+- Production source movement happens in the RVV low-precision performance
+  policy evidence-root verifier, not in Common EmitC semantic inference or
+  artifact-name logic.
+- The evidence-root verifier checks root `measurement_harness` and
+  `measurement_schedule_decision_evidence` performance admission closure and
+  reopen requirement fields against the provider-owned measurement record.
+- The accepted dequant packed-i4 source-backed same-target evidence continues to
+  select `correctness-fallback`, deny performance preference, preserve route
+  support/correctness execution, and populate selected-dispatch policy-output
+  mirrors only from provider-owned policy decisions.
+- A stale root-level performance admission closure or reopen requirement is
+  rejected before policy evaluation can authorize selected dispatch.
+- The dequant-clamp packed-i4 sibling evidence root continues to be parsed and
+  consumed through the same policy path, preserving no-win fallback behavior.
+- The macro task remains active after this slice unless Gate 4 campaign-level
+  acceptance is fully satisfied; a committed slice with the task still open is
+  valid.

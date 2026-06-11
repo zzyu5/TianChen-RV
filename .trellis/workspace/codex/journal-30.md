@@ -1,5 +1,62 @@
 > Continuation from `journal-29.md` (archived at more than 2000 lines)
 
+## Session 594: Stage2 RVV Gearbox Gate 4 evidence-root admission closure
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV production-kernel Gearbox resource-aware low-precision contraction campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed a bounded Gate 4 slice at the
+source-backed same-target evidence-root ingestion boundary. The representative
+path is the packed-i4 `widening_product_reduce_dequantize_f32` evidence root,
+with packed-i4 `widening_product_reduce_dequant_clamp_f32` preserved as the
+sibling audit path.
+
+### Main Changes
+
+- Repaired the active macro PRD from Gate 3C completion state into the current
+  Gate 4 root-admission slice.
+- Made `verifyPackedI4SameTargetEvidenceRoot` compare root-level
+  `measurement_harness`, `measurement_schedule_decision_evidence`, and
+  `packed_i4_reference_oracle` performance-admission closure/reopen mirrors
+  against the parsed source-backed measurement record.
+- Added C++ fail-closed coverage for stale root
+  `provider_performance_admission_closure` and
+  `provider_performance_admission_reopen_requirement` fields, proving the
+  policy verifier does not rely only on the nested
+  `same_target_measurement_record`.
+- Updated the RVV plugin code-spec to record the Gate 4 root-ingestion
+  closure/reopen mirror contract and required stale-root tests.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'rvv-generated-bundle-same-target-measure-gate4-dry-run|pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4'`
+- [OK] `python3 scripts/rvv_generated_bundle_same_target_measure.py --self-test`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-production-gearbox-low-precision-contraction`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] bounded old-authority scan over added diff lines returned only PRD
+  negative boundary text for artifact-name logic.
+
+### Status
+
+[OPEN MACRO TASK] Gate 4 root-admission closure/reopen validation is complete
+for the current packed-i4 source-backed evidence-root slice. The accepted
+measurement result remains no-win, so dispatch stays
+`correctness-fallback` / `not-performance-preferred`. The macro task remains
+active for remaining Gate 4 campaign-level measurement/admission audit and any
+future measured-win admission only after fresh source-backed same-target
+evidence plus matching provider admission facts exist.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 590: Stage2 RVV Gearbox Gate 2 candidate facts
 
 **Date**: 2026-06-11

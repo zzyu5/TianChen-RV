@@ -70,3 +70,9 @@
 {"file":".trellis/tasks/06-11-stage2-rvv-production-gearbox-low-precision-contraction/prd.md","reason":"Extended the active macro PRD with the current Gate 3B slice and acceptance criteria."}
 {"file":".trellis/tasks/06-11-stage2-rvv-production-gearbox-low-precision-contraction/task.json","reason":"Updated active macro task notes and related files with Gate 3B completion while keeping the campaign in progress."}
 {"file":".trellis/workspace/codex/journal-30.md","reason":"Recorded this Gate 3B realization fact consumption slice, self-repair, focused checks, and open macro-task continuation point."}
+{"file":".trellis/tasks/06-11-stage2-rvv-production-gearbox-low-precision-contraction/prd.md","reason":"Repaired the active macro PRD with Gate 3 completion state and the current Gate 4 root-admission closure/reopen validation slice."}
+{"file":"lib/Plugin/RVV/EmitC/RVVLowPrecisionPerformancePolicy.cpp","reason":"Made evidence-root verification compare root measurement_harness, measurement_schedule_decision_evidence, and packed_i4_reference_oracle performance admission closure/reopen mirrors against the parsed source-backed measurement record."}
+{"file":"test/Plugin/RVVExtensionPluginTest.cpp","reason":"Added Gate 4 source-backed evidence-root stale closure/reopen negative coverage while preserving accepted dequant and dequant-clamp correctness-fallback policy paths."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Recorded the Gate 4 root-ingestion closure/reopen mirror contract and stale-root test requirements."}
+{"file":".trellis/tasks/06-11-stage2-rvv-production-gearbox-low-precision-contraction/task.json","reason":"Updated active macro task notes with the completed Gate 4 root-admission slice and remaining open campaign state."}
+{"file":".trellis/workspace/codex/journal-30.md","reason":"Recorded this Gate 4 evidence-root admission slice, checks, open macro-task status, and continuation point."}

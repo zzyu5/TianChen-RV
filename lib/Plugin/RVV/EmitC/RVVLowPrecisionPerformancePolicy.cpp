@@ -841,6 +841,16 @@ llvm::Error verifyPackedI4SameTargetEvidenceRoot(
     return error;
   if (llvm::Error error = requireEvidenceRootStringField(
           **measurementHarness, context, "measurement_harness",
+          "provider_performance_admission_closure",
+          record.providerPerformanceAdmissionClosure))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
+          "provider_performance_admission_reopen_requirement",
+          record.providerPerformanceAdmissionReopenRequirement))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **measurementHarness, context, "measurement_harness",
           "provider_beyond_local_repair_admission_contract",
           record.providerBeyondLocalRepairAdmissionContract))
     return error;
@@ -920,6 +930,16 @@ llvm::Error verifyPackedI4SameTargetEvidenceRoot(
     return error;
   if (llvm::Error error = requireEvidenceRootStringField(
           **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_performance_admission_closure",
+          record.providerPerformanceAdmissionClosure))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
+          "provider_performance_admission_reopen_requirement",
+          record.providerPerformanceAdmissionReopenRequirement))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **scheduleEvidence, context, "measurement_schedule_decision_evidence",
           "provider_beyond_local_repair_admission_contract",
           record.providerBeyondLocalRepairAdmissionContract))
     return error;
@@ -988,6 +1008,16 @@ llvm::Error verifyPackedI4SameTargetEvidenceRoot(
           **packedOracle, context, "packed_i4_reference_oracle",
           "provider_schedule_decision_reason",
           record.providerScheduleDecisionReason))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **packedOracle, context, "packed_i4_reference_oracle",
+          "provider_performance_admission_closure",
+          record.providerPerformanceAdmissionClosure))
+    return error;
+  if (llvm::Error error = requireEvidenceRootStringField(
+          **packedOracle, context, "packed_i4_reference_oracle",
+          "provider_performance_admission_reopen_requirement",
+          record.providerPerformanceAdmissionReopenRequirement))
     return error;
 
   llvm::Expected<const llvm::json::Object *> maturityInput =

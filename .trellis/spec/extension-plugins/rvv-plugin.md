@@ -7692,6 +7692,13 @@ performance-preferred
   exactly match the nested record, and measurement harness/schedule evidence
   fields that exactly match the provider-owned schedule and realization
   admission schedule mirrors.
+- Root-level `measurement_harness`,
+  `measurement_schedule_decision_evidence`, and `packed_i4_reference_oracle`
+  mirrors for `provider_performance_admission_closure` and
+  `provider_performance_admission_reopen_requirement` must exactly match the
+  parsed source-backed measurement record. A correct nested
+  `same_target_measurement_record` is not sufficient if any root object carries
+  stale performance-admission closure/reopen facts.
 - The evidence-root overload is a policy ingestion boundary only. It verifies
   that source-backed evidence, parsed measurement record, packed oracle
   selection, schedule-decision mirrors, and provider feedback tie-backs agree
@@ -7712,6 +7719,11 @@ performance-preferred
   evidence input, or provider feedback tie-back that disagrees with the nested
   record/provider schedule facts -> strict policy evaluation fails before
   selected dispatch can consume the record.
+- Root-level performance-admission closure or reopen mirrors in
+  `measurement_harness`, `measurement_schedule_decision_evidence`, or
+  `packed_i4_reference_oracle` disagree with the parsed source-backed record ->
+  strict policy evaluation fails before selected dispatch can consume the
+  record.
 - A measurement record belongs to the dequant packed-i4 sibling while the
   selected provider resource candidate is dequant-clamp packed-i4, or the
   reverse -> strict policy evaluation fails as stale sibling-route measurement;
@@ -7798,6 +7810,11 @@ performance-preferred
   and dequant-clamp same-target evidence JSON roots through the evidence-root
   overload and assert correctness fallback, performance-preference denial, and
   stale root-level result/schedule rejection.
+- Gate 4 root-ingestion coverage must include stale root-level
+  performance-admission closure/reopen mirrors in `measurement_harness`,
+  `measurement_schedule_decision_evidence`, and `packed_i4_reference_oracle`,
+  proving the policy verifier does not rely only on the nested measurement
+  record.
 - Focused provider/target/script coverage must assert stale, missing, or
   metadata-derived beyond-local repair admission fields are rejected at the
   selected-body, route/target mirror, evidence-root, and policy boundaries.

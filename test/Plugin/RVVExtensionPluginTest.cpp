@@ -11402,6 +11402,81 @@ module {
            "metadata-only-speedup-range"}))
     return result;
 
+  llvm::json::Object staleRootPerformanceClosureEvidenceRoot =
+      *dequantEvidenceRoot;
+  llvm::json::Object *staleRootPerformanceClosureHarness =
+      staleRootPerformanceClosureEvidenceRoot["measurement_harness"]
+          .getAsObject();
+  if (!staleRootPerformanceClosureHarness)
+    return fail("Gate 4 dequant stale performance closure root lacks "
+                "measurement_harness");
+  (*staleRootPerformanceClosureHarness)
+      ["provider_performance_admission_closure"] =
+          "metadata-only-root-performance-admission-closure";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection,
+              staleRootPerformanceClosureEvidenceRoot,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 4 evidence-root rejects stale "
+              "root performance admission closure"),
+          {"same-target measurement evidence",
+           "measurement_harness.provider_performance_admission_closure",
+           "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1",
+           "metadata-only-root-performance-admission-closure"}))
+    return result;
+
+  llvm::json::Object staleRootPerformanceReopenEvidenceRoot =
+      *dequantEvidenceRoot;
+  llvm::json::Object *staleRootPerformanceReopenSchedule =
+      staleRootPerformanceReopenEvidenceRoot
+          ["measurement_schedule_decision_evidence"]
+              .getAsObject();
+  if (!staleRootPerformanceReopenSchedule)
+    return fail("Gate 4 dequant stale performance reopen root lacks "
+                "measurement_schedule_decision_evidence");
+  (*staleRootPerformanceReopenSchedule)
+      ["provider_performance_admission_reopen_requirement"] =
+          "metadata-only-root-performance-admission-reopen";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection,
+              staleRootPerformanceReopenEvidenceRoot,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 4 evidence-root rejects stale "
+              "root performance admission reopen requirement"),
+          {"same-target measurement evidence",
+           "measurement_schedule_decision_evidence."
+           "provider_performance_admission_reopen_requirement",
+           "new-typed-provider-campaign-repair-plus-source-backed-measured-win-"
+           "and-updated-admission-facts.v1",
+           "metadata-only-root-performance-admission-reopen"}))
+    return result;
+
+  llvm::json::Object stalePackedOraclePerformanceClosureEvidenceRoot =
+      *dequantEvidenceRoot;
+  llvm::json::Object *stalePackedOracle =
+      stalePackedOraclePerformanceClosureEvidenceRoot
+          ["packed_i4_reference_oracle"]
+              .getAsObject();
+  if (!stalePackedOracle)
+    return fail("Gate 4 dequant stale packed oracle root lacks "
+                "packed_i4_reference_oracle");
+  (*stalePackedOracle)["provider_performance_admission_closure"] =
+      "metadata-only-packed-oracle-performance-admission-closure";
+  if (int result = expectErrorContains(
+          tianchenrv::plugin::rvv::verifyRVVLowPrecisionPerformancePolicy(
+              packedI4ResourceSelection,
+              stalePackedOraclePerformanceClosureEvidenceRoot,
+              packedI4SelectedDispatchBoundary,
+              "selected-dispatch packed-i4 Gate 4 evidence-root rejects stale "
+              "packed oracle performance admission closure"),
+          {"same-target measurement evidence",
+           "packed_i4_reference_oracle.provider_performance_admission_closure",
+           "no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1",
+           "metadata-only-packed-oracle-performance-admission-closure"}))
+    return result;
+
   llvm::json::Object staleScalarEpilogueAdmissionEvidenceRoot =
       *dequantEvidenceRoot;
   llvm::json::Object *staleScalarEpilogueAdmissionRecord =
