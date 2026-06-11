@@ -8427,6 +8427,8 @@ int runPreRealizedContractionRouteEntryOwnerTest(
   using tianchenrv::plugin::rvv::
       getExpectedRVVSelectedBodyContractionRouteOperandBindingPlanID;
   using tianchenrv::plugin::rvv::
+      getRVVSelectedBodyDirectContractionRouteProviderOwners;
+  using tianchenrv::plugin::rvv::
       getRVVSelectedBodyDirectContractionRouteStatementPlan;
   using tianchenrv::plugin::rvv::
       getRVVSelectedBodyDirectContractionRouteProviderPlan;
@@ -9591,7 +9593,7 @@ module {
               staleProductDequantResourceAnalysis,
               "selected-boundary stale product-reduction-dequant resource "
               "mirror test"),
-          {"low-precision direct-contraction resource selection",
+          {"stable low-precision direct-contraction compiler-fact mirrors",
            "validated family plan"}))
     return result;
 
@@ -9604,7 +9606,7 @@ module {
               staleProductDequantRealizationMirrorAnalysis,
               "selected-boundary stale product-reduction-dequant realization "
               "mirror test"),
-          {"low-precision direct-contraction resource selection",
+          {"stable low-precision direct-contraction compiler-fact mirrors",
            "validated family plan"}))
     return result;
 
@@ -10340,6 +10342,14 @@ module {
           "low-precision stable resource compiler-fact view ignores stale "
           "policy/evidence admission, remediation, and dispatch fields"))
     return result;
+  if (int result = expect(
+          tianchenrv::plugin::rvv::
+              isRVVLowPrecisionStableResourceCompilerFactsEqual(
+                  stableFactsFromStalePolicyEvidence,
+                  stablePackedI4CompilerFacts),
+          "low-precision stable resource compiler-fact equality ignores "
+          "policy/evidence admission, remediation, and dispatch fields"))
+    return result;
   if (int result = expectSuccess(
           verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
               *packedI4ProductDequantAnalysis,
@@ -10347,6 +10357,70 @@ module {
               "mirror test"),
           "packed-i4 product-reduction-dequant provider/resource mirrors "
           "agree before statement planning"))
+    return result;
+
+  auto policyOnlyPackedI4DescriptionMirrorAnalysis =
+      *packedI4ProductDequantAnalysis;
+  policyOnlyPackedI4DescriptionMirrorAnalysis.description
+      .lowPrecisionResourceSelection.performanceFeedback =
+      "metadata-only-performance-feedback";
+  policyOnlyPackedI4DescriptionMirrorAnalysis.description
+      .lowPrecisionResourceSelection.remediationDecision =
+      "metadata-only-remediation-decision";
+  policyOnlyPackedI4DescriptionMirrorAnalysis.description
+      .lowPrecisionResourceSelection.performanceAdmissionDecision =
+      "metadata-only-performance-admission-decision";
+  policyOnlyPackedI4DescriptionMirrorAnalysis.description
+      .lowPrecisionResourceSelection.dispatchPreference =
+      "metadata-only-dispatch-preference";
+  if (int result = expectSuccess(
+          verifyRVVSelectedBodyContractionRouteFamilyProviderPlans(
+              policyOnlyPackedI4DescriptionMirrorAnalysis,
+              "selected-boundary packed-i4 policy-only description mirror "
+              "test"),
+          "packed-i4 provider plan stable compiler-fact mirrors ignore "
+          "description-only policy/evidence drift"))
+    return result;
+
+  auto policyOnlyPackedI4ProviderPlan =
+      *packedI4ProductDequantDirectProviderPlan;
+  policyOnlyPackedI4ProviderPlan.lowPrecisionResourceSelection
+      .performanceFeedback = "metadata-only-performance-feedback";
+  policyOnlyPackedI4ProviderPlan.lowPrecisionResourceSelection
+      .remediationDecision = "metadata-only-remediation-decision";
+  policyOnlyPackedI4ProviderPlan.lowPrecisionResourceSelection
+      .performanceAdmissionDecision =
+      "metadata-only-performance-admission-decision";
+  policyOnlyPackedI4ProviderPlan.lowPrecisionResourceSelection
+      .dispatchPreference = "metadata-only-dispatch-preference";
+  tianchenrv::plugin::rvv::RVVSelectedBodyDirectContractionRouteStatementPlan
+      policyOnlyPackedI4StatementPlan;
+  bool policyOnlyStatementOwnerMatched = false;
+  for (const auto &owner :
+       getRVVSelectedBodyDirectContractionRouteProviderOwners()) {
+    if (!owner.isConsumer ||
+        !owner.isConsumer(packedI4ProductDequantAnalysis->description))
+      continue;
+    policyOnlyStatementOwnerMatched = true;
+    if (int result = expectSuccess(
+            owner.buildStatementPlan(
+                *packedI4ProductDequantAnalysis,
+                policyOnlyPackedI4ProviderPlan,
+                policyOnlyPackedI4StatementPlan,
+                "selected-boundary packed-i4 statement policy-only provider "
+                "drift test"),
+            "packed-i4 statement-plan owner consumes stable compiler facts "
+            "while ignoring provider policy/evidence drift"))
+      return result;
+  }
+  if (int result = expect(
+          policyOnlyStatementOwnerMatched &&
+              policyOnlyPackedI4StatementPlan.loop.bodySteps.size() ==
+                  tianchenrv::plugin::rvv::
+                      kRVVLowPrecisionResourcePackedI4CostLoopBodySteps,
+          "packed-i4 direct statement owner builds the stable statement plan "
+          "without consuming policy/evidence drift as materialization "
+          "authority"))
     return result;
 
   auto stalePackedI4ProviderMirrorAnalysis =

@@ -1,5 +1,69 @@
 > Continuation from `journal-29.md` (archived at more than 2000 lines)
 
+## Session 608: Stage2 RVV provider stable-resource consumer cleanup
+
+**Date**: 2026-06-12
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the provider/statement-plan
+stable-resource consumer cleanup slice named by the previous continuation
+point. This round made provider-side route-family mirror validation and direct
+statement-plan preflight consume policy-free stable compiler facts instead of
+the broad low-precision resource-selection aggregate.
+
+### Main Changes
+
+- Added `isRVVLowPrecisionStableResourceCompilerFactsEqual` so provider-side
+  consumers can compare stable compiler/resource/primitive/realization/target
+  facts without policy/evidence fields.
+- Changed route-family provider-plan mirror validation to compare
+  `RVVLowPrecisionStableResourceCompilerFacts` derived from the broad
+  selection, rather than comparing the broad aggregate itself.
+- Changed direct-contraction statement-plan preflight to consume stable packed
+  operand, unpack, realization, resource-cost, schedule, primitive, legality,
+  and target facts.
+- Removed direct statement-plan materialization gates on remediation,
+  performance feedback, admission, maturity/no-win, selected-dispatch policy,
+  and dispatch-preference fields. Those remain explicit policy/evidence helper
+  domains.
+- Added focused C++ coverage for policy/evidence-only drift at the route-family
+  provider mirror boundary and the direct packed-i4 statement-plan boundary.
+- Updated the RVV plugin and Common EmitC specs, PRD, task metadata, and Trellis
+  logs while keeping the macro task active.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused lit from `build/test` with the packed-i4 dequantize,
+  packed-i4 dequant-clamp, signed/unsigned pre-realized product-reduction, and
+  signed/unsigned explicit product-reduction filters.
+
+### Self-Repair
+
+- The first plugin test run failed because two stale expected diagnostics still
+  looked for the old "resource selection" wording. The tests now assert the new
+  "stable compiler-fact mirror" diagnostic.
+- The first lit invocation was run from the repository root with an invalid
+  site-config context. The same focused filter passed when rerun from
+  `build/test`.
+
+### Status
+
+[OPEN MACRO TASK] Provider/statement-plan stable-resource consumer cleanup is
+complete for this slice. The macro task remains active for a final targeted
+scan of remaining broad low-precision primitive/resource consumers outside
+explicit policy/evidence helpers, then adjacent primitive/resource coverage or
+fresh RVV-backed measurement-disposition work only if later claimed.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 607: Stage2 RVV support-bundle stable-resource acceptance cleanup
 
 **Date**: 2026-06-12

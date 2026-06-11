@@ -468,3 +468,50 @@ planning/provider-side low-precision resource consumers outside the target
 support-bundle/artifact acceptance path, then return to selected-body
 realization or primitive-surface coverage only after no remaining acceptance
 consumer promotes policy/evidence fields.
+
+## Completed Slice: Provider/Statement-Plan Stable-Resource Consumer Cleanup
+
+This bounded follow-up slice completed the provider/route-planning-side
+resource consumer cleanup named by the previous continuation point. The
+remaining broad consumers were not target support-bundle or artifact validators;
+they were provider-side preflight checks:
+
+```text
+RVVLowPrecisionContractionResourceSelection
+  -> RVVLowPrecisionStableResourceCompilerFacts
+  -> route-family provider-plan stable mirror check
+  -> direct-contraction statement-plan stable preflight
+  -> explicit measurement-disposition and selected-dispatch helpers only for
+     admission/remediation/performance/no-win/dispatch policy state
+```
+
+The stable compiler-fact view now has an explicit equality helper. Route-family
+provider-plan validation uses that helper when comparing route-description
+low-precision resource mirrors against the validated family plan, so
+description-only policy/evidence drift no longer blocks route construction as
+if it were resource authority. Stable route/provider facts still fail closed
+when selected candidate, realization, resource-cost/schedule, primitive, target
+capability, legality, or rejection facts disagree.
+
+The direct-contraction statement-plan owner now builds its packed-i4
+statement-plan preflight from `RVVLowPrecisionStableResourceCompilerFacts`.
+It still requires stable packed-i4 operand form, signedness, packing/unpack
+facts, realization decision, region/phase facts, resource-cost facts, and
+schedule facts before materialization. It no longer directly gates statement
+construction on measurement-disposition remediation, performance feedback,
+admission, maturity/no-win, selected-dispatch policy output, or dispatch
+preference fields. Those policy/evidence fields remain validated by the
+existing measurement-disposition and selected-dispatch policy helpers.
+
+Focused C++ coverage now proves both boundaries: provider route-family mirror
+validation ignores description-only policy/evidence drift while preserving
+stable compiler-fact checks, and the direct-contraction statement-plan owner
+still builds the packed-i4 low-shift/product/rescale/high-nibble-vwmacc
+statement plan when only provider policy/evidence fields are stale.
+
+The macro campaign remains open. The next continuation point is to run a final
+targeted scan for any remaining low-precision primitive/resource consumer that
+uses the broad resource aggregate outside explicit policy/evidence helpers. If
+that scan is clean, return to adjacent low-precision primitive/resource surface
+coverage or future measurement-disposition work only when fresh source-backed
+same-target RVV evidence is introduced.

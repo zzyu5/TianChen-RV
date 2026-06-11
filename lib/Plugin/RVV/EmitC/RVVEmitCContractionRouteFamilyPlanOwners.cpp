@@ -24,7 +24,7 @@ llvm::Error verifyRVVLowPrecisionContractionMeasurementDispositionEvidence(
     llvm::StringRef context,
     const RVVLowPrecisionContractionResourceSelection &selection);
 
-bool isRVVLowPrecisionResourceSelectionEqual(
+bool isRVVLowPrecisionResourceSelectionStableCompilerFactsEqual(
     const RVVLowPrecisionContractionResourceSelection &lhs,
     const RVVLowPrecisionContractionResourceSelection &rhs);
 
@@ -1231,12 +1231,12 @@ llvm::Error verifyRVVSelectedBodyContractionRouteFamilyProviderPlanForOwner(
                   .str(),
               plan.lowPrecisionResourceSelection))
     return error;
-  if (!isRVVLowPrecisionResourceSelectionEqual(
+  if (!isRVVLowPrecisionResourceSelectionStableCompilerFactsEqual(
           analysis.description.lowPrecisionResourceSelection,
           plan.lowPrecisionResourceSelection))
     return makeRVVEmitCRouteProviderError(
         llvm::Twine(context) + " " + familyName +
-        " low-precision direct-contraction resource selection mirrors must "
+        " stable low-precision direct-contraction compiler-fact mirrors must "
         "come from the validated family plan before provider route "
         "construction");
   if (plan.lowPrecisionResourceSelection.hasSelection) {
@@ -8032,163 +8032,12 @@ llvm::Error verifyRVVLowPrecisionContractionMeasurementDispositionEvidence(
       context, selection);
 }
 
-bool isRVVLowPrecisionResourceSelectionEqual(
+bool isRVVLowPrecisionResourceSelectionStableCompilerFactsEqual(
     const RVVLowPrecisionContractionResourceSelection &lhs,
     const RVVLowPrecisionContractionResourceSelection &rhs) {
-  return lhs.hasSelection == rhs.hasSelection &&
-         lhs.candidateSetID == rhs.candidateSetID &&
-         lhs.selectedCandidateID == rhs.selectedCandidateID &&
-         lhs.selectionReason == rhs.selectionReason &&
-         lhs.planningContract == rhs.planningContract &&
-         lhs.legalityScope == rhs.legalityScope &&
-         lhs.sourceElementTypeName == rhs.sourceElementTypeName &&
-         lhs.sourceSEW == rhs.sourceSEW && lhs.sourceLMUL == rhs.sourceLMUL &&
-         lhs.operandForm == rhs.operandForm &&
-         lhs.sourceSignedness == rhs.sourceSignedness &&
-         lhs.storageElementWidth == rhs.storageElementWidth &&
-         lhs.effectiveElementWidth == rhs.effectiveElementWidth &&
-         lhs.packingLayout == rhs.packingLayout &&
-         lhs.unpackIntent == rhs.unpackIntent &&
-         lhs.packedLoadUnpackContract ==
-             rhs.packedLoadUnpackContract &&
-         lhs.packedStorageLoad == rhs.packedStorageLoad &&
-         lhs.packedUnpackPlan == rhs.packedUnpackPlan &&
-         lhs.packedUnpackedSource == rhs.packedUnpackedSource &&
-         lhs.productElementTypeName == rhs.productElementTypeName &&
-         lhs.productSEW == rhs.productSEW &&
-         lhs.productLMUL == rhs.productLMUL &&
-         lhs.productEMUL == rhs.productEMUL &&
-         lhs.accumulatorElementTypeName == rhs.accumulatorElementTypeName &&
-         lhs.accumulatorSEW == rhs.accumulatorSEW &&
-         lhs.accumulatorLMUL == rhs.accumulatorLMUL &&
-         lhs.accumulatorEMUL == rhs.accumulatorEMUL &&
-         lhs.resultElementTypeName == rhs.resultElementTypeName &&
-         lhs.resultSEW == rhs.resultSEW && lhs.resultLMUL == rhs.resultLMUL &&
-         lhs.memoryForm == rhs.memoryForm && lhs.tailPolicy == rhs.tailPolicy &&
-         lhs.maskPolicy == rhs.maskPolicy &&
-         lhs.unrollFactor == rhs.unrollFactor &&
-         lhs.accumulatorCount == rhs.accumulatorCount &&
-         lhs.reductionLayout == rhs.reductionLayout &&
-         lhs.vsetvlRegionCount == rhs.vsetvlRegionCount &&
-         lhs.peakLiveVectorGroups == rhs.peakLiveVectorGroups &&
-         lhs.vectorRegisterBudget == rhs.vectorRegisterBudget &&
-         lhs.runtimeAVLSource == rhs.runtimeAVLSource &&
-         lhs.producerScope == rhs.producerScope &&
-         lhs.consumerScope == rhs.consumerScope &&
-         lhs.runtimeABIOrder == rhs.runtimeABIOrder &&
-         lhs.routeFamilyPlanID == rhs.routeFamilyPlanID &&
-         lhs.providerSupportedMirror == rhs.providerSupportedMirror &&
-         lhs.realizationProducer == rhs.realizationProducer &&
-         lhs.realizationDecision == rhs.realizationDecision &&
-         lhs.realizationAdmissionContract ==
-             rhs.realizationAdmissionContract &&
-         lhs.realizationAdmissionDecision ==
-             rhs.realizationAdmissionDecision &&
-         lhs.realizationAdmissionEvidence ==
-             rhs.realizationAdmissionEvidence &&
-         lhs.realizationAdmissionDispatchPolicy ==
-             rhs.realizationAdmissionDispatchPolicy &&
-         lhs.realizationAdmissionScheduleDecisionContract ==
-             rhs.realizationAdmissionScheduleDecisionContract &&
-         lhs.realizationAdmissionScheduleDecision ==
-             rhs.realizationAdmissionScheduleDecision &&
-         lhs.realizationAdmissionScheduleDecisionReason ==
-             rhs.realizationAdmissionScheduleDecisionReason &&
-         lhs.realizedUnrollFactor == rhs.realizedUnrollFactor &&
-         lhs.realizedVSetVLRegionCount == rhs.realizedVSetVLRegionCount &&
-         lhs.realizedPeakLiveVectorGroups ==
-             rhs.realizedPeakLiveVectorGroups &&
-         lhs.productRegionIndex == rhs.productRegionIndex &&
-         lhs.dequantRegionIndex == rhs.dequantRegionIndex &&
-         lhs.productPhase == rhs.productPhase &&
-         lhs.dequantPhase == rhs.dequantPhase &&
-         lhs.clampRegionIndex == rhs.clampRegionIndex &&
-         lhs.clampPhase == rhs.clampPhase &&
-         lhs.clampCompareSelectPhase == rhs.clampCompareSelectPhase &&
-         lhs.clampSelectLayout == rhs.clampSelectLayout &&
-         lhs.performanceFeedback == rhs.performanceFeedback &&
-         lhs.performanceBaseline == rhs.performanceBaseline &&
-         lhs.performanceBestSpeedupRange ==
-             rhs.performanceBestSpeedupRange &&
-         lhs.performanceAction == rhs.performanceAction &&
-         lhs.remediationHandoffContract == rhs.remediationHandoffContract &&
-         lhs.remediationDiagnosis == rhs.remediationDiagnosis &&
-         lhs.remediationMeasurementEvidenceID ==
-             rhs.remediationMeasurementEvidenceID &&
-         lhs.remediationDecision == rhs.remediationDecision &&
-         lhs.remediationAction == rhs.remediationAction &&
-         lhs.remediationDispatchPreference ==
-             rhs.remediationDispatchPreference &&
-         lhs.remediationBlocker == rhs.remediationBlocker &&
-         lhs.remediationPlanContract == rhs.remediationPlanContract &&
-         lhs.remediationPlan == rhs.remediationPlan &&
-         lhs.remediationStatementStrategy ==
-             rhs.remediationStatementStrategy &&
-         lhs.remediationVectorBudget == rhs.remediationVectorBudget &&
-         lhs.remediationScheduleContract ==
-             rhs.remediationScheduleContract &&
-         lhs.remediationUnpackPlan == rhs.remediationUnpackPlan &&
-         lhs.remediationProductPlan == rhs.remediationProductPlan &&
-         lhs.remediationReductionPlan == rhs.remediationReductionPlan &&
-         lhs.remediationVLPlan == rhs.remediationVLPlan &&
-         lhs.scheduleDecisionContract == rhs.scheduleDecisionContract &&
-         lhs.scheduleDecision == rhs.scheduleDecision &&
-         lhs.scheduleDecisionReason == rhs.scheduleDecisionReason &&
-         lhs.resourceCostContract == rhs.resourceCostContract &&
-         lhs.resourceCostModel == rhs.resourceCostModel &&
-         lhs.resourceCostLoopBodySteps == rhs.resourceCostLoopBodySteps &&
-         lhs.resourceCostBlocker == rhs.resourceCostBlocker &&
-         lhs.performanceAdmissionDecision ==
-             rhs.performanceAdmissionDecision &&
-         lhs.performanceAdmissionClosure == rhs.performanceAdmissionClosure &&
-         lhs.performanceAdmissionReopenRequirement ==
-             rhs.performanceAdmissionReopenRequirement &&
-         lhs.beyondLocalRepairAdmissionContract ==
-             rhs.beyondLocalRepairAdmissionContract &&
-         lhs.beyondLocalRepairAdmissionDecision ==
-             rhs.beyondLocalRepairAdmissionDecision &&
-         lhs.beyondLocalRepairAdmissionBlocker ==
-             rhs.beyondLocalRepairAdmissionBlocker &&
-         lhs.beyondLocalRepairAdmissionReopenRequirement ==
-             rhs.beyondLocalRepairAdmissionReopenRequirement &&
-         lhs.performanceMaturity == rhs.performanceMaturity &&
-         lhs.performanceMaturityEvidence == rhs.performanceMaturityEvidence &&
-         lhs.performanceMaturityOutcome == rhs.performanceMaturityOutcome &&
-         lhs.performanceSelectionEligible ==
-             rhs.performanceSelectionEligible &&
-         lhs.dispatchPreference == rhs.dispatchPreference &&
-         lhs.primitiveContractID == rhs.primitiveContractID &&
-         lhs.primitiveKind == rhs.primitiveKind &&
-         lhs.primitiveChainContractID == rhs.primitiveChainContractID &&
-         lhs.primitiveChainKind == rhs.primitiveChainKind &&
-         lhs.wideningProductMultiplicandRoleSummary ==
-             rhs.wideningProductMultiplicandRoleSummary &&
-         lhs.wideningProductExtensionPolicy ==
-             rhs.wideningProductExtensionPolicy &&
-         lhs.wideningProductCandidateFact ==
-             rhs.wideningProductCandidateFact &&
-         lhs.reductionCandidateFact == rhs.reductionCandidateFact &&
-         lhs.primitiveSourceLoadKind == rhs.primitiveSourceLoadKind &&
-         lhs.primitiveSourceExtensionKind ==
-             rhs.primitiveSourceExtensionKind &&
-         lhs.primitiveWideningProductRelation ==
-             rhs.primitiveWideningProductRelation &&
-         lhs.primitiveProductReductionChainRelation ==
-             rhs.primitiveProductReductionChainRelation &&
-         lhs.primitiveWideningProductIntrinsic ==
-             rhs.primitiveWideningProductIntrinsic &&
-         lhs.primitiveReductionIntrinsic == rhs.primitiveReductionIntrinsic &&
-         lhs.primitiveScalarSeedSplatIntrinsic ==
-             rhs.primitiveScalarSeedSplatIntrinsic &&
-         lhs.primitiveAccumulatorLayout == rhs.primitiveAccumulatorLayout &&
-         lhs.primitiveResultLayout == rhs.primitiveResultLayout &&
-         lhs.primitiveReductionStoreVL == rhs.primitiveReductionStoreVL &&
-         lhs.targetCapabilityProviderMirror ==
-             rhs.targetCapabilityProviderMirror &&
-         lhs.targetCapabilityLegalityMirror ==
-             rhs.targetCapabilityLegalityMirror &&
-         lhs.isLegal == rhs.isLegal &&
-         lhs.rejectionReason == rhs.rejectionReason;
+  return isRVVLowPrecisionStableResourceCompilerFactsEqual(
+      makeRVVLowPrecisionStableResourceCompilerFacts(lhs),
+      makeRVVLowPrecisionStableResourceCompilerFacts(rhs));
 }
 
 llvm::StringRef getRVVLowPrecisionPrimitiveKind(

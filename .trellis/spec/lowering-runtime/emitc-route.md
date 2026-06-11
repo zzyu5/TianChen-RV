@@ -4949,6 +4949,16 @@ reduction store VL = 1
   selected-dispatch policy validators may consume the wide resource aggregate
   fields carrying admission, remediation, performance, measurement, no-win, or
   dispatch-preference records.
+- Route-family provider-plan mirror checks and direct-contraction
+  statement-plan preflight must also consume the policy-free stable compiler
+  fact view when deciding whether low-precision resource mirrors are coherent
+  enough for route construction or statement materialization. A description or
+  provider-plan copy with stale realization-admission, remediation,
+  performance, measurement, no-win/maturity, selected-dispatch policy output,
+  or dispatch-preference fields must not fail or pass route construction as if
+  those policy/evidence mirrors were stable resource authority. Those fields
+  remain valid only through named measurement-disposition or selected-dispatch
+  helper boundaries.
 - Emission-plan metadata for low-precision primitive source/product/
   accumulator/result SEW/LMUL, product-reduction relation, widening-product
   intrinsic, widening-reduction intrinsic, scalar seed splat, layout, and

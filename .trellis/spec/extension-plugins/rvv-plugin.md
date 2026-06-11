@@ -638,6 +638,22 @@ artifact validation.
 - Common EmitC may materialize only the provider-built route payload. It must
   not choose dtype/sign/SEW/LMUL, `vwmul`, `vwredsum`, seed splat, layout, or
   store-VL semantics itself.
+- Provider-side low-precision resource mirror consumers must use a policy-free
+  stable compiler-fact view, currently `RVVLowPrecisionStableResourceCompilerFacts`,
+  for route-family mirror equality and direct-contraction statement-plan
+  preflight. Stable facts include selected candidate, typed source/product/
+  accumulator/result facts, packed load/unpack facts, runtime ABI, realization
+  decision, region/phase facts, resource-cost/schedule, primitive payload
+  facts, target capability mirrors, legality, and rejection reason. They
+  exclude realization admission, remediation, performance feedback/admission,
+  measurement, no-win/maturity, selected-dispatch policy output, and dispatch
+  preference. Those excluded fields may be retained only through explicit
+  measurement-disposition or selected-dispatch policy/evidence helpers.
+- Direct-contraction statement-plan materialization for packed-i4 resources may
+  require stable packed-i4 operand, unpack, realization, resource-cost, and
+  schedule facts. It must not require remediation statement strategy,
+  performance feedback, admission, maturity/no-win, or dispatch-preference
+  fields as materialization authority; those remain policy/evidence mirrors.
 
 ### 4. Validation & Error Matrix
 
