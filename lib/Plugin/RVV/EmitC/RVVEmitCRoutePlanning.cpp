@@ -43455,6 +43455,39 @@ getRVVSelectedBodyConfigArtifactMetadata(
     metadata.push_back(
         {"tcrv_rvv.low_precision_primitive.result_dtype",
          description.lowPrecisionPrimitiveResultElementTypeName});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_primitive.source_sew",
+         llvm::Twine(description.sourceSEW).str()});
+    metadata.push_back({"tcrv_rvv.low_precision_primitive.source_lmul",
+                        description.sourceLMUL});
+    const std::int64_t primitiveProductSEW =
+        description.productSEW != 0 ? description.productSEW : description.sew;
+    llvm::StringRef primitiveProductLMUL =
+        !description.productLMUL.empty() ? description.productLMUL
+                                         : description.lmul;
+    metadata.push_back({"tcrv_rvv.low_precision_primitive.product_sew",
+                        llvm::Twine(primitiveProductSEW).str()});
+    metadata.push_back({"tcrv_rvv.low_precision_primitive.product_lmul",
+                        primitiveProductLMUL});
+    if (!description.lowPrecisionPrimitiveAccumulatorElementTypeName.empty()) {
+      metadata.push_back(
+          {"tcrv_rvv.low_precision_primitive.accumulator_sew",
+           llvm::Twine(description.sew).str()});
+      metadata.push_back({"tcrv_rvv.low_precision_primitive.accumulator_lmul",
+                          description.lmul});
+    }
+    metadata.push_back({"tcrv_rvv.low_precision_primitive.result_sew",
+                        llvm::Twine(description.sew).str()});
+    metadata.push_back({"tcrv_rvv.low_precision_primitive.result_lmul",
+                        description.lmul});
+    metadata.push_back({"tcrv_rvv.low_precision_primitive.tail_policy",
+                        description.tailPolicy});
+    metadata.push_back({"tcrv_rvv.low_precision_primitive.mask_policy",
+                        description.maskPolicy});
+    metadata.push_back({"tcrv_rvv.low_precision_primitive.runtime_control_plan",
+                        description.runtimeControlPlanID});
+    metadata.push_back({"tcrv_rvv.low_precision_primitive.runtime_avl_source",
+                        description.runtimeAVLASource});
   }
   if (description.lowPrecisionResourceSelection.hasSelection) {
     const RVVLowPrecisionContractionResourceSelection &selection =

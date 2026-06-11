@@ -71,6 +71,64 @@ selected-dispatch, target mirror, and dispatch/fallback closure.
 
 Final coherent commit is created after this journal entry.
 
+## Session 592: Stage2 RVV low-precision primitive Gate 1 mirror hardening
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Created the new macro campaign task and completed the bounded Gate 1 foundation
+slice. This round hardened the existing typed low-precision product-reduction
+primitive contract by carrying typed config and runtime control facts in the
+`tcrv_rvv.low_precision_primitive.*` mirror namespace instead of leaving them
+only as generic route-family metadata.
+
+### Main Changes
+
+- Added provider-emitted low-precision primitive mirrors for
+  source/product/accumulator/result SEW/LMUL, tail policy, mask policy,
+  runtime control plan, and runtime AVL source.
+- Added support-bundle mappings so target header/export artifacts can carry
+  the new primitive mirrors.
+- Required target artifact validation to compare the new primitive mirrors
+  against provider-owned widening-product and product-reduction contracts
+  before artifact acceptance.
+- Extended signed i8 and unsigned u8 product-reduction lit fixtures with
+  positive mirror checks and stale runtime AVL source / stale tail policy
+  fail-closed coverage.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -v . --filter 'explicit-selected-body-artifact-widening-product-reduce-add'` from `build/test`
+- [OK] `./build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `git diff --check`
+- [OK] Added-diff old-authority scan for `RVVI32M1`, `rvv-i32m1`,
+  `tcrv_rvv.i32_*`, `!tcrv_rvv.i32m*`, exact `__riscv_*_i32m1`, q8/q4,
+  source-front-door, and artifact-name authority patterns returned no matches.
+
+### Self-Repair
+
+- The first focused lit run passed the signed fixture but failed the unsigned
+  header check because FileCheck expected new primitive mirrors after
+  `low_precision_resource.*` mirrors. The actual support-bundle order is
+  primitive mirrors first, resource mirrors second, so the unsigned header
+  checks were reordered without changing production code.
+
+### Status
+
+[OPEN MACRO TASK] Gate 1 foundation is complete for the current
+product-reduction primitive mirror hardening slice. The task remains active for
+Gate 2 selected-body realization from this primitive surface, Gate 3 broader
+route/artifact carry-through, and later Gate 4 source-backed same-target
+evidence/admission only if fresh measured evidence is available.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 598: Stage2 RVV Gate 4 final no-win admission consumer closure
 
 **Date**: 2026-06-11

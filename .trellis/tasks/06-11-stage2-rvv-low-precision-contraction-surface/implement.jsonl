@@ -1,0 +1,13 @@
+{"file":".trellis/spec/index.md","reason":"Project-wide architecture invariants and RVV Stage order for the new macro campaign."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"RVV plugin authority, typed body ownership, low-precision widening-product primitive facts, and Stage2 route-provider requirements."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Common EmitC neutrality and provider-owned route payload boundaries."}
+{"file":".trellis/spec/testing/index.md","reason":"Focused lit/FileCheck and C++ test expectations for RVV compiler behavior."}
+{"file":".trellis/tasks/archive/2026-06/06-11-stage2-rvv-production-gearbox-low-precision-contraction/prd.md","reason":"Prior archived Gearbox/resource and Gate4 no-win closure state; prevents reopening an evidence-only owner."}
+{"file":"include/TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h","reason":"Route description and contraction route-family plan fields for low-precision primitive facts."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp","reason":"RVV provider validation and route description construction for widening-product/reduction primitive facts."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp","reason":"Emission-plan metadata mirrors emitted from provider route descriptions."}
+{"file":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","reason":"Target artifact validation mirrors for low-precision primitive facts and stale rejection."}
+{"file":"lib/Target/RVV/RVVTargetSupportBundle.cpp","reason":"Target support-bundle metadata export mapping for new primitive mirrors."}
+{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir","reason":"Signed i8 product-reduction positive and stale-mirror FileCheck coverage."}
+{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir","reason":"Unsigned u8 product-reduction positive and stale-mirror FileCheck coverage."}
+{"file":"test/Target/TargetArtifactExportTest.cpp","reason":"C++ target artifact validation coverage if lit coverage is insufficient for mirror failures."}

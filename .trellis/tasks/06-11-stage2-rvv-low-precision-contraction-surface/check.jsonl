@@ -1,0 +1,9 @@
+{"file":".trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface/prd.md","reason":"Verify current Gate1 slice matches the macro campaign and does not archive incomplete gates."}
+{"file":".trellis/spec/extension-plugins/rvv-plugin.md","reason":"Check RVV ownership and primitive fact contract compliance."}
+{"file":".trellis/spec/lowering-runtime/emitc-route.md","reason":"Check that Common EmitC remains neutral and provider facts are carried, not inferred."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCContractionRouteFamilyPlanOwners.cpp","reason":"Review production provider validation and route description changes."}
+{"file":"lib/Plugin/RVV/EmitC/RVVEmitCRoutePlanning.cpp","reason":"Review emitted metadata mirrors for provider-owned primitive facts."}
+{"file":"lib/Target/RVV/RVVTargetArtifactRouteFamilyValidation.cpp","reason":"Review target fail-closed primitive mirror validation."}
+{"file":"lib/Target/RVV/RVVTargetSupportBundle.cpp","reason":"Review target support-bundle metadata mapping."}
+{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add.mlir","reason":"Check signed i8 positive and stale-mirror coverage."}
+{"file":"test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir","reason":"Check unsigned u8 positive and stale-mirror coverage."}
