@@ -2937,6 +2937,13 @@ getRVVLowPrecisionWideningReductionPrimitiveFacts(
     RVVSelectedBodyOperationKind operation,
     bool isUnsignedProductReduction);
 
+llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromWideningReductionFacts(
+    const RVVLowPrecisionPrimitiveRoutePayload &payload,
+    const RVVLowPrecisionWideningReductionPrimitiveFacts &primitiveFacts,
+    llvm::StringRef tailPolicy, llvm::StringRef maskPolicy,
+    llvm::StringRef runtimeControlPlanID,
+    llvm::StringRef runtimeAVLASource, llvm::StringRef context);
+
 struct RVVWideningDotReduceRouteFacts {
   RVVSelectedBodyOperationKind operation;
   RVVSelectedBodyMemoryForm memoryForm;

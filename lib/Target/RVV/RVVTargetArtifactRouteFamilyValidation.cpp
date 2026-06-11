@@ -3669,153 +3669,163 @@ llvm::Error validateRVVLowPrecisionWideningReductionPrimitiveProviderFacts(
         llvm::Twine(contract.consumerLabel) +
         " requires non-empty low-precision widening-reduction primitive "
         "contract and kind before artifact export");
+  if (llvm::Error error =
+          plugin::rvv::
+              verifyRVVLowPrecisionPrimitiveRoutePayloadFromWideningReductionFacts(
+                  contract.lowPrecisionPrimitiveRoutePayload, primitive,
+                  contract.tailPolicy, contract.maskPolicy,
+                  contract.runtimeAVLVLContract.runtimeControlPlanID,
+                  contract.runtimeAVLVLContract.runtimeAVLASource,
+                  contract.consumerLabel))
+    return error;
+  const plugin::rvv::RVVLowPrecisionPrimitiveRoutePayload &payload =
+      contract.lowPrecisionPrimitiveRoutePayload;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive source dtype",
           description.lowPrecisionPrimitiveSourceElementTypeName,
-          primitive.sourceElementTypeName))
+          payload.sourceElementTypeName))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive source signedness",
           description.lowPrecisionPrimitiveSourceSignedness,
-          primitive.sourceSignedness))
+          payload.sourceSignedness))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive source load",
           description.lowPrecisionPrimitiveSourceLoadKind,
-          primitive.sourceLoadKind))
+          payload.sourceLoadKind))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive source extension",
           description.lowPrecisionPrimitiveSourceExtensionKind,
-          primitive.sourceExtensionKind))
+          payload.sourceExtensionKind))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive product dtype",
           description.lowPrecisionPrimitiveProductElementTypeName,
-          primitive.productElementTypeName))
+          payload.productElementTypeName))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive accumulator dtype",
           description.lowPrecisionPrimitiveAccumulatorElementTypeName,
-          primitive.accumulatorElementTypeName))
+          payload.accumulatorElementTypeName))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive final result dtype",
           description.lowPrecisionPrimitiveResultElementTypeName,
-          primitive.finalResultElementTypeName))
+          payload.resultElementTypeName))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive tail policy",
-          description.tailPolicy, contract.tailPolicy))
+          description.tailPolicy, payload.tailPolicy))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive mask policy",
-          description.maskPolicy, contract.maskPolicy))
+          description.maskPolicy, payload.maskPolicy))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive runtime control plan",
-          description.runtimeControlPlanID, contract.runtimeControlPlanID))
+          description.runtimeControlPlanID, payload.runtimeControlPlanID))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive runtime AVL source",
-          description.runtimeAVLASource,
-          contract.runtimeAVLVLContract.runtimeAVLASource))
+          description.runtimeAVLASource, payload.runtimeAVLASource))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractIntField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive source SEW",
-          description.sourceSEW, primitive.sourceSEW))
+          description.sourceSEW, payload.sourceSEW))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive source LMUL",
-          description.sourceLMUL, primitive.sourceLMUL))
+          description.sourceLMUL, payload.sourceLMUL))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractIntField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive product SEW",
-          description.productSEW, primitive.productSEW))
+          description.productSEW, payload.productSEW))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive product LMUL",
-          description.productLMUL, primitive.productLMUL))
+          description.productLMUL, payload.productLMUL))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractIntField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive accumulator SEW",
-          description.sew, primitive.accumulatorSEW))
+          description.sew, payload.accumulatorSEW))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive accumulator LMUL",
-          description.lmul, primitive.accumulatorLMUL))
+          description.lmul, payload.accumulatorLMUL))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractIntField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive result SEW",
-          description.sew, primitive.reductionResultSEW))
+          description.sew, payload.resultSEW))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive result LMUL",
-          description.lmul, primitive.reductionResultLMUL))
+          description.lmul, payload.resultLMUL))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive product relation",
           description.wideningProductRelation,
-          primitive.wideningProductRelation))
+          payload.wideningProductRelation))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive reduction relation",
           description.productReductionChainRelation,
-          primitive.productReductionChainRelation))
+          payload.productReductionChainRelation))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive product intrinsic",
           description.wideningProductIntrinsic,
-          primitive.wideningProductIntrinsic))
+          payload.wideningProductIntrinsic))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive reduction intrinsic",
-          description.intrinsic, primitive.reductionIntrinsic))
+          description.intrinsic, payload.reductionIntrinsic))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive scalar seed splat",
           description.scalarSeedSplatIntrinsic,
-          primitive.scalarSeedSplatIntrinsic))
+          payload.scalarSeedSplatIntrinsic))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive accumulator layout",
           description.reductionAccumulatorLayout,
-          primitive.accumulatorLayout))
+          payload.accumulatorLayout))
     return error;
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel,
           "low-precision widening-reduction primitive result layout",
-          description.reductionResultLayout, primitive.resultLayout))
+          description.reductionResultLayout, payload.resultLayout))
     return error;
   return requireRVVWideningDotContractStringField(
       contract.consumerLabel,
       "low-precision widening-reduction primitive store VL",
-      description.reductionStoreVL, primitive.reductionStoreVL);
+      description.reductionStoreVL, payload.reductionStoreVL);
 }
 
 llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(

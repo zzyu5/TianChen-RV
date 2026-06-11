@@ -575,6 +575,18 @@ artifact validation.
   provider-owned primitive route payload. The payload must mirror the validated
   route-family plan before route construction; a generic contraction route
   without low-precision primitive facts must reject the payload.
+- The provider-owned primitive payload gate is
+  `verifyRVVLowPrecisionPrimitiveRoutePayloadFromWideningReductionFacts(
+  payload, primitiveFacts, tailPolicy, maskPolicy, runtimeControlPlanID,
+  runtimeAVLASource, context)`. It is the canonical compiler-fact check for the
+  product-reduction primitive payload: source dtype/signedness/load/extension,
+  product/accumulator/final-result dtype, SEW/LMUL, tail/mask policy, runtime
+  AVL/VL, product-reduction relation, product/reduction intrinsics, scalar seed
+  splat, accumulator/result layout, and store VL must match provider-owned
+  widening-reduction primitive facts plus the provider runtime/policy contract.
+  Route-description scalar copies, emission-plan metadata, support-bundle
+  fields, and target candidate metadata are mirrors after this helper; they must
+  not act as a second primitive authority.
 - Emission-plan metadata and target support-bundle export may serialize
   `tcrv_rvv.low_precision_primitive.*` fields only from the provider route
   payload. They must not recompute signedness, dtype, SEW/LMUL, policy, runtime
@@ -582,9 +594,10 @@ artifact validation.
   description defaults, artifact names, result/admission fields, or Common EmitC
   helpers.
 - Target artifact validation must consume the provider validation contract plus
-  primitive route payload before accepting candidate metadata mirrors. Candidate
-  metadata proves only that the export mirrored the payload exactly; it never
-  authorizes route support by itself.
+  primitive route payload through the same provider-owned payload gate before
+  accepting candidate metadata mirrors. Candidate metadata proves only that the
+  export mirrored the payload exactly; it never authorizes route support by
+  itself.
 - Common EmitC may materialize only the provider-built route payload. It must
   not choose dtype/sign/SEW/LMUL, `vwmul`, `vwredsum`, seed splat, layout, or
   store-VL semantics itself.
@@ -614,6 +627,12 @@ artifact validation.
   fields disagree with the validated provider plan, or exports primitive
   metadata without that payload -> provider or target fail-closed diagnostic
   before target artifact acceptance.
+- Product-reduction route description carries a stale primitive route payload
+  field, such as product-reduction relation, runtime AVL source, reduction
+  intrinsic, scalar seed splat, accumulator/result layout, or store VL ->
+  provider/target provider-facts validation fails at
+  `verifyRVVLowPrecisionPrimitiveRoutePayloadFromWideningReductionFacts` before
+  artifact mirror validation can treat metadata as authority.
 - Target artifact validation sees missing or stale primitive route payload
   fields such as runtime control plan, runtime AVL source, product SEW/LMUL,
   product-reduction relation, reduction intrinsic, seed splat, layout, or store
@@ -662,6 +681,10 @@ artifact validation.
 - Provider route-payload coverage proving the payload mirrors the validated
   plan for signed i8 and unsigned u8 product-reduction, plus negative coverage
   for missing/stale payload fields before route or artifact acceptance.
+- Target provider-facts coverage must mutate the route-description payload
+  itself, not only candidate metadata mirrors, for at least product-reduction
+  chain relation, runtime AVL source, and a packed-i4 dequant/dequant-clamp
+  primitive intrinsic/layout/store-VL field.
 - Focused lit coverage for the selected product-reduction artifact path when
   metadata mirror diagnostics are user-visible.
 - Runtime `ssh rvv` evidence is required only when the task claims executable

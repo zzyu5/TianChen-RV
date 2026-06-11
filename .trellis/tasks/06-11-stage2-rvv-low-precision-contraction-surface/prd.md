@@ -44,10 +44,13 @@ EmitC semantics.
   signedness, SEW/LMUL, policy, runtime control, product/reduction relation,
   intrinsic, seed splat, layout, and store-VL facts into a provider-owned
   primitive route payload consumed by target artifact validation.
-- The current gap is language and ownership drift: stale numbered-milestone terminology still
-  appears in the active task/spec and in production low-precision helper names
-  or diagnostics, where it can imply route, schedule, support, or admission
-  authority rather than a project milestone or measurement-disposition record.
+- The current gap is adjacent primitive ownership drift: stable low-precision
+  primitive facts are still repeated across selected-body descriptions,
+  primitive fact structs, route payload metadata, emission-plan mirrors, and
+  target validation checks. The next cleanup must keep typed body/config/runtime
+  and provider-built primitive facts as compiler authority, while treating
+  emitted metadata and target artifact fields as mirrors of the provider route
+  payload.
 
 ## Completed Slice: Gearbox Low-Precision Resource-Schedule Canonicalization
 
@@ -83,37 +86,62 @@ realization/provider route validation, and target artifact resource
 validation. Measurement-disposition helpers remain separate and continue to
 fail closed for stale evidence/admission mirrors.
 
-## Current Round Slice: Selected-Body Realization Admission/Evidence Boundary Cleanup
+## Completed Slice: Selected-Body Realization Admission/Evidence Boundary Cleanup
 
-This bounded slice cleans the handoff between selected-body realization
-compiler facts and packed-i4 measurement-disposition policy/evidence facts.
-The current code already carries explicit stable schedule/resource facts, but
-the selected-body realization/provider handoff still has dense
-admission/remediation/performance fields near the route-realization fact gate.
-That can make policy evidence look like resource or route support authority
-unless the boundary is explicit in helper names, diagnostics, and validation
-call sites.
+The previous bounded slice cleaned the handoff between selected-body
+realization compiler facts and packed-i4 measurement-disposition policy/evidence
+facts. Provider-side realization compiler-fact gates now validate
+typed/resource/realization, packed load/unpack, Gearbox handoff, stable
+schedule, and resource-cost facts without consuming packed-i4
+admission/remediation/performance/measurement/no-win/dispatch fields as route,
+schedule, or resource acceptance facts.
+
+Packed-i4 measurement-disposition fields remain preserved and are read through
+explicit policy/evidence helpers. Missing or stale policy/evidence attrs fail
+with named measurement-disposition policy/evidence diagnostics, while stale
+target artifact mirrors remain handled by separate evidence/admission mirror
+validators.
+
+## Current Round Slice: Provider Primitive Route-Payload Canonicalization
+
+This bounded slice canonicalizes stable low-precision primitive facts at the RVV
+provider route-payload boundary. The provider already creates
+`RVVLowPrecisionWideningReductionPrimitiveFacts` and
+`RVVLowPrecisionPrimitiveRoutePayload`, but related fields still appear in the
+route-family plan, route description, emission metadata, and target artifact
+validation. This round must make that duplication explicitly mirror-only:
+typed `tcrv_rvv` body/config/runtime facts and provider primitive facts feed one
+validated primitive route payload; Common EmitC and target artifacts only carry
+or compare mirrors of that payload.
 
 The source-backed field classification for this slice is:
 
-- Stable compiler authority: typed `tcrv_rvv` body/config/runtime facts,
-  selected resource candidate facts, packed load/unpack facts, primitive-chain
-  facts, realization producer/decision, realized region/phase facts, Gearbox
-  cross-region handoff structure, stable packed-i4 schedule/resource-cost
-  facts, provider route payloads, route-family plan mirrors, target capability
-  mirrors, and target resource validation.
-- Policy/evidence facts: realization admission proof, remediation handoff,
-  remediation plans, performance feedback, same-target measurement evidence
-  IDs, performance admission closure/reopen facts, beyond-local admission,
-  maturity/no-win outcome, dispatch preference, and selected-dispatch
-  performance policy mirrors.
+- Compiler authority: selected typed `tcrv_rvv` body/config/runtime facts,
+  source dtype/signedness, source load/extension, product dtype/SEW/LMUL,
+  accumulator and primitive reduction-result dtype/SEW/LMUL,
+  product-reduction relation, widening product intrinsic, reduction intrinsic,
+  scalar seed splat, tail/mask policy, runtime AVL/VL facts, accumulator/result
+  layout, reduction store VL, packed-i4 load/unpack facts, and provider-owned
+  `RVVLowPrecisionPrimitiveRoutePayload`.
+- Mirror/test facts: route-description scalar copies, emission-plan
+  `tcrv_rvv.low_precision_primitive.*` metadata, target support-bundle fields,
+  candidate metadata, object/header mirrors, lit `PLAN`/`HEADER` checks, and
+  C++ fixture mutation records. These may prove exact carry-through but must
+  not choose primitive semantics.
+- Policy/evidence facts: realization admission proof, remediation plans,
+  performance feedback/admission, same-target measurement evidence IDs,
+  maturity/no-win outcomes, and dispatch preference. They are out of the
+  primitive compiler-fact boundary and must not satisfy primitive route-payload
+  validation.
 
-Production behavior for this slice must enforce that stable compiler facts are
-validated by resource/realization helpers, while policy/evidence facts are
-validated only by explicitly named measurement-disposition policy/evidence
-helpers. If policy/evidence attrs remain serialized for target validation, they
-must stay grouped as policy/evidence mirrors and fail closed as stale mirrors;
-they must not satisfy route, schedule, resource, or artifact acceptance.
+Production behavior for this slice must fail closed when source dtype or
+signedness, load/extension, product/accumulator/result dtype, SEW/LMUL,
+product-reduction relation, intrinsic, policy, runtime AVL/VL,
+accumulator/result layout, or store-VL facts disagree with the provider-owned
+primitive payload. Target artifact validation may consume provider-built mirrors
+only after the provider payload contract is valid; it must not reconstruct a
+second primitive authority from artifact metadata, candidate IDs, route IDs,
+admission state, or exact intrinsic spellings.
 
 This round must not add q8/q4 route authority, artifact-name authority,
 helper-only wrappers, source-front-door positive routes, Common EmitC semantic
@@ -122,39 +150,40 @@ inference, or measured-win/admission claims.
 ## Acceptance Criteria For This Slice
 
 - Active task metadata, PRD, implementation/check context, and RVV
-  low-precision spec sections identify the selected-body realization
-  admission/evidence boundary cleanup under the same macro task.
-- Source-backed field classification is recorded for stable compiler authority
-  versus policy/evidence facts at the selected-body realization handoff.
-- Provider-side route-realization helpers validate typed/resource/realization
-  compiler facts, packed load/unpack facts, stable schedule/resource-cost
-  facts, and handoff structure without consuming performance feedback,
-  remediation, same-target evidence, no-win, admission, or dispatch preference
-  fields as route/resource/schedule acceptance facts.
-- Packed-i4 measurement-disposition fields remain preserved and validated
-  through explicitly named policy/evidence helpers, including realization
-  admission proof, remediation planning, performance feedback/admission,
-  maturity/no-win, same-target evidence ID, and dispatch preference.
-- Target artifact validation keeps stable resource mirrors and
-  measurement-disposition evidence/admission mirrors in separate helpers; stale
-  policy/evidence mirrors continue to fail closed as policy/evidence mirrors,
-  not as resource/schedule facts.
-- Focused negative coverage proves stale or missing policy/evidence cannot
-  satisfy route, schedule, resource, or artifact acceptance and is diagnosed at
-  the named measurement-disposition boundary.
+  low-precision spec sections identify provider primitive route-payload
+  canonicalization under the same macro task.
+- Source-backed field classification is recorded for compiler authority,
+  mirror/test facts, and policy/evidence facts at the primitive route-payload
+  boundary.
+- Provider-side primitive validation/payload construction is the single
+  compiler authority for the signed and unsigned product-reduction primitive
+  fields touched in this round.
+- Provider route construction fails closed before `TCRVEmitCLowerableRoute`
+  materialization when payload source dtype/signedness, load/extension,
+  product/accumulator/result dtype, SEW/LMUL, policy, runtime AVL/VL,
+  product-reduction relation, intrinsic, scalar seed splat, layout, or store-VL
+  facts do not mirror the validated provider plan and primitive facts.
+- Target artifact validation consumes provider-built primitive payload mirrors
+  and rejects missing or stale mirrors without inventing primitive semantics from
+  route ids, candidate metadata, artifact names, intrinsic spellings,
+  admission/remediation/measurement/no-win, or dispatch fields.
+- Packed-i4 dequantize/dequant-clamp resource and policy/evidence boundaries
+  remain intact; packed-i4 policy/evidence fields stay outside primitive
+  compiler-fact validation.
+- Focused negative coverage proves stale or missing primitive compiler facts are
+  rejected at the primitive payload/provider or target mirror boundary, alongside
+  existing signed/unsigned product-reduction and packed-i4 dequant/dequant-clamp
+  positive fixtures.
 - Common EmitC remains neutral and only carries provider-built payloads and
   mirrors.
 - A bounded scan over touched production files, active task text, directly
-  affected packed-i4 fixtures, and the RVV low-precision spec sections finds no
-  admission/remediation/performance/measurement/same-target/no-win wording that
-  implies compiler authority outside explicit measurement-disposition or
-  policy/evidence contexts. Immutable historical evidence path strings may
-  remain only as evidence IDs.
-- Focused packed-i4 dequantize/dequant-clamp lit coverage remains passing,
-  alongside the signed/unsigned product-reduction payload coverage needed to
-  guard the existing provider payload exactness.
+  affected fixtures, and RVV low-precision spec sections finds no
+  admission/remediation/performance/measurement/same-target/no-win/dispatch
+  wording used as primitive route-payload compiler authority.
 - `tcrv-opt`, `tcrv-translate`, `tianchenrv-rvv-extension-plugin-test`, and
   `tianchenrv-target-artifact-export-test` build; the two C++ test binaries run.
+- Focused lit coverage for signed/unsigned product-reduction and packed-i4
+  dequantize/dequant-clamp fixtures passes.
 - `python3 ./.trellis/scripts/task.py validate
   .trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface` passes.
 - `git diff --check` and `git diff --cached --check` pass.
@@ -219,28 +248,18 @@ resource-cost facts. That stable helper is consumed by Gearbox candidate
 selection, Gearbox handoff/resource schedule verification, provider route
 planning validation, and target artifact resource validation.
 
-The remaining open boundary for this round is the selected-body realization
-handoff itself: packed-i4 admission, remediation, performance, measurement,
-same-target, no-win, and dispatch-preference fields remain serialized near
-realization/provider handoff checks. This round makes those fields explicit
-measurement-disposition policy/evidence facts while keeping resource and
-schedule acceptance anchored in stable compiler facts.
+The remaining open boundary for this round is provider primitive route-payload
+canonicalization. Signed/unsigned product-reduction and packed-i4
+dequant/dequant-clamp paths carry low-precision primitive facts through the
+provider payload, emission metadata, support-bundle export, and target artifact
+validation, but this slice must reduce duplicate authority surfaces and ensure
+target validation consumes provider-built primitive mirrors instead of becoming
+a second primitive source of truth.
 
-## Status After This Round
+## Expected Status After This Round
 
-The selected-body realization admission/evidence boundary cleanup slice is
-complete. Provider-side realization compiler-fact gates now validate
-typed/resource/realization, packed load/unpack, Gearbox handoff, stable
-schedule, and resource-cost facts without consuming packed-i4
-admission/remediation/performance/measurement/no-win/dispatch fields as route,
-schedule, or resource acceptance facts.
-
-Packed-i4 measurement-disposition fields remain preserved and are read through
-explicit policy/evidence helpers. Missing policy/evidence attrs now fail with a
-named measurement-disposition policy/evidence diagnostic before route-plan
-construction can treat them as compiler facts, and stale target artifact mirrors
-remain handled by the existing separate evidence/admission mirror validators.
-
-The macro campaign remains in progress. The next continuation point is adjacent
-low-precision primitive-surface cleanup or a future measurement-disposition
-slice only when fresh source-backed same-target RVV evidence is introduced.
+The provider primitive route-payload canonicalization slice should be complete
+for signed/unsigned product-reduction and packed-i4 dequant/dequant-clamp
+representatives. The macro campaign should remain in progress for any adjacent
+low-precision primitive-surface cleanup and for future measurement-disposition
+work only when fresh source-backed same-target RVV evidence exists.

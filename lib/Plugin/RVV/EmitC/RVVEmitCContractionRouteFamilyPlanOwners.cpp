@@ -8388,6 +8388,143 @@ void populateRVVLowPrecisionPrimitiveRoutePayload(
   payload.reductionStoreVL = plan.reductionStoreVL;
 }
 
+llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromWideningReductionFacts(
+    const RVVLowPrecisionPrimitiveRoutePayload &payload,
+    const RVVLowPrecisionWideningReductionPrimitiveFacts &primitiveFacts,
+    llvm::StringRef tailPolicy, llvm::StringRef maskPolicy,
+    llvm::StringRef runtimeControlPlanID,
+    llvm::StringRef runtimeAVLASource, llvm::StringRef context) {
+  if (!primitiveFacts.hasFacts)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires provider-owned low-precision widening-reduction primitive "
+        "facts before validating primitive route payload");
+  if (!payload.hasPayload)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires provider-owned low-precision primitive route payload "
+        "before validating widening-reduction primitive facts");
+  if (!payload.isProductReductionChain)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " requires product-reduction low-precision primitive route payload "
+        "before validating widening-reduction primitive facts");
+
+  auto requireString =
+      [&](llvm::StringRef field, llvm::StringRef actual,
+          llvm::StringRef expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision primitive route payload field '" + field +
+        "' must mirror provider-owned widening-reduction primitive facts; "
+        "expected '" +
+        expected + "' but saw '" + actual + "'");
+  };
+  auto requireInteger =
+      [&](llvm::StringRef field, std::int64_t actual,
+          std::int64_t expected) -> llvm::Error {
+    if (actual == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision primitive route payload field '" + field +
+        "' must mirror provider-owned widening-reduction primitive facts; "
+        "expected " +
+        llvm::Twine(expected) + " but saw " + llvm::Twine(actual));
+  };
+
+#define TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(FIELD, ACTUAL, EXPECTED)   \
+  if (llvm::Error error = requireString((FIELD), (ACTUAL), (EXPECTED)))        \
+    return error
+#define TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER(FIELD, ACTUAL, EXPECTED)  \
+  if (llvm::Error error = requireInteger((FIELD), (ACTUAL), (EXPECTED)))       \
+    return error
+
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "contract", payload.contractID,
+      primitiveFacts.lowPrecisionPrimitiveContractID);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "kind", payload.kind, primitiveFacts.lowPrecisionPrimitiveKind);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "source dtype", payload.sourceElementTypeName,
+      primitiveFacts.sourceElementTypeName);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "source signedness", payload.sourceSignedness,
+      primitiveFacts.sourceSignedness);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "source load", payload.sourceLoadKind, primitiveFacts.sourceLoadKind);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "source extension", payload.sourceExtensionKind,
+      primitiveFacts.sourceExtensionKind);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "product dtype", payload.productElementTypeName,
+      primitiveFacts.productElementTypeName);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "accumulator dtype", payload.accumulatorElementTypeName,
+      primitiveFacts.accumulatorElementTypeName);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "result dtype", payload.resultElementTypeName,
+      primitiveFacts.finalResultElementTypeName);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER(
+      "source SEW", payload.sourceSEW, primitiveFacts.sourceSEW);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "source LMUL", payload.sourceLMUL, primitiveFacts.sourceLMUL);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER(
+      "product SEW", payload.productSEW, primitiveFacts.productSEW);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "product LMUL", payload.productLMUL, primitiveFacts.productLMUL);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER(
+      "accumulator SEW", payload.accumulatorSEW,
+      primitiveFacts.accumulatorSEW);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "accumulator LMUL", payload.accumulatorLMUL,
+      primitiveFacts.accumulatorLMUL);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER(
+      "result SEW", payload.resultSEW, primitiveFacts.reductionResultSEW);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "result LMUL", payload.resultLMUL, primitiveFacts.reductionResultLMUL);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "tail policy", payload.tailPolicy, tailPolicy);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "mask policy", payload.maskPolicy, maskPolicy);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "runtime control plan", payload.runtimeControlPlanID,
+      runtimeControlPlanID);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "runtime AVL source", payload.runtimeAVLASource, runtimeAVLASource);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "widening product relation", payload.wideningProductRelation,
+      primitiveFacts.wideningProductRelation);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "product-reduction chain relation",
+      payload.productReductionChainRelation,
+      primitiveFacts.productReductionChainRelation);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "widening product intrinsic", payload.wideningProductIntrinsic,
+      primitiveFacts.wideningProductIntrinsic);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "reduction intrinsic", payload.reductionIntrinsic,
+      primitiveFacts.reductionIntrinsic);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "scalar seed splat intrinsic", payload.scalarSeedSplatIntrinsic,
+      primitiveFacts.scalarSeedSplatIntrinsic);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "accumulator layout", payload.accumulatorLayout,
+      primitiveFacts.accumulatorLayout);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "result layout", payload.resultLayout, primitiveFacts.resultLayout);
+  TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING(
+      "reduction store VL", payload.reductionStoreVL,
+      primitiveFacts.reductionStoreVL);
+
+#undef TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_STRING
+#undef TCRV_REQUIRE_PRIMITIVE_FACT_PAYLOAD_INTEGER
+
+  return llvm::Error::success();
+}
+
 llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromPlan(
     const RVVLowPrecisionPrimitiveRoutePayload &payload,
     const RVVSelectedBodyContractionRouteFamilyPlan &plan,
@@ -8435,6 +8572,22 @@ llvm::Error verifyRVVLowPrecisionPrimitiveRoutePayloadFromPlan(
         llvm::Twine(context) +
         " low-precision primitive route payload product-reduction boundary "
         "must mirror the validated provider route-family plan");
+  if (plan.usesProductReductionChain) {
+    std::optional<RVVLowPrecisionWideningReductionPrimitiveFacts>
+        primitiveFacts = getRVVLowPrecisionWideningReductionPrimitiveFacts(
+            plan.operation, isRVVUnsignedLowPrecisionWideningProductPlan(plan));
+    if (!primitiveFacts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " requires provider-owned widening-reduction primitive facts before "
+          "validating low-precision primitive route payload");
+    if (llvm::Error error =
+            verifyRVVLowPrecisionPrimitiveRoutePayloadFromWideningReductionFacts(
+                payload, *primitiveFacts, plan.tailPolicy, plan.maskPolicy,
+                plan.runtimeControlPlan.controlPlanID,
+                plan.runtimeControlPlan.runtimeAVLASource, context))
+      return error;
+  }
 
 #define TCRV_REQUIRE_PRIMITIVE_PAYLOAD_STRING(FIELD, ACTUAL, EXPECTED)         \
   if (llvm::Error error = requireString((FIELD), (ACTUAL), (EXPECTED)))        \
@@ -10880,6 +11033,14 @@ llvm::Error verifyRVVSelectedBodyContractionRouteDescriptionMirrors(
           llvm::Twine(context) +
           " contraction route description low-precision primitive route "
           "payload must mirror the selected product-reduction boundary");
+    if (usesProductReductionChain) {
+      if (llvm::Error error =
+              verifyRVVLowPrecisionPrimitiveRoutePayloadFromWideningReductionFacts(
+                  primitivePayload, *primitiveFacts, description.tailPolicy,
+                  description.maskPolicy, description.runtimeControlPlanID,
+                  description.runtimeAVLASource, context))
+        return error;
+    }
 
     auto requirePayloadField =
         [&](llvm::StringRef field, llvm::StringRef actual,

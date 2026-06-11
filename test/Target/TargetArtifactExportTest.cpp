@@ -14912,6 +14912,34 @@ bool expectRVVTargetArtifactExporterShape(
           {"primitive source signedness", "signed", "unsigned"}))
     return false;
 
+  RVVRouteDescription staleProductReductionPayloadChainRelation =
+      productReductionDescription;
+  staleProductReductionPayloadChainRelation.lowPrecisionPrimitiveRoutePayload
+      .productReductionChainRelation = "metadata-derived-product-reduction";
+  if (!expectWideningDotProviderFailure(
+          productReductionFixture.candidate, productReductionRoute,
+          staleProductReductionPayloadChainRelation,
+          "product-reduction registry rejects stale primitive route payload "
+          "chain relation",
+          {"low-precision primitive route payload field "
+           "'product-reduction chain relation'",
+           "signed-i8mf4xi8mf4-to-i16mf2-reduce-plus-i32-scalar-to-i32",
+           "metadata-derived-product-reduction"}))
+    return false;
+
+  RVVRouteDescription staleProductReductionPayloadRuntimeAVL =
+      productReductionDescription;
+  staleProductReductionPayloadRuntimeAVL.lowPrecisionPrimitiveRoutePayload
+      .runtimeAVLASource = "metadata-only-avl";
+  if (!expectWideningDotProviderFailure(
+          productReductionFixture.candidate, productReductionRoute,
+          staleProductReductionPayloadRuntimeAVL,
+          "product-reduction registry rejects stale primitive route payload "
+          "runtime AVL",
+          {"low-precision primitive route payload field 'runtime AVL source'",
+           "runtime_abi:n", "metadata-only-avl"}))
+    return false;
+
   TargetArtifactCandidate staleProductReductionProductLMULMirror =
       productReductionFixture.candidate;
   if (!rewriteArtifactMetadataValue(staleProductReductionProductLMULMirror,
@@ -14976,6 +15004,21 @@ bool expectRVVTargetArtifactExporterShape(
           "packed-i4 product-reduction registry rejects stale resource "
           "primitive product SEW",
           {"resource primitive product SEW", "16", "32"}))
+    return false;
+
+  RVVRouteDescription stalePackedI4PayloadReductionIntrinsic =
+      packedI4ProductDequantDescription;
+  stalePackedI4PayloadReductionIntrinsic.lowPrecisionPrimitiveRoutePayload
+      .reductionIntrinsic = "metadata-derived-reduction";
+  if (!expectWideningDotProviderFailure(
+          packedI4ProductDequantFixture.candidate,
+          packedI4ProductDequantRoute,
+          stalePackedI4PayloadReductionIntrinsic,
+          "packed-i4 product-reduction registry rejects stale primitive route "
+          "payload reduction intrinsic",
+          {"low-precision primitive route payload field 'reduction intrinsic'",
+           "__riscv_vwredsum_vs_i16mf2_i32m1",
+           "metadata-derived-reduction"}))
     return false;
 
   RVVRouteDescription stalePackedI4PlanningContract =

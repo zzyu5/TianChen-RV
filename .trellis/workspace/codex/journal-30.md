@@ -1,5 +1,78 @@
 > Continuation from `journal-29.md` (archived at more than 2000 lines)
 
+## Session 606: Provider primitive route-payload canonicalization
+
+**Date**: 2026-06-12
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the provider primitive
+route-payload canonicalization slice. This round introduced a provider-owned
+primitive payload gate for product-reduction routes so signed/unsigned
+product-reduction and packed-i4 dequant representatives validate the full
+`RVVLowPrecisionPrimitiveRoutePayload` against provider widening-reduction
+primitive facts before route construction or target artifact mirror validation.
+
+### Main Changes
+
+- Repaired the active macro PRD for provider primitive route-payload
+  canonicalization, with field classification for compiler authority,
+  mirror/test facts, and policy/evidence facts.
+- Added
+  `verifyRVVLowPrecisionPrimitiveRoutePayloadFromWideningReductionFacts` as the
+  canonical provider helper for source dtype/signedness, load/extension,
+  product/accumulator/final-result dtype, SEW/LMUL, policy, runtime AVL/VL,
+  product-reduction relation, intrinsics, seed, layout, and store-VL payload
+  validation.
+- Wired the helper into provider plan validation and route-description
+  validation before route construction.
+- Changed target provider-facts validation to call the same provider payload
+  helper, then compare route-description mirrors against `payload.*` rather
+  than reconstructing primitive authority from target-side fields.
+- Added C++ stale payload negative coverage for product-reduction chain
+  relation, product-reduction runtime AVL source, and packed-i4 dequant
+  reduction intrinsic.
+- Updated the RVV plugin code-spec with the helper signature, payload gate
+  contract, error behavior, and target provider-facts test requirements.
+- Updated active task metadata/context while leaving the macro task in progress.
+
+### Testing
+
+- [OK] `rtk cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `rtk build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `rtk build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `rtk python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-add|pre-realized-selected-body-artifact-widening-product-reduce-add-unsigned-u8|explicit-selected-body-artifact-widening-product-reduce-add\\.mlir|explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8|pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4'` from `build/test`
+- [OK] Diff-only scan over touched production/test files found no added
+  admission/remediation/measurement/same-target/no-win/dispatch wording in the
+  primitive payload compiler-fact path.
+- [OK] `rtk python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-low-precision-contraction-surface`
+- [OK] `rtk git diff --check`
+
+### Self-Repair
+
+- The first implementation added the shared helper but left target
+  provider-facts follow-up comparisons using primitive fact fields as expected
+  values. The final version keeps primitive facts inside the helper and makes
+  target provider-facts validation consume the provider payload for subsequent
+  route-description mirror checks.
+- The first broad policy/evidence scan included existing spec and long-lived
+  packed-i4 policy tests, so it was too noisy for this slice. The final scan was
+  diff-only over touched production/test files.
+
+### Status
+
+[OPEN MACRO TASK] Provider primitive route-payload canonicalization is complete
+for the signed/unsigned product-reduction and packed-i4 dequant representative
+payload boundary. The macro task remains active for adjacent low-precision
+primitive-surface cleanup or future measurement-disposition work only with fresh
+source-backed same-target RVV evidence.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 605: Selected-body realization admission/evidence boundary cleanup
 
 **Date**: 2026-06-12
