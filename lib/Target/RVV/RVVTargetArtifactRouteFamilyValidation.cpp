@@ -3887,6 +3887,39 @@ llvm::Error validateRVVPackedI4LowPrecisionResourceProviderFacts(
           contract.consumerLabel, "packed-i4 dequant phase",
           selection.dequantPhase, "dequant-store"))
     return error;
+  if (plugin::rvv::isRVVLowPrecisionResourceDequantClampCandidateID(
+          selection.selectedCandidateID)) {
+    if (llvm::Error error = requireRVVWideningDotContractIntField(
+            contract.consumerLabel, "packed-i4 clamp region index",
+            selection.clampRegionIndex,
+            plugin::rvv::getRVVLowPrecisionResourceClampRegionIndexForCandidate(
+                selection.selectedCandidateID)))
+      return error;
+    if (selection.clampRegionIndex != selection.dequantRegionIndex)
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires provider-owned packed-i4 dequant-clamp compare/select "
+          "to stay in the dequant/store region before artifact export");
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "packed-i4 clamp phase",
+            selection.clampPhase,
+            plugin::rvv::getRVVLowPrecisionResourceClampPhaseForCandidate(
+                selection.selectedCandidateID)))
+      return error;
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "packed-i4 clamp compare/select phase",
+            selection.clampCompareSelectPhase,
+            plugin::rvv::
+                getRVVLowPrecisionResourceClampCompareSelectPhaseForCandidate(
+                    selection.selectedCandidateID)))
+      return error;
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "packed-i4 clamp select layout",
+            selection.clampSelectLayout,
+            plugin::rvv::getRVVLowPrecisionResourceClampSelectLayoutForCandidate(
+                selection.selectedCandidateID)))
+      return error;
+  }
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "packed-i4 route-family plan",
           selection.routeFamilyPlanID, contract.contractionRouteFamilyPlanID))
@@ -4388,6 +4421,50 @@ llvm::Error validateRVVLowPrecisionProductReductionRealizationProviderFacts(
           contract.consumerLabel, "low-precision dequant phase",
           selection.dequantPhase, "dequant-store"))
     return error;
+  const bool expectsClampFacts =
+      plugin::rvv::isRVVLowPrecisionResourceDequantClampCandidateID(
+          selection.selectedCandidateID);
+  if (!expectsClampFacts) {
+    if (selection.clampRegionIndex != 0 || !selection.clampPhase.empty() ||
+        !selection.clampCompareSelectPhase.empty() ||
+        !selection.clampSelectLayout.empty())
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " must not carry dequant-clamp realization facts for non-clamp "
+          "low-precision candidate before artifact export");
+  } else {
+    if (llvm::Error error = requireRVVWideningDotContractIntField(
+            contract.consumerLabel, "low-precision clamp region index",
+            selection.clampRegionIndex,
+            plugin::rvv::getRVVLowPrecisionResourceClampRegionIndexForCandidate(
+                selection.selectedCandidateID)))
+      return error;
+    if (selection.clampRegionIndex != selection.dequantRegionIndex)
+      return makeRVVTargetRouteError(
+          llvm::Twine(contract.consumerLabel) +
+          " requires provider-owned low-precision dequant-clamp "
+          "compare/select to stay in the dequant/store region before artifact "
+          "export");
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "low-precision clamp phase",
+            selection.clampPhase,
+            plugin::rvv::getRVVLowPrecisionResourceClampPhaseForCandidate(
+                selection.selectedCandidateID)))
+      return error;
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "low-precision clamp compare/select phase",
+            selection.clampCompareSelectPhase,
+            plugin::rvv::
+                getRVVLowPrecisionResourceClampCompareSelectPhaseForCandidate(
+                    selection.selectedCandidateID)))
+      return error;
+    if (llvm::Error error = requireRVVWideningDotContractStringField(
+            contract.consumerLabel, "low-precision clamp select layout",
+            selection.clampSelectLayout,
+            plugin::rvv::getRVVLowPrecisionResourceClampSelectLayoutForCandidate(
+                selection.selectedCandidateID)))
+      return error;
+  }
   if (llvm::Error error = requireRVVWideningDotContractStringField(
           contract.consumerLabel, "low-precision route-family plan",
           selection.routeFamilyPlanID, contract.contractionRouteFamilyPlanID))
@@ -6367,6 +6444,25 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
             "tcrv_rvv.low_precision_resource.dequant_phase",
             selection.dequantPhase, "dequant phase"))
       return error;
+    if (!selection.clampPhase.empty()) {
+      if (llvm::Error error = requireResourceMirror(
+              "tcrv_rvv.low_precision_resource.clamp_region_index",
+              llvm::Twine(selection.clampRegionIndex).str(),
+              "clamp region index"))
+        return error;
+      if (llvm::Error error = requireResourceMirror(
+              "tcrv_rvv.low_precision_resource.clamp_phase",
+              selection.clampPhase, "clamp phase"))
+        return error;
+      if (llvm::Error error = requireResourceMirror(
+              "tcrv_rvv.low_precision_resource.clamp_compare_select_phase",
+              selection.clampCompareSelectPhase, "clamp compare/select phase"))
+        return error;
+      if (llvm::Error error = requireResourceMirror(
+              "tcrv_rvv.low_precision_resource.clamp_select_layout",
+              selection.clampSelectLayout, "clamp select layout"))
+        return error;
+    }
   }
   if (!selection.performanceFeedback.empty()) {
     if (llvm::Error error = requireResourceMirror(

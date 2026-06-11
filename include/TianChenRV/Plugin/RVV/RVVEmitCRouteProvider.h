@@ -216,6 +216,10 @@ struct RVVLowPrecisionContractionResourceSelection {
   std::int64_t dequantRegionIndex = 0;
   std::string productPhase;
   std::string dequantPhase;
+  std::int64_t clampRegionIndex = 0;
+  std::string clampPhase;
+  std::string clampCompareSelectPhase;
+  std::string clampSelectLayout;
   std::string performanceFeedback;
   std::string performanceBaseline;
   std::string performanceBestSpeedupRange;

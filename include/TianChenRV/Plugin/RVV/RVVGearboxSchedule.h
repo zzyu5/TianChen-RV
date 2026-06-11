@@ -226,6 +226,16 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourceProductPhaseAttrName(
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceDequantPhaseAttrName(
     "tcrv_rvv.low_precision_resource.dequant_phase");
 constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceClampRegionIndexAttrName(
+        "tcrv_rvv.low_precision_resource.clamp_region_index");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceClampPhaseAttrName(
+    "tcrv_rvv.low_precision_resource.clamp_phase");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceClampCompareSelectPhaseAttrName(
+        "tcrv_rvv.low_precision_resource.clamp_compare_select_phase");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceClampSelectLayoutAttrName(
+    "tcrv_rvv.low_precision_resource.clamp_select_layout");
+constexpr llvm::StringLiteral
     kRVVLowPrecisionResourcePerformanceFeedbackAttrName(
         "tcrv_rvv.low_precision_resource.performance_feedback");
 constexpr llvm::StringLiteral
@@ -812,6 +822,12 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourcePrimitiveResultLayout(
     "store-standalone-reduction-lane0-to-output-scalar");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePrimitiveReductionStoreVL(
     "1");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceClampPhase(
+    "dequant-clamp-store");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceClampCompareSelectPhase(
+    "lower-then-upper-compare-select");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceClampSelectLayout(
+    "clamp-lower-then-upper");
 
 enum class RVVLowPrecisionContractionResourceOperation {
   ProductReductionDequantizeF32,
@@ -1052,6 +1068,13 @@ isRVVLowPrecisionResourceGroupedCandidateID(llvm::StringRef candidateID) {
 inline bool
 isRVVLowPrecisionResourcePackedI4CandidateID(llvm::StringRef candidateID) {
   return candidateID == kRVVLowPrecisionResourceDequantPackedI4Candidate ||
+         candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate;
+}
+
+inline bool
+isRVVLowPrecisionResourceDequantClampCandidateID(llvm::StringRef candidateID) {
+  return candidateID == kRVVLowPrecisionResourceDequantClampCandidate ||
+         candidateID == kRVVLowPrecisionResourceDequantClampGroupedCandidate ||
          candidateID == kRVVLowPrecisionResourceDequantClampPackedI4Candidate;
 }
 
@@ -1566,6 +1589,38 @@ getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
   return {};
 }
 
+inline std::int64_t
+getRVVLowPrecisionResourceClampRegionIndexForCandidate(
+    llvm::StringRef candidateID) {
+  if (!isRVVLowPrecisionResourceDequantClampCandidateID(candidateID))
+    return 0;
+  return getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
+      getRVVLowPrecisionContractionResourceRealizationDecision(candidateID));
+}
+
+inline llvm::StringRef
+getRVVLowPrecisionResourceClampPhaseForCandidate(llvm::StringRef candidateID) {
+  if (!isRVVLowPrecisionResourceDequantClampCandidateID(candidateID))
+    return {};
+  return kRVVLowPrecisionResourceClampPhase;
+}
+
+inline llvm::StringRef
+getRVVLowPrecisionResourceClampCompareSelectPhaseForCandidate(
+    llvm::StringRef candidateID) {
+  if (!isRVVLowPrecisionResourceDequantClampCandidateID(candidateID))
+    return {};
+  return kRVVLowPrecisionResourceClampCompareSelectPhase;
+}
+
+inline llvm::StringRef
+getRVVLowPrecisionResourceClampSelectLayoutForCandidate(
+    llvm::StringRef candidateID) {
+  if (!isRVVLowPrecisionResourceDequantClampCandidateID(candidateID))
+    return {};
+  return kRVVLowPrecisionResourceClampSelectLayout;
+}
+
 constexpr llvm::StringLiteral kRVVCompositeResourceCandidateSet(
     "rvv-composite-gather-macc-scatter-resource-candidate-set.v1["
     "rt-scmp-indexed-gather-macc-scatter-e32m1-u1]");
@@ -1680,6 +1735,10 @@ inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
          name == kRVVLowPrecisionResourceDequantRegionIndexAttrName ||
          name == kRVVLowPrecisionResourceProductPhaseAttrName ||
          name == kRVVLowPrecisionResourceDequantPhaseAttrName ||
+         name == kRVVLowPrecisionResourceClampRegionIndexAttrName ||
+         name == kRVVLowPrecisionResourceClampPhaseAttrName ||
+         name == kRVVLowPrecisionResourceClampCompareSelectPhaseAttrName ||
+         name == kRVVLowPrecisionResourceClampSelectLayoutAttrName ||
          name == kRVVLowPrecisionResourcePerformanceFeedbackAttrName ||
          name == kRVVLowPrecisionResourcePerformanceBaselineAttrName ||
          name ==

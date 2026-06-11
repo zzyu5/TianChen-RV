@@ -40,9 +40,10 @@
     "test/Target/RVV/explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8.mlir",
     "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir",
     "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir",
+    "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32.mlir",
     "test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4.mlir",
     "test/Target/TargetArtifactExportTest.cpp"
   ],
-  "notes": "Gate 3A selected-body realization consumption slice completed for the current low-precision product-reduction/dequantize spine: RVV selected-body realization and Gearbox schedule materialization now write realization producer/decision, realized unroll/region/peak-live, and product/dequant region/phase facts onto realized with_vl scopes; route planning reads those realization-produced facts before route construction and rejects stale product/dequant facts. Gate 1 and Gate 2 remain complete for the current fact spine. Macro task remains active for the next Gate 3 resource-aware body-family continuation and later Gate 4 source-backed same-target measured-dispatch admission.",
+  "notes": "Gate 3B selected-body realization consumption slice completed for widening_product_reduce_dequant_clamp_f32: RVV selected-body realization and Gearbox schedule materialization now carry provider-derived clamp_region_index, clamp_phase, clamp_compare_select_phase, and clamp_select_layout on realized producer/consumer with_vl scopes and Gearbox handoff; route planning reads and stale-rejects those dequant-clamp facts before TCRVEmitCLowerableRoute construction; target validation mirrors and stale-rejects clamp facts before artifact acceptance. Gate 2 and Gate 3A product/dequant facts remain preserved. Macro task remains active for remaining Gate 3 resource-aware body-family completion/audit and later Gate 4 source-backed same-target measured-dispatch admission.",
   "meta": {}
 }

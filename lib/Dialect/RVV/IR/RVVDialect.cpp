@@ -164,6 +164,13 @@ constexpr llvm::StringLiteral kProductRegionIndexAttrName(
     "product_region_index");
 constexpr llvm::StringLiteral kDequantRegionIndexAttrName(
     "dequant_region_index");
+constexpr llvm::StringLiteral kClampRegionIndexAttrName(
+    "clamp_region_index");
+constexpr llvm::StringLiteral kClampPhaseAttrName("clamp_phase");
+constexpr llvm::StringLiteral kClampCompareSelectPhaseAttrName(
+    "clamp_compare_select_phase");
+constexpr llvm::StringLiteral kClampSelectLayoutAttrName(
+    "clamp_select_layout");
 constexpr llvm::StringLiteral kRemediationPlanContractAttrName(
     "remediation_plan_contract");
 constexpr llvm::StringLiteral kRemediationPlanAttrName("remediation_plan");
@@ -366,6 +373,10 @@ bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
          name == kBeyondLocalRepairAdmissionReopenRequirementAttrName ||
          name == kProductRegionIndexAttrName ||
          name == kDequantRegionIndexAttrName ||
+         name == kClampRegionIndexAttrName ||
+         name == kClampPhaseAttrName ||
+         name == kClampCompareSelectPhaseAttrName ||
+         name == kClampSelectLayoutAttrName ||
          name == kRemediationPlanContractAttrName ||
          name == kRemediationPlanAttrName ||
          name == kRemediationStatementStrategyAttrName ||
@@ -4466,6 +4477,79 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
            << "requires product_region_index and dequant_region_index to "
               "match the selected resource decision and fit inside "
               "region_count";
+
+  const bool isDequantClampResource =
+      tianchenrv::plugin::rvv::
+          isRVVLowPrecisionResourceDequantClampCandidateID(
+              getResourceSelectedCandidate());
+  auto requireOptionalClampStringFact =
+      [&](llvm::StringRef attrName, llvm::StringRef expected)
+      -> mlir::LogicalResult {
+    auto attr = op->getAttrOfType<mlir::StringAttr>(attrName);
+    if (!isDequantClampResource) {
+      if (attr)
+        return emitOpError()
+               << "requires dequant-clamp handoff attribute '" << attrName
+               << "' to be absent for non-clamp resource candidates";
+      return mlir::success();
+    }
+    if (!attr)
+      return emitOpError()
+             << "requires dequant-clamp handoff attribute '" << attrName
+             << "' on the selected resource handoff";
+    if (attr.getValue() != expected)
+      return emitOpError()
+             << "requires dequant-clamp handoff attribute '" << attrName
+             << "' to match provider-owned resource fact '" << expected
+             << "' but found '" << attr.getValue() << "'";
+    return verifyBoundedMetadata(op, attrName, attr.getValue());
+  };
+  auto requireOptionalClampIntegerFact =
+      [&](llvm::StringRef attrName, std::int64_t expected)
+      -> mlir::LogicalResult {
+    auto attr = op->getAttrOfType<mlir::IntegerAttr>(attrName);
+    if (!isDequantClampResource) {
+      if (attr)
+        return emitOpError()
+               << "requires dequant-clamp handoff attribute '" << attrName
+               << "' to be absent for non-clamp resource candidates";
+      return mlir::success();
+    }
+    if (!attr)
+      return emitOpError()
+             << "requires dequant-clamp handoff attribute '" << attrName
+             << "' on the selected resource handoff";
+    if (attr.getInt() != expected)
+      return emitOpError()
+             << "requires dequant-clamp handoff attribute '" << attrName
+             << "' to match provider-owned resource fact " << expected
+             << " but found " << attr.getInt();
+    return mlir::success();
+  };
+  if (mlir::failed(requireOptionalClampIntegerFact(
+          kClampRegionIndexAttrName,
+          tianchenrv::plugin::rvv::
+              getRVVLowPrecisionResourceClampRegionIndexForCandidate(
+                  getResourceSelectedCandidate()))))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalClampStringFact(
+          kClampPhaseAttrName,
+          tianchenrv::plugin::rvv::
+              getRVVLowPrecisionResourceClampPhaseForCandidate(
+                  getResourceSelectedCandidate()))))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalClampStringFact(
+          kClampCompareSelectPhaseAttrName,
+          tianchenrv::plugin::rvv::
+              getRVVLowPrecisionResourceClampCompareSelectPhaseForCandidate(
+                  getResourceSelectedCandidate()))))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalClampStringFact(
+          kClampSelectLayoutAttrName,
+          tianchenrv::plugin::rvv::
+              getRVVLowPrecisionResourceClampSelectLayoutForCandidate(
+                  getResourceSelectedCandidate()))))
+    return mlir::failure();
 
   auto requireOptionalRemediationFact =
       [&](llvm::StringRef attrName, llvm::StringRef expected)

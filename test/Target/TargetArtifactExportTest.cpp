@@ -15073,6 +15073,32 @@ bool expectRVVTargetArtifactExporterShape(
       .selectedCandidateID =
       tianchenrv::plugin::rvv::
           kRVVLowPrecisionResourceDequantClampPackedI4Candidate.str();
+  stalePackedI4MeasurementCandidate.lowPrecisionResourceSelection
+      .clampRegionIndex =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionResourceClampRegionIndexForCandidate(
+              stalePackedI4MeasurementCandidate.lowPrecisionResourceSelection
+                  .selectedCandidateID);
+  stalePackedI4MeasurementCandidate.lowPrecisionResourceSelection.clampPhase =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionResourceClampPhaseForCandidate(
+              stalePackedI4MeasurementCandidate.lowPrecisionResourceSelection
+                  .selectedCandidateID)
+              .str();
+  stalePackedI4MeasurementCandidate.lowPrecisionResourceSelection
+      .clampCompareSelectPhase =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionResourceClampCompareSelectPhaseForCandidate(
+              stalePackedI4MeasurementCandidate.lowPrecisionResourceSelection
+                  .selectedCandidateID)
+              .str();
+  stalePackedI4MeasurementCandidate.lowPrecisionResourceSelection
+      .clampSelectLayout =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionResourceClampSelectLayoutForCandidate(
+              stalePackedI4MeasurementCandidate.lowPrecisionResourceSelection
+                  .selectedCandidateID)
+              .str();
   if (!expectWideningDotProviderFailure(
           packedI4ProductDequantFixture.candidate,
           packedI4ProductDequantRoute, stalePackedI4MeasurementCandidate,

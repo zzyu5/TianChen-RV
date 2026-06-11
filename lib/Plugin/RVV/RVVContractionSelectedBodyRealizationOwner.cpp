@@ -835,6 +835,29 @@ materializeLowPrecisionResourceRealizationAttrs(
               realizationDecision)));
   destination->setAttr(kRVVLowPrecisionResourceDequantPhaseAttrName,
                        builder.getStringAttr("dequant-store"));
+  if (isRVVLowPrecisionResourceDequantClampCandidateID(
+          selected->candidateID)) {
+    destination->setAttr(
+        kRVVLowPrecisionResourceClampRegionIndexAttrName,
+        builder.getI64IntegerAttr(
+            getRVVLowPrecisionResourceClampRegionIndexForCandidate(
+                selected->candidateID)));
+    destination->setAttr(
+        kRVVLowPrecisionResourceClampPhaseAttrName,
+        builder.getStringAttr(
+            getRVVLowPrecisionResourceClampPhaseForCandidate(
+                selected->candidateID)));
+    destination->setAttr(
+        kRVVLowPrecisionResourceClampCompareSelectPhaseAttrName,
+        builder.getStringAttr(
+            getRVVLowPrecisionResourceClampCompareSelectPhaseForCandidate(
+                selected->candidateID)));
+    destination->setAttr(
+        kRVVLowPrecisionResourceClampSelectLayoutAttrName,
+        builder.getStringAttr(
+            getRVVLowPrecisionResourceClampSelectLayoutForCandidate(
+                selected->candidateID)));
+  }
   if (isPackedI4Resource) {
     destination->setAttr(
         kRVVLowPrecisionResourcePackedLoadUnpackContractAttrName,
@@ -1203,6 +1226,28 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
       builder.getI64IntegerAttr(
           getRVVLowPrecisionResourceDequantRegionIndexForRealizationDecision(
               resourceDecision)));
+  if (isRVVLowPrecisionResourceDequantClampCandidateID(
+          selectedCandidate.candidateID)) {
+    state.addAttribute(
+        "clamp_region_index",
+        builder.getI64IntegerAttr(
+            getRVVLowPrecisionResourceClampRegionIndexForCandidate(
+                selectedCandidate.candidateID)));
+    state.addAttribute(
+        "clamp_phase",
+        builder.getStringAttr(getRVVLowPrecisionResourceClampPhaseForCandidate(
+            selectedCandidate.candidateID)));
+    state.addAttribute(
+        "clamp_compare_select_phase",
+        builder.getStringAttr(
+            getRVVLowPrecisionResourceClampCompareSelectPhaseForCandidate(
+                selectedCandidate.candidateID)));
+    state.addAttribute(
+        "clamp_select_layout",
+        builder.getStringAttr(
+            getRVVLowPrecisionResourceClampSelectLayoutForCandidate(
+                selectedCandidate.candidateID)));
+  }
   if (isRVVLowPrecisionResourcePackedI4CandidateID(
           selectedCandidate.candidateID)) {
     state.addAttribute(

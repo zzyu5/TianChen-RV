@@ -75,6 +75,72 @@ win evidence.
 
 Final coherent commit is created after this journal entry.
 
+## Session 592: Stage2 RVV Gearbox Gate 3B dequant-clamp realization fact consumption
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV production-kernel Gearbox resource-aware low-precision contraction campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the Gate 3B slice for
+`widening_product_reduce_dequant_clamp_f32`. This round extended the Gate 3A
+realized-body consumption pattern from product/dequant region and phase facts
+to provider-derived dequant-clamp clamp/compare-select facts, while preserving
+semantics, ABI roles, dispatch/fallback behavior, and runtime AVL.
+
+### Main Changes
+
+- Added dequant-clamp low-precision resource fields:
+  `clamp_region_index`, `clamp_phase`, `clamp_compare_select_phase`, and
+  `clamp_select_layout`.
+- Materialized those facts on realized producer and consumer `with_vl` scopes
+  and on `tcrv_rvv.gearbox_cross_region_handoff`.
+- Made Gearbox schedule materialization, dialect handoff verification, route
+  planning, and target artifact validation consume and stale-reject those facts
+  before route or artifact acceptance.
+- Mirrored the provider-selected clamp facts into route-plan metadata and target
+  header metadata only after provider/route consumers have validated them.
+- Added focused lit coverage for positive dequant-clamp fact materialization
+  and stale realized-body, handoff, and target mirror rejection.
+- Preserved the packed-i4 dequant-clamp sibling fixture with positive clamp
+  fact/mirror checks.
+- Updated the RVV plugin code-spec and the active macro PRD with the Gate 3B
+  field contract and acceptance criteria.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32|pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4'`
+- [OK] `git diff --check`
+- [OK] `git diff --cached --check`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-production-gearbox-low-precision-contraction`
+- [OK] bounded old-authority scan over added diff lines returned no matches.
+
+### Self-Repair
+
+- `tianchenrv-target-artifact-export-test` initially failed because a synthetic
+  packed-i4 sibling-candidate negative test changed `selectedCandidateID` to
+  dequant-clamp without completing the new clamp facts. The test now fills the
+  clamp facts from provider helpers so it still exercises the intended stale
+  performance-baseline diagnostic.
+- A header helper declaration was split to match the surrounding formatting
+  style before the final build/check pass.
+
+### Status
+
+[OPEN MACRO TASK] Gate 3B is complete for
+`widening_product_reduce_dequant_clamp_f32` realization-fact consumption. Gate
+2 and Gate 3A facts remain preserved. The macro task stays active for remaining
+Gate 3 resource-aware body-family completion/audit and later Gate 4
+source-backed same-target measured-win dispatch admission.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 591: Stage2 RVV Gearbox Gate 3A realization fact consumption
 
 **Date**: 2026-06-11

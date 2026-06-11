@@ -35,6 +35,10 @@ module {
 }
 
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.clamp_compare_select_phase = "lower-then-upper-compare-select"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.clamp_phase = "dequant-clamp-store"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.clamp_region_index = 2 : i64
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.clamp_select_layout = "clamp-lower-then-upper"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.operand_form = "packed-i4-nibbles"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.packed_load_unpack_contract = "rvv-packed-i4-load-unpack-resource-facts.v1"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.packed_storage_load = "unit-stride-vle8-i8mf4-packed-i4x2"
@@ -50,6 +54,10 @@ module {
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement = "new-typed-provider-campaign-repair-plus-source-backed-measured-win-and-updated-admission-facts.v1"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.remediation_measurement_evidence = "gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"
 // REALIZED: tcrv_rvv.gearbox_cross_region_handoff
+// REALIZED-DAG: clamp_compare_select_phase = "lower-then-upper-compare-select"
+// REALIZED-DAG: clamp_phase = "dequant-clamp-store"
+// REALIZED-DAG: clamp_region_index = 2 : i64
+// REALIZED-DAG: clamp_select_layout = "clamp-lower-then-upper"
 // REALIZED-DAG: resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
 // REALIZED-DAG: operand_form = "packed-i4-nibbles"
 // REALIZED-DAG: packed_load_unpack_contract = "rvv-packed-i4-load-unpack-resource-facts.v1"
@@ -66,6 +74,14 @@ module {
 // PLAN: {key = "tcrv_rvv.low_precision_resource.packed_storage_load", value = "unit-stride-vle8-i8mf4-packed-i4x2"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.packed_unpack_plan", value = "low-high-i4-sign-extend-to-i8mf4"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.packed_unpacked_source", value = "signed-i8mf4-logical-lanes-from-packed-i4x2"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.product_region_index", value = "1"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.dequant_region_index", value = "2"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.product_phase", value = "load-product-reduce"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.dequant_phase", value = "dequant-store"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.clamp_region_index", value = "2"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.clamp_phase", value = "dequant-clamp-store"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.clamp_compare_select_phase", value = "lower-then-upper-compare-select"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.clamp_select_layout", value = "clamp-lower-then-upper"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_baseline", value = "scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.remediation_measurement_evidence", value = "gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.performance_admission_decision", value = "deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker"}
@@ -84,6 +100,14 @@ module {
 // HEADER: tianchenrv.rvv.low_precision_resource.packed_storage_load: unit-stride-vle8-i8mf4-packed-i4x2
 // HEADER: tianchenrv.rvv.low_precision_resource.packed_unpack_plan: low-high-i4-sign-extend-to-i8mf4
 // HEADER: tianchenrv.rvv.low_precision_resource.packed_unpacked_source: signed-i8mf4-logical-lanes-from-packed-i4x2
+// HEADER: tianchenrv.rvv.low_precision_resource.product_region_index: 1
+// HEADER: tianchenrv.rvv.low_precision_resource.dequant_region_index: 2
+// HEADER: tianchenrv.rvv.low_precision_resource.product_phase: load-product-reduce
+// HEADER: tianchenrv.rvv.low_precision_resource.dequant_phase: dequant-store
+// HEADER: tianchenrv.rvv.low_precision_resource.clamp_region_index: 2
+// HEADER: tianchenrv.rvv.low_precision_resource.clamp_phase: dequant-clamp-store
+// HEADER: tianchenrv.rvv.low_precision_resource.clamp_compare_select_phase: lower-then-upper-compare-select
+// HEADER: tianchenrv.rvv.low_precision_resource.clamp_select_layout: clamp-lower-then-upper
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_baseline: scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1
 // HEADER: tianchenrv.rvv.low_precision_resource.remediation_measurement_evidence: gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
 // HEADER: tianchenrv.rvv.low_precision_resource.performance_admission_decision: deny-performance-preferred-with-campaign-no-further-repair-no-win-blocker

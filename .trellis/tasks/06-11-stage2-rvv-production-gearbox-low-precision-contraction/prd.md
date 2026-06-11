@@ -153,3 +153,42 @@ next low-precision body-family representative, keeping packed-i4 load/unpack
 facts and widening-product/reduction candidate facts as producer-owned inputs.
 Gate 4 remains later work and still requires fresh source-backed same-target
 measured-win evidence before any performance-preferred dispatch admission.
+
+## Current Gate 3B Slice
+
+This round owns the next low-precision body-family representative:
+`widening_product_reduce_dequant_clamp_f32`. The goal is to extend the Gate 3A
+realized-body fact consumption contract from product/reduction/dequant facts to
+the dequant-clamp epilogue without changing computation semantics, ABI roles,
+dispatch/fallback behavior, or runtime AVL.
+
+The dequant-clamp realized producer/consumer scopes and Gearbox handoff must
+carry clamp/compare-select region and phase facts derived from the selected
+low-precision resource candidate. Route planning and target artifact
+validation must consume those facts before route or artifact acceptance and
+must reject stale dequant-clamp realized-body, handoff, provider, or target
+mirrors.
+
+## Acceptance Criteria For Gate 3B
+
+- Production source movement happens in the RVV Gearbox/resource schedule,
+  selected-body realization, route-planning consumer, dialect handoff
+  structure, or target validation spine; Common EmitC does not infer
+  dequant-clamp semantics.
+- Dequant-clamp producer/consumer `with_vl` scopes carry the completed Gate 3A
+  realization facts plus clamp/compare-select phase and region facts derived
+  from the selected resource candidate.
+- `tcrv_rvv.gearbox_cross_region_handoff` carries dequant-clamp clamp region,
+  clamp phase, compare/select phase, and select-layout facts when the selected
+  resource candidate is a dequant-clamp candidate, and rejects those facts for
+  non-clamp candidates.
+- Route planning reads the dequant-clamp realization facts from the realized
+  body before constructing `TCRVEmitCLowerableRoute` and rejects stale
+  producer/consumer or handoff clamp facts.
+- Target artifact validation mirrors the provider-selected dequant-clamp
+  realization facts exactly and rejects stale target mirrors before artifact
+  acceptance.
+- Focused lit/FileCheck coverage proves positive dequant-clamp fact
+  materialization/consumption and at least one stale realized-body or handoff
+  dequant-clamp fact failure before route acceptance, while completed Gate 2
+  and Gate 3A tests remain passing.

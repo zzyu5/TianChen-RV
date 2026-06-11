@@ -5184,6 +5184,24 @@ void populateRVVLowPrecisionContractionResourceRealizationSchedule(
           realizationDecision)
           .str();
   selection.dequantPhase = kRVVLowPrecisionResourceDequantStorePhase.str();
+  if (isRVVLowPrecisionResourceDequantClampCandidateID(
+          selection.selectedCandidateID)) {
+    selection.clampRegionIndex =
+        getRVVLowPrecisionResourceClampRegionIndexForCandidate(
+            selection.selectedCandidateID);
+    selection.clampPhase =
+        getRVVLowPrecisionResourceClampPhaseForCandidate(
+            selection.selectedCandidateID)
+            .str();
+    selection.clampCompareSelectPhase =
+        getRVVLowPrecisionResourceClampCompareSelectPhaseForCandidate(
+            selection.selectedCandidateID)
+            .str();
+    selection.clampSelectLayout =
+        getRVVLowPrecisionResourceClampSelectLayoutForCandidate(
+            selection.selectedCandidateID)
+            .str();
+  }
   if (isRVVLowPrecisionResourcePackedI4CandidateID(
           selection.selectedCandidateID)) {
     selection.scheduleDecisionContract =
@@ -5891,6 +5909,14 @@ llvm::Error requireRVVLowPrecisionRealizedVSetVLRegionStructure(
         " selected-body realization low-precision direct-contraction "
         "structure requires provider-owned product/dequant region indices to "
         "be ordered inside the realized vsetvl region count");
+  if (isRVVLowPrecisionResourceDequantClampCandidateID(
+          selection.selectedCandidateID) &&
+      selection.clampRegionIndex != selection.dequantRegionIndex)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires dequant-clamp compare/select to share the "
+        "dequant/store region");
   return llvm::Error::success();
 }
 
@@ -6190,6 +6216,81 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
         " selected-body realization low-precision direct-contraction "
         "structure requires Gearbox handoff product/dequant region indexes "
         "to fit inside region_count");
+
+  const bool expectsClampFacts =
+      isRVVLowPrecisionResourceDequantClampCandidateID(
+          selection.selectedCandidateID);
+  auto requireHandoffClampStringFact =
+      [&](llvm::StringRef attrName, llvm::StringRef field,
+          llvm::StringRef expected) -> llvm::Error {
+    auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
+    if (!expectsClampFacts) {
+      if (attr)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " selected-body realization low-precision direct-contraction "
+            "structure requires Gearbox dequant-clamp fact '" +
+            attrName + "' to be absent for non-clamp resource candidates");
+      return llvm::Error::success();
+    }
+    if (!attr)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " selected-body realization low-precision direct-contraction "
+          "structure requires Gearbox dequant-clamp fact '" +
+          attrName + "' before route acceptance");
+    if (attr.getValue() == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires Gearbox dequant-clamp fact '" +
+        field + "' to match selected resource facts '" + expected +
+        "' but found '" + attr.getValue() + "'");
+  };
+  auto requireHandoffClampIntegerFact =
+      [&](llvm::StringRef attrName, llvm::StringRef field,
+          std::int64_t expected) -> llvm::Error {
+    auto attr = handoff->getAttrOfType<mlir::IntegerAttr>(attrName);
+    if (!expectsClampFacts) {
+      if (attr)
+        return makeRVVEmitCRouteProviderError(
+            llvm::Twine(context) +
+            " selected-body realization low-precision direct-contraction "
+            "structure requires Gearbox dequant-clamp fact '" +
+            attrName + "' to be absent for non-clamp resource candidates");
+      return llvm::Error::success();
+    }
+    if (!attr)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " selected-body realization low-precision direct-contraction "
+          "structure requires Gearbox dequant-clamp fact '" +
+          attrName + "' before route acceptance");
+    if (attr.getInt() == expected)
+      return llvm::Error::success();
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure requires Gearbox dequant-clamp fact '" +
+        field + "' to match selected resource fact " + llvm::Twine(expected) +
+        " but found " + llvm::Twine(attr.getInt()));
+  };
+  if (llvm::Error error = requireHandoffClampIntegerFact(
+          "clamp_region_index", "clamp region index",
+          selection.clampRegionIndex))
+    return error;
+  if (llvm::Error error = requireHandoffClampStringFact(
+          "clamp_phase", "clamp phase", selection.clampPhase))
+    return error;
+  if (llvm::Error error = requireHandoffClampStringFact(
+          "clamp_compare_select_phase", "clamp compare/select phase",
+          selection.clampCompareSelectPhase))
+    return error;
+  if (llvm::Error error = requireHandoffClampStringFact(
+          "clamp_select_layout", "clamp select layout",
+          selection.clampSelectLayout))
+    return error;
 
   auto requireHandoffPrimitiveFact =
       [&](llvm::StringRef field, llvm::StringRef actual,
@@ -6725,6 +6826,40 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     selection.dequantPhase = *value;
   else
     return value.takeError();
+  if (isRVVLowPrecisionResourceDequantClampCandidateID(
+          selection.selectedCandidateID)) {
+    if (llvm::Expected<std::int64_t> value =
+            readInteger(kRVVLowPrecisionResourceClampRegionIndexAttrName))
+      selection.clampRegionIndex = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourceClampPhaseAttrName))
+      selection.clampPhase = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value = readString(
+            kRVVLowPrecisionResourceClampCompareSelectPhaseAttrName))
+      selection.clampCompareSelectPhase = *value;
+    else
+      return value.takeError();
+    if (llvm::Expected<std::string> value =
+            readString(kRVVLowPrecisionResourceClampSelectLayoutAttrName))
+      selection.clampSelectLayout = *value;
+    else
+      return value.takeError();
+  } else if (op->getAttr(kRVVLowPrecisionResourceClampRegionIndexAttrName) ||
+             op->getAttr(kRVVLowPrecisionResourceClampPhaseAttrName) ||
+             op->getAttr(
+                 kRVVLowPrecisionResourceClampCompareSelectPhaseAttrName) ||
+             op->getAttr(kRVVLowPrecisionResourceClampSelectLayoutAttrName)) {
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " selected-body realization low-precision direct-contraction "
+        "structure must not carry dequant-clamp realization facts for "
+        "non-clamp selected candidate '" +
+        selection.selectedCandidateID + "'");
+  }
   if (llvm::Expected<std::string> value =
           readString(kRVVLowPrecisionResourceLegalityAttrName))
     selection.isLegal = *value == kRVVLowPrecisionResourceLegal;
@@ -7406,9 +7541,53 @@ llvm::Error verifyRVVLowPrecisionContractionRealizationScheduleSelection(
           getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
               expectedDecision)))
     return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "dequant phase", selection.dequantPhase,
+          kRVVLowPrecisionResourceDequantStorePhase))
+    return error;
+
+  const bool expectsClampFacts =
+      isRVVLowPrecisionResourceDequantClampCandidateID(
+          selection.selectedCandidateID);
+  if (!expectsClampFacts) {
+    if (selection.clampRegionIndex != 0 || !selection.clampPhase.empty() ||
+        !selection.clampCompareSelectPhase.empty() ||
+        !selection.clampSelectLayout.empty())
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " low-precision direct-contraction realization schedule must not "
+          "carry dequant-clamp realization facts for non-clamp candidate '" +
+          selection.selectedCandidateID + "'");
+    return llvm::Error::success();
+  }
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "clamp region index",
+          selection.clampRegionIndex,
+          getRVVLowPrecisionResourceClampRegionIndexForCandidate(
+              selection.selectedCandidateID)))
+    return error;
+  if (selection.clampRegionIndex != selection.dequantRegionIndex)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision direct-contraction realization schedule requires "
+        "dequant-clamp compare/select to stay in the dequant/store region for "
+        "candidate '" +
+        selection.selectedCandidateID + "'");
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "clamp phase", selection.clampPhase,
+          getRVVLowPrecisionResourceClampPhaseForCandidate(
+              selection.selectedCandidateID)))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
+          context, selection, "clamp compare/select phase",
+          selection.clampCompareSelectPhase,
+          getRVVLowPrecisionResourceClampCompareSelectPhaseForCandidate(
+              selection.selectedCandidateID)))
+    return error;
   return requireRVVLowPrecisionResourceStringField(
-      context, selection, "dequant phase", selection.dequantPhase,
-      kRVVLowPrecisionResourceDequantStorePhase);
+      context, selection, "clamp select layout", selection.clampSelectLayout,
+      getRVVLowPrecisionResourceClampSelectLayoutForCandidate(
+          selection.selectedCandidateID));
 }
 
 llvm::Error verifyRVVLowPrecisionContractionResourceRemediationHandoff(
@@ -7672,6 +7851,10 @@ bool isRVVLowPrecisionResourceSelectionEqual(
          lhs.dequantRegionIndex == rhs.dequantRegionIndex &&
          lhs.productPhase == rhs.productPhase &&
          lhs.dequantPhase == rhs.dequantPhase &&
+         lhs.clampRegionIndex == rhs.clampRegionIndex &&
+         lhs.clampPhase == rhs.clampPhase &&
+         lhs.clampCompareSelectPhase == rhs.clampCompareSelectPhase &&
+         lhs.clampSelectLayout == rhs.clampSelectLayout &&
          lhs.performanceFeedback == rhs.performanceFeedback &&
          lhs.performanceBaseline == rhs.performanceBaseline &&
          lhs.performanceBestSpeedupRange ==

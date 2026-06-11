@@ -6143,6 +6143,16 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   It must not rebuild accepted product/dequant region indexes or phases solely
   from route ids, artifact metadata, helper names, intrinsic strings, or Common
   EmitC inference.
+- For Gate 3B dequant-clamp realization consumption, a selected
+  `product-reduction-dequant-clamp-f32` candidate must additionally carry
+  `clamp_region_index`, `clamp_phase`,
+  `clamp_compare_select_phase`, and `clamp_select_layout` on the realized
+  producer and consumer `tcrv_rvv.with_vl` scopes, on the Gearbox handoff, in
+  route-plan metadata, and in target artifact/header mirrors. The RVV provider
+  derives these four fields from the selected resource candidate and realized
+  compare/select structure; non-clamp candidates must reject these fields, and
+  stale dequant-clamp values must fail before
+  `TCRVEmitCLowerableRoute` construction or target artifact acceptance.
 - For low-precision product-reduction Gearbox markers,
   `tcrv_rvv.vsetvl_region_marker` must carry `planning_contract =
   "rvv-low-precision-production-resource-planning-contract.v1"` when
@@ -7902,6 +7912,21 @@ tcrv_rvv.vsetvl_region_marker %vl {
 } : !tcrv_rvv.vl
 ```
 
+For a selected `product-reduction-dequant-clamp-f32` candidate, the realized
+producer/consumer scopes, the handoff, the route-plan metadata, and the target
+artifact/header mirrors must additionally expose the provider-derived clamp
+realization facts:
+
+```mlir
+clamp_region_index = <dequant region index> : i64
+clamp_phase = "dequant-clamp-store"
+clamp_compare_select_phase = "lower-then-upper-compare-select"
+clamp_select_layout = "clamp-lower-then-upper"
+```
+
+For non-clamp product-reduction-dequant candidates, these four fields are
+invalid and must be rejected rather than ignored.
+
 The realized body shape is:
 
 ```text
@@ -7964,6 +7989,19 @@ tcrv_rvv.widening_product
 - The handoff `contract`, `from_phase`, `to_phase`, `region_count`, and
   `planning_contract`, and `resource_decision` must match the RVV-owned
   low-precision Gearbox resource facts.
+- For `widening_product_reduce_dequant_clamp_f32`, the RVV-owned selected
+  resource candidate must also derive and consume
+  `clamp_region_index`, `clamp_phase`, `clamp_compare_select_phase`, and
+  `clamp_select_layout`. `clamp_region_index` must equal the dequant consumer
+  region index, `clamp_phase` must be `dequant-clamp-store`,
+  `clamp_compare_select_phase` must be
+  `lower-then-upper-compare-select`, and `clamp_select_layout` must be
+  `clamp-lower-then-upper`.
+- The selected-body realization owner writes those clamp facts onto both
+  realized `with_vl` scopes and the Gearbox handoff. The route planner must
+  read them from the realized body/handoff before constructing a
+  `TCRVEmitCLowerableRoute`; target artifact validation must compare the
+  route-plan/header mirrors against the same provider-owned selection.
 - The RVV schedule pass, selected-body realizer, construction protocol, route
   planner, provider family plan, and target artifact/header validation must all
   agree on the typed compute chain, producer/consumer scope facts, resource
@@ -7994,6 +8032,17 @@ tcrv_rvv.widening_product
   compare/select dataflow, dequant-store marker, clamp result store, or
   `product-reduction-dequant-clamp-f32` resource candidate -> fail closed
   before target artifact export.
+- Dequant-clamp realized scope lacks `clamp_phase`, carries a stale
+  `clamp_phase`, has `clamp_region_index != dequant_region_index`, or carries
+  a stale compare/select phase/layout -> route planner fails before route
+  construction.
+- Dequant-clamp handoff lacks or stales `clamp_region_index`, `clamp_phase`,
+  `clamp_compare_select_phase`, or `clamp_select_layout` -> handoff verifier
+  or route planner fails before Common EmitC materialization.
+- Target route metadata/header mirrors a stale clamp region/phase/layout fact
+  -> target artifact validation fails before accepting the artifact.
+- Non-clamp product-reduction-dequant route carries any dequant-clamp clamp
+  realization fact -> selected-body/provider/target validation fails closed.
 
 ### 5. Good/Base/Bad Cases
 
@@ -8030,6 +8079,13 @@ tcrv_rvv.widening_product
 - Provider fail-closed evidence for missing handoff, stale dequantize consumer,
   stale scope facts, stale or missing marker/handoff `planning_contract`, and
   stale realized region/resource facts after schedule/resource facts exist.
+- Gate 3B dequant-clamp evidence showing full clamp realization facts on
+  producer and consumer `with_vl` scopes, short clamp handoff attrs on
+  `tcrv_rvv.gearbox_cross_region_handoff`, route-plan metadata mirrors, and
+  target header mirrors.
+- Gate 3B negative evidence for stale realized-body clamp phase, stale handoff
+  clamp select layout, and stale target clamp select layout before route or
+  artifact acceptance.
 - Header/artifact export evidence showing the four-op non-clamp typed compute
   chain, or six-op dequant-clamp typed compute chain, is accepted by
   construction and target validation.

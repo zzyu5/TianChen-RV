@@ -43663,6 +43663,19 @@ getRVVSelectedBodyConfigArtifactMetadata(
                           selection.productPhase});
       metadata.push_back({"tcrv_rvv.low_precision_resource.dequant_phase",
                           selection.dequantPhase});
+      if (!selection.clampPhase.empty()) {
+        metadata.push_back(
+            {"tcrv_rvv.low_precision_resource.clamp_region_index",
+             llvm::Twine(selection.clampRegionIndex).str()});
+        metadata.push_back({"tcrv_rvv.low_precision_resource.clamp_phase",
+                            selection.clampPhase});
+        metadata.push_back(
+            {"tcrv_rvv.low_precision_resource.clamp_compare_select_phase",
+             selection.clampCompareSelectPhase});
+        metadata.push_back(
+            {"tcrv_rvv.low_precision_resource.clamp_select_layout",
+             selection.clampSelectLayout});
+      }
     }
     if (!selection.performanceFeedback.empty()) {
       metadata.push_back({"tcrv_rvv.low_precision_resource.performance_feedback",

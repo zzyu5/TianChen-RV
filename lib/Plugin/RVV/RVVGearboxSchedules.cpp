@@ -903,6 +903,30 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
           op, builder, kRVVLowPrecisionResourceDequantPhaseAttrName,
           kLowPrecisionCrossRegionHandoffToPhase)))
     return mlir::failure();
+  if (isRVVLowPrecisionResourceDequantClampCandidateID(
+          selected->candidateID)) {
+    if (mlir::failed(requireIntegerAttr(
+            op, builder, kRVVLowPrecisionResourceClampRegionIndexAttrName,
+            getRVVLowPrecisionResourceClampRegionIndexForCandidate(
+                selected->candidateID))))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourceClampPhaseAttrName,
+            getRVVLowPrecisionResourceClampPhaseForCandidate(
+                selected->candidateID))))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder,
+            kRVVLowPrecisionResourceClampCompareSelectPhaseAttrName,
+            getRVVLowPrecisionResourceClampCompareSelectPhaseForCandidate(
+                selected->candidateID))))
+      return mlir::failure();
+    if (mlir::failed(requireStringAttr(
+            op, builder, kRVVLowPrecisionResourceClampSelectLayoutAttrName,
+            getRVVLowPrecisionResourceClampSelectLayoutForCandidate(
+                selected->candidateID))))
+      return mlir::failure();
+  }
   if (isRVVLowPrecisionResourcePackedI4CandidateID(selected->candidateID)) {
     if (mlir::failed(requireStringAttr(
             op, builder, kRVVLowPrecisionResourceCostContractAttrName,
@@ -1596,6 +1620,87 @@ validateLowPrecisionProductDequantGearboxBody(
            << "RVV low-precision Gearbox resource candidate derivation "
               "requires handoff product/dequant region indexes to match the "
               "selected resource decision and realized region count";
+
+  const bool isDequantClampResource =
+      tianchenrv::plugin::rvv::
+          isRVVLowPrecisionResourceDequantClampCandidateID(
+              handoff.getResourceSelectedCandidate());
+  auto requireOptionalClampStringFact =
+      [&](llvm::StringRef attrName,
+          llvm::StringRef expected) -> mlir::LogicalResult {
+    auto attr = handoff->getAttrOfType<mlir::StringAttr>(attrName);
+    if (!isDequantClampResource) {
+      if (attr)
+        return handoff->emitError()
+               << "RVV low-precision Gearbox resource candidate derivation "
+                  "requires dequant-clamp fact '"
+               << attrName
+               << "' to be absent for non-clamp resource candidates";
+      return mlir::success();
+    }
+    if (!attr)
+      return handoff->emitError()
+             << "RVV low-precision Gearbox resource candidate derivation "
+                "requires dequant-clamp fact '"
+             << attrName << "' before route support";
+    if (attr.getValue() == expected)
+      return mlir::success();
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires dequant-clamp fact '"
+           << attrName << "' to match provider-owned resource fact '"
+           << expected << "' but found '" << attr.getValue() << "'";
+  };
+  auto requireOptionalClampIntegerFact =
+      [&](llvm::StringRef attrName,
+          std::int64_t expected) -> mlir::LogicalResult {
+    auto attr = handoff->getAttrOfType<mlir::IntegerAttr>(attrName);
+    if (!isDequantClampResource) {
+      if (attr)
+        return handoff->emitError()
+               << "RVV low-precision Gearbox resource candidate derivation "
+                  "requires dequant-clamp fact '"
+               << attrName
+               << "' to be absent for non-clamp resource candidates";
+      return mlir::success();
+    }
+    if (!attr)
+      return handoff->emitError()
+             << "RVV low-precision Gearbox resource candidate derivation "
+                "requires dequant-clamp fact '"
+             << attrName << "' before route support";
+    if (attr.getInt() == expected)
+      return mlir::success();
+    return handoff->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires dequant-clamp fact '"
+           << attrName << "' to match provider-owned resource fact "
+           << expected << " but found " << attr.getInt();
+  };
+  if (mlir::failed(requireOptionalClampIntegerFact(
+          "clamp_region_index",
+          tianchenrv::plugin::rvv::
+              getRVVLowPrecisionResourceClampRegionIndexForCandidate(
+                  handoff.getResourceSelectedCandidate()))))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalClampStringFact(
+          "clamp_phase",
+          tianchenrv::plugin::rvv::
+              getRVVLowPrecisionResourceClampPhaseForCandidate(
+                  handoff.getResourceSelectedCandidate()))))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalClampStringFact(
+          "clamp_compare_select_phase",
+          tianchenrv::plugin::rvv::
+              getRVVLowPrecisionResourceClampCompareSelectPhaseForCandidate(
+                  handoff.getResourceSelectedCandidate()))))
+    return mlir::failure();
+  if (mlir::failed(requireOptionalClampStringFact(
+          "clamp_select_layout",
+          tianchenrv::plugin::rvv::
+              getRVVLowPrecisionResourceClampSelectLayoutForCandidate(
+                  handoff.getResourceSelectedCandidate()))))
+    return mlir::failure();
 
   auto requireHandoffPrimitiveFact =
       [&](llvm::StringRef field, llvm::StringRef actual,
