@@ -192,3 +192,54 @@ mirrors.
   materialization/consumption and at least one stale realized-body or handoff
   dequant-clamp fact failure before route acceptance, while completed Gate 2
   and Gate 3A tests remain passing.
+
+## Status After Gate 3B Slice
+
+Gate 3B is complete for
+`widening_product_reduce_dequant_clamp_f32`. RVV Gearbox schedule
+materialization, selected-body realization, route planning, dialect handoff
+verification, target validation, and support-bundle mirrors now carry and
+consume the provider-owned dequant-clamp realization facts:
+`clamp_region_index`, `clamp_phase`, `clamp_compare_select_phase`, and
+`clamp_select_layout`. Stale realized-body clamp phase, stale handoff clamp
+select layout, and stale target clamp select layout fail closed before route or
+artifact acceptance. The macro task remains active because Gate 3 still needs a
+family completion/audit pass, and Gate 4 still needs fresh source-backed
+same-target measured-win evidence before any performance-preferred dispatch
+admission.
+
+## Current Gate 3C Slice
+
+This round owns the Gate 3 family completion/audit for the low-precision
+resource-aware selected-body realization representatives already present in
+production tests:
+
+- signed and unsigned plain `widening_product_reduce_add` primitive/resource
+  representatives, as adjacent Gate 2 route-supported resource facts rather than
+  Gearbox two-region realization owners;
+- `widening_product_reduce_dequantize_f32`, including grouped/unpacked-byte and
+  packed-i4 sibling resource candidates;
+- `widening_product_reduce_dequant_clamp_f32`, including grouped/unpacked-byte
+  and packed-i4 sibling resource candidates.
+
+The slice must close any remaining inconsistency in how producer-owned
+realization decisions derive region count, product/dequant phases, packed-i4
+resource facts, clamp facts, handoff facts, route-planning selection, and target
+mirrors. If the audit finds no missing source gap, it must leave a bounded
+production-backed completion proof and set the next continuation point to Gate 4
+measured same-target comparison, without archiving the macro task.
+
+## Acceptance Criteria For Gate 3C
+
+- The Gate 3 family inventory is tied to the production source files and focused
+  fixtures above, not to artifact names or q8/q4 labels.
+- Gearbox schedule validation, selected-body realization, dialect handoff
+  verification, route planning, and target validation use the same provider-owned
+  realization decision mapping for region count and product/dequant phases.
+- Non-clamp product-dequant candidates reject dequant-clamp realization facts at
+  the realized-body or handoff boundary before Common EmitC materialization.
+- Existing Gate 3A/Gate 3B positive and stale-fact coverage remains passing for
+  grouped/unpacked-byte and packed-i4 siblings.
+- The PRD, task notes, and journal record whether Gate 3 is complete after this
+  audit and keep Gate 4 blocked until fresh source-backed same-target measured
+  wins exist.

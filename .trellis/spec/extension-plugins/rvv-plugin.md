@@ -8086,6 +8086,12 @@ tcrv_rvv.widening_product
 - Gate 3B negative evidence for stale realized-body clamp phase, stale handoff
   clamp select layout, and stale target clamp select layout before route or
   artifact acceptance.
+- Gate 3C family completion/audit evidence must prove the same provider-owned
+  realization-decision mapping drives Gearbox schedule validation,
+  selected-body realization, handoff verification, route planning, and target
+  validation. It must also prove non-clamp product-dequant siblings reject
+  dequant-clamp realization facts before Common EmitC materialization, while
+  grouped/unpacked-byte and packed-i4 siblings remain passing.
 - Header/artifact export evidence showing the four-op non-clamp typed compute
   chain, or six-op dequant-clamp typed compute chain, is accepted by
   construction and target validation.

@@ -75,6 +75,67 @@ win evidence.
 
 Final coherent commit is created after this journal entry.
 
+## Session 593: Stage2 RVV Gearbox Gate 3C family completion audit
+
+**Date**: 2026-06-11
+**Task**: Stage2 RVV production-kernel Gearbox resource-aware low-precision contraction campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the Gate 3C family
+completion/audit slice for the current low-precision resource-aware
+selected-body realization campaign. The audit covered signed/unsigned
+plain product-reduction resource facts as adjacent Gate 2 route-supported
+representatives, plus product-reduction/dequantize-f32 and
+product-reduction/dequant-clamp-f32 grouped/unpacked-byte and packed-i4
+Gearbox representatives.
+
+### Main Changes
+
+- Rewired Gearbox product-dequant handoff validation to use the canonical
+  provider-owned realization-decision helpers for supported decision,
+  expected `with_vl` region count, and product phase.
+- Added non-clamp product-dequant stale-handoff coverage proving a
+  dequant-clamp-only `clamp_phase` fact is rejected before Common EmitC
+  materialization.
+- Updated the macro PRD with an explicit Gate 3C inventory, acceptance criteria,
+  Gate 3 completion status, and Gate 4 continuation boundary.
+- Updated the RVV plugin code-spec with the Gate 3C completion/audit evidence
+  contract so future slices keep Gearbox schedule validation, selected-body
+  realization, dialect handoff verification, route planning, and target
+  validation on the same realization-decision mapping.
+
+### Testing
+
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32'`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32|pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4|pre-realized-selected-body-artifact-widening-product-reduce-dequant-clamp-f32-packed-i4|rvv-gearbox-widening-product-reduce-dequantize-f32|explicit-selected-body-artifact-widening-product-reduce-add\\.mlir|explicit-selected-body-artifact-widening-product-reduce-add-unsigned-u8'`
+- [OK] `python3 ./.trellis/scripts/task.py validate .trellis/tasks/06-11-stage2-rvv-production-gearbox-low-precision-contraction`
+- [OK] `git diff --check`
+
+### Self-Repair
+
+- The Gate 3C audit found one production-source consistency gap: Gearbox
+  product-dequant handoff validation locally rederived the supported decisions,
+  expected region count, and product phase instead of consuming the same
+  provider-owned realization-decision mapping used by realization, route
+  planning, and target validation. The fix replaced the local derivation with
+  the canonical helpers.
+
+### Status
+
+[OPEN MACRO TASK] Gate 3 is complete for the current campaign body-family
+audit. Gate 4 remains blocked until fresh source-backed same-target measured-win
+evidence exists for performance-preferred dispatch admission. The Trellis task
+stays active.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 592: Stage2 RVV Gearbox Gate 3B dequant-clamp realization fact consumption
 
 **Date**: 2026-06-11

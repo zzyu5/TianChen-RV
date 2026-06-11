@@ -1455,27 +1455,19 @@ validateLowPrecisionProductDequantGearboxBody(
               "requires dequantize kind '"
            << kDequantizationKind << "', relation '"
            << kDequantizationRelation << "', and the active with_vl token";
-  const bool usesGroupedLowPrecisionHandoff =
-      handoff.getResourceDecision() ==
-      tianchenrv::plugin::rvv::
-          kRVVLowPrecisionResourceGroupedRealizationDecision;
-  const bool usesPackedI4LowPrecisionHandoff =
-      handoff.getResourceDecision() ==
-      tianchenrv::plugin::rvv::
-          kRVVLowPrecisionResourcePackedI4RealizationDecision;
-  const std::int64_t expectedLowPrecisionRegionCount =
-      usesGroupedLowPrecisionHandoff
-          ? tianchenrv::plugin::rvv::
-                kRVVLowPrecisionResourceGroupedVSetVLRegions
-          : tianchenrv::plugin::rvv::kRVVLowPrecisionResourceVSetVLRegions;
-  const llvm::StringRef expectedLowPrecisionFromPhase =
-      usesGroupedLowPrecisionHandoff
-          ? llvm::StringRef("tail-product-reduce")
-          : llvm::StringRef(kLowPrecisionCrossRegionHandoffFromPhase);
+  const llvm::StringRef resourceDecision = handoff.getResourceDecision();
   const bool hasSupportedLowPrecisionDecision =
-      handoff.getResourceDecision() ==
-          tianchenrv::plugin::rvv::kRVVLowPrecisionResourceRealizationDecision ||
-      usesGroupedLowPrecisionHandoff || usesPackedI4LowPrecisionHandoff;
+      tianchenrv::plugin::rvv::
+          isRVVLowPrecisionResourceSupportedRealizationDecision(
+              resourceDecision);
+  const std::int64_t expectedLowPrecisionRegionCount =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionResourceExpectedVSetVLRegionCountForRealizationDecision(
+              resourceDecision);
+  const llvm::StringRef expectedLowPrecisionFromPhase =
+      tianchenrv::plugin::rvv::
+          getRVVLowPrecisionResourceProductPhaseForRealizationDecision(
+              resourceDecision);
   if (handoff.getContract() != kLowPrecisionCrossRegionHandoffContract ||
       handoff.getFromPhase() != expectedLowPrecisionFromPhase ||
       handoff.getToPhase() != kLowPrecisionCrossRegionHandoffToPhase ||

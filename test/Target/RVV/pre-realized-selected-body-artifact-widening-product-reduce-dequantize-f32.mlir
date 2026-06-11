@@ -23,6 +23,7 @@
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/peak_live_vector_groups = 7 : i64/peak_live_vector_groups = 99 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-RESOURCE-BUDGET
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/unpack_intent = "none-direct-widening-product"/unpack_intent = "metadata-only-unpack-plan"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-UNPACK-POLICY
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/dequant_region_index = 3 : i64/dequant_region_index = 1 : i64/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-REGION-INDEX
+// RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries | sed '/gearbox_cross_region_handoff/s/consumer_scope = "gearbox-scope:dequant-store"/clamp_phase = "dequant-clamp-store", consumer_scope = "gearbox-scope:dequant-store"/' | not tcrv-opt --tcrv-materialize-emission-plans 2>&1 | FileCheck %s --check-prefix=STALE-HANDOFF-NONCLAMP-CLAMP
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | FileCheck %s --check-prefix=PLAN
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.operand_form\", value = \"unpacked-byte-elements\"/s//tcrv_rvv.low_precision_resource.operand_form\", value = \"packed-i4-nibbles\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PACKED-MIRROR
 // RUN: tcrv-opt %s --tcrv-rvv-materialize-gearbox-schedules --tcrv-materialize-selected-lowering-boundaries --tcrv-materialize-emission-plans | sed '0,/tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic\", value = \"__riscv_vwredsum_vs_i16mf2_i32m1\"/s//tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic\", value = \"__riscv_vwredsum_vs_i32m1_i32m1\"/' | not tcrv-translate --tcrv-export-target-header-artifact 2>&1 | FileCheck %s --check-prefix=STALE-PRIMITIVE-RESOURCE-MIRROR
@@ -293,6 +294,9 @@ module {
 // STALE-HANDOFF-UNPACK-POLICY: requires operand_form, packing_layout, and unpack_intent to match the selected low-precision resource candidate
 
 // STALE-HANDOFF-REGION-INDEX: requires product_region_index and dequant_region_index to match the selected resource decision and fit inside region_count
+
+// STALE-HANDOFF-NONCLAMP-CLAMP: requires dequant-clamp handoff attribute 'clamp_phase'
+// STALE-HANDOFF-NONCLAMP-CLAMP-SAME: absent for non-clamp resource candidates
 
 // STALE-PACKED-MIRROR: candidate tcrv_rvv.low_precision_resource.operand_form provenance must mirror provider-selected low-precision direct-contraction resource operand form 'unpacked-byte-elements'
 // STALE-PACKED-MIRROR-SAME: packed-i4-nibbles
