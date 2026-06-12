@@ -2443,7 +2443,11 @@ def low_precision_candidate_feedback_record(
         != RESULT_CLASSIFICATION_NOT_MEASURED
     )
     return {
-        "status": "ready-for-same-target-measurement",
+        "status": (
+            "same-target-measured"
+            if measured
+            else "ready-for-same-target-measurement"
+        ),
         "candidate_label": candidate_label or expectation.kind,
         "op_kind": expectation.kind,
         "authority": (
@@ -3445,6 +3449,7 @@ def run_one_measurement(
         "candidate_label": candidate_label or expectation.kind,
         "input_mode": "pre-realized-selected-body",
         "dry_run": bool(args.dry_run),
+        "same_target_measurement": False,
         "ssh_target": args.ssh_target,
         "timing_method": TIMING_METHOD,
         "measurement_config": {
@@ -3529,6 +3534,7 @@ def run_one_measurement(
         if args.dry_run:
             evidence["ssh_evidence"] = False
             evidence["status"] = "dry_run_success"
+            evidence["same_target_measurement"] = False
             result_classification = not_measured_result_classification(
                 "dry-run generated and validated bundle/harness but did not run ssh rvv timing"
             )
@@ -3548,6 +3554,7 @@ def run_one_measurement(
             evidence["remote_measurement"] = remote
             evidence["ssh_evidence"] = True
             evidence["status"] = "success"
+            evidence["same_target_measurement"] = True
             result_classification = classify_parsed_timing(
                 remote.get("parsed_timing", {})
             )
@@ -3790,7 +3797,11 @@ def run_measurement(args: argparse.Namespace) -> int:
         evidence["op_kinds"] = [expectation.kind for expectation in expectations]
         if candidate_inputs:
             evidence["candidate_feedback_loop"] = {
-                "status": "candidate-artifacts-exportable",
+                "status": (
+                    "candidate-artifacts-exportable"
+                    if args.dry_run
+                    else "candidate-same-target-measured"
+                ),
                 "op_kind": op_kinds[0],
                 "authority": (
                     "candidate labels are measurement evidence keys only; "
@@ -3798,6 +3809,8 @@ def run_measurement(args: argparse.Namespace) -> int:
                     "candidate authority"
                 ),
                 "candidate_labels": [candidate.label for candidate in candidate_inputs],
+                "same_target_measurement": not args.dry_run,
+                "ssh_evidence": not args.dry_run,
             }
 
         tcrv_opt = abi.ensure_tool(args.tcrv_opt)
@@ -4792,6 +4805,35 @@ def run_self_test() -> int:
         raise AssertionError(
             "self-test low-precision candidate feedback lost grouped-u2 facts "
             "or promoted measurement results to route authority"
+        )
+    measured_candidate_feedback = low_precision_candidate_feedback_record(
+        generation_result={
+            "widening_product_reduction_boundary": {
+                "route_metadata": grouped_candidate_metadata
+            }
+        },
+        expectation=packed_expectation,
+        candidate_label="grouped-u2",
+        uses_packed_i4_resource=False,
+        result_classification=regression,
+        measurement_evidence_id=(
+            "self-test/grouped-u2/"
+            "widening_product_reduce_dequantize_f32/"
+            "same_target_measurement_evidence.json"
+        ),
+        source_record_context=self_test_source_record_context(
+            packed_expectation, regression
+        ),
+    )
+    if (
+        measured_candidate_feedback["status"] != "same-target-measured"
+        or not measured_candidate_feedback["same_target_measurement"]
+        or not measured_candidate_feedback["ssh_evidence"]
+        or measured_candidate_feedback["measurement_result_is_route_authority"]
+    ):
+        raise AssertionError(
+            "self-test measured candidate feedback did not record measured "
+            "policy/evidence state without promoting route authority"
         )
 
     def expect_candidate_feedback_metadata_failure(

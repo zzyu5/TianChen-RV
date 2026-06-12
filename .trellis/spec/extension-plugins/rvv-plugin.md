@@ -7908,8 +7908,9 @@ Per-candidate artifacts are written under
   runtime AVL/ABI order, primitive chain/intrinsic facts, realization decision,
   realized region/live-vector facts, and target capability mirrors.
 - `candidate_feedback_records` is policy/evidence. It may record generated
-  object/header SHA256, baseline identity, measurement classification, and
-  readiness for same-target measurement, but it must set
+  object/header SHA256, baseline identity, measurement classification,
+  dry-run readiness for same-target measurement, and non-dry-run
+  `same-target-measured` status, but it must set
   `measurement_result_is_route_authority = false`.
 - Packed-i4 candidates may additionally emit the packed-i4 maturity contract
   and same-target measurement record, but those records remain
@@ -7946,6 +7947,10 @@ Per-candidate artifacts are written under
 - Base: dry-run records `not-measured`, `same_target_measurement = false`, and
   `ssh_evidence = false`, but still validates candidate facts and generated
   artifact identity.
+- Base: non-dry-run candidate measurement records `same_target_measurement =
+  true`, `ssh_evidence = true`, and `same-target-measured`, but those fields
+  remain feedback/evidence state and do not change route support, selected
+  candidate, selected schedule, provider maturity, or dispatch preference.
 - Bad: a script labels an input `packed-i4` and treats the label as packed
   resource authority while the generated metadata does not validate packed-i4
   operand form, packing layout, and selected candidate index.
@@ -7956,9 +7961,11 @@ Per-candidate artifacts are written under
 ### 6. Tests Required
 
 - Script self-test must assert candidate feedback accepts the grouped candidate
-  with `selected_candidate_index = "2"` and rejects stale selected index,
-  missing candidate count, stale target artifact candidate metadata, and
-  disagreeing generated artifact metadata.
+  with `selected_candidate_index = "2"`, keeps dry-run feedback at
+  `ready-for-same-target-measurement`, marks measured feedback as
+  `same-target-measured`, and rejects stale selected index, missing candidate
+  count, stale target artifact candidate metadata, and disagreeing generated
+  artifact metadata.
 - Focused lit/dry-run tests must pass at least two candidate inputs for the
   same op kind and assert distinct root `op_results`, `candidate_results`,
   `candidate_feedback_records`, selected candidate indexes, generated artifact

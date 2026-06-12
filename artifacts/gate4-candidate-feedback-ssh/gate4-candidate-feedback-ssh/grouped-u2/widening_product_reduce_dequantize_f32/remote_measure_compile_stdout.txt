@@ -1,0 +1,1 @@
+compile_flags=-O2 -march=rv64gcv -mabi=lp64d -I.

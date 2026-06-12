@@ -4967,6 +4967,13 @@ reduction store VL = 1
   candidate mirrors fail closed; dry-run and same-target measurement results
   must not rewrite route support, schedule selection, selected candidate,
   header authority, or dispatch preference.
+- Non-dry-run candidate-labelled evidence may mark the feedback loop as
+  `candidate-same-target-measured` and per-candidate feedback records as
+  `same-target-measured` only after real `ssh rvv` compile/run/timing succeeds.
+  Those status fields are evidence routing state and must not promote
+  measurement classifications, speedups, candidate labels, object/header paths,
+  or artifact subdirectories into route, schedule, typed-body, header, or
+  dispatch authority.
 - Target artifact provider-fact checks that decide stable low-precision
   primitive/resource/realization acceptance must consume the policy-free stable
   compiler-fact view. Only explicitly named measurement-disposition and

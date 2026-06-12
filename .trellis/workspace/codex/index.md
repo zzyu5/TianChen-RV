@@ -7,8 +7,8 @@
 ## Current Status
 
 <!-- @@@auto:current-status -->
-- **Active File**: `journal-30.md`
-- **Total Sessions**: 581
+- **Active File**: `journal-31.md`
+- **Total Sessions**: 582
 - **Last Active**: 2026-06-12
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,8 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-30.md` | ~1972 | Active |
+| `journal-31.md` | ~75 | Active |
+| `journal-30.md` | ~1972 | Archived |
 | `journal-29.md` | ~2038 | Archived |
 | `journal-28.md` | ~1980 | Archived |
 | `journal-27.md` | ~1982 | Archived |
@@ -58,6 +59,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 582 | 2026-06-12 | RVV same-target measured candidate feedback loop | created-after-journal-entry | `main` |
 | 581 | 2026-06-12 | RVV candidate-labelled feedback artifact bridge | pending-final-commit | `main` |
 | 581 | 2026-06-11 | Stage2 RVV packed-i4 load/unpack resource facts | this commit | `main` |
 | 580 | 2026-06-11 | Stage2 RVV Gate 4 packed-i4 scalar-epilogue repair | this commit | `main` |

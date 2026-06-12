@@ -790,3 +790,136 @@ only. The macro task remains open. The exact next continuation point is to run
 real `ssh rvv` same-target generated-bundle measurement for the two exported
 candidate labels, then record measured-win/no-win/admission conclusions only as
 policy/evidence after source-backed target records validate.
+
+## Current Slice: Same-Target Measured Candidate Feedback Loop
+
+This round owns the next unfinished macro milestone: turn the candidate-labelled
+bridge above into real same-target measurement evidence for the bounded
+`widening_product_reduce_dequantize_f32` family. The two candidate labels are:
+
+- `grouped-u2`, selected by the provider-owned low-precision resource candidate
+  facts with `candidate_count = 3`, `legal_candidate_count = 3`, and
+  `selected_candidate_index = 2`.
+- `packed-i4`, selected by the provider-owned packed-i4 resource candidate
+  facts with `candidate_count = 3`, `legal_candidate_count = 3`, and
+  `selected_candidate_index = 3`.
+
+The slice boundary is:
+
+```text
+selected typed low-precision tcrv_rvv candidate fixture
+  -> provider-owned low_precision_resource candidate facts
+  -> candidate-labelled generated bundle artifact
+  -> real ssh rvv compile/run/timing evidence
+  -> candidate_feedback_records and same_target_measurement_records
+     as policy/evidence only
+```
+
+Acceptance for this slice requires:
+
+- A non-dry-run `rvv_generated_bundle_same_target_measure.py` invocation on
+  `ssh rvv` using both `--candidate-input grouped-u2=...` and
+  `--candidate-input packed-i4=...` for one
+  `widening_product_reduce_dequantize_f32` op family.
+- Root and per-candidate evidence with `dry_run = false`, `ssh_evidence = true`,
+  `same_target_measurement = true`, target profile stdout, compile stdout, raw
+  run stdout, parsed timing summaries, generated object/header paths and
+  SHA256s, baseline identities, candidate labels, and selected candidate
+  indexes.
+- Distinct root evidence keys for
+  `widening_product_reduce_dequantize_f32:grouped-u2` and
+  `widening_product_reduce_dequantize_f32:packed-i4`, plus per-label
+  `candidate_results`, `candidate_feedback_records`, and, where present,
+  `same_target_measurement_records`.
+- Candidate feedback must keep
+  `measurement_result_is_route_authority = false`; measurement
+  classification, measured speedup, no-win/win/admission/remediation
+  conclusions, and candidate labels must not become route, schedule,
+  typed-body, artifact-name, or dispatch authority.
+- If the real run exposes stale candidate labels, stale ABI/header/object
+  identity, wrong selected input selection, candidate metadata disagreement, or
+  missing low-precision resource facts, repair only that direct measurement
+  bridge and add focused script/lit coverage for the fail-closed behavior.
+- `python3 -m py_compile` and `--self-test` must pass for any touched scripts;
+  focused lit for the candidate-labelled dry-run bridge must pass; C++ tests are
+  required only if production compiler source changes.
+- Run bounded old-authority and policy/evidence scans over added changes, task
+  text, scripts, and directly affected fixtures; `git diff --check`,
+  `git diff --cached --check`, and Trellis task validation must pass.
+
+The macro campaign remains in progress after this measured-feedback slice
+unless all campaign outcomes are genuinely complete. The next continuation point
+after a successful measured-feedback slice is to decide whether the source-backed
+candidate evidence requires provider-side admission/remediation updates, while
+keeping any measured outcome in explicit policy/evidence boundaries.
+
+## Completed Slice: Same-Target Measured Candidate Feedback Loop
+
+This round completed the real same-target measurement milestone for the two
+candidate-labelled low-precision Gearbox representatives of the same bounded
+`widening_product_reduce_dequantize_f32` family.
+
+The measured command was:
+
+```bash
+python3 scripts/rvv_generated_bundle_same_target_measure.py \
+  --artifact-root artifacts/gate4-candidate-feedback-ssh \
+  --run-id gate4-candidate-feedback-ssh \
+  --overwrite \
+  --op-kind widening_product_reduce_dequantize_f32 \
+  --candidate-input grouped-u2=test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir \
+  --candidate-input packed-i4=test/Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir \
+  --measure-count 257 \
+  --measure-count 4096 \
+  --measure-count 65536 \
+  --warmup-count 2 \
+  --repeat-count 5 \
+  --measure-iterations 8 \
+  --tcrv-opt build/bin/tcrv-opt \
+  --tcrv-translate build/bin/tcrv-translate \
+  --llvm-readobj /usr/lib/llvm-20/bin/llvm-readobj \
+  --ssh-target rvv
+```
+
+The root evidence is
+`artifacts/gate4-candidate-feedback-ssh/gate4-candidate-feedback-ssh/evidence.json`.
+It records `status = success`, `dry_run = false`, `ssh_evidence = true`,
+`same_target_measurement = true`, `timing_method =
+clock_gettime(CLOCK_MONOTONIC_RAW)`, and a candidate feedback loop status of
+`candidate-same-target-measured`.
+
+Measured candidate feedback:
+
+- `grouped-u2`: selected candidate index `2`, candidate/ legal count `3/3`,
+  baseline `scalar-c-reference/product-reduction-dequant-v1`, 12 parsed summary
+  records, 60 measurement records, classification `regression`, speedup range
+  `0.501820..0.610294`, object SHA256
+  `497565f3d6df069c2998f18470c5ef1c99f35a09aeaacb57a8e3e7d40f70ca82`, header
+  SHA256 `c3c5bd890980e0c36f455c2590de11e3e08f101a641312674d20b9f2a5eadb91`.
+- `packed-i4`: selected candidate index `3`, candidate/legal count `3/3`,
+  baseline `scalar-c-reference/product-reduction-dequant-packed-i4-v1`, 12
+  parsed summary records, 60 measurement records, classification `no-win`,
+  speedup range `0.901869..1.021921`, object SHA256
+  `d68e20b57a0d776ac50731e7a9e8a75e218963338129176eb42a3591c3a45e48`, header
+  SHA256 `f0344b49efdcf115559067e95c454a5cfe143757205868dee06624fc701b2f9e`.
+
+The real run exposed one direct measurement-bridge clarity gap: per-candidate
+evidence had the measured state inside feedback records but not at the
+per-candidate evidence root, and root `candidate_feedback_loop.status` still
+used the dry-run/exportability wording after non-dry-run success. The script now
+marks non-dry-run root feedback as `candidate-same-target-measured`,
+per-candidate feedback as `same-target-measured`, and per-candidate evidence
+roots with `same_target_measurement = true`, while dry-run records keep
+`ready-for-same-target-measurement`.
+
+All measured outcomes remain policy/evidence. Both candidate feedback records
+set `measurement_result_is_route_authority = false`; the regression/no-win
+classifications, speedup ranges, candidate labels, generated object/header
+paths, and artifact directories do not change route support, selected schedule,
+typed body/config, artifact/header authority, provider maturity, or dispatch
+preference.
+
+The macro campaign remains open. The next continuation point is to review
+whether this source-backed measured candidate evidence requires a provider-side
+admission/remediation-policy update, still through explicit policy/evidence
+helpers and without promoting measured outcomes into compiler route authority.
