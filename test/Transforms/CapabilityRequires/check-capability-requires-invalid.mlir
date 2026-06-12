@@ -152,6 +152,52 @@ tcrv.exec.kernel @unguarded_conflict_dispatch attributes {} {
   }
 }
 
+// Typed-attribute clone of @unguarded_conflict_dispatch: the conflicting
+// capability relation is expressed via the typed
+// relations = #tcrv.capability_relations<conflicts = ["shape.dynamic"]> attr and
+// the provider via relations = #tcrv.capability_relations<provides = ...>. The
+// SAME conflict error is emitted, proving the unguarded-dispatch legality
+// decision is driven by the typed attribute through the descriptor bridge.
+tcrv.exec.kernel @unguarded_conflict_dispatch_typed attributes {} {
+  tcrv.exec.capability @fixed_shape_runtime {
+    id = "runtime.fixed_shape",
+    kind = "runtime-offload",
+    relations = #tcrv.capability_relations<conflicts = ["shape.dynamic"]>,
+    status = "available"
+  }
+  tcrv.exec.capability @shape_profile {
+    id = "shape.profile",
+    kind = "shape-policy",
+    relations = #tcrv.capability_relations<provides = ["shape.dynamic"]>,
+    status = "available"
+  }
+  tcrv.exec.capability @generic_toolchain {
+    id = "generic.toolchain",
+    kind = "toolchain",
+    status = "available"
+  }
+  tcrv.exec.variant @fixed_shape_path attributes {
+    origin = "runtime-offload-plugin",
+    requires = [@fixed_shape_runtime]
+  } {
+  }
+  tcrv.exec.variant @portable_fallback attributes {
+    origin = "portable-plugin",
+    requires = [@generic_toolchain]
+  } {
+  }
+  tcrv.exec.dispatch attributes {} {
+    // CHECK: error: unguarded dispatch case in kernel @unguarded_conflict_dispatch_typed targets variant @fixed_shape_path with conflicting required capability @fixed_shape_runtime
+    // CHECK-SAME: id = "runtime.fixed_shape"
+    // CHECK-SAME: conflicting with available capability @shape_profile
+    // CHECK-SAME: id = "shape.profile"
+    // CHECK-SAME: via conflict id "shape.dynamic"
+    // CHECK-SAME: runtime_guard_required
+    tcrv.exec.case @fixed_shape_path
+    tcrv.exec.fallback @portable_fallback
+  }
+}
+
 tcrv.exec.kernel @conflicting_fallback attributes {} {
   tcrv.exec.capability @generic_toolchain {
     id = "generic.toolchain",

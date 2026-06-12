@@ -23,6 +23,7 @@ namespace {
 constexpr llvm::StringLiteral kProvidesAttrName("provides");
 constexpr llvm::StringLiteral kImpliesAttrName("implies");
 constexpr llvm::StringLiteral kConflictsAttrName("conflicts");
+constexpr llvm::StringLiteral kRelationsAttrName("relations");
 constexpr llvm::StringLiteral kCapabilityProvidersAttrName(
     "capability_providers");
 constexpr llvm::StringLiteral kTargetHartCountCapabilityID(
@@ -53,7 +54,7 @@ bool isCoreCapabilityAttribute(llvm::StringRef attrName) {
 
 bool isCapabilityRelationAttribute(llvm::StringRef attrName) {
   return attrName == kProvidesAttrName || attrName == kImpliesAttrName ||
-         attrName == kConflictsAttrName;
+         attrName == kConflictsAttrName || attrName == kRelationsAttrName;
 }
 
 std::string stringifyCapabilityProperty(mlir::Attribute attribute) {
@@ -99,6 +100,8 @@ collectCapabilityProperties(mlir::Operation *op) {
   return properties;
 }
 
+enum class CapabilityRelationKind { Provides, Implies, Conflicts };
+
 llvm::SmallVector<std::string, 4>
 collectCapabilityIDRelation(mlir::Operation *op,
                             llvm::StringRef attrName) {
@@ -118,6 +121,54 @@ collectCapabilityIDRelation(mlir::Operation *op,
   }
 
   return ids;
+}
+
+llvm::SmallVector<std::string, 4>
+collectTypedCapabilityIDRelation(tcrv::exec::CapabilityRelationsAttr relations,
+                                 CapabilityRelationKind kind) {
+  llvm::SmallVector<std::string, 4> ids;
+  llvm::ArrayRef<mlir::StringAttr> entries;
+  switch (kind) {
+  case CapabilityRelationKind::Provides:
+    entries = relations.getProvides();
+    break;
+  case CapabilityRelationKind::Implies:
+    entries = relations.getImplies();
+    break;
+  case CapabilityRelationKind::Conflicts:
+    entries = relations.getConflicts();
+    break;
+  }
+
+  for (mlir::StringAttr entry : entries) {
+    if (!entry)
+      continue;
+    llvm::StringRef value = entry.getValue().trim();
+    if (!value.empty())
+      ids.push_back(value.str());
+  }
+
+  return ids;
+}
+
+// Source one relation list (provides/implies/conflicts), preferring the typed
+// `relations = #tcrv.capability_relations<...>` attribute when present on the
+// op. Precedence: an op carrying the typed attr is sourced exclusively from it
+// (typed wins); an op with only the legacy string `provides`/`implies`/
+// `conflicts` side attrs keeps the historical string-collection behavior. This
+// makes typed-attr capabilities drive the by-id relation queries downstream
+// (satisfiesID / lookupProviderByID / collectAvailableConflictsForCapability)
+// while keeping every string-only fixture byte-identical in behavior. The
+// legacy string path is intentionally left live (strangler-fig migration).
+llvm::SmallVector<std::string, 4>
+sourceCapabilityIDRelation(mlir::Operation *op, llvm::StringRef legacyAttrName,
+                           CapabilityRelationKind kind) {
+  if (auto relations =
+          op->getAttrOfType<tcrv::exec::CapabilityRelationsAttr>(
+              kRelationsAttrName))
+    return collectTypedCapabilityIDRelation(relations, kind);
+
+  return collectCapabilityIDRelation(op, legacyAttrName);
 }
 
 mlir::Operation *findModuleLevelSymbol(tcrv::exec::KernelOp kernel,
@@ -189,9 +240,12 @@ CapabilityDescriptor makeDescriptor(mlir::Operation *op,
       symbolName, id, kind, status,
       TargetCapabilitySet::availabilityFromStatus(status),
       collectCapabilityProperties(op),
-      collectCapabilityIDRelation(op, kProvidesAttrName),
-      collectCapabilityIDRelation(op, kImpliesAttrName),
-      collectCapabilityIDRelation(op, kConflictsAttrName));
+      sourceCapabilityIDRelation(op, kProvidesAttrName,
+                                 CapabilityRelationKind::Provides),
+      sourceCapabilityIDRelation(op, kImpliesAttrName,
+                                 CapabilityRelationKind::Implies),
+      sourceCapabilityIDRelation(op, kConflictsAttrName,
+                                 CapabilityRelationKind::Conflicts));
 }
 
 bool containsID(llvm::ArrayRef<std::string> ids, llvm::StringRef id) {
