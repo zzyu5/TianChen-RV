@@ -18,9 +18,6 @@ class SourceFrontDoorPassRegistration;
 namespace tianchenrv::plugin::rvv {
 
 std::unique_ptr<::mlir::Pass>
-createFailClosedRVVLegacyVectorSourceFrontDoorPass();
-
-std::unique_ptr<::mlir::Pass>
 createMaterializeRVVVectorBinarySourceFrontDoorPass();
 
 std::unique_ptr<::mlir::Pass>

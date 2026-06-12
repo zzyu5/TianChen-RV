@@ -1,18 +1,10 @@
 // RUN: rm -rf %t.bundle && mkdir %t.bundle
-// RUN: not tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.bundle %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete" --implicit-check-not="rvv-generic-binary-add-emitc-route"
+// RUN: not tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.bundle %S/Inputs/generic-vector-source.mlir 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete" --implicit-check-not="rvv-generic-binary-add-emitc-route"
 // RUN: not test -e %t.bundle/tianchenrv-target-artifact-bundle.index
 
-// RUN: rm -rf %t.sub.bundle && mkdir %t.sub.bundle
-// RUN: not tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.sub.bundle %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door-sub.mlir 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete" --implicit-check-not="rvv-generic-binary-sub-emitc-route"
-// RUN: not test -e %t.sub.bundle/tianchenrv-target-artifact-bundle.index
-
-// RUN: rm -rf %t.mul.bundle && mkdir %t.mul.bundle
-// RUN: not tcrv-translate --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.mul.bundle %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door-mul.mlir 2>&1 | FileCheck %s --check-prefix=FAIL --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete" --implicit-check-not="rvv-generic-binary-mul-emitc-route"
-// RUN: not test -e %t.mul.bundle/tianchenrv-target-artifact-bundle.index
-
-// RVV source-only fixtures must not reach default target artifact bundles.
-// Positive RVV object/header/bundle coverage lives in the materialized typed
-// selected-body target artifact tests.
+// A generic vector source (no selected execution plan) must not reach default
+// target artifact bundles. Positive RVV object/header/bundle coverage lives in
+// the materialized typed selected-body target artifact tests.
 
 // FAIL: TianChen-RV execution plan coherence check failed for kernel <missing>
 // FAIL-SAME: requires at least one tcrv.exec.kernel

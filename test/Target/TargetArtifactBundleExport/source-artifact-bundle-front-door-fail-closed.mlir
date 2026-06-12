@@ -1,5 +1,5 @@
 // RUN: rm -rf %t.disabled.bundle && mkdir %t.disabled.bundle
-// RUN: not tcrv-translate --tcrv-disable-builtin-plugins --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.disabled.bundle %S/../../Transforms/RVV/rvv-i32m1-vector-source-front-door.mlir 2>&1 | FileCheck %s --check-prefix=DISABLED --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
+// RUN: not tcrv-translate --tcrv-disable-builtin-plugins --tcrv-source-artifact-bundle-front-door --tcrv-target-artifact-bundle-output-dir=%t.disabled.bundle %S/Inputs/generic-vector-source.mlir 2>&1 | FileCheck %s --check-prefix=DISABLED --implicit-check-not="tianchenrv.target_artifact_bundle_export: complete"
 // RUN: not test -e %t.disabled.bundle/tianchenrv-target-artifact-bundle.index
 
 // RUN: rm -rf %t.nomatch.bundle && mkdir %t.nomatch.bundle
