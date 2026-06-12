@@ -1860,14 +1860,6 @@ llvm::Error registerRVVSelectedBodyTargetArtifactExporter(
 
 } // namespace
 
-llvm::StringRef getRVVMaterializedEmitCTargetArtifactRouteID() {
-  return plugin::rvv::getRVVSelectedBodyTargetArtifactRouteID();
-}
-
-llvm::StringRef getRVVMaterializedEmitCHeaderArtifactRouteID() {
-  return getRVVTargetMapping().headerRouteID;
-}
-
 llvm::Error registerRVVTargetSupportPluginTargetExporterBundles(
     PluginTargetArtifactExporterRegistry &registry) {
   llvm::StringRef pluginName = getRVVManifest().family.pluginName;

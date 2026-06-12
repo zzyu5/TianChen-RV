@@ -318,20 +318,6 @@ bool hasEvidence(llvm::StringRef profile, llvm::StringRef evidence) {
          profile.ends_with(suffix) || profile.contains(middle);
 }
 
-bool isValidCIdentifier(llvm::StringRef value) {
-  if (value.empty())
-    return false;
-  unsigned char first = static_cast<unsigned char>(value.front());
-  if (!(std::isalpha(first) || value.front() == '_'))
-    return false;
-  for (char character : value.drop_front()) {
-    unsigned char byte = static_cast<unsigned char>(character);
-    if (!(std::isalnum(byte) || character == '_'))
-      return false;
-  }
-  return true;
-}
-
 llvm::Error verifyConstructionManifest(const Manifest &manifest,
                                        const ValidationSpec &spec) {
   if (llvm::Error error =
@@ -1009,22 +995,6 @@ llvm::Error verifyConstructionArtifactMetadata(
   return makeConstructionError(
       spec, llvm::Twine(context) +
                 " must carry construction artifact metadata");
-}
-
-void emitTypedRoleGraphRealization(
-    llvm::raw_ostream &os, const TypedRoleGraphRealization &realization) {
-  printField(os, "typed_role_realization", realization.realizationSummary);
-  for (auto [index, role] : llvm::enumerate(realization.roles)) {
-    os << "typed_role[" << index << "]:\n";
-    printField(os, "  typed_role", role.typedRoleID);
-    printField(os, "  role", role.role);
-    os << "  order: " << role.order << "\n";
-    printField(os, "  operation", role.operationName);
-    printField(os, "  common_interfaces", role.commonInterfaces);
-    printField(os, "  role_specific_interface", role.roleSpecificInterface);
-    printField(os, "  emitc_lowerable_interface",
-               role.emitCLowerableInterface);
-  }
 }
 
 } // namespace tianchenrv::plugin::construction

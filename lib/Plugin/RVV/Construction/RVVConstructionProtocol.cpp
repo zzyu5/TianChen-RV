@@ -4190,30 +4190,12 @@ llvm::StringRef getRVVConstructionProtocolVersion() {
   return kProtocolVersion;
 }
 
-llvm::StringRef getRVVConstructionArchetype() { return kArchetype; }
-
-llvm::StringRef getRVVConstructionSemanticRoleGraph() {
-  return kSemanticRoleGraph;
-}
-
-llvm::StringRef getRVVConstructionInterfaceRealization() {
-  return kInterfaceRealization;
-}
-
-llvm::StringRef getRVVTypedRoleRealizationSummary() {
-  return kTypedRoleRealizationSummary;
-}
-
 llvm::StringRef getRVVConstructionArtifactInterfaceRealization() {
   return kInterfaceRealizationArtifactSummary;
 }
 
 llvm::StringRef getRVVArtifactTypedRoleRealizationSummary() {
   return kTypedRoleArtifactSummary;
-}
-
-llvm::StringRef getRVVConstructionEvidenceProfile() {
-  return kEvidenceProfile;
 }
 
 llvm::StringRef getRVVSelectedBodySourceOps() { return kSourceOps; }
@@ -4230,10 +4212,6 @@ llvm::StringRef getRVVEmitCLowerableRouteMetadataName() {
 
 llvm::StringRef getRVVSelectedBodyOperationMetadataName() {
   return kSelectedBodyOperationMetadataName;
-}
-
-llvm::StringRef getRVVSelectedBodyTypedComputeOpMetadataName() {
-  return kSelectedBodyTypedComputeOpMetadataName;
 }
 
 llvm::StringRef getRVVSourceOpsMetadataName() {
@@ -4284,14 +4262,6 @@ llvm::StringRef getRVVEvidenceProfileMetadataName() {
   return kEvidenceProfileMetadataName;
 }
 
-llvm::StringRef getRVVRuntimeABINameMetadataName() {
-  return kRuntimeABINameMetadataName;
-}
-
-llvm::StringRef getRVVRuntimeABIContractMetadataName() {
-  return kRuntimeABIContractMetadataName;
-}
-
 llvm::StringRef getRVVBundleComponentGroupMetadataName() {
   return kBundleComponentGroupMetadataName;
 }
@@ -4316,20 +4286,6 @@ llvm::StringRef getRVVStatusAttrName() { return kStatusAttrName; }
 
 llvm::StringRef getRVVRequiredCapabilitiesAttrName() {
   return kRequiredCapabilitiesAttrName;
-}
-
-llvm::StringRef getRVVTypedRoleAttrName() { return kTypedRoleAttrName; }
-
-llvm::StringRef getRVVRoleOrderAttrName() { return kRoleOrderAttrName; }
-
-llvm::StringRef getRVVSourceRoleAttrName() { return kSourceRoleAttrName; }
-
-llvm::StringRef getRVVRoleSpecificInterfaceAttrName() {
-  return kRoleSpecificInterfaceAttrName;
-}
-
-llvm::StringRef getRVVRoleOpBoundaryStatus() {
-  return kRoleOpBoundaryStatus;
 }
 
 llvm::StringRef getRVVLoweringBoundaryStatus() {
@@ -5975,15 +5931,6 @@ lookupRVVSelectedBodyConstructionRouteByOperationMnemonic(
 }
 
 llvm::Expected<const RVVSelectedBodyConstructionRoute *>
-lookupRVVSelectedBodyConstructionRouteByTypedComputeOpName(
-    llvm::StringRef typedComputeOpName) {
-  return lookupRouteBy(
-      typedComputeOpName, "typed compute op",
-      [](const RVVSelectedBodyConstructionRoute &route,
-         llvm::StringRef value) { return route.typedComputeOpName == value; });
-}
-
-llvm::Expected<const RVVSelectedBodyConstructionRoute *>
 lookupRVVSelectedBodyConstructionRouteByEmitCRouteID(
     llvm::StringRef emitCRouteID) {
   return lookupRouteBy(
@@ -6032,26 +5979,6 @@ llvm::Error verifyRVVRoleOperationInterface(mlir::Operation *roleOp,
 
 llvm::Error verifyRVVRuntimeABIValueRoleOpInterface(mlir::Operation *roleOp) {
   return verifyRVVRoleOperationInterface(roleOp, "runtime_abi");
-}
-
-llvm::Error verifyRVVSetVLRoleOpInterface(mlir::Operation *roleOp) {
-  return verifyRVVRoleOperationInterface(roleOp, "configure");
-}
-
-llvm::Error verifyRVVWithVLRoleOpInterface(mlir::Operation *roleOp) {
-  return verifyRVVRoleOperationInterface(roleOp, "scope");
-}
-
-llvm::Error verifyRVVLoadRoleOpInterface(mlir::Operation *roleOp) {
-  return verifyRVVRoleOperationInterface(roleOp, "load");
-}
-
-llvm::Error verifyRVVComputeRoleOpInterface(mlir::Operation *roleOp) {
-  return verifyRVVRoleOperationInterface(roleOp, "compute");
-}
-
-llvm::Error verifyRVVStoreRoleOpInterface(mlir::Operation *roleOp) {
-  return verifyRVVRoleOperationInterface(roleOp, "store");
 }
 
 llvm::Error verifyRVVSelectedBodyConstructionRouteMapping(

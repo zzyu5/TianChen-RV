@@ -15,9 +15,6 @@ class ExtensionBundle;
 
 namespace tianchenrv::target::rvv {
 
-llvm::StringRef getRVVMaterializedEmitCTargetArtifactRouteID();
-llvm::StringRef getRVVMaterializedEmitCHeaderArtifactRouteID();
-
 llvm::Error
 configureRVVTargetSupportExtensionBundle(plugin::ExtensionBundle &bundle);
 
