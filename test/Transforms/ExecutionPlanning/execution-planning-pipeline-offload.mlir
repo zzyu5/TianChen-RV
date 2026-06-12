@@ -64,7 +64,7 @@ module {
   tcrv.exec.target @module_offload_scalar_profile {
     id = "profile.offload.scalar",
     kind = "profile",
-    provides = ["offload.runtime", "scalar.fallback"],
+    relations = #tcrv.capability_relations<provides = ["offload.runtime", "scalar.fallback"]>,
     status = "available",
     runtime_abi = "generic-runtime-offload-c-abi-handoff.v1",
     handoff_kind = "runtime-offload"

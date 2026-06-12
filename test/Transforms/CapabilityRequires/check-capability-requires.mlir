@@ -125,61 +125,14 @@ tcrv.exec.kernel @guarded_by_inherited_case_metadata attributes {} {
 
 // -----
 
-// CHECK-LABEL: tcrv.exec.kernel @guarded_conflict_dispatch
-tcrv.exec.kernel @guarded_conflict_dispatch attributes {} {
-  tcrv.exec.capability @inline_asm {
-    id = "vendor.inline_asm",
-    kind = "toolchain",
-    conflicts = ["build.policy.no_inline_asm"],
-    status = "available"
-  }
-  tcrv.exec.capability @no_inline_profile {
-    id = "build.policy.profile",
-    kind = "build-policy",
-    provides = ["build.policy.no_inline_asm"],
-    status = "available"
-  }
-  tcrv.exec.capability @scalar_fallback {
-    id = "scalar.fallback",
-    kind = "fallback",
-    status = "available"
-  }
-  // CHECK: tcrv.exec.variant @inline_asm_path
-  // CHECK-SAME: requires = [@inline_asm]
-  tcrv.exec.variant @inline_asm_path attributes {
-    origin = "inline-asm-plugin",
-    requires = [@inline_asm]
-  } {
-  }
-  tcrv.exec.variant @portable_fallback attributes {
-    origin = "portable-plugin",
-    requires = [@scalar_fallback]
-  } {
-  }
-  // CHECK: tcrv.exec.dispatch
-  tcrv.exec.dispatch attributes {} {
-    // CHECK: tcrv.exec.case @inline_asm_path
-    // CHECK-SAME: guard = "runtime_policy_allows_inline_asm"
-    // CHECK-SAME: runtime_guard_required = true
-    tcrv.exec.case @inline_asm_path {
-      guard = "runtime_policy_allows_inline_asm",
-      runtime_guard_required = true
-    }
-    tcrv.exec.fallback @portable_fallback
-  }
-}
-
-// -----
-
-// Typed-attribute clone of @guarded_conflict_dispatch: the conflict is expressed
-// via the typed relations = #tcrv.capability_relations<...> attribute instead of
-// the legacy string provides/conflicts side attrs. The guarded dispatch case is
-// still accepted (no error) because the conflict resolution -- now driven by the
-// typed attr through the descriptor bridge -- detects the same conflict and the
+// The conflict is expressed via the typed
+// relations = #tcrv.capability_relations<...> attribute. The guarded dispatch
+// case is accepted (no error) because the conflict resolution -- driven by the
+// typed attr through the descriptor bridge -- detects the conflict and the
 // runtime_guard_required = true protects it. This proves CheckCapabilityRequires
 // reads typed-sourced relations.
-// CHECK-LABEL: tcrv.exec.kernel @guarded_conflict_dispatch_typed
-tcrv.exec.kernel @guarded_conflict_dispatch_typed attributes {} {
+// CHECK-LABEL: tcrv.exec.kernel @guarded_conflict_dispatch
+tcrv.exec.kernel @guarded_conflict_dispatch attributes {} {
   // CHECK: tcrv.exec.capability @inline_asm
   // CHECK-SAME: relations = #tcrv.capability_relations<conflicts = ["build.policy.no_inline_asm"]>
   tcrv.exec.capability @inline_asm {

@@ -4,11 +4,11 @@
 tcrv.exec.kernel @bounded_hart_parallel attributes {} {
   // CHECK: tcrv.exec.capability @rvv_hart_count
   // CHECK-SAME: count = 64
-  // CHECK-SAME: provides = ["target.hart_count"]
+  // CHECK-SAME: relations = #tcrv.capability_relations<provides = ["target.hart_count"]>
   tcrv.exec.capability @rvv_hart_count {
     id = "rvv.hart_count",
     kind = "uarch",
-    provides = ["target.hart_count"],
+    relations = #tcrv.capability_relations<provides = ["target.hart_count"]>,
     count = 64 : i64,
     status = "available"
   }

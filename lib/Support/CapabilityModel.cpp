@@ -20,9 +20,6 @@
 namespace tianchenrv::support {
 namespace {
 
-constexpr llvm::StringLiteral kProvidesAttrName("provides");
-constexpr llvm::StringLiteral kImpliesAttrName("implies");
-constexpr llvm::StringLiteral kConflictsAttrName("conflicts");
 constexpr llvm::StringLiteral kRelationsAttrName("relations");
 constexpr llvm::StringLiteral kCapabilityProvidersAttrName(
     "capability_providers");
@@ -53,8 +50,7 @@ bool isCoreCapabilityAttribute(llvm::StringRef attrName) {
 }
 
 bool isCapabilityRelationAttribute(llvm::StringRef attrName) {
-  return attrName == kProvidesAttrName || attrName == kImpliesAttrName ||
-         attrName == kConflictsAttrName || attrName == kRelationsAttrName;
+  return attrName == kRelationsAttrName;
 }
 
 std::string stringifyCapabilityProperty(mlir::Attribute attribute) {
@@ -103,27 +99,6 @@ collectCapabilityProperties(mlir::Operation *op) {
 enum class CapabilityRelationKind { Provides, Implies, Conflicts };
 
 llvm::SmallVector<std::string, 4>
-collectCapabilityIDRelation(mlir::Operation *op,
-                            llvm::StringRef attrName) {
-  llvm::SmallVector<std::string, 4> ids;
-  auto arrayAttr = op->getAttrOfType<mlir::ArrayAttr>(attrName);
-  if (!arrayAttr)
-    return ids;
-
-  for (mlir::Attribute attr : arrayAttr) {
-    auto stringAttr = llvm::dyn_cast<mlir::StringAttr>(attr);
-    if (!stringAttr)
-      continue;
-
-    llvm::StringRef value = stringAttr.getValue().trim();
-    if (!value.empty())
-      ids.push_back(value.str());
-  }
-
-  return ids;
-}
-
-llvm::SmallVector<std::string, 4>
 collectTypedCapabilityIDRelation(tcrv::exec::CapabilityRelationsAttr relations,
                                  CapabilityRelationKind kind) {
   llvm::SmallVector<std::string, 4> ids;
@@ -151,24 +126,20 @@ collectTypedCapabilityIDRelation(tcrv::exec::CapabilityRelationsAttr relations,
   return ids;
 }
 
-// Source one relation list (provides/implies/conflicts), preferring the typed
-// `relations = #tcrv.capability_relations<...>` attribute when present on the
-// op. Precedence: an op carrying the typed attr is sourced exclusively from it
-// (typed wins); an op with only the legacy string `provides`/`implies`/
-// `conflicts` side attrs keeps the historical string-collection behavior. This
-// makes typed-attr capabilities drive the by-id relation queries downstream
-// (satisfiesID / lookupProviderByID / collectAvailableConflictsForCapability)
-// while keeping every string-only fixture byte-identical in behavior. The
-// legacy string path is intentionally left live (strangler-fig migration).
+// Source one relation list (provides/implies/conflicts) from the typed
+// `relations = #tcrv.capability_relations<...>` attribute on the op. The legacy
+// string `provides`/`implies`/`conflicts` side attributes no longer exist in IR
+// (Stage 2 deletion endgame), so an op without the typed attr has no relations.
+// This drives the by-id relation queries downstream (satisfiesID /
+// lookupProviderByID / collectAvailableConflictsForCapability).
 llvm::SmallVector<std::string, 4>
-sourceCapabilityIDRelation(mlir::Operation *op, llvm::StringRef legacyAttrName,
-                           CapabilityRelationKind kind) {
+sourceCapabilityIDRelation(mlir::Operation *op, CapabilityRelationKind kind) {
   if (auto relations =
           op->getAttrOfType<tcrv::exec::CapabilityRelationsAttr>(
               kRelationsAttrName))
     return collectTypedCapabilityIDRelation(relations, kind);
 
-  return collectCapabilityIDRelation(op, legacyAttrName);
+  return {};
 }
 
 mlir::Operation *findModuleLevelSymbol(tcrv::exec::KernelOp kernel,
@@ -240,12 +211,9 @@ CapabilityDescriptor makeDescriptor(mlir::Operation *op,
       symbolName, id, kind, status,
       TargetCapabilitySet::availabilityFromStatus(status),
       collectCapabilityProperties(op),
-      sourceCapabilityIDRelation(op, kProvidesAttrName,
-                                 CapabilityRelationKind::Provides),
-      sourceCapabilityIDRelation(op, kImpliesAttrName,
-                                 CapabilityRelationKind::Implies),
-      sourceCapabilityIDRelation(op, kConflictsAttrName,
-                                 CapabilityRelationKind::Conflicts));
+      sourceCapabilityIDRelation(op, CapabilityRelationKind::Provides),
+      sourceCapabilityIDRelation(op, CapabilityRelationKind::Implies),
+      sourceCapabilityIDRelation(op, CapabilityRelationKind::Conflicts));
 }
 
 bool containsID(llvm::ArrayRef<std::string> ids, llvm::StringRef id) {

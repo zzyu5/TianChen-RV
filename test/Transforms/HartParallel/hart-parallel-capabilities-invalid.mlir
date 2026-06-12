@@ -4,7 +4,7 @@ tcrv.exec.kernel @too_many_harts attributes {} {
   tcrv.exec.capability @rvv_hart_count {
     id = "rvv.hart_count",
     kind = "uarch",
-    provides = ["target.hart_count"],
+    relations = #tcrv.capability_relations<provides = ["target.hart_count"]>,
     count = 64 : i64,
     status = "available"
   }

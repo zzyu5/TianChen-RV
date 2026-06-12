@@ -67,13 +67,13 @@ tcrv.exec.kernel @conflicting_available_case_with_clean_fallback attributes {} {
   tcrv.exec.capability @fast_runtime {
     id = "generic.fast.runtime",
     kind = "runtime",
-    conflicts = ["build.policy.disable_fast_runtime"],
+    relations = #tcrv.capability_relations<conflicts = ["build.policy.disable_fast_runtime"]>,
     status = "available"
   }
   tcrv.exec.capability @disable_fast_profile {
     id = "generic.build.profile",
     kind = "build-policy",
-    provides = ["build.policy.disable_fast_runtime"],
+    relations = #tcrv.capability_relations<provides = ["build.policy.disable_fast_runtime"]>,
     status = "available"
   }
   tcrv.exec.capability @baseline_capability {

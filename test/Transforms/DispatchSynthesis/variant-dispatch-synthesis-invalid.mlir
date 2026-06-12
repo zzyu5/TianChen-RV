@@ -47,25 +47,25 @@ tcrv.exec.kernel @no_conflict_free_fallback attributes {} {
   tcrv.exec.capability @fast_runtime {
     id = "generic.fast.runtime",
     kind = "runtime",
-    conflicts = ["build.policy.disable_fast_runtime"],
+    relations = #tcrv.capability_relations<conflicts = ["build.policy.disable_fast_runtime"]>,
     status = "available"
   }
   tcrv.exec.capability @disable_fast_profile {
     id = "generic.build.profile",
     kind = "build-policy",
-    provides = ["build.policy.disable_fast_runtime"],
+    relations = #tcrv.capability_relations<provides = ["build.policy.disable_fast_runtime"]>,
     status = "available"
   }
   tcrv.exec.capability @baseline_conflict {
     id = "generic.baseline",
     kind = "toolchain",
-    conflicts = ["build.policy.disable_baseline"],
+    relations = #tcrv.capability_relations<conflicts = ["build.policy.disable_baseline"]>,
     status = "available"
   }
   tcrv.exec.capability @disable_baseline_profile {
     id = "generic.baseline.profile",
     kind = "build-policy",
-    provides = ["build.policy.disable_baseline"],
+    relations = #tcrv.capability_relations<provides = ["build.policy.disable_baseline"]>,
     status = "available"
   }
   tcrv.exec.variant @fast_runtime_path attributes {

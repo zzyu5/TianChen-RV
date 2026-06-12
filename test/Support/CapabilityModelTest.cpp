@@ -69,7 +69,7 @@ module {
     id = "rvv.profile.module",
     kind = "profile",
     status = "available",
-    provides = ["module.rvv"],
+    relations = #tcrv.capability_relations<provides = ["module.rvv"]>,
     architecture = "riscv64"
   }
   tcrv.exec.target @unreferenced_module_profile {
@@ -87,9 +87,7 @@ module {
       id = "rvv.profile.rv64gcv",
       kind = "profile",
       status = "available",
-      provides = ["rvv"],
-      implies = ["zvl128b"],
-      conflicts = ["vendor.inline_asm_forbidden"],
+      relations = #tcrv.capability_relations<provides = ["rvv"] implies = ["zvl128b"] conflicts = ["vendor.inline_asm_forbidden"]>,
       architecture = "riscv64"
     }
     tcrv.exec.capability @inline_asm_forbidden {
@@ -100,19 +98,19 @@ module {
     tcrv.exec.capability @dynamic_shape_policy {
       id = "shape.policy.profile",
       kind = "shape-policy",
-      provides = ["shape.dynamic"],
+      relations = #tcrv.capability_relations<provides = ["shape.dynamic"]>,
       status = "available"
     }
     tcrv.exec.capability @fixed_shape_runtime {
       id = "runtime.fixed_shape",
       kind = "runtime-offload",
-      conflicts = ["shape.dynamic"],
+      relations = #tcrv.capability_relations<conflicts = ["shape.dynamic"]>,
       status = "available"
     }
     tcrv.exec.capability @no_rvv_policy {
       id = "policy.no_rvv",
       kind = "build-policy",
-      conflicts = ["rvv"],
+      relations = #tcrv.capability_relations<conflicts = ["rvv"]>,
       status = "available"
     }
     tcrv.exec.capability @rvv_uarch {
@@ -466,11 +464,11 @@ module {
           "checked insertion preserves provides/implies provider semantics"))
     return result;
 
-  // Parity: a descriptor built from a typed
-  // relations = #tcrv.capability_relations<...> op must report IDENTICAL
-  // conflict relations and collectAvailableConflictsForCapability results to the
-  // legacy string provides/conflicts form. Proves the typed-preferred descriptor
-  // bridge is a lossless restructuring of the string relation contract.
+  // A descriptor built from a typed
+  // relations = #tcrv.capability_relations<...> op resolves conflict/provides
+  // relations and collectAvailableConflictsForCapability through the by-id model.
+  // The legacy string provides/conflicts relation representation no longer exists
+  // in IR (Stage 2 deletion endgame); the typed attr is the sole relation source.
   constexpr llvm::StringLiteral typedRelationsSource = R"mlir(
 module {
   tcrv.exec.kernel @typed_relations attributes {} {
@@ -487,20 +485,6 @@ module {
       status = "available"
     }
   }
-  tcrv.exec.kernel @string_relations attributes {} {
-    tcrv.exec.capability @fixed_shape_runtime {
-      id = "runtime.fixed_shape",
-      kind = "runtime-offload",
-      conflicts = ["shape.dynamic"],
-      status = "available"
-    }
-    tcrv.exec.capability @shape_profile {
-      id = "shape.profile",
-      kind = "shape-policy",
-      provides = ["shape.dynamic"],
-      status = "available"
-    }
-  }
 }
 )mlir";
 
@@ -510,80 +494,50 @@ module {
     return fail("failed to parse typed-relations parity module");
 
   KernelOp typedKernel;
-  KernelOp stringKernel;
   parityModule->walk([&](KernelOp candidate) {
     if (candidate.getSymName() == "typed_relations")
       typedKernel = candidate;
-    else if (candidate.getSymName() == "string_relations")
-      stringKernel = candidate;
   });
-  if (int result = expect(static_cast<bool>(typedKernel) &&
-                              static_cast<bool>(stringKernel),
-                          "typed and string relation kernels are present"))
+  if (int result = expect(static_cast<bool>(typedKernel),
+                          "typed relations kernel is present"))
     return result;
 
   TargetCapabilitySet typedCapabilities =
       TargetCapabilitySet::buildFromKernel(typedKernel);
-  TargetCapabilitySet stringCapabilities =
-      TargetCapabilitySet::buildFromKernel(stringKernel);
 
   const CapabilityDescriptor *typedFixedShape =
       typedCapabilities.lookupByID("runtime.fixed_shape");
-  const CapabilityDescriptor *stringFixedShape =
-      stringCapabilities.lookupByID("runtime.fixed_shape");
-  if (int result = expect(typedFixedShape && stringFixedShape,
-                          "fixed-shape capability present in both relation forms"))
+  if (int result = expect(static_cast<bool>(typedFixedShape),
+                          "fixed-shape capability present in typed relation form"))
     return result;
 
-  if (int result = expect(typedFixedShape->getConflictingIDs() ==
-                              stringFixedShape->getConflictingIDs(),
-                          "typed relations attr yields identical "
-                          "getConflictingIDs() to the string form"))
-    return result;
   if (int result = expect(typedFixedShape->conflictsWithID("shape.dynamic"),
-                          "typed relations attr preserves conflictsWithID"))
+                          "typed relations attr drives conflictsWithID"))
     return result;
 
   const CapabilityDescriptor *typedShapeProfile =
       typedCapabilities.lookupByID("shape.profile");
-  const CapabilityDescriptor *stringShapeProfile =
-      stringCapabilities.lookupByID("shape.profile");
-  if (int result = expect(typedShapeProfile && stringShapeProfile,
-                          "shape-profile provider present in both relation forms"))
-    return result;
-  if (int result = expect(typedShapeProfile->getProvidedIDs() ==
-                              stringShapeProfile->getProvidedIDs(),
-                          "typed relations attr yields identical getProvidedIDs() "
-                          "to the string form"))
+  if (int result = expect(static_cast<bool>(typedShapeProfile),
+                          "shape-profile provider present in typed relation form"))
     return result;
   if (int result = expect(typedShapeProfile->providesID("shape.dynamic"),
-                          "typed relations attr preserves providesID"))
+                          "typed relations attr drives providesID"))
     return result;
 
   llvm::SmallVector<CapabilityConflict, 2> typedConflicts;
   typedCapabilities.collectAvailableConflictsForCapability(*typedFixedShape,
                                                            typedConflicts);
-  llvm::SmallVector<CapabilityConflict, 2> stringConflicts;
-  stringCapabilities.collectAvailableConflictsForCapability(*stringFixedShape,
-                                                            stringConflicts);
-  if (int result = expect(typedConflicts.size() == stringConflicts.size() &&
-                              typedConflicts.size() == 1,
-                          "typed and string collectAvailableConflicts report the "
-                          "same conflict count"))
+  if (int result = expect(typedConflicts.size() == 1,
+                          "typed relations attr drives collectAvailableConflicts "
+                          "to the single conflict"))
     return result;
   if (int result =
-          expect(typedConflicts.front().conflictID ==
-                         stringConflicts.front().conflictID &&
-                     typedConflicts.front().conflictID == "shape.dynamic" &&
-                     typedConflicts.front()
-                             .conflictingCapability->getSymbolName() ==
-                         stringConflicts.front()
-                             .conflictingCapability->getSymbolName() &&
+          expect(typedConflicts.front().conflictID == "shape.dynamic" &&
                      typedConflicts.front()
                              .conflictingCapability->getSymbolName() ==
                          "shape_profile",
-                 "typed and string collectAvailableConflicts resolve the same "
-                 "conflict provider through provides relations"))
+                 "typed relations attr resolves the conflict provider through "
+                 "provides relations"))
     return result;
   if (int result =
           expect(typedFixedShape->getProperty("relations").empty() &&

@@ -48,13 +48,13 @@ module {
     tcrv.exec.capability @conflicting_runtime {
       id = "generic.conflicting.runtime",
       kind = "runtime",
-      conflicts = ["build.policy.disable_conflicting_runtime"],
+      relations = #tcrv.capability_relations<conflicts = ["build.policy.disable_conflicting_runtime"]>,
       status = "available"
     }
     tcrv.exec.capability @conflict_policy {
       id = "generic.conflict.policy",
       kind = "build-policy",
-      provides = ["build.policy.disable_conflicting_runtime"],
+      relations = #tcrv.capability_relations<provides = ["build.policy.disable_conflicting_runtime"]>,
       status = "available"
     }
     tcrv.exec.capability @extra_capability {
