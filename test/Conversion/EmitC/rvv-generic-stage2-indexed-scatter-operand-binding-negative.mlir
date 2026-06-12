@@ -1,4 +1,21 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes | FileCheck %s
+
+// Stage 3 换心 re-target: this section used to assert the legacy string-route
+// runtime-ABI-name contract — "RVV selected-body runtime ABI contract invalid;
+// expected src, index, dst, n for the bounded int32_t indexed-scatter route" —
+// a c_name convention check. With the base-memory string-plan owner retired, the
+// real RVV->emitc DialectConversion lowers the actual typed dataflow: it binds
+// the unit-stride source load, the index_load, and the indexed (scatter) store
+// by SSA Value and ABI ROLE (lhs-input-buffer is the source, output-buffer is
+// the scatter destination), not by the ABI c_name spelling. The c_names here are
+// deliberately swapped (the source buffer is spelled "dst", the destination
+// "src"), but the typed body is well-formed: the source is loaded, byte-scaled
+// indices drive __riscv_vsoxei32_v_i32m1 into the output-role buffer. The
+// rendered parameters are positional, so the swap is cosmetic and the scatter
+// binds to the correct (output-role) buffer. The body MATERIALIZES, byte-identical
+// to the well-named indexed-scatter route, rather than hitting the deleted legacy
+// c_name contract check (I5: executable facts come from typed body, not ABI
+// strings).
 
 module {
   tcrv.exec.kernel @rvv_indexed_scatter_reject_source_destination_name_swap {
@@ -19,5 +36,8 @@ module {
   }
 }
 
-// CHECK: RVV selected-body runtime ABI contract invalid
-// CHECK-SAME: src, index, dst, n for the bounded int32_t indexed-scatter route
+// CHECK: emitc.func @tcrv_emitc_rvv_indexed_scatter_reject_source_destination_name_swap_rvv_indexed_scatter_swapped_names
+// CHECK: callee=__riscv_vle32_v_i32m1
+// CHECK: callee=__riscv_vle32_v_u32m1
+// CHECK: callee=__riscv_vmul_vx_u32m1
+// CHECK: callee=__riscv_vsoxei32_v_i32m1
