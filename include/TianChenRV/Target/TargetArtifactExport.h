@@ -368,6 +368,13 @@ private:
       bundlesByPlugin;
 };
 
+// I7 fail-closed guard: family-agnostic pure string predicate. Returns true if
+// `lower` contains a forbidden direct-C/source-export marker ("direct_c" or
+// "direct-c", excluding the allowed "direct-contraction" token). Shared by the
+// common Target export path and family target-support bundles so the guard has a
+// single source of truth.
+bool containsForbiddenDirectCMarker(llvm::StringRef lower);
+
 llvm::Error registerTargetArtifactExportersForEnabledExtensionBundles(
     const plugin::ExtensionBundleRegistry &bundles,
     const plugin::ExtensionPluginRegistry &plugins,

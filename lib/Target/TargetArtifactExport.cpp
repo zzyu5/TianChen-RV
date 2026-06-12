@@ -1381,22 +1381,6 @@ llvm::StringRef lookupArtifactMetadataValue(
   return {};
 }
 
-bool containsForbiddenDirectCMarker(llvm::StringRef lower) {
-  if (lower.contains("direct_c"))
-    return true;
-
-  std::size_t position = 0;
-  while (true) {
-    position = lower.find("direct-c", position);
-    if (position == llvm::StringRef::npos)
-      return false;
-    llvm::StringRef suffix = lower.substr(position);
-    if (!suffix.starts_with("direct-contraction"))
-      return true;
-    position += llvm::StringRef("direct-contraction").size();
-  }
-}
-
 bool containsForbiddenMaterializedEmitCHeaderMetadata(llvm::StringRef value) {
   std::string lowerStorage = value.lower();
   llvm::StringRef lower(lowerStorage);
@@ -1686,6 +1670,22 @@ void printMaterializedEmitCHeaderDeclaration(
 }
 
 } // namespace
+
+bool containsForbiddenDirectCMarker(llvm::StringRef lower) {
+  if (lower.contains("direct_c"))
+    return true;
+
+  std::size_t position = 0;
+  while (true) {
+    position = lower.find("direct-c", position);
+    if (position == llvm::StringRef::npos)
+      return false;
+    llvm::StringRef suffix = lower.substr(position);
+    if (!suffix.starts_with("direct-contraction"))
+      return true;
+    position += llvm::StringRef("direct-contraction").size();
+  }
+}
 
 llvm::Expected<SelectedEmitCArtifactTarget>
 selectSelectedEmitCArtifactTarget(
