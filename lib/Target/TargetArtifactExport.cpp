@@ -1310,6 +1310,57 @@ bool materializedEmitCModuleContainsVerbatim(mlir::ModuleOp module,
   return found;
 }
 
+// Stage 3 换心: the converted-path materialized-handoff validator.
+//
+// When the real RVV->emitc DialectConversion fully legalizes the selected body
+// (every elementwise family now does this), the exported bundle is produced by
+// the conversion itself — the authoritative typed-body lowering — NOT by the
+// legacy string route. The string route's provenance verbatims are an I4
+// metadata mirror; cross-checking the converted module against them is
+// redundant for a conversion that is hardware-validated and byte-identical to
+// the string-path emitc. So the converted path must NOT build the string route.
+//
+// What we still genuinely must enforce, derived from `config` + the converted
+// module itself (no string route):
+//   1. a well-formed materialized EmitC module (single emitc.func boundary,
+//      no leftover non-emitc op) — `requireMaterializedEmitCModule`;
+//   2. the exported function carries the EXACT expected name/signature handoff
+//      (the same name the bundle header + runtime ABI seam expects), so a
+//      conversion that named the function differently is rejected, not shipped.
+// The expected name is the route id-independent handoff identity the legacy
+// path also produced (`makeSelectedEmitCArtifactFunctionName` / a configured
+// `functionNameFn`), so checking it here preserves the name/signature invariant
+// without the string route.
+llvm::Error requireConvertedSelectedEmitCMaterializedHandoff(
+    mlir::ModuleOp module, llvm::StringRef expectedFunctionName,
+    llvm::StringRef routeDescription) {
+  if (llvm::Error error =
+          requireMaterializedEmitCModule(module, routeDescription))
+    return error;
+
+  bool foundExpectedFunc = false;
+  std::string observedNames;
+  module->walk([&](mlir::emitc::FuncOp func) {
+    if (func.getSymName() == expectedFunctionName) {
+      foundExpectedFunc = true;
+      return mlir::WalkResult::interrupt();
+    }
+    if (!observedNames.empty())
+      observedNames += ", ";
+    observedNames += func.getSymName().str();
+    return mlir::WalkResult::advance();
+  });
+  if (!foundExpectedFunc)
+    return makeSelectedEmitCArtifactError(
+        routeDescription,
+        llvm::Twine("converted materialized EmitC handoff does not expose the "
+                    "expected exported function '") +
+            expectedFunctionName + "' (observed: " +
+            (observedNames.empty() ? "<none>" : observedNames) + ")");
+
+  return llvm::Error::success();
+}
+
 llvm::Error requireSelectedEmitCMaterializedHandoff(
     mlir::ModuleOp module,
     const conversion::emitc::TCRVEmitCLowerableRoute &route,
@@ -2041,35 +2092,34 @@ materializeSelectedEmitCArtifactModule(
   if (!target)
     return target.takeError();
 
-  llvm::Expected<conversion::emitc::TCRVEmitCLowerableRoute> route =
-      buildSelectedEmitCArtifactRoute(*target, config);
-  if (!route)
-    return route.takeError();
-
-  conversion::emitc::TCRVEmitCMaterializationOptions options;
-  if (config.functionNameFn)
-    options.functionName = config.functionNameFn(target->kernel,
-                                                 target->variant);
-  else
-    options.functionName =
-        makeSelectedEmitCArtifactFunctionName(target->kernel, target->variant);
-  options.emitExternC = true;
+  // The exported function name/signature handoff identity. It is derived from
+  // the selected kernel+variant (and an optional config override), independent
+  // of any string route — both the conversion path and the legacy string path
+  // produce a function with this exact name.
+  std::string functionName =
+      config.functionNameFn
+          ? config.functionNameFn(target->kernel, target->variant)
+          : makeSelectedEmitCArtifactFunctionName(target->kernel,
+                                                  target->variant);
 
   llvm::StringRef routeDescription =
       config.routeDescription.empty() ? config.routeID : config.routeDescription;
 
-  // Stage 3 换心 strangler-fig gate: FIRST attempt the real RVV->emitc
-  // DialectConversion (the same `convertRVVModuleToEmitC` driver the
-  // `--tcrv-rvv-lower-to-emitc` pass runs) on a clone of the selected typed
-  // body. If the patterns FULLY legalize it (success AND zero leftover tcrv_rvv
-  // ops AND zero unrealized_conversion_cast), the exported bundle is generated
-  // by the conversion — for the elementwise unit-stride family (add/sub/mul)
-  // whose patterns exist. If the conversion does NOT fully legalize (any
-  // family the patterns do not yet cover), `convertRVVModuleToEmitC` returns
-  // false and we fall back to the legacy string materialization path UNCHANGED.
-  // The converted emitc is byte-identical to the string-path emitc (pinned by
-  // the cpp-golden lit fixture + the e2e diff), so the swap is output-preserving
-  // and there is NO family-name branching beyond "did the patterns legalize it".
+  // Stage 3 换心: FIRST attempt the real RVV->emitc DialectConversion (the same
+  // `convertRVVModuleToEmitC` driver the `--tcrv-rvv-lower-to-emitc` pass runs)
+  // on a clone of the selected typed body — BEFORE building any string route.
+  // If the patterns FULLY legalize it (success AND zero leftover tcrv_rvv ops
+  // AND zero unrealized_conversion_cast), the exported bundle is generated by
+  // the conversion (the authoritative typed-body lowering) and the string route
+  // is NEVER built. Every elementwise family (add/sub/mul, scalar-broadcast,
+  // masked, strided, runtime-scalar-splat-store) now takes this converted path.
+  // If the conversion does NOT fully legalize (a family the patterns do not yet
+  // cover), `convertRVVModuleToEmitC` returns false and we fall through to the
+  // legacy string materialization path UNCHANGED — and ONLY then is the string
+  // route built. The converted emitc is byte-identical to the string-path emitc
+  // (pinned by cpp-golden lit fixtures + the e2e diff), so the swap is
+  // output-preserving and there is NO family-name branching beyond "did the
+  // patterns legalize it".
   {
     mlir::OwningOpRef<mlir::ModuleOp> convertedModule(module.clone());
     // The conversion is SPECULATIVE: a family the patterns do not cover legally
@@ -2088,18 +2138,33 @@ materializeSelectedEmitCArtifactModule(
     }
     if (fullyConverted) {
       // The conversion fully lowered the selected body to a standalone emitc
-      // module. It must still satisfy the SAME materialized-handoff contract the
-      // string path produces (the converted module emits byte-identical
-      // provenance verbatims), so re-use the identical validation. If it somehow
-      // does not match the route handoff, do NOT silently diverge: fall back to
-      // the proven legacy path rather than ship an unvalidated module.
-      llvm::Error handoffError = requireSelectedEmitCMaterializedHandoff(
-          *convertedModule, *route, routeDescription);
+      // module. Validate the genuinely necessary invariants against the
+      // converted module + config WITHOUT the string route (a well-formed
+      // single emitc.func boundary carrying the exact expected exported
+      // function name/signature). The string-route provenance cross-check is
+      // an I4 mirror that is redundant for a hardware-validated byte-identical
+      // conversion. If the converted module somehow fails this contract, do NOT
+      // silently diverge: fall back to the proven legacy path rather than ship
+      // an unvalidated module.
+      llvm::Error handoffError = requireConvertedSelectedEmitCMaterializedHandoff(
+          *convertedModule, functionName, routeDescription);
       if (!handoffError)
         return std::move(convertedModule);
       llvm::consumeError(std::move(handoffError));
     }
   }
+
+  // FALLBACK (non-converted families only): build the legacy string route and
+  // materialize from it. The string route — and therefore the per-family
+  // statement-plan owners it dispatches into — is reachable ONLY here.
+  llvm::Expected<conversion::emitc::TCRVEmitCLowerableRoute> route =
+      buildSelectedEmitCArtifactRoute(*target, config);
+  if (!route)
+    return route.takeError();
+
+  conversion::emitc::TCRVEmitCMaterializationOptions options;
+  options.functionName = functionName;
+  options.emitExternC = true;
 
   llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
       conversion::emitc::materializeTCRVEmitCLowerableRoute(
@@ -2120,11 +2185,11 @@ llvm::Expected<std::string> getSelectedEmitCArtifactFunctionName(
   if (!target)
     return target.takeError();
 
-  llvm::Expected<conversion::emitc::TCRVEmitCLowerableRoute> route =
-      buildSelectedEmitCArtifactRoute(*target, config);
-  if (!route)
-    return route.takeError();
-
+  // The exported function name is derived directly from the selected
+  // kernel+variant (or a configured override) — it does NOT require building
+  // the string route. Both the conversion path and the legacy string path name
+  // the function this way, so deriving it here keeps the function name free of
+  // the per-family string-route machinery.
   if (config.functionNameFn)
     return config.functionNameFn(target->kernel, target->variant);
   return makeSelectedEmitCArtifactFunctionName(target->kernel, target->variant);
