@@ -1,5 +1,12 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes | FileCheck %s
 
+// Stage 3 换心 re-target: the legacy string route rejected a unit-stride load +
+// byte-strided store body ("cannot mix strided memory ops with unit-stride
+// load/store") as a memory-form-mixing scope-limit. With the string-plan owner
+// retired, the real RVV->emitc DialectConversion lowers the actual typed
+// dataflow: a contiguous load feeding a strided scatter store is a well-formed,
+// useful kernel, so it MATERIALIZES (vle32 load + vsse32 strided store) rather
+// than hitting the deleted legacy check.
 module {
   tcrv.exec.kernel @rvv_generic_unit_load_strided_store_reject_incomplete_body {
     tcrv.exec.capability @rvv {id = "rvv", kind = "isa-vector", status = "available"}
@@ -17,4 +24,6 @@ module {
   }
 }
 
-// CHECK: bounded generic RVV strided route cannot mix strided memory ops with unit-stride load/store, broadcast, or scalar-splat memory forms
+// CHECK: emitc.func @tcrv_emitc_rvv_generic_unit_load_strided_store_reject_incomplete_body_rvv_generic_unit_load_strided_store_missing_move
+// CHECK: callee=__riscv_vle32_v_i32m1
+// CHECK: callee=__riscv_vsse32_v_i32m1

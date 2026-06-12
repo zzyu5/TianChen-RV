@@ -1,52 +1,21 @@
 // RUN: tcrv-opt %s --split-input-file --verify-diagnostics --tcrv-materialize-emitc-lowerable-routes
 
-// expected-error@+1 {{unsupported RVV selected-body route profile: operation=sub, memory_form=vector-rhs-load, SEW=64, LMUL=m1}}
-module {
-  tcrv.exec.kernel @rvv_i64_sub_rejected {
-    tcrv.exec.capability @rvv { id = "rvv", kind = "isa-vector", status = "available" }
-    tcrv.exec.variant @rvv_i64_sub attributes { origin = "rvv-plugin", requires = [@rvv] } {
-      %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int64_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int64_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int64_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i64_sub, sew = 64 : i64, source_kernel = "rvv_i64_sub_rejected", status = "selected-lowering-boundary"} {
-        %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i64, "m1">
-        %rhs = tcrv_rvv.load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i64, "m1">
-        %sum = tcrv_rvv.binary %lhs, %rhs, %vl {kind = "sub"} : !tcrv_rvv.vector<i64, "m1">, !tcrv_rvv.vector<i64, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i64, "m1">
-        tcrv_rvv.store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i64, "m1">, !tcrv_rvv.vl
-      } : !tcrv_rvv.vl
-    }
-  }
-}
-
-// CHECK: unsupported RVV selected-body route profile: operation=sub, memory_form=vector-rhs-load, SEW=64, LMUL=m1
-
-// -----
-
-// expected-error@+1 {{unsupported RVV selected-body route profile: operation=add, memory_form=vector-rhs-load, SEW=64, LMUL=m2}}
-module {
-  tcrv.exec.kernel @rvv_i64_m2_rejected {
-    tcrv.exec.capability @rvv { id = "rvv", kind = "isa-vector", status = "available" }
-    tcrv.exec.variant @rvv_i64_m2 attributes { origin = "rvv-plugin", requires = [@rvv] } {
-      %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int64_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int64_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int64_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m2", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m2", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i64_m2, sew = 64 : i64, source_kernel = "rvv_i64_m2_rejected", status = "selected-lowering-boundary"} {
-        %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i64, "m2">
-        %rhs = tcrv_rvv.load %rhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i64, "m2">
-        %sum = tcrv_rvv.binary %lhs, %rhs, %vl {kind = "add"} : !tcrv_rvv.vector<i64, "m2">, !tcrv_rvv.vector<i64, "m2">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i64, "m2">
-        tcrv_rvv.store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i64, "m2">, !tcrv_rvv.vl
-      } : !tcrv_rvv.vl
-    }
-  }
-}
-
-// CHECK: unsupported RVV selected-body route profile: operation=add, memory_form=vector-rhs-load, SEW=64, LMUL=m2
-
-// -----
+// Stage 3 换心 note: three former sections asserted legacy SCOPE-limit rejections
+// that the conversion now genuinely + correctly covers — i64/m1 and i64/m2
+// elementwise (extended by commit 4de23a4e) and a single-load `x+x` body (the
+// legacy "exactly two loads" structural count). Those bodies now MATERIALIZE
+// through the real RVV->emitc DialectConversion (i64 positive coverage:
+// rvv-to-emitc-i64-add.mlir + rvv-generic-stage2-i64-add-materialization.mlir),
+// so they are no longer negatives and were removed.
+//
+// The sections retained below are GENUINE rejections that survive the换心: the
+// runtime-ABI c_type must agree with the loaded vector element (the conversion
+// declines a const int32_t* buffer feeding an i64 load, so the legacy ABI
+// validator still fires); an undisturbed tail policy is outside the converted
+// slice (the conversion declines it rather than mislower as agnostic, so the
+// legacy profile validator still fires); plus op-verifier invariants (element
+// width vs with_vl SEW, the required capability `requires` array, and an AVL not
+// defined by an explicit runtime_abi_value).
 
 // expected-error@+1 {{runtime ABI parameter role 'lhs-input-buffer' must use C type 'const int64_t *'}}
 module {
@@ -67,8 +36,6 @@ module {
     }
   }
 }
-
-// CHECK: runtime ABI parameter role 'lhs-input-buffer' must use C type 'const int64_t *'
 
 // -----
 
@@ -92,8 +59,6 @@ module {
   }
 }
 
-// CHECK: unsupported RVV selected-body route profile: operation=add, memory_form=vector-rhs-load, SEW=64, LMUL=m1, tail_policy=undisturbed
-
 // -----
 
 module {
@@ -115,8 +80,6 @@ module {
     }
   }
 }
-
-// CHECK: requires result element width 32 to agree with enclosing tcrv_rvv.with_vl SEW64 metadata
 
 // -----
 
@@ -140,8 +103,6 @@ module {
   }
 }
 
-// CHECK: requires structured array attribute 'requires' containing capability symbol references
-
 // -----
 
 // expected-error@+1 {{tcrv_rvv.setvl AVL operand must be defined by explicit tcrv_rvv.runtime_abi_value before RVV EmitC route construction}}
@@ -163,28 +124,3 @@ module {
     }
   }
 }
-
-// CHECK: tcrv_rvv.setvl AVL operand must be defined by explicit tcrv_rvv.runtime_abi_value before RVV EmitC route construction
-
-// -----
-
-// expected-error@+1 {{bounded generic RVV vector-load route requires exactly two tcrv_rvv.load ops}}
-module {
-  tcrv.exec.kernel @rvv_i64_incomplete_body_rejected {
-    tcrv.exec.capability @rvv { id = "rvv", kind = "isa-vector", status = "available" }
-    tcrv.exec.variant @rvv_i64_incomplete_body attributes { origin = "rvv-plugin", requires = [@rvv] } {
-      %lhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "lhs", c_type = "const int64_t *", ownership = "target-export-abi-owned", role = "lhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %rhs_ptr = tcrv_rvv.runtime_abi_value {c_name = "rhs", c_type = "const int64_t *", ownership = "target-export-abi-owned", role = "rhs-input-buffer"} : !tcrv_rvv.runtime_abi_value
-      %out_ptr = tcrv_rvv.runtime_abi_value {c_name = "out", c_type = "int64_t *", ownership = "target-export-abi-owned", role = "output-buffer"} : !tcrv_rvv.runtime_abi_value
-      %n = tcrv_rvv.runtime_abi_value {c_name = "n", c_type = "size_t", ownership = "target-export-abi-owned", role = "runtime-element-count"} : index
-      %vl = tcrv_rvv.setvl %n {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 64 : i64} : index -> !tcrv_rvv.vl
-      tcrv_rvv.with_vl %vl attributes {lmul = "m1", origin = "rvv-plugin", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, required_capabilities = [@rvv], rvv_construction_protocol = "extension-family-construction-protocol.v1", selected_path_role = "direct variant", selected_variant = @rvv_i64_incomplete_body, sew = 64 : i64, source_kernel = "rvv_i64_incomplete_body_rejected", status = "selected-lowering-boundary"} {
-        %lhs = tcrv_rvv.load %lhs_ptr, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i64, "m1">
-        %sum = tcrv_rvv.binary %lhs, %lhs, %vl {kind = "add"} : !tcrv_rvv.vector<i64, "m1">, !tcrv_rvv.vector<i64, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i64, "m1">
-        tcrv_rvv.store %out_ptr, %sum, %vl : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i64, "m1">, !tcrv_rvv.vl
-      } : !tcrv_rvv.vl
-    }
-  }
-}
-
-// CHECK: bounded generic RVV vector-load route requires exactly two tcrv_rvv.load ops

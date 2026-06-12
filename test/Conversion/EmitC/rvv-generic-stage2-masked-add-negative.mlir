@@ -1,5 +1,12 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes | FileCheck %s
 
+// Stage 3 换心 re-target: the legacy string route rejected a masked elementwise
+// body whose RHS arrives via tcrv_rvv.broadcast_load ("broadcast/splat masked
+// elementwise is not in this bounded slice") as a scope-limit. With the
+// string-plan owner retired, the real RVV->emitc DialectConversion now covers
+// the masked-binary + broadcast-load + compare + vmerge family directly, so this
+// well-formed body MATERIALIZES instead of hitting the deleted legacy scope
+// check. The intrinsic sequence below is the genuine, hardware-shaped lowering.
 module {
   tcrv.exec.kernel @rvv_masked_add_broadcast_rejected {
     tcrv.exec.capability @rvv { id = "rvv", kind = "isa-vector", status = "available" }
@@ -20,5 +27,8 @@ module {
   }
 }
 
-// CHECK: bounded generic RVV masked elementwise route requires an explicit RHS vector load
-// CHECK-SAME: broadcast/splat masked elementwise is not in this bounded slice
+// CHECK: emitc.func @tcrv_emitc_rvv_masked_add_broadcast_rejected_rvv_masked_add_broadcast
+// CHECK: callee=__riscv_vmv_v_x_i32m1
+// CHECK: callee=__riscv_vmseq_vv_i32m1_b32
+// CHECK: callee=__riscv_vadd_vv_i32m1
+// CHECK: callee=__riscv_vmerge_vvm_i32m1

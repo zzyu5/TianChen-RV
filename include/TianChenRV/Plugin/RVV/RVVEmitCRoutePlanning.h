@@ -1334,26 +1334,6 @@ struct RVVSelectedBodyResidualRouteOperandBindingFacts {
   const support::RuntimeABIParameter *outStrideABI = nullptr;
 };
 
-struct RVVSelectedBodyCompareSelectRouteStatementPlan {
-  const RVVSelectedBodyPlainCompareSelectRouteFamilyPlan
-      *plainCompareSelectPlan = nullptr;
-  const RVVSelectedBodyComputedMaskSelectRouteFamilyPlan
-      *computedMaskSelectPlan = nullptr;
-
-  bool plansCompareSelectRoute = false;
-  bool plansPlainCompareSelect = false;
-  bool plansComputedMaskSelect = false;
-  bool plansRuntimeScalarComputedMaskSelect = false;
-  bool plansRuntimeScalarDualCompareMaskAndSelect = false;
-  bool plansF32ClampSelect = false;
-  bool plansDequantClampF32Epilogue = false;
-  RVVSelectedBodyMaskTailPolicyProviderPlan maskTailPolicyPlan;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
 struct RVVSelectedBodyWideningConversionRouteStatementPlan {
   const RVVSelectedBodyWideningConversionRouteFamilyPlan
       *wideningConversionPlan = nullptr;

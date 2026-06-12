@@ -1,4 +1,15 @@
-// RUN: not tcrv-opt %s --split-input-file --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: tcrv-opt %s --split-input-file --tcrv-materialize-emitc-lowerable-routes | FileCheck %s
+
+// Stage 3 换心 re-target: both sections used to assert legacy string-route
+// structural scope-limits — "strided lhs load requires lhs-input-stride runtime
+// ABI value" (a role-vs-operand convention) and "cannot mix strided memory ops
+// with unit-stride load/store" (a memory-form-mixing scope-limit). With the
+// string-plan owner retired, the real RVV->emitc DialectConversion lowers the
+// actual typed dataflow: it binds each strided load's stride by SSA Value (role
+// labels are metadata, not lowering inputs), and it freely lowers a strided-gather
+// + unit-store kernel. Both bodies are well-formed typed IR producing type-correct
+// vlse/vse intrinsics, so they MATERIALIZE rather than hitting the deleted legacy
+// checks.
 
 module {
   tcrv.exec.kernel @rvv_generic_strided_add_reject_stride_pair {
@@ -22,7 +33,9 @@ module {
   }
 }
 
-// CHECK: bounded generic RVV strided lhs load requires lhs-input-stride runtime ABI value
+// CHECK: emitc.func @tcrv_emitc_rvv_generic_strided_add_reject_stride_pair_rvv_generic_strided_add_bad_stride_pair
+// CHECK: callee=__riscv_vlse32_v_i32m1
+// CHECK: callee=__riscv_vsse32_v_i32m1
 
 // -----
 
@@ -47,4 +60,6 @@ module {
   }
 }
 
-// CHECK: bounded generic RVV strided route cannot mix strided memory ops with unit-stride load/store, broadcast, or scalar-splat memory forms
+// CHECK: emitc.func @tcrv_emitc_rvv_generic_strided_add_reject_mixed_memory_form_rvv_generic_strided_add_mixed_memory
+// CHECK: callee=__riscv_vlse32_v_i32m1
+// CHECK: callee=__riscv_vse32_v_i32m1

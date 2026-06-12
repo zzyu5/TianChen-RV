@@ -78,8 +78,15 @@ std::string riscvIntrinsicName(llvm::StringRef mnemonic, unsigned sew,
     // strided load/store: __riscv_vlse<sew>_v_<dtype><lmul> /
     // __riscv_vsse<sew>_v_<dtype><lmul>
     os << sew << "_v_" << dtype << lmul;
-  } else if (mnemonic == "vmv_v_x") {
-    // scalar splat: __riscv_vmv_v_x_<dtype><lmul>
+  } else if (mnemonic == "vmv_v_x" || mnemonic == "vfmv_v_f") {
+    // scalar splat: __riscv_vmv_v_x_<dtype><lmul> (int) /
+    // __riscv_vfmv_v_f_<dtype><lmul> (float)
+    os << "_" << dtype << lmul;
+  } else if (mnemonic == "vfcvt_f_x_v") {
+    // int->float convert: __riscv_vfcvt_f_x_v_<dtype><lmul>
+    os << "_" << dtype << lmul;
+  } else if (mnemonic == "vfmul_vf") {
+    // scalar-vector float multiply: __riscv_vfmul_vf_<dtype><lmul>
     os << "_" << dtype << lmul;
   } else if (mnemonic == "vmerge") {
     // masked merge: __riscv_vmerge_vvm_<dtype><lmul>
@@ -107,6 +114,19 @@ std::string riscvCompareIntrinsicName(llvm::StringRef mnemonic, unsigned sew,
   return name;
 }
 
+/// The mask-composition intrinsic name:
+///   __riscv_v<op>_mm_b<maskbits>
+/// for mask-and (vmand) over two predicate masks of the same (sew, lmul). This
+/// mirrors the legacy mask-and callee shape (`__riscv_vmand_mm_b32`).
+std::string riscvMaskComposeIntrinsicName(llvm::StringRef mnemonic,
+                                          unsigned maskBits) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_" << mnemonic << "_mm_b" << maskBits;
+  os.flush();
+  return name;
+}
+
 /// Predicate mask width for an (sew, lmul) config, mirroring the legacy
 /// getElementwiseMaskIntrinsicSuffix maskBits table. Returns 0 for an
 /// unsupported pair (so the caller fails the match and falls back).
@@ -122,14 +142,63 @@ unsigned maskWidthForConfig(unsigned sew, llvm::StringRef lmul) {
   return 0;
 }
 
-/// The C dtype token ("i32"/"i64") for the vector element, used by the load/
-/// store/arithmetic intrinsic suffix and the `vint<sew>m<lmul>_t` opaque type.
+/// The C dtype token ("i32"/"i64"/"f32") for the vector element, used by the
+/// load/store/arithmetic intrinsic suffix and the `vint<sew>m<lmul>_t` /
+/// `vfloat<sew>m<lmul>_t` opaque type.
 llvm::StringRef vectorDType(tcrvrvv::VectorType type) {
   if (type.getElementType().isSignlessInteger(32))
     return "i32";
   if (type.getElementType().isSignlessInteger(64))
     return "i64";
+  if (type.getElementType().isF32())
+    return "f32";
   return "";
+}
+
+/// True for a floating-point vector element (the f32 compare/select/dequant
+/// family uses the f-prefixed RVV intrinsics).
+bool isFloatVector(tcrvrvv::VectorType type) {
+  return llvm::isa<mlir::FloatType>(type.getElementType());
+}
+
+/// The C scalar element spelling a memory buffer of `type` MUST point at, for
+/// the load/store intrinsics to be type-correct: i32 -> "int32_t", i64 ->
+/// "int64_t", f32 -> "float". Returns "" for an element the converter cannot
+/// name (so the caller fails the match).
+llvm::StringRef vectorScalarCType(tcrvrvv::VectorType type) {
+  if (type.getElementType().isSignlessInteger(32))
+    return "int32_t";
+  if (type.getElementType().isSignlessInteger(64))
+    return "int64_t";
+  if (type.getElementType().isF32())
+    return "float";
+  return "";
+}
+
+/// True iff `bufferValue` is an emitc pointer whose pointee opaque C type names
+/// the scalar element of `vectorType`. The runtime ABI value's `c_type`
+/// (e.g. "const int64_t *") becomes the function parameter pointer type; the
+/// load/store intrinsic width is driven by the typed VECTOR element. If the two
+/// disagree (e.g. a `const int32_t *` buffer feeding a `vle64`/i64 load), the
+/// generated C dereferences the pointer at the wrong element width — a malformed
+/// body the legacy path rejected. Reject it here too (return false -> the caller
+/// fails the match and the body falls back unchanged) rather than emit broken C.
+bool bufferPointeeMatchesVectorElement(mlir::Value bufferValue,
+                                       tcrvrvv::VectorType vectorType) {
+  auto pointerType =
+      llvm::dyn_cast<emitc::PointerType>(bufferValue.getType());
+  if (!pointerType)
+    return false;
+  auto pointeeOpaque =
+      llvm::dyn_cast<emitc::OpaqueType>(pointerType.getPointee());
+  if (!pointeeOpaque)
+    return false;
+  llvm::StringRef scalar = vectorScalarCType(vectorType);
+  if (scalar.empty())
+    return false;
+  // The pointee spelling may carry qualifiers (e.g. "const int32_t"); require
+  // the exact scalar token to appear so "int32_t" does not match "int64_t".
+  return pointeeOpaque.getValue().contains(scalar);
 }
 
 //===----------------------------------------------------------------------===//
@@ -216,6 +285,20 @@ public:
     if (!avlAbi)
       return rewriter.notifyMatchFailure(
           variant, "setvl avl must be a runtime ABI value");
+
+    // Tail/mask policy scope guard. The beachhead converter emits the
+    // tail/mask-AGNOSTIC RVV intrinsic forms (e.g. __riscv_vadd_vv_i32m1) and
+    // does NOT model an undisturbed destination (which needs a passthrough /
+    // `_tu`/`_tum` intrinsic form). A body that requests an undisturbed tail or
+    // mask policy must NOT be silently lowered as agnostic — that would emit
+    // semantically wrong C. Fail the match so the unsupported-policy body falls
+    // through unchanged (the legacy path rejected it explicitly; the conversion
+    // simply does not take it over).
+    tcrvrvv::PolicyAttr policy = preLoopSetVL.getPolicy();
+    if (policy.getTail() != tcrvrvv::TailPolicy::Agnostic ||
+        policy.getMask() != tcrvrvv::MaskPolicy::Agnostic)
+      return rewriter.notifyMatchFailure(
+          variant, "only tail/mask-agnostic policy is in the beachhead slice");
 
     // Collect the runtime ABI values as ordered function parameters.
     llvm::SmallVector<AbiParam, 4> params;
@@ -352,6 +435,18 @@ public:
           if (mlir::failed(emitMaskedBinary(rewriter, loc, maskedBinary,
                                             valueMap, bodyVL)))
             return mlir::failure();
+        } else if (auto maskAnd = llvm::dyn_cast<tcrvrvv::MaskAndOp>(op)) {
+          if (mlir::failed(emitMaskAnd(rewriter, loc, maskAnd, valueMap,
+                                       bodyVL)))
+            return mlir::failure();
+        } else if (auto dequantize =
+                       llvm::dyn_cast<tcrvrvv::DequantizeOp>(op)) {
+          if (mlir::failed(emitDequantize(rewriter, loc, dequantize, valueMap,
+                                          bodyVL)))
+            return mlir::failure();
+        } else if (auto select = llvm::dyn_cast<tcrvrvv::SelectOp>(op)) {
+          if (mlir::failed(emitSelect(rewriter, loc, select, valueMap, bodyVL)))
+            return mlir::failure();
         } else if (auto binary = llvm::dyn_cast<tcrvrvv::BinaryOp>(op)) {
           if (mlir::failed(emitBinary(rewriter, loc, binary, valueMap, bodyVL)))
             return mlir::failure();
@@ -391,6 +486,9 @@ private:
     mlir::Value base = valueMap.lookup(load.getBuffer());
     if (!base)
       return rewriter.notifyMatchFailure(load, "load buffer not an ABI param");
+    if (!bufferPointeeMatchesVectorElement(base, vectorType))
+      return rewriter.notifyMatchFailure(
+          load, "load buffer C type disagrees with loaded vector element");
 
     // Resolve the EmitC vector type FIRST, before creating any emitc op, so a
     // family the beachhead converter does not cover (e.g. lmul m2) fails the
@@ -470,6 +568,9 @@ private:
     mlir::Value value = valueMap.lookup(store.getValue());
     if (!base || !value)
       return rewriter.notifyMatchFailure(store, "store operand unmapped");
+    if (!bufferPointeeMatchesVectorElement(base, vectorType))
+      return rewriter.notifyMatchFailure(
+          store, "store buffer C type disagrees with stored vector element");
     if (!convertVectorTypeToEmitC(vectorType))
       return rewriter.notifyMatchFailure(store, "vector type not convertible");
 
@@ -510,6 +611,10 @@ private:
     if (!pointer)
       return rewriter.notifyMatchFailure(
           broadcast, "broadcast buffer must be a pointer-typed ABI param");
+    if (!bufferPointeeMatchesVectorElement(base, vectorType))
+      return rewriter.notifyMatchFailure(
+          broadcast,
+          "broadcast buffer C type disagrees with broadcast vector element");
     mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
     if (!vecType)
       return rewriter.notifyMatchFailure(broadcast,
@@ -558,8 +663,11 @@ private:
     mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
     if (!vecType)
       return rewriter.notifyMatchFailure(splat, "vector type not convertible");
+    // Float splat uses vfmv_v_f (float scalar); integer splat uses vmv_v_x.
+    llvm::StringRef splatMnemonic =
+        isFloatVector(vectorType) ? "vfmv_v_f" : "vmv_v_x";
     std::string callee =
-        riscvIntrinsicName("vmv_v_x", vectorElementWidth(vectorType),
+        riscvIntrinsicName(splatMnemonic, vectorElementWidth(vectorType),
                            vectorType.getLmul(), vectorDType(vectorType));
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(splat.getTCRVEmitCLowerableSourceOpName(),
@@ -593,7 +701,8 @@ private:
     mlir::Value rhs = valueMap.lookup(compare.getRhs());
     if (!lhs || !rhs)
       return rewriter.notifyMatchFailure(compare, "compare operand unmapped");
-    std::optional<llvm::StringRef> mnemonic = compareMnemonic(compare.getKind());
+    std::optional<llvm::StringRef> mnemonic =
+        compareMnemonic(compare.getKind(), isFloatVector(operandVecType));
     if (!mnemonic)
       return rewriter.notifyMatchFailure(compare, "unsupported compare kind");
     mlir::Type maskEmitCType = getTypeConverter()->convertType(maskType);
@@ -618,6 +727,168 @@ private:
                                          mlir::ValueRange{lhs, rhs, bodyVL})
             .getResult(0);
     valueMap[compare.getMask()] = result;
+    return mlir::success();
+  }
+
+  /// select(%mask,%true,%false,%vl) ->
+  ///   __riscv_vmerge_vvm_<dtype><lmul>(false, true, mask, vl)
+  /// vmerge keeps the FALSE vector on inactive lanes and the TRUE vector on
+  /// active lanes, so the operand order is (false_vec, true_vec, mask, vl) --
+  /// byte-identical to the legacy compare-select select step.
+  mlir::LogicalResult
+  emitSelect(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+             tcrvrvv::SelectOp select,
+             llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+             mlir::Value bodyVL) const {
+    auto vectorType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(select.getSelected().getType());
+    if (!vectorType)
+      return rewriter.notifyMatchFailure(select,
+                                         "select result not typed vector");
+    mlir::Value mask = valueMap.lookup(select.getMask());
+    mlir::Value trueValue = valueMap.lookup(select.getTrueValue());
+    mlir::Value falseValue = valueMap.lookup(select.getFalseValue());
+    if (!mask || !trueValue || !falseValue)
+      return rewriter.notifyMatchFailure(select, "select operand unmapped");
+    mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
+    if (!vecType)
+      return rewriter.notifyMatchFailure(select, "vector type not convertible");
+    std::string callee =
+        riscvIntrinsicName("vmerge", vectorElementWidth(vectorType),
+                           vectorType.getLmul(), vectorDType(vectorType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(select.getTCRVEmitCLowerableSourceOpName(),
+                         select.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{vecType}, callee,
+                mlir::ValueRange{falseValue, trueValue, mask, bodyVL})
+            .getResult(0);
+    valueMap[select.getSelected()] = result;
+    return mlir::success();
+  }
+
+  /// mask_and(%a,%b,%vl){kind} ->
+  ///   __riscv_vmand_mm_b<maskbits>(a, b, vl)
+  /// composes two predicate masks of the same (sew, lmul) into one mask.
+  mlir::LogicalResult
+  emitMaskAnd(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+              tcrvrvv::MaskAndOp maskAnd,
+              llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+              mlir::Value bodyVL) const {
+    auto maskType =
+        llvm::dyn_cast<tcrvrvv::MaskType>(maskAnd.getMask().getType());
+    if (!maskType)
+      return rewriter.notifyMatchFailure(maskAnd, "mask_and result not mask");
+    mlir::Value lhs = valueMap.lookup(maskAnd.getLhs());
+    mlir::Value rhs = valueMap.lookup(maskAnd.getRhs());
+    if (!lhs || !rhs)
+      return rewriter.notifyMatchFailure(maskAnd, "mask_and operand unmapped");
+    std::optional<llvm::StringRef> mnemonic = maskAndMnemonic(maskAnd.getKind());
+    if (!mnemonic)
+      return rewriter.notifyMatchFailure(maskAnd, "unsupported mask_and kind");
+    mlir::Type maskEmitCType = getTypeConverter()->convertType(maskType);
+    if (!maskEmitCType ||
+        maskEmitCType.getDialect().getNamespace() !=
+            emitc::EmitCDialect::getDialectNamespace())
+      return rewriter.notifyMatchFailure(maskAnd, "mask type not convertible");
+    unsigned sew = 0;
+    if (maskType.getElementType().isSignlessInteger(32))
+      sew = 32;
+    else if (maskType.getElementType().isSignlessInteger(64))
+      sew = 64;
+    unsigned maskBits = maskWidthForConfig(sew, maskType.getLmul());
+    if (maskBits == 0)
+      return rewriter.notifyMatchFailure(maskAnd, "unsupported mask config");
+    std::string callee = riscvMaskComposeIntrinsicName(*mnemonic, maskBits);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(maskAnd.getTCRVEmitCLowerableSourceOpName(),
+                         maskAnd.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{maskEmitCType},
+                                         callee,
+                                         mlir::ValueRange{lhs, rhs, bodyVL})
+            .getResult(0);
+    valueMap[maskAnd.getMask()] = result;
+    return mlir::success();
+  }
+
+  /// dequantize(%source_i32,%scale,%vl){kind} lowers to TWO calls,
+  /// byte-identical to the legacy i32->f32 runtime-scale dequant sequence:
+  ///   converted = __riscv_vfcvt_f_x_v_<dtype><lmul>(source, vl);
+  ///   result    = __riscv_vfmul_vf_<dtype><lmul>(converted, scale, vl);
+  /// The result vector type (f32) drives the intrinsic suffix; the scale is a
+  /// runtime ABI float value mapped to a function parameter directly.
+  mlir::LogicalResult
+  emitDequantize(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+                 tcrvrvv::DequantizeOp dequantize,
+                 llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+                 mlir::Value bodyVL) const {
+    // Scope guard: only the dequant-CLAMP epilogue (a compare-select body that
+    // begins with one dequantize and then clamps via compare/select) is in this
+    // family. The STANDALONE dequantize (load -> dequantize -> store, no select)
+    // is the Dequantization owner's consumer and is Gearbox-unrolled by a
+    // separate schedule pass the simple for-loop here does NOT reproduce. Refuse
+    // to convert a dequantize whose enclosing body carries no tcrv_rvv.select so
+    // the standalone body fails to fully legalize and falls back unchanged.
+    bool bodyHasSelect = false;
+    if (mlir::Block *block = dequantize->getBlock()) {
+      for (mlir::Operation &sibling : *block)
+        if (llvm::isa<tcrvrvv::SelectOp>(sibling)) {
+          bodyHasSelect = true;
+          break;
+        }
+    }
+    if (!bodyHasSelect)
+      return rewriter.notifyMatchFailure(
+          dequantize, "standalone dequantize (no select) is out of scope");
+    auto resultVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(dequantize.getResult().getType());
+    if (!resultVecType || !isFloatVector(resultVecType))
+      return rewriter.notifyMatchFailure(dequantize,
+                                         "dequantize result not f32 vector");
+    mlir::Value source = valueMap.lookup(dequantize.getSource());
+    mlir::Value scale = valueMap.lookup(dequantize.getScale());
+    if (!source || !scale)
+      return rewriter.notifyMatchFailure(dequantize,
+                                         "dequantize operand unmapped");
+    mlir::Type vecType = convertVectorTypeToEmitC(resultVecType);
+    if (!vecType)
+      return rewriter.notifyMatchFailure(dequantize,
+                                         "vector type not convertible");
+    unsigned sew = vectorElementWidth(resultVecType);
+    llvm::StringRef lmul = resultVecType.getLmul();
+    llvm::StringRef dtype = vectorDType(resultVecType);
+
+    // converted = vfcvt_f_x_v(source_i32, vl) -- int->float reinterpret-convert.
+    std::string convertCallee = riscvIntrinsicName("vfcvt_f_x_v", sew, lmul,
+                                                   dtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(dequantize.getTCRVEmitCLowerableSourceOpName(),
+                         dequantize.getTCRVEmitCLowerableSourceRole(),
+                         convertCallee));
+    mlir::Value converted =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType},
+                                         convertCallee,
+                                         mlir::ValueRange{source, bodyVL})
+            .getResult(0);
+
+    // result = vfmul_vf(converted, scale, vl) -- runtime f32 scale multiply.
+    std::string scaleCallee = riscvIntrinsicName("vfmul_vf", sew, lmul, dtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(dequantize.getTCRVEmitCLowerableSourceOpName(),
+                         dequantize.getTCRVEmitCLowerableSourceRole(),
+                         scaleCallee));
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{vecType}, scaleCallee,
+                mlir::ValueRange{converted, scale, bodyVL})
+            .getResult(0);
+    valueMap[dequantize.getResult()] = result;
     return mlir::success();
   }
 
@@ -696,6 +967,9 @@ private:
     mlir::Value stride = valueMap.lookup(load.getStride());
     if (!base || !stride)
       return rewriter.notifyMatchFailure(load, "strided load operand unmapped");
+    if (!bufferPointeeMatchesVectorElement(base, vectorType))
+      return rewriter.notifyMatchFailure(
+          load, "strided load buffer C type disagrees with loaded element");
     mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
     if (!vecType)
       return rewriter.notifyMatchFailure(load, "vector type not convertible");
@@ -736,6 +1010,9 @@ private:
     mlir::Value stride = valueMap.lookup(store.getStride());
     if (!base || !value || !stride)
       return rewriter.notifyMatchFailure(store, "strided store operand unmapped");
+    if (!bufferPointeeMatchesVectorElement(base, vectorType))
+      return rewriter.notifyMatchFailure(
+          store, "strided store buffer C type disagrees with stored element");
     if (!convertVectorTypeToEmitC(vectorType))
       return rewriter.notifyMatchFailure(store, "vector type not convertible");
     std::string callee =
@@ -790,6 +1067,9 @@ private:
     if (auto intType =
             llvm::dyn_cast<mlir::IntegerType>(type.getElementType()))
       return intType.getWidth();
+    if (auto floatType =
+            llvm::dyn_cast<mlir::FloatType>(type.getElementType()))
+      return floatType.getWidth();
     return 0;
   }
 
@@ -822,10 +1102,36 @@ private:
     return std::nullopt;
   }
 
-  static std::optional<llvm::StringRef>
-  compareMnemonic(llvm::StringRef kind) {
+  /// The vector-vector compare predicate mnemonic, mirroring the legacy
+  /// getRVVSelectedBody{,Float}CompareIntrinsicForPredicate tables for the
+  /// vv-form predicates the compare-select bodies use. Integer:
+  /// eq/slt/sle -> vmseq/vmslt/vmsle. Float (f-prefixed):
+  /// eq/slt/sle -> vmfeq/vmflt/vmfle.
+  static std::optional<llvm::StringRef> compareMnemonic(llvm::StringRef kind,
+                                                        bool isFloat) {
+    if (isFloat) {
+      if (kind == "eq")
+        return llvm::StringRef("vmfeq");
+      if (kind == "slt")
+        return llvm::StringRef("vmflt");
+      if (kind == "sle")
+        return llvm::StringRef("vmfle");
+      return std::nullopt;
+    }
     if (kind == "eq")
       return llvm::StringRef("vmseq");
+    if (kind == "slt")
+      return llvm::StringRef("vmslt");
+    if (kind == "sle")
+      return llvm::StringRef("vmsle");
+    return std::nullopt;
+  }
+
+  /// The mask-composition mnemonic for tcrv_rvv.mask_and. The Stage-2 slice
+  /// supports only kind = "and" (-> vmand), matching the op's verifier.
+  static std::optional<llvm::StringRef> maskAndMnemonic(llvm::StringRef kind) {
+    if (kind == "and")
+      return llvm::StringRef("vmand");
     return std::nullopt;
   }
 };
@@ -840,22 +1146,31 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
         return emitc::OpaqueType::get(type.getContext(), "size_t");
       });
 
-  // !tcrv_rvv.vector<i<sew>, "m<lmul>"> -> emitc.opaque<"vint<sew>m<lmul>_t">.
+  // !tcrv_rvv.vector<i<sew>, "m<lmul>"> -> emitc.opaque<"vint<sew>m<lmul>_t">,
+  // !tcrv_rvv.vector<f<sew>, "m<lmul>"> -> emitc.opaque<"vfloat<sew>m<lmul>_t">.
   // The elementwise family covers the bounded {i32,i64} x {m1,m2} grid the
   // selected-body rungs use (e.g. i32/m1 -> vint32m1_t, i64/m1 -> vint64m1_t,
-  // i32/m2 -> vint32m2_t, i64/m2 -> vint64m2_t). Other (dtype, lmul) pairs are
-  // left unconverted on purpose so later families extend the grid explicitly.
+  // i32/m2 -> vint32m2_t, i64/m2 -> vint64m2_t). The compare-select family adds
+  // the f32/m1 float grid (f32/m1 -> vfloat32m1_t) for the f32-clamp /
+  // dequant-clamp rungs. Other (dtype, lmul) pairs are left unconverted on
+  // purpose so later families extend the grid explicitly.
   typeConverter.addConversion(
       [](tcrvrvv::VectorType type) -> std::optional<mlir::Type> {
+        llvm::StringRef lmul = type.getLmul();
+        if (lmul != "m1" && lmul != "m2")
+          return std::nullopt;
+        if (type.getElementType().isF32()) {
+          // Float grid: only f32/m1 is in scope for the compare-select family.
+          if (lmul != "m1")
+            return std::nullopt;
+          return emitc::OpaqueType::get(type.getContext(), "vfloat32m1_t");
+        }
         unsigned sew = 0;
         if (type.getElementType().isSignlessInteger(32))
           sew = 32;
         else if (type.getElementType().isSignlessInteger(64))
           sew = 64;
         else
-          return std::nullopt;
-        llvm::StringRef lmul = type.getLmul();
-        if (lmul != "m1" && lmul != "m2")
           return std::nullopt;
         std::string name = ("vint" + llvm::Twine(sew) + lmul + "_t").str();
         return emitc::OpaqueType::get(type.getContext(), name);
@@ -869,7 +1184,8 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
   typeConverter.addConversion(
       [](tcrvrvv::MaskType type) -> std::optional<mlir::Type> {
         unsigned sew = 0;
-        if (type.getElementType().isSignlessInteger(32))
+        if (type.getElementType().isSignlessInteger(32) ||
+            type.getElementType().isF32())
           sew = 32;
         else if (type.getElementType().isSignlessInteger(64))
           sew = 64;
@@ -959,13 +1275,53 @@ bool convertRVVModuleToEmitC(mlir::ModuleOp module) {
     });
     for (tcrv::exec::KernelOp kernel : drainedKernels)
       kernel.erase();
+
+    // The materialized artifact is a STANDALONE emitc module (the legacy string
+    // route built a fresh emitc-only module from scratch and discarded the
+    // source IR). The source-front-door families (e.g. the bounded vector
+    // source) leave a top-level non-RVV `func.func` source alongside the
+    // converted kernel; the conversion correctly never touches it (it is not
+    // RVV), but it must NOT ride along in the materialized emitc module — a
+    // leftover non-emitc op makes the export handoff / `translateToCpp` reject
+    // the module as not-clean and fall back to the (now-retired) legacy string
+    // route. Drop the source body ops (anything that is neither an emitc op nor
+    // a tcrv op) so the materialized module matches the legacy materializer's
+    // clean emitc-only output. tcrv leftovers are deliberately preserved so the
+    // fullyConverted walk below can still detect a genuinely partial conversion
+    // and report a fall-back.
+    llvm::SmallVector<mlir::Operation *, 2> drainedSourceOps;
+    for (mlir::Operation &op : module.getBody()->getOperations()) {
+      llvm::StringRef dialect = op.getName().getDialectNamespace();
+      if (dialect != mlir::emitc::EmitCDialect::getDialectNamespace() &&
+          dialect != tcrv::exec::TCRVExecDialect::getDialectNamespace() &&
+          dialect != tcrvrvv::TCRVRVVDialect::getDialectNamespace())
+        drainedSourceOps.push_back(&op);
+    }
+    for (mlir::Operation *op : drainedSourceOps)
+      op->erase();
   }
 
-  // Strangler-fig gate: report a FULL legalization only when no RVV dataflow op,
-  // no `tcrv_rvv` leftover TYPE (a half-converted op whose operand/result still
+  // Strangler-fig gate: report a FULL legalization only when this driver
+  // ACTUALLY materialized an emitc.func from an RVV body. A body with no RVV
+  // content (a non-RVV family — toy/template/tensorext-lite, or a scalar
+  // fallback variant) has no with_vl boundary, so the variant is already legal
+  // and `applyPartialConversion` trivially succeeds WITHOUT producing any
+  // function. Returning success in that case would tell every caller (the PATH
+  // R materialization gate, the export seam, the emission-plan/validation/
+  // boundary gates, the --tcrv-rvv-lower-to-emitc pass) that the UNCHANGED body
+  // is the "materialized" module — broken/unmaterialized output for every
+  // non-RVV family. So a no-emitc.func conversion is NEVER a full conversion:
+  // gate on `producedFunc` so those callers all fall through to the legacy path
+  // UNCHANGED.
+  if (!producedFunc)
+    return false;
+
+  // Additionally, report a full legalization only when no RVV dataflow op, no
+  // `tcrv_rvv` leftover TYPE (a half-converted op whose operand/result still
   // carries `!tcrv_rvv.*`), and no unrealized_conversion_cast survives. A
-  // partial/failed conversion (any leftover) returns false so the export seam
-  // falls back to the legacy string path unchanged.
+  // partial conversion (a func produced but RVV leftovers remain — e.g. a
+  // not-yet-covered op in the same body) returns false so the export seam falls
+  // back to the legacy string path unchanged.
   auto carriesRVVType = [](mlir::Operation *op) {
     auto isRVV = [](mlir::Type type) {
       return type.getDialect().getNamespace() ==

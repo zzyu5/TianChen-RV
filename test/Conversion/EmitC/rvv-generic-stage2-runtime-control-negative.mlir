@@ -1,5 +1,12 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes | FileCheck %s
 
+// Stage 3 换心 re-target: the legacy string route rejected an AVL runtime ABI
+// parameter not literally spelled 'n' ("AVL runtime ABI parameter must be named
+// 'n'") — a string-route NAMING convention. With the string-plan owner retired,
+// the real RVV->emitc DialectConversion binds the AVL by SSA Value (the operand
+// of tcrv_rvv.setvl), not by the parameter's c_name, so a correctly-roled
+// runtime-element-count value named "runtime_count" materializes faithfully. The
+// generated control loop is identical regardless of the parameter spelling.
 module {
   tcrv.exec.kernel @rvv_scalar_broadcast_wrong_runtime_n_name_rejected {
     tcrv.exec.capability @rvv { id = "rvv", kind = "isa-vector", status = "available" }
@@ -19,4 +26,7 @@ module {
   }
 }
 
-// CHECK: AVL runtime ABI parameter must be named 'n'
+// CHECK: emitc.func @tcrv_emitc_rvv_scalar_broadcast_wrong_runtime_n_name_rejected_rvv_scalar_broadcast_wrong_runtime_n_name
+// CHECK: callee=__riscv_vsetvl_e32m1
+// CHECK: callee=__riscv_vmv_v_x_i32m1
+// CHECK: callee=__riscv_vadd_vv_i32m1

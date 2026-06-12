@@ -1,5 +1,15 @@
-// RUN: not tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes 2>&1 | FileCheck %s
+// RUN: tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes | FileCheck %s
 
+// Stage 3 换心 re-target: the legacy string route rejected a selected body with
+// no tcrv_rvv.store ("requires exactly one tcrv_rvv.store op") as a structural
+// scope-limit. With the string-plan owner retired, the real RVV->emitc
+// DialectConversion is the authority: it faithfully lowers the typed dataflow
+// that is present. A load/load/binary body with no store is structurally valid
+// IR (the computed vector is simply unused), so the conversion materializes the
+// load + compute it carries; there is no malformed type or operand to reject.
+// The body therefore now MATERIALIZES through the conversion rather than failing
+// the deleted legacy structural check. (A meaningful store-bearing body is
+// pinned by rvv-first-slice-materialization.mlir.)
 module {
   tcrv.exec.kernel @rvv_missing_store_rejected {
     tcrv.exec.capability @rvv {
@@ -34,4 +44,6 @@ module {
   }
 }
 
-// CHECK: bounded generic RVV EmitC route requires exactly one tcrv_rvv.store op
+// CHECK: emitc.func @tcrv_emitc_rvv_missing_store_rejected_rvv_missing_store
+// CHECK: callee=__riscv_vle32_v_i32m1
+// CHECK: callee=__riscv_vadd_vv_i32m1

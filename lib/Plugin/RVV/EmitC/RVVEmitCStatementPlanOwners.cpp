@@ -171,31 +171,6 @@ void moveDirectContractionStatementPlan(
 
 } // namespace
 
-bool isRVVSelectedBodyCompareSelectStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  if (description.operation == RVVSelectedBodyOperationKind::CmpSelect)
-    return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
-  if (description.operation == RVVSelectedBodyOperationKind::ComputedMaskSelect)
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskVectorSelect;
-  if (description.operation ==
-      RVVSelectedBodyOperationKind::RuntimeScalarCompareSelect)
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::RuntimeScalarCompareSelect;
-  if (description.operation == RVVSelectedBodyOperationKind::F32ClampSelect)
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::RuntimeScalarF32ClampSelect;
-  if (description.operation ==
-      RVVSelectedBodyOperationKind::DequantClampF32Epilogue)
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::UnitStrideDequantClampF32Epilogue;
-  return description.operation ==
-             RVVSelectedBodyOperationKind::
-                 RuntimeScalarDualCompareMaskAndSelect &&
-         description.memoryForm ==
-             RVVSelectedBodyMemoryForm::RuntimeScalarDualCompareMaskAndSelect;
-}
-
 bool isRVVSelectedBodyWideningConversionStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
   return isRVVSelectedBodyWideningConversionRouteFamilyConsumer(
@@ -371,10 +346,6 @@ bool isRVVSelectedBodyComputedMaskAccumulationStatementPlanConsumer(
 llvm::ArrayRef<RVVSelectedBodyMigratedRouteStatementPlanOwner>
 getRVVSelectedBodyMigratedRouteStatementPlanOwners() {
   static const RVVSelectedBodyMigratedRouteStatementPlanOwner owners[] = {
-      {"compare/select",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::CompareSelect,
-       isRVVSelectedBodyCompareSelectStatementPlanConsumer,
-       buildRVVSelectedBodyCompareSelectMigratedRouteStatementPlan},
       {"widening conversion",
        RVVSelectedBodyMigratedRouteStatementPlanFamily::WideningConversion,
        isRVVSelectedBodyWideningConversionStatementPlanConsumer,
