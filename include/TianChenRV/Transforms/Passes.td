@@ -376,6 +376,7 @@ def RVVLowerToEmitC
   let constructor =
       "::tianchenrv::transforms::createRVVLowerToEmitCPass()";
   let dependentDialects = [
+    "::tianchenrv::tcrv::exec::TCRVExecDialect",
     "::tianchenrv::tcrv::rvv::TCRVRVVDialect",
     "::mlir::emitc::EmitCDialect"
   ];

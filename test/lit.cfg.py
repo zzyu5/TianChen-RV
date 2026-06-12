@@ -156,6 +156,7 @@ llvm_config.add_tool_substitutions(
     [
         "tcrv-opt",
         "tcrv-translate",
+        "mlir-translate",
         "FileCheck",
         "clang",
         "clang++",

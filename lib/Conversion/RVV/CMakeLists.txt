@@ -4,9 +4,11 @@ add_mlir_library(TianChenRVConversionRVV
   DEPENDS
   TianChenRVPassesIncGen
   MLIRRVVOpsIncGen
+  MLIRExecOpsIncGen
 
   LINK_LIBS PUBLIC
   TianChenRVRVVDialect
+  TianChenRVExecDialect
   MLIREmitCDialect
   MLIRIR
   MLIRPass

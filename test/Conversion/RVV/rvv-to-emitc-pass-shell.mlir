@@ -1,9 +1,13 @@
 // RUN: tcrv-opt %s --tcrv-rvv-lower-to-emitc | FileCheck %s
 
-// The --tcrv-rvv-lower-to-emitc pass currently stands up the DialectConversion
-// harness (TypeConverter + ConversionTarget + applyPartialConversion) with zero
-// conversion patterns, so it is an additive structural no-op: the beachhead
-// generic typed tcrv_rvv body must round-trip UNCHANGED.
+// The --tcrv-rvv-lower-to-emitc pass now runs the real DialectConversion
+// harness (TypeConverter + ConversionTarget + OpConversionPattern +
+// applyPartialConversion) over the generic typed tcrv_rvv unit-stride
+// elementwise add beachhead body and lowers it to a standalone MLIR EmitC
+// function. The full structural / golden assertions live in
+// rvv-to-emitc-add.mlir; this fixture pins that the beachhead body fully
+// legalizes (no tcrv_rvv body op and no unrealized cast survive) and that the
+// four mangled __riscv_v... intrinsic callees are present.
 
 module {
   tcrv.exec.kernel @rvv_generic_add_kernel {
@@ -40,19 +44,13 @@ module {
   }
 }
 
-// The pass adds no emitc and converts nothing.
-// CHECK-NOT: emitc.
+// The beachhead body is fully lowered: no source body op and no cast remain.
+// CHECK-NOT: tcrv_rvv.
 // CHECK-NOT: unrealized_conversion_cast
 
-// CHECK: tcrv.exec.kernel @rvv_generic_add_kernel
-// CHECK: tcrv.exec.variant @rvv_generic_add
-// CHECK: %[[LHS_PTR:.*]] = tcrv_rvv.runtime_abi_value {{.*}}role = "lhs-input-buffer"{{.*}} : !tcrv_rvv.runtime_abi_value
-// CHECK: %[[RHS_PTR:.*]] = tcrv_rvv.runtime_abi_value {{.*}}role = "rhs-input-buffer"{{.*}} : !tcrv_rvv.runtime_abi_value
-// CHECK: %[[OUT_PTR:.*]] = tcrv_rvv.runtime_abi_value {{.*}}role = "output-buffer"{{.*}} : !tcrv_rvv.runtime_abi_value
-// CHECK: %[[N:.*]] = tcrv_rvv.runtime_abi_value {{.*}}role = "runtime-element-count"{{.*}} : index
-// CHECK: %[[VL:.*]] = tcrv_rvv.setvl %[[N]] {{.*}} : index -> !tcrv_rvv.vl
-// CHECK: tcrv_rvv.with_vl %[[VL]]
-// CHECK: %[[LHS:.*]] = tcrv_rvv.load %[[LHS_PTR]], %[[VL]] : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-// CHECK: %[[RHS:.*]] = tcrv_rvv.load %[[RHS_PTR]], %[[VL]] : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-// CHECK: %[[SUM:.*]] = tcrv_rvv.binary %[[LHS]], %[[RHS]], %[[VL]] {kind = "add"} : !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl -> !tcrv_rvv.vector<i32, "m1">
-// CHECK: tcrv_rvv.store %[[OUT_PTR]], %[[SUM]], %[[VL]] : !tcrv_rvv.runtime_abi_value, !tcrv_rvv.vector<i32, "m1">, !tcrv_rvv.vl
+// CHECK: emitc.func @tcrv_emitc_rvv_generic_add_kernel_rvv_generic_add
+// CHECK: call_opaque "__riscv_vsetvl_e32m1"
+// CHECK: for %{{.*}} = %{{.*}} to %{{.*}} step
+// CHECK: call_opaque "__riscv_vle32_v_i32m1"
+// CHECK: call_opaque "__riscv_vadd_vv_i32m1"
+// CHECK: call_opaque "__riscv_vse32_v_i32m1"
