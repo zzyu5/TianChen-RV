@@ -47,4 +47,4 @@ module {
   }
 }
 
-// CHECK: requires exactly one supported target artifact emission-plan route; found none
+// CHECK: unsupported selected emission-plan requires non-empty string attribute

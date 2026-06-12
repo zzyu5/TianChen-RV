@@ -159,7 +159,7 @@ def main() -> int:
             manual_steering="",
         )
         required_prompt_fragments = [
-            "Macro-Owner Task Discovery Algorithm",
+            "## TianChen-RV Context For Task Selection",
             "Recent Round Drift Summary",
             "recent_drift_escalation_required: yes",
             "RVV production-kernel capability campaign",

@@ -1971,7 +1971,7 @@ int runRVVCommonValidationTest() {
         : hasWideningMAcc                       ? 12u
         : hasWideningProductReduction           ? 12u
         : hasWideningProductReductionDequantization ? 16u
-        : hasWideningProductReductionDequantClamp ? 22u
+        : hasWideningProductReductionDequantClamp ? 24u
         : hasWideningDotReduce                  ? 11u
         : hasStridedInputWideningDotReduce      ? 13u
         : hasComputedMaskWideningDotReduce       ? 16u
