@@ -2,6 +2,7 @@
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableMaterializer.h"
+#include "TianChenRV/Conversion/RVV/RVVToEmitC.h"
 #include "TianChenRV/Dialect/Exec/IR/DiagnosticConventions.h"
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Plugin/ExtensionBundle.h"
@@ -11,6 +12,7 @@
 
 #include "mlir/Dialect/EmitC/IR/EmitC.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Target/Cpp/CppEmitter.h"
@@ -2052,14 +2054,59 @@ materializeSelectedEmitCArtifactModule(
     options.functionName =
         makeSelectedEmitCArtifactFunctionName(target->kernel, target->variant);
   options.emitExternC = true;
+
+  llvm::StringRef routeDescription =
+      config.routeDescription.empty() ? config.routeID : config.routeDescription;
+
+  // Stage 3 换心 strangler-fig gate: FIRST attempt the real RVV->emitc
+  // DialectConversion (the same `convertRVVModuleToEmitC` driver the
+  // `--tcrv-rvv-lower-to-emitc` pass runs) on a clone of the selected typed
+  // body. If the patterns FULLY legalize it (success AND zero leftover tcrv_rvv
+  // ops AND zero unrealized_conversion_cast), the exported bundle is generated
+  // by the conversion — for the elementwise unit-stride family (add/sub/mul)
+  // whose patterns exist. If the conversion does NOT fully legalize (any
+  // family the patterns do not yet cover), `convertRVVModuleToEmitC` returns
+  // false and we fall back to the legacy string materialization path UNCHANGED.
+  // The converted emitc is byte-identical to the string-path emitc (pinned by
+  // the cpp-golden lit fixture + the e2e diff), so the swap is output-preserving
+  // and there is NO family-name branching beyond "did the patterns legalize it".
+  {
+    mlir::OwningOpRef<mlir::ModuleOp> convertedModule(module.clone());
+    // The conversion is SPECULATIVE: a family the patterns do not cover legally
+    // fails `applyPartialConversion` (an illegal with_vl variant survives), which
+    // is the expected strangler-fig signal to fall back. That failure is normal
+    // here, so swallow its diagnostics on the cloned module rather than leak a
+    // spurious "failed to legalize" error to stderr; the real legacy path below
+    // (and the `--tcrv-rvv-lower-to-emitc` pass) still surface diagnostics
+    // normally.
+    bool fullyConverted = false;
+    {
+      mlir::ScopedDiagnosticHandler quietTry(
+          convertedModule->getContext(),
+          [](mlir::Diagnostic &) { return mlir::success(); });
+      fullyConverted = conversion::rvv::convertRVVModuleToEmitC(*convertedModule);
+    }
+    if (fullyConverted) {
+      // The conversion fully lowered the selected body to a standalone emitc
+      // module. It must still satisfy the SAME materialized-handoff contract the
+      // string path produces (the converted module emits byte-identical
+      // provenance verbatims), so re-use the identical validation. If it somehow
+      // does not match the route handoff, do NOT silently diverge: fall back to
+      // the proven legacy path rather than ship an unvalidated module.
+      llvm::Error handoffError = requireSelectedEmitCMaterializedHandoff(
+          *convertedModule, *route, routeDescription);
+      if (!handoffError)
+        return std::move(convertedModule);
+      llvm::consumeError(std::move(handoffError));
+    }
+  }
+
   llvm::Expected<mlir::OwningOpRef<mlir::ModuleOp>> emitcModule =
       conversion::emitc::materializeTCRVEmitCLowerableRoute(
           *module.getContext(), *route, options);
   if (!emitcModule)
     return emitcModule.takeError();
 
-  llvm::StringRef routeDescription =
-      config.routeDescription.empty() ? config.routeID : config.routeDescription;
   if (llvm::Error error = requireSelectedEmitCMaterializedHandoff(
           **emitcModule, *route, routeDescription))
     return std::move(error);

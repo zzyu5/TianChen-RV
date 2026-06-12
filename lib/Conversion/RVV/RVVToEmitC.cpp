@@ -322,6 +322,13 @@ private:
     if (!base)
       return rewriter.notifyMatchFailure(load, "load buffer not an ABI param");
 
+    // Resolve the EmitC vector type FIRST, before creating any emitc op, so a
+    // family the beachhead converter does not cover (e.g. lmul m2) fails the
+    // match cleanly and rolls back, instead of leaving a half-converted
+    // call_opaque whose result is still a `!tcrv_rvv.vector<...>` type.
+    mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
+    if (!vecType)
+      return rewriter.notifyMatchFailure(load, "vector type not convertible");
     std::string callee =
         riscvIntrinsicName("vle", vectorElementWidth(vectorType),
                            vectorType.getLmul(), vectorDType(vectorType));
@@ -330,9 +337,6 @@ private:
                          load.getTCRVEmitCLowerableSourceRole(), callee));
     mlir::Value ptr = rewriter.create<emitc::AddOp>(loc, base.getType(), base,
                                                     inductionVar);
-    mlir::Type vecType = getTypeConverter()->convertType(vectorType);
-    if (!vecType)
-      return rewriter.notifyMatchFailure(load, "vector type not convertible");
     mlir::Value loaded =
         rewriter
             .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
@@ -361,16 +365,18 @@ private:
     std::optional<llvm::StringRef> mnemonic = binaryMnemonic(binary.getKind());
     if (!mnemonic)
       return rewriter.notifyMatchFailure(binary, "unsupported binary kind");
+    // Resolve the EmitC vector type FIRST (see emitLoad): a non-beachhead lmul
+    // must fail the match and roll back, not emit an un-lowered result type.
+    mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
+    if (!vecType)
+      return rewriter.notifyMatchFailure(binary,
+                                         "vector type not convertible");
     std::string callee =
         riscvIntrinsicName(*mnemonic, vectorElementWidth(vectorType),
                            vectorType.getLmul(), vectorDType(vectorType));
     rewriter.create<emitc::VerbatimOp>(
         loc, stepComment(binary.getTCRVEmitCLowerableSourceOpName(),
                          binary.getTCRVEmitCLowerableSourceRole(), callee));
-    mlir::Type vecType = getTypeConverter()->convertType(vectorType);
-    if (!vecType)
-      return rewriter.notifyMatchFailure(binary,
-                                         "vector type not convertible");
     mlir::Value result =
         rewriter
             .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
@@ -394,6 +400,8 @@ private:
     mlir::Value value = valueMap.lookup(store.getValue());
     if (!base || !value)
       return rewriter.notifyMatchFailure(store, "store operand unmapped");
+    if (!convertVectorTypeToEmitC(vectorType))
+      return rewriter.notifyMatchFailure(store, "vector type not convertible");
 
     std::string callee =
         riscvIntrinsicName("vse", vectorElementWidth(vectorType),
@@ -413,6 +421,24 @@ private:
             llvm::dyn_cast<mlir::IntegerType>(type.getElementType()))
       return intType.getWidth();
     return 0;
+  }
+
+  /// Convert a `!tcrv_rvv.vector<...>` to its EmitC type, but ONLY accept a
+  /// result the beachhead converter genuinely lowered (an `emitc` type). The
+  /// driver registers an identity fallback conversion so unrelated IR is never
+  /// illegalized; that identity would otherwise pass an unhandled vector type
+  /// (e.g. lmul m2) straight through, letting a half-converted call_opaque keep
+  /// a `!tcrv_rvv.vector<...>` result and silently corrupt the module. Rejecting
+  /// any non-emitc result here makes a non-beachhead family fail the match and
+  /// roll back cleanly, so the export seam falls back to the legacy path.
+  mlir::Type convertVectorTypeToEmitC(tcrvrvv::VectorType type) const {
+    mlir::Type converted = getTypeConverter()->convertType(type);
+    if (!converted)
+      return nullptr;
+    if (converted.getDialect().getNamespace() !=
+        mlir::emitc::EmitCDialect::getDialectNamespace())
+      return nullptr;
+    return converted;
   }
 
   static std::optional<llvm::StringRef>
@@ -466,6 +492,94 @@ void populateRVVElementwiseToEmitCPatterns(mlir::TypeConverter &typeConverter,
   patterns.add<VariantToEmitCFunc>(typeConverter, patterns.getContext());
 }
 
+bool convertRVVModuleToEmitC(mlir::ModuleOp module) {
+  mlir::MLIRContext *context = module.getContext();
+
+  // The conversion patterns construct emitc ops/types. When this driver runs
+  // outside the pass framework (the live artifact-export materialization seam),
+  // the EmitC dialect is only registered, not loaded, in the translate context
+  // -- so eagerly load it here. This mirrors the `--tcrv-rvv-lower-to-emitc`
+  // pass's `dependentDialects` and makes the driver self-sufficient for both
+  // callers. Loading is idempotent.
+  context->loadDialect<mlir::emitc::EmitCDialect>();
+
+  mlir::TypeConverter typeConverter;
+  // Identity for any type the beachhead conversions do not rewrite, so the
+  // pass never illegalizes unrelated IR.
+  typeConverter.addConversion([](mlir::Type type) { return type; });
+  populateRVVToEmitCTypeConversions(typeConverter);
+
+  mlir::ConversionTarget target(*context);
+  // emitc is the lowering destination dialect.
+  target.addLegalDialect<mlir::emitc::EmitCDialect>();
+  // A tcrv.exec.variant that carries a tcrv_rvv.with_vl selected-lowering
+  // boundary is illegal and must be converted into an emitc.func. Variants
+  // without a with_vl scope (e.g. scalar fallbacks) stay legal so unconverted
+  // families fall through unchanged.
+  target.addDynamicallyLegalOp<tcrv::exec::VariantOp>(
+      [](tcrv::exec::VariantOp variant) {
+        for (mlir::Operation &op : variant.getBody().front())
+          if (llvm::isa<tcrv::rvv::WithVLOp>(op))
+            return false;
+        return true;
+      });
+  // Everything else (kernels, dispatch, capabilities, other dialects) stays
+  // legal; the beachhead conversion rewrites the variant subtree atomically.
+  target.markUnknownOpDynamicallyLegal([](mlir::Operation *) { return true; });
+
+  mlir::RewritePatternSet patterns(context);
+  populateRVVElementwiseToEmitCPatterns(typeConverter, patterns);
+
+  if (mlir::failed(
+          mlir::applyPartialConversion(module, target, std::move(patterns))))
+    return false;
+
+  // The beachhead conversion lowers the selected variant body into a
+  // standalone emitc.func + headers. Once a function was produced, drop the
+  // now-emptied tcrv.exec scaffolding (kernel/capability/dispatch) for that
+  // kernel so the module is a clean, translatable EmitC module matching the
+  // legacy materializer's output shape. Kernels that still carry a tcrv_rvv
+  // body (unconverted families) are left untouched.
+  bool producedFunc = false;
+  module.walk([&](mlir::emitc::FuncOp) { producedFunc = true; });
+  if (producedFunc) {
+    llvm::SmallVector<tcrv::exec::KernelOp, 1> drainedKernels;
+    module.walk([&](tcrv::exec::KernelOp kernel) {
+      bool hasRVVBody = false;
+      kernel.walk([&](tcrv::rvv::WithVLOp) { hasRVVBody = true; });
+      if (!hasRVVBody)
+        drainedKernels.push_back(kernel);
+    });
+    for (tcrv::exec::KernelOp kernel : drainedKernels)
+      kernel.erase();
+  }
+
+  // Strangler-fig gate: report a FULL legalization only when no RVV dataflow op,
+  // no `tcrv_rvv` leftover TYPE (a half-converted op whose operand/result still
+  // carries `!tcrv_rvv.*`), and no unrealized_conversion_cast survives. A
+  // partial/failed conversion (any leftover) returns false so the export seam
+  // falls back to the legacy string path unchanged.
+  auto carriesRVVType = [](mlir::Operation *op) {
+    auto isRVV = [](mlir::Type type) {
+      return type.getDialect().getNamespace() ==
+             tcrvrvv::TCRVRVVDialect::getDialectNamespace();
+    };
+    return llvm::any_of(op->getOperandTypes(), isRVV) ||
+           llvm::any_of(op->getResultTypes(), isRVV);
+  };
+  bool fullyConverted = true;
+  module.walk([&](mlir::Operation *op) {
+    if (op->getName().getDialectNamespace() ==
+            tcrvrvv::TCRVRVVDialect::getDialectNamespace() ||
+        llvm::isa<mlir::UnrealizedConversionCastOp>(op) || carriesRVVType(op)) {
+      fullyConverted = false;
+      return mlir::WalkResult::interrupt();
+    }
+    return mlir::WalkResult::advance();
+  });
+  return fullyConverted;
+}
+
 } // namespace rvv
 } // namespace conversion
 } // namespace tianchenrv
@@ -480,62 +594,25 @@ class RVVLowerToEmitCPass final
 public:
   void runOnOperation() override {
     mlir::ModuleOp module = getOperation();
-    mlir::MLIRContext *context = module.getContext();
 
-    mlir::TypeConverter typeConverter;
-    // Identity for any type the beachhead conversions do not rewrite, so the
-    // pass never illegalizes unrelated IR.
-    typeConverter.addConversion([](mlir::Type type) { return type; });
-    conversion::rvv::populateRVVToEmitCTypeConversions(typeConverter);
-
-    mlir::ConversionTarget target(*context);
-    // emitc is the lowering destination dialect.
-    target.addLegalDialect<mlir::emitc::EmitCDialect>();
-    // A tcrv.exec.variant that carries a tcrv_rvv.with_vl selected-lowering
-    // boundary is illegal and must be converted into an emitc.func. Variants
-    // without a with_vl scope (e.g. scalar fallbacks) stay legal so unconverted
-    // families fall through unchanged.
-    target.addDynamicallyLegalOp<tcrv::exec::VariantOp>(
-        [](tcrv::exec::VariantOp variant) {
-          for (mlir::Operation &op : variant.getBody().front())
-            if (llvm::isa<tcrv::rvv::WithVLOp>(op))
-              return false;
-          return true;
-        });
-    // Everything else (kernels, dispatch, capabilities, other dialects) stays
-    // legal; the beachhead conversion rewrites the variant subtree atomically.
-    target.markUnknownOpDynamicallyLegal(
-        [](mlir::Operation *) { return true; });
-
-    mlir::RewritePatternSet patterns(context);
-    conversion::rvv::populateRVVElementwiseToEmitCPatterns(typeConverter,
-                                                           patterns);
-
-    if (mlir::failed(mlir::applyPartialConversion(module, target,
-                                                  std::move(patterns)))) {
-      signalPassFailure();
+    // Run the single shared conversion driver (the same one the live
+    // artifact-export materialization seam calls). It runs the
+    // TypeConverter/ConversionTarget/patterns + applyPartialConversion and
+    // drains the emptied tcrv.exec scaffolding for converted kernels.
+    if (conversion::rvv::convertRVVModuleToEmitC(module))
       return;
-    }
 
-    // The beachhead conversion lowers the selected variant body into a
-    // standalone emitc.func + headers. Once a function was produced, drop the
-    // now-emptied tcrv.exec scaffolding (kernel/capability/dispatch) for that
-    // kernel so the module is a clean, translatable EmitC module matching the
-    // legacy materializer's output shape. Kernels that still carry a tcrv_rvv
-    // body (unconverted families) are left untouched.
-    bool producedFunc = false;
-    module.walk([&](mlir::emitc::FuncOp) { producedFunc = true; });
-    if (!producedFunc)
-      return;
-    llvm::SmallVector<tcrv::exec::KernelOp, 1> drainedKernels;
-    module.walk([&](tcrv::exec::KernelOp kernel) {
-      bool hasRVVBody = false;
-      kernel.walk([&](tcrv::rvv::WithVLOp) { hasRVVBody = true; });
-      if (!hasRVVBody)
-        drainedKernels.push_back(kernel);
+    // The driver returns false either for a clean structural no-op (an
+    // unconverted family whose ops the target keeps legal and which the patterns
+    // leave untouched) or for a real conversion failure that left an illegal
+    // with_vl-carrying variant behind. Only the latter is a pass failure.
+    bool unlegalizedScopeRemains = false;
+    module.walk([&](tcrv::rvv::WithVLOp) {
+      unlegalizedScopeRemains = true;
+      return mlir::WalkResult::interrupt();
     });
-    for (tcrv::exec::KernelOp kernel : drainedKernels)
-      kernel.erase();
+    if (unlegalizedScopeRemains)
+      signalPassFailure();
   }
 };
 

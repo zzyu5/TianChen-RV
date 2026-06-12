@@ -11,6 +11,7 @@ add_mlir_library(TianChenRVTarget
 
   LINK_LIBS PUBLIC
   TianChenRVConversionEmitC
+  TianChenRVConversionRVV
   TianChenRVExecDialect
   TianChenRVPlugin
   TianChenRVSupport

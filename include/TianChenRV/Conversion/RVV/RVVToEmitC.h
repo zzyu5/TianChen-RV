@@ -2,6 +2,7 @@
 #define TIANCHENRV_CONVERSION_RVV_RVVTOEMITC_H
 
 namespace mlir {
+class ModuleOp;
 class RewritePatternSet;
 class TypeConverter;
 } // namespace mlir
@@ -27,6 +28,23 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter);
 /// and the real patterns land in the next step.
 void populateRVVElementwiseToEmitCPatterns(mlir::TypeConverter &typeConverter,
                                            mlir::RewritePatternSet &patterns);
+
+/// Runs the RVV->emitc DialectConversion (TypeConverter + ConversionTarget +
+/// the elementwise patterns + applyPartialConversion) IN PLACE on `module`,
+/// then drains the now-emptied tcrv.exec scaffolding for any kernel that no
+/// longer carries an RVV body (so the result is a clean translatable EmitC
+/// module). This is the single shared conversion driver: both the
+/// `--tcrv-rvv-lower-to-emitc` pass AND the live artifact-export materialization
+/// seam call it, so the export now lowers via the real conversion instead of
+/// the legacy string machine for families the patterns can fully legalize.
+///
+/// Returns true ONLY when the module FULLY legalized to emitc with zero leftover
+/// `tcrv_rvv` ops and zero `builtin.unrealized_conversion_cast` ops (the
+/// strangler-fig gate: a fully-converted family is exported via the conversion;
+/// anything the patterns do not fully legalize returns false so the caller can
+/// fall back to the legacy string path UNCHANGED). On false the `module` may be
+/// partially mutated, so callers that need the original must convert a clone.
+bool convertRVVModuleToEmitC(mlir::ModuleOp module);
 
 } // namespace rvv
 } // namespace conversion
