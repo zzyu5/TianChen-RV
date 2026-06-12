@@ -12,3 +12,5 @@ dist/
 artifacts/tmp/
 *.log
 
+
+.claude/settings.local.json
