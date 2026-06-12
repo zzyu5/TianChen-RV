@@ -1,0 +1,16 @@
+# Honest lit baseline (re-measured 2026-06-12 with a CLEAN full rebuild).
+#
+# IMPORTANT — measurement mirage: earlier in this task, incremental `ninja` left
+# stale tcrv-opt/tcrv-translate binaries, so lit reported only "3 reds" while a
+# clean rebuild at the same source revealed many more. ALWAYS do a from-scratch /
+# full rebuild before trusting a lit pass/fail count. Verified: at session-start
+# commit d0934210 a clean rebuild = 46 failures (542 tests); after this session's
+# work + the Target/RVV stale-wording sync (38e8c2d0) = 3 failures (539 tests).
+#
+# The ONLY true baseline reds are these 3 — environmental: they run the Python
+# harness scripts/rvv_generated_bundle_abi_e2e.py and REQUIRE real RVV hardware /
+# gate4 artifacts (I8), so they cannot pass from a clean local checkout. They are
+# NOT code defects.
+FAIL: TianChenRV :: Scripts/rvv-generated-bundle-abi-e2e-explicit-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test
+FAIL: TianChenRV :: Scripts/rvv-generated-bundle-abi-e2e-pre-realized-computed-masked-strided-input-widening-dot-reduce-add-dry-run.test
+FAIL: TianChenRV :: Scripts/rvv-generated-bundle-abi-e2e-self-test.test

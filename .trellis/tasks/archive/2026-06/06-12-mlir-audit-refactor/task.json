@@ -1,0 +1,29 @@
+{
+  "id": "mlir-audit-refactor",
+  "name": "mlir-audit-refactor",
+  "title": "brainstorm: audit real-MLIR-ness and plan project refactor",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "claude",
+  "assignee": "claude",
+  "createdAt": "2026-06-12",
+  "completedAt": "2026-06-12",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "06-12-stage2-typify-capability-attr",
+    "06-12-stage3-replace-string-machine"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

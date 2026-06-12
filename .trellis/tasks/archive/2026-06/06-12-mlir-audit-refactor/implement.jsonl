@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/architecture/core-invariants.md", "reason": "I1–I9 硬规则，重构的判定基准（尤其 I4 metadata-mirror、I5 typed-body、I7 fail-closed/禁 descriptor）"}
+{"file": ".trellis/spec/index.md", "reason": "N1/N2/N3 novelty 契约，重构每一步必须对齐主干"}
+{"file": ".trellis/tasks/06-12-mlir-audit-refactor/research/dialect-audit.md", "reason": "Dialect 维度审计：属性口袋、AnyType、verifier 字符串匹配证据"}
+{"file": ".trellis/tasks/06-12-mlir-audit-refactor/research/pass-audit.md", "reason": "Pass 维度审计：A/B/C 分类、append-only、facts-as-strings 证据"}
+{"file": ".trellis/tasks/06-12-mlir-audit-refactor/research/target-plugin-audit.md", "reason": "Target/Plugin 维度审计：端到端链路、93k 字符串计划、17.5k golden 自检证据"}
+{"file": ".trellis/tasks/06-12-mlir-audit-refactor/research/test-shape-audit.md", "reason": "测试形态审计：T1–T4 比例、重构阻力评估"}
