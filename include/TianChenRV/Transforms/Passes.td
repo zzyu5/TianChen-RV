@@ -353,4 +353,32 @@ def CheckExecutionPlanCoherence
   ];
 }
 
+def RVVLowerToEmitC
+    : Pass<"tcrv-rvv-lower-to-emitc", "::mlir::ModuleOp"> {
+  let summary = "Lower selected generic tcrv_rvv dataflow bodies to MLIR EmitC via DialectConversion";
+  let description = [{
+    Stands up the real MLIR DialectConversion infrastructure (TypeConverter +
+    ConversionTarget + RewritePatternSet + applyPartialConversion) over the
+    existing generic typed tcrv_rvv dataflow ops, the typed-IR replacement for
+    the legacy RVV emitted-C string machine.
+
+    In this initial state the pass is an additive structural no-op: it builds
+    the beachhead !tcrv_rvv.* -> emitc C-type conversions, marks the emitc
+    dialect legal, marks every op (including tcrv_rvv ops) legal, and registers
+    zero conversion patterns. Running it on any module leaves the IR unchanged.
+    Real per-op conversion patterns for the unit-stride elementwise add
+    beachhead family land in a subsequent step.
+
+    The pass is plugin-neutral conversion scaffolding. It does not print C/C++,
+    export target artifacts, compile objects, run hardware, prove correctness,
+    or claim performance.
+  }];
+  let constructor =
+      "::tianchenrv::transforms::createRVVLowerToEmitCPass()";
+  let dependentDialects = [
+    "::tianchenrv::tcrv::rvv::TCRVRVVDialect",
+    "::mlir::emitc::EmitCDialect"
+  ];
+}
+
 #endif // TIANCHENRV_TRANSFORMS_PASSES_TD

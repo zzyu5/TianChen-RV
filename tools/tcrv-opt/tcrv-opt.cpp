@@ -79,6 +79,9 @@ llvm::Error registerTianChenRVOptPasses(
     return tianchenrv::transforms::createMaterializeEmitCLowerableRoutesPass(
         plugins);
   });
+  mlir::registerPass([] {
+    return tianchenrv::transforms::createRVVLowerToEmitCPass();
+  });
   llvm::SmallVector<tianchenrv::plugin::SourceFrontDoorPassRegistration, 4>
       sourceFrontDoorPasses;
   if (llvm::Error error =
