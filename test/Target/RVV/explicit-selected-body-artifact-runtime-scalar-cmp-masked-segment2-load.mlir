@@ -86,7 +86,7 @@ module {
 // HEADER: tianchenrv.rvv.computed_mask_memory_mask_producer_source: runtime-scalar-splat-compare-rhs
 // HEADER: void tcrv_emitc_explicit_selected_body_rt_scalar_cmseg_load_kernel_explicit_selected_body_rvv_rt_scalar_cmseg_load(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src, int32_t *out0, int32_t *out1, size_t n);
 
-// STALE-PRODUCER: candidate tcrv_rvv.computed_mask_memory_mask_producer_source provenance must mirror selected typed RVV computed-mask segment2 producer source 'runtime-scalar-splat-compare-rhs' but was 'vector-compare-rhs-load'
+// STALE-PRODUCER: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.computed_mask_memory_mask_producer_source' must mirror provider route description value 'runtime-scalar-splat-compare-rhs' but was 'vector-compare-rhs-load'
 // STALE-RHS-BINDING: RVV materialized EmitC target artifact bridge failed
 // STALE-RHS-BINDING: candidate tcrv_rvv.route_operand_binding_operands provenance must mirror selected typed RVV body binding summary
 // STALE-RHS-BINDING-SAME: rhs_scalar=rhs-scalar-value:rhs_scalar:abi
@@ -98,23 +98,7 @@ module {
 // STALE-BINDING-SAME: out1=segment-field1-output-buffer:out1:abi
 // STALE-BINDING-SAME: but was
 // STALE-BINDING-SAME: out1=segment-field0-output-buffer:out1:abi
-// STALE-ABI: RVV materialized EmitC target artifact bridge failed
-// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror route-local runtime AVL/VL ABI order mirror
-// STALE-ABI-SAME: lhs,rhs_scalar,src,out0,out1,n
-// STALE-ABI-SAME: but was
-// STALE-ABI-SAME: lhs,src,rhs_scalar,out0,out1,n
-// STALE-HEADER: RVV materialized EmitC target artifact bridge failed
-// STALE-HEADER: candidate tcrv_rvv.required_header_declarations provenance must mirror selected typed RVV computed-mask segment2 route header requirements
-// STALE-HEADER-SAME: stddef.h,stdint.h,riscv_vector.h
-// STALE-HEADER-SAME: but was
-// STALE-HEADER-SAME: stddef.h,stdint.h
-// STALE-INACTIVE: RVV materialized EmitC target artifact bridge failed
-// STALE-INACTIVE: candidate tcrv_rvv.inactive_lane_contract provenance must mirror selected typed RVV computed-mask segment2 inactive lane contract
-// STALE-INACTIVE-SAME: masked-off-lanes-preserve-old-destination
-// STALE-INACTIVE-SAME: but was
-// STALE-INACTIVE-SAME: script-derived-passthrough
-// STALE-FIELD0: RVV materialized EmitC target artifact bridge failed
-// STALE-FIELD0: candidate tcrv_rvv.field0_role provenance must mirror selected typed RVV computed-mask segment2 field0 role
-// STALE-FIELD0-SAME: segment-field0-output-buffer
-// STALE-FIELD0-SAME: but was
-// STALE-FIELD0-SAME: segment-field1-output-buffer
+// STALE-ABI: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.runtime_abi_order' must mirror provider route description value 'lhs,rhs_scalar,src,out0,out1,n' but was 'lhs,src,rhs_scalar,out0,out1,n'
+// STALE-HEADER: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.required_header_declarations' must mirror provider route description value 'stddef.h,stdint.h,riscv_vector.h' but was 'stddef.h,stdint.h'
+// STALE-INACTIVE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.inactive_lane_contract' must mirror provider route description value 'masked-off-lanes-preserve-old-destination' but was 'script-derived-passthrough'
+// STALE-FIELD0: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.field0_role' must mirror provider route description value 'segment-field0-output-buffer' but was 'segment-field1-output-buffer'

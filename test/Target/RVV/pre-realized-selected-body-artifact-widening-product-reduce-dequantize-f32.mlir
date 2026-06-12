@@ -308,11 +308,9 @@ module {
 // STALE-HANDOFF-NONCLAMP-CLAMP: requires dequant-clamp handoff attribute 'clamp_phase'
 // STALE-HANDOFF-NONCLAMP-CLAMP-SAME: absent for non-clamp resource candidates
 
-// STALE-PACKED-MIRROR: candidate tcrv_rvv.low_precision_resource.operand_form provenance must mirror provider-selected low-precision direct-contraction resource operand form 'unpacked-byte-elements'
-// STALE-PACKED-MIRROR-SAME: packed-i4-nibbles
+// STALE-PACKED-MIRROR: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.operand_form' must mirror provider route description value 'unpacked-byte-elements' but was 'packed-i4-nibbles'
 
-// STALE-PRIMITIVE-RESOURCE-MIRROR: candidate tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic provenance must mirror provider-selected low-precision direct-contraction resource primitive reduction intrinsic '__riscv_vwredsum_vs_i16mf2_i32m1'
-// STALE-PRIMITIVE-RESOURCE-MIRROR-SAME: __riscv_vwredsum_vs_i32m1_i32m1
+// STALE-PRIMITIVE-RESOURCE-MIRROR: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic' must mirror provider route description value '__riscv_vwredsum_vs_i16mf2_i32m1' but was '__riscv_vwredsum_vs_i32m1_i32m1'
 
 // MISSING-SCALE: runtime scale
 // MISSING-SCALE-SAME: dequant-scale-value

@@ -93,7 +93,7 @@ module {
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,lhs/field-payloads:signed-e32m1,rhs_scalar:signed-scalar,mask:b32,segment2:vint32m1x2,dst:runtime-scalar-masked-segment2-store
 // HEADER: void tcrv_emitc_pre_realized_body_rt_scalar_cmseg_store_kernel_pre_realized_body_rvv_rt_scalar_cmseg_store(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src0, const int32_t *src1, int32_t *dst, size_t n);
 
-// STALE-PRODUCER: candidate tcrv_rvv.computed_mask_memory_mask_producer_source provenance must mirror selected typed RVV computed-mask segment2 producer source 'runtime-scalar-splat-compare-rhs' but was 'vector-compare-rhs-load'
+// STALE-PRODUCER: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.computed_mask_memory_mask_producer_source' must mirror provider route description value 'runtime-scalar-splat-compare-rhs' but was 'vector-compare-rhs-load'
 // STALE-BINDING: candidate tcrv_rvv.route_operand_binding_operands provenance must mirror selected typed RVV body binding summary
 // STALE-BINDING-SAME: src1=segment-field1-input-buffer:src1:abi
 // STALE-BINDING-SAME: but was

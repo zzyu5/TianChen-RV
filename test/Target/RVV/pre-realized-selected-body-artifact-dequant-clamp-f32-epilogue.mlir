@@ -146,13 +146,9 @@ module {
 // STALE-CTYPE-SAME: must mirror
 // STALE-CTYPE-SAME: scale:double
 
-// STALE-LOWER: RVV materialized EmitC target artifact bridge failed
-// STALE-LOWER: candidate tcrv_rvv.lower_bound_role provenance
-// STALE-LOWER-SAME: rhs-scalar-value
+// STALE-LOWER: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.lower_bound_role' must mirror provider route description value 'lower-bound-scalar-value' but was 'rhs-scalar-value'
 
-// STALE-UPPER-CTYPE: RVV materialized EmitC target artifact bridge failed
-// STALE-UPPER-CTYPE: candidate tcrv_rvv.upper_bound_c_type provenance
-// STALE-UPPER-CTYPE-SAME: double
+// STALE-UPPER-CTYPE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.upper_bound_c_type' must mirror provider route description value 'float' but was 'double'
 
 // STALE-SOURCE-LOAD: RVV materialized EmitC target artifact bridge failed
 // STALE-SOURCE-LOAD: tcrv_rvv.source_vector_load_intrinsic

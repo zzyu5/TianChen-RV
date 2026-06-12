@@ -110,19 +110,14 @@ module {
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,result:signed-e32m1
 // HEADER: void tcrv_emitc_explicit_selected_body_product_reduce_kernel_explicit_selected_body_rvv_product_reduce(const int8_t *lhs, const int8_t *rhs, const int32_t *acc, int32_t *out, size_t n);
 
-// STALE-VWREDSUM: candidate tcrv_rvv.widening_reduction_intrinsic provenance must mirror selected typed RVV product-reduction low-precision widening-reduction primitive widening reduction intrinsic '__riscv_vwredsum_vs_i16mf2_i32m1'
-// STALE-VWREDSUM-SAME: but was '__riscv_vredsum_vs_i16mf2_i16m1'
+// STALE-VWREDSUM: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.widening_reduction_intrinsic' must mirror provider route description value '__riscv_vwredsum_vs_i16mf2_i32m1' but was '__riscv_vredsum_vs_i16mf2_i16m1'
 
-// STALE-PRIM-ACC: candidate tcrv_rvv.low_precision_primitive.accumulator_dtype provenance must mirror selected typed RVV product-reduction low-precision widening-reduction primitive accumulator dtype 'i32'
-// STALE-PRIM-ACC-SAME: but was 'i16'
+// STALE-PRIM-ACC: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_primitive.accumulator_dtype' must mirror provider route description value 'i32' but was 'i16'
 
-// STALE-PRIM-LOAD: candidate tcrv_rvv.low_precision_primitive.source_load provenance must mirror selected typed RVV product-reduction low-precision widening-reduction primitive source load 'unit-stride-byte-load'
-// STALE-PRIM-LOAD-SAME: but was 'metadata-only-byte-load'
+// STALE-PRIM-LOAD: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_primitive.source_load' must mirror provider route description value 'unit-stride-byte-load' but was 'metadata-only-byte-load'
 
-// STALE-PRIM-EXT: candidate tcrv_rvv.low_precision_primitive.source_extension provenance must mirror selected typed RVV product-reduction low-precision widening-reduction primitive source extension 'sign-extend-i8-to-i16-product'
-// STALE-PRIM-EXT-SAME: but was 'zero-extend-u8-to-u16-product'
+// STALE-PRIM-EXT: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_primitive.source_extension' must mirror provider route description value 'sign-extend-i8-to-i16-product' but was 'zero-extend-u8-to-u16-product'
 
-// STALE-PRIM-AVL: candidate tcrv_rvv.low_precision_primitive.runtime_avl_source provenance must mirror selected typed RVV product-reduction low-precision widening-reduction primitive runtime AVL source 'runtime_abi:n'
-// STALE-PRIM-AVL-SAME: but was 'metadata-only-avl'
+// STALE-PRIM-AVL: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_primitive.runtime_avl_source' must mirror provider route description value 'runtime_abi:n' but was 'metadata-only-avl'
 
-// MISSING-PRIM-RUNTIME: candidate metadata must carry tcrv_rvv.low_precision_primitive.runtime_control_plan provenance for selected typed RVV product-reduction low-precision widening-reduction primitive runtime control plan
+// MISSING-PRIM-RUNTIME: candidate tcrv_rvv selected-body metadata[77] key must mirror provider route description key 'tcrv_rvv.low_precision_primitive.runtime_control_plan' but was 'tcrv_rvv.low_precision_primitive.runtime_control_plan_missing'

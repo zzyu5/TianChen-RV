@@ -108,37 +108,19 @@ module {
 // STALE-F32-ABI-SAME: must mirror
 // STALE-F32-ABI-SAME: input,upper_bound,lower_bound,out,n
 
-// STALE-F32-LOWER: RVV materialized EmitC target artifact bridge failed
-// STALE-F32-LOWER: candidate tcrv_rvv.lower_bound_role provenance
-// STALE-F32-LOWER-SAME: must mirror
-// STALE-F32-LOWER-SAME: rhs-scalar-value
+// STALE-F32-LOWER: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.lower_bound_role' must mirror provider route description value 'lower-bound-scalar-value' but was 'rhs-scalar-value'
 
-// STALE-F32-BOUND: RVV materialized EmitC target artifact bridge failed
-// STALE-F32-BOUND: candidate tcrv_rvv.bound_order provenance
-// STALE-F32-BOUND-SAME: must mirror
-// STALE-F32-BOUND-SAME: upper-bound-before-lower-bound
+// STALE-F32-BOUND: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.bound_order' must mirror provider route description value 'lower-bound-before-upper-bound' but was 'upper-bound-before-lower-bound'
 
 // STALE-F32-BINDING: RVV materialized EmitC target artifact bridge failed
 // STALE-F32-BINDING: candidate tcrv_rvv.route_operand_binding_operands provenance
 // STALE-F32-BINDING-SAME: must mirror
 // STALE-F32-BINDING-SAME: stale-lcmp
 
-// STALE-F32-FAMILY: RVV materialized EmitC target artifact bridge failed
-// STALE-F32-FAMILY: candidate tcrv_rvv.computed_mask_select_route_family_plan provenance
-// STALE-F32-FAMILY-SAME: must mirror
-// STALE-F32-FAMILY-SAME: rvv-stale-f32-clamp-select-route-family-plan.v1
+// STALE-F32-FAMILY: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.computed_mask_select_route_family_plan' must mirror provider route description value 'rvv-f32-clamp-select-route-family-plan.v1' but was 'rvv-stale-f32-clamp-select-route-family-plan.v1'
 
-// STALE-F32-UPPER-CTYPE: RVV materialized EmitC target artifact bridge failed
-// STALE-F32-UPPER-CTYPE: candidate tcrv_rvv.upper_bound_c_type provenance
-// STALE-F32-UPPER-CTYPE-SAME: must mirror
-// STALE-F32-UPPER-CTYPE-SAME: double
+// STALE-F32-UPPER-CTYPE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.upper_bound_c_type' must mirror provider route description value 'float' but was 'double'
 
-// STALE-F32-SECONDARY-PRED: RVV materialized EmitC target artifact bridge failed
-// STALE-F32-SECONDARY-PRED: candidate tcrv_rvv.secondary_compare_predicate_kind provenance
-// STALE-F32-SECONDARY-PRED-SAME: must mirror
-// STALE-F32-SECONDARY-PRED-SAME: sle
+// STALE-F32-SECONDARY-PRED: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.secondary_compare_predicate_kind' must mirror provider route description value 'slt' but was 'sle'
 
-// STALE-F32-HEADER: RVV materialized EmitC target artifact bridge failed
-// STALE-F32-HEADER: candidate tcrv_rvv.required_header_declarations provenance
-// STALE-F32-HEADER-SAME: must mirror
-// STALE-F32-HEADER-SAME: stddef.h,stdint.h
+// STALE-F32-HEADER: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.required_header_declarations' must mirror provider route description value 'stddef.h,stdint.h,riscv_vector.h' but was 'stddef.h,stdint.h'

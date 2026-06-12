@@ -131,29 +131,16 @@ module {
 // STALE-SRC1-BINDING-SAME: src1=segment-field0-input-buffer:src1:abi
 // STALE-SRC1-BINDING-SAME: add-lhs
 
-// STALE-ABI: RVV materialized EmitC target artifact bridge failed
-// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror route-local runtime AVL/VL ABI order mirror
-// STALE-ABI-SAME: cmp_lhs,src0,cmp_rhs,src1,dst,n
+// STALE-ABI: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.runtime_abi_order' must mirror provider route description value 'cmp_lhs,cmp_rhs,src0,src1,dst,n' but was 'cmp_lhs,src0,cmp_rhs,src1,dst,n'
 
-// STALE-HEADER: RVV materialized EmitC target artifact bridge failed
-// STALE-HEADER: candidate tcrv_rvv.required_header_declarations provenance must mirror selected typed RVV computed-mask segment2 route header requirements
-// STALE-HEADER-SAME: stddef.h,stdint.h
+// STALE-HEADER: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.required_header_declarations' must mirror provider route description value 'stddef.h,stdint.h,riscv_vector.h' but was 'stddef.h,stdint.h'
 
-// STALE-TYPE: RVV materialized EmitC target artifact bridge failed
-// STALE-TYPE: candidate tcrv_rvv.c_type_mapping provenance must mirror selected typed RVV computed-mask segment2 route type mapping summary
-// STALE-TYPE-SAME: vl:uint64_t
+// STALE-TYPE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.c_type_mapping' must mirror provider route description value 'vl:size_t,compare/field-payloads/update-add:signed-e32m1,mask:b32,segment2:vint32m1x2,dst:masked-segment2-update-store' but was 'vl:uint64_t,compare/field-payloads/update-add:signed-e32m1,mask:b32,segment2:vint32m1x2,dst:masked-segment2-update-store'
 
-// STALE-CM-PLAN: RVV materialized EmitC target artifact bridge failed
-// STALE-CM-PLAN: candidate tcrv_rvv.computed_mask_memory_route_family_plan provenance must mirror selected typed RVV computed-mask segment2 route-family plan
-// STALE-CM-PLAN-SAME: rvv-script-derived-computed-mask-segment2-plan.v1
+// STALE-CM-PLAN: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.computed_mask_memory_route_family_plan' must mirror provider route description value 'rvv-computed-mask-memory-route-family-plan.v1' but was 'rvv-script-derived-computed-mask-segment2-plan.v1'
 
-// STALE-SEGCOUNT: RVV materialized EmitC target artifact bridge failed
-// STALE-SEGCOUNT: candidate tcrv_rvv.segment_count provenance must mirror selected typed RVV computed-mask segment2 count
-// STALE-SEGCOUNT-SAME: 3
+// STALE-SEGCOUNT: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.segment_count' must mirror provider route description value '2' but was '3'
 
-// STALE-MASK-ROLE: RVV materialized EmitC target artifact bridge failed
-// STALE-MASK-ROLE: candidate tcrv_rvv.mask_role provenance must mirror selected typed RVV computed-mask segment2 mask role
-// STALE-MASK-ROLE-SAME: script-derived-mask-role
+// STALE-MASK-ROLE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.mask_role' must mirror provider route description value 'predicate-mask-produced-by-compare' but was 'script-derived-mask-role'
 
-// STALE-RESIDUE: RVV materialized EmitC target artifact bridge failed
-// STALE-RESIDUE: candidate metadata must not carry tcrv_rvv.elementwise_arithmetic_route_family_plan mirrors for a selected typed RVV body route without selected typed RVV non-segment2 route-family mirror
+// STALE-RESIDUE: candidate metadata must carry exactly 58 tcrv_rvv selected-body config/runtime-VL artifact metadata entries derived from the provider route description

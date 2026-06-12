@@ -141,14 +141,9 @@ module {
 // STALE-DEQUANT: target artifact candidate validation failed
 // STALE-DEQUANT-SAME: dequantization
 
-// STALE-RESOURCE: target artifact candidate validation failed
-// STALE-RESOURCE-SAME: low_precision_resource.selected_candidate
-// STALE-RESOURCE-SAME: provider-selected low-precision direct-contraction resource selected candidate
+// STALE-RESOURCE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.selected_candidate' must mirror provider route description value 'rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]' but was 'artifact-name-derived-resource-candidate'
 
-// STALE-TARGET-CANDIDATE: target artifact candidate validation failed
-// STALE-TARGET-CANDIDATE-SAME: low_precision_resource.widening_product_candidate_fact
-// STALE-TARGET-CANDIDATE-SAME: provider-selected low-precision direct-contraction resource widening product candidate fact
-// STALE-TARGET-CANDIDATE-SAME: target-metadata-widening-product
+// STALE-TARGET-CANDIDATE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.widening_product_candidate_fact' must mirror provider route description value 'resource-candidate-widening-product:signed-i8mf4xi8mf4-to-i16mf2:__riscv_vwmul_vv_i16mf2' but was 'target-metadata-widening-product'
 
 // STALE-ABI: target artifact candidate validation failed
 // STALE-ABI-SAME: runtime_abi_order

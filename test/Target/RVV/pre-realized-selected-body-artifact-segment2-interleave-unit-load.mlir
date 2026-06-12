@@ -107,10 +107,6 @@ module {
 // STALE-PROVIDER: candidate tcrv_rvv.provider_supported_mirror provenance must mirror selected typed RVV body provider support
 // STALE-PROVIDER-SAME: provider_supported_mirror:rvv-script-derived-segment2-interleave
 
-// STALE-SEGMENT2-PLAN: RVV materialized EmitC target artifact bridge failed
-// STALE-SEGMENT2-PLAN: candidate tcrv_rvv.segment2_memory_route_family_plan provenance must mirror selected typed RVV segment2 route-family plan
-// STALE-SEGMENT2-PLAN-SAME: rvv-script-derived-plain-segment2-plan.v1
+// STALE-SEGMENT2-PLAN: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.segment2_memory_route_family_plan' must mirror provider route description value 'rvv-segment2-memory-route-family-plan.v1' but was 'rvv-script-derived-plain-segment2-plan.v1'
 
-// STALE-DEST-MEM: RVV materialized EmitC target artifact bridge failed
-// STALE-DEST-MEM: candidate tcrv_rvv.destination_memory_form provenance must mirror selected typed RVV plain segment2 destination memory form
-// STALE-DEST-MEM-SAME: script-derived-segment2-destination
+// STALE-DEST-MEM: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.destination_memory_form' must mirror provider route description value 'segment2-interleaved-unit-stride-store' but was 'script-derived-segment2-destination'

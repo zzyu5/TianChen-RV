@@ -75,8 +75,6 @@ module {
 // HEADER: tianchenrv.rvv.computed_mask_memory_mask_producer_source: runtime-scalar-splat-compare-rhs
 // HEADER: void tcrv_emitc_explicit_selected_body_rt_scalar_cmidx_store_kernel_explicit_selected_body_rvv_rt_scalar_cmidx_store(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src, const uint32_t *index, int32_t *dst, size_t n);
 
-// STALE-PRODUCER: candidate tcrv_rvv.computed_mask_memory_mask_producer_source provenance must mirror selected typed RVV computed-mask indexed memory producer source 'runtime-scalar-splat-compare-rhs' but was 'vector-compare-rhs-load'
+// STALE-PRODUCER: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.computed_mask_memory_mask_producer_source' must mirror provider route description value 'runtime-scalar-splat-compare-rhs' but was 'vector-compare-rhs-load'
 
-// STALE-WRITE-SIDE: candidate tcrv_rvv.indexed_write_side_contract provenance must mirror selected typed RVV computed-mask indexed write-side contract
-// STALE-WRITE-SIDE-SAME: source-before-active-indexed-write;destination-before-inactive-tail-preserve
-// STALE-WRITE-SIDE-SAME: post-call-source-indexed-write
+// STALE-WRITE-SIDE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.indexed_write_side_contract' must mirror provider route description value 'source-before-active-indexed-write;destination-before-inactive-tail-preserve' but was 'post-call-source-indexed-write'

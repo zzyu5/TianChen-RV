@@ -124,30 +124,16 @@ module {
 // STALE-SRC1-BINDING-SAME: src1=segment-field0-input-buffer:src1:abi
 // STALE-SRC1-BINDING-SAME: add-lhs
 
-// STALE-ABI: RVV materialized EmitC target artifact bridge failed
-// STALE-ABI: candidate tcrv_rvv.runtime_abi_order provenance must mirror route-local runtime AVL/VL ABI order mirror
-// STALE-ABI-SAME: cmp_lhs,src0,cmp_rhs,src1,dst,n
+// STALE-ABI: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.runtime_abi_order' must mirror provider route description value 'cmp_lhs,cmp_rhs,src0,src1,dst,n' but was 'cmp_lhs,src0,cmp_rhs,src1,dst,n'
 
-// STALE-HEADER: RVV materialized EmitC target artifact bridge failed
-// STALE-HEADER: candidate tcrv_rvv.required_header_declarations provenance must mirror selected typed RVV computed-mask segment2 route header requirements
-// STALE-HEADER-SAME: stddef.h,stdint.h
+// STALE-HEADER: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.required_header_declarations' must mirror provider route description value 'stddef.h,stdint.h,riscv_vector.h' but was 'stddef.h,stdint.h'
 
-// STALE-TYPE: RVV materialized EmitC target artifact bridge failed
-// STALE-TYPE: candidate tcrv_rvv.c_type_mapping provenance must mirror selected typed RVV computed-mask segment2 route type mapping summary
-// STALE-TYPE-SAME: vl:uint64_t
+// STALE-TYPE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.c_type_mapping' must mirror provider route description value 'vl:size_t,compare/field-payloads/update-add:signed-e32m1,mask:b32,segment2:vint32m1x2,dst:masked-segment2-update-store' but was 'vl:uint64_t,compare/field-payloads/update-add:signed-e32m1,mask:b32,segment2:vint32m1x2,dst:masked-segment2-update-store'
 
-// STALE-MASK: RVV materialized EmitC target artifact bridge failed
-// STALE-MASK: candidate tcrv_rvv.mask_source provenance must mirror selected typed RVV computed-mask segment2 mask source
-// STALE-MASK-SAME: script-derived-mask-source
+// STALE-MASK: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.mask_source' must mirror provider route description value 'compare-produced-mask-same-vl-scope' but was 'script-derived-mask-source'
 
-// STALE-INACTIVE: RVV materialized EmitC target artifact bridge failed
-// STALE-INACTIVE: candidate tcrv_rvv.inactive_lane_contract provenance must mirror selected typed RVV computed-mask segment2 inactive lane contract
-// STALE-INACTIVE-SAME: script-derived-passthrough
+// STALE-INACTIVE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.inactive_lane_contract' must mirror provider route description value 'masked-store-false-lanes-preserve-output-buffer' but was 'script-derived-passthrough'
 
-// STALE-FIELD: RVV materialized EmitC target artifact bridge failed
-// STALE-FIELD: candidate tcrv_rvv.field0_role provenance must mirror selected typed RVV computed-mask segment2 field0 role
-// STALE-FIELD-SAME: segment-field0-output-buffer
+// STALE-FIELD: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.field0_role' must mirror provider route description value 'segment-field0-input-buffer' but was 'segment-field0-output-buffer'
 
-// STALE-UPDATE: RVV materialized EmitC target artifact bridge failed
-// STALE-UPDATE: candidate tcrv_rvv.segment2_update_arithmetic_kind provenance must mirror selected typed RVV computed-mask segment2 update arithmetic kind
-// STALE-UPDATE-SAME: script-derived-sub
+// STALE-UPDATE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.segment2_update_arithmetic_kind' must mirror provider route description value 'add' but was 'script-derived-sub'
