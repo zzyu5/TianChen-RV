@@ -74,12 +74,52 @@ std::string riscvIntrinsicName(llvm::StringRef mnemonic, unsigned sew,
   } else if (mnemonic == "vle" || mnemonic == "vse") {
     // __riscv_vle<sew>_v_<dtype><lmul> / __riscv_vse<sew>_v_<dtype><lmul>
     os << sew << "_v_" << dtype << lmul;
+  } else if (mnemonic == "vlse" || mnemonic == "vsse") {
+    // strided load/store: __riscv_vlse<sew>_v_<dtype><lmul> /
+    // __riscv_vsse<sew>_v_<dtype><lmul>
+    os << sew << "_v_" << dtype << lmul;
+  } else if (mnemonic == "vmv_v_x") {
+    // scalar splat: __riscv_vmv_v_x_<dtype><lmul>
+    os << "_" << dtype << lmul;
+  } else if (mnemonic == "vmerge") {
+    // masked merge: __riscv_vmerge_vvm_<dtype><lmul>
+    os << "_vvm_" << dtype << lmul;
   } else {
     // arithmetic vv form: __riscv_v<op>_vv_<dtype><lmul>
     os << "_vv_" << dtype << lmul;
   }
   os.flush();
   return name;
+}
+
+/// The compare-producing mask intrinsic name:
+///   __riscv_v<cmp>_vv_<dtype><lmul>_b<maskbits>
+/// where maskbits = sew/lmul-derived predicate width (i32/m1 -> b32). This is
+/// the same `<dtype><lmul>` + `_b<maskbits>` shape the legacy
+/// getElementwiseMaskIntrinsicSuffix produces.
+std::string riscvCompareIntrinsicName(llvm::StringRef mnemonic, unsigned sew,
+                                      llvm::StringRef lmul, llvm::StringRef dtype,
+                                      unsigned maskBits) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_" << mnemonic << "_vv_" << dtype << lmul << "_b" << maskBits;
+  os.flush();
+  return name;
+}
+
+/// Predicate mask width for an (sew, lmul) config, mirroring the legacy
+/// getElementwiseMaskIntrinsicSuffix maskBits table. Returns 0 for an
+/// unsupported pair (so the caller fails the match and falls back).
+unsigned maskWidthForConfig(unsigned sew, llvm::StringRef lmul) {
+  if (sew == 32 && lmul == "m1")
+    return 32;
+  if (sew == 32 && lmul == "m2")
+    return 16;
+  if (sew == 64 && lmul == "m1")
+    return 64;
+  if (sew == 64 && lmul == "m2")
+    return 32;
+  return 0;
 }
 
 /// The C dtype token ("i32") for the vector element, used by the load/store/
@@ -281,14 +321,42 @@ public:
                                            mlir::ValueRange{remaining})
               .getResult(0);
 
-      // Convert each body op in order. Body holds load/binary/store ops.
+      // Convert each body op in order. Body holds the typed dataflow ops for
+      // the elementwise families (plain/broadcast/splat-store/masked/strided).
       for (mlir::Operation &op : scope.getBody().front()) {
         if (auto load = llvm::dyn_cast<tcrvrvv::LoadOp>(op)) {
           if (mlir::failed(emitLoad(rewriter, loc, load, valueMap, inductionVar,
                                     bodyVL)))
             return mlir::failure();
+        } else if (auto broadcast =
+                       llvm::dyn_cast<tcrvrvv::BroadcastLoadOp>(op)) {
+          if (mlir::failed(emitBroadcastLoad(rewriter, loc, broadcast, valueMap,
+                                             bodyVL)))
+            return mlir::failure();
+        } else if (auto splat = llvm::dyn_cast<tcrvrvv::SplatOp>(op)) {
+          if (mlir::failed(emitSplat(rewriter, loc, splat, valueMap, bodyVL)))
+            return mlir::failure();
+        } else if (auto stridedLoad =
+                       llvm::dyn_cast<tcrvrvv::StridedLoadOp>(op)) {
+          if (mlir::failed(emitStridedLoad(rewriter, loc, stridedLoad, valueMap,
+                                           inductionVar, bodyVL)))
+            return mlir::failure();
+        } else if (auto compare = llvm::dyn_cast<tcrvrvv::CompareOp>(op)) {
+          if (mlir::failed(emitCompare(rewriter, loc, compare, valueMap,
+                                       bodyVL)))
+            return mlir::failure();
+        } else if (auto maskedBinary =
+                       llvm::dyn_cast<tcrvrvv::MaskedBinaryOp>(op)) {
+          if (mlir::failed(emitMaskedBinary(rewriter, loc, maskedBinary,
+                                            valueMap, bodyVL)))
+            return mlir::failure();
         } else if (auto binary = llvm::dyn_cast<tcrvrvv::BinaryOp>(op)) {
           if (mlir::failed(emitBinary(rewriter, loc, binary, valueMap, bodyVL)))
+            return mlir::failure();
+        } else if (auto stridedStore =
+                       llvm::dyn_cast<tcrvrvv::StridedStoreOp>(op)) {
+          if (mlir::failed(emitStridedStore(rewriter, loc, stridedStore,
+                                            valueMap, inductionVar, bodyVL)))
             return mlir::failure();
         } else if (auto store = llvm::dyn_cast<tcrvrvv::StoreOp>(op)) {
           if (mlir::failed(emitStore(rewriter, loc, store, valueMap,
@@ -416,6 +484,306 @@ private:
     return mlir::success();
   }
 
+  /// broadcast_load(%abi,%vl) -> scalar = base[0]; __riscv_vmv_v_x_<dtype><lmul>
+  /// The legacy materializer renders the RHS broadcast operand `rhs[0]` via an
+  /// emitc.subscript + emitc.load reading the first element, then splats that
+  /// scalar with vmv_v_x. Reproduced exactly so the rendered C carries the
+  /// `const int32_t vN = base[0];` temp + the vmv_v_x splat.
+  mlir::LogicalResult
+  emitBroadcastLoad(mlir::ConversionPatternRewriter &rewriter,
+                    mlir::Location loc, tcrvrvv::BroadcastLoadOp broadcast,
+                    llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+                    mlir::Value bodyVL) const {
+    auto vectorType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(broadcast.getBroadcast().getType());
+    if (!vectorType)
+      return rewriter.notifyMatchFailure(broadcast,
+                                         "broadcast result not typed vector");
+    mlir::Value base = valueMap.lookup(broadcast.getBuffer());
+    if (!base)
+      return rewriter.notifyMatchFailure(broadcast,
+                                         "broadcast buffer not an ABI param");
+    auto pointer =
+        llvm::dyn_cast<mlir::TypedValue<emitc::PointerType>>(base);
+    if (!pointer)
+      return rewriter.notifyMatchFailure(
+          broadcast, "broadcast buffer must be a pointer-typed ABI param");
+    mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
+    if (!vecType)
+      return rewriter.notifyMatchFailure(broadcast,
+                                         "vector type not convertible");
+    std::string callee =
+        riscvIntrinsicName("vmv_v_x", vectorElementWidth(vectorType),
+                           vectorType.getLmul(), vectorDType(vectorType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(broadcast.getTCRVEmitCLowerableSourceOpName(),
+                         broadcast.getTCRVEmitCLowerableSourceRole(), callee));
+    // base[0]: subscript -> lvalue -> load reads the first scalar element.
+    mlir::Value index = rewriter.create<emitc::LiteralOp>(
+        loc, rewriter.getIndexType(), "0");
+    emitc::SubscriptOp subscriptOp =
+        rewriter.create<emitc::SubscriptOp>(loc, pointer, index);
+    auto lvalueType =
+        llvm::cast<emitc::LValueType>(subscriptOp.getResult().getType());
+    mlir::Value scalar =
+        rewriter
+            .create<emitc::LoadOp>(loc, lvalueType.getValueType(),
+                                   subscriptOp.getResult())
+            .getResult();
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
+                                         mlir::ValueRange{scalar, bodyVL})
+            .getResult(0);
+    valueMap[broadcast.getBroadcast()] = result;
+    return mlir::success();
+  }
+
+  /// splat(%scalar,%vl) -> __riscv_vmv_v_x_<dtype><lmul>(scalar, vl). The scalar
+  /// is a runtime ABI value mapped to a function parameter directly.
+  mlir::LogicalResult
+  emitSplat(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+            tcrvrvv::SplatOp splat,
+            llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+            mlir::Value bodyVL) const {
+    auto vectorType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(splat.getBroadcast().getType());
+    if (!vectorType)
+      return rewriter.notifyMatchFailure(splat, "splat result not typed vector");
+    mlir::Value scalar = valueMap.lookup(splat.getScalar());
+    if (!scalar)
+      return rewriter.notifyMatchFailure(splat, "splat scalar unmapped");
+    mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
+    if (!vecType)
+      return rewriter.notifyMatchFailure(splat, "vector type not convertible");
+    std::string callee =
+        riscvIntrinsicName("vmv_v_x", vectorElementWidth(vectorType),
+                           vectorType.getLmul(), vectorDType(vectorType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(splat.getTCRVEmitCLowerableSourceOpName(),
+                         splat.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
+                                         mlir::ValueRange{scalar, bodyVL})
+            .getResult(0);
+    valueMap[splat.getBroadcast()] = result;
+    return mlir::success();
+  }
+
+  /// compare(%lhs,%rhs,%vl){kind} ->
+  ///   __riscv_v<cmp>_vv_<dtype><lmul>_b<maskbits>(lhs, rhs, vl) -> vbool<n>_t
+  mlir::LogicalResult
+  emitCompare(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+              tcrvrvv::CompareOp compare,
+              llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+              mlir::Value bodyVL) const {
+    auto maskType =
+        llvm::dyn_cast<tcrvrvv::MaskType>(compare.getMask().getType());
+    if (!maskType)
+      return rewriter.notifyMatchFailure(compare, "compare result not typed mask");
+    auto operandVecType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(compare.getLhs().getType());
+    if (!operandVecType)
+      return rewriter.notifyMatchFailure(compare,
+                                         "compare operand not typed vector");
+    mlir::Value lhs = valueMap.lookup(compare.getLhs());
+    mlir::Value rhs = valueMap.lookup(compare.getRhs());
+    if (!lhs || !rhs)
+      return rewriter.notifyMatchFailure(compare, "compare operand unmapped");
+    std::optional<llvm::StringRef> mnemonic = compareMnemonic(compare.getKind());
+    if (!mnemonic)
+      return rewriter.notifyMatchFailure(compare, "unsupported compare kind");
+    mlir::Type maskEmitCType = getTypeConverter()->convertType(maskType);
+    if (!maskEmitCType ||
+        maskEmitCType.getDialect().getNamespace() !=
+            emitc::EmitCDialect::getDialectNamespace())
+      return rewriter.notifyMatchFailure(compare, "mask type not convertible");
+    unsigned sew = vectorElementWidth(operandVecType);
+    unsigned maskBits = maskWidthForConfig(sew, operandVecType.getLmul());
+    if (maskBits == 0)
+      return rewriter.notifyMatchFailure(compare, "unsupported mask config");
+    std::string callee = riscvCompareIntrinsicName(
+        *mnemonic, sew, operandVecType.getLmul(),
+        vectorDType(operandVecType), maskBits);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(compare.getTCRVEmitCLowerableSourceOpName(),
+                         compare.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{maskEmitCType},
+                                         callee,
+                                         mlir::ValueRange{lhs, rhs, bodyVL})
+            .getResult(0);
+    valueMap[compare.getMask()] = result;
+    return mlir::success();
+  }
+
+  /// masked_binary(%mask,%passthrough,%lhs,%rhs,%vl){kind} lowers to TWO calls,
+  /// byte-identical to the legacy masked merge sequence:
+  ///   active = __riscv_v<op>_vv_<dtype><lmul>(lhs, rhs, vl);
+  ///   result = __riscv_vmerge_vvm_<dtype><lmul>(passthrough, active, mask, vl);
+  mlir::LogicalResult
+  emitMaskedBinary(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+                   tcrvrvv::MaskedBinaryOp masked,
+                   llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+                   mlir::Value bodyVL) const {
+    auto vectorType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(masked.getResult().getType());
+    if (!vectorType)
+      return rewriter.notifyMatchFailure(masked,
+                                         "masked result not typed vector");
+    mlir::Value passthrough = valueMap.lookup(masked.getPassthrough());
+    mlir::Value lhs = valueMap.lookup(masked.getLhs());
+    mlir::Value rhs = valueMap.lookup(masked.getRhs());
+    mlir::Value mask = valueMap.lookup(masked.getMask());
+    if (!passthrough || !lhs || !rhs || !mask)
+      return rewriter.notifyMatchFailure(masked, "masked operand unmapped");
+    std::optional<llvm::StringRef> mnemonic = binaryMnemonic(masked.getKind());
+    if (!mnemonic)
+      return rewriter.notifyMatchFailure(masked, "unsupported masked kind");
+    mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
+    if (!vecType)
+      return rewriter.notifyMatchFailure(masked, "vector type not convertible");
+    unsigned sew = vectorElementWidth(vectorType);
+    llvm::StringRef lmul = vectorType.getLmul();
+    llvm::StringRef dtype = vectorDType(vectorType);
+
+    // active = vadd/vsub/vmul over the two operand vectors (unmasked).
+    std::string arithCallee = riscvIntrinsicName(*mnemonic, sew, lmul, dtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(masked.getTCRVEmitCLowerableSourceOpName(),
+                         masked.getTCRVEmitCLowerableSourceRole(), arithCallee));
+    mlir::Value active =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType},
+                                         arithCallee,
+                                         mlir::ValueRange{lhs, rhs, bodyVL})
+            .getResult(0);
+
+    // result = vmerge(passthrough, active, mask, vl) -- inactive lanes keep the
+    // passthrough vector.
+    std::string mergeCallee = riscvIntrinsicName("vmerge", sew, lmul, dtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(masked.getTCRVEmitCLowerableSourceOpName(),
+                         masked.getTCRVEmitCLowerableSourceRole(), mergeCallee));
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{vecType}, mergeCallee,
+                mlir::ValueRange{passthrough, active, mask, bodyVL})
+            .getResult(0);
+    valueMap[masked.getResult()] = result;
+    return mlir::success();
+  }
+
+  /// strided_load(%abi,%stride,%vl) ->
+  ///   off = i * stride; ptr = base + off;
+  ///   bytestride = (ptrdiff_t)stride * (ptrdiff_t)4;
+  ///   __riscv_vlse<sew>_v_<dtype><lmul>(ptr, bytestride, vl)
+  mlir::LogicalResult
+  emitStridedLoad(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+                  tcrvrvv::StridedLoadOp load,
+                  llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+                  mlir::Value inductionVar, mlir::Value bodyVL) const {
+    auto vectorType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(load.getLoaded().getType());
+    if (!vectorType)
+      return rewriter.notifyMatchFailure(load, "strided load result not vector");
+    mlir::Value base = valueMap.lookup(load.getBuffer());
+    mlir::Value stride = valueMap.lookup(load.getStride());
+    if (!base || !stride)
+      return rewriter.notifyMatchFailure(load, "strided load operand unmapped");
+    mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
+    if (!vecType)
+      return rewriter.notifyMatchFailure(load, "vector type not convertible");
+    std::string callee =
+        riscvIntrinsicName("vlse", vectorElementWidth(vectorType),
+                           vectorType.getLmul(), vectorDType(vectorType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(load.getTCRVEmitCLowerableSourceOpName(),
+                         load.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value ptr =
+        emitScaledPointer(rewriter, loc, base, inductionVar, stride);
+    mlir::Value byteStride = emitByteStride(rewriter, loc, stride, vectorType);
+    mlir::Value loaded =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
+                                         mlir::ValueRange{ptr, byteStride,
+                                                          bodyVL})
+            .getResult(0);
+    valueMap[load.getLoaded()] = loaded;
+    return mlir::success();
+  }
+
+  /// strided_store(%abi,%val,%stride,%vl) ->
+  ///   off = i * stride; ptr = base + off;
+  ///   bytestride = (ptrdiff_t)stride * (ptrdiff_t)4;
+  ///   __riscv_vsse<sew>_v_<dtype><lmul>(ptr, bytestride, val, vl)
+  mlir::LogicalResult
+  emitStridedStore(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+                   tcrvrvv::StridedStoreOp store,
+                   llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+                   mlir::Value inductionVar, mlir::Value bodyVL) const {
+    auto vectorType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(store.getValue().getType());
+    if (!vectorType)
+      return rewriter.notifyMatchFailure(store, "strided store value not vector");
+    mlir::Value base = valueMap.lookup(store.getBuffer());
+    mlir::Value value = valueMap.lookup(store.getValue());
+    mlir::Value stride = valueMap.lookup(store.getStride());
+    if (!base || !value || !stride)
+      return rewriter.notifyMatchFailure(store, "strided store operand unmapped");
+    if (!convertVectorTypeToEmitC(vectorType))
+      return rewriter.notifyMatchFailure(store, "vector type not convertible");
+    std::string callee =
+        riscvIntrinsicName("vsse", vectorElementWidth(vectorType),
+                           vectorType.getLmul(), vectorDType(vectorType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(store.getTCRVEmitCLowerableSourceOpName(),
+                         store.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value ptr =
+        emitScaledPointer(rewriter, loc, base, inductionVar, stride);
+    mlir::Value byteStride = emitByteStride(rewriter, loc, stride, vectorType);
+    rewriter.create<emitc::CallOpaqueOp>(
+        loc, mlir::TypeRange{}, callee,
+        mlir::ValueRange{ptr, byteStride, value, bodyVL});
+    return mlir::success();
+  }
+
+  /// Scaled element pointer: off = induction * stride; ptr = base + off.
+  /// Mirrors the legacy materializer parseScaledPointerExpression path
+  /// (`base + (induction * stride)`): an emitc.mul of the size_t induction and
+  /// stride, then an emitc.add onto the pointer base.
+  mlir::Value emitScaledPointer(mlir::ConversionPatternRewriter &rewriter,
+                                mlir::Location loc, mlir::Value base,
+                                mlir::Value inductionVar,
+                                mlir::Value stride) const {
+    mlir::Value scaledOffset = rewriter.create<emitc::MulOp>(
+        loc, inductionVar.getType(), inductionVar, stride);
+    return rewriter.create<emitc::AddOp>(loc, base.getType(), base,
+                                         scaledOffset);
+  }
+
+  /// Byte stride: (ptrdiff_t)stride * (ptrdiff_t)4. Mirrors the legacy
+  /// materializer parseSimpleProductExpression path for `stride * 4` with
+  /// cType "ptrdiff_t": cast the runtime stride and the element-size literal to
+  /// ptrdiff_t, then multiply.
+  mlir::Value emitByteStride(mlir::ConversionPatternRewriter &rewriter,
+                             mlir::Location loc, mlir::Value stride,
+                             tcrvrvv::VectorType vectorType) const {
+    mlir::Type ptrdiffType =
+        emitc::OpaqueType::get(rewriter.getContext(), "ptrdiff_t");
+    unsigned byteWidth = vectorElementWidth(vectorType) / 8;
+    mlir::Value strideCast =
+        rewriter.create<emitc::CastOp>(loc, ptrdiffType, stride);
+    mlir::Value sizeLiteral = rewriter.create<emitc::LiteralOp>(
+        loc, stride.getType(), llvm::Twine(byteWidth).str());
+    mlir::Value sizeCast =
+        rewriter.create<emitc::CastOp>(loc, ptrdiffType, sizeLiteral);
+    return rewriter.create<emitc::MulOp>(loc, ptrdiffType, strideCast, sizeCast);
+  }
+
   static unsigned vectorElementWidth(tcrvrvv::VectorType type) {
     if (auto intType =
             llvm::dyn_cast<mlir::IntegerType>(type.getElementType()))
@@ -451,6 +819,13 @@ private:
       return llvm::StringRef("vmul");
     return std::nullopt;
   }
+
+  static std::optional<llvm::StringRef>
+  compareMnemonic(llvm::StringRef kind) {
+    if (kind == "eq")
+      return llvm::StringRef("vmseq");
+    return std::nullopt;
+  }
 };
 
 } // namespace
@@ -472,6 +847,18 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
         if (type.getElementType().isSignlessInteger(32) &&
             type.getLmul() == "m1")
           return emitc::OpaqueType::get(type.getContext(), "vint32m1_t");
+        return std::nullopt;
+      });
+
+  // !tcrv_rvv.mask<i32, "m1"> -> emitc.opaque<"vbool32_t">. The predicate mask
+  // C type is vbool<maskbits>_t where maskbits is the sew/lmul-derived width
+  // (i32/m1 -> 32). Other (dtype, lmul) pairs are left unconverted so the
+  // masked converter stays scoped to the beachhead family.
+  typeConverter.addConversion(
+      [](tcrvrvv::MaskType type) -> std::optional<mlir::Type> {
+        if (type.getElementType().isSignlessInteger(32) &&
+            type.getLmul() == "m1")
+          return emitc::OpaqueType::get(type.getContext(), "vbool32_t");
         return std::nullopt;
       });
 
