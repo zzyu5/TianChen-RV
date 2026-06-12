@@ -1,327 +1,76 @@
-# Generation Selection Tuning
+# Generation, Selection, Tuning
 
-## Scope
-
-The variant pipeline turns TianChen-RV execution envelopes and plugin-owned
-extension bodies into selected executable paths. It does not create a generic
-high-level compute IR and does not treat metadata as route authority.
-
-Current RVV path:
+variant pipeline 把 TianChen-RV execution envelope + plugin-owned extension body 变成**选中的、调优过的、可执行的** path。它不创造通用高层 compute IR，也不把 metadata 当 route authority（见 [core-invariants](../architecture/core-invariants.md) I4）。
 
 ```text
 tcrv.exec envelope
-  -> selected RVV variant
-  -> typed low-level tcrv_rvv vector-level body
-  -> RVV plugin legality
-  -> optional RVV selected-body realization
-  -> RVV plugin route provider
-  -> TCRVEmitCLowerableRoute
-  -> common EmitC
+  -> 插件提议的 variants（plugin-local）
+  -> capability 驱动的 legality
+  -> capability 驱动的 selection / dispatch
+  -> Gearbox: resource-aware tuning / realization
+  -> plugin route provider -> 公共 EmitC route
 ```
 
-## Current Inputs
+## Inputs
 
-Current Stage1/Stage2 plugin work may start from:
+variant pipeline 可从以下起点工作：手写或生成的 TianChen-RV MLIR；`tcrv.exec` envelope 与 selected variant；typed extension-family body（如 `tcrv_rvv`）；origin 插件能合法消费的 selected boundary；结构化 capability/profile facts；runtime SSA / ABI 声明。
 
-- hand-written or generated TianChen-RV MLIR;
-- `tcrv.exec` envelope and selected variants;
-- typed extension-family bodies such as `tcrv_rvv`;
-- selected boundaries that the origin plugin legally consumes;
-- structured capability/profile facts;
-- runtime SSA / ABI declarations.
+selected-path metadata 只解释"为什么选了这个 variant"，不能当 compute / dtype / route / body / artifact authority（I4、I5）。high-level MLIR frontend lowering（linalg/tosa→tcrv）是显式 opt-in 的未来集成路径。
 
-Selected-path metadata is diagnostic/control mirror only. It may explain why a
-variant was chosen, but it cannot be compute input, dtype authority, route
-authority, body authority, or artifact authority.
+## Variant required fields
 
-High-level MLIR frontend lowering is a future integration path unless an
-explicit task selects it after RVV maturity.
+每个可执行 variant 必须有：origin plugin；结构化 `requires`；typed extension-family body 或 selected boundary；plugin legality 结果；ABI 角色声明 + body 内显式 import/消费；可选 cost/tuning hint 作为 realization 输入；emission 支持时的 route-provider 输出；需要时的 fallback/dispatch 关系。
 
-## Stage Gates
-
-### Stage 1: RVV Route-Authority Reset
-
-Replace or fail-close active paths that treat the following as RVV route
-authority:
-
-```text
-bounded i32m1 arithmetic
-RVVI32M1* route specs/slices
-finite tcrv_rvv.i32_* ops
-!tcrv_rvv.i32m1 helper types
-rvv-i32m1 route ids
-artifact names
-source-front-door/source-artifact patterns
-descriptor residue
-exact __riscv_*_i32m1 spellings
-```
-
-Do not preserve an executable legacy i32 compatibility route.
-
-### Stage 2: Typed RVV Coverage And Performance Realization
-
-Expand route-supported coverage on corrected typed `tcrv_rvv` bodies.
-Structured computation classes calibrate coverage:
-
-```text
-elementwise
-broadcast
-reduction / accumulation
-contraction-like accumulation
-movement/layout
-dtype conversion
-mask/tail
-runtime shape/control
-```
-
-Stage 2 also includes selected-body realization:
-
-```text
-selected pre-realized tcrv_rvv body
-  + target capability
-  + runtime SSA / ABI values
-  + optional hints / policy / profile
-    -> realized tcrv_rvv selected body
-```
-
-Hints/config/profile are not final products. If they affect generated code,
-they must be consumed into body structure before route construction.
-
-After a route family is production-validated, Stage 2 progress must not degrade
-into an unbounded sequence of artifact ABI evidence closeouts. A generated-bundle
-or `ssh rvv` proof is useful when emitted code, ABI/header behavior, runtime
-correctness, or performance is newly claimed. It is not a substitute for
-advancing typed primitive coverage, selected-body realization, resource-aware
-tuning, or a measured performance comparison path.
-
-When repeated Stage 2 rounds are metadata-only, no-production-source-change, or
-artifact-evidence closeouts, the next owner should be promoted to a macro
-production-kernel capability campaign rather than another adjacent route seam.
-The default priority ladder after Stage 1 gates are clean is:
-
-1. RVV production-kernel capability campaign: resource-aware selected-body
-   realization / Gearbox pass structure, low-precision contraction primitive
-   surface, and measured same-target comparison path.
-2. RVV plugin-local selected-body realization / Gearbox resource-aware pass
-   structure when performance-sensitive or low-precision work is the blocker.
-3. Low-precision / quantized contraction primitive surface foundation: typed
-   i8/u8 vector/config, i8/u8 loads, i8*i8 widening product, widening
-   reduction or `vwredsum`-style provider route facts, and fail-closed
-   validation.
-4. Typed primitive coverage gaps that unblock structured-kernel classes.
-5. Generated-bundle / `ssh rvv` evidence only when it validates a production
-   path changed in the same or immediately previous round, or is the named
-   blocker for an active macro-owner milestone.
-
-llama.cpp-style q8/q4 kernels are pressure tests for this coverage,
-realization, and measurement capability. They must not be treated as q8-named
-route authority, benchmark-name authority, artifact-name authority, or a reason
-to bypass typed `tcrv_rvv` body/provider facts.
-
-### Stage 3: Extension Generalization
-
-IME, Offload, TensorExtLite, Template/Toy source-front-door examples, and
-future plugin positives are Stage3/later unless an explicit task opens them.
-
-## Variant Required Fields
-
-Each executable variant must have:
-
-- origin plugin;
-- structured `requires`;
-- typed extension-family body or selected boundary;
-- plugin legality result;
-- ABI role declarations and explicit body imports/consumption;
-- optional cost/tuning hints as realization inputs;
-- route-provider output when emission is supported;
-- fallback/dispatch relation where needed.
-
-Shape/dtype/layout preconditions and cost/tuning facts may be mirrored in
-metadata, but executable RVV dtype/config/operation facts must be structural in
-typed `tcrv_rvv` body or consumed into realized body. Emission path metadata is
-not route support.
+shape/dtype/layout 前置条件与 cost/tuning facts **可以**在 metadata 里镜像，但可执行的 dtype/config/operation 必须结构化在 typed body 或被消费进 realized body（I5）。
 
 ## Selection
 
-Selection may choose:
+selection 由 capability 驱动，可产出：单个静态 selected variant；guarded case 间的运行期 dispatch；保守 fallback；无合法可执行 route 时的 unsupported 诊断（fail closed，I7）。
 
-- one static selected variant;
-- runtime dispatch among guarded cases;
-- conservative fallback;
-- unsupported diagnostic when no legal executable route exists.
+selection **不得**：从 `tcrv.exec` 推断 compute；从 ABI 字符串/参数名推断 dtype；按 artifact 名选 route；把 source-front-door metadata 当可执行 route 排名；把 readiness/status dashboard 当进度。
 
-Selection must not:
+## Tuning / Realization — Gearbox
 
-- infer compute from `tcrv.exec`;
-- infer dtype from ABI strings or parameter names;
-- select routes by artifact name;
-- rank source-front-door metadata as an executable route;
-- treat readiness/status dashboards as progress.
-
-## Tuning
-
-Tuning is capability-aware and variant-local. It may propose hints/policy, but
-code-affecting choices must be realized into body structure.
-
-For RVV, Gearbox/resource-aware selected-body realization is implemented as an
-RVV plugin-local MLIR pass pipeline. "Realization" names the compiler
-transformation result and stage:
+Gearbox 是 **plugin-local 的 MLIR pass pipeline**，把一个 selected pre-realized typed body 变成 realized（调优过的）typed body。它是 N3（capability/resource-aware 跨 family 调优）的承载体。
 
 ```text
-selected pre-realized typed tcrv_rvv body
-  -> RVV plugin-local Gearbox/resource-aware pass pipeline
-  -> realized typed tcrv_rvv body
-     or transitional provider-owned plan consumed before route construction
+selected pre-realized typed body
+  + target capability / resource facts
+  + runtime SSA / ABI values
+  + optional hints / policy / profile
+    -> Gearbox pass pipeline (build -> prune -> select -> realize)
+    -> realized typed body（或 provider 在 route 构造前消费的 owner-local plan）
 ```
 
-It does not mean this logic lives outside MLIR passes, and it must not be moved
-into Common EmitC or target artifact metadata.
+**硬约束**
 
-For RVV, realization may materialize:
+- Gearbox 是 MLIR pass 内的变换，**不**搬到 common EmitC 或 target-artifact metadata 里。
+- 任何影响生成代码的选择（setvl/VL 放置、SEW/LMUL/policy、memory form、mask/tail、unroll/prefetch、accumulator/reduction layout）必须在 route 构造**之前**被 realize 进 typed body 结构，或进 provider 消费的 owner-local plan。tuning facts 不是 route/dtype/schedule/进度 authority（I4、I5）。
+- hints/config/profile 不是最终产物；不被 body 结构消费就不成立。
 
-```text
-setvl/VL placement
-SEW/LMUL/policy
-memory form
-mask/tail behavior
-unroll/prefetch structure
-accumulator/reduction layout
-```
+**Resource model（候选空间的来源）**
 
-### Resource-Aware RVV Closure
+Gearbox 的候选空间必须由**编译器可见的 capability + body facts** 推导，而非硬编码常量。可推理的事实包括：target VLEN / ELEN / 向量寄存器预算、保留的 mask/v0、SEW/LMUL/EMUL、widening/narrowing 压力、peak live vector groups、load/store 与 mask 活跃区间、accumulator 数量与 reduction layout、vsetvl region 数、memory form/stride、tail/mask policy。resource model 可以**先 static、bounded**，但必须真的 over 这些 facts 推理。
 
-For performance-sensitive RVV Stage 2 families, especially low-precision
-direct-contraction paths, tuning must be resource-aware before it is described as
-autotuning or performance maturity. The resource model may start static and
-bounded, but it must reason over compiler-visible body facts such as:
+> **怎么判断 tune 是否真的 resource-aware（老实判断，别自欺）**：只有当 Gearbox **枚举并按 resource facts 剪枝候选**时，它才是 resource-aware 的。固定单候选、固定 unroll、固定 LMUL 只是 MVP 占位——能跑，但不是 N3。N3 还要求在若干 kernel 上**实测赢** scalar 且赢 naive RVV：没有胜出的 tuning 没有论文故事。这是给 agent 的判断标准，不是流程闸门；当前实现离它多远，写在 task/journal，不写进 spec。
 
-```text
-target VLEN / ELEN / vector register budget
-reserved mask / v0 usage
-SEW / LMUL / EMUL
-widening or narrowing pressure
-peak live vector groups
-load/store and mask live ranges
-accumulator count and reduction layout
-vsetvl region count
-memory form / stride
-tail and mask policy
-```
+**Autotuning 模式**（分层，按需启用）
 
-A selector may keep schedule facts as owner-local metadata only when the facts
-are consumed by RVV selected-body realization, provider planning, or target
-artifact validation. If a choice changes generated code, it must be realized into
-`tcrv_rvv` structure or a provider-consumed owner-local plan before
-`TCRVEmitCLowerableRoute` construction.
+- Static/AOT：按确定的 legality/resource/cost model 选档。
+- Offline profile：生成候选、编译、可选地查看汇编或在 `ssh rvv` 上跑，缓存某个 tuning key 的赢家。
+- JIT/runtime：对某 key 的首次出现调优，命中缓存复用，runtime 调优不可用时退回 static selector。
 
-The current bounded Gearbox schedule materialization style is an MVP unless it
-enumerates and prunes candidates with such resource facts. A fixed static
-candidate, fixed unroll, or fixed LMUL schedule is not a completed
-resource-aware autotuning pass.
+tuning key 可含：target identity、VLEN/ELEN、operation signature、dtype/量化方案、memory form、shape bucket（如 `N` 或 `M/N/K`）。数据值不进 key，除非显式建模数据相关属性。
 
-Current implementation calibration:
+**跨 family**
 
-```text
---tcrv-rvv-materialize-gearbox-schedules
-  = current MVP static Gearbox schedule materialization pass
-  = bounded dequantize_i32_to_f32 candidate_set / selected_candidate facts
-  != full resource-aware autotuner
+同一 Gearbox 契约复用到 IME（fragment shape、K blocking、accumulator policy、packing）、Offload（transfer threshold、batch、async overlap、buffer reuse）。这是 N3 "跨 family" 的含义：一套 resource-aware tuning 机制，不是每个 family 各写一个 autotuner。低精度 / 量化 contraction（i8/u8/packed-i4 的 widening product + reduction + dequant）是该机制的代表性压力测试，但只是测试输入，不是 q8/q4-named route authority（I9）。
 
-low-precision direct-contraction resource candidate seed
-  = provider/target validation contract for future pass output
-  != separately registered MLIR pass yet
-```
+## Tests required
 
-The target pass evolution may be split as:
-
-```text
-tcrv-rvv-build-resource-candidates
-tcrv-rvv-prune-resource-candidates
-tcrv-rvv-select-resource-candidate
-tcrv-rvv-realize-selected-candidate
-```
-
-or initially implemented as one bounded pass such as
-`tcrv-rvv-realize-gearbox`, provided the internal build/prune/select/realize
-phases remain explicit and testable.
-
-Autotuning modes are layered:
-
-- Static/AOT mode: select by deterministic legality/resource/cost model.
-- Offline profile mode: generate candidates, compile, optionally inspect
-  assembly or run on `ssh rvv`, then cache the winner for a tuning key.
-- JIT/runtime mode: tune the first occurrence of a key, reuse the cached gear for
-  matching keys, and fall back to the static selector when runtime tuning is not
-  available.
-
-The tuning key may include target identity, VLEN/ELEN, operation signature,
-dtype/quantization scheme, memory form, and shape buckets such as `N` or
-`M/N/K`. Data values are not part of the key unless a data-dependent property is
-explicitly modeled.
-
-llama.cpp q8/q4 examples are representative pressure tests for this contract.
-They must be treated as low-precision direct-contraction maturity signals, not
-as q8-named route authority, benchmark-name authority, or permission to bypass
-typed `tcrv_rvv` body/provider facts.
-
-For future IME/Offload/family work, analogous tuning remains plugin-local and
-Stage3-gated unless explicitly selected.
-
-## Emission-Plan Mirrors
-
-Emission-plan diagnostics are optional mirrors after plugin route construction.
-They are useful for reproducibility and failure reporting, but they are not:
-
-- route authority;
-- dtype/config authority;
-- selected body;
-- progress status;
-- target artifact authority;
-- runtime/correctness/performance evidence.
-
-## Good / Bad Cases
-
-Good:
-
-```text
-typed tcrv_rvv body
-  -> RVV legality
-  -> selected-body realization consumes hints
-  -> provider-built route
-  -> common EmitC
-```
-
-Bad:
-
-```text
-variant metadata says dtype=i32, route=rvv-i32m1-add
-  -> emit object
-```
-
-Bad:
-
-```text
-source-front-door marker
-  -> selected RVV artifact during Stage 1
-```
-
-Bad:
-
-```text
-emission_plan status
-  -> readiness/progress state
-```
-
-## Tests Required
-
-Pipeline changes require focused tests for:
-
-- selected body presence and legality;
-- fail-closed legacy i32 route-table and source-front-door cases;
-- selected-body realization consuming code-affecting hints/config;
-- route provider output before common EmitC;
-- metadata-only paths failing closed;
-- dispatch/fallback coherence.
-
-Runtime/correctness/performance claims require the corresponding hardware or
-runtime evidence; for RVV that means real `ssh rvv` evidence.
+- selected body 存在性与 legality；
+- 各 ABI 角色被 typed body 显式消费（I5）；
+- Gearbox 把 code-affecting hint/config realize 进 body 结构，metadata-only 路径 fail closed；
+- route provider 输出先于公共 EmitC；
+- dispatch/fallback coherence；
+- runtime/correctness/performance 主张配真实硬件证据（RVV = `ssh rvv`，I8）。

@@ -104,22 +104,21 @@ The safe default policy for source front doors is explicit-only or disabled:
 DefaultArtifactFrontDoorPolicy::ExplicitOnly
 ```
 
-`DefaultArtifactFrontDoorPolicy::Eligible` is not a safe default for current
-RVV Stage1/Stage2 work. A broadly eligible source-front-door policy may be
-used only by an explicit future/Stage3 task after mature typed-body routes
-exist and after the target family proves plugin-owned source interpretation.
+`DefaultArtifactFrontDoorPolicy::Eligible` is not a safe default for RVV work.
+A broadly eligible source-front-door policy may be used only by an explicit
+future task once mature typed-body routes exist and the target family proves
+plugin-owned source interpretation.
 
-During RVV Stage 1:
+Standing rules (source-front-door routes fail closed, 见 core-invariants I7):
 
 - source-only RVV markers fail closed by default;
 - source-artifact bundle pipelines do not generate positive RVV artifacts;
 - source-front-door metadata is not route, dtype, or compute authority;
 - tests for source-front-door RVV behavior are negative/fail-closed unless
-  explicitly tied to corrected typed-body route maturity.
+  explicitly tied to a corrected typed-body route.
 
-Toy and TensorExtLite source-front-door scenarios are future/Stage3 examples.
-They must not become current default workflows or templates that displace RVV
-Stage1/Stage2 work.
+Toy and TensorExtLite source-front-door scenarios are future examples. They
+must not become current default workflows or templates that displace RVV work.
 
 ## Optional Manifests And Templates
 
@@ -185,7 +184,7 @@ core registry calls RVV legality
 Good:
 
 ```text
-source-front-door input during RVV Stage1
+source-front-door RVV input
 -> fail-closed diagnostic
 -> no target artifact
 ```
@@ -194,7 +193,7 @@ Bad:
 
 ```text
 DefaultArtifactFrontDoorPolicy::Eligible
--> positive RVV source-artifact route during Stage1
+-> positive RVV source-artifact route
 ```
 
 Bad:
@@ -219,7 +218,7 @@ Interface or registry changes require focused tests:
   route provider dispatch;
 - lit/FileCheck for generic diagnostics and fail-closed behavior visible in
   textual MLIR;
-- negative RVV Stage1 tests for legacy `RVVI32M1*`, `rvv-i32m1`,
+- negative RVV tests for legacy `RVVI32M1*`, `rvv-i32m1`,
   source-front-door, and metadata-only route inputs;
 - positive tests only when they use corrected typed extension bodies and
   provider-built routes.

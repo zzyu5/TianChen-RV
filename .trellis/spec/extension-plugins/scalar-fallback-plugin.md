@@ -105,10 +105,10 @@ runtime, executed a scalar kernel, proved correctness, or measured performance.
 It also does not authorize metadata-alone selected lowering-boundary
 materialization.
 
-Scalar fallback must not pull Stage3/family-generalization work forward before
-RVV maturity. Until a later plugin-local rebuild creates a real typed scalar
-body and EmitC route, it remains a conservative selection/fallback diagnostic
-surface only.
+Scalar fallback is not a vehicle for pulling unbuilt family-generalization work
+forward (见 [../guides/trunk-discipline.md](../guides/trunk-discipline.md)).
+Until a later plugin-local rebuild creates a real typed scalar body and EmitC
+route, it remains a conservative selection/fallback diagnostic surface only.
 
 ## Selected Lowering Boundary
 

@@ -5,7 +5,7 @@
 This contract defines how selected TianChen-RV variants become emitted code,
 runtime ABI surfaces, target artifacts, and evidence. It applies to RVV now and
 to IME, Offload, TensorExtLite, Template/Toy, scalar fallback, and future
-families only when their stage gate is explicitly open.
+families once those families are built.
 
 Emission is not a metadata state machine. The executable authority chain is:
 
@@ -128,8 +128,8 @@ Export must fail closed when:
 - only emission-plan metadata, selected-path metadata, route ids, or manifests
   exist;
 - legacy RVV i32m1 route-table data is the only route authority;
-- source-front-door/source-artifact markers are the only input during RVV
-  Stage 1.
+- source-front-door/source-artifact markers are the only RVV input
+  (these routes fail closed, 见 core-invariants I7).
 
 Target export must not synthesize C bodies, headers, objects, bundles, runtime
 ABI, dispatch source, or self-checks from descriptors, route ids, selected
@@ -250,29 +250,30 @@ c_name/c_type/abi_role/artifact name -> infer dtype/operation/route
 
 ## Source Front Doors
 
-Source-front-door and source-artifact bundle flows are future/Stage3 or
-explicit opt-in flows. They are disabled by default for current RVV Stage 1.
+Source-front-door and source-artifact bundle flows are future or explicit
+opt-in flows. They are disabled by default and fail closed (见 core-invariants
+I7).
 
-During Stage 1, source-only RVV inputs must fail closed unless they already
-materialize a corrected typed `tcrv_rvv` body through an explicit opt-in path
-after the mature route exists. Positive RVV generated artifact tests must not
-start from source-front-door metadata.
+Source-only RVV inputs must fail closed unless they already materialize a
+corrected typed `tcrv_rvv` body through an explicit opt-in path over an existing
+mature route. Positive RVV generated artifact tests must not start from
+source-front-door metadata.
 
 Template, Toy, TensorExtLite, IME, Offload, and future plugin source-front-door
-examples are Stage3/later examples. They must not become the current source or
-route authority before RVV maturity.
+examples are future examples. They must not become the current source or route
+authority.
 
-## Family-Specific Stage Gates
+## Family Maturity Status
 
-- RVV: active Stage1/Stage2 path, typed body and plugin route provider
+- RVV: the current real/mature path; typed body and plugin route provider
   required.
 - Scalar fallback: no active executable scalar body; unsupported diagnostics
-  only until later rebuild.
-- IME: Stage3/later after RVV maturity and real hardware/toolchain evidence.
-- Offload: Stage3/later; current no-active-route validation must not export
+  only until a later rebuild.
+- IME: not built yet (N2 second-family target); needs real hardware/toolchain
+  evidence.
+- Offload: not built yet; current no-active-route validation must not export
   artifacts.
-- TensorExtLite / Template / Toy: Stage3/later examples only unless explicitly
-  promoted after RVV maturity.
+- TensorExtLite / Template / Toy: future examples only.
 - Future plugins: evidence scenarios only until admitted by explicit spec/task.
 
 ## Good / Bad Cases
@@ -307,7 +308,7 @@ Bad:
 
 ```text
 source-artifact marker
-  -> positive RVV Stage1 artifact
+  -> positive RVV artifact
 ```
 
 Bad:

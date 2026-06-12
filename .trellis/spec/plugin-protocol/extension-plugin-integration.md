@@ -5,9 +5,9 @@
 This contract describes how a new extension family integrates with TianChen-RV
 without rewriting core passes or turning metadata into executable authority.
 
-Current RVV maturity work has priority. IME, Offload, TensorExtLite,
-Template/Toy, source-front-door, and future-family positives are Stage3/later
-unless an explicit task opens them after RVV maturity.
+RVV is the current real/mature family. IME, Offload, TensorExtLite,
+Template/Toy, source-front-door, and future-family positives are not built yet
+(见 [../guides/trunk-discipline.md](../guides/trunk-discipline.md)).
 
 ## Standard Flow
 
@@ -70,12 +70,12 @@ valid compute or route input.
 ## Source Front Doors
 
 Source-front-door defaults must be explicit-only or disabled. Positive
-source-front-door examples are Stage3/later unless a task explicitly enables a
+source-front-door examples are future work unless a task explicitly enables a
 mature typed-body route for that family.
 
-During RVV Stage 1, source-front-door/source-artifact RVV paths are
-fail-closed. No current test should require positive RVV artifact generation
-from source-only metadata.
+Source-front-door/source-artifact RVV paths fail closed (见 core-invariants
+I7). No current test should require positive RVV artifact generation from
+source-only metadata.
 
 ## Integration Checklist
 

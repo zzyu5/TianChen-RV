@@ -6,12 +6,14 @@
 
 | Guide | Purpose |
 |---|---|
+| [Trunk Discipline](./trunk-discipline.md) | 怎么选下一步该做什么——对齐主干，抵抗挑小问题的引力 |
 | [Capability-First Design Guide](./capability-first-design-guide.md) | 检查设计是否真的由 capability 驱动 |
 | [Plugin Locality Review Guide](./plugin-locality-review-guide.md) | 检查新增扩展是否局部封装 |
 | [Compute Boundary Review Guide](./compute-boundary-review-guide.md) | 检查是否误把 TianChen-RV 写成高层 compute IR |
 
 ## Quick Routing
 
+- **选下一个 task / 怀疑自己在做枝节：先读 trunk-discipline。**
 - 修改 target、profile、variant legality、dispatch、emission path：读 capability-first guide。
 - 新增 RVV/IME/offload/future extension：读 plugin-locality guide。
 - 新增 op/dialect/pass 表达：读 compute-boundary guide。

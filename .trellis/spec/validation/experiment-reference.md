@@ -8,15 +8,7 @@ TianChen-RV MLIR is first a capability-driven RISC-V execution layer. Experiment
 
 ## Hardware Conditions
 
-### RVV main
-
-```text
-access: ssh rvv
-hardware: RISC-V CPU, 64 cores
-vector: RVV 1.0
-permission: sudo available
-role: primary development, performance, and correctness environment
-```
+具体硬件环境（RVV main、K3/IME later、RISC-V Sophgo/offload）是当前事实，会变；权威定义在 [../capability-model/profiles.md](../capability-model/profiles.md)，不在本验证参考里重复。下面只保留与证据解释相关的、durable 的部分。
 
 Repeatable bounded hardware/toolchain evidence should be captured with
 `scripts/rvv_remote_probe.py`. Its artifacts are written below
@@ -34,22 +26,6 @@ This probe is a prerequisite evidence source for future RVV compiler claims,
 but it is not itself a TianChen-RV compiler correctness, runtime, supported
 emission, or performance artifact.
 
-### K3/IME later
-
-```text
-hardware: K3 / IME-capable RISC-V environment
-status: later acquisition/integration
-role: IME plugin integration and matrix-extension evaluation
-```
-
-### RISC-V Sophgo/offload
-
-```text
-hardware: RISC-V host + Sophgo accelerator path
-role: runtime-offload capability evaluation
-note: not custom RISC-V ISA evidence
-```
-
 ## Research Questions
 
 ### Q1: Can TianChen-RV generate valid code on real RVV hardware?
@@ -66,7 +42,7 @@ elementwise + reduction fusion
 attention micro-kernel fragments
 ```
 
-These objects calibrate Stage2 RVV coverage and future frontend proof. They do
+These objects calibrate RVV coverage and future frontend proof. They do
 not make current high-level Linalg/frontend lowering the source authority.
 Current RVV codegen claims must still flow through selected `tcrv.exec`
 variants, typed `tcrv_rvv` bodies, RVV plugin legality/realization, provider
@@ -102,8 +78,8 @@ Profiles:
 
 ```text
 RVV only
-RVV + offload runtime, Stage3/later after RVV maturity
-RVV + IME, Stage3/later after K3 available
+RVV + offload runtime (offload not built yet)
+RVV + IME (IME not built yet)
 fallback-only profile
 ```
 
@@ -111,8 +87,8 @@ Expected behavior:
 
 ```text
 RVV only -> RVV variant + fallback
-RVV + offload -> future Stage3 RVV variant + offload variant + dispatch + fallback
-RVV + IME -> future Stage3 RVV variant + IME variant + dispatch + fallback
+RVV + offload -> RVV variant + offload variant + dispatch + fallback (once offload is built)
+RVV + IME -> RVV variant + IME variant + dispatch + fallback (once IME is built)
 fallback-only -> fallback
 ```
 
@@ -128,7 +104,7 @@ diagnostics are clear
 
 ### Q3: Is extension plugin integration local?
 
-Stage3/later reference process:
+Reference process (once the second family is built):
 
 ```text
 system has mature RVV plugin
@@ -152,9 +128,9 @@ reuse of tcrv.exec.variant / dispatch / verifier orchestration
 
 ### Q4: Can runtime-offload capability join the same execution layer?
 
-Q4 is Stage3/later after RVV maturity unless explicitly selected. It is not
-current RVV Stage1/Stage2 work and must not introduce source-front-door or
-offload artifact authority before the gate opens.
+Q4 covers offload, which is not built yet. It must not introduce
+source-front-door or offload artifact authority (these routes fail closed,
+见 core-invariants I7)。
 
 Objects:
 
@@ -192,8 +168,8 @@ This validates runtime-offload capability, not custom RISC-V ISA.
 
 ### Q5: After IME arrives, can plugin-local matrix-extension integration be shown?
 
-Q5 is Stage3/later after RVV maturity and after real IME hardware/toolchain
-evidence exists.
+Q5 covers IME, the N2 second-family target, which is not built yet and needs
+real IME hardware/toolchain evidence.
 
 Objects:
 
@@ -261,7 +237,7 @@ Any future extension never needs core changes.
 TianChen-RV is a new high-level tensor IR.
 Structured kernel validation objects are current source-route authority.
 Offload or IME dispatch is required before RVV typed-route maturity.
-Source-front-door generated artifacts prove RVV Stage1 maturity.
+Source-front-door generated artifacts prove RVV maturity.
 ```
 
 Use:

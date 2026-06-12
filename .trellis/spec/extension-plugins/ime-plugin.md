@@ -2,12 +2,12 @@
 
 ## Role
 
-IME plugin is the later K3/IME extension family path inside the unified TCRV
-system. Its primary value is to validate plugin-local matrix-extension
-integration without turning IME into an independent backend.
+IME plugin is the K3/IME extension family path inside the unified TCRV
+system. It is the N2 second-family target — the family to be built that proves
+zero-core-branch plugin generalization — not an independent backend. It is not
+built yet.
 
-Expected Stage3/later behavior when IME is available and RVV maturity has been
-established:
+Expected behavior once IME is available:
 
 ```text
 existing system supports RVV
@@ -27,9 +27,8 @@ vector-register-backed matrix execution
 RVV-resource-related matrix/dot execution
 ```
 
-All executable IME integration is Stage3/later unless an explicit task promotes
-it after RVV typed-body route maturity and real hardware/toolchain evidence.
-The op classes below are future evidence scenarios, not current
+Executable IME integration is future work and needs real hardware/toolchain
+evidence. The op classes below are future evidence scenarios, not current
 source-front-door or high-level frontend work.
 
 IME plugin must understand:
@@ -118,7 +117,7 @@ int8/fp16/bf16 dot-like kernels
 ```
 
 It does not need to cover every operator. It should cover operators that show
-matrix-extension value after the Stage3 gate is explicitly opened.
+matrix-extension value once IME is built.
 
 ## Legality Rules
 

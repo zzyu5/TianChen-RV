@@ -22,7 +22,7 @@ This is a `runtime-offload capability`, not a custom RISC-V ISA extension.
 
 The first concrete C++ runtime-offload slice is intentionally bounded and is
 currently stale/no-active-route validation only. Executable Offload integration
-is Stage3/later unless explicitly selected after RVV maturity. The current
+is future work, not yet built. The current
 slice may prove plugin identity, explicit capability gating, proposal metadata,
 legality routing, conservative preference metadata, and unsupported
 diagnostics after descriptor artifact deletion; it must not publish a target
@@ -175,7 +175,7 @@ object-generation step, correctness result, or performance result.
 When the selected offload path has this matching lowering boundary, the current
 compiler may report the selected metadata surface and an unsupported diagnostic
 mirror. It must not emit a target artifact or bundle record for Offload until a
-future Stage3 runtime C ABI lowering path is specified and implemented.
+future runtime C ABI lowering path is specified and implemented.
 
 Future types may include:
 
@@ -202,7 +202,7 @@ tcrv.offload.shape_guard
 
 ## Variant Generation Scope
 
-Future Stage3/later validation may prioritize coarse-grained operators:
+Future validation may prioritize coarse-grained operators:
 
 ```text
 matmul / batched matmul

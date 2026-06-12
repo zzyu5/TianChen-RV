@@ -53,7 +53,7 @@ high-level tensor compute in core dialect
 
 ## Correct Transform Shape
 
-Current RVV Stage1/Stage2 shape:
+Current RVV shape:
 
 ```text
 hand-authored or selected TianChen-RV MLIR
@@ -64,7 +64,7 @@ hand-authored or selected TianChen-RV MLIR
   -> common EmitC route
 ```
 
-Future frontend shape after RVV maturity:
+Future frontend shape (not built yet):
 
 ```text
 high-level MLIR op

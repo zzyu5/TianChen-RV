@@ -12,7 +12,7 @@ backend dialects.
 - [ ] Does the plugin declare capability, legality, tuning, cost, and emission behavior?
 - [ ] Does the plugin rely on `tcrv.exec` for variant/dispatch/fallback structure?
 - [ ] Does the plugin use common TCRV interfaces and the common EmitC route where possible?
-- [ ] Is RVV Stage 1/2 work prioritized before IME/offload/future-family positive workflows?
+- [ ] Is the work advancing the real RVV trunk rather than a not-yet-built family? (见 [../guides/trunk-discipline.md](../guides/trunk-discipline.md))
 - [ ] If this is RVV, does executable support start from typed `tcrv_rvv` body and plugin route provider rather than legacy `i32m1` route tables?
 - [ ] If this is scalar fallback, is there no active executable scalar body unless a later rebuild task adds one?
 - [ ] Are current hardware claims limited to verified environments?
@@ -29,15 +29,16 @@ backend dialects.
 
 ## Quality Check
 
-- RVV is the first full plugin and current mainline.
-- Stage 1 resets RVV route authority and fail-closes legacy `RVVI32M1*` /
-  `rvv-i32m1-*` executable routes.
-- Stage 2 expands coverage and selected-body realization on the corrected typed
-  `tcrv_rvv` surface. For performance-sensitive RVV work, Stage 2 also requires
-  resource-aware selected-body realization or measured same-target evidence
-  before claiming tuning or parity with handwritten kernels.
+- RVV is the first full plugin and the current real/mature mainline.
+- Legacy `RVVI32M1*` / `rvv-i32m1-*` executable routes fail closed; route
+  authority is the corrected typed `tcrv_rvv` surface (见 core-invariants I7).
+- Coverage and selected-body realization build on that typed `tcrv_rvv` surface.
+  For performance-sensitive RVV work, claim tuning or parity with handwritten
+  kernels only with resource-aware selected-body realization or measured
+  same-target evidence.
 - Scalar fallback has no active executable scalar body unless rebuilt later.
-- IME and Offload executable integration are Stage3/later unless explicitly
-  selected after RVV maturity.
-- Future plugins remain Stage3/later slots unless actual target facts and an
-  explicit task promote them.
+- IME and Offload executable integration are not built yet; IME is the N2
+  second-family target (to be built), not a forbidden path. RVV 是当前唯一成熟
+  family；别为没建的 family 晾下还没打穿的 RVV 主线（见 [../guides/trunk-discipline.md](../guides/trunk-discipline.md)）。
+- Future plugins are future slots: add one only when actual target facts and an
+  explicit task make it real.

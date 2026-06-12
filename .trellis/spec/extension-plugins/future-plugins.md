@@ -12,7 +12,7 @@ vendor-specific custom instructions
 sparse / DMA / cluster / accelerator runtime variants
 ```
 
-These are Stage3/later extension slots, not current required hardware paths and
+These are future extension slots, not current required hardware paths and
 not current source-front-door authority.
 
 ## Required Rule

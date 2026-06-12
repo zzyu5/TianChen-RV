@@ -1,113 +1,44 @@
 # Target Profiles
 
-Profiles are capability fixtures, not task milestones. They describe target facts that can be queried, verified, and used by passes.
+Profiles 是 capability fixture：描述可被 pass 查询/验证的具体目标事实。它们是 capability 输入，**永远不**创造 `tcrv_rvv` body、dtype authority、route id、source-front-door route 或 intrinsic 选择（见 [core-invariants](../architecture/core-invariants.md) I5）。
 
-## RVV Main Profile
+具体的 VLEN/VLENB/dtype 支持等应**探测或带 provenance 声明，不靠猜**——它们是 target capability 事实，不是 runtime SSA/control 值，也不是 per-variant 常量。
+
+## rvv-main（当前主真实硬件）
 
 ```text
-name: rvv-main
-access: ssh rvv
-hardware: RISC-V CPU, 64 cores
-vector: RVV 1.0
+access:     ssh rvv
+hardware:   RISC-V CPU, 64 cores（实测值，以 probe 为准）
+vector:     RVV 1.0
 permission: sudo available
-role: primary development, primary performance, primary correctness
+role:       primary development / correctness / performance
 ```
 
-Capability examples:
+capability 示例：`rv64`、`rvv`、`zvl128b`（或实测最小 VLEN / raw VLENB）、fp32/fp64（依硬件）、thread-runtime（OpenMP/pthread）、native compile 支持。
+
+稳定的 profile capability id 保持 plugin-local 且通用：`rv64`、`rvv`、`rvv.hart_count`、`riscv.toolchain.march`/`mabi`、`rvv.toolchain.clang`/`cmake`、`rvv.probe.compile_run`。provider 身份、benchmark 名、日志、性能测量值**不得**变成 capability id（I9）。`rvv.hart_count` 可 `provides = ["target.hart_count"]`，其 `count` 是 uarch 事实，不是 runtime thread 数、dispatch guard、tensor shape、AVL/VL。
+
+证据规则：RVV correctness/runtime/performance 主张要真 `ssh rvv` 证据并命名本 profile（或派生 probed profile）；本地 compile-only / smoke / 文档改动都不是 runtime 证据（I8）。Python probe 可暴露 sanitized `capability_facts`，但**不得**把它翻译成 `tcrv.exec` capability/target/route mirror/typed body/route 输入/fallback 建模（I6）；从 probe 证据到 compiler-visible capability 的权威转换是 plugin-local C++ RVV capability profile 校验 + `TargetCapabilitySet` 填充。probe 也不得伪造 SEW/LMUL/tail/mask 这类 plugin-selected 编译期 config 事实。
+
+## k3-ime（后续 IME 接入 —— N2 的关键证据点）
 
 ```text
-rv64
-rvv
-zvl128b or actual probed minimum VLEN / raw VLENB bytes
-fp32/fp64 depending on hardware
-thread-runtime: OpenMP or pthread
-native compile support
-```
-
-Rules:
-
-- This is the current real hardware mainline.
-- RVV correctness, runtime, or performance claims require real `ssh rvv` evidence.
-- RVV evidence should include probe output for relevant facts such as host identity, RISC-V architecture, core count, RVV/toolchain availability, CMake availability, and sudo behavior when relevant.
-- Probe artifacts may expose a sanitized `capability_facts` section as bounded
-  evidence-tool output. Python probe tooling must not translate that section
-  into `tcrv.exec` MLIR capability, target, kernel, selected route mirror,
-  selected typed body, route provider input, or scalar fallback modeling.
-- The authoritative transition from RVV probe evidence to compiler-visible
-  capabilities is plugin-local C++ RVV capability profile validation followed
-  by `TargetCapabilitySet` population. Python must not implement capability
-  relations, RVV legality, variant selection, lowering, emission, runtime ABI,
-  target profile generation, or fallback selection.
-- Remote probe output must not fabricate compiler-route config facts such as
-  first-slice SEW, LMUL, tail policy, or mask policy. Such finite config facts
-  are plugin-selected compiler facts, not raw hardware/toolchain evidence.
-- RVV profile facts are evidence and capability inputs only. They never create
-  `tcrv_rvv` bodies, dtype authority, route ids, source-front-door routes, or
-  intrinsic choices.
-- Required positive facts for the RVV probe-derived profile include `riscv64` architecture, `hart_count > 0`, bounded RVV ISA/vector hints, clang and CMake availability/version facts, minimal hand-written RVV compile/run success, and selected march/mabi facts when emitted by the probe.
-- Stable profile capability identities must remain plugin-local and generic,
-  such as `rv64`, `rvv`, `rvv.hart_count`, `riscv.toolchain.march`,
-  `riscv.toolchain.mabi`, `rvv.toolchain.clang`, `rvv.toolchain.cmake`,
-  `rvv.probe.compile_run`, `rvv.toolchain.march`, and `rvv.toolchain.mabi`;
-  provider identity, benchmark names, logs, and performance measurements must
-  not become capability IDs.
-- The RVV profile's `rvv.hart_count` capability may provide the generic
-  relation id `target.hart_count` while retaining its plugin-local owning id.
-  The `count` property is a hardware/uarch target fact for capability-aware
-  planning; it is not a runtime thread count, dispatch guard, tensor shape,
-  descriptor-local fixture size, AVL, or VL.
-- Local compile-only, local smoke-only, or unproven docs/spec changes must not be described as RVV runtime evidence.
-- RVV runtime/performance/correctness claims must name this profile or a derived probed profile.
-- VLEN, raw VLENB bytes, and dtype support should be probed or declared with
-  provenance, not guessed. They are target capability facts, not runtime
-  SSA/control values and not per-variant constants. Probe/profile code must not
-  preserve derived finite i32/M1 lane-capacity facts as capability authority.
-
-## K3/IME Later Profile
-
-```text
-name: k3-ime
 hardware: SpacemiT/K3-class RISC-V system
-role: IME extension plugin validation
-status: later environment
+role:     IME extension plugin validation（第二个非-RVV family）
+status:   later environment
 ```
 
-Capability examples:
+capability 示例：`rvv`、`spacemit.ime`、vector-register-backed matrix capability、vendor intrinsic / inline asm path。
+
+这是验证"新增 matrix-like 扩展能否经 IME 插件局部接入"的环境——**它是 N2 能否被证明的载体**。在拿到并 probe 真实硬件前，按 later plugin validation 对待，不写成当前主硬件；IME runtime/performance 主张要真 K3/IME 硬件与 toolchain 证据。
+
+## riscv-sophgo-offload（runtime-offload case）
 
 ```text
-rvv
-spacemit.ime
-vector-register-backed matrix capability
-vendor intrinsic or inline asm path
+hardware: RISC-V host + Sophgo accelerator
+role:     runtime-offload capability case
 ```
 
-Rules:
+capability 示例：`rvv` 或 scalar CPU fallback、sophgo runtime available、C ABI call path、PCIe/SoC mode、async（若有）。
 
-- Treat K3/IME as a later plugin validation path until actual hardware/toolchain facts exist.
-- IME capability depends on RVV/vector-register-backed resource constraints and vendor emission path.
-- Do not make IME the current primary hardware route unless the environment is verified.
-- IME runtime/performance claims require real K3/IME hardware and toolchain evidence.
-
-## RISC-V Sophgo Offload Profile
-
-```text
-name: riscv-sophgo-offload
-hardware: RISC-V host + Sophgo accelerator path
-role: runtime-offload capability case
-```
-
-Capability examples:
-
-```text
-rvv or scalar CPU fallback
-sophgo runtime available
-C ABI call path
-PCIe or SoC mode
-async call if available
-```
-
-Rules:
-
-- Model this as `kind = "runtime-offload"`.
-- Do not classify this as custom RISC-V ISA.
-- Cost and dispatch must include runtime launch, transfer, sync, and fallback behavior.
+建模为 `kind = "runtime-offload"`，**不**归类成 RISC-V custom ISA。cost/dispatch 必须含 runtime launch、transfer、sync、fallback 行为。

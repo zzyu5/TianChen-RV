@@ -38,6 +38,7 @@ This layer defines how hardware/runtime extensions integrate with TianChen-RV.
 - Descriptor-driven computation must not be used as the template for adding a
   new extension family.
 - Source-front-door defaults must be explicit-only or disabled. `Eligible` is
-  never a safe default for current RVV Stage1/Stage2 work.
+  never a safe default for RVV work (source-front-door routes fail closed,
+  见 core-invariants I7).
 - A new extension's "fast path" should reduce architecture decision search,
   not avoid family-specific ops/types/attrs/verifiers/EmitC mapping/tests.

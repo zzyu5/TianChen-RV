@@ -6,9 +6,9 @@ This template is a compact checklist for adding a future extension family. It
 is not an executable manifest system, semantic role graph engine, construction
 template artifact pipeline, readiness dashboard, or source-front-door default.
 
-RVV Stage1/Stage2 remains the current maturity path. Template, Toy,
-TensorExtLite, IME, Offload, and future plugin positive examples are
-Stage3/later unless explicitly selected after RVV maturity.
+RVV is the current real/mature family. Template, Toy, TensorExtLite, IME,
+Offload, and future plugin positive examples are not built yet
+(见 [../guides/trunk-discipline.md](../guides/trunk-discipline.md)).
 
 ## Required Plugin Sections
 
@@ -22,7 +22,7 @@ concrete MLIR namespace
 plugin name/version
 target capability ids
 toolchain/runtime assumptions
-current stage gate
+maturity status (real / not yet built)
 ```
 
 ### 2. Capability Contract
@@ -119,10 +119,10 @@ variant selection and route materialization.
 
 ## Source Front-Door Policy
 
-Default policy is explicit-only or disabled. Positive source-front-door
-workflows for Toy, Template, TensorExtLite, IME, Offload, or future plugins are
-Stage3/later examples. They must not be copied into current RVV Stage1/Stage2
-work.
+Default policy is explicit-only or disabled (source-front-door routes fail
+closed, 见 core-invariants I7). Positive source-front-door workflows for Toy,
+Template, TensorExtLite, IME, Offload, or future plugins are future examples.
+They must not be copied into current RVV work.
 
 ## Good / Bad Template Use
 
@@ -154,5 +154,5 @@ Bad:
 
 ```text
 Template/Toy/TensorExtLite source marker
-  -> current positive workflow before RVV maturity
+  -> current positive workflow for a not-yet-built family
 ```
