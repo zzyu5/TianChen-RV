@@ -62,6 +62,16 @@ rm -f build/bin/tcrv-opt build/bin/tcrv-translate
 ```
 任何"删 owner / 换 emitter / 改 validator"后，**先 rm 工具强制重链，再 full lit**，否则别相信计数。
 
+**更狠的坑——改了 header/struct layout（如 CapabilityDescriptor 字段）：** depfile bug 让
+**别的 target 的 `.o` 不会因 header 变化重编**（depfile 根本没列那个 header）→ 旧 layout 的
+`.o` 链新 layout 的 lib → `sizeof`/offset ABI mismatch → **运行时内存损坏 / 段错误**，build 还
+是绿的。`rm 工具` 救不了（test/plugin 的 `.o` 仍旧）。改 header/struct 后唯一可信：
+```
+(cd build && ninja -t clean && ninja && ninja bin/tcrv-opt bin/tcrv-translate)
+```
+注意 `ninja`（无参）**不建 tcrv-opt**（非默认 target）——clean 后必须显式 `ninja bin/tcrv-opt
+bin/tcrv-translate`，否则全部测试 exit 127（"494 reds" 假灾难其实是工具没建）。
+
 ## Rule
 
 引用 core-invariants **I4**（metadata 是 mirror 不是 authority）、**I5**（可执行事实在 typed
