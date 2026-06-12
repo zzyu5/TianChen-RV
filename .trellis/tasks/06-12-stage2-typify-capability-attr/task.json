@@ -3,7 +3,7 @@
   "name": "stage2-typify-capability-attr",
   "title": "stage2 立真: typify capability as MLIR Attr (N1 first evidence)",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

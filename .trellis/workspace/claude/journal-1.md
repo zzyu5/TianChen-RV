@@ -193,3 +193,77 @@ Stage 1 去伪: removed ~7.3k lines dead weight (front-door fail-closed pass, go
 ### Next Steps
 
 - None - task complete
+
+## 2026-06-13 — Stage 3 换心: first family converted on real hardware
+
+Goal (user): 完成真正的去除字符串/换心 + Stage 2 along the way + ssh rvv 灯证据 +
+clean/aesthetic/real-research. ssh rvv CONFIRMED live (rv64imafdcv...zve64d, clang).
+
+Fable architecture decision (Workflow wecebi3aa → research/heart-replacement-plan.md):
+**HYBRID** = real MLIR DialectConversion (RewritePatternSet+OpConversionPattern+
+TypeConverter+ConversionTarget — the repo's FIRST, fixes the 0-ConversionPattern red
+flag) over the EXISTING typed tcrv_rvv ops; pattern bodies build emitc directly on
+typed SSA Values (no string plan, no re-parser); emitc.call_opaque keeps the intrinsic
+NAME (idiomatic) but TYPED operands; strangler-fig per family. Beachhead: unit-stride
+elementwise add (i32,m1).
+
+Progress (commits, each build-green + lit 542/3 environmental-only):
+- Baseline I8 lamp: existing add path compiles+runs+numeric-correct on real ssh rvv
+  (research/baseline-add-hardware-lamp/, golden-add-emitc.cpp = equivalence oracle).
+- **205460d8** conversion scaffold: TypeConverter+ConversionTarget+applyPartialConversion
+  no-op pass --tcrv-rvv-lower-to-emitc. First real conversion infra in the repo.
+- **bc4b0251** add-family OpConversionPatterns: typed body → structured emitc; renders
+  BYTE-IDENTICAL to the hardware-validated golden (mlir-translate --mlir-to-cpp). riscv-
+  IntrinsicName mangler over types; with_vl→emitc.for, runtime_abi_value→func params,
+  n-i→emitc.sub, base+i→emitc.add. No leftover tcrv ops / casts.
+- **769739b0** export swap: try-convert-else-fallback at TargetArtifactExport.cpp seam
+  (speculative conv on a clone; full-legalize → use, else legacy). No family-name branch
+  (N2/I3-clean). convertRVVModuleToEmitC shared by pass+seam. convertVectorTypeToEmitC
+  guard fixed an m2 half-conversion regression. **ssh rvv lamp via the CONVERTED export:
+  PASS op=add** (real riscv64, clang 18.1.3). add/sub/mul all convert; **mul lamp PASS** too.
+
+**State:** 换心 PROVEN + operational on the LIVE export path for elementwise add/sub/mul,
+hardware-validated, byte-identical output, real MLIR mechanism. HONEST caveat: the string
+machine is NOT yet shrunk — conversion is so far ADDITIVE (parallel path); deleting the
+elementwise string plan is gated on converting its fuller scope (masked/scalar-broadcast/
+strided variants still fall back) so the fallback isn't broken. lib/Plugin/RVV/EmitC still
+~82k lines until coverage grows enough to delete owners.
+
+**Next (family ladder, repeat the proven recipe):** convert the rest of elementwise
+(scalar-broadcast, masked, strided) → then DELETE the elementwise *PlanOwners string plan
+(first real 去除字符串) → then reduction/macc/segment2/widening-dot → retire RoutePlanning
++ the re-parser. Each family: patterns → structural lit → ssh rvv lamp → delete its string
+plan → re-green. Stage 2 Phase-B (retire string CapabilityModel, advisor #1) interleave.
+
+
+## Session 2: Stage3 换心: decouple export seam from string route (STEP1); elementwise owner deletion blocked by 2nd live consumer
+
+**Date**: 2026-06-13
+**Task**: Stage3 换心: decouple export seam from string route (STEP1); elementwise owner deletion blocked by 2nd live consumer
+**Branch**: `main`
+
+### Summary
+
+STEP1 done: materializeSelectedEmitCArtifactModule now attempts conversion FIRST and validates converted elementwise families WITHOUT the string route (new requireConvertedSelectedEmitCMaterializedHandoff checks well-formed emitc + exact exported fn name); route built only on fallback. getSelectedEmitCArtifactFunctionName no longer builds the route. Build green, full lit 3 reds==baseline, all 7 elementwise op-kinds PASS on ssh rvv. STEP2 (delete owner) BLOCKED+reverted: --tcrv-materialize-emission-plans pass is a 2nd live consumer of the elementwise statement-plan owner (61 PLAN fixtures + HEADER export chain off it); deleting broke 57 lit tests with diagnoseMissingRVVSelectedBodyRouteStatementPlanOwner. Per dead-mirror guide rule4 / task guardrail: do NOT force. Evidence in research/elementwise-postdeletion-hardware-lamps/.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6f3ba3ad` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

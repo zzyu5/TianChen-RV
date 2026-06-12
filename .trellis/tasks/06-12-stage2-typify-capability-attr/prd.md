@@ -61,6 +61,32 @@ conflicts 现在只走 typed `#tcrv.capability_relations<...>`。**
 - `CapabilityDescriptor`/`TargetCapabilitySet` 仍内部持 std::string（Phase B：等 id/kind/status/
   properties 全 typed 后整体删字符串模型；属更后期 stage）。
 
+## Fable advisor review (2026-06-12) — 3 findings shaping Phase B
+
+经 Fable-5 顾问（advisor 工具不可用，改用 Agent model=fable）评审，VERDICT =
+sound-with-caveats，无 correctness 回归（删除确为死码、I7/I8 enforcement 在
+RVVTargetSupportBundle.cpp 完好，且该结论 mirage-proof——基于读活代码而非 lit 计数）。
+三条 Phase-B 必读 correction：
+
+1. **【最高·设计决策】先定 `CapabilityModel` 字符串模型的去留，再 typed 更多字段。** 当前
+   Stage-2 模式是「typed attr → `makeDescriptor` 立刻 restringify 成 `SmallVector<std::string>`
+   → passes 全走 `std::string ==`」（CapabilityModel.cpp:101-127,205-217,272-287；消费者
+   `classifyRVVSatisfaction` RVVEmitCRoutePlanning.cpp:81-90 仍 string-compare）。**若 kind/
+   status/properties 照此再 typed，会付全部 ODS 成本却仍在 resolution 层不是 first-class——
+   字符串模型永久藏在 typed 立面后，I1 变 cosmetic。** Phase-B 开工前必须承诺方向：
+   要么退役 `CapabilityDescriptor`/`TargetCapabilitySet`（passes 直接查 typed model/attr，
+   I1 落地），要么显式接受 typed-attr 只是序列化层。**推荐前者**（否则 N1 只是外壳）。
+2. **【fail-closed 缺口】给悬空 relation id 加 pass-time 诊断。** verifier 仅 hygiene
+   （ExecOps.cpp:184-211 无跨 op 解析），`conflicts=["typo.id"]` 解析不到任何 provider 也静默
+   通过——capability 关系可悬空，I1/fail-closed-adjacent 漏洞。resolution 本是 pass-time 事，
+   故在 pass 加「unresolved relation id」诊断（非 verify 时）。
+3. **【已做 ✅】**把 38e8c2d0 重锁的 122 条 golden 全句 CHECK 放松成 token regex
+   （commit edf02844）——顾问点名的 anti-golden 一致性已补。
+
+诚实校准：N1 "first evidence" 应表述为「relations 的 IR 表示已 typed+verified，且一个真实
+legality 决策（CheckCapabilityRequires 冲突路径）从 typed attr 取数」，**不是**「capability
+已是 first-class queryable」——是 I1 的首付，不是 I1 达成。
+
 ## Out of Scope
 
 - 不要求一次迁完所有消费者（strangler-fig 分步）。
