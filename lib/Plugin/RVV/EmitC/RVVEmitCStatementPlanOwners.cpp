@@ -369,10 +369,15 @@ getRVVSelectedBodyMigratedRouteStatementPlanOwners() {
       {"plain MAcc", RVVSelectedBodyMigratedRouteStatementPlanFamily::PlainMAcc,
        isRVVSelectedBodyPlainMAccStatementPlanConsumer,
        buildRVVSelectedBodyPlainMAccMigratedRouteStatementPlan},
-      {"base memory movement",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::BaseMemoryMovement,
-       isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer,
-       buildRVVSelectedBodyBaseMemoryMovementMigratedRouteStatementPlan},
+      // BaseMemoryMovement retired (Stage 3 换心): the whole family converts
+      // through the real DialectConversion (RVVToEmitC.cpp) and the shared gate
+      // rvvSelectedBodyFullyConvertsToEmitC decouples every valid body, so no
+      // base-memory body ever reaches this string statement-plan dispatch. The
+      // owner builder + helpers are deleted; the family-plan provider machine
+      // (isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer,
+      // getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan,
+      // verifyRVVSelectedBodyBaseMemoryMovementRouteProviderFacts) stays as the
+      // description/provider source of truth shared with the route provider.
       {"computed-mask memory",
        RVVSelectedBodyMigratedRouteStatementPlanFamily::ComputedMaskMemory,
        isRVVSelectedBodyComputedMaskMemoryStatementPlanConsumer,

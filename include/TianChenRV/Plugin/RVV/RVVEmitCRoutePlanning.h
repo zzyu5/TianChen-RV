@@ -1414,23 +1414,10 @@ struct RVVSelectedBodyPlainMAccRouteStatementPlan {
   conversion::emitc::TCRVEmitCForLoop loop;
 };
 
-struct RVVSelectedBodyBaseMemoryMovementRouteStatementPlan {
-  const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan
-      *baseMemoryMovementPlan = nullptr;
-
-  bool plansBaseMemoryMovementRoute = false;
-  bool plansStridedLoadUnitStore = false;
-  bool plansUnitLoadStridedStore = false;
-  bool plansIndexedGatherUnitStore = false;
-  bool plansIndexedScatterUnitLoad = false;
-  bool plansStaticMaskUnitLoadStore = false;
-  bool plansStaticMaskUnitStore = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
+// RVVSelectedBodyBaseMemoryMovementRouteStatementPlan retired (Stage 3 换心):
+// the base-memory string statement-plan owner is deleted — the whole family
+// converts through the real DialectConversion. The provider/family-plan structs
+// below stay as the shared description source of truth.
 struct RVVSelectedBodyBaseMemoryMovementRouteProviderPlan {
   const RVVSelectedBodyBaseMemoryMovementRouteFamilyPlan
       *baseMemoryMovementPlan = nullptr;
