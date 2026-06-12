@@ -5106,6 +5106,9 @@ void populateRVVLowPrecisionContractionResourceSelectionFromCandidate(
   selection.hasSelection = true;
   selection.candidateSetID = candidate.candidateSetID.str();
   selection.selectedCandidateID = candidate.candidateID.str();
+  selection.candidateCount = candidate.candidateCount;
+  selection.legalCandidateCount = candidate.legalCandidateCount;
+  selection.selectedCandidateIndex = candidate.candidateIndex;
   selection.selectionReason = candidate.selectionReason.str();
   selection.planningContract = candidate.planningContract.str();
   selection.legalityScope = candidate.legalityScope.str();
@@ -6008,6 +6011,22 @@ llvm::Error requireRVVLowPrecisionGearboxCrossRegionHandoffStructure(
           "resource_selected_candidate",
           handoff.getResourceSelectedCandidate(), selection.selectedCandidateID))
     return error;
+  if (llvm::Error error = requireHandoffResourceIntegerFact(
+          "resource_candidate_count",
+          static_cast<std::int64_t>(handoff.getResourceCandidateCount()),
+          selection.candidateCount))
+    return error;
+  if (llvm::Error error = requireHandoffResourceIntegerFact(
+          "resource_legal_candidate_count",
+          static_cast<std::int64_t>(handoff.getResourceLegalCandidateCount()),
+          selection.legalCandidateCount))
+    return error;
+  if (llvm::Error error = requireHandoffResourceIntegerFact(
+          "resource_selected_candidate_index",
+          static_cast<std::int64_t>(
+              handoff.getResourceSelectedCandidateIndex()),
+          selection.selectedCandidateIndex))
+    return error;
   auto planningContract =
       handoff->getAttrOfType<mlir::StringAttr>("planning_contract");
   if (!planningContract)
@@ -6561,6 +6580,21 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     return requireRVVLowPrecisionResourceRealizationIntegerFact(op, context,
                                                                 attrName);
   };
+  auto readOptionalInteger =
+      [&](llvm::StringRef attrName)
+      -> llvm::Expected<std::optional<std::int64_t>> {
+    mlir::Attribute attr = op->getAttr(attrName);
+    if (!attr)
+      return std::nullopt;
+    auto integerAttr = llvm::dyn_cast<mlir::IntegerAttr>(attr);
+    if (!integerAttr)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " low-precision direct-contraction resource selection requires "
+          "integer fact '" +
+          attrName + "'");
+    return integerAttr.getInt();
+  };
   auto readOptionalString =
       [&](llvm::StringRef attrName) -> std::optional<std::string> {
     if (auto attr = op->getAttrOfType<mlir::StringAttr>(attrName))
@@ -6578,6 +6612,42 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
     selection.selectedCandidateID = *value;
   else
     return value.takeError();
+  if (plan.usesProductReductionDequantization) {
+    llvm::Expected<std::optional<std::int64_t>> candidateCountOr =
+        readOptionalInteger(kRVVLowPrecisionResourceCandidateCountAttrName);
+    if (!candidateCountOr)
+      return candidateCountOr.takeError();
+    llvm::Expected<std::optional<std::int64_t>> legalCandidateCountOr =
+        readOptionalInteger(
+            kRVVLowPrecisionResourceLegalCandidateCountAttrName);
+    if (!legalCandidateCountOr)
+      return legalCandidateCountOr.takeError();
+    llvm::Expected<std::optional<std::int64_t>> selectedCandidateIndexOr =
+        readOptionalInteger(
+            kRVVLowPrecisionResourceSelectedCandidateIndexAttrName);
+    if (!selectedCandidateIndexOr)
+      return selectedCandidateIndexOr.takeError();
+    std::optional<std::int64_t> candidateCount = *candidateCountOr;
+    std::optional<std::int64_t> legalCandidateCount =
+        *legalCandidateCountOr;
+    std::optional<std::int64_t> selectedCandidateIndex =
+        *selectedCandidateIndexOr;
+    const bool hasAnyCandidateEnumerationFact =
+        candidateCount || legalCandidateCount || selectedCandidateIndex;
+    const bool hasAllCandidateEnumerationFacts =
+        candidateCount && legalCandidateCount && selectedCandidateIndex;
+    if (hasAnyCandidateEnumerationFact && !hasAllCandidateEnumerationFacts)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " low-precision direct-contraction resource selection requires "
+          "candidate_count, legal_candidate_count, and "
+          "selected_candidate_index to be carried together");
+    if (hasAllCandidateEnumerationFacts) {
+      selection.candidateCount = *candidateCount;
+      selection.legalCandidateCount = *legalCandidateCount;
+      selection.selectedCandidateIndex = *selectedCandidateIndex;
+    }
+  }
   if (llvm::Expected<std::string> value =
           readString(kRVVLowPrecisionResourceSelectionReasonAttrName))
     selection.selectionReason = *value;
@@ -7184,6 +7254,39 @@ deriveRVVLowPrecisionContractionResourceSelectionFromPassFacts(
       return value.takeError();
   }
 
+  if (plan.usesProductReductionDequantization &&
+      selection.candidateCount == 0 && selection.legalCandidateCount == 0 &&
+      selection.selectedCandidateIndex == 0) {
+    const RVVLowPrecisionContractionResourceOperation resourceOperation =
+        plan.usesProductReductionDequantClamp
+            ? RVVLowPrecisionContractionResourceOperation::
+                  ProductReductionDequantClampF32
+            : RVVLowPrecisionContractionResourceOperation::
+                  ProductReductionDequantizeF32;
+    llvm::SmallVector<RVVLowPrecisionContractionResourceCandidate, 3>
+        candidates = buildRVVLowPrecisionProductReductionResourceCandidates(
+            resourceOperation, selection.tailPolicy, selection.maskPolicy,
+            selection.sourceSEW, selection.sourceLMUL, selection.productSEW,
+            selection.productLMUL, selection.accumulatorSEW,
+            selection.accumulatorLMUL, selection.resultSEW,
+            selection.resultLMUL, selection.vectorRegisterBudget);
+    std::optional<std::int64_t> selectedCandidateIndex =
+        getRVVLowPrecisionProductReductionSelectedCandidateIndex(
+            candidates, selection.selectedCandidateID);
+    if (!selectedCandidateIndex)
+      return makeRVVEmitCRouteProviderError(
+          llvm::Twine(context) +
+          " low-precision direct-contraction resource selection cannot "
+          "derive selected_candidate_index for selected candidate '" +
+          selection.selectedCandidateID + "'");
+    selection.candidateCount =
+        getRVVLowPrecisionProductReductionResourceCandidateCount(candidates);
+    selection.legalCandidateCount =
+        getRVVLowPrecisionProductReductionLegalResourceCandidateCount(
+            candidates);
+    selection.selectedCandidateIndex = *selectedCandidateIndex;
+  }
+
   populateRVVLowPrecisionContractionResourceRouteFacts(selection, plan);
   selection.targetCapabilityProviderMirror = targetFacts.providerMirror;
   selection.targetCapabilityLegalityMirror = targetFacts.legalityMirror;
@@ -7244,6 +7347,65 @@ llvm::Error requireRVVLowPrecisionResourceIntegerField(
       field + " " + llvm::Twine(expected) + " but found " +
       llvm::Twine(actual) + " for selected candidate '" +
        selection.selectedCandidateID + "'");
+}
+
+std::optional<RVVLowPrecisionContractionResourceOperation>
+getRVVLowPrecisionProductReductionResourceOperation(
+    RVVSelectedBodyOperationKind operation) {
+  if (operation ==
+      RVVSelectedBodyOperationKind::WideningProductReduceDequantizeF32)
+    return RVVLowPrecisionContractionResourceOperation::
+        ProductReductionDequantizeF32;
+  if (operation ==
+      RVVSelectedBodyOperationKind::WideningProductReduceDequantClampF32)
+    return RVVLowPrecisionContractionResourceOperation::
+        ProductReductionDequantClampF32;
+  return std::nullopt;
+}
+
+llvm::Error verifyRVVLowPrecisionProductReductionCandidateEnumeration(
+    llvm::StringRef context,
+    const RVVLowPrecisionContractionResourceSelection &selection,
+    RVVLowPrecisionContractionResourceOperation operation) {
+  llvm::SmallVector<RVVLowPrecisionContractionResourceCandidate, 3>
+      candidates = buildRVVLowPrecisionProductReductionResourceCandidates(
+          operation, selection.tailPolicy, selection.maskPolicy,
+          selection.sourceSEW, selection.sourceLMUL, selection.productSEW,
+          selection.productLMUL, selection.accumulatorSEW,
+          selection.accumulatorLMUL, selection.resultSEW, selection.resultLMUL,
+          selection.vectorRegisterBudget);
+  const std::int64_t expectedCandidateCount =
+      getRVVLowPrecisionProductReductionResourceCandidateCount(candidates);
+  const std::int64_t expectedLegalCandidateCount =
+      getRVVLowPrecisionProductReductionLegalResourceCandidateCount(candidates);
+  std::optional<std::int64_t> expectedSelectedCandidateIndex =
+      getRVVLowPrecisionProductReductionSelectedCandidateIndex(
+          candidates, selection.selectedCandidateID);
+  if (!expectedSelectedCandidateIndex)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision direct-contraction resource selection requires "
+        "selected candidate '" +
+        selection.selectedCandidateID +
+        "' to appear in the provider-regenerated Gearbox candidate set");
+  if (expectedCandidateCount < 2 || expectedLegalCandidateCount < 2)
+    return makeRVVEmitCRouteProviderError(
+        llvm::Twine(context) +
+        " low-precision direct-contraction resource selection requires at "
+        "least two provider-generated legal Gearbox candidates, but rebuilt " +
+        llvm::Twine(expectedLegalCandidateCount) + " legal candidate(s) from " +
+        llvm::Twine(expectedCandidateCount) + " candidate(s)");
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "candidate count", selection.candidateCount,
+          expectedCandidateCount))
+    return error;
+  if (llvm::Error error = requireRVVLowPrecisionResourceIntegerField(
+          context, selection, "legal candidate count",
+          selection.legalCandidateCount, expectedLegalCandidateCount))
+    return error;
+  return requireRVVLowPrecisionResourceIntegerField(
+      context, selection, "selected candidate index",
+      selection.selectedCandidateIndex, *expectedSelectedCandidateIndex);
 }
 
 llvm::Error verifyRVVLowPrecisionResourcePrimitiveSurfaceSelection(
@@ -8869,6 +9031,13 @@ llvm::Error verifyRVVLowPrecisionContractionResourceSelection(
           selection.vectorRegisterBudget,
           kRVVLowPrecisionResourceVectorRegisterBudget))
     return error;
+  if (std::optional<RVVLowPrecisionContractionResourceOperation>
+          resourceOperation = getRVVLowPrecisionProductReductionResourceOperation(
+              plan.operation))
+    if (llvm::Error error =
+            verifyRVVLowPrecisionProductReductionCandidateEnumeration(
+                context, selection, *resourceOperation))
+      return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "runtime AVL source",
           selection.runtimeAVLSource,
@@ -9170,6 +9339,13 @@ llvm::Error verifyRVVLowPrecisionContractionResourceDescriptionSelection(
           selection.vectorRegisterBudget,
           kRVVLowPrecisionResourceVectorRegisterBudget))
     return error;
+  if (std::optional<RVVLowPrecisionContractionResourceOperation>
+          resourceOperation = getRVVLowPrecisionProductReductionResourceOperation(
+              description.operation))
+    if (llvm::Error error =
+            verifyRVVLowPrecisionProductReductionCandidateEnumeration(
+                context, selection, *resourceOperation))
+      return error;
   if (llvm::Error error = requireRVVLowPrecisionResourceStringField(
           context, selection, "runtime AVL source",
           selection.runtimeAVLSource, description.runtimeAVLASource))

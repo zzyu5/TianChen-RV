@@ -143,6 +143,9 @@ struct RVVLowPrecisionContractionResourceSelection {
   bool hasSelection = false;
   std::string candidateSetID;
   std::string selectedCandidateID;
+  std::int64_t candidateCount = 0;
+  std::int64_t legalCandidateCount = 0;
+  std::int64_t selectedCandidateIndex = 0;
   std::string selectionReason;
   std::string planningContract;
   std::string legalityScope;
@@ -279,6 +282,9 @@ struct RVVLowPrecisionStableResourceCompilerFacts {
   bool hasSelection = false;
   llvm::StringRef candidateSetID;
   llvm::StringRef selectedCandidateID;
+  std::int64_t candidateCount = 0;
+  std::int64_t legalCandidateCount = 0;
+  std::int64_t selectedCandidateIndex = 0;
   llvm::StringRef selectionReason;
   llvm::StringRef planningContract;
   llvm::StringRef legalityScope;
@@ -379,6 +385,9 @@ makeRVVLowPrecisionStableResourceCompilerFacts(
   facts.hasSelection = selection.hasSelection;
   facts.candidateSetID = selection.candidateSetID;
   facts.selectedCandidateID = selection.selectedCandidateID;
+  facts.candidateCount = selection.candidateCount;
+  facts.legalCandidateCount = selection.legalCandidateCount;
+  facts.selectedCandidateIndex = selection.selectedCandidateIndex;
   facts.selectionReason = selection.selectionReason;
   facts.planningContract = selection.planningContract;
   facts.legalityScope = selection.legalityScope;
@@ -485,6 +494,9 @@ inline bool isRVVLowPrecisionStableResourceCompilerFactsEqual(
   return lhs.hasSelection == rhs.hasSelection &&
          lhs.candidateSetID == rhs.candidateSetID &&
          lhs.selectedCandidateID == rhs.selectedCandidateID &&
+         lhs.candidateCount == rhs.candidateCount &&
+         lhs.legalCandidateCount == rhs.legalCandidateCount &&
+         lhs.selectedCandidateIndex == rhs.selectedCandidateIndex &&
          lhs.selectionReason == rhs.selectionReason &&
          lhs.planningContract == rhs.planningContract &&
          lhs.legalityScope == rhs.legalityScope &&

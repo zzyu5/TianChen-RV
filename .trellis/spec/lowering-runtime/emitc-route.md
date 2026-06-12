@@ -4921,6 +4921,17 @@ reduction store VL = 1
   must come from
   `getRVVLowPrecisionResourceOwnerMirrorTransportContract()`, and header
   evidence for this marker must check the exact provider-owned source value.
+- For product-reduction dequantize/dequant-clamp low-precision resource routes,
+  the stable resource mirror set must include
+  `tcrv_rvv.low_precision_resource.candidate_count`,
+  `tcrv_rvv.low_precision_resource.legal_candidate_count`, and
+  `tcrv_rvv.low_precision_resource.selected_candidate_index` when the provider
+  selected a Gearbox resource candidate. Common EmitC may serialize these only
+  from `RVVLowPrecisionStableResourceCompilerFacts` or an equivalent
+  policy-free provider fact view. Target validation must compare candidate
+  metadata and header mirrors for these three fields against the provider-owned
+  resource selection; matching artifact metadata is not route authority, and
+  stale or partial enumeration mirrors fail before artifact acceptance.
 - Common EmitC/export must serialize stable low-precision resource mirrors from
   a policy-free provider compiler-fact view such as
   `RVVLowPrecisionStableResourceCompilerFacts`, not directly from a

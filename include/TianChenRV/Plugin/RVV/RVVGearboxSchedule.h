@@ -49,6 +49,14 @@ constexpr llvm::StringLiteral kRVVLowPrecisionResourceCandidateSetAttrName(
     "tcrv_rvv.low_precision_resource.candidate_set");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceSelectedCandidateAttrName(
     "tcrv_rvv.low_precision_resource.selected_candidate");
+constexpr llvm::StringLiteral kRVVLowPrecisionResourceCandidateCountAttrName(
+    "tcrv_rvv.low_precision_resource.candidate_count");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceLegalCandidateCountAttrName(
+        "tcrv_rvv.low_precision_resource.legal_candidate_count");
+constexpr llvm::StringLiteral
+    kRVVLowPrecisionResourceSelectedCandidateIndexAttrName(
+        "tcrv_rvv.low_precision_resource.selected_candidate_index");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourceSelectionReasonAttrName(
     "tcrv_rvv.low_precision_resource.selection_reason");
 constexpr llvm::StringLiteral kRVVLowPrecisionResourcePlanningContractAttrName(
@@ -869,6 +877,9 @@ enum class RVVLowPrecisionContractionResourceOperation {
 struct RVVLowPrecisionContractionResourceCandidate {
   llvm::StringRef candidateSetID;
   llvm::StringRef candidateID;
+  std::int64_t candidateCount = 0;
+  std::int64_t legalCandidateCount = 0;
+  std::int64_t candidateIndex = 0;
   llvm::StringRef selectionReason;
   llvm::StringRef planningContract;
   llvm::StringRef legalityScope;
@@ -1472,6 +1483,18 @@ buildRVVLowPrecisionProductReductionResourceCandidates(
         kRVVLowPrecisionResourceNoRejectionReason;
   populateRVVLowPrecisionResourcePackedI4ScheduleDecision(packedI4Candidate);
   candidates.push_back(packedI4Candidate);
+  const std::int64_t candidateCount =
+      static_cast<std::int64_t>(candidates.size());
+  std::int64_t legalCandidateCount = 0;
+  for (const RVVLowPrecisionContractionResourceCandidate &builtCandidate :
+       candidates)
+    if (builtCandidate.isLegal)
+      ++legalCandidateCount;
+  for (std::int64_t index = 0; index < candidateCount; ++index) {
+    candidates[index].candidateCount = candidateCount;
+    candidates[index].legalCandidateCount = legalCandidateCount;
+    candidates[index].candidateIndex = index + 1;
+  }
   return candidates;
 }
 
@@ -1483,6 +1506,34 @@ findRVVLowPrecisionProductReductionResourceCandidate(
        candidates)
     if (candidate.candidateID == candidateID)
       return candidate;
+  return std::nullopt;
+}
+
+inline std::int64_t getRVVLowPrecisionProductReductionResourceCandidateCount(
+    llvm::ArrayRef<RVVLowPrecisionContractionResourceCandidate> candidates) {
+  return static_cast<std::int64_t>(candidates.size());
+}
+
+inline std::int64_t
+getRVVLowPrecisionProductReductionLegalResourceCandidateCount(
+    llvm::ArrayRef<RVVLowPrecisionContractionResourceCandidate> candidates) {
+  std::int64_t count = 0;
+  for (const RVVLowPrecisionContractionResourceCandidate &candidate :
+       candidates)
+    if (candidate.isLegal)
+      ++count;
+  return count;
+}
+
+inline std::optional<std::int64_t>
+getRVVLowPrecisionProductReductionSelectedCandidateIndex(
+    llvm::ArrayRef<RVVLowPrecisionContractionResourceCandidate> candidates,
+    llvm::StringRef selectedCandidateID) {
+  for (std::int64_t index = 0,
+                    count = static_cast<std::int64_t>(candidates.size());
+       index < count; ++index)
+    if (candidates[index].candidateID == selectedCandidateID)
+      return index + 1;
   return std::nullopt;
 }
 
@@ -1647,6 +1698,9 @@ constexpr std::int64_t kRVVCompositeResourceVectorRegisterBudget = 32;
 inline bool isRVVLowPrecisionResourceAttrName(llvm::StringRef name) {
   return name == kRVVLowPrecisionResourceCandidateSetAttrName ||
          name == kRVVLowPrecisionResourceSelectedCandidateAttrName ||
+         name == kRVVLowPrecisionResourceCandidateCountAttrName ||
+         name == kRVVLowPrecisionResourceLegalCandidateCountAttrName ||
+         name == kRVVLowPrecisionResourceSelectedCandidateIndexAttrName ||
          name == kRVVLowPrecisionResourceSelectionReasonAttrName ||
          name == kRVVLowPrecisionResourcePlanningContractAttrName ||
          name == kRVVLowPrecisionResourceLegalityScopeAttrName ||

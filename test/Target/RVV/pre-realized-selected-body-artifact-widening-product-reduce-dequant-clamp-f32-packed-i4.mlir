@@ -37,6 +37,9 @@ module {
 }
 
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.candidate_count = 3 : i64
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.legal_candidate_count = 3 : i64
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.selected_candidate_index = 3 : i64
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.clamp_compare_select_phase = "lower-then-upper-compare-select"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.clamp_phase = "dequant-clamp-store"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.clamp_region_index = 2 : i64
@@ -60,7 +63,10 @@ module {
 // REALIZED-DAG: clamp_phase = "dequant-clamp-store"
 // REALIZED-DAG: clamp_region_index = 2 : i64
 // REALIZED-DAG: clamp_select_layout = "clamp-lower-then-upper"
+// REALIZED-DAG: resource_candidate_count = 3 : i64
+// REALIZED-DAG: resource_legal_candidate_count = 3 : i64
 // REALIZED-DAG: resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
+// REALIZED-DAG: resource_selected_candidate_index = 3 : i64
 // REALIZED-DAG: operand_form = "packed-i4-nibbles"
 // REALIZED-DAG: packed_load_unpack_contract = "rvv-packed-i4-load-unpack-resource-facts.v1"
 // REALIZED-DAG: packed_unpack_plan = "low-high-i4-sign-extend-to-i8mf4"
@@ -85,6 +91,9 @@ module {
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.performance_preferred_path_selected", value = "false"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.resource_owner_mirror_source", value = "provider-owned-low-precision-contraction-resource-selection.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.candidate_count", value = "3"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.legal_candidate_count", value = "3"}
+// PLAN: {key = "tcrv_rvv.low_precision_resource.selected_candidate_index", value = "3"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.operand_form", value = "packed-i4-nibbles"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.packed_load_unpack_contract", value = "rvv-packed-i4-load-unpack-resource-facts.v1"}
 // PLAN: {key = "tcrv_rvv.low_precision_resource.packed_storage_load", value = "unit-stride-vle8-i8mf4-packed-i4x2"}
@@ -112,6 +121,9 @@ module {
 // HEADER: tianchenrv.rvv.runtime_abi_order: lhs,rhs,acc,scale,lower_bound,upper_bound,out,n
 // HEADER: tianchenrv.rvv.low_precision_resource.resource_owner_mirror.source: provider-owned-low-precision-contraction-resource-selection.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]
+// HEADER: tianchenrv.rvv.low_precision_resource.candidate_count: 3
+// HEADER: tianchenrv.rvv.low_precision_resource.legal_candidate_count: 3
+// HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate_index: 3
 // HEADER: tianchenrv.rvv.low_precision_resource.operand_form: packed-i4-nibbles
 // HEADER: tianchenrv.rvv.low_precision_resource.packed_load_unpack_contract: rvv-packed-i4-load-unpack-resource-facts.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.packed_storage_load: unit-stride-vle8-i8mf4-packed-i4x2

@@ -9670,6 +9670,9 @@ module {
                   "rvv-low-precision-direct-contraction-resource-candidate.v1["
                   "product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-"
                   "f32m1,u2-grouped]" &&
+              productDequantResourceSelection.candidateCount == 3 &&
+              productDequantResourceSelection.legalCandidateCount == 3 &&
+              productDequantResourceSelection.selectedCandidateIndex == 2 &&
               productDequantResourceSelection.planningContract ==
                   tianchenrv::plugin::rvv::
                       kRVVLowPrecisionResourcePlanningContract &&
@@ -10132,6 +10135,11 @@ module {
                   "rvv-low-precision-direct-contraction-resource-candidate."
                   "v1[product-reduction-dequantize-f32,signed-i4n2-in-"
                   "i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]" &&
+              packedI4ProductDequantHandoff.getResourceCandidateCount() == 3 &&
+              packedI4ProductDequantHandoff.getResourceLegalCandidateCount() ==
+                  3 &&
+              packedI4ProductDequantHandoff
+                      .getResourceSelectedCandidateIndex() == 3 &&
               packedI4ProductDequantHandoff.getOperandForm() ==
                   "packed-i4-nibbles" &&
               packedI4ProductDequantHandoff.getPackingLayout() ==
@@ -10241,6 +10249,9 @@ module {
                   "rvv-low-precision-direct-contraction-resource-candidate.v1["
                   "product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-"
                   "i16mf2-i32m1-f32m1,u1-unpack-required]" &&
+              packedI4ResourceSelection.candidateCount == 3 &&
+              packedI4ResourceSelection.legalCandidateCount == 3 &&
+              packedI4ResourceSelection.selectedCandidateIndex == 3 &&
               packedI4ResourceSelection.planningContract ==
                   tianchenrv::plugin::rvv::
                       kRVVLowPrecisionResourcePlanningContract &&
@@ -10604,6 +10615,17 @@ module {
               stalePackedI4ResourcePlan),
           {"low-precision direct-contraction resource selection",
            "effective element width", "4", "8"}))
+    return result;
+
+  RVVSelectedBodyContractionRouteFamilyPlan stalePackedI4CandidateIndexPlan =
+      *packedI4ProductDequantAnalysis->contractionRouteFamilyPlan;
+  stalePackedI4CandidateIndexPlan.lowPrecisionResourceSelection
+      .selectedCandidateIndex = 2;
+  if (int result = expectErrorContains(
+          validateRVVSelectedBodyContractionRouteFamilyPlan(
+              stalePackedI4CandidateIndexPlan),
+          {"low-precision direct-contraction resource selection",
+           "selected candidate index", "3", "2"}))
     return result;
 
   RVVSelectedBodyContractionRouteFamilyPlan

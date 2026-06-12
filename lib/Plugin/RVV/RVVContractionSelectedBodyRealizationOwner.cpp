@@ -103,6 +103,24 @@ requireLowPrecisionResourceIntegerFact(mlir::Operation *op,
   return attr.getInt();
 }
 
+llvm::Expected<std::optional<std::int64_t>>
+readLowPrecisionResourceIntegerFact(mlir::Operation *op,
+                                    llvm::StringRef attrName) {
+  if (!op)
+    return std::nullopt;
+  mlir::Attribute attr = op->getAttr(attrName);
+  if (!attr)
+    return std::nullopt;
+  auto integerAttr = llvm::dyn_cast<mlir::IntegerAttr>(attr);
+  if (!integerAttr)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV contraction selected-body realization "
+                    "requires integer low-precision direct-contraction "
+                    "resource fact '") +
+        attrName + "'");
+  return integerAttr.getInt();
+}
+
 llvm::Error requireLowPrecisionResourceExpectedStringFact(
     mlir::Operation *op, llvm::StringRef attrName,
     llvm::StringRef expected) {
@@ -387,6 +405,24 @@ materializeLowPrecisionResourceRealizationAttrs(
         rejection + " for vector register budget " +
         llvm::Twine(*vectorRegisterBudget));
   }
+  const std::int64_t candidateCount =
+      getRVVLowPrecisionProductReductionResourceCandidateCount(candidates);
+  const std::int64_t legalCandidateCount =
+      getRVVLowPrecisionProductReductionLegalResourceCandidateCount(candidates);
+  std::optional<std::int64_t> selectedCandidateIndex =
+      getRVVLowPrecisionProductReductionSelectedCandidateIndex(
+          candidates, selected->candidateID);
+  if (!selectedCandidateIndex)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV contraction selected-body realization "
+                    "cannot find selected low-precision resource candidate '") +
+        selected->candidateID + "' in the provider-built candidate "
+        "enumeration");
+  if (candidateCount < 2 || legalCandidateCount < 2)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV contraction selected-body realization "
+                    "requires at least two legal provider-built low-precision "
+                    "resource candidates before selecting a resource plan"));
   const llvm::StringRef realizationDecision =
       getRVVLowPrecisionContractionResourceRealizationDecision(
           selected->candidateID);
@@ -444,6 +480,65 @@ materializeLowPrecisionResourceRealizationAttrs(
           source, kRVVLowPrecisionResourceSelectedCandidateAttrName,
           selected->candidateID))
     return std::move(error);
+  llvm::Expected<std::optional<std::int64_t>> sourceCandidateCountOr =
+      readLowPrecisionResourceIntegerFact(
+          source, kRVVLowPrecisionResourceCandidateCountAttrName);
+  if (!sourceCandidateCountOr)
+    return sourceCandidateCountOr.takeError();
+  llvm::Expected<std::optional<std::int64_t>> sourceLegalCandidateCountOr =
+      readLowPrecisionResourceIntegerFact(
+          source, kRVVLowPrecisionResourceLegalCandidateCountAttrName);
+  if (!sourceLegalCandidateCountOr)
+    return sourceLegalCandidateCountOr.takeError();
+  llvm::Expected<std::optional<std::int64_t>> sourceSelectedCandidateIndexOr =
+      readLowPrecisionResourceIntegerFact(
+          source, kRVVLowPrecisionResourceSelectedCandidateIndexAttrName);
+  if (!sourceSelectedCandidateIndexOr)
+    return sourceSelectedCandidateIndexOr.takeError();
+  const std::optional<std::int64_t> sourceCandidateCount =
+      *sourceCandidateCountOr;
+  const std::optional<std::int64_t> sourceLegalCandidateCount =
+      *sourceLegalCandidateCountOr;
+  const std::optional<std::int64_t> sourceSelectedCandidateIndex =
+      *sourceSelectedCandidateIndexOr;
+  const bool hasAnyCandidateEnumeration =
+      sourceCandidateCount.has_value() || sourceLegalCandidateCount.has_value() ||
+      sourceSelectedCandidateIndex.has_value();
+  const bool hasFullCandidateEnumeration =
+      sourceCandidateCount.has_value() && sourceLegalCandidateCount.has_value() &&
+      sourceSelectedCandidateIndex.has_value();
+  if (hasAnyCandidateEnumeration && !hasFullCandidateEnumeration)
+    return makeRVVPluginError(
+        llvm::Twine("pre-realized RVV contraction selected-body realization "
+                    "requires low-precision resource candidate enumeration "
+                    "facts '") +
+        kRVVLowPrecisionResourceCandidateCountAttrName + "', '" +
+        kRVVLowPrecisionResourceLegalCandidateCountAttrName + "', and '" +
+        kRVVLowPrecisionResourceSelectedCandidateIndexAttrName +
+        "' to be carried together");
+  if (hasFullCandidateEnumeration) {
+    if (*sourceCandidateCount != candidateCount)
+      return makeRVVPluginError(
+          llvm::Twine("pre-realized RVV contraction selected-body realization "
+                      "cannot consume stale low-precision resource candidate "
+                      "count: expected ") +
+          llvm::Twine(candidateCount) + " but found " +
+          llvm::Twine(*sourceCandidateCount));
+    if (*sourceLegalCandidateCount != legalCandidateCount)
+      return makeRVVPluginError(
+          llvm::Twine("pre-realized RVV contraction selected-body realization "
+                      "cannot consume stale low-precision legal resource "
+                      "candidate count: expected ") +
+          llvm::Twine(legalCandidateCount) + " but found " +
+          llvm::Twine(*sourceLegalCandidateCount));
+    if (*sourceSelectedCandidateIndex != *selectedCandidateIndex)
+      return makeRVVPluginError(
+          llvm::Twine("pre-realized RVV contraction selected-body realization "
+                      "cannot consume stale low-precision selected candidate "
+                      "index: expected ") +
+          llvm::Twine(*selectedCandidateIndex) + " but found " +
+          llvm::Twine(*sourceSelectedCandidateIndex));
+  }
   if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
           source, kRVVLowPrecisionResourceSelectionReasonAttrName,
           selected->selectionReason))
@@ -725,6 +820,13 @@ materializeLowPrecisionResourceRealizationAttrs(
   destination->setAttr(
       kRVVLowPrecisionResourcePlanningContractAttrName,
       builder.getStringAttr(selected->planningContract));
+  destination->setAttr(kRVVLowPrecisionResourceCandidateCountAttrName,
+                       builder.getI64IntegerAttr(candidateCount));
+  destination->setAttr(kRVVLowPrecisionResourceLegalCandidateCountAttrName,
+                       builder.getI64IntegerAttr(legalCandidateCount));
+  destination->setAttr(
+      kRVVLowPrecisionResourceSelectedCandidateIndexAttrName,
+      builder.getI64IntegerAttr(*selectedCandidateIndex));
   destination->setAttr(kRVVGearboxProducerScopeAttrName,
                        builder.getStringAttr(selected->producerScope));
   destination->setAttr(kRVVGearboxConsumerScopeAttrName,
@@ -1074,6 +1176,14 @@ mlir::Operation *createRealizedGearboxCrossRegionHandoff(
                      builder.getStringAttr(selectedCandidate.candidateSetID));
   state.addAttribute("resource_selected_candidate",
                      builder.getStringAttr(selectedCandidate.candidateID));
+  state.addAttribute("resource_candidate_count",
+                     builder.getI64IntegerAttr(
+                         selectedCandidate.candidateCount));
+  state.addAttribute("resource_legal_candidate_count",
+                     builder.getI64IntegerAttr(
+                         selectedCandidate.legalCandidateCount));
+  state.addAttribute("resource_selected_candidate_index",
+                     builder.getI64IntegerAttr(selectedCandidate.candidateIndex));
   state.addAttribute("operand_form",
                      builder.getStringAttr(selectedCandidate.operandForm));
   state.addAttribute("packing_layout",

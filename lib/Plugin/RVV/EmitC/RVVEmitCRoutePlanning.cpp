@@ -42834,6 +42834,15 @@ void appendRVVLowPrecisionStableResourceCompilerFactMetadata(
                       selection.candidateSetID});
   metadata.push_back({"tcrv_rvv.low_precision_resource.selected_candidate",
                       selection.selectedCandidateID});
+  if (selection.candidateCount > 0) {
+    metadata.push_back({"tcrv_rvv.low_precision_resource.candidate_count",
+                        llvm::Twine(selection.candidateCount).str()});
+    metadata.push_back({"tcrv_rvv.low_precision_resource.legal_candidate_count",
+                        llvm::Twine(selection.legalCandidateCount).str()});
+    metadata.push_back(
+        {"tcrv_rvv.low_precision_resource.selected_candidate_index",
+         llvm::Twine(selection.selectedCandidateIndex).str()});
+  }
   metadata.push_back({"tcrv_rvv.low_precision_resource.selection_reason",
                       selection.selectionReason});
   metadata.push_back({"tcrv_rvv.low_precision_resource.planning_contract",

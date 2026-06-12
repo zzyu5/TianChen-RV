@@ -74,6 +74,75 @@ evidence is introduced.
 
 Final coherent commit is created after this journal entry.
 
+## Session 610: Stage2 RVV Gearbox candidate enumeration transport
+
+**Date**: 2026-06-12
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed the Gearbox candidate generation
+and selected-candidate transport slice for the bounded low-precision
+product-reduction dequantize/dequant-clamp family. This round modeled multiple
+real provider-built candidates and carried the selected candidate enumeration
+through selected-body realization, Gearbox handoff, provider route planning,
+route metadata, support-bundle/header mirrors, and target artifact validation.
+
+### Main Changes
+
+- Added stable candidate enumeration facts:
+  `candidate_count`, `legal_candidate_count`, and `selected_candidate_index`.
+- Carried the enumeration through `RVVLowPrecisionContractionResourceCandidate`,
+  `RVVLowPrecisionContractionResourceSelection`, and
+  `RVVLowPrecisionStableResourceCompilerFacts`.
+- Required generated Gearbox schedules to write the enumeration together and
+  required provider validation to rebuild the candidate set before accepting
+  the selected index.
+- Extended `tcrv_rvv.gearbox_cross_region_handoff` with
+  `resource_candidate_count`, `resource_legal_candidate_count`, and
+  `resource_selected_candidate_index`.
+- Added target metadata/header mirror validation for stale selected candidate
+  index cases.
+- Updated the RVV plugin and EmitC route specs and the active macro PRD.
+
+### Testing
+
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `cmake --build build --target tcrv-translate -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] `python3 /usr/lib/llvm-20/build/utils/lit/lit.py -sv . --filter 'pre-realized-selected-body-artifact-widening-product-reduce-dequant.*f32'`
+
+### Self-Repair
+
+- The first C++ test run failed because legacy hand-authored prefilled fixtures
+  lacked the new enumeration attrs. The selected-body realization owner now
+  derives the enumeration only when all three attrs are absent and still fails
+  closed on partial or stale enumeration.
+- The first lit run exposed that the new attr names were not in the
+  low-precision resource attr namespace. They are now accepted through the same
+  provider-owned resource boundary as the existing low-precision facts.
+- The first FileCheck updates overfit to attr ordering. The checks now follow
+  stable printed order, and the low-resource-budget negative expects the new
+  at-least-two-legal-candidates diagnostic.
+- `tcrv-translate` was rebuilt after the header attr namespace change so the
+  header/export pipeline used the updated verifier.
+
+### Status
+
+[OPEN MACRO TASK] The Gearbox candidate enumeration transport milestone is
+complete for the current product-reduction dequantize/dequant-clamp family.
+The selected unpacked-byte grouped candidate is index 2, and the selected
+packed-i4 candidate is index 3 in a three-candidate provider enumeration. The
+macro task remains active for adjacent low-precision candidate-generation
+coverage or future same-target feedback/admission only with fresh
+source-backed RVV evidence.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 609: Stage2 RVV remaining resource-consumer stable-fact guard cleanup
 
 **Date**: 2026-06-12

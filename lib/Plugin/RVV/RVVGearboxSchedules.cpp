@@ -565,6 +565,24 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
            << " (requires tail agnostic, mask agnostic policy and peak live "
               "vector-group estimate within the vector register budget)";
   }
+  const std::int64_t candidateCount =
+      getRVVLowPrecisionProductReductionResourceCandidateCount(candidates);
+  const std::int64_t legalCandidateCount =
+      getRVVLowPrecisionProductReductionLegalResourceCandidateCount(candidates);
+  std::optional<std::int64_t> selectedCandidateIndex =
+      getRVVLowPrecisionProductReductionSelectedCandidateIndex(
+          candidates, selected->candidateID);
+  if (!selectedCandidateIndex)
+    return op->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "cannot find selected candidate '"
+           << selected->candidateID
+           << "' in the provider-built candidate enumeration";
+  if (candidateCount < 2 || legalCandidateCount < 2)
+    return op->emitError()
+           << "RVV low-precision Gearbox resource candidate derivation "
+              "requires at least two legal provider-built candidates before "
+              "selecting a resource plan";
   if (mlir::failed(validateLowPrecisionResourceCandidatePrimitiveSurface(
           op, *operation, *selected)))
     return mlir::failure();
@@ -584,6 +602,18 @@ mlir::LogicalResult materializeLowPrecisionResourceAttrs(
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceSelectedCandidateAttrName,
           selected->candidateID)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceCandidateCountAttrName,
+          candidateCount)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceLegalCandidateCountAttrName,
+          legalCandidateCount)))
+    return mlir::failure();
+  if (mlir::failed(requireIntegerAttr(
+          op, builder, kRVVLowPrecisionResourceSelectedCandidateIndexAttrName,
+          *selectedCandidateIndex)))
     return mlir::failure();
   if (mlir::failed(requireStringAttr(
           op, builder, kRVVLowPrecisionResourceSelectionReasonAttrName,

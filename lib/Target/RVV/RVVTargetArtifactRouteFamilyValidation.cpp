@@ -6288,6 +6288,22 @@ llvm::Error validateRVVLowPrecisionResourceCandidateMirrors(
           "tcrv_rvv.low_precision_resource.selected_candidate",
           selection.selectedCandidateID, "selected candidate"))
     return error;
+  if (selection.candidateCount > 0) {
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.candidate_count",
+            llvm::Twine(selection.candidateCount).str(), "candidate count"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.legal_candidate_count",
+            llvm::Twine(selection.legalCandidateCount).str(),
+            "legal candidate count"))
+      return error;
+    if (llvm::Error error = requireResourceMirror(
+            "tcrv_rvv.low_precision_resource.selected_candidate_index",
+            llvm::Twine(selection.selectedCandidateIndex).str(),
+            "selected candidate index"))
+      return error;
+  }
   if (llvm::Error error = requireResourceMirror(
           "tcrv_rvv.low_precision_resource.selection_reason",
           selection.selectionReason, "selection reason"))

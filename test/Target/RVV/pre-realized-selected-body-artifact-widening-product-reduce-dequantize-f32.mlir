@@ -65,8 +65,10 @@ module {
 // REALIZED: %[[VL:.*]] = tcrv_rvv.setvl %{{.*}} {lmul = "m1", policy = #tcrv_rvv.policy<tail = agnostic, mask = agnostic>, sew = 32 : i64}
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: selected_variant = @pre_realized_body_rvv_product_reduce_dequantize
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.candidate_count = 3 : i64
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.dequant_phase = "dequant-store"
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.dequant_region_index = 3 : i64
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.legal_candidate_count = 3 : i64
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.product_phase = "tail-product-reduce"
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.product_region_index = 2 : i64
@@ -76,6 +78,7 @@ module {
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_unroll_factor = 2 : i64
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 3 : i64
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.selected_candidate_index = 2 : i64
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.vector_register_budget = 32 : i64
 // REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
 // REALIZED-SAME: phase = "grouped-product-reduce-main"
@@ -121,9 +124,12 @@ module {
 // REALIZED-SAME: producer_scope = "gearbox-scope:product-reduction"
 // REALIZED-SAME: product_region_index = 2 : i64
 // REALIZED-SAME: region_count = 3 : i64
+// REALIZED-SAME: resource_candidate_count = 3 : i64
 // REALIZED-SAME: resource_candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]"
 // REALIZED-SAME: resource_decision = "consume-low-precision-u2-three-vsetvl-region-budget-7of32.v1"
+// REALIZED-SAME: resource_legal_candidate_count = 3 : i64
 // REALIZED-SAME: resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
+// REALIZED-SAME: resource_selected_candidate_index = 2 : i64
 // REALIZED-SAME: runtime_avl_source = "runtime_abi:n"
 // REALIZED-SAME: to_phase = "dequant-store"
 // REALIZED-SAME: unpack_intent = "none-direct-widening-product"
@@ -176,6 +182,9 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.dequant_scale_role", value = "dequant-scale-value"}
 // PLAN-SAME: {key = "tcrv_rvv.rhs_broadcast_intrinsic", value = "__riscv_vfmv_v_f_f32m1"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.candidate_count", value = "3"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.legal_candidate_count", value = "3"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selected_candidate_index", value = "2"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.operand_form", value = "unpacked-byte-elements"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.source_signedness", value = "signed"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.storage_element_width", value = "8"}
@@ -203,6 +212,9 @@ module {
 // HEADER: tianchenrv.rvv.dequantization_relation: signed-i32m1-to-f32m1-scale-f32
 // HEADER: tianchenrv.rvv.dequant_scale_role: dequant-scale-value
 // HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]
+// HEADER: tianchenrv.rvv.low_precision_resource.candidate_count: 3
+// HEADER: tianchenrv.rvv.low_precision_resource.legal_candidate_count: 3
+// HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate_index: 2
 // HEADER: tianchenrv.rvv.low_precision_resource.operand_form: unpacked-byte-elements
 // HEADER: tianchenrv.rvv.low_precision_resource.source_signedness: signed
 // HEADER: tianchenrv.rvv.low_precision_resource.storage_element_width: 8
@@ -248,9 +260,7 @@ module {
 // STALE-REALIZATION-DEQUANT-REGION: low-precision direct-contraction resource selection requires dequant region index 3
 // STALE-REALIZATION-DEQUANT-REGION-SAME: but found 1
 
-// PRUNED-RESOURCE-BUDGET: cannot consume stale or unsupported low-precision direct-contraction resource fact
-// PRUNED-RESOURCE-BUDGET-SAME: tcrv_rvv.low_precision_resource.legality
-// PRUNED-RESOURCE-BUDGET-SAME: expected 'rejected' but found 'legal'
+// PRUNED-RESOURCE-BUDGET: requires at least two legal provider-built low-precision resource candidates
 
 // STALE-REALIZED-REGION: 'tcrv_rvv.gearbox_cross_region_handoff' op requires to_phase 'dequant-store'
 

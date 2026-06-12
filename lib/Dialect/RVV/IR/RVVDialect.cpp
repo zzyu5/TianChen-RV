@@ -123,6 +123,12 @@ constexpr llvm::StringLiteral kResourceCandidateSetAttrName(
     "resource_candidate_set");
 constexpr llvm::StringLiteral kResourceSelectedCandidateAttrName(
     "resource_selected_candidate");
+constexpr llvm::StringLiteral kResourceCandidateCountAttrName(
+    "resource_candidate_count");
+constexpr llvm::StringLiteral kResourceLegalCandidateCountAttrName(
+    "resource_legal_candidate_count");
+constexpr llvm::StringLiteral kResourceSelectedCandidateIndexAttrName(
+    "resource_selected_candidate_index");
 constexpr llvm::StringLiteral kOperandFormAttrName("operand_form");
 constexpr llvm::StringLiteral kPackingLayoutAttrName("packing_layout");
 constexpr llvm::StringLiteral kUnpackIntentAttrName("unpack_intent");
@@ -353,6 +359,9 @@ bool isAllowedGearboxCrossRegionHandoffAttr(llvm::StringRef name) {
          name == kPlanningContractAttrName ||
          name == kResourceCandidateSetAttrName ||
          name == kResourceSelectedCandidateAttrName ||
+         name == kResourceCandidateCountAttrName ||
+         name == kResourceLegalCandidateCountAttrName ||
+         name == kResourceSelectedCandidateIndexAttrName ||
          name == kOperandFormAttrName || name == kPackingLayoutAttrName ||
          name == kUnpackIntentAttrName ||
          name == kPackedLoadUnpackContractAttrName ||
@@ -4318,6 +4327,21 @@ mlir::LogicalResult GearboxCrossRegionHandoffOp::verify() {
     return emitOpError()
            << "requires resource_selected_candidate to belong to the "
               "provider-owned resource_candidate_set";
+  if (getResourceCandidateCount() < 2 ||
+      getResourceLegalCandidateCount() < 2)
+    return emitOpError()
+           << "requires provider-owned resource candidate enumeration to "
+              "carry at least two legal candidates";
+  if (getResourceLegalCandidateCount() > getResourceCandidateCount())
+    return emitOpError()
+           << "requires resource_legal_candidate_count to be bounded by "
+              "resource_candidate_count";
+  if (getResourceSelectedCandidateIndex() < 1 ||
+      getResourceSelectedCandidateIndex() > getResourceCandidateCount())
+    return emitOpError()
+           << "requires resource_selected_candidate_index to identify the "
+              "selected candidate inside the provider-owned resource "
+              "candidate enumeration";
   auto planningContract =
       op->getAttrOfType<mlir::StringAttr>(kPlanningContractAttrName);
   if (!planningContract)

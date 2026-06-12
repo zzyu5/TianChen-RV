@@ -56,6 +56,9 @@ module {
 }
 
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.candidate_count = 3 : i64
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.legal_candidate_count = 3 : i64
+// REALIZED-DAG: tcrv_rvv.low_precision_resource.selected_candidate_index = 3 : i64
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.operand_form = "packed-i4-nibbles"
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.storage_element_width = 8 : i64
 // REALIZED-DAG: tcrv_rvv.low_precision_resource.effective_element_width = 4 : i64
@@ -133,9 +136,12 @@ module {
 // REALIZED-SAME: remediation_unpack_plan = "shift-left-low-signed-i4-nibbles-and-shift-right-high-nibbles.v1"
 // REALIZED-SAME: remediation_vector_budget = "packed-i4-remediation-budget-5of32-vector-groups"
 // REALIZED-SAME: remediation_vl_plan = "two-region-runtime-avl-product-reduce-then-scalar-epilogue-store.v1"
+// REALIZED-SAME: resource_candidate_count = 3 : i64
 // REALIZED-SAME: resource_candidate_set = "rvv-low-precision-direct-contraction-resource-candidate-set.v4[i8mf4-i16mf2-i32m1-f32m1:u1-vector-carry,u2-grouped-tail-safe,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1:u1-unpack-required]"
 // REALIZED-SAME: resource_decision = "consume-low-precision-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-budget-5of32.v1"
+// REALIZED-SAME: resource_legal_candidate_count = 3 : i64
 // REALIZED-SAME: resource_selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
+// REALIZED-SAME: resource_selected_candidate_index = 3 : i64
 // REALIZED-SAME: schedule_decision = "select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1"
 // REALIZED-SAME: schedule_decision_contract = "rvv-low-precision-packed-i4-resource-aware-schedule-decision.v1"
 // REALIZED-SAME: schedule_decision_reason = "accepted-beyond-local-scalar-epilogue-high-nibble-vwmacc-single-vwredsum-budget-5of32"
@@ -160,6 +166,9 @@ module {
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.correctness_fallback_path_selected", value = "true"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.performance_preferred_path_selected", value = "false"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.resource_owner_mirror_source", value = "provider-owned-low-precision-contraction-resource-selection.v1"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.candidate_count", value = "3"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.legal_candidate_count", value = "3"}
+// PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.selected_candidate_index", value = "3"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.packed_load_unpack_contract", value = "rvv-packed-i4-load-unpack-resource-facts.v1"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.packed_storage_load", value = "unit-stride-vle8-i8mf4-packed-i4x2"}
 // PLAN-DAG: {key = "tcrv_rvv.low_precision_resource.packed_unpack_plan", value = "low-high-i4-sign-extend-to-i8mf4"}
@@ -212,6 +221,9 @@ module {
 
 // HEADER: tianchenrv.rvv.low_precision_resource.resource_owner_mirror.source: provider-owned-low-precision-contraction-resource-selection.v1
 // HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]
+// HEADER: tianchenrv.rvv.low_precision_resource.candidate_count: 3
+// HEADER: tianchenrv.rvv.low_precision_resource.legal_candidate_count: 3
+// HEADER: tianchenrv.rvv.low_precision_resource.selected_candidate_index: 3
 // HEADER: tianchenrv.rvv.low_precision_resource.operand_form: packed-i4-nibbles
 // HEADER: tianchenrv.rvv.low_precision_resource.source_signedness: signed
 // HEADER: tianchenrv.rvv.low_precision_resource.storage_element_width: 8

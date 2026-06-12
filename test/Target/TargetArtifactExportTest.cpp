@@ -13151,6 +13151,12 @@ bool expectRVVTargetArtifactExporterShape(
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourceDequantPackedI4Candidate ||
       packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .candidateCount != 3 ||
+      packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .legalCandidateCount != 3 ||
+      packedI4ProductDequantDescription.lowPrecisionResourceSelection
+              .selectedCandidateIndex != 3 ||
+      packedI4ProductDequantDescription.lowPrecisionResourceSelection
               .planningContract !=
           tianchenrv::plugin::rvv::
               kRVVLowPrecisionResourcePlanningContract ||
@@ -15330,6 +15336,23 @@ bool expectRVVTargetArtifactExporterShape(
           {"planning contract",
            "rvv-low-precision-production-resource-planning-contract.v1",
            "artifact-derived-resource-planning-contract"}))
+    return false;
+
+  TargetArtifactCandidate stalePackedI4SelectedCandidateIndexMirror =
+      packedI4ProductDequantFixture.candidate;
+  if (!rewriteArtifactMetadataValue(
+          stalePackedI4SelectedCandidateIndexMirror,
+          "tcrv_rvv.low_precision_resource.selected_candidate_index", "2")) {
+    llvm::errs() << "packed-i4 test fixture did not contain selected "
+                    "candidate index metadata\n";
+    return false;
+  }
+  if (!expectWideningDotCandidateFailure(
+          stalePackedI4SelectedCandidateIndexMirror,
+          packedI4ProductDequantRoute, packedI4ProductDequantDescription,
+          "packed-i4 product-reduction registry rejects stale selected "
+          "candidate index metadata",
+          {"selected candidate index", "3", "2"}))
     return false;
 
   TargetArtifactCandidate stalePackedI4RealizationDecisionMirror =

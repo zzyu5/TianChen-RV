@@ -26,7 +26,12 @@ EmitC semantics.
    artifact/export consumers carry primitive facts through
    `TCRVEmitCLowerableRoute` and target validation without Common EmitC
    semantic inference.
-4. Measurement-disposition outcome: measured same-target comparison or
+4. Gearbox candidate-generation outcome: at least one bounded low-precision
+   contraction family has multiple concrete provider-built Gearbox/resource
+   candidates derived from typed body/config/runtime and provider resource facts,
+   carries the selected candidate through selected-body realization and route
+   planning, and rejects stale candidate enumeration before artifact acceptance.
+5. Measurement-disposition outcome: measured same-target comparison or
    dispatch preference, if later claimed, uses only fresh source-backed
    evidence and the conservative no-win boundary from the previous campaign.
 
@@ -570,7 +575,7 @@ evidence is introduced. The next continuation point is to return to adjacent
 primitive/resource coverage or selected-body realization/resource-aware coverage
 only after preserving this stable-fact guard in focused scans.
 
-## Current Slice: Selected-Body Realization Stable-Resource Boundary Cleanup
+## Completed Slice: Selected-Body Realization Stable-Resource Boundary Cleanup
 
 This bounded follow-up returns from mirror cleanup to the production
 selected-body realization seam for the packed-i4 low-precision resource-aware
@@ -641,3 +646,75 @@ but they must not be prerequisites for stable selected-body realization.
 The macro campaign remains open after this slice for adjacent low-precision
 primitive/resource surface coverage and for future measurement-disposition work
 only when fresh source-backed same-target RVV evidence is introduced.
+
+## Completed Slice: Gearbox Candidate Enumeration And Selected-Candidate Transport
+
+This round shifted the active macro task from cleanup-only boundary work back
+to production capability. The implemented milestone is a bounded
+product-reduction dequantize/dequant-clamp family candidate-generation and
+transport path:
+
+```text
+selected typed low-precision tcrv_rvv body/config/runtime facts
+  -> provider-built Gearbox product-reduction resource candidates
+     (u1 vector-carry, u2 grouped-tail-safe, packed-i4 u1 unpack-required)
+  -> selected candidate enumeration facts
+  -> selected-body realization with_vl attrs and Gearbox handoff
+  -> RVVLowPrecisionContractionResourceSelection /
+     RVVLowPrecisionStableResourceCompilerFacts
+  -> route-plan metadata and target artifact/header mirrors
+  -> target stable resource validation against provider facts
+```
+
+The concrete candidates modeled for the bounded family are:
+
+- `u1-vector-carry`: one accumulator, two vsetvl regions, direct unpacked-byte
+  widening product/reduction.
+- `u2-grouped-tail-safe`: two accumulators, three vsetvl regions, direct
+  unpacked-byte grouped product/reduction.
+- `signed-i4n2-in-i8mf4...u1-unpack-required`: packed-i4 storage with explicit
+  load/unpack facts and the packed-i4 resource schedule.
+
+The selected candidate now carries three stable enumeration facts:
+
+```text
+tcrv_rvv.low_precision_resource.candidate_count
+tcrv_rvv.low_precision_resource.legal_candidate_count
+tcrv_rvv.low_precision_resource.selected_candidate_index
+```
+
+Generated Gearbox scheduling writes all three facts together. Selected-body
+realization validates them when present and derives them only for legacy
+hand-authored prefilled fixtures where all three are absent. The realized
+Gearbox handoff carries `resource_candidate_count`,
+`resource_legal_candidate_count`, and `resource_selected_candidate_index`.
+Provider route selection imports these fields into the stable compiler-fact
+view, verifies that the selected index matches the rebuilt provider candidate
+set, emits route metadata mirrors, and target artifact validation rejects stale
+metadata/header mirrors.
+
+### Acceptance Completed
+
+- Production RVV plugin/provider code now models at least two real candidates
+  for the bounded low-precision product-reduction family and currently carries
+  three legal candidates through the provider path.
+- The selected unpacked-byte dequantize/dequant-clamp path consumes candidate
+  index `2` for the grouped u2 candidate. The selected packed-i4 path consumes
+  candidate index `3` for the packed-i4 unpack-required candidate.
+- Selected-body realization and provider route planning fail closed on partial
+  or stale candidate enumeration facts, and the Gearbox handoff verifier rejects
+  invalid enumeration ranges.
+- Route-plan metadata, target support-bundle/header evidence, and target
+  artifact validation carry the same provider-owned enumeration mirrors.
+- Same-target measurement remains policy/admission input only. This slice makes
+  no runtime correctness or performance claim and does not require new `ssh rvv`
+  evidence.
+- Specs were updated in the RVV plugin and Common EmitC route layers to record
+  candidate enumeration as provider-owned compiler/resource facts and artifact
+  metadata as mirrors.
+
+The macro task remains open. The next continuation point is same-target
+feedback/admission wiring or a fresh measured candidate-selection repair only
+if new source-backed RVV evidence is introduced; otherwise continue adjacent
+low-precision candidate-generation coverage while preserving the
+provider-owned candidate enumeration boundary.

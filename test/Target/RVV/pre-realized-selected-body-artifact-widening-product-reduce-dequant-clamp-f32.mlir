@@ -72,13 +72,16 @@ module {
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: selected_variant = @pre_realized_body_rvv_product_reduce_dequant_clamp
 // REALIZED-SAME: tcrv_rvv.gearbox.producer_scope = "gearbox-scope:product-reduction"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.candidate_count = 3 : i64
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.clamp_compare_select_phase = "lower-then-upper-compare-select"
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.clamp_phase = "dequant-clamp-store"
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.clamp_region_index = 3 : i64
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.clamp_select_layout = "clamp-lower-then-upper"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.legal_candidate_count = 3 : i64
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.realization_producer = "rvv-plugin-local-selected-body-realization-resource-consumer.v1"
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.realized_vsetvl_region_count = 3 : i64
 // REALIZED-SAME: tcrv_rvv.low_precision_resource.selected_candidate = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
+// REALIZED-SAME: tcrv_rvv.low_precision_resource.selected_candidate_index = 2 : i64
 // REALIZED: tcrv_rvv.vsetvl_region_marker %[[VL]]
 // REALIZED-SAME: phase = "grouped-product-reduce-main"
 // REALIZED-SAME: planning_contract = "rvv-low-precision-production-resource-planning-contract.v1"
@@ -113,6 +116,9 @@ module {
 // REALIZED-SAME: primitive_reduction_intrinsic = "__riscv_vwredsum_vs_i16mf2_i32m1"
 // REALIZED-SAME: primitive_source_signedness = "signed"
 // REALIZED-SAME: region_count = 3 : i64
+// REALIZED-SAME: resource_candidate_count = 3 : i64
+// REALIZED-SAME: resource_legal_candidate_count = 3 : i64
+// REALIZED-SAME: resource_selected_candidate_index = 2 : i64
 // REALIZED-SAME: runtime_avl_source = "runtime_abi:n"
 // REALIZED: tcrv_rvv.with_vl %[[VL]] attributes
 // REALIZED-SAME: tcrv_rvv.gearbox.consumer_scope = "gearbox-scope:dequant-store"
@@ -202,6 +208,9 @@ module {
 // PLAN-SAME: {key = "tcrv_rvv.secondary_compare_intrinsic", value = "__riscv_vmflt_vv_f32m1_b32"}
 // PLAN-SAME: {key = "tcrv_rvv.masked_merge_intrinsic", value = "__riscv_vmerge_vvm_f32m1"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selected_candidate", value = "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.candidate_count", value = "3"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.legal_candidate_count", value = "3"}
+// PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selected_candidate_index", value = "2"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.selection_reason", value = "static-bounded-product-reduction-dequant-clamp-i8mf4-i16mf2-i32m1-f32m1-u2-grouped-tail-safe-runtime-avl"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.planning_contract", value = "rvv-low-precision-production-resource-planning-contract.v1"}
 // PLAN-SAME: {key = "tcrv_rvv.low_precision_resource.memory_form", value = "unit-stride-widening-product-reduce-dequant-clamp-f32"}
@@ -256,6 +265,9 @@ module {
 // HEADER-DAG: tianchenrv.rvv.dequant_scale_c_type: float
 // HEADER-DAG: tianchenrv.rvv.dequant_scale_name: scale
 // HEADER-DAG: tianchenrv.rvv.low_precision_resource.selected_candidate: rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequant-clamp-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.candidate_count: 3
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.legal_candidate_count: 3
+// HEADER-DAG: tianchenrv.rvv.low_precision_resource.selected_candidate_index: 2
 // HEADER-DAG: tianchenrv.rvv.low_precision_resource.selection_reason: static-bounded-product-reduction-dequant-clamp-i8mf4-i16mf2-i32m1-f32m1-u2-grouped-tail-safe-runtime-avl
 // HEADER-DAG: tianchenrv.rvv.low_precision_resource.planning_contract: rvv-low-precision-production-resource-planning-contract.v1
 // HEADER-DAG: tianchenrv.rvv.low_precision_resource.memory_form: unit-stride-widening-product-reduce-dequant-clamp-f32

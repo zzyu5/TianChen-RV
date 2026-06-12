@@ -6530,6 +6530,22 @@ metadata, route ids, q8/q4 names, helper names, or Common EmitC.
   peak-live vector-group estimate exceeds the vector-register budget, whose
   policy is unsupported, or whose typed shape is unsupported must be pruned with
   a targeted diagnostic before realization or route construction.
+- The same shared candidate enumeration must carry the stable enumeration facts
+  `tcrv_rvv.low_precision_resource.candidate_count`,
+  `tcrv_rvv.low_precision_resource.legal_candidate_count`, and
+  `tcrv_rvv.low_precision_resource.selected_candidate_index`. These fields are
+  derived from the provider-built product-reduction candidate set and typed
+  body/config/runtime/resource facts. They must be copied through realized
+  `with_vl` attrs, the Gearbox cross-region handoff
+  `resource_candidate_count`, `resource_legal_candidate_count`, and
+  `resource_selected_candidate_index`, provider route selection, route-plan
+  metadata, and target artifact/header mirrors. Generated Gearbox scheduling
+  must write all three fields together; selected-body/provider consumers may
+  derive them only for legacy hand-authored prefilled fixtures where all three
+  are absent. Partial presence, a selected index that does not identify the
+  selected candidate, fewer than two legal candidates for the production
+  resource path, or stale target mirrors must fail closed before route
+  construction or artifact acceptance.
 - Once a candidate is selected, that candidate owns the realization decision:
   realized `with_vl` attrs, producer/consumer `tcrv_rvv.vsetvl_region_marker`
   ops, and the Gearbox cross-region handoff must carry marker count, ordering,
