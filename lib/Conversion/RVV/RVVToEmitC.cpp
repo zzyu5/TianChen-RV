@@ -146,6 +146,22 @@ std::string riscvReductionIntrinsicName(llvm::StringRef mnemonic, unsigned sew,
   return name;
 }
 
+/// The multiply-accumulate intrinsic name:
+///   __riscv_vmacc_vv_<dtype><lmul>
+/// The fused 3-read vmacc writes into the accumulator vector: the C call order
+/// is (accumulator, lhs, rhs, vl). Byte-identical to the legacy
+/// deriveMAccIntrinsic (RVVEmitCMAccRouteFamilyPlanOwners.cpp:960-969,
+/// `__riscv_vmacc_vv_i<sew><lmul>`), which is i32-only (the legacy derivation
+/// returns nullopt for non-SEW32) -- so the caller restricts macc to i32.
+std::string riscvMAccIntrinsicName(unsigned sew, llvm::StringRef lmul,
+                                   llvm::StringRef dtype) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vmacc_vv_" << dtype << lmul;
+  os.flush();
+  return name;
+}
+
 /// Predicate mask width for an (sew, lmul) config, mirroring the legacy
 /// getElementwiseMaskIntrinsicSuffix maskBits table. Returns 0 for an
 /// unsupported pair (so the caller fails the match and falls back).
@@ -342,6 +358,42 @@ public:
         ("tcrv_emitc_" + kernel.getSymName() + "_" + variant.getSymName())
             .str();
 
+    // exec-binding contract gate (family-generic). When the selected variant
+    // requests exec ABI bindings (`tcrv_rvv.require_exec_abi_bindings = true`),
+    // every runtime ABI value MUST carry an `exec_binding` symbol to its
+    // tcrv.exec ABI declaration -- the legacy route-family path rejects a
+    // missing binding. If a body that opts into the contract has an unbound ABI
+    // value, this conversion must NOT take it over (it would materialize C
+    // without honoring the contract the legacy validator enforces). Fall back so
+    // the legacy validator still rejects it.
+    if (auto requireBindings = variant->getAttrOfType<mlir::BoolAttr>(
+            "tcrv_rvv.require_exec_abi_bindings");
+        requireBindings && requireBindings.getValue()) {
+      for (const AbiParam &param : params)
+        if (!param.op->hasAttr("exec_binding"))
+          return rewriter.notifyMatchFailure(
+              variant, "runtime ABI value missing required exec_binding "
+                       "(contract enforced by the legacy validator)");
+    }
+
+    // Capability config gate (family-generic, I1-honoring). The selected
+    // variant's `requires` names the RVV capability provider; that provider is a
+    // queryable tcrv.exec.capability / tcrv.exec.target MLIR object that may
+    // declare `supported_sew` / `supported_lmul`. If present and they EXCLUDE
+    // the typed body's (sew, lmul), the capability gates this body out -- the
+    // legacy route-family path rejects it ("supported_sew fact ... does not
+    // include typed body SEW"). The conversion must respect that legality gate
+    // and fall back, not materialize C the capability forbids. Reading the attrs
+    // straight off the provider op keeps capability the authority (no string
+    // model). When the provider declares no restriction the gate is silent.
+    {
+      unsigned bodySEW = static_cast<unsigned>(preLoopSetVL.getSew());
+      llvm::StringRef bodyLMUL = preLoopSetVL.getLmul();
+      if (mlir::failed(checkCapabilityConfigGate(rewriter, variant, kernel,
+                                                 bodySEW, bodyLMUL)))
+        return mlir::failure();
+    }
+
     // Build a standalone top-level emitc module: the standard headers the RVV
     // intrinsic body needs, then the function. This mirrors the legacy
     // materializer's module shape (includes + func) so the rendered C is
@@ -454,6 +506,14 @@ public:
           if (mlir::failed(emitMaskedBinary(rewriter, loc, maskedBinary,
                                             valueMap, bodyVL)))
             return mlir::failure();
+        } else if (auto maskedMacc =
+                       llvm::dyn_cast<tcrvrvv::MaskedMAccOp>(op)) {
+          if (mlir::failed(emitMaskedMAcc(rewriter, loc, maskedMacc, valueMap,
+                                          bodyVL)))
+            return mlir::failure();
+        } else if (auto macc = llvm::dyn_cast<tcrvrvv::MAccOp>(op)) {
+          if (mlir::failed(emitMAcc(rewriter, loc, macc, valueMap, bodyVL)))
+            return mlir::failure();
         } else if (auto maskAnd = llvm::dyn_cast<tcrvrvv::MaskAndOp>(op)) {
           if (mlir::failed(emitMaskAnd(rewriter, loc, maskAnd, valueMap,
                                        bodyVL)))
@@ -508,6 +568,73 @@ public:
   }
 
 private:
+  /// Capability config gate (I1-honoring). The selected variant's `requires`
+  /// symbols resolve to tcrv.exec.capability / tcrv.exec.target provider ops in
+  /// the kernel; those are queryable MLIR objects that may declare
+  /// `supported_sew` / `supported_lmul` as a comma-separated allow-list. If a
+  /// resolved provider declares one of these and it does NOT include the typed
+  /// body's (sew, lmul), the capability gates this body out: fail the match so
+  /// the body falls back to the legacy validator (which rejects it with the
+  /// "supported_sew fact ... does not include typed body SEW" diagnostic).
+  /// Reading the attrs straight off the provider op keeps the capability the
+  /// legality authority -- no string capability model is imported. The gate is
+  /// silent when a provider declares no restriction (the common case).
+  mlir::LogicalResult
+  checkCapabilityConfigGate(mlir::ConversionPatternRewriter &rewriter,
+                            tcrv::exec::VariantOp variant,
+                            tcrv::exec::KernelOp kernel, unsigned bodySEW,
+                            llvm::StringRef bodyLMUL) const {
+    auto requiresAttr = variant->getAttrOfType<mlir::ArrayAttr>("requires");
+    if (!requiresAttr)
+      return mlir::success();
+    std::string bodySEWToken = llvm::Twine(bodySEW).str();
+    // The provider property is a comma-separated allow-list (e.g. "32,64").
+    auto listIncludes = [](llvm::StringRef list, llvm::StringRef token) {
+      llvm::SmallVector<llvm::StringRef, 4> entries;
+      list.split(entries, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+      for (llvm::StringRef entry : entries)
+        if (entry.trim() == token)
+          return true;
+      return false;
+    };
+    for (mlir::Attribute entry : requiresAttr) {
+      auto symbolRef = llvm::dyn_cast<mlir::FlatSymbolRefAttr>(entry);
+      if (!symbolRef)
+        continue;
+      // Resolve the requires symbol to a provider op in the kernel body. The
+      // provider is a capability or target op carrying the optional supported_*
+      // allow-lists.
+      mlir::Operation *provider = nullptr;
+      for (mlir::Operation &op : kernel.getBody().front()) {
+        auto sym = op.getAttrOfType<mlir::StringAttr>(
+            mlir::SymbolTable::getSymbolAttrName());
+        if (sym && sym.getValue() == symbolRef.getValue()) {
+          provider = &op;
+          break;
+        }
+      }
+      if (!provider)
+        continue;
+      if (auto supportedSEW =
+              provider->getAttrOfType<mlir::StringAttr>("supported_sew")) {
+        llvm::StringRef value = supportedSEW.getValue().trim();
+        if (!value.empty() && !listIncludes(value, bodySEWToken))
+          return rewriter.notifyMatchFailure(
+              variant, "capability provider supported_sew excludes typed body "
+                       "SEW (capability gates this body out)");
+      }
+      if (auto supportedLMUL =
+              provider->getAttrOfType<mlir::StringAttr>("supported_lmul")) {
+        llvm::StringRef value = supportedLMUL.getValue().trim();
+        if (!value.empty() && !listIncludes(value, bodyLMUL))
+          return rewriter.notifyMatchFailure(
+              variant, "capability provider supported_lmul excludes typed body "
+                       "LMUL (capability gates this body out)");
+      }
+    }
+    return mlir::success();
+  }
+
   /// load(%abi, %vl) -> ptr = base + i; __riscv_vle<sew>_v_<dtype><lmul>(ptr, vl)
   mlir::LogicalResult
   emitLoad(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
@@ -1060,6 +1187,205 @@ private:
             .create<emitc::CallOpaqueOp>(
                 loc, mlir::TypeRange{vecType}, mergeCallee,
                 mlir::ValueRange{passthrough, active, mask, bodyVL})
+            .getResult(0);
+    valueMap[masked.getResult()] = result;
+    return mlir::success();
+  }
+
+  /// macc(%lhs,%rhs,%accumulator,%vl){kind} ->
+  ///   __riscv_vmacc_vv_<dtype><lmul>(accumulator, lhs, rhs, vl)
+  /// The fused multiply-accumulate (acc += lhs * rhs) writes into the
+  /// accumulator vector, so the C call order is (accumulator, lhs, rhs, vl) --
+  /// byte-identical to the legacy plain/scalar-broadcast MAcc compute step
+  /// (RVVEmitCRoutePlanning oracle: `vmacc_vv_i32m1(acc_vec, lhs_vec, rhs_vec,
+  /// vl)`). The scalar-broadcast rung is the SAME op whose rhs is fed by a
+  /// tcrv_rvv.splat (lowered by emitSplat); only the operand source differs, the
+  /// macc lowering is identical.
+  ///
+  /// Malformed-body guard: the legacy macc derivation (deriveMAccIntrinsic) is
+  /// SEW32-only and requires the explicit separate-accumulator + output-store
+  /// layout contracts. A macc whose kind/layout, (dtype, lmul) config, or
+  /// operand mapping is outside this bounded slice is NOT lowered here --
+  /// notifyMatchFailure rolls the conversion back so the legacy validator still
+  /// sees (and rejects/owns) it. Type-correctness is preserved: every operand is
+  /// the same typed vector, and the result type is resolved before any emitc op
+  /// is created so a non-beachhead config rolls back cleanly.
+  mlir::LogicalResult
+  emitMAcc(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+           tcrvrvv::MAccOp macc,
+           llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+           mlir::Value bodyVL) const {
+    auto vectorType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(macc.getResult().getType());
+    if (!vectorType)
+      return rewriter.notifyMatchFailure(macc, "macc result not typed vector");
+    // Layout/kind contract guard (mirrors MAccOp::verify + the plain-macc
+    // route-family plan): only the bounded add / separate-vector-accumulator /
+    // output-store slice is convertible. A body with another kind/layout falls
+    // back unchanged rather than being mislowered as a plain fused macc.
+    if (macc.getKind() != "add")
+      return rewriter.notifyMatchFailure(macc, "unsupported macc kind");
+    std::optional<llvm::StringRef> accumulatorLayout =
+        macc.getAccumulatorLayout();
+    std::optional<llvm::StringRef> resultLayout = macc.getResultLayout();
+    if (!accumulatorLayout ||
+        *accumulatorLayout != "separate-i32-vector-accumulator-input" ||
+        !resultLayout ||
+        *resultLayout != "store-multiply-accumulate-result-to-output-buffer")
+      return rewriter.notifyMatchFailure(
+          macc, "macc accumulator/result layout outside the convertible slice");
+    // The fused vmacc intrinsic is SEW32-only in the legacy derivation; an i64
+    // (or any non-i32) macc has no __riscv_vmacc_vv_i64* form and must fall back
+    // unchanged instead of emitting a non-existent intrinsic.
+    if (!vectorType.getElementType().isSignlessInteger(32))
+      return rewriter.notifyMatchFailure(
+          macc, "macc only lowers the SEW32 fused vmacc slice");
+
+    // Operand-source structural guards (mirror the legacy plain/scalar-broadcast
+    // MAcc route-family slice). The bounded slice requires:
+    //   - lhs and accumulator are explicit tcrv_rvv.load results,
+    //   - rhs is EITHER an explicit tcrv_rvv.load (plain macc) OR a
+    //     tcrv_rvv.splat (scalar-broadcast macc),
+    //   - NO tcrv_rvv.broadcast_load feeds the macc (broadcast/splat-load macc is
+    //     out of the bounded slice -- legacy: "broadcast/splat macc is not in
+    //     this bounded slice"),
+    //   - if a tcrv_rvv.splat exists in the body the macc MUST consume it as rhs
+    //     (a body that splats but bypasses it is the malformed scalar-broadcast
+    //     composition the legacy validator rejects).
+    // A body outside this shape is NOT lowered here; notifyMatchFailure rolls the
+    // conversion back so the legacy validator still sees (and rejects) it.
+    mlir::Operation *lhsDef = macc.getLhs().getDefiningOp();
+    mlir::Operation *rhsDef = macc.getRhs().getDefiningOp();
+    mlir::Operation *accDef = macc.getAccumulator().getDefiningOp();
+    if (!llvm::isa_and_present<tcrvrvv::LoadOp>(lhsDef) ||
+        !llvm::isa_and_present<tcrvrvv::LoadOp>(accDef))
+      return rewriter.notifyMatchFailure(
+          macc, "macc lhs/accumulator must be explicit vector loads");
+    bool rhsIsLoad = llvm::isa_and_present<tcrvrvv::LoadOp>(rhsDef);
+    bool rhsIsSplat = llvm::isa_and_present<tcrvrvv::SplatOp>(rhsDef);
+    if (!rhsIsLoad && !rhsIsSplat)
+      return rewriter.notifyMatchFailure(
+          macc, "macc rhs must be an explicit vector load or scalar splat "
+                "(broadcast/splat-load macc is out of the bounded slice)");
+    // If the enclosing body carries a tcrv_rvv.splat, the macc must consume it
+    // as rhs (scalar-broadcast composition contract). A splatting body whose macc
+    // bypasses the splat is the malformed scalar-broadcast macc.
+    if (mlir::Block *block = macc->getBlock())
+      for (mlir::Operation &sibling : *block)
+        if (llvm::isa<tcrvrvv::SplatOp>(sibling) && !rhsIsSplat)
+          return rewriter.notifyMatchFailure(
+              macc, "scalar-broadcast macc body must consume the splat result "
+                    "as rhs");
+    // Accumulator ABI-role binding guard: the accumulator load must read the
+    // accumulator-input-buffer ABI value, NOT the output buffer (legacy:
+    // "accumulator load to bind accumulator-input-buffer, not output buffer").
+    auto accLoad = llvm::cast<tcrvrvv::LoadOp>(accDef);
+    auto accBufferAbi =
+        accLoad.getBuffer().getDefiningOp<tcrvrvv::RuntimeABIValueOp>();
+    if (!accBufferAbi ||
+        accBufferAbi.getRole() != "accumulator-input-buffer")
+      return rewriter.notifyMatchFailure(
+          macc, "macc accumulator load must bind the accumulator-input-buffer "
+                "ABI role");
+
+    mlir::Value lhs = valueMap.lookup(macc.getLhs());
+    mlir::Value rhs = valueMap.lookup(macc.getRhs());
+    mlir::Value accumulator = valueMap.lookup(macc.getAccumulator());
+    if (!lhs || !rhs || !accumulator)
+      return rewriter.notifyMatchFailure(macc, "macc operand unmapped");
+    mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
+    if (!vecType)
+      return rewriter.notifyMatchFailure(macc, "vector type not convertible");
+    std::string callee =
+        riscvMAccIntrinsicName(vectorElementWidth(vectorType),
+                               vectorType.getLmul(), vectorDType(vectorType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(macc.getTCRVEmitCLowerableSourceOpName(),
+                         macc.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{vecType}, callee,
+                mlir::ValueRange{accumulator, lhs, rhs, bodyVL})
+            .getResult(0);
+    valueMap[macc.getResult()] = result;
+    return mlir::success();
+  }
+
+  /// masked_macc(%mask,%lhs,%rhs,%accumulator,%vl){kind} lowers to TWO calls,
+  /// byte-identical to the legacy computed-mask macc sequence:
+  ///   active = __riscv_vmacc_vv_<dtype><lmul>(accumulator, lhs, rhs, vl);
+  ///   result = __riscv_vmerge_vvm_<dtype><lmul>(accumulator, active, mask, vl);
+  /// The fused macc multiplies/accumulates on every lane; the merge then keeps
+  /// the ACCUMULATOR vector on inactive lanes (the passthrough) and the macc
+  /// result on active (mask-true) lanes -- the same passthrough = accumulator
+  /// contract the legacy oracle emits.
+  mlir::LogicalResult
+  emitMaskedMAcc(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+                 tcrvrvv::MaskedMAccOp masked,
+                 llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+                 mlir::Value bodyVL) const {
+    auto vectorType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(masked.getResult().getType());
+    if (!vectorType)
+      return rewriter.notifyMatchFailure(masked,
+                                         "masked_macc result not typed vector");
+    if (masked.getKind() != "add")
+      return rewriter.notifyMatchFailure(masked, "unsupported masked_macc kind");
+    if (masked.getAccumulatorLayout() !=
+            "separate-i32-vector-accumulator-input" ||
+        masked.getResultLayout() !=
+            "store-multiply-accumulate-result-to-output-buffer")
+      return rewriter.notifyMatchFailure(
+          masked,
+          "masked_macc accumulator/result layout outside the convertible slice");
+    // SEW32-only fused vmacc (see emitMAcc); the masked rung shares the same
+    // vmacc derivation.
+    if (!vectorType.getElementType().isSignlessInteger(32))
+      return rewriter.notifyMatchFailure(
+          masked, "masked_macc only lowers the SEW32 fused vmacc slice");
+    auto maskType =
+        llvm::dyn_cast<tcrvrvv::MaskType>(masked.getMask().getType());
+    if (!maskType)
+      return rewriter.notifyMatchFailure(masked,
+                                         "masked_macc mask not typed mask");
+    mlir::Value mask = valueMap.lookup(masked.getMask());
+    mlir::Value lhs = valueMap.lookup(masked.getLhs());
+    mlir::Value rhs = valueMap.lookup(masked.getRhs());
+    mlir::Value accumulator = valueMap.lookup(masked.getAccumulator());
+    if (!mask || !lhs || !rhs || !accumulator)
+      return rewriter.notifyMatchFailure(masked, "masked_macc operand unmapped");
+    mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
+    if (!vecType)
+      return rewriter.notifyMatchFailure(masked, "vector type not convertible");
+    unsigned sew = vectorElementWidth(vectorType);
+    llvm::StringRef lmul = vectorType.getLmul();
+    llvm::StringRef dtype = vectorDType(vectorType);
+
+    // active = vmacc_vv(accumulator, lhs, rhs, vl) -- fused multiply-accumulate
+    // on every lane.
+    std::string maccCallee = riscvMAccIntrinsicName(sew, lmul, dtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(masked.getTCRVEmitCLowerableSourceOpName(),
+                         masked.getTCRVEmitCLowerableSourceRole(), maccCallee));
+    mlir::Value active =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{vecType}, maccCallee,
+                mlir::ValueRange{accumulator, lhs, rhs, bodyVL})
+            .getResult(0);
+
+    // result = vmerge(accumulator, active, mask, vl) -- inactive lanes keep the
+    // accumulator passthrough vector.
+    std::string mergeCallee = riscvIntrinsicName("vmerge", sew, lmul, dtype);
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(masked.getTCRVEmitCLowerableSourceOpName(),
+                         masked.getTCRVEmitCLowerableSourceRole(), mergeCallee));
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{vecType}, mergeCallee,
+                mlir::ValueRange{accumulator, active, mask, bodyVL})
             .getResult(0);
     valueMap[masked.getResult()] = result;
     return mlir::success();
