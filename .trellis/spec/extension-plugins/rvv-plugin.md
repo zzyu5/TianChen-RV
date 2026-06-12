@@ -663,6 +663,17 @@ artifact validation.
   schedule facts. It must not require remediation statement strategy,
   performance feedback, admission, maturity/no-win, or dispatch-preference
   fields as materialization authority; those remain policy/evidence mirrors.
+- Packed-i4 selected-body realization preflight follows the same stable
+  resource boundary. It may require selected candidate, typed body/config/
+  runtime facts, packed load/unpack facts, provider primitive facts,
+  resource-cost facts, stable schedule-decision facts, and stable realization
+  region/phase facts before materializing producer/consumer `with_vl` and
+  `gearbox_cross_region_handoff` structure. It must not require
+  performance-feedback, remediation, maturity/no-win, measurement evidence,
+  selected-dispatch output, or dispatch-preference fields as realization
+  authority. Stale stable schedule or packed load/unpack facts still fail
+  closed before provider route construction; stale policy/evidence fields are
+  owned by explicit measurement-disposition or selected-dispatch validators.
 
 ### 4. Validation & Error Matrix
 

@@ -569,3 +569,75 @@ measurement-disposition work only if fresh source-backed same-target RVV
 evidence is introduced. The next continuation point is to return to adjacent
 primitive/resource coverage or selected-body realization/resource-aware coverage
 only after preserving this stable-fact guard in focused scans.
+
+## Current Slice: Selected-Body Realization Stable-Resource Boundary Cleanup
+
+This bounded follow-up returns from mirror cleanup to the production
+selected-body realization seam for the packed-i4 low-precision resource-aware
+representative:
+
+```text
+selected typed packed-i4 low-precision body/config/runtime facts
+  -> Gearbox stable resource candidate facts
+  -> RVV plugin-local selected-body realization
+  -> realized producer/consumer with_vl and gearbox handoff structure
+  -> provider primitive/resource route payload
+  -> TCRVEmitCLowerableRoute
+  -> neutral EmitC/support-bundle/target validation
+```
+
+The focused scan before this slice must preserve the stable-fact guard from the
+previous cleanup: stable route/provider/statement/target acceptance may consume
+`RVVLowPrecisionStableResourceCompilerFacts`, stable packed-i4 resource
+candidate facts, primitive payload facts, or Gearbox schedule/resource-cost
+facts. It must not consume `RVVLowPrecisionContractionResourceSelection`
+directly except for derivation/verification, explicit
+measurement-disposition/selected-dispatch policy helpers, and mirror
+transport.
+
+The concrete production gap for this slice is the packed-i4 selected-body
+realization preflight in
+`RVVContractionSelectedBodyRealizationOwner.cpp`. It validates stable packed
+operand, resource-cost, schedule, primitive, and realization facts before
+materializing the resource-aware producer/consumer structure, but it also still
+requires performance, remediation, maturity/no-win, and dispatch-preference
+attrs while claiming to decide whether realization may consume the selected
+resource candidate. Those attrs are policy/evidence records. They may remain
+explicit mirrors for measurement-disposition or selected-dispatch validators,
+but they must not be prerequisites for stable selected-body realization.
+
+### Acceptance Criteria For This Slice
+
+- The packed-i4 selected-body realization preflight consumes typed
+  body/config/runtime facts, provider primitive facts, packed load/unpack facts,
+  resource-cost facts, stable schedule-decision facts, and stable selected
+  candidate facts before materializing producer/consumer `with_vl`,
+  vsetvl-region markers, and gearbox handoff structure.
+- The same realization preflight no longer requires stale/missing
+  performance-feedback, performance-admission, remediation, maturity/no-win, or
+  dispatch-preference fields as stable realization authority.
+- Stable packed-i4 facts remain fail-closed: missing/stale packed load/unpack
+  facts, resource-cost facts, schedule decision, primitive facts, selected
+  candidate, legality, or runtime/shape/policy facts still reject before
+  realization/provider route construction.
+- Existing explicit policy/evidence helpers and target validators still own
+  measurement-disposition, remediation, performance, selected-dispatch, and
+  dispatch-preference mirror validation. This slice does not introduce any
+  measured-win, admission, no-win, remediation, or performance-preference
+  claim.
+- Common EmitC remains neutral and only carries provider-built payloads, stable
+  resource mirrors, shared mirror-source markers, and explicit policy/evidence
+  mirrors.
+- Focused C++ or lit coverage proves stale policy/evidence attrs do not block
+  packed-i4 selected-body realization while stale stable schedule or packed
+  load/unpack facts still fail closed.
+- Focused scans over the touched production files show no new
+  `RVVLowPrecisionContractionResourceSelection` stable acceptance consumer and
+  no new admission/remediation/performance/measurement/no-win/dispatch field
+  used as route, schedule, artifact, primitive, or typed-body authority.
+- The focused CMake targets, C++ plugin/target tests, directly affected lit
+  fixtures, Trellis task validation, and whitespace checks pass.
+
+The macro campaign remains open after this slice for adjacent low-precision
+primitive/resource surface coverage and for future measurement-disposition work
+only when fresh source-backed same-target RVV evidence is introduced.

@@ -1,5 +1,79 @@
 > Continuation from `journal-29.md` (archived at more than 2000 lines)
 
+## Session 610: Stage2 RVV selected-body realization stable-resource boundary cleanup
+
+**Date**: 2026-06-12
+**Task**: Stage2 RVV low-precision contraction primitive-surface campaign
+**Branch**: `main`
+
+### Summary
+
+Continued the active macro task and completed a selected-body realization
+boundary cleanup for the packed-i4 low-precision resource-aware representative.
+The production gap was in the RVV plugin-local selected-body realization
+preflight: it already validated selected candidate, typed/resource, packed
+load/unpack, resource-cost, stable schedule, primitive, runtime, and region
+facts, but it also required performance, remediation, maturity/no-win,
+measurement, and dispatch-preference attrs before materializing stable
+producer/consumer `with_vl` and gearbox handoff structure.
+
+### Boundary Classification
+
+- Stable compiler authority remains selected candidate, typed body/config,
+  packed load/unpack, resource-cost, schedule-decision, primitive, runtime, and
+  realization region/phase facts.
+- Policy/evidence records remain explicit measurement-disposition,
+  remediation, maturity/no-win, admission, selected-dispatch, and
+  dispatch-preference mirrors. They do not decide selected-body realization.
+- Stale stable packed-i4 schedule and packed load/unpack facts still fail
+  closed before realization/provider route construction.
+
+### Main Changes
+
+- Removed packed-i4 policy/evidence attr requirements from
+  `materializeLowPrecisionResourceRealizationAttrs`.
+- Kept packed-i4 stable schedule-decision, packed load/unpack,
+  resource-cost, primitive, typed/runtime, and selected-candidate checks as
+  fail-closed realization preflight.
+- Added focused C++ coverage proving policy/evidence-only drift does not block
+  packed-i4 selected-body realization while stale schedule facts still reject.
+- Updated the RVV plugin spec and active macro PRD/task metadata with the
+  selected-body realization stable-resource boundary rule.
+
+### Testing
+
+- [OK] Focused scan over touched low-precision production files: remaining
+  broad resource-selection consumers are in derivation/verification, explicit
+  measurement-disposition or selected-dispatch policy helpers, target
+  measurement-disposition artifact mirror validation, or mirror transport.
+- [OK] `git diff --check`
+- [OK] `cmake --build build --target tianchenrv-rvv-extension-plugin-test -j2`
+- [OK] `build/bin/tianchenrv-rvv-extension-plugin-test`
+- [OK] `cmake --build build --target tcrv-opt tcrv-translate tianchenrv-rvv-extension-plugin-test tianchenrv-target-artifact-export-test -j2`
+- [OK] `build/bin/tianchenrv-target-artifact-export-test`
+- [OK] Focused lit from `build/test` with packed-i4 dequantize,
+  packed-i4 dequant-clamp, signed/unsigned pre-realized product-reduction,
+  signed/unsigned explicit product-reduction, and explicit dequant-clamp
+  selected-body realization filters.
+
+### Self-Repair
+
+- The first focused lit invocation used the generated build/test site config by
+  absolute file path and hit a relative `lit.cfg.py` lookup failure. Reran the
+  same focused filter from `build/test`; 7 selected tests passed.
+
+### Status
+
+[OPEN MACRO TASK] Selected-body realization stable-resource boundary cleanup is
+complete for this slice. The macro task remains active for adjacent
+low-precision primitive/resource selected-body realization coverage and for
+measurement-disposition work only if fresh source-backed same-target RVV
+evidence is introduced.
+
+### Git Commits
+
+Final coherent commit is created after this journal entry.
+
 ## Session 609: Stage2 RVV remaining resource-consumer stable-fact guard cleanup
 
 **Date**: 2026-06-12

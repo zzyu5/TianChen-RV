@@ -9143,6 +9143,161 @@ module {
           "reduction facts"))
     return result;
 
+  auto expectPackedI4ProductDequantRealizationSuccess =
+      [&](llvm::StringRef fixtureSource, llvm::StringRef label) -> int {
+    mlir::OwningOpRef<mlir::ModuleOp> packedModule =
+        parseModule(context, fixtureSource);
+    if (!packedModule)
+      return fail(llvm::Twine(label) + ": failed to parse fixture");
+    KernelOp packedKernel =
+        findKernel(*packedModule,
+                   "rvv_pre_realized_contraction_route_entry_kernel");
+    if (!packedKernel)
+      return fail(llvm::Twine(label) + ": missing kernel");
+    TargetCapabilitySet packedCapabilities =
+        TargetCapabilitySet::buildFromKernel(packedKernel);
+    VariantOp packedVariant =
+        findVariant(packedKernel,
+                    "rvv_pre_route_product_reduce_dequantize_packed_i4");
+    if (!packedVariant)
+      return fail(llvm::Twine(label) + ": missing packed-i4 variant");
+    mlir::Operation *packedBody = findFirstNestedOp(
+        packedVariant,
+        "tcrv_rvv.typed_widening_product_reduce_dequantize_"
+        "pre_realized_body");
+    if (!packedBody)
+      return fail(llvm::Twine(label) + ": missing packed-i4 body");
+    mlir::OpBuilder packedBuilder(packedModule->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> realized =
+        contractionOwner->realize(
+            VariantLoweringBoundaryRequest(
+                packedVariant, packedKernel, packedCapabilities,
+                VariantEmissionRole::DirectVariant, packedBuilder),
+            packedBody);
+    if (!realized)
+      return fail(llvm::Twine(label) +
+                  ": unexpectedly rejected packed-i4 realization: " +
+                  llvm::toString(realized.takeError()));
+    return expect(
+        countNestedOps(packedVariant,
+                       "tcrv_rvv.typed_widening_product_reduce_dequantize_"
+                       "pre_realized_body") == 0 &&
+            countNestedOps(packedVariant, "tcrv_rvv.with_vl") == 2 &&
+            countNestedOps(packedVariant,
+                           "tcrv_rvv.vsetvl_region_marker") == 2 &&
+            countNestedOps(packedVariant,
+                           "tcrv_rvv.gearbox_cross_region_handoff") == 1,
+        llvm::Twine(label) +
+            " materializes packed-i4 stable resource realization structure");
+  };
+
+  auto expectPackedI4ProductDequantRealizationError =
+      [&](llvm::StringRef fixtureSource,
+          std::initializer_list<llvm::StringRef> fragments,
+          llvm::StringRef label) -> int {
+    mlir::OwningOpRef<mlir::ModuleOp> packedModule =
+        parseModule(context, fixtureSource);
+    if (!packedModule)
+      return fail(llvm::Twine(label) + ": failed to parse fixture");
+    KernelOp packedKernel =
+        findKernel(*packedModule,
+                   "rvv_pre_realized_contraction_route_entry_kernel");
+    if (!packedKernel)
+      return fail(llvm::Twine(label) + ": missing kernel");
+    TargetCapabilitySet packedCapabilities =
+        TargetCapabilitySet::buildFromKernel(packedKernel);
+    VariantOp packedVariant =
+        findVariant(packedKernel,
+                    "rvv_pre_route_product_reduce_dequantize_packed_i4");
+    if (!packedVariant)
+      return fail(llvm::Twine(label) + ": missing packed-i4 variant");
+    mlir::Operation *packedBody = findFirstNestedOp(
+        packedVariant,
+        "tcrv_rvv.typed_widening_product_reduce_dequantize_"
+        "pre_realized_body");
+    if (!packedBody)
+      return fail(llvm::Twine(label) + ": missing packed-i4 body");
+    mlir::OpBuilder packedBuilder(packedModule->getContext());
+    llvm::Expected<tianchenrv::tcrv::rvv::WithVLOp> realized =
+        contractionOwner->realize(
+            VariantLoweringBoundaryRequest(
+                packedVariant, packedKernel, packedCapabilities,
+                VariantEmissionRole::DirectVariant, packedBuilder),
+            packedBody);
+    if (realized)
+      return fail(llvm::Twine(label) +
+                  ": unexpectedly realized stale packed-i4 body");
+    return expectErrorContains(realized.takeError(), fragments);
+  };
+
+  std::string stalePolicyPackedI4RealizationSource =
+      sourceWithPrimitiveResourceFacts;
+  constexpr llvm::StringLiteral expectedPackedI4PerformanceFeedback =
+      "tcrv_rvv.low_precision_resource.performance_feedback = "
+      "\"same-target-packed-i4-no-win.v1\"";
+  constexpr llvm::StringLiteral stalePackedI4PerformanceFeedback =
+      "tcrv_rvv.low_precision_resource.performance_feedback = "
+      "\"metadata-only-performance-feedback\"";
+  std::size_t stalePolicyPosition =
+      stalePolicyPackedI4RealizationSource.find(
+          expectedPackedI4PerformanceFeedback.str());
+  if (stalePolicyPosition == std::string::npos)
+    return fail("failed to locate packed-i4 performance policy fact for "
+                "selected-body realization policy-drift fixture");
+  stalePolicyPackedI4RealizationSource.replace(
+      stalePolicyPosition, expectedPackedI4PerformanceFeedback.size(),
+      stalePackedI4PerformanceFeedback.str());
+  constexpr llvm::StringLiteral expectedPackedI4RemediationPlan =
+      "tcrv_rvv.low_precision_resource.remediation_plan = "
+      "\"attempt-packed-i4-beyond-local-scalar-epilogue-before-performance-"
+      "claim.v1\"";
+  constexpr llvm::StringLiteral stalePackedI4RemediationPlan =
+      "tcrv_rvv.low_precision_resource.remediation_plan = "
+      "\"metadata-only-remediation-plan\"";
+  stalePolicyPosition = stalePolicyPackedI4RealizationSource.find(
+      expectedPackedI4RemediationPlan.str());
+  if (stalePolicyPosition == std::string::npos)
+    return fail("failed to locate packed-i4 remediation policy fact for "
+                "selected-body realization policy-drift fixture");
+  stalePolicyPackedI4RealizationSource.replace(
+      stalePolicyPosition, expectedPackedI4RemediationPlan.size(),
+      stalePackedI4RemediationPlan.str());
+  if (int result = expectPackedI4ProductDequantRealizationSuccess(
+          stalePolicyPackedI4RealizationSource,
+          "selected-body packed-i4 realization ignores policy/evidence-only "
+          "drift"))
+    return result;
+
+  std::string staleSchedulePackedI4RealizationSource =
+      sourceWithPrimitiveResourceFacts;
+  constexpr llvm::StringLiteral expectedPackedI4ScheduleDecision =
+      "tcrv_rvv.low_precision_resource.schedule_decision = "
+      "\"select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-"
+      "reduce-u1-two-region-budget-5of32.v1\"";
+  constexpr llvm::StringLiteral stalePackedI4ScheduleDecision =
+      "tcrv_rvv.low_precision_resource.schedule_decision = "
+      "\"metadata-only-packed-i4-schedule-decision\"";
+  std::size_t staleSchedulePosition =
+      staleSchedulePackedI4RealizationSource.find(
+          expectedPackedI4ScheduleDecision.str());
+  if (staleSchedulePosition == std::string::npos)
+    return fail("failed to locate packed-i4 schedule decision for "
+                "selected-body realization stable-fact fixture");
+  staleSchedulePackedI4RealizationSource.replace(
+      staleSchedulePosition, expectedPackedI4ScheduleDecision.size(),
+      stalePackedI4ScheduleDecision.str());
+  if (int result = expectPackedI4ProductDequantRealizationError(
+          staleSchedulePackedI4RealizationSource,
+          {"cannot consume stale or unsupported low-precision "
+           "direct-contraction resource fact",
+           "tcrv_rvv.low_precision_resource.schedule_decision",
+           "select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-"
+           "reduce-u1-two-region-budget-5of32.v1",
+           "metadata-only-packed-i4-schedule-decision"},
+          "selected-body packed-i4 realization rejects stale stable schedule "
+          "decision"))
+    return result;
+
   VariantOp wideningMAccVariant =
       findVariant(kernel, "rvv_pre_route_widening_macc");
   if (int result = expect(

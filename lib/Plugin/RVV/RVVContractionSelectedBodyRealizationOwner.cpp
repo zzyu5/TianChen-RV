@@ -520,86 +520,6 @@ materializeLowPrecisionResourceRealizationAttrs(
             selected->packedUnpackedSource))
       return std::move(error);
     if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source, kRVVLowPrecisionResourcePerformanceFeedbackAttrName,
-            kRVVLowPrecisionResourcePackedI4PerformanceFeedback))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source, kRVVLowPrecisionResourcePerformanceBaselineAttrName,
-            getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
-                selected->candidateID)))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source,
-            kRVVLowPrecisionResourcePerformanceBestSpeedupRangeAttrName,
-            kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source, kRVVLowPrecisionResourcePerformanceActionAttrName,
-            kRVVLowPrecisionResourcePackedI4PerformanceAction))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source, kRVVLowPrecisionResourcePerformanceMaturityAttrName,
-            kRVVLowPrecisionResourcePackedI4PerformanceMaturity))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source,
-            kRVVLowPrecisionResourcePerformanceMaturityEvidenceAttrName,
-            kRVVLowPrecisionResourcePackedI4PerformanceMaturityEvidence))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source,
-            kRVVLowPrecisionResourcePerformanceMaturityOutcomeAttrName,
-            kRVVLowPrecisionResourcePackedI4PerformanceMaturityOutcome))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source,
-            kRVVLowPrecisionResourcePerformanceSelectionEligibleAttrName,
-            kRVVLowPrecisionResourcePackedI4PerformanceSelectionEligible))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source, kRVVLowPrecisionResourceDispatchPreferenceAttrName,
-            kRVVLowPrecisionResourcePackedI4DispatchPreference))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source,
-            kRVVLowPrecisionResourceRemediationPlanContractAttrName,
-            kRVVLowPrecisionResourcePackedI4RemediationPlanContract))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source, kRVVLowPrecisionResourceRemediationPlanAttrName,
-            kRVVLowPrecisionResourcePackedI4RemediationPlan))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source,
-            kRVVLowPrecisionResourceRemediationStatementStrategyAttrName,
-            kRVVLowPrecisionResourcePackedI4RemediationStatementStrategy))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source, kRVVLowPrecisionResourceRemediationVectorBudgetAttrName,
-            kRVVLowPrecisionResourcePackedI4RemediationVectorBudget))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source,
-            kRVVLowPrecisionResourceRemediationScheduleContractAttrName,
-            kRVVLowPrecisionResourcePackedI4RemediationScheduleContract))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source, kRVVLowPrecisionResourceRemediationUnpackPlanAttrName,
-            kRVVLowPrecisionResourcePackedI4RemediationUnpackPlan))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source, kRVVLowPrecisionResourceRemediationProductPlanAttrName,
-            kRVVLowPrecisionResourcePackedI4RemediationProductPlan))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source, kRVVLowPrecisionResourceRemediationReductionPlanAttrName,
-            kRVVLowPrecisionResourcePackedI4RemediationReductionPlan))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
-            source, kRVVLowPrecisionResourceRemediationVLPlanAttrName,
-            kRVVLowPrecisionResourcePackedI4RemediationVLPlan))
-      return std::move(error);
-    if (llvm::Error error = requireLowPrecisionResourceExpectedStringFact(
             source,
             kRVVLowPrecisionResourceScheduleDecisionContractAttrName,
             kRVVLowPrecisionResourcePackedI4ScheduleDecisionContract))
@@ -871,21 +791,6 @@ materializeLowPrecisionResourceRealizationAttrs(
     destination->setAttr(
         kRVVLowPrecisionResourcePackedUnpackedSourceAttrName,
         builder.getStringAttr(selected->packedUnpackedSource));
-    destination->setAttr(
-        kRVVLowPrecisionResourcePerformanceFeedbackAttrName,
-        builder.getStringAttr(kRVVLowPrecisionResourcePackedI4PerformanceFeedback));
-    destination->setAttr(
-        kRVVLowPrecisionResourcePerformanceBaselineAttrName,
-        builder.getStringAttr(
-            getRVVLowPrecisionResourcePackedI4PerformanceBaselineForCandidate(
-                selected->candidateID)));
-    destination->setAttr(
-        kRVVLowPrecisionResourcePerformanceBestSpeedupRangeAttrName,
-        builder.getStringAttr(
-            kRVVLowPrecisionResourcePackedI4PerformanceBestSpeedupRange));
-    destination->setAttr(
-        kRVVLowPrecisionResourcePerformanceActionAttrName,
-        builder.getStringAttr(kRVVLowPrecisionResourcePackedI4PerformanceAction));
     destination->setAttr(
         kRVVLowPrecisionResourceScheduleDecisionContractAttrName,
         builder.getStringAttr(
