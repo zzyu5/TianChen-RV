@@ -412,45 +412,6 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
 
 } // namespace
 
-RVVContractionArtifactContractCore getRVVContractionArtifactContractCore(
-    const RVVSelectedBodyEmitCRouteDescription &description,
-    RVVSelectedBodyMemoryForm memoryForm, llvm::StringRef runtimeControlPlanID,
-    llvm::StringRef runtimeABIOrder, llvm::StringRef targetLeafProfile,
-    llvm::StringRef providerSupportedMirror,
-    llvm::StringRef requiredHeaderDeclarations,
-    llvm::StringRef cTypeMappingSummary,
-    llvm::StringRef routeOperandBindingPlanID,
-    llvm::StringRef routeOperandBindingSummary,
-    llvm::StringRef typedComputeOpName, llvm::StringRef vlCType,
-    llvm::StringRef resultVectorTypeName, llvm::StringRef resultVectorCType,
-    llvm::StringRef sourceVectorTypeName, llvm::StringRef sourceVectorCType,
-    llvm::StringRef maskTypeName, llvm::StringRef maskCType,
-    llvm::ArrayRef<support::RuntimeABIParameter> runtimeABIParameters) {
-  RVVContractionArtifactContractCore core;
-  core.emitCRouteID =
-      getRVVSelectedBodyEmitCRouteID(description.operation).str();
-  core.memoryForm = memoryForm;
-  core.configContractID = description.configContractID.str();
-  core.runtimeControlPlanID = runtimeControlPlanID.str();
-  core.runtimeABIOrder = runtimeABIOrder.str();
-  core.targetLeafProfile = targetLeafProfile.str();
-  core.providerSupportedMirror = providerSupportedMirror.str();
-  core.requiredHeaderDeclarations = requiredHeaderDeclarations.str();
-  core.cTypeMappingSummary = cTypeMappingSummary.str();
-  core.routeOperandBindingPlanID = routeOperandBindingPlanID.str();
-  core.routeOperandBindingSummary = routeOperandBindingSummary.str();
-  core.typedComputeOpName = typedComputeOpName.str();
-  core.vlCType = vlCType.str();
-  core.resultVectorTypeName = resultVectorTypeName.str();
-  core.resultVectorCType = resultVectorCType.str();
-  core.sourceVectorTypeName = sourceVectorTypeName.str();
-  core.sourceVectorCType = sourceVectorCType.str();
-  core.maskTypeName = maskTypeName.str();
-  core.maskCType = maskCType.str();
-  core.runtimeABIParameters.append(runtimeABIParameters.begin(),
-                                   runtimeABIParameters.end());
-  return core;
-}
 
 llvm::Expected<RVVSelectedBodyEmitCRouteDescription>
 describeRVVSelectedBodyEmitCRoute(
