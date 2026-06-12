@@ -1,6 +1,7 @@
 #ifndef TIANCHENRV_DIALECT_EXEC_IR_EXECOPS_TD
 #define TIANCHENRV_DIALECT_EXEC_IR_EXECOPS_TD
 
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/SymbolInterfaces.td"
 
@@ -18,6 +19,38 @@ def TCRV_Exec_Dialect : Dialect {
     by extension dialects such as tcrv.rvv, tcrv.ime, tcrv.offload, scalar
     fallback, or future plugin dialects.
   }];
+
+  let useDefaultAttributePrinterParser = 1;
+}
+
+class TCRVExec_Attr<string name, string attrMnemonic, list<Trait> traits = []>
+    : AttrDef<TCRV_Exec_Dialect, name, traits> {
+  let mnemonic = attrMnemonic;
+}
+
+def TCRVExec_CapabilityRelationsAttr
+    : TCRVExec_Attr<"CapabilityRelations", "capability_relations"> {
+  let summary = "typed provides/implies/conflicts capability-id relations";
+  let description = [{
+    Typed structure for a capability's cross-capability relations. Each list
+    holds capability *IDs* (free dotted strings in the capability-id namespace,
+    e.g. "build.policy.no_inline_asm"), NOT MLIR symbol references. The IDs are
+    queried directly by capability-aware C++ passes/plugins without string-keyed
+    getAttrOfType lookups. Resolution by ID (provides/implies/conflicts) is a
+    pass-time concern; this attribute only structures the relation contract and
+    its verifier is hygiene-only (non-empty, no required trimming, single-line,
+    no duplicate ids per list).
+  }];
+
+  let parameters = (ins
+    OptionalArrayRefParameter<"::mlir::StringAttr">:$provides,
+    OptionalArrayRefParameter<"::mlir::StringAttr">:$implies,
+    OptionalArrayRefParameter<"::mlir::StringAttr">:$conflicts);
+  let assemblyFormat =
+    "`<` (`provides` `=` `[` $provides^ `]`)? "
+    "(`implies` `=` `[` $implies^ `]`)? "
+    "(`conflicts` `=` `[` $conflicts^ `]`)? `>`";
+  let genVerifyDecl = 1;
 }
 
 class TCRVExec_Op<string mnemonic, list<Trait> traits = []>
@@ -31,7 +64,8 @@ def TargetOp : TCRVExec_Op<"exec.target", [Symbol]> {
   }];
 
   let arguments = (ins SymbolNameAttr:$sym_name,
-                   OptionalAttr<ArrayAttr>:$capability_providers);
+                   OptionalAttr<ArrayAttr>:$capability_providers,
+                   OptionalAttr<TCRVExec_CapabilityRelationsAttr>:$relations);
   let assemblyFormat = "$sym_name attr-dict";
   let hasVerifier = 1;
 }
@@ -47,7 +81,8 @@ def CapabilityOp : TCRVExec_Op<"exec.capability", [Symbol]> {
 
   let arguments = (ins SymbolNameAttr:$sym_name,
                    OptionalAttr<StrAttr>:$id,
-                   OptionalAttr<StrAttr>:$kind);
+                   OptionalAttr<StrAttr>:$kind,
+                   OptionalAttr<TCRVExec_CapabilityRelationsAttr>:$relations);
   let assemblyFormat = "$sym_name attr-dict";
   let hasVerifier = 1;
 }

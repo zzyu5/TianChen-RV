@@ -10,9 +10,12 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/SymbolTable.h"
 
+#include "TianChenRV/Dialect/Exec/IR/ExecOpsDialect.h.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "TianChenRV/Dialect/Exec/IR/ExecAttrs.h.inc"
+
 #define GET_OP_CLASSES
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.h.inc"
-
-#include "TianChenRV/Dialect/Exec/IR/ExecOpsDialect.h.inc"
 
 #endif // TIANCHENRV_DIALECT_EXEC_IR_EXECOPS_H

@@ -10,8 +10,10 @@
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 #include <cctype>
 
@@ -19,6 +21,9 @@ using namespace tianchenrv::tcrv::exec;
 namespace exec = tianchenrv::tcrv::exec;
 
 #include "TianChenRV/Dialect/Exec/IR/ExecOpsDialect.cpp.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "TianChenRV/Dialect/Exec/IR/ExecAttrs.cpp.inc"
 
 #define GET_OP_CLASSES
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.cpp.inc"
@@ -209,6 +214,40 @@ mlir::LogicalResult verifyCapabilityIDRelationAttr(mlir::Operation *op,
       return op->emitOpError()
              << "capability relation attribute '" << attrName
              << "' duplicates capability id '" << value << "'";
+  }
+
+  return mlir::success();
+}
+
+// Hygiene-only validation of one typed capability-id relation list, ported from
+// verifyCapabilityIDRelationAttr. Entries are already typed StringAttr, so only
+// the value-level checks (non-empty, no required trimming, single-line, no
+// duplicates per list) remain. No cross-op / symbol-table resolution here:
+// relation resolution by id is a pass-time concern.
+mlir::LogicalResult verifyCapabilityRelationIDList(
+    llvm::function_ref<mlir::InFlightDiagnostic()> emitError,
+    llvm::StringRef listName, llvm::ArrayRef<mlir::StringAttr> ids) {
+  llvm::StringSet<> seenIDs;
+  for (auto [index, idAttr] : llvm::enumerate(ids)) {
+    if (!idAttr || idAttr.getValue().trim().empty())
+      return emitError() << "capability relation list '" << listName
+                         << "' entry " << index
+                         << " must be a non-empty capability id string";
+
+    llvm::StringRef value = idAttr.getValue().trim();
+    if (value != idAttr.getValue())
+      return emitError() << "capability relation list '" << listName
+                         << "' entry " << index
+                         << " must not require whitespace trimming";
+
+    if (value.contains('\n') || value.contains('\r') || value.contains('\0'))
+      return emitError() << "capability relation list '" << listName
+                         << "' entry " << index
+                         << " must be single-line capability id text";
+
+    if (!seenIDs.insert(value).second)
+      return emitError() << "capability relation list '" << listName
+                         << "' duplicates capability id '" << value << "'";
   }
 
   return mlir::success();
@@ -549,6 +588,23 @@ mlir::LogicalResult verifyEmissionPlanDiagnostic(DiagnosticOp diagnostic) {
 }
 
 } // namespace
+
+mlir::LogicalResult CapabilityRelationsAttr::verify(
+    llvm::function_ref<mlir::InFlightDiagnostic()> emitError,
+    llvm::ArrayRef<mlir::StringAttr> provides,
+    llvm::ArrayRef<mlir::StringAttr> implies,
+    llvm::ArrayRef<mlir::StringAttr> conflicts) {
+  if (mlir::failed(verifyCapabilityRelationIDList(emitError, "provides",
+                                                  provides)))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyCapabilityRelationIDList(emitError, "implies", implies)))
+    return mlir::failure();
+  if (mlir::failed(
+          verifyCapabilityRelationIDList(emitError, "conflicts", conflicts)))
+    return mlir::failure();
+  return mlir::success();
+}
 
 mlir::LogicalResult TargetOp::verify() {
   auto idAttr = getOperation()->getAttrOfType<mlir::StringAttr>(kIdAttrName);
@@ -1189,5 +1245,9 @@ void TCRVExecDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
 #include "TianChenRV/Dialect/Exec/IR/ExecOps.cpp.inc"
+      >();
+  addAttributes<
+#define GET_ATTRDEF_LIST
+#include "TianChenRV/Dialect/Exec/IR/ExecAttrs.cpp.inc"
       >();
 }
