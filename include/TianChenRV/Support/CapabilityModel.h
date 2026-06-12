@@ -26,13 +26,15 @@ enum class CapabilityAvailability {
 class CapabilityDescriptor {
 public:
   CapabilityDescriptor() = default;
+  // NOTE on lifetime: when `relations` is non-null it is an interned attribute
+  // owned by an MLIRContext; a CapabilityDescriptor (and any TargetCapabilitySet
+  // holding it) must not outlive that context. In practice resolution is
+  // pass-scoped, so the context always outlives the descriptor.
   CapabilityDescriptor(llvm::StringRef symbolName, llvm::StringRef id,
                        llvm::StringRef kind, llvm::StringRef status,
                        CapabilityAvailability availability,
                        std::map<std::string, std::string> properties = {},
-                       llvm::ArrayRef<std::string> providedIDs = {},
-                       llvm::ArrayRef<std::string> impliedIDs = {},
-                       llvm::ArrayRef<std::string> conflictingIDs = {});
+                       tcrv::exec::CapabilityRelationsAttr relations = {});
 
   llvm::StringRef getSymbolName() const { return symbolName; }
   llvm::StringRef getID() const { return id; }
@@ -46,10 +48,16 @@ public:
   const std::map<std::string, std::string> &getProperties() const {
     return properties;
   }
-  llvm::ArrayRef<std::string> getProvidedIDs() const { return providedIDs; }
-  llvm::ArrayRef<std::string> getImpliedIDs() const { return impliedIDs; }
-  llvm::ArrayRef<std::string> getConflictingIDs() const {
-    return conflictingIDs;
+  tcrv::exec::CapabilityRelationsAttr getRelations() const { return relations; }
+  llvm::ArrayRef<mlir::StringAttr> getProvidedIDs() const {
+    return relations ? relations.getProvides() : llvm::ArrayRef<mlir::StringAttr>{};
+  }
+  llvm::ArrayRef<mlir::StringAttr> getImpliedIDs() const {
+    return relations ? relations.getImplies() : llvm::ArrayRef<mlir::StringAttr>{};
+  }
+  llvm::ArrayRef<mlir::StringAttr> getConflictingIDs() const {
+    return relations ? relations.getConflicts()
+                     : llvm::ArrayRef<mlir::StringAttr>{};
   }
 
   bool providesID(llvm::StringRef capabilityID) const;
@@ -64,9 +72,10 @@ private:
   std::string status;
   CapabilityAvailability availability = CapabilityAvailability::Available;
   std::map<std::string, std::string> properties;
-  llvm::SmallVector<std::string, 4> providedIDs;
-  llvm::SmallVector<std::string, 4> impliedIDs;
-  llvm::SmallVector<std::string, 4> conflictingIDs;
+  // Typed provides/implies/conflicts relations, interned in an MLIRContext
+  // (null == no relations). This is the single source of truth for relation
+  // resolution; the descriptor holds the very attribute the IR holds.
+  tcrv::exec::CapabilityRelationsAttr relations;
 };
 
 struct CapabilityConflict {

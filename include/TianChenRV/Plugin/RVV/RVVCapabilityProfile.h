@@ -3,6 +3,7 @@
 
 #include "TianChenRV/Support/CapabilityModel.h"
 
+#include "mlir/IR/MLIRContext.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 
@@ -45,9 +46,13 @@ llvm::StringRef getRVVSelectedMABICapabilitySymbol();
 llvm::Error validateRVVProbeCapabilityFacts(
     const RVVProbeCapabilityFacts &facts);
 
+// Builds the probe-fact capability set. Relations (currently only `provides`)
+// are minted as interned CapabilityRelationsAttr from `context`; the returned
+// TargetCapabilitySet must therefore not outlive `context`. The TCRV Exec
+// dialect must be loaded in `context`.
 llvm::Expected<support::TargetCapabilitySet>
 buildRVVTargetCapabilitiesFromProbeFacts(
-    const RVVProbeCapabilityFacts &facts);
+    mlir::MLIRContext &context, const RVVProbeCapabilityFacts &facts);
 
 } // namespace tianchenrv::plugin::rvv
 

@@ -467,8 +467,8 @@ llvm::Error RVVExtensionPlugin::collectVariantProposals(
 
 llvm::Expected<support::TargetCapabilitySet>
 RVVExtensionPlugin::buildTargetCapabilitiesFromProbeFacts(
-    const RVVProbeCapabilityFacts &facts) const {
-  return buildRVVTargetCapabilitiesFromProbeFacts(facts);
+    mlir::MLIRContext &context, const RVVProbeCapabilityFacts &facts) const {
+  return buildRVVTargetCapabilitiesFromProbeFacts(context, facts);
 }
 
 llvm::Error RVVExtensionPlugin::verifyVariantLegality(

@@ -96,50 +96,16 @@ collectCapabilityProperties(mlir::Operation *op) {
   return properties;
 }
 
-enum class CapabilityRelationKind { Provides, Implies, Conflicts };
-
-llvm::SmallVector<std::string, 4>
-collectTypedCapabilityIDRelation(tcrv::exec::CapabilityRelationsAttr relations,
-                                 CapabilityRelationKind kind) {
-  llvm::SmallVector<std::string, 4> ids;
-  llvm::ArrayRef<mlir::StringAttr> entries;
-  switch (kind) {
-  case CapabilityRelationKind::Provides:
-    entries = relations.getProvides();
-    break;
-  case CapabilityRelationKind::Implies:
-    entries = relations.getImplies();
-    break;
-  case CapabilityRelationKind::Conflicts:
-    entries = relations.getConflicts();
-    break;
-  }
-
-  for (mlir::StringAttr entry : entries) {
-    if (!entry)
-      continue;
-    llvm::StringRef value = entry.getValue().trim();
-    if (!value.empty())
-      ids.push_back(value.str());
-  }
-
-  return ids;
-}
-
-// Source one relation list (provides/implies/conflicts) from the typed
-// `relations = #tcrv.capability_relations<...>` attribute on the op. The legacy
-// string `provides`/`implies`/`conflicts` side attributes no longer exist in IR
-// (Stage 2 deletion endgame), so an op without the typed attr has no relations.
-// This drives the by-id relation queries downstream (satisfiesID /
-// lookupProviderByID / collectAvailableConflictsForCapability).
-llvm::SmallVector<std::string, 4>
-sourceCapabilityIDRelation(mlir::Operation *op, CapabilityRelationKind kind) {
-  if (auto relations =
-          op->getAttrOfType<tcrv::exec::CapabilityRelationsAttr>(
-              kRelationsAttrName))
-    return collectTypedCapabilityIDRelation(relations, kind);
-
-  return {};
+// Scan a typed relation list for `id`. Normalization (trim + ignore empty
+// entries) moves from intern-time to query-time: the CapabilityRelationsAttr
+// verifier is hygiene-only and does not require trimming, while the previous
+// restringify trimmed and dropped empties when interning the std::string copy.
+// Replicating that here keeps relation resolution byte-for-byte equivalent.
+bool relationListContains(llvm::ArrayRef<mlir::StringAttr> ids,
+                          llvm::StringRef id) {
+  return llvm::any_of(ids, [&](mlir::StringAttr entry) {
+    return entry && entry.getValue().trim() == id;
+  });
 }
 
 mlir::Operation *findModuleLevelSymbol(tcrv::exec::KernelOp kernel,
@@ -211,15 +177,8 @@ CapabilityDescriptor makeDescriptor(mlir::Operation *op,
       symbolName, id, kind, status,
       TargetCapabilitySet::availabilityFromStatus(status),
       collectCapabilityProperties(op),
-      sourceCapabilityIDRelation(op, CapabilityRelationKind::Provides),
-      sourceCapabilityIDRelation(op, CapabilityRelationKind::Implies),
-      sourceCapabilityIDRelation(op, CapabilityRelationKind::Conflicts));
-}
-
-bool containsID(llvm::ArrayRef<std::string> ids, llvm::StringRef id) {
-  return llvm::any_of(ids, [&](const std::string &candidate) {
-    return candidate == id;
-  });
+      op->getAttrOfType<tcrv::exec::CapabilityRelationsAttr>(
+          kRelationsAttrName));
 }
 
 llvm::Error makeCapabilitySetError(llvm::Twine message) {
@@ -251,16 +210,10 @@ CapabilityDescriptor::CapabilityDescriptor(
     llvm::StringRef symbolName, llvm::StringRef id, llvm::StringRef kind,
     llvm::StringRef status, CapabilityAvailability availability,
     std::map<std::string, std::string> properties,
-    llvm::ArrayRef<std::string> providedIDs,
-    llvm::ArrayRef<std::string> impliedIDs,
-    llvm::ArrayRef<std::string> conflictingIDs)
+    tcrv::exec::CapabilityRelationsAttr relations)
     : symbolName(symbolName.str()), id(id.str()), kind(kind.str()),
       status(status.str()), availability(availability),
-      properties(std::move(properties)) {
-  this->providedIDs.append(providedIDs.begin(), providedIDs.end());
-  this->impliedIDs.append(impliedIDs.begin(), impliedIDs.end());
-  this->conflictingIDs.append(conflictingIDs.begin(), conflictingIDs.end());
-}
+      properties(std::move(properties)), relations(relations) {}
 
 llvm::StringRef CapabilityDescriptor::getProperty(llvm::StringRef name) const {
   auto it = properties.find(name.str());
@@ -270,15 +223,15 @@ llvm::StringRef CapabilityDescriptor::getProperty(llvm::StringRef name) const {
 }
 
 bool CapabilityDescriptor::providesID(llvm::StringRef capabilityID) const {
-  return containsID(providedIDs, capabilityID);
+  return relationListContains(getProvidedIDs(), capabilityID);
 }
 
 bool CapabilityDescriptor::impliesID(llvm::StringRef capabilityID) const {
-  return containsID(impliedIDs, capabilityID);
+  return relationListContains(getImpliedIDs(), capabilityID);
 }
 
 bool CapabilityDescriptor::conflictsWithID(llvm::StringRef capabilityID) const {
-  return containsID(conflictingIDs, capabilityID);
+  return relationListContains(getConflictingIDs(), capabilityID);
 }
 
 bool CapabilityDescriptor::satisfiesID(llvm::StringRef capabilityID) const {
@@ -452,7 +405,12 @@ void TargetCapabilitySet::collectAvailableConflictsForCapability(
     out.push_back(std::move(conflict));
   };
 
-  for (const std::string &conflictID : requiredCapability.getConflictingIDs()) {
+  for (mlir::StringAttr conflictEntry : requiredCapability.getConflictingIDs()) {
+    if (!conflictEntry)
+      continue;
+    llvm::StringRef conflictID = conflictEntry.getValue().trim();
+    if (conflictID.empty())
+      continue;
     llvm::SmallVector<const CapabilityDescriptor *, 4> providers;
     collectProvidersByID(conflictID, providers);
     for (const CapabilityDescriptor *provider : providers)
@@ -464,7 +422,12 @@ void TargetCapabilitySet::collectAvailableConflictsForCapability(
     if (&candidate == &requiredCapability || !candidate.isAvailable())
       continue;
 
-    for (const std::string &conflictID : candidate.getConflictingIDs()) {
+    for (mlir::StringAttr conflictEntry : candidate.getConflictingIDs()) {
+      if (!conflictEntry)
+        continue;
+      llvm::StringRef conflictID = conflictEntry.getValue().trim();
+      if (conflictID.empty())
+        continue;
       if (requiredCapability.satisfiesID(conflictID))
         appendConflict(candidate, candidate, conflictID);
     }

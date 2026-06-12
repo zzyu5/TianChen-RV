@@ -1,7 +1,10 @@
 #include "TianChenRV/InitTianChenRVDialects.h"
 #include "TianChenRV/Support/CapabilityModel.h"
 
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/Location.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Parser/Parser.h"
 #include "llvm/ADT/SmallVector.h"
@@ -17,6 +20,7 @@ using tianchenrv::support::CapabilityAvailability;
 using tianchenrv::support::CapabilityConflict;
 using tianchenrv::support::CapabilityDescriptor;
 using tianchenrv::support::TargetCapabilitySet;
+using tianchenrv::tcrv::exec::CapabilityRelationsAttr;
 using tianchenrv::tcrv::exec::KernelOp;
 
 namespace {
@@ -444,14 +448,16 @@ module {
     return result;
 
   TargetCapabilitySet relationCapabilities;
-  llvm::SmallVector<std::string, 1> providedIDs{"abstract.vector"};
-  llvm::SmallVector<std::string, 1> impliedIDs{"abstract.vlen"};
+  auto syntheticRelations = CapabilityRelationsAttr::get(
+      &context,
+      /*provides=*/{mlir::StringAttr::get(&context, "abstract.vector")},
+      /*implies=*/{mlir::StringAttr::get(&context, "abstract.vlen")},
+      /*conflicts=*/{});
   if (int result = expectSuccess(
           relationCapabilities.tryAddCapability(CapabilityDescriptor(
               "synthetic_profile", "synthetic.profile", "profile",
               "available", CapabilityAvailability::Available,
-              /*properties=*/{}, providedIDs, impliedIDs,
-              /*conflictingIDs=*/{})),
+              /*properties=*/{}, syntheticRelations)),
           "add unique relation-provider capability"))
     return result;
   const CapabilityDescriptor *syntheticProfile =
@@ -462,6 +468,62 @@ module {
               relationCapabilities.lookupProviderByID("abstract.vlen") ==
                   syntheticProfile,
           "checked insertion preserves provides/implies provider semantics"))
+    return result;
+
+  // Query-time trim parity. Relation resolution reads the typed attr through a
+  // helper that trims each entry at query time, replicating the deleted
+  // intern-time normalization so that resolution is byte-for-byte equivalent to
+  // the previous std::string model. The CapabilityRelationsAttr verifier
+  // independently forbids whitespace-padded entries, so a padded entry can never
+  // reach a verified descriptor: that closed loop is what makes exact-id
+  // resolution correct. Assert that closed loop holds (padded entry => the
+  // checked construction path fails) and that an exact (already-trimmed) entry
+  // resolves through the trim helper unchanged.
+  CapabilityRelationsAttr paddedRelations;
+  {
+    // Swallow the expected verifier diagnostic so the negative check stays quiet.
+    mlir::ScopedDiagnosticHandler swallow(
+        &context, [](mlir::Diagnostic &) { return mlir::success(); });
+    paddedRelations = CapabilityRelationsAttr::getChecked(
+        [&]() { return mlir::emitError(mlir::UnknownLoc::get(&context)); },
+        &context,
+        /*provides=*/{mlir::StringAttr::get(&context, "  padded.vector  ")},
+        /*implies=*/{},
+        /*conflicts=*/{});
+  }
+  if (int result = expect(!paddedRelations,
+                          "attr verifier rejects whitespace-padded relation "
+                          "entries so padding never reaches resolution"))
+    return result;
+
+  TargetCapabilitySet trimParityCapabilities;
+  auto trimmedRelations = CapabilityRelationsAttr::get(
+      &context,
+      /*provides=*/{mlir::StringAttr::get(&context, "padded.vector")},
+      /*implies=*/{},
+      /*conflicts=*/{mlir::StringAttr::get(&context, "padded.conflict")});
+  if (int result = expectSuccess(
+          trimParityCapabilities.tryAddCapability(CapabilityDescriptor(
+              "trim_parity_profile", "trim.parity.profile", "profile",
+              "available", CapabilityAvailability::Available,
+              /*properties=*/{}, trimmedRelations)),
+          "add trim-parity relation-provider capability"))
+    return result;
+  const CapabilityDescriptor *trimParityProfile =
+      trimParityCapabilities.lookupBySymbolName("trim_parity_profile");
+  if (int result = expect(trimParityProfile &&
+                              trimParityProfile->providesID("padded.vector"),
+                          "query-time trim resolves provides entry"))
+    return result;
+  if (int result = expect(trimParityProfile &&
+                              trimParityProfile->conflictsWithID(
+                                  "padded.conflict"),
+                          "query-time trim resolves conflicts entry"))
+    return result;
+  if (int result = expect(
+          trimParityCapabilities.lookupProviderByID("padded.vector") ==
+              trimParityProfile,
+          "query-time trim resolves provider lookup"))
     return result;
 
   // A descriptor built from a typed

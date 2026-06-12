@@ -3,6 +3,10 @@
 
 #include "TianChenRV/Plugin/ExtensionPlugin.h"
 
+namespace mlir {
+class MLIRContext;
+} // namespace mlir
+
 namespace tianchenrv::plugin {
 
 namespace rvv {
@@ -36,6 +40,7 @@ public:
                           VariantProposalCollectionResult &out) const override;
   llvm::Expected<support::TargetCapabilitySet>
   buildTargetCapabilitiesFromProbeFacts(
+      mlir::MLIRContext &context,
       const RVVProbeCapabilityFacts &facts) const;
   llvm::Error
   verifyVariantLegality(const VariantLegalityRequest &request) const override;

@@ -1,7 +1,11 @@
 #include "TianChenRV/Plugin/RVV/RVVCapabilityProfile.h"
 
+#include "TianChenRV/Dialect/Exec/IR/ExecOps.h"
 #include "TianChenRV/Plugin/RVV/RVVExtensionPlugin.h"
 
+#include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/MLIRContext.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
@@ -134,16 +138,27 @@ bool isHexDigest(llvm::StringRef digest) {
   });
 }
 
-llvm::Error addAvailableCapability(support::TargetCapabilitySet &capabilities,
+llvm::Error addAvailableCapability(mlir::MLIRContext &context,
+                                   support::TargetCapabilitySet &capabilities,
                                    llvm::StringRef symbolName,
                                    llvm::StringRef id, llvm::StringRef kind,
                                    CapabilityProperties properties = {},
                                    llvm::ArrayRef<std::string> providedIDs =
                                        {}) {
+  tcrv::exec::CapabilityRelationsAttr relations;
+  if (!providedIDs.empty()) {
+    llvm::SmallVector<mlir::StringAttr, 4> provides;
+    provides.reserve(providedIDs.size());
+    for (const std::string &providedID : providedIDs)
+      provides.push_back(mlir::StringAttr::get(&context, providedID));
+    relations = tcrv::exec::CapabilityRelationsAttr::get(&context, provides,
+                                                         /*implies=*/{},
+                                                         /*conflicts=*/{});
+  }
   return capabilities.tryAddCapability(support::CapabilityDescriptor(
       symbolName, id, kind, kAvailableStatus,
       support::CapabilityAvailability::Available, std::move(properties),
-      providedIDs),
+      relations),
       "RVV probe capability construction");
 }
 
@@ -260,37 +275,37 @@ validateRVVProbeCapabilityFacts(const RVVProbeCapabilityFacts &facts) {
 
 llvm::Expected<support::TargetCapabilitySet>
 buildRVVTargetCapabilitiesFromProbeFacts(
-    const RVVProbeCapabilityFacts &facts) {
+    mlir::MLIRContext &context, const RVVProbeCapabilityFacts &facts) {
   if (llvm::Error error = validateRVVProbeCapabilityFacts(facts))
     return std::move(error);
 
   support::TargetCapabilitySet capabilities;
   if (llvm::Error error = addAvailableCapability(
-      capabilities, getRVVPreferredCapabilitySymbol(), getRVVCapabilityID(),
-      getRVVCapabilityKind(),
+      context, capabilities, getRVVPreferredCapabilitySymbol(),
+      getRVVCapabilityID(), getRVVCapabilityKind(),
       {{"architecture", normalizeFactString(facts.architecture)},
        {"isa_vector_hints", normalizeFactString(facts.isaVectorHints)}}))
     return std::move(error);
   if (llvm::Error error = addAvailableCapability(
-          capabilities, getRVVHartCountCapabilitySymbol(),
+          context, capabilities, getRVVHartCountCapabilitySymbol(),
           getRVVHartCountCapabilityID(), "uarch",
           {{"count", std::to_string(facts.hartCount)}},
           {support::getTargetHartCountCapabilityID().str()}))
     return std::move(error);
   if (facts.vlenbBytes) {
     if (llvm::Error error = addAvailableCapability(
-            capabilities, getRVVVLenBBytesCapabilitySymbol(),
+            context, capabilities, getRVVVLenBBytesCapabilitySymbol(),
             getRVVVLenBBytesCapabilityID(), "uarch",
             {{"bytes", std::to_string(facts.vlenbBytes)}}))
       return std::move(error);
   }
   if (llvm::Error error = addAvailableCapability(
-          capabilities, getRVVClangToolchainCapabilitySymbol(),
+          context, capabilities, getRVVClangToolchainCapabilitySymbol(),
           getRVVClangToolchainCapabilityID(), "toolchain",
           {{"version", normalizeFactString(facts.clangVersion)}}))
     return std::move(error);
   if (llvm::Error error = addAvailableCapability(
-          capabilities, getRVVCMakeToolchainCapabilitySymbol(),
+          context, capabilities, getRVVCMakeToolchainCapabilitySymbol(),
           getRVVCMakeToolchainCapabilityID(), "toolchain",
           {{"version", normalizeFactString(facts.cmakeVersion)}}))
     return std::move(error);
@@ -304,19 +319,19 @@ buildRVVTargetCapabilitiesFromProbeFacts(
   if (!facts.binarySHA256.empty())
     compileRunProperties["binary_sha256"] = normalizeFactString(facts.binarySHA256);
   if (llvm::Error error = addAvailableCapability(
-          capabilities, getRVVProbeCompileRunCapabilitySymbol(),
+          context, capabilities, getRVVProbeCompileRunCapabilitySymbol(),
           getRVVProbeCompileRunCapabilityID(), "toolchain",
           std::move(compileRunProperties)))
     return std::move(error);
 
   if (llvm::Error error = addAvailableCapability(
-          capabilities, getRVVSelectedMarchCapabilitySymbol(),
+          context, capabilities, getRVVSelectedMarchCapabilitySymbol(),
           getRVVSelectedMarchCapabilityID(), "toolchain",
           {{"value", normalizeFactString(facts.selectedMarch)}}))
     return std::move(error);
   if (!facts.selectedMABI.empty()) {
     if (llvm::Error error = addAvailableCapability(
-            capabilities, getRVVSelectedMABICapabilitySymbol(),
+            context, capabilities, getRVVSelectedMABICapabilitySymbol(),
             getRVVSelectedMABICapabilityID(), "toolchain",
             {{"value", normalizeFactString(facts.selectedMABI)}}))
       return std::move(error);
