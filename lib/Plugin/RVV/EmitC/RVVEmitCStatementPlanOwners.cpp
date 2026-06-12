@@ -264,45 +264,14 @@ bool isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(
   }
 }
 
-bool isRVVSelectedBodyComputedMaskMemoryStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  switch (description.operation) {
-  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskStore;
-  case RVVSelectedBodyOperationKind::RuntimeScalarComputedMaskLoadStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::RuntimeScalarComputedMaskLoadStore;
-  case RVVSelectedBodyOperationKind::ComputedMaskUnitLoadStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStore;
-  case RVVSelectedBodyOperationKind::ComputedMaskStridedStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadStridedStore;
-  case RVVSelectedBodyOperationKind::ComputedMaskStridedLoadUnitStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskStridedLoadUnitStore;
-  case RVVSelectedBodyOperationKind::ComputedMaskIndexedGatherLoadUnitStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskIndexedGatherLoadUnitStore;
-  case RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskIndexedGatherLoadUnitStore:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskIndexedGatherLoadUnitStore;
-  case RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskIndexedGatherMAccScatter:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::
-               RuntimeScalarComputedMaskIndexedGatherMAccScatter;
-  case RVVSelectedBodyOperationKind::ComputedMaskIndexedScatterStoreUnitLoad:
-  case RVVSelectedBodyOperationKind::
-      RuntimeScalarComputedMaskIndexedScatterStoreUnitLoad:
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::ComputedMaskUnitLoadIndexedScatterStore;
-  default:
-    return false;
-  }
-}
+// isRVVSelectedBodyComputedMaskMemoryStatementPlanConsumer retired (Stage 3
+// 换心): the computed-mask memory family converts through the real
+// DialectConversion and the shared gate decouples every valid body, so its
+// string statement-plan dispatch (predicate + owner builder) is deleted. The
+// route-family consumer predicate
+// (isRVVSelectedBodyNonSegmentComputedMaskMemoryRouteFamilyConsumer in
+// RVVEmitCComputedMaskMemoryRouteFamilyPlanOwners.cpp) stays as the
+// description/provider source of truth.
 
 bool isRVVSelectedBodySegment2MemoryStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
@@ -378,10 +347,17 @@ getRVVSelectedBodyMigratedRouteStatementPlanOwners() {
       // getRVVSelectedBodyBaseMemoryMovementRouteProviderPlan,
       // verifyRVVSelectedBodyBaseMemoryMovementRouteProviderFacts) stays as the
       // description/provider source of truth shared with the route provider.
-      {"computed-mask memory",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::ComputedMaskMemory,
-       isRVVSelectedBodyComputedMaskMemoryStatementPlanConsumer,
-       buildRVVSelectedBodyComputedMaskMemoryMigratedRouteStatementPlan},
+      // ComputedMaskMemory retired (Stage 3 换心): the whole family (compare/
+      // runtime-scalar-cmp produced mask -> masked unit/strided/indexed memory)
+      // converts through the real DialectConversion (RVVToEmitC.cpp) and the
+      // shared gate rvvSelectedBodyFullyConvertsToEmitC decouples every valid
+      // body, so no computed-mask memory body ever reaches this string
+      // statement-plan dispatch. The owner builder + 5 owner-only helpers + this
+      // dispatch entry + the consumer predicate are deleted. The route-family
+      // provider machine (getRVVSelectedBodyComputedMaskMemoryRouteFamilyPlan,
+      // verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts) stays as the
+      // description/provider source of truth shared with the route provider; the
+      // gather-MAcc-scatter compound is still owned by the segment/MAcc paths.
       {"segment2 memory",
        RVVSelectedBodyMigratedRouteStatementPlanFamily::Segment2Memory,
        isRVVSelectedBodySegment2MemoryStatementPlanConsumer,

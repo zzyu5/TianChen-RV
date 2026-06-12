@@ -83,8 +83,9 @@ bool isRVVSelectedBodyPlainMAccStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description);
 bool isRVVSelectedBodyBaseMemoryMovementStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description);
-bool isRVVSelectedBodyComputedMaskMemoryStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description);
+// isRVVSelectedBodyComputedMaskMemoryStatementPlanConsumer retired (Stage 3
+// 换心): the computed-mask memory string statement-plan owner is deleted (the
+// whole family converts through the real DialectConversion).
 bool isRVVSelectedBodySegment2MemoryStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description);
 bool isRVVSelectedBodyComputedMaskAccumulationStatementPlanConsumer(
@@ -165,13 +166,13 @@ getRVVSelectedBodyPlainMAccRouteStatementPlan(
     const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
     llvm::StringRef context);
 
-llvm::Expected<RVVSelectedBodyComputedMaskMemoryRouteStatementPlan>
-getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    llvm::StringRef context);
+// getRVVSelectedBodyComputedMaskMemoryRouteStatementPlan retired (Stage 3 换心):
+// the computed-mask memory string statement-plan owner is deleted — the whole
+// family converts through the real DialectConversion. The
+// RVVSelectedBodyComputedMaskMemoryRouteStatementPlan struct stays as the
+// description/provider source of truth (still consumed by
+// verifyRVVSelectedBodyComputedMaskMemoryRouteProviderFacts in the route-family
+// provider).
 
 llvm::Expected<RVVSelectedBodySegment2MemoryRouteStatementPlan>
 getRVVSelectedBodySegment2MemoryRouteStatementPlan(
@@ -274,17 +275,11 @@ buildRVVSelectedBodyComputedMaskAccumulationMigratedRouteStatementPlan(
         &residualOperandBindingFacts,
     RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
 
-llvm::Error buildRVVSelectedBodyComputedMaskMemoryMigratedRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
+// buildRVVSelectedBodyComputedMaskMemoryMigratedRouteStatementPlan retired
+// (Stage 3 换心): the computed-mask memory string statement-plan owner builder is
+// deleted — the whole family converts through the real DialectConversion and the
+// shared gate decouples every valid body, so the migrated string-plan dispatch
+// is never reached.
 
 llvm::Error buildRVVSelectedBodySegment2MemoryMigratedRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,

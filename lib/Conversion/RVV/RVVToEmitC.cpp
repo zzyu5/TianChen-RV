@@ -240,6 +240,74 @@ std::string riscvMaskedStoreIntrinsicName(unsigned sew, llvm::StringRef lmul,
   return name;
 }
 
+/// The masked byte-strided load intrinsic name:
+///   __riscv_vlse<sew>_v_<dtype><lmul>_tumu
+/// The masked strided load reads the source at a runtime byte stride but only
+/// writes active (mask-true) lanes; inactive/tail lanes keep the passthrough
+/// vector via the _tumu policy form -- byte-identical to the legacy computed-
+/// mask masked-strided-load oracle (`__riscv_vlse32_v_i32m1_tumu`). Call order
+/// is (mask, passthrough, ptr, byteStride, vl).
+std::string riscvMaskedStridedLoadIntrinsicName(unsigned sew,
+                                                llvm::StringRef lmul,
+                                                llvm::StringRef dtype) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vlse" << sew << "_v_" << dtype << lmul << "_tumu";
+  os.flush();
+  return name;
+}
+
+/// The masked byte-strided store intrinsic name:
+///   __riscv_vsse<sew>_v_<dtype><lmul>_m
+/// The masked strided store writes only active (mask-true) lanes at a runtime
+/// byte stride; inactive/tail lanes keep their memory contents -- byte-identical
+/// to the legacy computed-mask masked-strided-store oracle
+/// (`__riscv_vsse32_v_i32m1_m`). Call order is (mask, ptr, byteStride, value,
+/// vl).
+std::string riscvMaskedStridedStoreIntrinsicName(unsigned sew,
+                                                 llvm::StringRef lmul,
+                                                 llvm::StringRef dtype) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vsse" << sew << "_v_" << dtype << lmul << "_m";
+  os.flush();
+  return name;
+}
+
+/// The masked indexed (gather) load intrinsic name:
+///   __riscv_vluxei<eew>_v_<dtype><lmul>_tumu
+/// The masked indexed gather reads scattered elements at byte offsets but only
+/// writes active lanes (passthrough preserved on inactive/tail lanes via _tumu)
+/// -- byte-identical to the legacy computed-mask indexed-gather oracle
+/// (`__riscv_vluxei32_v_i32m1_tumu`). Note the UNORDERED "ux" form (the legacy
+/// masked gather is unordered). Call order is
+/// (mask, passthrough, data_base, byteIndices, vl).
+std::string riscvMaskedIndexedLoadIntrinsicName(unsigned indexEEW,
+                                                llvm::StringRef dtype,
+                                                llvm::StringRef lmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vluxei" << indexEEW << "_v_" << dtype << lmul << "_tumu";
+  os.flush();
+  return name;
+}
+
+/// The masked indexed (scatter) store intrinsic name:
+///   __riscv_vsoxei<eew>_v_<dtype><lmul>_m
+/// The masked indexed scatter writes active lanes to scattered byte offsets;
+/// inactive/tail lanes are skipped (no write) -- byte-identical to the legacy
+/// computed-mask indexed-scatter oracle (`__riscv_vsoxei32_v_i32m1_m`). Note the
+/// ORDERED "ox" form. Call order is (mask, dst_base, byteIndices, value, vl).
+std::string riscvMaskedIndexedStoreIntrinsicName(unsigned indexEEW,
+                                                 llvm::StringRef dtype,
+                                                 llvm::StringRef lmul) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_vsoxei" << indexEEW << "_v_" << dtype << lmul << "_m";
+  os.flush();
+  return name;
+}
+
 /// Predicate mask width for an (sew, lmul) config, mirroring the legacy
 /// getElementwiseMaskIntrinsicSuffix maskBits table. Returns 0 for an
 /// unsupported pair (so the caller fails the match and falls back).
@@ -418,10 +486,21 @@ public:
     // that shape; every other op (which would need an agnostic or `_tu`/`_tum`
     // form) still forces the agnostic-only refusal so no compute/load is
     // silently mislowered.
+    //
+    // EXCEPTION 2 — the computed-mask masked-store family. A body whose only
+    // store is a single tcrv_rvv.masked_store but whose mask is computed by a
+    // tcrv_rvv.compare in the same scope (the runtime-scalar / vector
+    // computed-mask store shape: load[+splat] -> compare -> masked_store) also
+    // carries an undisturbed scope policy that the masked-store `_m` form
+    // honors. The compare/splat/load steps emit agnostic intrinsics whose
+    // results are fully defined over the active VL, so the undisturbed semantics
+    // live entirely in the `_m` store -- correctly lowered. Allow undisturbed
+    // for that shape too; anything else still forces the agnostic-only refusal.
     tcrvrvv::PolicyAttr policy = preLoopSetVL.getPolicy();
     if (policy.getTail() != tcrvrvv::TailPolicy::Agnostic ||
         policy.getMask() != tcrvrvv::MaskPolicy::Agnostic) {
-      if (!isPureMaskedStoreBody(scope))
+      if (!isPureMaskedStoreBody(scope) &&
+          !isComputedMaskMaskedStoreBody(scope))
         return rewriter.notifyMatchFailure(
             variant, "only tail/mask-agnostic policy is convertible (except a "
                      "pure masked-store body under undisturbed policy)");
@@ -616,6 +695,39 @@ public:
         }
       }
 
+      // Computed-mask indexed memory ordering. The string-plan owner (the
+      // byte-order the harness ordered-token validator depends on) emits the
+      // index_load + its element->byte scale EARLY -- right after the first
+      // compare-LHS load, before the splat / remaining loads / compare. The
+      // realized IR instead carries index_load after those loads. Reorder ONLY a
+      // computed-mask indexed body (one carrying a masked_indexed load/store) so
+      // the rendered C keeps the legacy index-early order; every other body
+      // keeps IR order. The byte-scale is emitted at index_load time (see
+      // emitIndexLoad) so it immediately follows the index_load in that order.
+      bool hasMaskedIndexed = llvm::any_of(orderedOps, [](mlir::Operation *op) {
+        return llvm::isa<tcrvrvv::MaskedIndexedLoadOp,
+                         tcrvrvv::MaskedIndexedStoreOp>(op);
+      });
+      if (hasMaskedIndexed) {
+        auto indexLoadIt = llvm::find_if(orderedOps, [](mlir::Operation *op) {
+          return llvm::isa<tcrvrvv::IndexLoadOp>(op);
+        });
+        auto firstLoadIt = llvm::find_if(orderedOps, [](mlir::Operation *op) {
+          return llvm::isa<tcrvrvv::LoadOp>(op);
+        });
+        if (indexLoadIt != orderedOps.end() &&
+            firstLoadIt != orderedOps.end() && indexLoadIt > firstLoadIt) {
+          mlir::Operation *indexLoadOp = *indexLoadIt;
+          orderedOps.erase(indexLoadIt);
+          // Re-find the first load (the erase may have shifted iterators) and
+          // insert the index_load immediately after it.
+          auto insertAfter = llvm::find_if(orderedOps, [](mlir::Operation *op) {
+            return llvm::isa<tcrvrvv::LoadOp>(op);
+          });
+          orderedOps.insert(std::next(insertAfter), indexLoadOp);
+        }
+      }
+
       // Convert each body op in emit order. Body holds the typed dataflow ops
       // for the elementwise/memory families.
       for (mlir::Operation *opPtr : orderedOps) {
@@ -654,6 +766,18 @@ public:
                        llvm::dyn_cast<tcrvrvv::MaskedLoadOp>(op)) {
           if (mlir::failed(emitMaskedLoad(rewriter, loc, maskedLoad, valueMap,
                                           inductionVar, bodyVL)))
+            return mlir::failure();
+        } else if (auto maskedStridedLoad =
+                       llvm::dyn_cast<tcrvrvv::MaskedStridedLoadOp>(op)) {
+          if (mlir::failed(emitMaskedStridedLoad(rewriter, loc,
+                                                 maskedStridedLoad, valueMap,
+                                                 inductionVar, bodyVL)))
+            return mlir::failure();
+        } else if (auto maskedIndexedLoad =
+                       llvm::dyn_cast<tcrvrvv::MaskedIndexedLoadOp>(op)) {
+          if (mlir::failed(emitMaskedIndexedLoad(rewriter, loc,
+                                                 maskedIndexedLoad, valueMap,
+                                                 bodyVL)))
             return mlir::failure();
         } else if (auto move = llvm::dyn_cast<tcrvrvv::MoveOp>(op)) {
           if (mlir::failed(emitMove(rewriter, loc, move, valueMap)))
@@ -707,6 +831,18 @@ public:
                        llvm::dyn_cast<tcrvrvv::MaskedStoreOp>(op)) {
           if (mlir::failed(emitMaskedStore(rewriter, loc, maskedStore, valueMap,
                                            inductionVar, bodyVL)))
+            return mlir::failure();
+        } else if (auto maskedStridedStore =
+                       llvm::dyn_cast<tcrvrvv::MaskedStridedStoreOp>(op)) {
+          if (mlir::failed(emitMaskedStridedStore(rewriter, loc,
+                                                  maskedStridedStore, valueMap,
+                                                  inductionVar, bodyVL)))
+            return mlir::failure();
+        } else if (auto maskedIndexedStore =
+                       llvm::dyn_cast<tcrvrvv::MaskedIndexedStoreOp>(op)) {
+          if (mlir::failed(emitMaskedIndexedStore(rewriter, loc,
+                                                  maskedIndexedStore, valueMap,
+                                                  bodyVL)))
             return mlir::failure();
         } else if (auto store = llvm::dyn_cast<tcrvrvv::StoreOp>(op)) {
           // The reduce family stores only lane 0 of the reduction result back
@@ -764,6 +900,59 @@ private:
       }
     }
     return sawMaskedStore;
+  }
+
+  /// True iff the with_vl body is the runtime-scalar computed-mask masked-store
+  /// shape: its only store-like op is exactly one tcrv_rvv.masked_store whose
+  /// predicate is produced by a tcrv_rvv.compare in the same scope, and whose
+  /// compare RHS is a tcrv_rvv.splat of a runtime scalar (load -> splat ->
+  /// compare -> masked_store, the RuntimeScalarComputedMaskStore family). That
+  /// body carries an undisturbed scope policy honored by the masked-store `_m`
+  /// form: the compare/splat/load steps emit agnostic intrinsics whose results
+  /// are fully defined over the active VL, so the undisturbed semantics live
+  /// entirely in the `_m` store -- correctly lowered.
+  ///
+  /// The runtime-scalar (splat) compare RHS is REQUIRED: it is the only
+  /// legitimate unit store-only computed-mask family. A unit masked_store fed by
+  /// a VECTOR-vector compare with no load-merge and no splat is NOT a real
+  /// family (its closest sibling, ComputedMaskUnitLoadStore, is a load-merge);
+  /// such a body must fall back so the legacy validator rejects it (the
+  /// stage2-masked-store-negative contract). Any other compute op, plain/
+  /// strided/indexed store, masked load, or a second store likewise drops the
+  /// body out of this bounded exception so nothing is mislowered under
+  /// undisturbed policy.
+  static bool isComputedMaskMaskedStoreBody(tcrvrvv::WithVLOp scope) {
+    bool sawComputedMaskedStore = false;
+    for (mlir::Operation &op : scope.getBody().front()) {
+      // Any compute op other than the mask chain (compare/splat) is out of this
+      // shape, as is any other store-like op or a masked LOAD (a load-merge body
+      // needs a `_tumu` masked load whose passthrough this exception does not
+      // cover).
+      if (llvm::isa<tcrvrvv::BinaryOp, tcrvrvv::MaskedBinaryOp, tcrvrvv::MAccOp,
+                    tcrvrvv::MaskedMAccOp, tcrvrvv::SelectOp, tcrvrvv::ReduceOp,
+                    tcrvrvv::DequantizeOp, tcrvrvv::MaskAndOp,
+                    tcrvrvv::MaskedLoadOp, tcrvrvv::MaskedStridedLoadOp,
+                    tcrvrvv::MaskedIndexedLoadOp, tcrvrvv::StoreOp,
+                    tcrvrvv::StridedStoreOp, tcrvrvv::IndexedStoreOp,
+                    tcrvrvv::MaskedStridedStoreOp,
+                    tcrvrvv::MaskedIndexedStoreOp>(op))
+        return false;
+      if (auto maskedStore = llvm::dyn_cast<tcrvrvv::MaskedStoreOp>(op)) {
+        if (sawComputedMaskedStore)
+          return false; // more than one store is not the bounded shape
+        auto compare =
+            maskedStore.getMask().getDefiningOp<tcrvrvv::CompareOp>();
+        if (!compare)
+          return false; // a buffer-mask store is the isPureMaskedStoreBody shape
+        // The legitimate unit store-only computed-mask family is runtime-scalar:
+        // its compare RHS is a splat of a runtime scalar. Refuse a vector-vector
+        // compare unit store-only body (not a real family).
+        if (!compare.getRhs().getDefiningOp<tcrvrvv::SplatOp>())
+          return false;
+        sawComputedMaskedStore = true;
+      }
+    }
+    return sawComputedMaskedStore;
   }
 
   /// Capability config gate (I1-honoring). The selected variant's `requires`
@@ -1775,8 +1964,64 @@ private:
             .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
                                          mlir::ValueRange{ptr, bodyVL})
             .getResult(0);
+
+    // Computed-mask indexed path: the index_load feeds a masked indexed
+    // gather/scatter. The string-plan byte-order (which the harness ordered-
+    // token validator depends on) emits the element->byte scale EARLY, right
+    // after the index_load and before the splat/loads/compare. Emit the scale
+    // here and map the index_load result to the SCALED byte-offset vector so the
+    // masked-indexed emitter consumes it directly (it skips its own scale). The
+    // base-memory plain indexed path leaves the raw index here and scales inside
+    // its own emitter (no early ordering constraint).
+    if (mlir::Operation *maskedConsumer = maskedIndexedConsumer(indexLoad)) {
+      tcrvrvv::VectorType dataVectorType = maskedIndexedDataVectorType(
+          maskedConsumer);
+      if (!dataVectorType)
+        return rewriter.notifyMatchFailure(
+            indexLoad, "masked indexed consumer data vector not typed");
+      llvm::StringRef consumerOpName;
+      llvm::StringRef consumerRole;
+      if (auto load =
+              llvm::dyn_cast<tcrvrvv::MaskedIndexedLoadOp>(maskedConsumer)) {
+        consumerOpName = load.getTCRVEmitCLowerableSourceOpName();
+        consumerRole = load.getTCRVEmitCLowerableSourceRole();
+      } else {
+        auto store = llvm::cast<tcrvrvv::MaskedIndexedStoreOp>(maskedConsumer);
+        consumerOpName = store.getTCRVEmitCLowerableSourceOpName();
+        consumerRole = store.getTCRVEmitCLowerableSourceRole();
+      }
+      mlir::Value byteIndices = emitIndexByteScale(
+          rewriter, loc, consumerOpName, consumerRole, loaded, vecType,
+          indexVecType, dataVectorType, bodyVL);
+      valueMap[indexLoad.getLoaded()] = byteIndices;
+      return mlir::success();
+    }
+
     valueMap[indexLoad.getLoaded()] = loaded;
     return mlir::success();
+  }
+
+  /// The single masked indexed gather/scatter op that consumes `indexLoad`'s
+  /// result, or null if the index feeds a plain (base-memory) indexed op. The
+  /// computed-mask indexed path scales the index early (see emitIndexLoad); the
+  /// plain path scales inside its own emitter.
+  static mlir::Operation *maskedIndexedConsumer(tcrvrvv::IndexLoadOp indexLoad) {
+    for (mlir::Operation *user : indexLoad.getLoaded().getUsers())
+      if (llvm::isa<tcrvrvv::MaskedIndexedLoadOp,
+                    tcrvrvv::MaskedIndexedStoreOp>(user))
+        return user;
+    return nullptr;
+  }
+
+  /// The data (payload) vector type of a masked indexed gather (its loaded
+  /// result) or scatter (its stored value), used to size the element->byte
+  /// index scale.
+  static tcrvrvv::VectorType
+  maskedIndexedDataVectorType(mlir::Operation *maskedConsumer) {
+    if (auto load = llvm::dyn_cast<tcrvrvv::MaskedIndexedLoadOp>(maskedConsumer))
+      return llvm::dyn_cast<tcrvrvv::VectorType>(load.getLoaded().getType());
+    auto store = llvm::cast<tcrvrvv::MaskedIndexedStoreOp>(maskedConsumer);
+    return llvm::dyn_cast<tcrvrvv::VectorType>(store.getValue().getType());
   }
 
   /// indexed_load(%data,%indices,%vl) -> TWO calls:
@@ -2050,10 +2295,17 @@ private:
             "preserve-passthrough-on-false-lanes")
       return rewriter.notifyMatchFailure(
           maskedLoad, "masked_load memory form/policy outside the slice");
-    if (!maskedLoad.getMask().getDefiningOp<tcrvrvv::MaskLoadOp>())
+    // The predicate authority is structural: the BASE-memory masked family reads
+    // its mask from an explicit tcrv_rvv.mask_load buffer; the computed-mask
+    // memory family produces it from a tcrv_rvv.compare in the same VL scope.
+    // Both lower to the byte-identical `_tumu` masked-load form. Accept either
+    // authority, but refuse a mask from any other op so a malformed body (an
+    // unmaterialized or out-of-family mask producer) falls back to the legacy
+    // validator rather than being mislowered.
+    if (!isMaskFromMaskLoadOrCompare(maskedLoad.getMask()))
       return rewriter.notifyMatchFailure(
           maskedLoad, "masked_load mask must come from explicit mask_load "
-                      "authority (not a data compare)");
+                      "buffer authority or a compare in the same scope");
     mlir::Value base = valueMap.lookup(maskedLoad.getBuffer());
     mlir::Value mask = valueMap.lookup(maskedLoad.getMask());
     mlir::Value passthrough = valueMap.lookup(maskedLoad.getPassthrough());
@@ -2109,10 +2361,13 @@ private:
             "preserve-output-on-false-lanes")
       return rewriter.notifyMatchFailure(
           maskedStore, "masked_store memory form/policy outside the slice");
-    if (!maskedStore.getMask().getDefiningOp<tcrvrvv::MaskLoadOp>())
+    // See emitMaskedLoad: accept a mask from explicit mask_load buffer authority
+    // (base-memory family) OR a compare in the same scope (computed-mask family);
+    // refuse any other producer so a malformed body falls back.
+    if (!isMaskFromMaskLoadOrCompare(maskedStore.getMask()))
       return rewriter.notifyMatchFailure(
           maskedStore, "masked_store mask must come from explicit mask_load "
-                       "authority (not a data compare)");
+                       "buffer authority or a compare in the same scope");
     mlir::Value base = valueMap.lookup(maskedStore.getBuffer());
     mlir::Value mask = valueMap.lookup(maskedStore.getMask());
     mlir::Value value = valueMap.lookup(maskedStore.getValue());
@@ -2138,6 +2393,288 @@ private:
     rewriter.create<emitc::CallOpaqueOp>(
         loc, mlir::TypeRange{}, callee,
         mlir::ValueRange{mask, ptr, value, bodyVL});
+    return mlir::success();
+  }
+
+  /// masked_strided_load(%abi,%mask,%passthrough,%stride,%vl) ->
+  ///   ptr = (elem_t*)((uint8_t*)src + i * stride);
+  ///   __riscv_vlse<sew>_v_<dtype><lmul>_tumu(mask, passthrough, ptr, stride, vl)
+  /// The computed-mask masked byte-strided load reads the source at a runtime
+  /// BYTE stride but only writes active (mask-true) lanes; inactive/tail lanes
+  /// keep the passthrough (old-destination) vector via the _tumu policy form --
+  /// byte-identical to the legacy computed-mask masked-strided-load oracle. The
+  /// stride MUST be a byte-stride ABI role and the mask MUST be compare/mask_load
+  /// authority; otherwise the malformed body falls back.
+  mlir::LogicalResult emitMaskedStridedLoad(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::MaskedStridedLoadOp maskedLoad,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value inductionVar, mlir::Value bodyVL) const {
+    auto vectorType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(maskedLoad.getLoaded().getType());
+    if (!vectorType)
+      return rewriter.notifyMatchFailure(
+          maskedLoad, "masked_strided_load result not typed vector");
+    if (maskedLoad.getMemoryForm() != "masked-strided-load" ||
+        maskedLoad.getStrideUnit() != "byte" ||
+        maskedLoad.getInactiveLanePolicy() !=
+            "preserve-passthrough-on-false-lanes")
+      return rewriter.notifyMatchFailure(
+          maskedLoad, "masked_strided_load form/unit/policy outside the slice");
+    if (!isMaskFromMaskLoadOrCompare(maskedLoad.getMask()))
+      return rewriter.notifyMatchFailure(
+          maskedLoad, "masked_strided_load mask must come from explicit "
+                      "mask_load buffer authority or a compare in the same "
+                      "scope");
+    if (!isByteStride(maskedLoad.getStride()))
+      return rewriter.notifyMatchFailure(
+          maskedLoad, "masked_strided_load requires a byte-stride ABI role");
+    mlir::Value base = valueMap.lookup(maskedLoad.getBuffer());
+    mlir::Value mask = valueMap.lookup(maskedLoad.getMask());
+    mlir::Value passthrough = valueMap.lookup(maskedLoad.getPassthrough());
+    mlir::Value stride = valueMap.lookup(maskedLoad.getStride());
+    if (!base || !mask || !passthrough || !stride)
+      return rewriter.notifyMatchFailure(maskedLoad,
+                                         "masked_strided_load operand unmapped");
+    if (!bufferPointeeMatchesVectorElement(base, vectorType))
+      return rewriter.notifyMatchFailure(
+          maskedLoad,
+          "masked_strided_load buffer C type disagrees with loaded element");
+    mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
+    if (!vecType)
+      return rewriter.notifyMatchFailure(maskedLoad,
+                                         "vector type not convertible");
+    std::string callee = riscvMaskedStridedLoadIntrinsicName(
+        vectorElementWidth(vectorType), vectorType.getLmul(),
+        vectorDType(vectorType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(maskedLoad.getTCRVEmitCLowerableSourceOpName(),
+                         maskedLoad.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value ptr =
+        emitByteStridedPointer(rewriter, loc, base, inductionVar, stride);
+    if (!ptr)
+      return rewriter.notifyMatchFailure(
+          maskedLoad, "masked_strided_load base must be a pointer-typed ABI "
+                      "param");
+    mlir::Value loaded =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{vecType}, callee,
+                mlir::ValueRange{mask, passthrough, ptr, stride, bodyVL})
+            .getResult(0);
+    valueMap[maskedLoad.getLoaded()] = loaded;
+    return mlir::success();
+  }
+
+  /// masked_strided_store(%abi,%mask,%value,%stride,%vl) ->
+  ///   ptr = (elem_t*)((uint8_t*)dst + i * stride);
+  ///   __riscv_vsse<sew>_v_<dtype><lmul>_m(mask, ptr, stride, value, vl)
+  /// The computed-mask masked byte-strided store writes only active (mask-true)
+  /// lanes at a runtime BYTE stride; inactive/tail lanes keep their memory
+  /// contents -- byte-identical to the legacy computed-mask masked-strided-store
+  /// oracle. Byte-stride role + compare/mask_load mask authority required.
+  mlir::LogicalResult emitMaskedStridedStore(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::MaskedStridedStoreOp maskedStore,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value inductionVar, mlir::Value bodyVL) const {
+    auto vectorType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(maskedStore.getValue().getType());
+    if (!vectorType)
+      return rewriter.notifyMatchFailure(
+          maskedStore, "masked_strided_store value not typed vector");
+    if (maskedStore.getMemoryForm() != "masked-strided-store" ||
+        maskedStore.getStrideUnit() != "byte" ||
+        maskedStore.getInactiveLanePolicy() != "preserve-output-on-false-lanes")
+      return rewriter.notifyMatchFailure(
+          maskedStore,
+          "masked_strided_store form/unit/policy outside the slice");
+    if (!isMaskFromMaskLoadOrCompare(maskedStore.getMask()))
+      return rewriter.notifyMatchFailure(
+          maskedStore, "masked_strided_store mask must come from explicit "
+                       "mask_load buffer authority or a compare in the same "
+                       "scope");
+    if (!isByteStride(maskedStore.getStride()))
+      return rewriter.notifyMatchFailure(
+          maskedStore, "masked_strided_store requires a byte-stride ABI role");
+    mlir::Value base = valueMap.lookup(maskedStore.getBuffer());
+    mlir::Value mask = valueMap.lookup(maskedStore.getMask());
+    mlir::Value value = valueMap.lookup(maskedStore.getValue());
+    mlir::Value stride = valueMap.lookup(maskedStore.getStride());
+    if (!base || !mask || !value || !stride)
+      return rewriter.notifyMatchFailure(
+          maskedStore, "masked_strided_store operand unmapped");
+    if (!bufferPointeeMatchesVectorElement(base, vectorType))
+      return rewriter.notifyMatchFailure(
+          maskedStore,
+          "masked_strided_store buffer C type disagrees with stored element");
+    if (!convertVectorTypeToEmitC(vectorType))
+      return rewriter.notifyMatchFailure(maskedStore,
+                                         "vector type not convertible");
+    std::string callee = riscvMaskedStridedStoreIntrinsicName(
+        vectorElementWidth(vectorType), vectorType.getLmul(),
+        vectorDType(vectorType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(maskedStore.getTCRVEmitCLowerableSourceOpName(),
+                         maskedStore.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value ptr =
+        emitByteStridedPointer(rewriter, loc, base, inductionVar, stride);
+    if (!ptr)
+      return rewriter.notifyMatchFailure(
+          maskedStore, "masked_strided_store base must be a pointer-typed ABI "
+                       "param");
+    rewriter.create<emitc::CallOpaqueOp>(
+        loc, mlir::TypeRange{}, callee,
+        mlir::ValueRange{mask, ptr, stride, value, bodyVL});
+    return mlir::success();
+  }
+
+  /// masked_indexed_load(%data,%indices,%mask,%passthrough,%vl) -> TWO calls:
+  ///   bytes = __riscv_vmul_vx_u<eew>m<lmul>(indices, elemBytes, vl);
+  ///   loaded = __riscv_vluxei<eew>_v_<dtype><lmul>_tumu(mask, passthrough,
+  ///                                                     data_base, bytes, vl)
+  /// The computed-mask masked indexed gather byte-scales the element indices,
+  /// then reads scattered elements but only writes active (mask-true) lanes
+  /// (passthrough preserved on inactive/tail lanes via _tumu) -- byte-identical
+  /// to the legacy computed-mask indexed-gather oracle. Only the element-offset,
+  /// EEW=32 slice with compare/mask_load mask authority is accepted.
+  mlir::LogicalResult emitMaskedIndexedLoad(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::MaskedIndexedLoadOp maskedLoad,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value bodyVL) const {
+    auto vectorType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(maskedLoad.getLoaded().getType());
+    if (!vectorType)
+      return rewriter.notifyMatchFailure(
+          maskedLoad, "masked_indexed_load result not typed vector");
+    if (maskedLoad.getMemoryForm() != "masked-indexed-load" ||
+        maskedLoad.getOffsetUnit() != "element" ||
+        maskedLoad.getInactiveLanePolicy() !=
+            "preserve-passthrough-on-false-lanes")
+      return rewriter.notifyMatchFailure(
+          maskedLoad, "masked_indexed_load form/unit/policy outside the slice");
+    if (!isMaskFromMaskLoadOrCompare(maskedLoad.getMask()))
+      return rewriter.notifyMatchFailure(
+          maskedLoad, "masked_indexed_load mask must come from explicit "
+                      "mask_load buffer authority or a compare in the same "
+                      "scope");
+    auto indexVecType = llvm::dyn_cast<tcrvrvv::IndexVectorType>(
+        maskedLoad.getIndices().getType());
+    if (!indexVecType)
+      return rewriter.notifyMatchFailure(
+          maskedLoad, "masked_indexed_load indices not index vector");
+    mlir::Value dataBase = valueMap.lookup(maskedLoad.getData());
+    mlir::Value indices = valueMap.lookup(maskedLoad.getIndices());
+    mlir::Value mask = valueMap.lookup(maskedLoad.getMask());
+    mlir::Value passthrough = valueMap.lookup(maskedLoad.getPassthrough());
+    if (!dataBase || !indices || !mask || !passthrough)
+      return rewriter.notifyMatchFailure(maskedLoad,
+                                         "masked_indexed_load operand unmapped");
+    if (!bufferPointeeMatchesVectorElement(dataBase, vectorType))
+      return rewriter.notifyMatchFailure(
+          maskedLoad,
+          "masked_indexed_load data C type disagrees with loaded element");
+    mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
+    mlir::Type indexEmitCType = convertIndexVectorTypeToEmitC(indexVecType);
+    if (!vecType || !indexEmitCType)
+      return rewriter.notifyMatchFailure(maskedLoad,
+                                         "masked_indexed_load type not "
+                                         "convertible");
+    unsigned eew = static_cast<unsigned>(maskedLoad.getIndexEew());
+    if (eew != 32)
+      return rewriter.notifyMatchFailure(
+          maskedLoad, "only EEW=32 masked indexed loads are in scope");
+
+    // The element->byte index scale was emitted early at index_load time (the
+    // computed-mask index-early order), so `indices` is already the byte-offset
+    // vector -- consume it directly.
+    mlir::Value byteIndices = indices;
+    std::string callee = riscvMaskedIndexedLoadIntrinsicName(
+        eew, vectorDType(vectorType), vectorType.getLmul());
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(maskedLoad.getTCRVEmitCLowerableSourceOpName(),
+                         maskedLoad.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value loaded =
+        rewriter
+            .create<emitc::CallOpaqueOp>(
+                loc, mlir::TypeRange{vecType}, callee,
+                mlir::ValueRange{mask, passthrough, dataBase, byteIndices,
+                                 bodyVL})
+            .getResult(0);
+    valueMap[maskedLoad.getLoaded()] = loaded;
+    return mlir::success();
+  }
+
+  /// masked_indexed_store(%dst,%indices,%mask,%value,%vl) -> TWO calls:
+  ///   bytes = __riscv_vmul_vx_u<eew>m<lmul>(indices, elemBytes, vl);
+  ///   __riscv_vsoxei<eew>_v_<dtype><lmul>_m(mask, dst_base, bytes, value, vl)
+  /// The computed-mask masked indexed scatter byte-scales the element indices,
+  /// then writes active (mask-true) lanes to scattered byte offsets; inactive/
+  /// tail lanes are skipped -- byte-identical to the legacy computed-mask
+  /// indexed-scatter oracle. Only the element-offset, unique-index, EEW=32 slice
+  /// with compare/mask_load mask authority is accepted.
+  mlir::LogicalResult emitMaskedIndexedStore(
+      mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+      tcrvrvv::MaskedIndexedStoreOp maskedStore,
+      llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+      mlir::Value bodyVL) const {
+    auto vectorType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(maskedStore.getValue().getType());
+    if (!vectorType)
+      return rewriter.notifyMatchFailure(
+          maskedStore, "masked_indexed_store value not typed vector");
+    if (maskedStore.getMemoryForm() != "masked-indexed-store" ||
+        maskedStore.getOffsetUnit() != "element" ||
+        maskedStore.getIndexUniqueness() != "unique" ||
+        maskedStore.getInactiveLanePolicy() != "preserve-output-on-false-lanes")
+      return rewriter.notifyMatchFailure(
+          maskedStore,
+          "masked_indexed_store form/unit/uniqueness/policy outside the slice");
+    if (!isMaskFromMaskLoadOrCompare(maskedStore.getMask()))
+      return rewriter.notifyMatchFailure(
+          maskedStore, "masked_indexed_store mask must come from explicit "
+                       "mask_load buffer authority or a compare in the same "
+                       "scope");
+    auto indexVecType = llvm::dyn_cast<tcrvrvv::IndexVectorType>(
+        maskedStore.getIndices().getType());
+    if (!indexVecType)
+      return rewriter.notifyMatchFailure(
+          maskedStore, "masked_indexed_store indices not index vector");
+    mlir::Value dstBase = valueMap.lookup(maskedStore.getDestination());
+    mlir::Value indices = valueMap.lookup(maskedStore.getIndices());
+    mlir::Value mask = valueMap.lookup(maskedStore.getMask());
+    mlir::Value value = valueMap.lookup(maskedStore.getValue());
+    if (!dstBase || !indices || !mask || !value)
+      return rewriter.notifyMatchFailure(
+          maskedStore, "masked_indexed_store operand unmapped");
+    if (!bufferPointeeMatchesVectorElement(dstBase, vectorType))
+      return rewriter.notifyMatchFailure(
+          maskedStore,
+          "masked_indexed_store destination C type disagrees with stored "
+          "element");
+    mlir::Type indexEmitCType = convertIndexVectorTypeToEmitC(indexVecType);
+    if (!convertVectorTypeToEmitC(vectorType) || !indexEmitCType)
+      return rewriter.notifyMatchFailure(maskedStore,
+                                         "masked_indexed_store type not "
+                                         "convertible");
+    unsigned eew = static_cast<unsigned>(maskedStore.getIndexEew());
+    if (eew != 32)
+      return rewriter.notifyMatchFailure(
+          maskedStore, "only EEW=32 masked indexed stores are in scope");
+
+    // The element->byte index scale was emitted early at index_load time (the
+    // computed-mask index-early order), so `indices` is already the byte-offset
+    // vector -- consume it directly.
+    mlir::Value byteIndices = indices;
+    std::string callee = riscvMaskedIndexedStoreIntrinsicName(
+        eew, vectorDType(vectorType), vectorType.getLmul());
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(maskedStore.getTCRVEmitCLowerableSourceOpName(),
+                         maskedStore.getTCRVEmitCLowerableSourceRole(), callee));
+    rewriter.create<emitc::CallOpaqueOp>(
+        loc, mlir::TypeRange{}, callee,
+        mlir::ValueRange{mask, dstBase, byteIndices, value, bodyVL});
     return mlir::success();
   }
 
@@ -2252,6 +2789,17 @@ private:
   static bool storedValueFromMove(tcrvrvv::StridedStoreOp store) {
     return llvm::isa_and_present<tcrvrvv::MoveOp>(
         store.getValue().getDefiningOp());
+  }
+
+  /// True iff a masked-memory predicate `mask` is produced by an in-family mask
+  /// authority: either an explicit tcrv_rvv.mask_load buffer (the base-memory
+  /// masked family) or a tcrv_rvv.compare in the same VL scope (the
+  /// computed-mask memory family). Both lower to the byte-identical masked-load
+  /// `_tumu` / masked-store `_m` forms, so the converter accepts either; any
+  /// other producer is malformed and must fall back.
+  static bool isMaskFromMaskLoadOrCompare(mlir::Value mask) {
+    mlir::Operation *def = mask.getDefiningOp();
+    return llvm::isa_and_present<tcrvrvv::MaskLoadOp, tcrvrvv::CompareOp>(def);
   }
 
   /// Byte-stride scaled pointer: ptr = (elem_t*)((uint8_t*)base + i * stride).
