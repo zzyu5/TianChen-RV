@@ -1,5 +1,12 @@
 // RUN: tcrv-opt %s --tcrv-materialize-emitc-lowerable-routes | FileCheck %s
 
+// Stage 3 换心 — the reduce_add (reduction family) body now materializes through
+// the real DialectConversion (lib/Conversion/RVV/RVVToEmitC.cpp emitReduce), so
+// the materialize seam emits the converted emitc directly: a tcrv_rvv.reduce ->
+// __riscv_vredsum_vs_i32m1_i32m1(input, accumulator, vl) reduction whose lane-0
+// result is stored back to the output chunk base with a VL=1 (literal "1")
+// store. The checks below pin that converted structure.
+
 module {
   tcrv.exec.kernel @rvv_generic_reduce_add_kernel {
     tcrv.exec.capability @rvv { id = "rvv", kind = "isa-vector", status = "available" }
@@ -23,6 +30,10 @@ module {
 // CHECK: tcrv_emitc.source_op=tcrv_rvv.load role=load op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle32_v_i32m1
 // CHECK: tcrv_emitc.source_op=tcrv_rvv.load role=load op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vle32_v_i32m1
 // CHECK: tcrv_emitc.source_op=tcrv_rvv.reduce role=compute op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vredsum_vs_i32m1_i32m1
-// CHECK: tcrv_emitc.source_op=tcrv_rvv.store role=store op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vse32_v_i32m1
+// CHECK: call_opaque "__riscv_vredsum_vs_i32m1_i32m1"({{.*}}) : (!emitc.opaque<"vint32m1_t">, !emitc.opaque<"vint32m1_t">, !emitc.opaque<"size_t">) -> !emitc.opaque<"vint32m1_t">
+// The reduction result is stored lane-0-only with VL=1 (the literal store VL is
+// built just before the store), so the literal precedes the store comment in
+// the converted emitc.
 // CHECK: literal "1" : !emitc.opaque<"size_t">
+// CHECK: tcrv_emitc.source_op=tcrv_rvv.store role=store op_interface=TCRVEmitCLowerableOpInterface callee=__riscv_vse32_v_i32m1
 // CHECK: call_opaque "__riscv_vse32_v_i32m1"({{.*}}) : (!emitc.ptr<!emitc.opaque<"int32_t">>, !emitc.opaque<"vint32m1_t">, !emitc.opaque<"size_t">) -> ()

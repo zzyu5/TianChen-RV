@@ -127,6 +127,25 @@ std::string riscvMaskComposeIntrinsicName(llvm::StringRef mnemonic,
   return name;
 }
 
+/// The reduction intrinsic name:
+///   __riscv_v<red>_vs_<dtype><lmul>_<dtype>m1
+/// (e.g. vredsum/vredmin/vredmax). The reduction always lands its scalar result
+/// in lane 0 of an m1 destination vector, so the result suffix is ALWAYS
+/// `<dtype>m1` regardless of the source lmul -- byte-identical to the legacy
+/// getRVVSelectedBodyReductionIntrinsicForMnemonic
+/// (RVVEmitCRoutePlanning.cpp:5087-5090,
+/// `__riscv_<mnemonic>_vs_i<sew><lmul>_i<sew>m1`).
+std::string riscvReductionIntrinsicName(llvm::StringRef mnemonic, unsigned sew,
+                                        llvm::StringRef lmul,
+                                        llvm::StringRef dtype) {
+  std::string name;
+  llvm::raw_string_ostream os(name);
+  os << "__riscv_" << mnemonic << "_vs_" << dtype << lmul << "_" << dtype
+     << "m1";
+  os.flush();
+  return name;
+}
+
 /// Predicate mask width for an (sew, lmul) config, mirroring the legacy
 /// getElementwiseMaskIntrinsicSuffix maskBits table. Returns 0 for an
 /// unsupported pair (so the caller fails the match and falls back).
@@ -447,6 +466,9 @@ public:
         } else if (auto select = llvm::dyn_cast<tcrvrvv::SelectOp>(op)) {
           if (mlir::failed(emitSelect(rewriter, loc, select, valueMap, bodyVL)))
             return mlir::failure();
+        } else if (auto reduce = llvm::dyn_cast<tcrvrvv::ReduceOp>(op)) {
+          if (mlir::failed(emitReduce(rewriter, loc, reduce, valueMap, bodyVL)))
+            return mlir::failure();
         } else if (auto binary = llvm::dyn_cast<tcrvrvv::BinaryOp>(op)) {
           if (mlir::failed(emitBinary(rewriter, loc, binary, valueMap, bodyVL)))
             return mlir::failure();
@@ -456,8 +478,21 @@ public:
                                             valueMap, inductionVar, bodyVL)))
             return mlir::failure();
         } else if (auto store = llvm::dyn_cast<tcrvrvv::StoreOp>(op)) {
+          // The reduce family stores only lane 0 of the reduction result back
+          // to the output chunk base, so its store VL is the literal 1 (not the
+          // running chunk VL). Detect a reduce-sourced store and emit VL=1;
+          // every other (elementwise) store keeps the chunk VL. This mirrors the
+          // legacy `tcrv_rvv.reduction_store_vl = "1"` fact.
+          mlir::Value storeVL = bodyVL;
+          if (auto reduceDef =
+                  store.getValue().getDefiningOp<tcrvrvv::ReduceOp>()) {
+            mlir::StringAttr layout = reduceDef.getResultLayoutAttr();
+            if (layout && layout.getValue() ==
+                              "store-reduction-lane0-to-output-chunk-base")
+              storeVL = rewriter.create<emitc::LiteralOp>(loc, sizeType, "1");
+          }
           if (mlir::failed(emitStore(rewriter, loc, store, valueMap,
-                                     inductionVar, bodyVL)))
+                                     inductionVar, storeVL)))
             return mlir::failure();
         } else {
           return rewriter.notifyMatchFailure(
@@ -554,12 +589,92 @@ private:
     return mlir::success();
   }
 
+  /// reduce{kind}(%input,%acc,%vl) ->
+  ///   __riscv_v<red>_vs_<dtype><lmul>_<dtype>m1(input, acc, vl)
+  ///
+  /// The generic `reduce` family (operation kind ReduceAdd, memory form
+  /// vector-rhs-load) seeds the reduction with the rhs-loaded accumulator VECTOR
+  /// (lane 0 holds the running seed for this VL chunk) and writes the lane-0
+  /// reduction result straight back to the output chunk base with a VL=1 store.
+  /// That per-chunk store is the same `emitStore` path; the VL=1 detail is
+  /// handled by `reduceResultStoreVL` below. Here we only emit the reduction
+  /// call itself.
+  ///
+  /// Malformed-body guard: this converter only takes the per-chunk
+  /// vector-seeded shape (accumulator typed VECTOR + the chunk-base result
+  /// layout). A body whose reduce carries the scalar-carry standalone layout, an
+  /// unsupported kind, or an unconvertible (dtype, lmul) is NOT lowered here --
+  /// notifyMatchFailure rolls the conversion back so the legacy owner/validators
+  /// still see (and reject/own) it.
+  mlir::LogicalResult
+  emitReduce(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
+             tcrvrvv::ReduceOp reduce,
+             llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
+             mlir::Value bodyVL) const {
+    auto vectorType =
+        llvm::dyn_cast<tcrvrvv::VectorType>(reduce.getResult().getType());
+    if (!vectorType)
+      return rewriter.notifyMatchFailure(reduce, "reduce result not vector");
+    // The accumulator seed must be a typed vector (the rhs-load chunk seed).
+    if (!llvm::isa<tcrvrvv::VectorType>(reduce.getAccumulator().getType()))
+      return rewriter.notifyMatchFailure(
+          reduce, "reduce accumulator is not a typed vector seed");
+    // Malformed-body guard (mirrors the legacy `isReduction && hasRHSBroadcastLike`
+    // rejection, RVVEmitCRoutePlanning.cpp:20663-20667): the reduction route
+    // requires an EXPLICIT vector input AND accumulator LOAD. A
+    // broadcast/splat-seeded accumulator (or input) is NOT in this bounded slice
+    // -- the running per-chunk lane-0 seed must be a real loaded vector, not a
+    // scalar splat. Reject any input/accumulator not produced by a plain
+    // tcrv_rvv.load so a broadcast/splat-seeded reduce body falls back to the
+    // legacy validator (which errors) instead of being silently mislowered.
+    if (!reduce.getInput().getDefiningOp<tcrvrvv::LoadOp>() ||
+        !reduce.getAccumulator().getDefiningOp<tcrvrvv::LoadOp>())
+      return rewriter.notifyMatchFailure(
+          reduce, "reduce input/accumulator must be explicit vector loads "
+                  "(broadcast/splat seed is outside the convertible slice)");
+    // Only the per-chunk-base result layout is the `reduce` family. The
+    // scalar-carry standalone layout is a DIFFERENT (still-owned) family.
+    mlir::StringAttr resultLayout = reduce.getResultLayoutAttr();
+    if (!resultLayout ||
+        resultLayout.getValue() !=
+            "store-reduction-lane0-to-output-chunk-base")
+      return rewriter.notifyMatchFailure(
+          reduce, "reduce result layout outside the convertible reduce family");
+
+    mlir::Value input = valueMap.lookup(reduce.getInput());
+    mlir::Value accumulator = valueMap.lookup(reduce.getAccumulator());
+    if (!input || !accumulator)
+      return rewriter.notifyMatchFailure(reduce, "reduce operand unmapped");
+
+    std::optional<llvm::StringRef> mnemonic =
+        reductionMnemonic(reduce.getKind());
+    if (!mnemonic)
+      return rewriter.notifyMatchFailure(reduce, "unsupported reduce kind");
+    mlir::Type vecType = convertVectorTypeToEmitC(vectorType);
+    if (!vecType)
+      return rewriter.notifyMatchFailure(reduce, "vector type not convertible");
+    std::string callee = riscvReductionIntrinsicName(
+        *mnemonic, vectorElementWidth(vectorType), vectorType.getLmul(),
+        vectorDType(vectorType));
+    rewriter.create<emitc::VerbatimOp>(
+        loc, stepComment(reduce.getTCRVEmitCLowerableSourceOpName(),
+                         reduce.getTCRVEmitCLowerableSourceRole(), callee));
+    mlir::Value result =
+        rewriter
+            .create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{vecType}, callee,
+                                         mlir::ValueRange{input, accumulator,
+                                                          bodyVL})
+            .getResult(0);
+    valueMap[reduce.getResult()] = result;
+    return mlir::success();
+  }
+
   /// store(%abi,%val,%vl) -> ptr = base + i; __riscv_vse<sew>_v_<dtype><lmul>(...)
   mlir::LogicalResult
   emitStore(mlir::ConversionPatternRewriter &rewriter, mlir::Location loc,
             tcrvrvv::StoreOp store,
             llvm::DenseMap<mlir::Value, mlir::Value> &valueMap,
-            mlir::Value inductionVar, mlir::Value bodyVL) const {
+            mlir::Value inductionVar, mlir::Value storeVL) const {
     auto vectorType =
         llvm::dyn_cast<tcrvrvv::VectorType>(store.getValue().getType());
     if (!vectorType)
@@ -583,7 +698,7 @@ private:
     mlir::Value ptr = rewriter.create<emitc::AddOp>(loc, base.getType(), base,
                                                     inductionVar);
     rewriter.create<emitc::CallOpaqueOp>(loc, mlir::TypeRange{}, callee,
-                                         mlir::ValueRange{ptr, value, bodyVL});
+                                         mlir::ValueRange{ptr, value, storeVL});
     return mlir::success();
   }
 
@@ -1099,6 +1214,21 @@ private:
       return llvm::StringRef("vsub");
     if (kind == "mul")
       return llvm::StringRef("vmul");
+    return std::nullopt;
+  }
+
+  /// The reduction mnemonic for tcrv_rvv.reduce / tcrv_rvv.standalone_reduce,
+  /// mirroring the legacy getRVVSelectedBodyReductionIntrinsic /
+  /// getRVVSelectedBodyStandaloneReductionIntrinsic kind tables (add -> vredsum,
+  /// min -> vredmin, max -> vredmax). Unknown kinds fail the match so the body
+  /// falls back to the legacy validators unchanged.
+  static std::optional<llvm::StringRef> reductionMnemonic(llvm::StringRef kind) {
+    if (kind == "add")
+      return llvm::StringRef("vredsum");
+    if (kind == "min")
+      return llvm::StringRef("vredmin");
+    if (kind == "max")
+      return llvm::StringRef("vredmax");
     return std::nullopt;
   }
 
