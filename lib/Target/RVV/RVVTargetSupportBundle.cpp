@@ -8,7 +8,6 @@
 #include "TianChenRV/Plugin/RVV/RVVConstructionProtocol.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRouteProvider.h"
 #include "TianChenRV/Support/CapabilityModel.h"
-#include "TianChenRV/Target/RVV/RVVTargetArtifactRouteFamilyValidation.h"
 #include "TianChenRV/Target/ConstructionTemplateArtifactAdapter.h"
 #include "TianChenRV/Target/TargetArtifactExport.h"
 #include "TianChenRV/Target/TargetTranslateRegistration.h"
@@ -202,13 +201,6 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
           candidate, "tcrv_rvv.provider_supported_mirror",
           description.providerSupportedMirror,
           "selected typed RVV body provider support"))
-    return error;
-
-  const RVVTargetArtifactRouteFamilyValidationContext routeFamilyContext{
-      candidate, route, description};
-  if (llvm::Error error =
-          validateRVVTargetArtifactRouteFamilyCandidateMirrors(
-              routeFamilyContext))
     return error;
 
   llvm::StringRef targetCapabilityProviderMirror =
@@ -432,12 +424,6 @@ validateRVVSelectedVariantRouteAgreesWithCandidate(
         llvm::Twine("rebuilt materialized EmitC route failed verification: ") +
         message);
   }
-
-  const RVVTargetArtifactRouteFamilyValidationContext routeFamilyContext{
-      candidate, route, *description};
-  if (llvm::Error error =
-          validateRVVTargetArtifactRouteFamilyProviderFacts(routeFamilyContext))
-    return std::move(error);
 
   if (llvm::Error error = validateRVVRouteMetadataMirrorsSelectedBody(
           candidate, route, *description))

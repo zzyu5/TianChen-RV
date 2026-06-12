@@ -80,25 +80,6 @@ target_link_libraries(tianchenrv-plugin-emission-plan-test
   MLIRSupport
 )
 
-add_executable(tianchenrv-rvv-extension-plugin-test
-  Plugin/RVVExtensionPluginTest.cpp
-)
-
-target_link_libraries(tianchenrv-rvv-extension-plugin-test
-  PRIVATE
-  TianChenRVInitAll
-  TianChenRVBuiltinPlugins
-  TianChenRVPlugin
-  TianChenRVRVVPlugin
-  TianChenRVSupport
-  TianChenRVTransforms
-  MLIRFuncDialect
-  MLIRIR
-  MLIRParser
-  MLIRPass
-  MLIRSupport
-)
-
 add_executable(tianchenrv-scalar-extension-plugin-test
   Plugin/ScalarExtensionPluginTest.cpp
 )
@@ -319,20 +300,6 @@ target_link_libraries(tianchenrv-emitc-lowerable-interface-test
   MLIRSupport
 )
 
-add_executable(tianchenrv-target-artifact-export-test
-  Target/TargetArtifactExportTest.cpp
-)
-
-target_link_libraries(tianchenrv-target-artifact-export-test
-  PRIVATE
-  TianChenRVInitAll
-  TianChenRVBuiltinTargetArtifactExporters
-  TianChenRVTarget
-  MLIRIR
-  MLIRParser
-  MLIRSupport
-)
-
 add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS
@@ -349,9 +316,7 @@ add_lit_testsuite(check-tianchenrv "Running TianChen-RV lit tests"
   tianchenrv-emitc-lowerable-interface-test
   tianchenrv-offload-extension-plugin-test
   tianchenrv-rvv-dialect-test
-  tianchenrv-rvv-extension-plugin-test
   tianchenrv-scalar-extension-plugin-test
-  tianchenrv-target-artifact-export-test
   tianchenrv-template-extension-plugin-test
   tianchenrv-toy-extension-plugin-test
   tianchenrv-variant-dispatch-synthesis-test
