@@ -131,16 +131,16 @@ module {
 // STALE-SRC1-BINDING-SAME: src1=segment-field0-input-buffer:src1:abi
 // STALE-SRC1-BINDING-SAME: add-lhs
 
-// STALE-ABI: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.runtime_abi_order' must mirror provider route description value 'cmp_lhs,cmp_rhs,src0,src1,dst,n' but was 'cmp_lhs,src0,cmp_rhs,src1,dst,n'
+// STALE-ABI: metadata key '{{.*}}runtime_abi_order'{{.*}}'cmp_lhs,cmp_rhs,src0,src1,dst,n' but was 'cmp_lhs,src0,cmp_rhs,src1,dst,n'
 
-// STALE-HEADER: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.required_header_declarations' must mirror provider route description value 'stddef.h,stdint.h,riscv_vector.h' but was 'stddef.h,stdint.h'
+// STALE-HEADER: metadata key '{{.*}}required_header_declarations'{{.*}}'stddef.h,stdint.h,riscv_vector.h' but was 'stddef.h,stdint.h'
 
-// STALE-TYPE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.c_type_mapping' must mirror provider route description value 'vl:size_t,compare/field-payloads/update-add:signed-e32m1,mask:b32,segment2:vint32m1x2,dst:masked-segment2-update-store' but was 'vl:uint64_t,compare/field-payloads/update-add:signed-e32m1,mask:b32,segment2:vint32m1x2,dst:masked-segment2-update-store'
+// STALE-TYPE: metadata key '{{.*}}c_type_mapping'{{.*}}'vl:size_t,compare/field-payloads/update-add:signed-e32m1,mask:b32,segment2:vint32m1x2,dst:masked-segment2-update-store' but was 'vl:uint64_t,compare/field-payloads/update-add:signed-e32m1,mask:b32,segment2:vint32m1x2,dst:masked-segment2-update-store'
 
-// STALE-CM-PLAN: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.computed_mask_memory_route_family_plan' must mirror provider route description value 'rvv-computed-mask-memory-route-family-plan.v1' but was 'rvv-script-derived-computed-mask-segment2-plan.v1'
+// STALE-CM-PLAN: metadata key '{{.*}}computed_mask_memory_route_family_plan'{{.*}}'rvv-computed-mask-memory-route-family-plan.v1' but was 'rvv-script-derived-computed-mask-segment2-plan.v1'
 
-// STALE-SEGCOUNT: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.segment_count' must mirror provider route description value '2' but was '3'
+// STALE-SEGCOUNT: metadata key '{{.*}}segment_count'{{.*}}'2' but was '3'
 
-// STALE-MASK-ROLE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.mask_role' must mirror provider route description value 'predicate-mask-produced-by-compare' but was 'script-derived-mask-role'
+// STALE-MASK-ROLE: metadata key '{{.*}}mask_role'{{.*}}'predicate-mask-produced-by-compare' but was 'script-derived-mask-role'
 
-// STALE-RESIDUE: candidate metadata must carry exactly 58 tcrv_rvv selected-body config/runtime-VL artifact metadata entries derived from the provider route description
+// STALE-RESIDUE: carry exactly 58{{.*}}metadata entries

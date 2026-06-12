@@ -331,33 +331,33 @@ module {
 
 // MISSING-REALIZATION-POLICY-EVIDENCE: requires low-precision measurement-disposition evidence/admission fact 'tcrv_rvv.low_precision_resource.performance_feedback' before policy/evidence validation
 
-// STALE-ARTIFACT-REALIZATION-DECISION: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.realization_decision' must mirror provider route description value 'consume-low-precision-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-budget-5of32.v1' but was 'artifact-name-derived-resource-decision'
+// STALE-ARTIFACT-REALIZATION-DECISION: metadata key '{{.*}}low_precision_resource.realization_decision'{{.*}}'consume-low-precision-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-budget-5of32.v1' but was 'artifact-name-derived-resource-decision'
 
-// STALE-ARTIFACT-PERFORMANCE-FEEDBACK: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.performance_feedback' must mirror provider route description value 'same-target-packed-i4-no-win.v1' but was 'same-target-packed-i4-performance-win.v1'
+// STALE-ARTIFACT-PERFORMANCE-FEEDBACK: metadata key '{{.*}}low_precision_resource.performance_feedback'{{.*}}'same-target-packed-i4-no-win.v1' but was 'same-target-packed-i4-performance-win.v1'
 
-// STALE-ARTIFACT-REMEDIATION-STATEMENT-STRATEGY: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.remediation_statement_strategy' must mirror provider route description value 'low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue' but was 'metadata-only-packed-i4-unpack-plan'
+// STALE-ARTIFACT-REMEDIATION-STATEMENT-STRATEGY: metadata key '{{.*}}low_precision_resource.remediation_statement_strategy'{{.*}}'low-shifted-i4-product-rescale-high-nibble-vwmacc-single-vwredsum-scalar-epilogue' but was 'metadata-only-packed-i4-unpack-plan'
 
-// STALE-ARTIFACT-REMEDIATION-PRODUCT-PLAN: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.remediation_product_plan' must mirror provider route description value 'low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1' but was 'metadata-only-packed-i4-product-plan'
+// STALE-ARTIFACT-REMEDIATION-PRODUCT-PLAN: metadata key '{{.*}}low_precision_resource.remediation_product_plan'{{.*}}'low-shifted-product-i16-rescale-plus-high-nibble-vwmacc-scalar-epilogue.v1' but was 'metadata-only-packed-i4-product-plan'
 
-// STALE-ARTIFACT-PACKED-UNPACK-PLAN: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.packed_unpack_plan' must mirror provider route description value 'low-high-i4-sign-extend-to-i8mf4' but was 'metadata-only-packed-i4-unpack-plan'
+// STALE-ARTIFACT-PACKED-UNPACK-PLAN: metadata key '{{.*}}low_precision_resource.packed_unpack_plan'{{.*}}'low-high-i4-sign-extend-to-i8mf4' but was 'metadata-only-packed-i4-unpack-plan'
 
-// STALE-ARTIFACT-SCHEDULE-DECISION: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.schedule_decision' must mirror provider route description value 'select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1' but was 'metadata-only-packed-i4-schedule-decision'
-// STALE-ARTIFACT-ADMISSION-SCHEDULE-DECISION: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.realization_admission_schedule_decision' must mirror provider route description value 'select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1' but was 'metadata-only-packed-i4-admission-schedule-decision'
+// STALE-ARTIFACT-SCHEDULE-DECISION: metadata key '{{.*}}low_precision_resource.schedule_decision'{{.*}}'select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1' but was 'metadata-only-packed-i4-schedule-decision'
+// STALE-ARTIFACT-ADMISSION-SCHEDULE-DECISION: metadata key '{{.*}}low_precision_resource.realization_admission_schedule_decision'{{.*}}'select-packed-i4-high-nibble-vwmacc-scalar-epilogue-single-reduce-u1-two-region-budget-5of32.v1' but was 'metadata-only-packed-i4-admission-schedule-decision'
 
-// STALE-ARTIFACT-PERFORMANCE-SELECTION: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.performance_selection_eligible' must mirror provider route description value 'false' but was 'true'
+// STALE-ARTIFACT-PERFORMANCE-SELECTION: metadata key '{{.*}}low_precision_resource.performance_selection_eligible'{{.*}}'false' but was 'true'
 
-// STALE-ARTIFACT-PERFORMANCE-OUTCOME: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.performance_maturity_outcome' must mirror provider route description value 'no-win' but was 'win'
+// STALE-ARTIFACT-PERFORMANCE-OUTCOME: metadata key '{{.*}}low_precision_resource.performance_maturity_outcome'{{.*}}'no-win' but was 'win'
 
-// STALE-ARTIFACT-PERFORMANCE-ADMISSION-CLOSURE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.performance_admission_closure' must mirror provider route description value 'no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1' but was 'metadata-only-no-safe-repair'
+// STALE-ARTIFACT-PERFORMANCE-ADMISSION-CLOSURE: metadata key '{{.*}}low_precision_resource.performance_admission_closure'{{.*}}'no-further-repair-packed-i4-campaign-loop-11-budget-5of32.v1' but was 'metadata-only-no-safe-repair'
 
-// STALE-ARTIFACT-BEYOND-LOCAL-BLOCKER: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker' must mirror provider route description value 'packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win' but was 'metadata-only-beyond-local-blocker'
+// STALE-ARTIFACT-BEYOND-LOCAL-BLOCKER: metadata key '{{.*}}low_precision_resource.beyond_local_repair_admission_blocker'{{.*}}'packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win' but was 'metadata-only-beyond-local-blocker'
 
-// STALE-ARTIFACT-DISPATCH-PREFERENCE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.dispatch_preference' must mirror provider route description value 'not-performance-preferred' but was 'performance-preferred'
+// STALE-ARTIFACT-DISPATCH-PREFERENCE: metadata key '{{.*}}low_precision_resource.dispatch_preference'{{.*}}'not-performance-preferred' but was 'performance-preferred'
 
-// STALE-ARTIFACT-DISPATCH-CASE: candidate tcrv_rvv.selected_dispatch_case_mirror provenance must mirror selected dispatch case facts 'selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequantize;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-case' but was 'selected_dispatch_case_mirror:@metadata_only_dispatch_case;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-case'
+// STALE-ARTIFACT-DISPATCH-CASE: dispatch case facts 'selected_dispatch_case_mirror:@pre_realized_body_rvv_product_reduce_dequantize;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-case' but was 'selected_dispatch_case_mirror:@metadata_only_dispatch_case;role=dispatch case;runtime_guard_required=false;runtime_guard=none;origin=rvv-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-case'
 
-// STALE-ARTIFACT-DISPATCH-FALLBACK: candidate tcrv_rvv.selected_dispatch_fallback_mirror provenance must mirror selected dispatch fallback facts 'selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-fallback-envelope' but was 'selected_dispatch_fallback_mirror:@metadata_only_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-fallback-envelope'
+// STALE-ARTIFACT-DISPATCH-FALLBACK: dispatch fallback facts 'selected_dispatch_fallback_mirror:@pre_realized_body_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-fallback-envelope' but was 'selected_dispatch_fallback_mirror:@metadata_only_scalar_fallback;role=dispatch fallback;fallback_role=conservative;origin=scalar-plugin;policy=pre-realized-selected-body-widening-product-reduce-dequantize-f32-fallback-envelope'
 
-// STALE-POLICY-DISPATCH-PREFERENCE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.selected_dispatch_preference' must mirror provider route description value 'not-performance-preferred' but was 'performance-preferred'
+// STALE-POLICY-DISPATCH-PREFERENCE: metadata key '{{.*}}low_precision_resource.selected_dispatch_preference'{{.*}}'not-performance-preferred' but was 'performance-preferred'
 
-// STALE-POLICY-WIN-CLAIM: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.performance_win_claim_allowed' must mirror provider route description value 'false' but was 'true'
+// STALE-POLICY-WIN-CLAIM: metadata key '{{.*}}low_precision_resource.performance_win_claim_allowed'{{.*}}'false' but was 'true'

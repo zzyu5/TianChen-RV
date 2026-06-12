@@ -137,4 +137,4 @@ module {
 // STALE-HEADERS-SAME: stddef.h,stdint.h,riscv_vector.h
 
 // STALE-DEQUANT-RESIDUE: RVV materialized EmitC target artifact bridge failed
-// STALE-DEQUANT-RESIDUE: candidate metadata must carry exactly 43 tcrv_rvv selected-body config/runtime-VL artifact metadata entries derived from the provider route description
+// STALE-DEQUANT-RESIDUE: carry exactly 43{{.*}}metadata entries

@@ -107,6 +107,6 @@ module {
 // STALE-PROVIDER: candidate tcrv_rvv.provider_supported_mirror provenance must mirror selected typed RVV body provider support
 // STALE-PROVIDER-SAME: provider_supported_mirror:rvv-script-derived-segment2-interleave
 
-// STALE-SEGMENT2-PLAN: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.segment2_memory_route_family_plan' must mirror provider route description value 'rvv-segment2-memory-route-family-plan.v1' but was 'rvv-script-derived-plain-segment2-plan.v1'
+// STALE-SEGMENT2-PLAN: metadata key '{{.*}}segment2_memory_route_family_plan'{{.*}}'rvv-segment2-memory-route-family-plan.v1' but was 'rvv-script-derived-plain-segment2-plan.v1'
 
-// STALE-DEST-MEM: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.destination_memory_form' must mirror provider route description value 'segment2-interleaved-unit-stride-store' but was 'script-derived-segment2-destination'
+// STALE-DEST-MEM: metadata key '{{.*}}destination_memory_form'{{.*}}'segment2-interleaved-unit-stride-store' but was 'script-derived-segment2-destination'

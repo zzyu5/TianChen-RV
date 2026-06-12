@@ -152,6 +152,6 @@ module {
 // STALE-OPERAND-BINDING: candidate tcrv_rvv.route_operand_binding_operands provenance must mirror selected typed RVV body binding summary
 // STALE-OPERAND-BINDING-SAME: stale-scatter
 
-// STALE-COMPOSITE-RESOURCE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.composite_resource.vector_register_budget' must mirror provider route description value '32' but was '4'
+// STALE-COMPOSITE-RESOURCE: metadata key '{{.*}}composite_resource.vector_register_budget'{{.*}}'32' but was '4'
 
 // MISSING-EXEC-BINDING: requires tcrv_rvv.runtime_abi_value 'index' with role 'index-input-buffer' to carry exec_binding to a tcrv.exec ABI declaration

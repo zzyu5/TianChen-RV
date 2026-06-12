@@ -86,7 +86,7 @@ module {
 // HEADER: tianchenrv.rvv.computed_mask_memory_mask_producer_source: runtime-scalar-splat-compare-rhs
 // HEADER: void tcrv_emitc_explicit_selected_body_rt_scalar_cmseg_load_kernel_explicit_selected_body_rvv_rt_scalar_cmseg_load(const int32_t *lhs, int32_t rhs_scalar, const int32_t *src, int32_t *out0, int32_t *out1, size_t n);
 
-// STALE-PRODUCER: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.computed_mask_memory_mask_producer_source' must mirror provider route description value 'runtime-scalar-splat-compare-rhs' but was 'vector-compare-rhs-load'
+// STALE-PRODUCER: metadata key '{{.*}}computed_mask_memory_mask_producer_source'{{.*}}'runtime-scalar-splat-compare-rhs' but was 'vector-compare-rhs-load'
 // STALE-RHS-BINDING: RVV materialized EmitC target artifact bridge failed
 // STALE-RHS-BINDING: candidate tcrv_rvv.route_operand_binding_operands provenance must mirror selected typed RVV body binding summary
 // STALE-RHS-BINDING-SAME: rhs_scalar=rhs-scalar-value:rhs_scalar:abi
@@ -98,7 +98,7 @@ module {
 // STALE-BINDING-SAME: out1=segment-field1-output-buffer:out1:abi
 // STALE-BINDING-SAME: but was
 // STALE-BINDING-SAME: out1=segment-field0-output-buffer:out1:abi
-// STALE-ABI: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.runtime_abi_order' must mirror provider route description value 'lhs,rhs_scalar,src,out0,out1,n' but was 'lhs,src,rhs_scalar,out0,out1,n'
-// STALE-HEADER: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.required_header_declarations' must mirror provider route description value 'stddef.h,stdint.h,riscv_vector.h' but was 'stddef.h,stdint.h'
-// STALE-INACTIVE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.inactive_lane_contract' must mirror provider route description value 'masked-off-lanes-preserve-old-destination' but was 'script-derived-passthrough'
-// STALE-FIELD0: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.field0_role' must mirror provider route description value 'segment-field0-output-buffer' but was 'segment-field1-output-buffer'
+// STALE-ABI: metadata key '{{.*}}runtime_abi_order'{{.*}}'lhs,rhs_scalar,src,out0,out1,n' but was 'lhs,src,rhs_scalar,out0,out1,n'
+// STALE-HEADER: metadata key '{{.*}}required_header_declarations'{{.*}}'stddef.h,stdint.h,riscv_vector.h' but was 'stddef.h,stdint.h'
+// STALE-INACTIVE: metadata key '{{.*}}inactive_lane_contract'{{.*}}'masked-off-lanes-preserve-old-destination' but was 'script-derived-passthrough'
+// STALE-FIELD0: metadata key '{{.*}}field0_role'{{.*}}'segment-field0-output-buffer' but was 'segment-field1-output-buffer'

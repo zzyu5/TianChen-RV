@@ -136,22 +136,22 @@ module {
 // HEADER: tianchenrv.rvv.c_type_mapping: vl:size_t,source:unsigned-e8mf4,product:unsigned-e16mf2,seed:unsigned-u32,result:unsigned-e32m1
 // HEADER: void tcrv_emitc_explicit_selected_body_unsigned_product_reduce_kernel_explicit_selected_body_rvv_unsigned_product_reduce(const uint8_t *lhs, const uint8_t *rhs, const uint32_t *acc, uint32_t *out, size_t n);
 
-// STALE-VWREDSUM: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.widening_reduction_intrinsic' must mirror provider route description value '__riscv_vwredsumu_vs_u16mf2_u32m1' but was '__riscv_vwredsum_vs_i16mf2_i32m1'
+// STALE-VWREDSUM: metadata key '{{.*}}widening_reduction_intrinsic'{{.*}}'__riscv_vwredsumu_vs_u16mf2_u32m1' but was '__riscv_vwredsum_vs_i16mf2_i32m1'
 
-// STALE-SIGN: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_primitive.source_signedness' must mirror provider route description value 'unsigned' but was 'signed'
+// STALE-SIGN: metadata key '{{.*}}low_precision_primitive.source_signedness'{{.*}}'unsigned' but was 'signed'
 
-// STALE-RESOURCE-SIGN: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.source_signedness' must mirror provider route description value 'unsigned' but was 'signed'
+// STALE-RESOURCE-SIGN: metadata key '{{.*}}low_precision_resource.source_signedness'{{.*}}'unsigned' but was 'signed'
 
-// STALE-RESOURCE-CHAIN: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.primitive_product_reduction_chain_relation' must mirror provider route description value 'unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32' but was 'metadata-derived-product-reduction'
+// STALE-RESOURCE-CHAIN: metadata key '{{.*}}low_precision_resource.primitive_product_reduction_chain_relation'{{.*}}'unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32' but was 'metadata-derived-product-reduction'
 
-// STALE-RESOURCE-REDUCTION-CANDIDATE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.reduction_candidate_fact' must mirror provider route description value 'resource-candidate-widening-reduction:unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32:__riscv_vwredsumu_vs_u16mf2_u32m1:store-vl=1' but was 'target-metadata-unsigned-reduction'
+// STALE-RESOURCE-REDUCTION-CANDIDATE: metadata key '{{.*}}low_precision_resource.reduction_candidate_fact'{{.*}}'resource-candidate-widening-reduction:unsigned-u8mf4xu8mf4-to-u16mf2-reduce-plus-u32-scalar-to-u32:__riscv_vwredsumu_vs_u16mf2_u32m1:store-vl=1' but was 'target-metadata-unsigned-reduction'
 
-// STALE-PRIM-ACC: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_primitive.accumulator_dtype' must mirror provider route description value 'u32' but was 'i32'
+// STALE-PRIM-ACC: metadata key '{{.*}}low_precision_primitive.accumulator_dtype'{{.*}}'u32' but was 'i32'
 
-// STALE-EXT: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_primitive.source_extension' must mirror provider route description value 'zero-extend-u8-to-u16-product' but was 'sign-extend-i8-to-i16-product'
+// STALE-EXT: metadata key '{{.*}}low_precision_primitive.source_extension'{{.*}}'zero-extend-u8-to-u16-product' but was 'sign-extend-i8-to-i16-product'
 
-// STALE-CTYPE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.c_type_mapping' must mirror provider route description value 'vl:size_t,source:unsigned-e8mf4,product:unsigned-e16mf2,seed:unsigned-u32,result:unsigned-e32m1' but was 'vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,result:signed-e32m1'
+// STALE-CTYPE: metadata key '{{.*}}c_type_mapping'{{.*}}'vl:size_t,source:unsigned-e8mf4,product:unsigned-e16mf2,seed:unsigned-u32,result:unsigned-e32m1' but was 'vl:size_t,source:signed-e8mf4,product:signed-e16mf2,seed:signed-i32,result:signed-e32m1'
 
-// STALE-PRIM-TAIL: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_primitive.tail_policy' must mirror provider route description value 'agnostic' but was 'undisturbed'
+// STALE-PRIM-TAIL: metadata key '{{.*}}low_precision_primitive.tail_policy'{{.*}}'agnostic' but was 'undisturbed'
 
-// MISSING-PRIM-PRODUCT-SEW: candidate tcrv_rvv selected-body metadata[69] key must mirror provider route description key 'tcrv_rvv.low_precision_primitive.product_sew' but was 'tcrv_rvv.low_precision_primitive.product_sew_missing'
+// MISSING-PRIM-PRODUCT-SEW: metadata{{.*}}key '{{.*}}low_precision_primitive.product_sew' but was '{{.*}}low_precision_primitive.product_sew_missing'

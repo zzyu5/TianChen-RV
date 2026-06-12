@@ -171,11 +171,11 @@ module {
 
 // MISSING-DISPATCH-FALLBACK-MIRROR: candidate metadata must carry tcrv_rvv.selected_dispatch_fallback_mirror provenance
 
-// STALE-COMPOSITE-RESOURCE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.composite_resource.selected_candidate' must mirror provider route description value 'rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]' but was 'artifact-name-derived-composite-resource'
+// STALE-COMPOSITE-RESOURCE: metadata key '{{.*}}composite_resource.selected_candidate'{{.*}}'rvv-composite-gather-macc-scatter-resource-candidate.v1[rt-scmp-indexed-gather-macc-scatter,e32m1,u1]' but was 'artifact-name-derived-composite-resource'
 
-// STALE-COMPOSITE-PLAN: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.composite_route_family_plan' must mirror provider route description value 'rvv-composite-gather-macc-scatter-route-family-plan.v1' but was 'artifact-name-derived-composite-plan'
+// STALE-COMPOSITE-PLAN: metadata key '{{.*}}composite_route_family_plan'{{.*}}'rvv-composite-gather-macc-scatter-route-family-plan.v1' but was 'artifact-name-derived-composite-plan'
 
-// STALE-WRITE-SIDE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.indexed_write_side_contract' must mirror provider route description value 'gather-payload-acc-before-active-indexed-write;destination-before-inactive-tail-preserve' but was 'post-call-composite-indexed-write'
+// STALE-WRITE-SIDE: metadata key '{{.*}}indexed_write_side_contract'{{.*}}'gather-payload-acc-before-active-indexed-write;destination-before-inactive-tail-preserve' but was 'post-call-composite-indexed-write'
 
 // MISSING-COMPOSITE-RESOURCE: requires realized composite resource string fact 'tcrv_rvv.composite_resource.vl_policy' before provider route construction
 

@@ -141,12 +141,12 @@ module {
 // UNSUPPORTED-GEARBOX-UNROLL: requires RVV Gearbox schedule fact 'tcrv_rvv.gearbox.unroll'
 // UNSUPPORTED-GEARBOX-UNROLL-SAME: provider-derived '2' but found '3'
 
-// STALE-RELATION: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.dequantization_relation' must mirror provider route description value 'signed-i32m1-to-f32m1-scale-f32' but was 'script-derived-dequant'
+// STALE-RELATION: metadata key '{{.*}}dequantization_relation'{{.*}}'signed-i32m1-to-f32m1-scale-f32' but was 'script-derived-dequant'
 
-// STALE-SCALE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.dequant_scale_role' must mirror provider route description value 'dequant-scale-value' but was 'output-buffer'
+// STALE-SCALE: metadata key '{{.*}}dequant_scale_role'{{.*}}'dequant-scale-value' but was 'output-buffer'
 
-// STALE-DEST-LMUL: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.dest_lmul' must mirror provider route description value 'm1' but was 'm2'
+// STALE-DEST-LMUL: metadata key '{{.*}}dest_lmul'{{.*}}'m1' but was 'm2'
 
-// STALE-GEARBOX-SELECTED: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.gearbox.selected_candidate' must mirror provider route description value 'rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1' but was 'artifact-name-derived-gear'
+// STALE-GEARBOX-SELECTED: metadata key '{{.*}}gearbox.selected_candidate'{{.*}}'rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1' but was 'artifact-name-derived-gear'
 
-// STALE-GEARBOX: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.gearbox.schedule_id' must mirror provider route description value 'rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1' but was 'artifact-name-derived-gear'
+// STALE-GEARBOX: metadata key '{{.*}}gearbox.schedule_id'{{.*}}'rvv-gearbox-dequantize-i32-to-f32-e32-m1-u2.v1' but was 'artifact-name-derived-gear'

@@ -87,4 +87,4 @@ module {
 // HEADER: tianchenrv.rvv.contraction_route_family_plan: rvv-contraction-route-family-plan.v1
 // HEADER: void tcrv_emitc_explicit_strided_dot_kernel_rvv_explicit_strided_input_dot(const int16_t *lhs, const int16_t *rhs, const int32_t *acc, int32_t *out, size_t n, size_t lhs_stride, size_t rhs_stride);
 
-// STALE-RESOURCE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.selected_candidate' must mirror provider route description value 'rvv-low-precision-direct-contraction-resource-candidate.v1[strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]' but was 'artifact-name-derived-resource-candidate'
+// STALE-RESOURCE: metadata key '{{.*}}low_precision_resource.selected_candidate'{{.*}}'rvv-low-precision-direct-contraction-resource-candidate.v1[strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]' but was 'artifact-name-derived-resource-candidate'

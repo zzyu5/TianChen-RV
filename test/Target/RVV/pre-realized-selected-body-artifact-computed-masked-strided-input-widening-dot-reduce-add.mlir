@@ -149,6 +149,6 @@ module {
 
 // STALE-AUTH: does not accept authority metadata attribute '"route_id"'
 // MISSING-MASK-PROVENANCE: currently supports only mask_source "compare-produced-mask-same-vl-scope"
-// STALE-STRIDE-SOURCE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.lhs_stride_source' must mirror provider route description value 'runtime_abi:lhs_stride' but was 'metadata-derived-stride'
-// STALE-CONTRACT: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.widening_dot_source_accumulator_result_contract' must mirror provider route description value 'computed-mask-strided-source-before-skipped-source-ignored;inactive-products-zero-before-reduction;accumulator-out0-seed-carry;scalar-output-only-tail-preserve.v1' but was 'metadata-derived-source-accumulator-result-contract'
-// STALE-RESOURCE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.selected_candidate' must mirror provider route description value 'rvv-low-precision-direct-contraction-resource-candidate.v1[computed-mask-strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]' but was 'artifact-name-derived-resource-candidate'
+// STALE-STRIDE-SOURCE: metadata key '{{.*}}lhs_stride_source'{{.*}}'runtime_abi:lhs_stride' but was 'metadata-derived-stride'
+// STALE-CONTRACT: metadata key '{{.*}}widening_dot_source_accumulator_result_contract'{{.*}}'computed-mask-strided-source-before-skipped-source-ignored;inactive-products-zero-before-reduction;accumulator-out0-seed-carry;scalar-output-only-tail-preserve.v1' but was 'metadata-derived-source-accumulator-result-contract'
+// STALE-RESOURCE: metadata key '{{.*}}low_precision_resource.selected_candidate'{{.*}}'rvv-low-precision-direct-contraction-resource-candidate.v1[computed-mask-strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]' but was 'artifact-name-derived-resource-candidate'

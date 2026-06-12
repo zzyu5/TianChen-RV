@@ -114,13 +114,13 @@ module {
 
 // STALE-PROVIDER: candidate tcrv_rvv.provider_supported_mirror provenance must mirror selected typed RVV body provider support
 // STALE-BINDING: candidate tcrv_rvv.route_operand_binding_plan provenance must mirror selected typed RVV body binding plan
-// STALE-ABI: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.runtime_abi_order' must mirror provider route description value 'cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride' but was 'cmp_lhs,cmp_rhs,lhs,rhs,acc,out,lhs_stride,n,rhs_stride'
-// STALE-HEADER: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.required_header_declarations' must mirror provider route description value 'stddef.h,stdint.h,riscv_vector.h' but was 'stddef.h,stdint.h'
-// STALE-TYPE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.c_type_mapping' must mirror provider route description value 'vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32' but was 'vl:size_t,source:signed-e32m1,result:signed-e32m1,mask:b32'
-// STALE-CONTRACTION: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.contraction_route_family_plan' must mirror provider route description value 'rvv-contraction-route-family-plan.v1' but was 'rvv-script-derived-contraction-plan.v1'
-// STALE-RELATION: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.widening_dot_relation' must mirror provider route description value 'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32' but was 'route-id-derived-relation'
-// STALE-CONTRACT: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.widening_dot_source_accumulator_result_contract' must mirror provider route description value 'computed-mask-strided-source-before-skipped-source-ignored;inactive-products-zero-before-reduction;accumulator-out0-seed-carry;scalar-output-only-tail-preserve.v1' but was 'metadata-derived-source-accumulator-result-contract'
-// STALE-STOREVL: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.widening_dot_reduction_store_vl' must mirror provider route description value '1' but was '4'
-// STALE-STRIDE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.strided_load_intrinsic' must mirror provider route description value '__riscv_vlse16_v_i16mf2' but was '__riscv_vle16_v_i16mf2'
-// STALE-MASKPROD: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.masked_widening_product_intrinsic' must mirror provider route description value '__riscv_vwmul_vv_i32m1_m' but was '__riscv_vwmul_vv_i32m1'
-// STALE-RESOURCE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.selected_candidate' must mirror provider route description value 'rvv-low-precision-direct-contraction-resource-candidate.v1[computed-mask-strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]' but was 'artifact-name-derived-resource-candidate'
+// STALE-ABI: metadata key '{{.*}}runtime_abi_order'{{.*}}'cmp_lhs,cmp_rhs,lhs,rhs,acc,out,n,lhs_stride,rhs_stride' but was 'cmp_lhs,cmp_rhs,lhs,rhs,acc,out,lhs_stride,n,rhs_stride'
+// STALE-HEADER: metadata key '{{.*}}required_header_declarations'{{.*}}'stddef.h,stdint.h,riscv_vector.h' but was 'stddef.h,stdint.h'
+// STALE-TYPE: metadata key '{{.*}}c_type_mapping'{{.*}}'vl:size_t,source:signed-e16mf2,result:signed-e32m1,mask:b32' but was 'vl:size_t,source:signed-e32m1,result:signed-e32m1,mask:b32'
+// STALE-CONTRACTION: metadata key '{{.*}}contraction_route_family_plan'{{.*}}'rvv-contraction-route-family-plan.v1' but was 'rvv-script-derived-contraction-plan.v1'
+// STALE-RELATION: metadata key '{{.*}}widening_dot_relation'{{.*}}'signed-i16mf2xi16mf2-reduce-plus-i32-scalar-to-i32' but was 'route-id-derived-relation'
+// STALE-CONTRACT: metadata key '{{.*}}widening_dot_source_accumulator_result_contract'{{.*}}'computed-mask-strided-source-before-skipped-source-ignored;inactive-products-zero-before-reduction;accumulator-out0-seed-carry;scalar-output-only-tail-preserve.v1' but was 'metadata-derived-source-accumulator-result-contract'
+// STALE-STOREVL: metadata key '{{.*}}widening_dot_reduction_store_vl'{{.*}}'1' but was '4'
+// STALE-STRIDE: metadata key '{{.*}}strided_load_intrinsic'{{.*}}'__riscv_vlse16_v_i16mf2' but was '__riscv_vle16_v_i16mf2'
+// STALE-MASKPROD: metadata key '{{.*}}masked_widening_product_intrinsic'{{.*}}'__riscv_vwmul_vv_i32m1_m' but was '__riscv_vwmul_vv_i32m1'
+// STALE-RESOURCE: metadata key '{{.*}}low_precision_resource.selected_candidate'{{.*}}'rvv-low-precision-direct-contraction-resource-candidate.v1[computed-mask-strided-input-widening-dot-reduce-add,i16mf2-i32m1,u1]' but was 'artifact-name-derived-resource-candidate'

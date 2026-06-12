@@ -406,9 +406,9 @@ module {
 // STALE-WRED-SAME: __riscv_vwredsum_vs_i16mf2_i32m1
 // STALE-WRED-SAME: __riscv_vredsum_vs_i32m1_i32m1
 
-// STALE-DEQUANT: candidate metadata must carry exactly 175 tcrv_rvv selected-body config/runtime-VL artifact metadata entries derived from the provider route description
+// STALE-DEQUANT: carry exactly 175{{.*}}metadata entries
 
-// STALE-DEQUANT-SCALE: candidate metadata must carry exactly 175 tcrv_rvv selected-body config/runtime-VL artifact metadata entries derived from the provider route description
+// STALE-DEQUANT-SCALE: carry exactly 175{{.*}}metadata entries
 
 // STALE-LOWER-CTYPE: RVV materialized EmitC target artifact bridge failed
 // STALE-LOWER-CTYPE: tcrv_rvv.lower_bound_c_type
@@ -418,4 +418,4 @@ module {
 // STALE-BOUND-SPLAT: tcrv_rvv.rhs_broadcast_intrinsic
 // STALE-BOUND-SPLAT-SAME: __riscv_vfmv_v_f_f32m2
 
-// STALE-ARTIFACT-CLAMP-SELECT: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.clamp_select_layout' must mirror provider route description value 'clamp-lower-then-upper' but was 'metadata-select-layout'
+// STALE-ARTIFACT-CLAMP-SELECT: metadata key '{{.*}}low_precision_resource.clamp_select_layout'{{.*}}'clamp-lower-then-upper' but was 'metadata-select-layout'

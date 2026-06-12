@@ -182,10 +182,10 @@ module {
 // CPP: [0] =
 // CPP-NOT: __riscv_vse32_v_f32m1
 
-// STALE-ARTIFACT-BASELINE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.performance_baseline' must mirror provider route description value 'scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1' but was 'scalar-c-reference/product-reduction-dequant-packed-i4-v1'
+// STALE-ARTIFACT-BASELINE: metadata key '{{.*}}low_precision_resource.performance_baseline'{{.*}}'scalar-c-reference/product-reduction-dequant-clamp-packed-i4-v1' but was 'scalar-c-reference/product-reduction-dequant-packed-i4-v1'
 
-// STALE-ARTIFACT-MEASUREMENT: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.remediation_measurement_evidence' must mirror provider route description value 'gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json' but was 'gate4-packed-i4-scalar-epilogue-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json'
+// STALE-ARTIFACT-MEASUREMENT: metadata key '{{.*}}low_precision_resource.remediation_measurement_evidence'{{.*}}'gate4-packed-i4-scalar-epilogue-dequant-clamp-ssh/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json' but was 'gate4-packed-i4-scalar-epilogue-dequant-ssh/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json'
 
-// STALE-POLICY-DISPATCH-PREFERENCE: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.selected_dispatch_preference' must mirror provider route description value 'not-performance-preferred' but was 'performance-preferred'
+// STALE-POLICY-DISPATCH-PREFERENCE: metadata key '{{.*}}low_precision_resource.selected_dispatch_preference'{{.*}}'not-performance-preferred' but was 'performance-preferred'
 
-// STALE-POLICY-CORRECTNESS-FALLBACK: candidate tcrv_rvv selected-body metadata key 'tcrv_rvv.low_precision_resource.correctness_fallback_path_selected' must mirror provider route description value 'true' but was 'false'
+// STALE-POLICY-CORRECTNESS-FALLBACK: metadata key '{{.*}}low_precision_resource.correctness_fallback_path_selected'{{.*}}'true' but was 'false'

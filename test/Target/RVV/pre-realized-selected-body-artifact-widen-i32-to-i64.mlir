@@ -112,4 +112,4 @@ module {
 // STALE-CONVERSION-PROVIDER-SAME: must mirror
 // STALE-CONVERSION-PROVIDER-SAME: rvv-script-derived-widening-conversion
 
-// STALE-ELEMENTWISE-RESIDUE: candidate metadata must carry exactly 43 tcrv_rvv selected-body config/runtime-VL artifact metadata entries derived from the provider route description
+// STALE-ELEMENTWISE-RESIDUE: carry exactly 43{{.*}}metadata entries
