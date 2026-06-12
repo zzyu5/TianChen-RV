@@ -2056,6 +2056,21 @@ describeRVVSelectedBodyEmitCRoute(
     tianchenrv::conversion::emitc::TCRVEmitCLowerableRoute *verifiedRoute =
         nullptr);
 
+/// Stage 3 换心 strangler-fig gate. Returns true iff the request's selected
+/// typed RVV body FULLY lowers to emitc through the real RVV->emitc
+/// DialectConversion (`conversion::rvv::convertRVVModuleToEmitC`) — i.e. it is
+/// a converted family whose legacy string statement-plan owner is redundant.
+/// Probes a CLONE of the enclosing module under a diagnostic-swallowing handler
+/// (the speculative conversion of a not-yet-covered family legally fails, which
+/// is the expected fall-back signal, not an error), so the live IR is never
+/// mutated. A `false` result means the conversion does not yet cover this body
+/// and the legacy string route owner is still required. This is the single
+/// shared decision the emission-plan, candidate-validation, boundary-gate, and
+/// emitc-lowerable-route materialization consumers use to stop building the
+/// elementwise string route once the conversion is the authority.
+bool rvvSelectedBodyFullyConvertsToEmitC(
+    const tianchenrv::plugin::VariantEmitCLowerableRequest &request);
+
 llvm::Error verifyRVVSelectedBodyEmitCRouteDescription(
     const RVVSelectedBodyEmitCRouteDescription &description,
     llvm::StringRef context);

@@ -366,10 +366,21 @@ llvm::Error validateSelectedRVVSelectedBodyBoundary(
           request.getKernel(), variant, request.getRole(), boundary))
     return error;
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
+  // Stage 3 换心 decouple (PATH B, boundary can-build gate). This validator
+  // builds a throwaway string route purely as a "can this selected body lower"
+  // gate. For a converted family that capability is guaranteed — and proven
+  // more directly — by the real RVV->emitc DialectConversion fully legalizing
+  // the body, so the redundant string-route can-build check (and the legacy
+  // statement-plan owner it dispatches into) is skipped. A not-yet-converted
+  // family keeps firing the string can-build gate so its owner still validates
+  // lowerability. Zero family-name branch — purely "did the conversion
+  // legalize this body."
   VariantEmitCLowerableRequest routeRequest(variant, request.getKernel(),
                                             request.getCapabilities(),
                                             request.getRole());
+  if (rvv::rvvSelectedBodyFullyConvertsToEmitC(routeRequest))
+    return llvm::Error::success();
+  conversion::emitc::TCRVEmitCLowerableRoute route;
   return rvv::buildRVVSelectedBodyEmitCLowerableRoute(routeRequest, route);
 }
 
@@ -586,12 +597,26 @@ llvm::Error RVVExtensionPlugin::buildVariantEmissionPlan(
           validateSelectedRVVSelectedBodyBoundary(boundaryRequest))
     return error;
 
+  // Stage 3 换心 decouple (C1, emission-plan). The emission plan is built
+  // ENTIRELY from the route DESCRIPTION (runtimeABIName + the construction /
+  // config artifact metadata below); the `route` itself is discarded. For a
+  // converted family the legacy string statement-plan owner that
+  // `describeRVVSelectedBodyEmitCRoute(req, &route)` dispatches into is
+  // redundant — the route's can-build consistency is already guaranteed by the
+  // conversion fully legalizing the body (and the boundary is independently
+  // validated at validateSelectedRVVSelectedBodyBoundary above). So gate the
+  // owner-building route on the try-convert: a converted family takes the
+  // description-only (nullptr) path with NO string route; a not-yet-converted
+  // family keeps building its route through its owner. Zero family-name branch
+  // — the gate is purely "did the conversion legalize this body."
   conversion::emitc::TCRVEmitCLowerableRoute route;
   VariantEmitCLowerableRequest routeRequest(
       request.getVariant(), request.getKernel(), request.getCapabilities(),
       request.getRole());
+  conversion::emitc::TCRVEmitCLowerableRoute *ownerRoute =
+      rvvSelectedBodyFullyConvertsToEmitC(routeRequest) ? nullptr : &route;
   llvm::Expected<RVVSelectedBodyEmitCRouteDescription> routeDescription =
-      describeRVVSelectedBodyEmitCRoute(routeRequest, &route);
+      describeRVVSelectedBodyEmitCRoute(routeRequest, ownerRoute);
   if (!routeDescription)
     return routeDescription.takeError();
 

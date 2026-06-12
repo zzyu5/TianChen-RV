@@ -2,8 +2,14 @@
 
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableInterface.h"
 #include "TianChenRV/Conversion/EmitC/TCRVEmitCLowerableOpInterface.h"
+#include "TianChenRV/Conversion/RVV/RVVToEmitC.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVConfigContract.h"
 #include "TianChenRV/Dialect/RVV/IR/RVVDialect.h"
+#include "TianChenRV/Plugin/ExtensionPlugin.h"
+
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/OwningOpRef.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCBaseMemoryRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCElementwiseRouteFamilyPlanOwners.h"
 #include "TianChenRV/Plugin/RVV/RVVEmitCRoutePlanning.h"
@@ -412,6 +418,28 @@ static llvm::Error buildRVVSelectedBodyEmitCLowerableRouteFromAnalysis(
 
 } // namespace
 
+
+bool rvvSelectedBodyFullyConvertsToEmitC(
+    const VariantEmitCLowerableRequest &request) {
+  tcrv::exec::VariantOp variant = request.getVariant();
+  if (!variant)
+    return false;
+  auto module = variant->getParentOfType<mlir::ModuleOp>();
+  if (!module)
+    return false;
+
+  // Probe a clone so the live IR is never mutated: convertRVVModuleToEmitC
+  // rewrites in place and, on a not-yet-covered family, fails partway. The
+  // speculative failure is the normal strangler-fig fall-back signal, so
+  // swallow its diagnostics rather than leak a spurious "failed to legalize"
+  // to stderr; the real conversion seam (and the --tcrv-rvv-lower-to-emitc
+  // pass) still surface diagnostics normally.
+  mlir::OwningOpRef<mlir::ModuleOp> probe(module.clone());
+  mlir::ScopedDiagnosticHandler quietTry(
+      probe->getContext(),
+      [](mlir::Diagnostic &) { return mlir::success(); });
+  return conversion::rvv::convertRVVModuleToEmitC(*probe);
+}
 
 llvm::Expected<RVVSelectedBodyEmitCRouteDescription>
 describeRVVSelectedBodyEmitCRoute(

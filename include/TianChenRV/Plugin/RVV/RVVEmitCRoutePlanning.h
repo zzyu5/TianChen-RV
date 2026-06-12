@@ -1334,23 +1334,6 @@ struct RVVSelectedBodyResidualRouteOperandBindingFacts {
   const support::RuntimeABIParameter *outStrideABI = nullptr;
 };
 
-struct RVVSelectedBodyElementwiseArithmeticRouteStatementPlan {
-  const RVVSelectedBodyElementwiseArithmeticRouteFamilyPlan
-      *elementwiseArithmeticPlan = nullptr;
-  const RVVSelectedBodyScalarBroadcastElementwiseRouteFamilyPlan
-      *scalarBroadcastPlan = nullptr;
-
-  bool plansElementwiseArithmeticRoute = false;
-  bool plansOrdinaryElementwiseArithmetic = false;
-  bool plansScalarBroadcastElementwise = false;
-  bool plansMaskedElementwiseArithmetic = false;
-  bool plansStridedElementwiseAdd = false;
-
-  llvm::SmallVector<conversion::emitc::TCRVEmitCCallOpaqueStep, 2>
-      preLoopSteps;
-  conversion::emitc::TCRVEmitCForLoop loop;
-};
-
 struct RVVSelectedBodyCompareSelectRouteStatementPlan {
   const RVVSelectedBodyPlainCompareSelectRouteFamilyPlan
       *plainCompareSelectPlan = nullptr;

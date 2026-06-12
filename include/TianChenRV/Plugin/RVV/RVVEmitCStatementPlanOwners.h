@@ -69,8 +69,6 @@ struct RVVSelectedBodyMigratedRouteStatementPlanOwner {
   StatementPlanBuilder buildStatementPlan = nullptr;
 };
 
-bool isRVVSelectedBodyElementwiseArithmeticStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description);
 bool isRVVSelectedBodyCompareSelectStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description);
 bool isRVVSelectedBodyWideningConversionStatementPlanConsumer(
@@ -93,16 +91,6 @@ bool isRVVSelectedBodySegment2MemoryStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description);
 bool isRVVSelectedBodyComputedMaskAccumulationStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description);
-
-llvm::Expected<RVVSelectedBodyElementwiseArithmeticRouteStatementPlan>
-getRVVSelectedBodyElementwiseArithmeticRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    llvm::StringRef context);
 
 llvm::Expected<RVVSelectedBodyCompareSelectRouteStatementPlan>
 getRVVSelectedBodyCompareSelectRouteStatementPlan(
@@ -226,18 +214,6 @@ getRVVSelectedBodyComputedMaskAccumulationRouteStatementPlan(
     const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
     const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
     llvm::StringRef context);
-
-llvm::Error buildRVVSelectedBodyElementwiseArithmeticMigratedRouteStatementPlan(
-    RVVSelectedBodyRouteAnalysis &analysis,
-    const RVVSelectedBodyRouteMaterializationFacts &materializationFacts,
-    const RVVSelectedBodyElementwiseSelectRouteOperandBindingFacts
-        &elementwiseSelectOperandBindingFacts,
-    const RVVSelectedBodyMemoryRouteOperandBindingFacts
-        &memoryOperandBindingFacts,
-    const RVVSelectedBodyMathRouteOperandBindingFacts &mathOperandBindingFacts,
-    const RVVSelectedBodyResidualRouteOperandBindingFacts
-        &residualOperandBindingFacts,
-    RVVSelectedBodyMigratedRouteStatementPlan &out, llvm::StringRef context);
 
 llvm::Error buildRVVSelectedBodyCompareSelectMigratedRouteStatementPlan(
     RVVSelectedBodyRouteAnalysis &analysis,

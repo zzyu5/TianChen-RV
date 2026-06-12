@@ -107,8 +107,15 @@ struct RVVSelectedVariantRouteValidation {
 
 llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
     const TargetArtifactCandidate &candidate,
-    const conversion::emitc::TCRVEmitCLowerableRoute &route,
+    llvm::StringRef selectedBodyRouteID,
     const plugin::rvv::RVVSelectedBodyEmitCRouteDescription &description) {
+  // Stage 3 换心 decouple (C2): `selectedBodyRouteID` is the selected body's
+  // EmitC route id. For the legacy string path it is the rebuilt route's
+  // `getRouteID()`; for the converted path it is `description.emitCRouteID` —
+  // the SAME value the route is constructed from
+  // (RVVEmitCRouteProvider.cpp builds the route id from
+  // `analysis.description.emitCRouteID`), so this mirror check is identical
+  // either way and no longer needs the owner-built string route.
   llvm::StringRef routeID = lookupCandidateMetadataValue(
       candidate, plugin::rvv::getRVVEmitCLowerableRouteMetadataName());
   llvm::StringRef selectedBodyOperation = lookupCandidateMetadataValue(
@@ -118,12 +125,12 @@ llvm::Error validateRVVRouteMetadataMirrorsSelectedBody(
         llvm::Twine("candidate metadata must carry ") +
         plugin::rvv::getRVVEmitCLowerableRouteMetadataName() +
         " provenance");
-  if (route.getRouteID() != routeID)
+  if (selectedBodyRouteID != routeID)
     return makeRVVTargetRouteError(
         llvm::Twine("candidate ") +
         plugin::rvv::getRVVEmitCLowerableRouteMetadataName() +
         " provenance must mirror selected typed RVV body route '" +
-        route.getRouteID() + "' but was '" + routeID + "'");
+        selectedBodyRouteID + "' but was '" + routeID + "'");
 
   if (selectedBodyOperation.empty())
     return makeRVVTargetRouteError(
@@ -403,9 +410,54 @@ validateRVVSelectedVariantRouteAgreesWithCandidate(
   if (!role)
     return role.takeError();
 
-  conversion::emitc::TCRVEmitCLowerableRoute route;
   plugin::VariantEmitCLowerableRequest request(
       *selectedVariant, candidate.kernel, *capabilities, *role);
+
+  // Stage 3 换心 decouple (C2, candidate validation — header AND object
+  // export). For a converted family the real RVV->emitc DialectConversion is
+  // the authority; rebuilding the legacy string route here (and dispatching
+  // into its per-family statement-plan owner) is redundant. So gate on the
+  // try-convert: a converted family validates from the route DESCRIPTION alone
+  // (owner-free), a not-yet-converted family keeps rebuilding + verifying its
+  // string route exactly as before.
+  if (plugin::rvv::rvvSelectedBodyFullyConvertsToEmitC(request)) {
+    llvm::Expected<plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
+        description = plugin::rvv::describeRVVSelectedBodyEmitCRoute(request);
+    if (!description) {
+      llvm::Error error = description.takeError();
+      std::string message = llvm::toString(std::move(error));
+      return makeRVVTargetRouteError(
+          llvm::Twine("selected typed RVV body could not describe the "
+                      "materialized EmitC route before candidate metadata "
+                      "validation: ") +
+          message);
+    }
+
+    // The route id mirror reads `description.emitCRouteID` — the exact value
+    // the string route's getRouteID() carries (it is constructed from it), so
+    // the mirror is byte-identical without building the route.
+    if (llvm::Error error = validateRVVRouteMetadataMirrorsSelectedBody(
+            candidate, description->emitCRouteID, *description))
+      return std::move(error);
+
+    // The two former route-only checks are subsumed for the converted path:
+    //  - source provenance ("exactly one tcrv_rvv.with_vl scope") is
+    //    guaranteed by convertRVVModuleToEmitC fully legalizing the body — the
+    //    conversion target only illegalizes a variant that carries a with_vl
+    //    boundary and the elementwise pattern lowers exactly that one scope, so
+    //    a fully-converted family necessarily had the unique with_vl boundary.
+    //  - ABI mappings == candidate.runtimeABIParameters is re-validated
+    //    directly against the same source data by the caller, which already
+    //    compares candidate.runtimeABIParameters against
+    //    description.runtimeABIParameters (the route's ABI mappings are built
+    //    1:1 from description.runtimeABIParameters), so dropping the route ABI
+    //    mapping check loses no coverage.
+    RVVSelectedVariantRouteValidation validation;
+    validation.description = std::move(*description);
+    return validation;
+  }
+
+  conversion::emitc::TCRVEmitCLowerableRoute route;
   llvm::Expected<plugin::rvv::RVVSelectedBodyEmitCRouteDescription>
       description =
           plugin::rvv::describeRVVSelectedBodyEmitCRoute(request, &route);
@@ -426,7 +478,7 @@ validateRVVSelectedVariantRouteAgreesWithCandidate(
   }
 
   if (llvm::Error error = validateRVVRouteMetadataMirrorsSelectedBody(
-          candidate, route, *description))
+          candidate, route.getRouteID(), *description))
     return std::move(error);
 
   if (llvm::Error error = validateRVVRouteSourceProvenance(route))

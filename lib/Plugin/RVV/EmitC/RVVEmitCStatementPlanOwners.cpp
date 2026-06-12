@@ -62,27 +62,6 @@ llvm::StringRef stringifyRVVSelectedBodyMigratedRouteStatementPlanFamilyName(
   llvm_unreachable("unknown RVV migrated statement-plan family");
 }
 
-bool isRVVSelectedBodyPlainElementwiseStatementPlanOperation(
-    RVVSelectedBodyOperationKind operation) {
-  return operation == RVVSelectedBodyOperationKind::Add ||
-         operation == RVVSelectedBodyOperationKind::Sub ||
-         operation == RVVSelectedBodyOperationKind::Mul;
-}
-
-bool isRVVSelectedBodyMaskedElementwiseStatementPlanOperation(
-    RVVSelectedBodyOperationKind operation) {
-  return operation == RVVSelectedBodyOperationKind::MaskedAdd ||
-         operation == RVVSelectedBodyOperationKind::MaskedSub ||
-         operation == RVVSelectedBodyOperationKind::MaskedMul;
-}
-
-bool isRVVSelectedBodyScalarBroadcastElementwiseStatementPlanOperation(
-    RVVSelectedBodyOperationKind operation) {
-  return operation == RVVSelectedBodyOperationKind::ScalarBroadcastAdd ||
-         operation == RVVSelectedBodyOperationKind::ScalarBroadcastSub ||
-         operation == RVVSelectedBodyOperationKind::ScalarBroadcastMul;
-}
-
 llvm::Error requireRVVSelectedBodyMigratedRouteStatementPlanIfNeeded(
     const RVVSelectedBodyRouteAnalysis &analysis,
     const RVVSelectedBodyMigratedRouteStatementPlan &plan,
@@ -191,23 +170,6 @@ void moveDirectContractionStatementPlan(
 }
 
 } // namespace
-
-bool isRVVSelectedBodyElementwiseArithmeticStatementPlanConsumer(
-    const RVVSelectedBodyEmitCRouteDescription &description) {
-  if (isRVVSelectedBodyPlainElementwiseStatementPlanOperation(
-          description.operation))
-    return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad ||
-           description.memoryForm == RVVSelectedBodyMemoryForm::RHSBroadcastLoad;
-  if (isRVVSelectedBodyScalarBroadcastElementwiseStatementPlanOperation(
-          description.operation))
-    return description.memoryForm ==
-           RVVSelectedBodyMemoryForm::RHSScalarBroadcast;
-  if (isRVVSelectedBodyMaskedElementwiseStatementPlanOperation(
-          description.operation))
-    return description.memoryForm == RVVSelectedBodyMemoryForm::VectorRHSLoad;
-  return description.operation == RVVSelectedBodyOperationKind::StridedAdd &&
-         description.memoryForm == RVVSelectedBodyMemoryForm::StridedLoadStore;
-}
 
 bool isRVVSelectedBodyCompareSelectStatementPlanConsumer(
     const RVVSelectedBodyEmitCRouteDescription &description) {
@@ -409,10 +371,6 @@ bool isRVVSelectedBodyComputedMaskAccumulationStatementPlanConsumer(
 llvm::ArrayRef<RVVSelectedBodyMigratedRouteStatementPlanOwner>
 getRVVSelectedBodyMigratedRouteStatementPlanOwners() {
   static const RVVSelectedBodyMigratedRouteStatementPlanOwner owners[] = {
-      {"elementwise arithmetic",
-       RVVSelectedBodyMigratedRouteStatementPlanFamily::ElementwiseArithmetic,
-       isRVVSelectedBodyElementwiseArithmeticStatementPlanConsumer,
-       buildRVVSelectedBodyElementwiseArithmeticMigratedRouteStatementPlan},
       {"compare/select",
        RVVSelectedBodyMigratedRouteStatementPlanFamily::CompareSelect,
        isRVVSelectedBodyCompareSelectStatementPlanConsumer,

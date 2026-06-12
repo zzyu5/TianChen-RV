@@ -9,7 +9,6 @@ add_mlir_library(TianChenRVRVVEmitCRouteProvider
   RVVLowPrecisionPerformancePolicy.cpp
   RVVEmitCMAccRouteFamilyPlanOwners.cpp
   RVVEmitCCompareSelectStatementPlanOwners.cpp
-  RVVEmitCElementwiseArithmeticStatementPlanOwners.cpp
   RVVEmitCMemoryStatementPlanOwners.cpp
   RVVEmitCReductionAccumulationStatementPlanOwners.cpp
   RVVEmitCResidualStatementPlanOwners.cpp
@@ -21,6 +20,7 @@ add_mlir_library(TianChenRVRVVEmitCRouteProvider
 
   LINK_LIBS PUBLIC
   TianChenRVConversionEmitC
+  TianChenRVConversionRVV
   TianChenRVExecDialect
   TianChenRVPlugin
   TianChenRVRVVConstructionProtocol
