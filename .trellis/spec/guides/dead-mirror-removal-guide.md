@@ -48,6 +48,20 @@ baseline 是 incremental build 的幻觉，clean rebuild 同一 source 实为 46
 - 错误**文案**漂移（如 golden validator 被删后验证器换措辞）会让 STALE-*/golden CHECK 假红
   ——那是 stale 测试不是回归；同步措辞时保留 key+expected+actual，别弱化成 tautology。
 
+### 🔴 必须：信 lit 前强制重链工具（本项目 ninja depfile bug 真坑过两次）
+
+本仓 tablegen `.inc` depfile 路径重复 → `ninja` **永远**重跑 tablegen，但**不会**因此重链
+`bin/tcrv-opt` / `bin/tcrv-translate`。结果：改了 `lib/Conversion`/`lib/Target` 后 `ninja`
+退 0、libs 重建，但**工具仍链旧 lib** → lit 跑 stale 二进制 → **假绿**。真发生过：commit
+a1292e05 实际 18 reds，被报成 "3 reds" shipped 了回归。`touch source + ninja` **不够**
+（depfile bug 让 ninja 以为工具是新的）。唯一可信：
+```
+rm -f build/bin/tcrv-opt build/bin/tcrv-translate
+(cd build && ninja bin/tcrv-opt bin/tcrv-translate)
+# 确认 tcrv-opt 时间戳 > libTianChenRV*ConversionRVV.a / *Transforms.a，再跑 lit
+```
+任何"删 owner / 换 emitter / 改 validator"后，**先 rm 工具强制重链，再 full lit**，否则别相信计数。
+
 ## Rule
 
 引用 core-invariants **I4**（metadata 是 mirror 不是 authority）、**I5**（可执行事实在 typed
