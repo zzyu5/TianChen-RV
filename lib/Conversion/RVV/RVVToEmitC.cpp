@@ -122,11 +122,13 @@ unsigned maskWidthForConfig(unsigned sew, llvm::StringRef lmul) {
   return 0;
 }
 
-/// The C dtype token ("i32") for the vector element, used by the load/store/
-/// arithmetic intrinsic suffix and the `vint32m1_t` opaque type.
+/// The C dtype token ("i32"/"i64") for the vector element, used by the load/
+/// store/arithmetic intrinsic suffix and the `vint<sew>m<lmul>_t` opaque type.
 llvm::StringRef vectorDType(tcrvrvv::VectorType type) {
   if (type.getElementType().isSignlessInteger(32))
     return "i32";
+  if (type.getElementType().isSignlessInteger(64))
+    return "i64";
   return "";
 }
 
@@ -838,28 +840,46 @@ void populateRVVToEmitCTypeConversions(mlir::TypeConverter &typeConverter) {
         return emitc::OpaqueType::get(type.getContext(), "size_t");
       });
 
-  // !tcrv_rvv.vector<i32, "m1"> -> emitc.opaque<"vint32m1_t">. The beachhead
-  // family only needs the i32/m1 mapping; other (dtype, lmul) pairs are left
-  // unconverted on purpose so the converter stays scoped to the beachhead and
-  // later families extend it explicitly.
+  // !tcrv_rvv.vector<i<sew>, "m<lmul>"> -> emitc.opaque<"vint<sew>m<lmul>_t">.
+  // The elementwise family covers the bounded {i32,i64} x {m1,m2} grid the
+  // selected-body rungs use (e.g. i32/m1 -> vint32m1_t, i64/m1 -> vint64m1_t,
+  // i32/m2 -> vint32m2_t, i64/m2 -> vint64m2_t). Other (dtype, lmul) pairs are
+  // left unconverted on purpose so later families extend the grid explicitly.
   typeConverter.addConversion(
       [](tcrvrvv::VectorType type) -> std::optional<mlir::Type> {
-        if (type.getElementType().isSignlessInteger(32) &&
-            type.getLmul() == "m1")
-          return emitc::OpaqueType::get(type.getContext(), "vint32m1_t");
-        return std::nullopt;
+        unsigned sew = 0;
+        if (type.getElementType().isSignlessInteger(32))
+          sew = 32;
+        else if (type.getElementType().isSignlessInteger(64))
+          sew = 64;
+        else
+          return std::nullopt;
+        llvm::StringRef lmul = type.getLmul();
+        if (lmul != "m1" && lmul != "m2")
+          return std::nullopt;
+        std::string name = ("vint" + llvm::Twine(sew) + lmul + "_t").str();
+        return emitc::OpaqueType::get(type.getContext(), name);
       });
 
-  // !tcrv_rvv.mask<i32, "m1"> -> emitc.opaque<"vbool32_t">. The predicate mask
-  // C type is vbool<maskbits>_t where maskbits is the sew/lmul-derived width
-  // (i32/m1 -> 32). Other (dtype, lmul) pairs are left unconverted so the
-  // masked converter stays scoped to the beachhead family.
+  // !tcrv_rvv.mask<i<sew>, "m<lmul>"> -> emitc.opaque<"vbool<maskbits>_t">. The
+  // predicate mask C type is vbool<maskbits>_t where maskbits = SEW/LMUL_ratio
+  // (the sew/lmul-derived width matching maskWidthForConfig): i32/m1 -> 32,
+  // i64/m1 -> 64, i32/m2 -> 16, i64/m2 -> 32. Pairs maskWidthForConfig does not
+  // know are left unconverted so the masked converter stays scoped to the grid.
   typeConverter.addConversion(
       [](tcrvrvv::MaskType type) -> std::optional<mlir::Type> {
-        if (type.getElementType().isSignlessInteger(32) &&
-            type.getLmul() == "m1")
-          return emitc::OpaqueType::get(type.getContext(), "vbool32_t");
-        return std::nullopt;
+        unsigned sew = 0;
+        if (type.getElementType().isSignlessInteger(32))
+          sew = 32;
+        else if (type.getElementType().isSignlessInteger(64))
+          sew = 64;
+        else
+          return std::nullopt;
+        unsigned maskBits = maskWidthForConfig(sew, type.getLmul());
+        if (maskBits == 0)
+          return std::nullopt;
+        std::string name = ("vbool" + llvm::Twine(maskBits) + "_t").str();
+        return emitc::OpaqueType::get(type.getContext(), name);
       });
 
   // !tcrv_rvv.runtime_abi_value carries its concrete C type in the defining
