@@ -210,6 +210,13 @@ class MeasurementConfig:
     compile_flags: list[str]
 
 
+@dataclass(frozen=True)
+class CandidateMeasurementInput:
+    label: str
+    op_kind: str
+    input_path: Path
+
+
 def c_string_literal(value: str) -> str:
     return json.dumps(value)
 
@@ -2321,6 +2328,151 @@ def packed_i4_same_target_measurement_record(
     }
 
 
+def low_precision_resource_metadata_sources(
+    generation_result: dict[str, Any],
+) -> tuple[dict[str, str], dict[str, str], dict[str, Any]]:
+    boundary = generation_result.get("widening_product_reduction_boundary", {})
+    route_metadata = boundary.get("route_metadata", {})
+    provider_low_precision = (
+        boundary.get("provider_route_facts", {}).get("low_precision_resource", {})
+    )
+    target_artifact_metadata: dict[str, str] = {}
+    for record in (
+        generation_result.get("bundle_checks", {})
+        .get("index", {})
+        .get("parsed", {})
+        .get("records", [])
+    ):
+        for entry in record.get("artifact_metadata", []):
+            key = str(entry.get("key", ""))
+            if not key.startswith("tcrv_rvv.low_precision_resource."):
+                continue
+            value = str(entry.get("value", ""))
+            previous = target_artifact_metadata.get(key)
+            if previous is not None and previous != value:
+                raise abi.EvidenceError(
+                    "low-precision candidate feedback rejects target artifact "
+                    f"metadata disagreement for {key}: {previous!r} vs "
+                    f"{value!r}"
+                )
+            target_artifact_metadata[key] = value
+    return target_artifact_metadata, route_metadata, provider_low_precision
+
+
+def low_precision_candidate_feedback_record(
+    *,
+    generation_result: dict[str, Any],
+    expectation: abi.OpExpectation,
+    candidate_label: str | None,
+    uses_packed_i4_resource: bool,
+    result_classification: dict[str, Any],
+    measurement_evidence_id: str,
+    source_record_context: dict[str, Any],
+) -> dict[str, Any]:
+    if not (
+        expectation.is_widening_product_reduce_dequantize_f32
+        or expectation.is_widening_product_reduce_dequant_clamp_f32
+    ):
+        return {"status": "not-applicable"}
+
+    target_metadata, route_metadata, provider_low_precision = (
+        low_precision_resource_metadata_sources(generation_result)
+    )
+
+    def resource_field(name: str) -> str:
+        route_key = f"tcrv_rvv.low_precision_resource.{name}"
+        value = target_metadata.get(route_key)
+        if value is None:
+            value = route_metadata.get(route_key)
+        if value is None:
+            value = provider_low_precision.get(name)
+        if value is None:
+            raise abi.EvidenceError(
+                f"low-precision candidate feedback missing {route_key}"
+            )
+        return str(value)
+
+    expected_resource_metadata = abi.expected_low_precision_resource_metadata(
+        expectation, packed_i4=uses_packed_i4_resource
+    )
+    stable_field_names = (
+        "candidate_set",
+        "selected_candidate",
+        "candidate_count",
+        "legal_candidate_count",
+        "selected_candidate_index",
+        "selection_reason",
+        "planning_contract",
+        "route_family_plan",
+        "provider_supported_mirror",
+        "operand_form",
+        "source_signedness",
+        "storage_element_width",
+        "effective_element_width",
+        "packing_layout",
+        "unpack_intent",
+        "vsetvl_region_count",
+        "runtime_avl_source",
+        "runtime_abi_order",
+        "primitive_chain_contract",
+        "primitive_chain_kind",
+        "primitive_widening_product_intrinsic",
+        "primitive_reduction_intrinsic",
+        "realization_decision",
+        "realized_vsetvl_region_count",
+        "realized_peak_live_vector_groups",
+        "target_capability_provider_mirror",
+        "target_capability_legality_mirror",
+    )
+    expected_fields = {
+        name: expected_resource_metadata[
+            f"tcrv_rvv.low_precision_resource.{name}"
+        ]
+        for name in stable_field_names
+    }
+    fields = {name: resource_field(name) for name in expected_fields}
+    for name, expected in expected_fields.items():
+        abi.require_equal(
+            fields[name],
+            expected,
+            f"low-precision candidate feedback {name}",
+        )
+
+    measured = (
+        result_classification.get("classification")
+        != RESULT_CLASSIFICATION_NOT_MEASURED
+    )
+    return {
+        "status": "ready-for-same-target-measurement",
+        "candidate_label": candidate_label or expectation.kind,
+        "op_kind": expectation.kind,
+        "authority": (
+            "policy/evidence feedback record only; route, schedule, type, "
+            "artifact, and dispatch authority remain provider-owned"
+        ),
+        "feedback_boundary": (
+            "validated generated object/header candidate artifact plus "
+            "provider-owned low-precision resource mirrors"
+        ),
+        "measurement_evidence_id": measurement_evidence_id,
+        "same_target_measurement": measured,
+        "ssh_evidence": measured,
+        "result_classification": result_classification,
+        "baseline_identity": baseline_identity_for(
+            expectation, uses_packed_i4_resource=uses_packed_i4_resource
+        ),
+        "packed_i4_resource_metadata_selected": uses_packed_i4_resource,
+        "source_record": dict(source_record_context),
+        "fields": fields,
+        "expected_fields": expected_fields,
+        "route_support_effect": (
+            "preserve-executable-route-support; measurement evidence only "
+            "feeds policy/admission review"
+        ),
+        "measurement_result_is_route_authority": False,
+    }
+
+
 def require_maturity_input_value(
     maturity_input: dict[str, Any],
     field: str,
@@ -2892,6 +3044,38 @@ def selected_pre_realized_expectation(
     return replace(expectation, input_path=abi.REPO_ROOT / expectation.input_path)
 
 
+def parse_candidate_measurement_inputs(
+    raw_values: list[str], op_kind: str
+) -> list[CandidateMeasurementInput]:
+    candidates: list[CandidateMeasurementInput] = []
+    seen_labels: set[str] = set()
+    for raw in raw_values:
+        if "=" not in raw:
+            raise abi.EvidenceError(
+                "--candidate-input values must use LABEL=PATH syntax"
+            )
+        raw_label, raw_path = raw.split("=", 1)
+        label = abi.safe_run_id(raw_label)
+        if label in seen_labels:
+            raise abi.EvidenceError(
+                f"duplicate --candidate-input label after sanitization: {label}"
+            )
+        path = abi.resolve_repo_relative_path(Path(raw_path))
+        if not path.exists():
+            raise abi.EvidenceError(
+                f"candidate input for {label} not found: {raw_path}"
+            )
+        seen_labels.add(label)
+        candidates.append(
+            CandidateMeasurementInput(
+                label=label,
+                op_kind=op_kind,
+                input_path=path,
+            )
+        )
+    return candidates
+
+
 def uses_packed_i4_resource_from_bundle(
     bundle_checks: dict[str, Any], expectation: abi.OpExpectation
 ) -> bool:
@@ -2920,7 +3104,7 @@ def generate_verified_bundle(
     readobj: str | None,
 ) -> dict[str, Any]:
     generation_args = make_generation_args(
-        expectation.kind, args.timeout, args.input
+        expectation.kind, args.timeout, expectation.input_path
     )
     return abi.run_one_op_e2e(
         args=generation_args,
@@ -3069,6 +3253,7 @@ def run_remote_measurement(
 def op_measurement_summary(
     *,
     expectation: abi.OpExpectation,
+    candidate_label: str | None,
     generation_result: dict[str, Any],
     harness_path: Path,
     config: MeasurementConfig,
@@ -3076,6 +3261,7 @@ def op_measurement_summary(
     uses_packed_i4_resource: bool,
     result_classification: dict[str, Any],
     provider_feedback_tie_back: dict[str, Any],
+    candidate_feedback_record: dict[str, Any],
 ) -> dict[str, Any]:
     bundle_checks = generation_result["bundle_checks"]
     bundle_dir = Path(generation_result["artifact_dir"]) / "generated_bundle"
@@ -3087,11 +3273,13 @@ def op_measurement_summary(
     summary: dict[str, Any] = {
         "status": "success" if remote else "dry_run_success",
         "op_kind": expectation.kind,
+        "candidate_label": candidate_label or expectation.kind,
         "baseline_identity": baseline_identity,
         "baseline_role": "same-target scalar C comparator and correctness oracle",
         "packed_i4_resource_metadata_selected": uses_packed_i4_resource,
         "result_classification": result_classification,
         "provider_feedback_tie_back": provider_feedback_tie_back,
+        "candidate_feedback_record": candidate_feedback_record,
         "generated_artifact_identity": {
             "selected_variant": expectation.selected_variant,
             "function_name": expectation.function_name,
@@ -3237,12 +3425,16 @@ def run_one_measurement(
     run_id: str,
     artifact_dir: Path,
     expectation: abi.OpExpectation,
+    candidate_label: str | None = None,
     config: MeasurementConfig,
     tcrv_opt: str,
     tcrv_translate: str,
     readobj: str | None,
 ) -> dict[str, Any]:
-    op_artifact_dir = artifact_dir / expectation.kind
+    generation_artifact_root = (
+        artifact_dir / candidate_label if candidate_label else artifact_dir
+    )
+    op_artifact_dir = generation_artifact_root / expectation.kind
     evidence: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "tool": SCRIPT_NAME,
@@ -3250,6 +3442,7 @@ def run_one_measurement(
         "created_at": abi.utc_timestamp(),
         "run_id": run_id,
         "op_kind": expectation.kind,
+        "candidate_label": candidate_label or expectation.kind,
         "input_mode": "pre-realized-selected-body",
         "dry_run": bool(args.dry_run),
         "ssh_target": args.ssh_target,
@@ -3267,7 +3460,7 @@ def run_one_measurement(
         generation_result = generate_verified_bundle(
             args=args,
             run_id=run_id,
-            artifact_dir=artifact_dir,
+            artifact_dir=generation_artifact_root,
             expectation=expectation,
             config=config,
             tcrv_opt=tcrv_opt,
@@ -3366,14 +3559,26 @@ def run_one_measurement(
             config=config,
             result_classification=result_classification,
         )
+        measurement_evidence_id = (
+            f"{run_id}/"
+            f"{(candidate_label + '/') if candidate_label else ''}"
+            f"{expectation.kind}/same_target_measurement_evidence.json"
+        )
+        candidate_feedback_record = low_precision_candidate_feedback_record(
+            generation_result=generation_result,
+            expectation=expectation,
+            candidate_label=candidate_label,
+            uses_packed_i4_resource=uses_packed_i4_resource,
+            result_classification=result_classification,
+            measurement_evidence_id=measurement_evidence_id,
+            source_record_context=source_record_context,
+        )
         provider_feedback_tie_back = packed_i4_provider_feedback_tie_back(
             generation_result=generation_result,
             expectation=expectation,
             uses_packed_i4_resource=uses_packed_i4_resource,
             result_classification=result_classification,
-            measurement_evidence_id=(
-                f"{run_id}/{expectation.kind}/same_target_measurement_evidence.json"
-            ),
+            measurement_evidence_id=measurement_evidence_id,
             source_record_context=source_record_context,
         )
         if uses_packed_i4_resource:
@@ -3451,6 +3656,7 @@ def run_one_measurement(
             )
         evidence["result_classification"] = result_classification
         evidence["provider_feedback_tie_back"] = provider_feedback_tie_back
+        evidence["candidate_feedback_record"] = candidate_feedback_record
         maturity_input = provider_feedback_tie_back.get(
             "maturity_contract_evidence_input"
         )
@@ -3465,6 +3671,7 @@ def run_one_measurement(
             evidence["same_target_measurement_record"] = same_target_record
         evidence["op_summary"] = op_measurement_summary(
             expectation=expectation,
+            candidate_label=candidate_label,
             generation_result=generation_result,
             harness_path=harness_path,
             config=config,
@@ -3472,6 +3679,7 @@ def run_one_measurement(
             uses_packed_i4_resource=uses_packed_i4_resource,
             result_classification=result_classification,
             provider_feedback_tie_back=provider_feedback_tie_back,
+            candidate_feedback_record=candidate_feedback_record,
         )
         evidence["completed_at"] = abi.utc_timestamp()
         abi.write_json(
@@ -3545,6 +3753,8 @@ def run_measurement(args: argparse.Namespace) -> int:
             "packed_i4_baseline_identities": PACKED_I4_BASELINE_IDENTITIES,
         },
         "op_results": {},
+        "candidate_results": {},
+        "candidate_feedback_records": {},
         "performance_maturity_contract_inputs": {},
         "same_target_measurement_records": {},
     }
@@ -3559,39 +3769,95 @@ def run_measurement(args: argparse.Namespace) -> int:
             raise abi.EvidenceError(
                 "--input may only be used with exactly one --op-kind"
             )
+        if args.candidate_input:
+            if args.input is not None:
+                raise abi.EvidenceError(
+                    "--candidate-input cannot be combined with --input"
+                )
+            if len(op_kinds) != 1:
+                raise abi.EvidenceError(
+                    "--candidate-input requires exactly one --op-kind"
+                )
+            candidate_inputs = parse_candidate_measurement_inputs(
+                args.candidate_input, op_kinds[0]
+            )
+        else:
+            candidate_inputs = []
         expectations = [
             selected_pre_realized_expectation(op_kind, args.input)
             for op_kind in op_kinds
         ]
         evidence["op_kinds"] = [expectation.kind for expectation in expectations]
+        if candidate_inputs:
+            evidence["candidate_feedback_loop"] = {
+                "status": "candidate-artifacts-exportable",
+                "op_kind": op_kinds[0],
+                "authority": (
+                    "candidate labels are measurement evidence keys only; "
+                    "provider-owned low-precision resource metadata remains "
+                    "candidate authority"
+                ),
+                "candidate_labels": [candidate.label for candidate in candidate_inputs],
+            }
 
         tcrv_opt = abi.ensure_tool(args.tcrv_opt)
         tcrv_translate = abi.ensure_tool(args.tcrv_translate)
         readobj = abi.ensure_tool(args.llvm_readobj) if args.llvm_readobj else None
 
-        for expectation in expectations:
+        if candidate_inputs:
+            measured_items = [
+                (
+                    candidate,
+                    selected_pre_realized_expectation(
+                        candidate.op_kind, candidate.input_path
+                    ),
+                )
+                for candidate in candidate_inputs
+            ]
+        else:
+            measured_items = [(None, expectation) for expectation in expectations]
+
+        for candidate, expectation in measured_items:
+            result_key = (
+                candidate.label
+                if candidate is not None
+                else expectation.kind
+            )
+            op_result_key = (
+                f"{expectation.kind}:{candidate.label}"
+                if candidate is not None
+                else expectation.kind
+            )
             result = run_one_measurement(
                 args=args,
                 run_id=run_id,
                 artifact_dir=artifact_dir,
                 expectation=expectation,
+                candidate_label=candidate.label if candidate else None,
                 config=config,
                 tcrv_opt=tcrv_opt,
                 tcrv_translate=tcrv_translate,
                 readobj=readobj,
             )
-            evidence["op_results"][expectation.kind] = result["op_summary"]
+            evidence["op_results"][op_result_key] = result["op_summary"]
+            if candidate is not None:
+                evidence["candidate_results"][result_key] = result["op_summary"]
+            candidate_feedback = result.get("candidate_feedback_record")
+            if candidate_feedback and candidate_feedback.get("status") != "not-applicable":
+                evidence["candidate_feedback_records"][result_key] = (
+                    candidate_feedback
+                )
             maturity_input = result.get(
                 "performance_maturity_contract_evidence_input"
             )
             if maturity_input:
                 evidence["performance_maturity_contract_inputs"][
-                    expectation.kind
+                    result_key
                 ] = maturity_input
             same_target_record = result.get("same_target_measurement_record")
             if same_target_record:
                 evidence["same_target_measurement_records"][
-                    expectation.kind
+                    result_key
                 ] = same_target_record
 
         evidence["ssh_evidence"] = not args.dry_run
@@ -4493,6 +4759,164 @@ def run_self_test() -> int:
         ),
     ]:
         expect_missing_provider_metadata_failure(metadata_key, expected_token)
+
+    grouped_candidate_metadata = abi.expected_low_precision_resource_metadata(
+        packed_expectation, packed_i4=False
+    )
+    candidate_source_context = self_test_source_record_context(
+        packed_expectation, not_measured
+    )
+    grouped_candidate_feedback = low_precision_candidate_feedback_record(
+        generation_result={
+            "widening_product_reduction_boundary": {
+                "route_metadata": grouped_candidate_metadata
+            }
+        },
+        expectation=packed_expectation,
+        candidate_label="grouped-u2",
+        uses_packed_i4_resource=False,
+        result_classification=not_measured,
+        measurement_evidence_id=(
+            "self-test/grouped-u2/"
+            "widening_product_reduce_dequantize_f32/"
+            "same_target_measurement_evidence.json"
+        ),
+        source_record_context=candidate_source_context,
+    )
+    if (
+        grouped_candidate_feedback["status"] != "ready-for-same-target-measurement"
+        or grouped_candidate_feedback["fields"]["selected_candidate_index"] != "2"
+        or grouped_candidate_feedback["fields"]["candidate_count"] != "3"
+        or grouped_candidate_feedback["measurement_result_is_route_authority"]
+    ):
+        raise AssertionError(
+            "self-test low-precision candidate feedback lost grouped-u2 facts "
+            "or promoted measurement results to route authority"
+        )
+
+    def expect_candidate_feedback_metadata_failure(
+        *,
+        generation_result: dict[str, Any],
+        expected_token: str,
+        context: str,
+    ) -> None:
+        try:
+            low_precision_candidate_feedback_record(
+                generation_result=generation_result,
+                expectation=packed_expectation,
+                candidate_label="grouped-u2",
+                uses_packed_i4_resource=False,
+                result_classification=not_measured,
+                measurement_evidence_id=(
+                    "self-test/stale-candidate/"
+                    "same_target_measurement_evidence.json"
+                ),
+                source_record_context=candidate_source_context,
+            )
+        except abi.EvidenceError as exc:
+            if expected_token not in str(exc):
+                raise AssertionError(
+                    f"self-test {context} missed token {expected_token}: {exc}"
+                ) from exc
+            return
+        raise AssertionError(f"self-test accepted {context}")
+
+    stale_candidate_metadata = dict(grouped_candidate_metadata)
+    stale_candidate_metadata[
+        "tcrv_rvv.low_precision_resource.selected_candidate_index"
+    ] = "3"
+    expect_candidate_feedback_metadata_failure(
+        generation_result={
+            "widening_product_reduction_boundary": {
+                "route_metadata": stale_candidate_metadata
+            }
+        },
+        expected_token="selected_candidate_index",
+        context="stale candidate selected index",
+    )
+
+    missing_candidate_metadata = dict(grouped_candidate_metadata)
+    del missing_candidate_metadata[
+        "tcrv_rvv.low_precision_resource.candidate_count"
+    ]
+    expect_candidate_feedback_metadata_failure(
+        generation_result={
+            "widening_product_reduction_boundary": {
+                "route_metadata": missing_candidate_metadata
+            }
+        },
+        expected_token="candidate_count",
+        context="missing candidate count",
+    )
+
+    expect_candidate_feedback_metadata_failure(
+        generation_result={
+            "widening_product_reduction_boundary": {
+                "route_metadata": grouped_candidate_metadata
+            },
+            "bundle_checks": {
+                "index": {
+                    "parsed": {
+                        "records": [
+                            {
+                                "artifact_metadata": [
+                                    {
+                                        "key": (
+                                            "tcrv_rvv.low_precision_resource."
+                                            "selected_candidate_index"
+                                        ),
+                                        "value": "3",
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            },
+        },
+        expected_token="selected_candidate_index",
+        context="stale target artifact candidate metadata",
+    )
+
+    expect_candidate_feedback_metadata_failure(
+        generation_result={
+            "widening_product_reduction_boundary": {
+                "route_metadata": grouped_candidate_metadata
+            },
+            "bundle_checks": {
+                "index": {
+                    "parsed": {
+                        "records": [
+                            {
+                                "artifact_metadata": [
+                                    {
+                                        "key": (
+                                            "tcrv_rvv.low_precision_resource."
+                                            "selected_candidate_index"
+                                        ),
+                                        "value": "2",
+                                    }
+                                ]
+                            },
+                            {
+                                "artifact_metadata": [
+                                    {
+                                        "key": (
+                                            "tcrv_rvv.low_precision_resource."
+                                            "selected_candidate_index"
+                                        ),
+                                        "value": "3",
+                                    }
+                                ]
+                            },
+                        ]
+                    }
+                }
+            },
+        },
+        expected_token="metadata disagreement",
+        context="disagreeing target artifact candidate metadata",
+    )
     print(f"{SCRIPT_NAME} self-test passed")
     return 0
 
@@ -4524,6 +4948,18 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "one --op-kind; packed-i4 timing support is selected only after "
             "provider-owned low-precision resource metadata validates the "
             "generated bundle"
+        ),
+    )
+    parser.add_argument(
+        "--candidate-input",
+        action="append",
+        default=[],
+        metavar="LABEL=PATH",
+        help=(
+            "add a labelled selected-body fixture for candidate feedback under "
+            "one --op-kind; LABEL is an evidence key only, while provider-owned "
+            "resource metadata in the generated bundle remains candidate "
+            "authority"
         ),
     )
     parser.add_argument(

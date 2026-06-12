@@ -16,6 +16,11 @@
 # RUN: FileCheck %s --check-prefix=PACKED-CLAMP-ROOT < %t.packed.clamp.artifacts/gate4-packed-i4-scalar-epilogue-dequant-clamp-measure/evidence.json
 # RUN: FileCheck %s --check-prefix=PACKED-CLAMP-WPRDC < %t.packed.clamp.artifacts/gate4-packed-i4-scalar-epilogue-dequant-clamp-measure/widening_product_reduce_dequant_clamp_f32/same_target_measurement_evidence.json
 # RUN: FileCheck %s --check-prefix=PACKED-CLAMP-HARNESS --implicit-check-not="descriptor" --implicit-check-not="source-front-door" --implicit-check-not="direct-C" --implicit-check-not="q8" --implicit-check-not="q4" < %t.packed.clamp.artifacts/gate4-packed-i4-scalar-epilogue-dequant-clamp-measure/widening_product_reduce_dequant_clamp_f32/rvv_generated_bundle_same_target_measure_widening_product_reduce_dequant_clamp_f32.c
+# RUN: rm -rf %t.candidate.artifacts
+# RUN: python3 %S/../../scripts/rvv_generated_bundle_same_target_measure.py --dry-run --artifact-root %t.candidate.artifacts --run-id gate4-candidate-feedback --overwrite --op-kind widening_product_reduce_dequantize_f32 --candidate-input grouped-u2=%S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32.mlir --candidate-input packed-i4=%S/../Target/RVV/pre-realized-selected-body-artifact-widening-product-reduce-dequantize-f32-packed-i4.mlir --measure-count 257 --measure-count 4096 --warmup-count 1 --repeat-count 2 --measure-iterations 3 --tcrv-opt tcrv-opt --tcrv-translate tcrv-translate --llvm-readobj llvm-readobj | FileCheck %s --check-prefix=CAND-STDOUT
+# RUN: FileCheck %s --check-prefix=CAND-ROOT < %t.candidate.artifacts/gate4-candidate-feedback/evidence.json
+# RUN: FileCheck %s --check-prefix=CAND-GROUPED < %t.candidate.artifacts/gate4-candidate-feedback/grouped-u2/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
+# RUN: FileCheck %s --check-prefix=CAND-PACKED < %t.candidate.artifacts/gate4-candidate-feedback/packed-i4/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json
 
 # STDOUT: rvv_generated_bundle_same_target_measure: dry_run_success
 # STDOUT: artifact_dir:
@@ -25,6 +30,9 @@
 
 # PACKED-CLAMP-STDOUT: rvv_generated_bundle_same_target_measure: dry_run_success
 # PACKED-CLAMP-STDOUT: artifact_dir:
+
+# CAND-STDOUT: rvv_generated_bundle_same_target_measure: dry_run_success
+# CAND-STDOUT: artifact_dir:
 
 # ROOT-DAG: "same_target_measurement": true
 # ROOT-DAG: "status": "dry_run_success"
@@ -72,6 +80,24 @@
 # PACKED-CLAMP-ROOT-DAG: "provider_beyond_local_repair_admission_blocker": "packed-i4-campaign-no-further-provider-repair-after-scalar-epilogue-no-win"
 # PACKED-CLAMP-ROOT-DAG: "performance_win_claim_allowed": false
 
+# CAND-ROOT-DAG: "same_target_measurement": true
+# CAND-ROOT-DAG: "status": "dry_run_success"
+# CAND-ROOT-DAG: "ssh_evidence": false
+# CAND-ROOT-DAG: "candidate_feedback_loop"
+# CAND-ROOT-DAG: "candidate_labels"
+# CAND-ROOT-DAG: "grouped-u2"
+# CAND-ROOT-DAG: "packed-i4"
+# CAND-ROOT-DAG: "candidate_results"
+# CAND-ROOT-DAG: "candidate_feedback_records"
+# CAND-ROOT-DAG: "widening_product_reduce_dequantize_f32:grouped-u2"
+# CAND-ROOT-DAG: "widening_product_reduce_dequantize_f32:packed-i4"
+# CAND-ROOT-DAG: "candidate_label": "grouped-u2"
+# CAND-ROOT-DAG: "candidate_label": "packed-i4"
+# CAND-ROOT-DAG: "selected_candidate_index": "2"
+# CAND-ROOT-DAG: "selected_candidate_index": "3"
+# CAND-ROOT-DAG: "measurement_result_is_route_authority": false
+# CAND-ROOT-DAG: "route_support_effect": "preserve-executable-route-support; measurement evidence only feeds policy/admission review"
+
 # WPRD-DAG: "baseline_identity": "scalar-c-reference/product-reduction-dequant-v1"
 # WPRD-DAG: "status": "dry_run_success"
 # WPRD-DAG: "ssh_evidence": false
@@ -83,6 +109,41 @@
 # WPRD-DAG: "selected_variant": "pre_realized_body_rvv_product_reduce_dequantize"
 # WPRD-DAG: "object_sha256":
 # WPRD-DAG: "header_sha256":
+
+# CAND-GROUPED-DAG: "candidate_label": "grouped-u2"
+# CAND-GROUPED-DAG: "baseline_identity": "scalar-c-reference/product-reduction-dequant-v1"
+# CAND-GROUPED-DAG: "status": "dry_run_success"
+# CAND-GROUPED-DAG: "classification": "not-measured"
+# CAND-GROUPED-DAG: "candidate_feedback_record"
+# CAND-GROUPED-DAG: "status": "ready-for-same-target-measurement"
+# CAND-GROUPED-DAG: "authority": "policy/evidence feedback record only; route, schedule, type, artifact, and dispatch authority remain provider-owned"
+# CAND-GROUPED-DAG: "candidate_count": "3"
+# CAND-GROUPED-DAG: "legal_candidate_count": "3"
+# CAND-GROUPED-DAG: "selected_candidate_index": "2"
+# CAND-GROUPED-DAG: "selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,i8mf4-i16mf2-i32m1-f32m1,u2-grouped]"
+# CAND-GROUPED-DAG: "measurement_evidence_id": "gate4-candidate-feedback/grouped-u2/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json"
+# CAND-GROUPED-DAG: "generated_artifact_object_sha256":
+# CAND-GROUPED-DAG: "generated_artifact_header_sha256":
+# CAND-GROUPED-DAG: "packed_i4_resource_metadata_selected": false
+# CAND-GROUPED-DAG: "measurement_result_is_route_authority": false
+
+# CAND-PACKED-DAG: "candidate_label": "packed-i4"
+# CAND-PACKED-DAG: "baseline_identity": "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
+# CAND-PACKED-DAG: "status": "dry_run_success"
+# CAND-PACKED-DAG: "classification": "not-measured"
+# CAND-PACKED-DAG: "candidate_feedback_record"
+# CAND-PACKED-DAG: "status": "ready-for-same-target-measurement"
+# CAND-PACKED-DAG: "candidate_count": "3"
+# CAND-PACKED-DAG: "legal_candidate_count": "3"
+# CAND-PACKED-DAG: "selected_candidate_index": "3"
+# CAND-PACKED-DAG: "selected_candidate": "rvv-low-precision-direct-contraction-resource-candidate.v1[product-reduction-dequantize-f32,signed-i4n2-in-i8mf4-i16mf2-i32m1-f32m1,u1-unpack-required]"
+# CAND-PACKED-DAG: "measurement_evidence_id": "gate4-candidate-feedback/packed-i4/widening_product_reduce_dequantize_f32/same_target_measurement_evidence.json"
+# CAND-PACKED-DAG: "generated_artifact_object_sha256":
+# CAND-PACKED-DAG: "generated_artifact_header_sha256":
+# CAND-PACKED-DAG: "packed_i4_resource_metadata_selected": true
+# CAND-PACKED-DAG: "packed_i4_reference_oracle": true
+# CAND-PACKED-DAG: "performance_maturity_contract_evidence_input"
+# CAND-PACKED-DAG: "measurement_result_is_route_authority": false
 
 # PACKED-WPRD-DAG: "baseline_identity": "scalar-c-reference/product-reduction-dequant-packed-i4-v1"
 # PACKED-WPRD-DAG: "status": "dry_run_success"

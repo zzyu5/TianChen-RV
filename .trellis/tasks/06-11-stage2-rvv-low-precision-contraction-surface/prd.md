@@ -718,3 +718,75 @@ feedback/admission wiring or a fresh measured candidate-selection repair only
 if new source-backed RVV evidence is introduced; otherwise continue adjacent
 low-precision candidate-generation coverage while preserving the
 provider-owned candidate enumeration boundary.
+
+## Completed Slice: Candidate-Labelled Same-Target Feedback Artifact Bridge
+
+This round carried the previous provider-owned candidate enumeration one step
+closer to same-target feedback without making measurement records route,
+schedule, artifact-name, typed-body, or dispatch authority. The production path
+already carried the stable candidate facts through selected-body realization,
+route planning, support-bundle/header mirrors, and target artifact validation.
+The missing feedback boundary was that same-target generated-bundle tooling
+could not expose two candidates for the same op kind without overwriting
+root evidence by `op_kind`, and it did not produce a candidate feedback record
+that tied each generated object/header back to validated provider candidate
+facts.
+
+The completed slice adds a candidate-labelled generated-bundle measurement
+bridge:
+
+```text
+selected candidate fixture for one op kind
+  -> per-candidate generated bundle artifact directory
+  -> validated target artifact low_precision_resource mirrors
+  -> candidate feedback record with generated object/header identity
+  -> root evidence keyed by op_kind:label and candidate label
+  -> later same-target ssh rvv measurement/admission review
+```
+
+The new `rvv_generated_bundle_same_target_measure.py --candidate-input
+LABEL=PATH` mode is valid only for one `--op-kind` and cannot be combined with
+`--input`. Labels are sanitized evidence keys only. The selected-body fixture
+and provider-owned `tcrv_rvv.low_precision_resource.*` facts still determine
+the candidate.
+
+For the bounded `widening_product_reduce_dequantize_f32` family, the focused
+dry-run now exports and validates two distinguishable candidate artifacts:
+
+- `grouped-u2`: unpacked-byte grouped candidate with
+  `candidate_count = 3`, `legal_candidate_count = 3`, and
+  `selected_candidate_index = 2`.
+- `packed-i4`: packed-i4 unpack-required candidate with
+  `candidate_count = 3`, `legal_candidate_count = 3`, and
+  `selected_candidate_index = 3`.
+
+Root evidence now preserves both candidates through
+`op_results["widening_product_reduce_dequantize_f32:grouped-u2"]`,
+`op_results["widening_product_reduce_dequantize_f32:packed-i4"]`,
+`candidate_results`, and `candidate_feedback_records`. Per-candidate evidence
+includes generated object/header SHA256 identity, baseline identity, dry-run
+classification, and `measurement_result_is_route_authority = false`.
+
+The fail-closed boundary for this slice is:
+
+- duplicate or malformed candidate labels, missing candidate input paths,
+  multiple op kinds, or `--candidate-input` combined with `--input` fail before
+  bundle generation;
+- stale or missing stable candidate fields, including stale
+  `selected_candidate_index` or missing `candidate_count`, fail before a
+  feedback record is accepted;
+- target artifact metadata that disagrees with the provider route facts, or
+  two target records that disagree on the same candidate key, fails before the
+  feedback record is accepted;
+- measurement-disposition/admission/remediation/performance header comments
+  remain under
+  `low_precision_resource.measurement_disposition_evidence_mirror.*`, and
+  dispatch policy remains under
+  `low_precision_resource.selected_dispatch_policy_output_mirror.*`.
+
+This slice makes no runtime correctness or performance claim. The dry-run
+proves exportable/measurable candidate artifacts and policy/evidence records
+only. The macro task remains open. The exact next continuation point is to run
+real `ssh rvv` same-target generated-bundle measurement for the two exported
+candidate labels, then record measured-win/no-win/admission conclusions only as
+policy/evidence after source-backed target records validate.

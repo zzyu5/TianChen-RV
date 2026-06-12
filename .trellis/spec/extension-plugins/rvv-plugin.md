@@ -7831,6 +7831,168 @@ same-target parsed classification
      performance dispatch can be claimed
 ```
 
+## Candidate-Labelled Same-Target Feedback Bridge
+
+### 1. Scope / Trigger
+
+Use this contract when generated-bundle or same-target measurement tooling must
+carry more than one provider-enumerated low-precision Gearbox candidate for the
+same bounded product-reduction dequantize/dequant-clamp op kind. This is a
+policy/evidence bridge from selected-body fixture to generated object/header
+identity and later `ssh rvv` timing; it is not route selection, schedule
+selection, typed-body authority, artifact-name authority, or dispatch policy.
+
+### 2. Signatures
+
+The script command surface is:
+
+```bash
+python3 scripts/rvv_generated_bundle_same_target_measure.py \
+  --op-kind widening_product_reduce_dequantize_f32 \
+  --candidate-input grouped-u2=path/to/grouped-selected-body.mlir \
+  --candidate-input packed-i4=path/to/packed-i4-selected-body.mlir \
+  [--dry-run] [--measure-count N ...]
+```
+
+`--candidate-input` is valid only with exactly one `--op-kind` and cannot be
+combined with `--input`. The label is sanitized with `safe_run_id()` and is an
+evidence key/path component only. The selected-body file and the provider-owned
+low-precision resource metadata inside the generated bundle remain candidate
+authority.
+
+Root evidence must expose distinct keys for repeated op kinds:
+
+```json
+{
+  "candidate_feedback_loop": {
+    "status": "candidate-artifacts-exportable",
+    "op_kind": "widening_product_reduce_dequantize_f32",
+    "candidate_labels": ["grouped-u2", "packed-i4"],
+    "authority": "candidate labels are measurement evidence keys only; provider-owned low-precision resource metadata remains candidate authority"
+  },
+  "op_results": {
+    "widening_product_reduce_dequantize_f32:grouped-u2": {},
+    "widening_product_reduce_dequantize_f32:packed-i4": {}
+  },
+  "candidate_results": {
+    "grouped-u2": {},
+    "packed-i4": {}
+  },
+  "candidate_feedback_records": {
+    "grouped-u2": {
+      "status": "ready-for-same-target-measurement",
+      "candidate_label": "grouped-u2",
+      "fields": {
+        "candidate_count": "3",
+        "legal_candidate_count": "3",
+        "selected_candidate_index": "2"
+      },
+      "measurement_result_is_route_authority": false
+    }
+  }
+}
+```
+
+Per-candidate artifacts are written under
+`<artifact-root>/<run-id>/<label>/<op-kind>/...`, and
+`measurement_evidence_id` must include the candidate label when one is present.
+
+### 3. Contracts
+
+- The feedback record validates stable low-precision resource fields against
+  provider-owned route metadata, target artifact metadata, or provider route
+  facts before recording evidence. Stable fields include candidate set,
+  selected candidate, `candidate_count`, `legal_candidate_count`,
+  `selected_candidate_index`, selection reason, planning/route/provider
+  mirrors, operand form, source/storage/effective widths, packing/unpack facts,
+  runtime AVL/ABI order, primitive chain/intrinsic facts, realization decision,
+  realized region/live-vector facts, and target capability mirrors.
+- `candidate_feedback_records` is policy/evidence. It may record generated
+  object/header SHA256, baseline identity, measurement classification, and
+  readiness for same-target measurement, but it must set
+  `measurement_result_is_route_authority = false`.
+- Packed-i4 candidates may additionally emit the packed-i4 maturity contract
+  and same-target measurement record, but those records remain
+  measurement-disposition policy inputs, not candidate-selection inputs.
+- Candidate labels must never replace selected candidate strings,
+  `selected_candidate_index`, operation kind, ABI order, typed body/config,
+  schedule decision, artifact identity, dispatch preference, or target profile.
+
+### 4. Validation & Error Matrix
+
+- `--candidate-input` without `LABEL=PATH`, duplicate sanitized labels, missing
+  paths, multiple `--op-kind` values, or combination with `--input` -> fail
+  before any bundle generation.
+- Generated artifact metadata has the same
+  `tcrv_rvv.low_precision_resource.*` key with two different values -> fail
+  before candidate feedback is accepted.
+- Target artifact metadata overrides a stable candidate field with a stale
+  value, including `selected_candidate_index` -> fail before recording the
+  feedback object.
+- Stable candidate fields are missing from target metadata, route metadata, and
+  provider route facts -> fail closed with the missing field name.
+- Root evidence keys by plain op kind only for multiple candidates of the same
+  op -> invalid because one candidate overwrites the other.
+- A dry-run or same-target result changes route support, selected schedule,
+  selected candidate, dispatch preference, or provider maturity fields -> invalid
+  policy/evidence boundary.
+
+### 5. Good/Base/Bad Cases
+
+- Good: `grouped-u2` and `packed-i4` selected-body fixtures for
+  `widening_product_reduce_dequantize_f32` generate separate object/header
+  artifacts, candidate feedback records, and op result keys
+  `op:grouped-u2` and `op:packed-i4`.
+- Base: dry-run records `not-measured`, `same_target_measurement = false`, and
+  `ssh_evidence = false`, but still validates candidate facts and generated
+  artifact identity.
+- Bad: a script labels an input `packed-i4` and treats the label as packed
+  resource authority while the generated metadata does not validate packed-i4
+  operand form, packing layout, and selected candidate index.
+- Bad: candidate feedback accepts selected index `3` for the grouped candidate
+  because the target artifact metadata was rewritten to match a stale route
+  mirror.
+
+### 6. Tests Required
+
+- Script self-test must assert candidate feedback accepts the grouped candidate
+  with `selected_candidate_index = "2"` and rejects stale selected index,
+  missing candidate count, stale target artifact candidate metadata, and
+  disagreeing generated artifact metadata.
+- Focused lit/dry-run tests must pass at least two candidate inputs for the
+  same op kind and assert distinct root `op_results`, `candidate_results`,
+  `candidate_feedback_records`, selected candidate indexes, generated artifact
+  identity SHA256s, and `measurement_result_is_route_authority = false`.
+- Existing packed-i4 same-target and ABI dry-run tests must keep
+  measurement-disposition/admission/remediation header fields under
+  `low_precision_resource.measurement_disposition_evidence_mirror.*` and
+  dispatch policy under
+  `low_precision_resource.selected_dispatch_policy_output_mirror.*`.
+- Real `ssh rvv` evidence is required before claiming runtime, correctness, or
+  performance for a candidate; dry-run candidate feedback only proves exportable
+  and measurable artifacts.
+
+### 7. Wrong vs Correct
+
+Wrong:
+
+```text
+--candidate-input packed-i4=fixture.mlir
+  -> label says packed-i4
+  -> script records selected_candidate_index=3 without validating bundle metadata
+  -> result enables route or dispatch preference
+```
+
+Correct:
+
+```text
+--candidate-input packed-i4=fixture.mlir
+  -> fixture enters selected-body bundle generation
+  -> provider/target metadata validates selected_candidate_index=3
+  -> candidate feedback records generated object/header identity
+  -> measurement result remains policy/evidence only
+```
+
 ## Packed-I4 Dispatch/Performance Policy Consumption
 
 ### 1. Scope / Trigger

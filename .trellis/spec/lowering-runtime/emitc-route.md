@@ -4954,6 +4954,19 @@ reduction store VL = 1
   so target artifact validators can compare them against provider-owned
   policy/evidence helpers; the header labels do not create support-bundle or
   dispatch authority.
+- Generated-bundle and same-target tooling may expose multiple candidate
+  artifacts for one op kind only through candidate-labelled evidence keys such
+  as `op_kind:label`, `candidate_results[label]`, and
+  `candidate_feedback_records[label]`. Labels and artifact subdirectories are
+  policy/evidence routing keys only. Before a candidate feedback record is
+  accepted, tooling must validate stable
+  `tcrv_rvv.low_precision_resource.*` fields, including
+  `candidate_count`, `legal_candidate_count`, and
+  `selected_candidate_index`, against provider-owned route metadata or target
+  artifact metadata after target validation. Missing, stale, or disagreeing
+  candidate mirrors fail closed; dry-run and same-target measurement results
+  must not rewrite route support, schedule selection, selected candidate,
+  header authority, or dispatch preference.
 - Target artifact provider-fact checks that decide stable low-precision
   primitive/resource/realization acceptance must consume the policy-free stable
   compiler-fact view. Only explicitly named measurement-disposition and

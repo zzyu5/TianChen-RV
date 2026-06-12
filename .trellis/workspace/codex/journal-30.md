@@ -1937,3 +1937,36 @@ performance-preferred dispatch admission.
 ### Git Commits
 
 Final coherent commit is created after this journal entry.
+
+
+## Session 581: RVV candidate-labelled feedback artifact bridge
+
+**Date**: 2026-06-12
+**Task**: RVV candidate-labelled feedback artifact bridge
+**Branch**: `main`
+
+### Summary
+
+Added candidate-labelled generated-bundle feedback records for grouped-u2 and packed-i4 low-precision Gearbox candidates, kept measurement results policy/evidence-only, and left the macro task active for real ssh rvv same-target measurement.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `pending-final-commit` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

@@ -9465,6 +9465,9 @@ def product_dequant_low_precision_resource_profile(
                 if is_product_dequant_clamp
                 else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_PACKED_I4_RESOURCE_SELECTED_CANDIDATE
             ),
+            "candidate_count": "3",
+            "legal_candidate_count": "3",
+            "selected_candidate_index": "3",
             "selection_reason": (
                 WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_PACKED_I4_RESOURCE_SELECTION_REASON
                 if is_product_dequant_clamp
@@ -9712,6 +9715,9 @@ def product_dequant_low_precision_resource_profile(
             if is_product_dequant_clamp
             else WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_SELECTED_CANDIDATE
         ),
+        "candidate_count": "3",
+        "legal_candidate_count": "3",
+        "selected_candidate_index": "2",
         "selection_reason": (
             WIDENING_PRODUCT_REDUCE_DEQUANT_CLAMP_F32_RESOURCE_SELECTION_REASON
             if is_product_dequant_clamp
@@ -9784,6 +9790,9 @@ def expected_low_precision_resource_metadata(
     expected = {
         "candidate_set": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_CANDIDATE_SET,
         "selected_candidate": profile["selected_candidate"],
+        "candidate_count": profile["candidate_count"],
+        "legal_candidate_count": profile["legal_candidate_count"],
+        "selected_candidate_index": profile["selected_candidate_index"],
         "selection_reason": profile["selection_reason"],
         "planning_contract": LOW_PRECISION_RESOURCE_PLANNING_CONTRACT,
         "legality_scope": WIDENING_PRODUCT_REDUCE_DEQUANTIZE_F32_RESOURCE_LEGALITY_SCOPE,
@@ -12897,7 +12906,15 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
         packed_feedback_metadata = expected_low_precision_resource_metadata(
             expectation, packed_i4=True
         )
-        for key in (
+        direct_resource_keys = (
+            "tcrv_rvv.low_precision_resource.route_family_plan",
+            "tcrv_rvv.low_precision_resource.provider_supported_mirror",
+            "tcrv_rvv.low_precision_resource.resource_cost_contract",
+            "tcrv_rvv.low_precision_resource.resource_cost_model",
+            "tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps",
+            "tcrv_rvv.low_precision_resource.resource_cost_blocker",
+        )
+        measurement_disposition_keys = (
             "tcrv_rvv.low_precision_resource.performance_feedback",
             "tcrv_rvv.low_precision_resource.performance_baseline",
             "tcrv_rvv.low_precision_resource.performance_best_speedup_range",
@@ -12906,9 +12923,6 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
             "tcrv_rvv.low_precision_resource.performance_maturity_evidence",
             "tcrv_rvv.low_precision_resource.performance_maturity_outcome",
             "tcrv_rvv.low_precision_resource.performance_selection_eligible",
-            "tcrv_rvv.low_precision_resource.dispatch_preference",
-            "tcrv_rvv.low_precision_resource.route_family_plan",
-            "tcrv_rvv.low_precision_resource.provider_supported_mirror",
             "tcrv_rvv.low_precision_resource.remediation_handoff_contract",
             "tcrv_rvv.low_precision_resource.remediation_diagnosis",
             "tcrv_rvv.low_precision_resource.remediation_measurement_evidence",
@@ -12920,10 +12934,11 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
             "tcrv_rvv.low_precision_resource.remediation_plan",
             "tcrv_rvv.low_precision_resource.remediation_statement_strategy",
             "tcrv_rvv.low_precision_resource.remediation_vector_budget",
-            "tcrv_rvv.low_precision_resource.resource_cost_contract",
-            "tcrv_rvv.low_precision_resource.resource_cost_model",
-            "tcrv_rvv.low_precision_resource.resource_cost_loop_body_steps",
-            "tcrv_rvv.low_precision_resource.resource_cost_blocker",
+            "tcrv_rvv.low_precision_resource.remediation_schedule_contract",
+            "tcrv_rvv.low_precision_resource.remediation_unpack_plan",
+            "tcrv_rvv.low_precision_resource.remediation_product_plan",
+            "tcrv_rvv.low_precision_resource.remediation_reduction_plan",
+            "tcrv_rvv.low_precision_resource.remediation_vl_plan",
             "tcrv_rvv.low_precision_resource.performance_admission_decision",
             "tcrv_rvv.low_precision_resource.performance_admission_closure",
             "tcrv_rvv.low_precision_resource.performance_admission_reopen_requirement",
@@ -12931,13 +12946,35 @@ def verify_header(header_path: Path, expectation: OpExpectation) -> dict[str, An
             "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_decision",
             "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_blocker",
             "tcrv_rvv.low_precision_resource.beyond_local_repair_admission_reopen_requirement",
-        ):
+        )
+        for key in direct_resource_keys:
             comment_key = "tianchenrv.rvv." + key.removeprefix("tcrv_rvv.")
             require_contains(
                 text,
                 f"{comment_key}: {packed_feedback_metadata[key]}",
-                "generated header packed-i4 no-win feedback mirror",
+                "generated header packed-i4 resource mirror",
             )
+        for key in measurement_disposition_keys:
+            field = key.removeprefix("tcrv_rvv.low_precision_resource.")
+            comment_key = (
+                "tianchenrv.rvv.low_precision_resource."
+                f"measurement_disposition_evidence_mirror.{field}"
+            )
+            require_contains(
+                text,
+                f"{comment_key}: {packed_feedback_metadata[key]}",
+                "generated header packed-i4 measurement disposition mirror",
+            )
+        require_contains(
+            text,
+            (
+                "tianchenrv.rvv.low_precision_resource."
+                "selected_dispatch_policy_output_mirror."
+                "selected_dispatch_preference: "
+                f"{packed_feedback_metadata['tcrv_rvv.low_precision_resource.dispatch_preference']}"
+            ),
+            "generated header packed-i4 dispatch policy mirror",
+        )
     require_no_forbidden_public_residue(text, "generated declaration-only header")
     declaration_text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
     for token in ("__riscv_", "return;", "int main", "main("):
@@ -34674,6 +34711,22 @@ def widening_product_reduction_boundary_summary(
                 "tcrv_rvv.low_precision_resource.selected_candidate"
             ),
             "expected_selected_candidate": resource_profile["selected_candidate"],
+            "candidate_count": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.candidate_count"
+            ),
+            "expected_candidate_count": resource_profile["candidate_count"],
+            "legal_candidate_count": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.legal_candidate_count"
+            ),
+            "expected_legal_candidate_count": resource_profile[
+                "legal_candidate_count"
+            ],
+            "selected_candidate_index": route_metadata.get(
+                "tcrv_rvv.low_precision_resource.selected_candidate_index"
+            ),
+            "expected_selected_candidate_index": resource_profile[
+                "selected_candidate_index"
+            ],
             "selection_reason": route_metadata.get(
                 "tcrv_rvv.low_precision_resource.selection_reason"
             ),
@@ -35296,6 +35349,15 @@ def widening_product_reduction_boundary_summary(
                 ),
                 "selected_candidate": route_metadata.get(
                     "tcrv_rvv.low_precision_resource.selected_candidate"
+                ),
+                "candidate_count": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.candidate_count"
+                ),
+                "legal_candidate_count": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.legal_candidate_count"
+                ),
+                "selected_candidate_index": route_metadata.get(
+                    "tcrv_rvv.low_precision_resource.selected_candidate_index"
                 ),
                 "selection_reason": route_metadata.get(
                     "tcrv_rvv.low_precision_resource.selection_reason"
